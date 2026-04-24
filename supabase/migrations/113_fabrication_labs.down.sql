@@ -1,4 +1,4 @@
--- Migration 112 DOWN: rollback fabrication_labs + lab_id columns
+-- Migration 113 DOWN: rollback fabrication_labs + lab_id columns
 --
 -- Order matters: drop dependent columns BEFORE dropping the table,
 -- or the FK constraint blocks the drop.

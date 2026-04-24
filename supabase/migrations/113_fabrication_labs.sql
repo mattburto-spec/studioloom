@@ -1,8 +1,13 @@
--- Migration 112: fabrication_labs table + machine_profiles.lab_id
+-- Migration 113: fabrication_labs table + machine_profiles.lab_id
 --                  + classes.default_lab_id
 --
 -- Preflight Phase 8-1. Adds the per-teacher Lab entity + FK columns
--- on existing tables. Backfill of existing rows runs in migration 113.
+-- on existing tables. Backfill of existing rows runs in migration 114.
+--
+-- History note: originally drafted as migrations 112 + 113; renumbered
+-- to 113 + 114 after origin/main merged Skills Library's
+-- 112_skill_card_quiz.sql mid-Phase-8 (25 Apr 2026). Contents
+-- unchanged — only the filename prefix + internal ref numbers shifted.
 --
 -- Refs:
 --   - Spec:     docs/projects/fabrication-pipeline.md §13 Phase 8 + §14

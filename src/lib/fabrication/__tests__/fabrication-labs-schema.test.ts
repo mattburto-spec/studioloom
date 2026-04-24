@@ -1,7 +1,7 @@
 /**
  * Fabrication Labs Schema Contract Tests (Phase 8-1)
  *
- * Static-analysis tests that read migrations 112 + 113 + verify the
+ * Static-analysis tests that read migrations 113 + 114 + verify the
  * contract we promised in the Phase 8-1 brief:
  *   - fabrication_labs table shape + RLS policies
  *   - machine_profiles.lab_id + classes.default_lab_id FK columns
@@ -9,10 +9,14 @@
  *   - Backfill is idempotent (re-run safety guards present)
  *
  * Live DB probe tests (actual migration apply + count assertions) run
- * out-of-band: Matt applies 112 + 113 to prod Supabase, then the
+ * out-of-band: Matt applies 113 + 114 to prod Supabase, then the
  * mini-checkpoint 8.1-migration matrix in the brief §6 is eyeballed
  * via SQL queries in the Supabase dashboard. No automated live-DB
  * harness yet — FU-HH P2 tracks that gap.
+ *
+ * History: originally drafted as migrations 112 + 113; renumbered
+ * to 113 + 114 after origin/main merged Skills Library's
+ * 112_skill_card_quiz.sql mid-Phase-8 (25 Apr 2026).
  */
 
 import { describe, it, expect } from "vitest";
@@ -33,15 +37,15 @@ function read(filename: string): string {
   return readFileSync(join(MIGRATIONS_DIR, filename), "utf-8");
 }
 
-const MIG_UP = read("112_fabrication_labs.sql");
-const MIG_DOWN = read("112_fabrication_labs.down.sql");
-const MIG_BACKFILL = read("113_backfill_fabrication_labs.sql");
+const MIG_UP = read("113_fabrication_labs.sql");
+const MIG_DOWN = read("113_fabrication_labs.down.sql");
+const MIG_BACKFILL = read("114_backfill_fabrication_labs.sql");
 
 // ============================================================
-// Migration 112: fabrication_labs table + FK columns
+// Migration 113: fabrication_labs table + FK columns
 // ============================================================
 
-describe("Migration 112 — fabrication_labs table", () => {
+describe("Migration 113 — fabrication_labs table", () => {
   it("creates the fabrication_labs table idempotently", () => {
     expect(MIG_UP).toMatch(/CREATE TABLE IF NOT EXISTS fabrication_labs/);
   });
@@ -84,7 +88,7 @@ describe("Migration 112 — fabrication_labs table", () => {
   });
 });
 
-describe("Migration 112 — indexes", () => {
+describe("Migration 113 — indexes", () => {
   it("indexes teacher_id", () => {
     expect(MIG_UP).toMatch(
       /CREATE INDEX IF NOT EXISTS idx_fabrication_labs_teacher_id/
@@ -106,7 +110,7 @@ describe("Migration 112 — indexes", () => {
   });
 });
 
-describe("Migration 112 — RLS policies", () => {
+describe("Migration 113 — RLS policies", () => {
   it("enables row-level security on fabrication_labs", () => {
     expect(MIG_UP).toMatch(/ALTER TABLE fabrication_labs ENABLE ROW LEVEL SECURITY/);
   });
@@ -135,7 +139,7 @@ describe("Migration 112 — RLS policies", () => {
   }
 });
 
-describe("Migration 112 — machine_profiles.lab_id + classes.default_lab_id", () => {
+describe("Migration 113 — machine_profiles.lab_id + classes.default_lab_id", () => {
   it("adds machine_profiles.lab_id as nullable FK with ON DELETE SET NULL", () => {
     expect(MIG_UP).toMatch(
       /ALTER TABLE machine_profiles[\s\S]*?ADD COLUMN IF NOT EXISTS lab_id UUID NULL[\s\S]*?REFERENCES fabrication_labs\(id\) ON DELETE SET NULL/
@@ -162,10 +166,10 @@ describe("Migration 112 — machine_profiles.lab_id + classes.default_lab_id", (
 });
 
 // ============================================================
-// Migration 112 DOWN — rollback
+// Migration 113 DOWN — rollback
 // ============================================================
 
-describe("Migration 112 DOWN — rollback", () => {
+describe("Migration 113 DOWN — rollback", () => {
   it("drops classes.default_lab_id column", () => {
     expect(MIG_DOWN).toMatch(/ALTER TABLE classes DROP COLUMN IF EXISTS default_lab_id/);
   });
@@ -193,10 +197,10 @@ describe("Migration 112 DOWN — rollback", () => {
 });
 
 // ============================================================
-// Migration 113: backfill
+// Migration 114: backfill
 // ============================================================
 
-describe("Migration 113 — backfill idempotency + correctness", () => {
+describe("Migration 114 — backfill idempotency + correctness", () => {
   it("inserts one 'Default lab' per teacher with fabrication footprint", () => {
     expect(MIG_BACKFILL).toMatch(/INSERT INTO fabrication_labs[\s\S]*?SELECT DISTINCT/);
     expect(MIG_BACKFILL).toMatch(/'Default lab'\s+AS name/);
@@ -256,14 +260,14 @@ describe("Migration 113 — backfill idempotency + correctness", () => {
 // ============================================================
 
 describe("Migration sequence", () => {
-  it("112 runs before 113 (numeric ordering)", () => {
+  it("113 runs before 114 (numeric ordering)", () => {
     // Implicit via filenames, but call it out explicitly — the backfill
-    // needs the table + columns from 112 to exist.
-    const m112 = read("112_fabrication_labs.sql");
-    const m113 = read("113_backfill_fabrication_labs.sql");
-    expect(m112.length).toBeGreaterThan(0);
+    // needs the table + columns from 113 to exist.
+    const m113 = read("113_fabrication_labs.sql");
+    const m114 = read("114_backfill_fabrication_labs.sql");
     expect(m113.length).toBeGreaterThan(0);
-    // 113 should reference fabrication_labs (which 112 creates)
-    expect(m113).toMatch(/INSERT INTO fabrication_labs/);
+    expect(m114.length).toBeGreaterThan(0);
+    // 114 should reference fabrication_labs (which 113 creates)
+    expect(m114).toMatch(/INSERT INTO fabrication_labs/);
   });
 });

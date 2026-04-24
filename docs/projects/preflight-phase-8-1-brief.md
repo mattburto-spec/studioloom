@@ -6,7 +6,7 @@
 **Scope:** **DB schema + backfill + tests only.** No API routes, no UI, no student-facing behaviour change. That's 8-2 onwards.
 **Estimated duration:** ~0.5 day (migration ~1-2h + backfill ~1-2h + tests ~1-2h).
 **Worktree:** `/Users/matt/CWORK/questerra-preflight`, branch `preflight-active`.
-**Migration numbers:** 112 (table + columns) + 113 (backfill, if separated) — 110 + 111 are claimed by the Skills Library branch on origin/main.
+**Migration numbers:** 113 (table + columns) + 114 (backfill) — originally planned as 112 + 113, bumped after origin/main landed Skills Library's 112_skill_card_quiz.sql mid-Phase-8 (25 Apr). 110–112 all claimed.
 
 ---
 
@@ -48,11 +48,11 @@ Per `docs/build-methodology.md`:
 
 ## 4. What ships in 8-1
 
-### 4.1 Schema: migration `112_fabrication_labs.sql`
+### 4.1 Schema: migration `113_fabrication_labs.sql`
 
 ```sql
 -- ============================================================
--- Migration 112 — fabrication_labs entity + machine_profiles.lab_id
+-- Migration 113 — fabrication_labs entity + machine_profiles.lab_id
 --                + classes.default_lab_id
 -- Phase 8-1. Depends on: 093 (machine_profiles), 095 (fabrication_jobs
 -- references classes(id)), existing classes table from migration 001.
@@ -92,7 +92,7 @@ CREATE TRIGGER trg_fabrication_labs_updated_at
   FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
 -- 2. machine_profiles.lab_id — nullable for migration safety; backfilled
---    in migration 113, then teachers can reassign via 8-2 UI.
+--    in migration 114, then teachers can reassign via 8-2 UI.
 ALTER TABLE machine_profiles
   ADD COLUMN lab_id UUID NULL REFERENCES fabrication_labs(id) ON DELETE SET NULL;
 
@@ -137,13 +137,13 @@ CREATE POLICY "Teachers delete their own labs"
 
 **Lesson #51 compliance:** no `DO $$ DECLARE ... END $$` verify blocks. Rely on post-apply SELECTs from the orchestration test + backfill script to confirm state.
 
-### 4.2 Schema: migration `113_backfill_fabrication_labs.sql`
+### 4.2 Schema: migration `114_backfill_fabrication_labs.sql`
 
 Idempotent backfill — safe to re-run. Per §3.1 parent brief + §5 Q2 "all recommended":
 
 ```sql
 -- ============================================================
--- Migration 113 — Backfill fabrication_labs for every existing teacher
+-- Migration 114 — Backfill fabrication_labs for every existing teacher
 -- Phase 8-1. Idempotent — re-running produces no extra rows.
 -- ============================================================
 
@@ -203,7 +203,7 @@ WHERE c.teacher_id IS NOT NULL
 
 **Why two migrations (112 + 113) instead of one:** if 113 partially runs and fails, Matt can fix the backfill logic + re-run without having to rollback the schema. Also — 113 is idempotent, so a partial re-run is safe.
 
-### 4.3 Down migration: `112_fabrication_labs.down.sql`
+### 4.3 Down migration: `113_fabrication_labs.down.sql`
 
 Per `docs/build-methodology.md` non-negotiable #7 on rollback:
 
@@ -242,9 +242,9 @@ No `.down.sql` for 113 — backfill undo is implicit in the 112 drop (columns go
 
 ### 5.4 New file locations
 
-- `supabase/migrations/112_fabrication_labs.sql` (up)
-- `supabase/migrations/112_fabrication_labs.down.sql` (down)
-- `supabase/migrations/113_backfill_fabrication_labs.sql` (up — idempotent, no down needed)
+- `supabase/migrations/113_fabrication_labs.sql` (up)
+- `supabase/migrations/113_fabrication_labs.down.sql` (down)
+- `supabase/migrations/114_backfill_fabrication_labs.sql` (up — idempotent, no down needed)
 - New orchestration helper test — if we decide to add a tiny `loadDefaultLabId(teacherId)` helper for 8-2, its test goes at `src/lib/fabrication/__tests__/lab-orchestration.test.ts` (file doesn't exist yet — can wait for 8-2)
 
 ---
@@ -253,8 +253,8 @@ No `.down.sql` for 113 — backfill undo is implicit in the 112 drop (columns go
 
 | # | Criterion | Why |
 |---|---|---|
-| 1 | Migration 112 applies cleanly on a fresh Supabase instance. | Smoke-safe for new deploys. |
-| 2 | Migration 112 applies cleanly on Matt's prod Supabase (prod backfill run). | Actual rollout gate. |
+| 1 | Migration 113 applies cleanly on a fresh Supabase instance. | Smoke-safe for new deploys. |
+| 2 | Migration 113 applies cleanly on Matt's prod Supabase (prod backfill run). | Actual rollout gate. |
 | 3 | Backfill 113 creates exactly 1 default lab per teacher with ≥1 machine_profile or class. | Idempotency + correctness. |
 | 4 | After 113 runs, every `machine_profiles` row with `teacher_id IS NOT NULL AND is_system_template=false` has `lab_id IS NOT NULL`. | No orphans. |
 | 5 | After 113 runs, every `classes` row with `teacher_id IS NOT NULL` has `default_lab_id IS NOT NULL`. | No orphans. |
@@ -272,8 +272,8 @@ No `.down.sql` for 113 — backfill undo is implicit in the 112 drop (columns go
 
 One commit per logical unit — no squashing (`build-methodology.md` non-negotiable #7).
 
-1. `feat(preflight): Phase 8-1 migration 112 — fabrication_labs schema + RLS`
-2. `feat(preflight): Phase 8-1 migration 113 — backfill labs + assign existing machines/classes`
+1. `feat(preflight): Phase 8-1 migration 113 — fabrication_labs schema + RLS`
+2. `feat(preflight): Phase 8-1 migration 114 — backfill labs + assign existing machines/classes`
 3. `test(preflight): Phase 8-1 migration + backfill verification tests`
 4. `docs(preflight): Phase 8-1 schema-registry + WIRING sync`
 

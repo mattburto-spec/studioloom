@@ -1,4 +1,4 @@
--- Migration 113: backfill fabrication_labs + populate lab_id FKs
+-- Migration 114: backfill fabrication_labs + populate lab_id FKs
 --
 -- Preflight Phase 8-1. Idempotent — safe to re-run. Every teacher who
 -- owns ≥1 machine_profile OR ≥1 class gets exactly one "Default lab"
@@ -8,7 +8,11 @@
 -- Refs:
 --   - Brief:    docs/projects/preflight-phase-8-1-brief.md §4.2
 --   - Parent:   docs/projects/preflight-phase-8-brief.md §5 Q2 (auto-create default lab)
---   - Depends:  migration 112 (fabrication_labs + lab_id columns)
+--   - Depends:  migration 113 (fabrication_labs + lab_id columns)
+--
+-- History note: originally drafted as migration 113; renumbered to 114
+-- after the 112 → 113 shift to avoid collision with origin/main's
+-- 112_skill_card_quiz.sql (25 Apr 2026). Contents unchanged.
 --
 -- Idempotency:
 --   - Section 1 INSERT skips teachers that already have a default lab

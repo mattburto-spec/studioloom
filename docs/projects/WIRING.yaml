@@ -2363,8 +2363,8 @@ systems:
       - supabase/migrations/098_fabrication_jobs_extensions.sql
       - supabase/migrations/100_students_fabrication_notify_email.sql
       - supabase/migrations/101_fabrication_job_revisions_extensions.sql
-      - supabase/migrations/112_fabrication_labs.sql
-      - supabase/migrations/113_backfill_fabrication_labs.sql
+      - supabase/migrations/113_fabrication_labs.sql
+      - supabase/migrations/114_backfill_fabrication_labs.sql
       - supabase/migrations/103_preflight_ai_guardrails_seed.sql
       - src/app/teacher/preflight/page.tsx
       - src/app/teacher/preflight/fabricators/page.tsx
