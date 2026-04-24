@@ -2328,7 +2328,7 @@ systems:
     category: Submission
     status: in-progress
     currentVersion: 1
-    summary: "Upload, scan, gate, route, pickup, complete pipeline for student fabrication submissions (3D print, laser). User-facing brand Preflight. Schema tables prefixed fabrication_*. Phases 0, 1A, 1B-1, 1B-2, 2 (STL scanner — Checkpoint 2.1 PASSED), 3 (SVG scanner — Checkpoint 3.1 PASSED), 4 (student upload UI — Checkpoint 4.1 PASSED 22 Apr 2026) all SHIPPED. 4 new student-facing routes (POST /api/student/fabrication/upload, POST .../jobs/[jobId]/enqueue-scan, GET .../jobs/[jobId]/status, GET .../picker-data) + upload page + status page with polling hook. Multi-revision upload deferred to Phase 5 (soft-gate). Next: Phase 5 — per-rule evidence viewer + acknowledge-each-one flow + re-upload endpoint."
+    summary: "Upload, scan, gate, route, pickup, complete pipeline for student fabrication submissions (3D print, laser). User-facing brand Preflight. Schema tables prefixed fabrication_*. Phases 0, 1A, 1B-1, 1B-2, 2 (STL scanner — Checkpoint 2.1 PASSED), 3 (SVG scanner — Checkpoint 3.1 PASSED), 4 (student upload UI — Checkpoint 4.1 PASSED), 5 (soft-gate results UI — Checkpoint 5.1 PASSED 14/14), 6 (Teacher Queue + Approval — Checkpoint 6.1 PASSED 4/4), 7 (Lab Tech Pickup + Completion — code complete 24 Apr 2026, merged to main pre-smoke at 7fefd6e, Checkpoint 7.1 PENDING) all SHIPPED. Fab-facing routes live: GET /api/fab/queue, GET /api/fab/jobs/[jobId], GET .../download (Content-Disposition rewrite via buildFabricationDownloadFilename), POST .../complete, POST .../fail. fab-orchestration.ts (~560 lines, race-safe conditional UPDATE + post-write confirm read + idempotent re-download). /fab/queue + /fab/jobs/[jobId] pages with LabTechActionBar + canned-note chips (4 complete / 6 fail presets). Student sees LabTechCompletionCard (green printed/cut, red failed) on terminal states. Inclusive-wording sweep (7-5b/5c) after Matt pushback — user-facing copy 'lab tech' → 'fabricator'. Next: Phase 7 smoke → Phase 8 (unified visual lab+machine+fab admin, brief drafted at docs/projects/preflight-phase-8-brief.md, blocked on 7.1 + 6 open questions)."
     depends_on: [storage, preflight-scanner, auth-system, machine-profiles]
     affects: [teacher-dashboard, student-dashboard, audit-log, students]
     docs:
@@ -2377,11 +2377,24 @@ systems:
       - src/app/api/student/studio-preferences/route.ts
       - src/app/api/student/fabrication/
       - src/app/api/teacher/fabrication/
+      - src/app/api/fab/queue/route.ts
+      - src/app/api/fab/jobs/[jobId]/route.ts
+      - src/app/api/fab/jobs/[jobId]/download/route.ts
+      - src/app/api/fab/jobs/[jobId]/complete/route.ts
+      - src/app/api/fab/jobs/[jobId]/fail/route.ts
+      - src/app/fab/jobs/[jobId]/page.tsx
+      - src/app/fab/queue/FabQueueClient.tsx
       - src/lib/fab/auth.ts
       - src/lib/fab/token.ts
+      - src/lib/fabrication/fab-orchestration.ts
+      - src/lib/fabrication/lab-tech-canned-notes.ts
+      - src/components/fabrication/LabTechActionBar.tsx
+      - src/components/fabrication/LabTechCompletionCard.tsx
+      - src/components/fabrication/lab-tech-completion-helpers.ts
+      - src/components/fabrication/fab-queue-helpers.ts
       - src/lib/preflight/email.ts
       - src/lib/preflight/email-templates.ts
-    future_needs: "Pipeline 2 coupling (auto-attach completion photos to work_items). Slicer integration. Pickup tokens for walk-up tablets (Phase 8+)."
+    future_needs: "Multi-lab scoping (Phase 8 brief drafted — fabrication_labs entity, class.default_lab_id, unified visual admin page). Pipeline 2 coupling (auto-attach completion photos to work_items). Slicer integration. Pickup tokens for walk-up tablets (Phase 8+)."
     adrs: []
     os_seam: ready
     change_impacts: "Changes to status transitions affect fabricator queue plus teacher dashboard. Changes to scan result shape require scanner worker redeploy in lockstep."

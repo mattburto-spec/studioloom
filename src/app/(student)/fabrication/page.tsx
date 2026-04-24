@@ -21,6 +21,7 @@ import {
   formatRuleCountsCompact,
   formatDateTime,
 } from "@/components/fabrication/revision-history-helpers";
+import { fabricationStatusPill } from "@/components/fabrication/fabrication-history-helpers";
 
 type LoadState =
   | { kind: "loading" }
@@ -146,7 +147,12 @@ function StudentJobList({ jobs }: { jobs: StudentJobRow[] }) {
 function StudentJobListRow({ job }: { job: StudentJobRow }) {
   const counts = formatRuleCountsCompact(job.ruleCounts);
   const submittedAt = formatDateTime(job.createdAt);
-  const pill = statusPillClass(job.jobStatus);
+  // Phase 7-5d: pill label + colour now branches on completion_status
+  // so a `completed+failed` job shows "RUN FAILED" red, not green.
+  const { label: statusLabel, pillClass } = fabricationStatusPill(
+    job.jobStatus,
+    job.completionStatus
+  );
 
   return (
     <li>
@@ -173,9 +179,9 @@ function StudentJobListRow({ job }: { job: StudentJobRow }) {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span
-                className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${pill}`}
+                className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${pillClass}`}
               >
-                {job.jobStatus.replace(/_/g, " ")}
+                {statusLabel}
               </span>
               {counts && (
                 <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 font-mono">
@@ -230,9 +236,9 @@ function StudentJobListRow({ job }: { job: StudentJobRow }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span
-                className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${pill}`}
+                className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${pillClass}`}
               >
-                {job.jobStatus.replace(/_/g, " ")}
+                {statusLabel}
               </span>
               {counts && (
                 <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 font-mono">
@@ -257,24 +263,7 @@ function StudentJobListRow({ job }: { job: StudentJobRow }) {
   );
 }
 
-function statusPillClass(status: string): string {
-  switch (status) {
-    case "approved":
-    case "completed":
-      return "bg-green-100 text-green-900";
-    case "pending_approval":
-      return "bg-amber-100 text-amber-900";
-    case "needs_revision":
-      return "bg-orange-100 text-orange-900";
-    case "rejected":
-    case "cancelled":
-      return "bg-red-100 text-red-900";
-    case "uploaded":
-    case "scanning":
-      return "bg-blue-100 text-blue-900";
-    case "picked_up":
-      return "bg-purple-100 text-purple-900";
-    default:
-      return "bg-gray-100 text-gray-900";
-  }
-}
+// Phase 7-5d: previously-local `statusPillClass` was replaced by the
+// shared `fabricationStatusPill()` helper in fabrication-history-helpers.ts
+// — it branches on `completion_status` too so a `completed+failed` job
+// renders "RUN FAILED" red instead of green "COMPLETED" on list views.

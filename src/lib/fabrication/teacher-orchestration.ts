@@ -798,6 +798,11 @@ export interface HistoryJobRow {
   currentRevisionFailingRuleIds: string[];
   /** Severity breakdown for the current-revision scan. */
   ruleCounts: { block: number; warn: number; fyi: number };
+  /** Phase 7-5d: terminal sub-state on `status=completed` — one of
+   *  `printed` / `cut` / `failed` / null. UI branches the pill label
+   *  + colour via `fabricationStatusPill()` so failed runs don't
+   *  mis-display as green "COMPLETED" on list views. */
+  completionStatus: string | null;
 }
 
 export interface HistorySummaryPayload {
@@ -817,6 +822,10 @@ export interface PerStudentHistoryRow {
   passed: number;
   passRate: number;
   latestJobStatus: string | null;
+  /** Phase 7-5d: completion sub-status of the student's latest job —
+   *  carried through so the class-view drill-down pill can render
+   *  "RUN FAILED" red instead of "COMPLETED" green for failed runs. */
+  latestJobCompletionStatus: string | null;
   latestJobCreatedAt: string | null;
 }
 
@@ -832,6 +841,7 @@ export type HistoryResult = HistorySuccess | OrchestrationError;
 interface RawHistoryJob {
   id: string;
   status: string;
+  completion_status: string | null;
   current_revision: number;
   classes: { name: string | null } | { name: string | null }[] | null;
   created_at: string;
@@ -875,7 +885,7 @@ async function fetchHistoryJobs(
     .from("fabrication_jobs")
     .select(
       `
-      id, status, current_revision, created_at, updated_at, original_filename,
+      id, status, completion_status, current_revision, created_at, updated_at, original_filename,
       student_id, unit_id,
       students(display_name, username),
       classes(name),
@@ -949,6 +959,7 @@ async function fetchHistoryJobs(
       studentName,
       currentRevisionFailingRuleIds: failingRuleIds,
       ruleCounts: counts,
+      completionStatus: raw.completion_status ?? null,
     };
   });
 
@@ -1037,6 +1048,7 @@ function buildPerStudentRows(jobs: HistoryJobRow[]): PerStudentHistoryRow[] {
       passed,
       passRate,
       latestJobStatus: latest.status,
+      latestJobCompletionStatus: latest.completionStatus,
       latestJobCreatedAt: latest.createdAt,
     });
   }

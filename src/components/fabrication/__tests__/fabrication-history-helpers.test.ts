@@ -11,6 +11,7 @@ import {
   extractFailingRuleIds,
   formatPassRate,
   formatAvgRevisions,
+  fabricationStatusPill,
   type HistoryJob,
 } from "../fabrication-history-helpers";
 
@@ -228,5 +229,89 @@ describe("formatPassRate + formatAvgRevisions", () => {
   });
   it("returns em-dash when no submissions (avg)", () => {
     expect(formatAvgRevisions(0, 0)).toBe("—");
+  });
+});
+
+// ============================================================
+// Phase 7-5d — fabricationStatusPill
+// ============================================================
+//
+// Regression guard for the bug where a failed run (status=completed,
+// completion_status=failed) rendered as green "COMPLETED" on list
+// views (student /fabrication, teacher per-student + per-class tabs).
+// The helper is the single source of truth for pill label + colour.
+
+describe("fabricationStatusPill", () => {
+  it("renders completed+printed as green 'PRINTED'", () => {
+    const { label, pillClass } = fabricationStatusPill("completed", "printed");
+    expect(label).toBe("PRINTED");
+    expect(pillClass).toMatch(/bg-green/);
+    expect(pillClass).not.toMatch(/bg-red/);
+  });
+
+  it("renders completed+cut as green 'CUT'", () => {
+    const { label, pillClass } = fabricationStatusPill("completed", "cut");
+    expect(label).toBe("CUT");
+    expect(pillClass).toMatch(/bg-green/);
+  });
+
+  it("renders completed+failed as RED 'RUN FAILED' — the regression this phase fixed", () => {
+    const { label, pillClass } = fabricationStatusPill("completed", "failed");
+    expect(label).toBe("RUN FAILED");
+    expect(pillClass).toMatch(/bg-red/);
+    expect(pillClass).not.toMatch(/bg-green/);
+  });
+
+  it("treats legacy completed rows (null completion_status) as succeeded (green 'COMPLETED')", () => {
+    // Pre-7-5 data exists in prod — no completion_status column writeback
+    // happened for jobs completed before the 7-5 deploy. Safe to treat
+    // as succeeded; nothing was marked failed before the sub-state shipped.
+    const { label, pillClass } = fabricationStatusPill("completed", null);
+    expect(label).toBe("COMPLETED");
+    expect(pillClass).toMatch(/bg-green/);
+  });
+
+  it("renders approved as green APPROVED", () => {
+    const { label, pillClass } = fabricationStatusPill("approved", null);
+    expect(label).toBe("APPROVED");
+    expect(pillClass).toMatch(/bg-green/);
+  });
+
+  it("renders pending_approval as amber 'PENDING APPROVAL'", () => {
+    const { label, pillClass } = fabricationStatusPill("pending_approval", null);
+    expect(label).toBe("PENDING APPROVAL");
+    expect(pillClass).toMatch(/bg-amber/);
+  });
+
+  it("renders needs_revision as orange 'NEEDS REVISION'", () => {
+    const { label, pillClass } = fabricationStatusPill("needs_revision", null);
+    expect(label).toBe("NEEDS REVISION");
+    expect(pillClass).toMatch(/bg-orange/);
+  });
+
+  it("renders rejected as red 'REJECTED'", () => {
+    const { label, pillClass } = fabricationStatusPill("rejected", null);
+    expect(label).toBe("REJECTED");
+    expect(pillClass).toMatch(/bg-red/);
+  });
+
+  it("renders picked_up as purple 'IN PROGRESS'", () => {
+    const { label, pillClass } = fabricationStatusPill("picked_up", null);
+    expect(label).toBe("IN PROGRESS");
+    expect(pillClass).toMatch(/bg-purple/);
+  });
+
+  it("uppercases + space-separates unknown statuses instead of throwing", () => {
+    const { label, pillClass } = fabricationStatusPill("new_fangled_state", null);
+    expect(label).toBe("NEW FANGLED STATE");
+    expect(pillClass).toMatch(/bg-gray/);
+  });
+
+  it("ignores completion_status when status is not 'completed'", () => {
+    // Defensive: a rogue completion_status='failed' on a non-terminal
+    // status shouldn't turn the approved pill red.
+    const { label, pillClass } = fabricationStatusPill("approved", "failed");
+    expect(label).toBe("APPROVED");
+    expect(pillClass).toMatch(/bg-green/);
   });
 });
