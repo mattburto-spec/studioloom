@@ -34,19 +34,38 @@ interface ClassLite {
 }
 
 /**
- * Collect every class owned by this teacher — matches the existing
- * "teacher_id OR author_teacher_id" dual-ownership pattern used throughout
- * the codebase.
+ * Collect every class owned by this teacher — the existing codebase uses
+ * `teacher_id` as the canonical owner field and falls back to
+ * `author_teacher_id` for legacy / forked rows. Split into two `.eq()`
+ * queries + merge because PostgREST `.or()` was silently returning empty
+ * for normal `teacher_id` matches (bug reported 24 Apr 2026 — Matt's
+ * DemoAckPanel saw "no classes" despite owning many).
  */
 async function getTeacherClasses(
   admin: ReturnType<typeof createAdminClient>,
   teacherId: string
 ): Promise<ClassLite[]> {
-  const { data } = await admin
-    .from("classes")
-    .select("id, name, teacher_id, author_teacher_id")
-    .or(`teacher_id.eq.${teacherId},author_teacher_id.eq.${teacherId}`);
-  return (data ?? []) as ClassLite[];
+  const [{ data: owned }, { data: authored }] = await Promise.all([
+    admin
+      .from("classes")
+      .select("id, name, teacher_id, author_teacher_id")
+      .eq("teacher_id", teacherId),
+    admin
+      .from("classes")
+      .select("id, name, teacher_id, author_teacher_id")
+      .eq("author_teacher_id", teacherId),
+  ]);
+  const seen = new Set<string>();
+  const result: ClassLite[] = [];
+  for (const c of [
+    ...((owned ?? []) as ClassLite[]),
+    ...((authored ?? []) as ClassLite[]),
+  ]) {
+    if (seen.has(c.id)) continue;
+    seen.add(c.id);
+    result.push(c);
+  }
+  return result;
 }
 
 /**
