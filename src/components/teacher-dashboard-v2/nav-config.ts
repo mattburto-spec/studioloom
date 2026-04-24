@@ -10,30 +10,46 @@
  * is removed.
  */
 
-export interface NavItem {
-  label: string;
-  href: string;
-}
+export type NavItem =
+  | { label: string; href: string; disabled?: false }
+  | { label: string; disabled: true };
 
+/** Primary nav. Matches the shipped legacy teacher layout on main as
+ *  of 2026-04-24 — Toolkit / Badges / Library moved into the avatar
+ *  dropdown, Skills added, Resources stays as a disabled "SOON" pill
+ *  until Phase 18. */
 export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/teacher/dashboard" },
   { label: "Classes",   href: "/teacher/classes" },
   { label: "Units",     href: "/teacher/units" },
-  { label: "Toolkit",   href: "/teacher/toolkit" },
-  { label: "Badges",    href: "/teacher/safety" },
-  { label: "Alerts",    href: "/teacher/safety/alerts" },
   { label: "Students",  href: "/teacher/students" },
-  { label: "Library",   href: "/teacher/library" },
+  { label: "Skills",    href: "/teacher/skills" },
+  { label: "Resources", disabled: true },
   { label: "Preflight", href: "/teacher/preflight" },
+];
+
+/** Secondary items surfaced inside the avatar dropdown. Parked here
+ *  until the teacher redesign reshuffles (comment in the shipped
+ *  legacy layout calls this out as temporary). */
+export interface DropdownItem {
+  label: string;
+  href: string;
+}
+
+export const DROPDOWN_ITEMS: DropdownItem[] = [
+  { label: "Toolkit", href: "/teacher/toolkit" },
+  { label: "Badges",  href: "/teacher/safety" },
+  { label: "Library", href: "/teacher/library" },
 ];
 
 /** Find the nav item whose href is the longest prefix of the current
  *  pathname. Returns null if no item matches (e.g. on an unrelated
- *  route temporarily rendering this nav).
- */
+ *  route temporarily rendering this nav, or on the disabled
+ *  Resources pill). */
 export function activeNavHref(pathname: string): string | null {
-  let best: NavItem | null = null;
+  let best: { href: string } | null = null;
   for (const item of NAV_ITEMS) {
+    if (item.disabled) continue;
     const matches =
       pathname === item.href || pathname.startsWith(item.href + "/");
     if (!matches) continue;

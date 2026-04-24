@@ -6,7 +6,13 @@ import type { DashboardClass } from "@/types/dashboard";
 import type { Teacher } from "@/types";
 import { createClient } from "@/lib/supabase/client";
 import { I } from "./icons";
-import { NAV_ITEMS, activeNavHref, classColor, getInitials } from "./nav-config";
+import {
+  DROPDOWN_ITEMS,
+  NAV_ITEMS,
+  activeNavHref,
+  classColor,
+  getInitials,
+} from "./nav-config";
 
 interface TopNavProps {
   /** Current teacher — null while TeacherContext resolves. */
@@ -143,10 +149,24 @@ export function TopNav({
         </div>
 
         {/* Nav — horizontally scrolls on tablet/mobile so all items stay
-         *  reachable without a hamburger. Still fits inline on desktop
-         *  ≥ 1024px since the 8 items + pills + chrome are ~1040px. */}
+         *  reachable without a hamburger. Fits inline on desktop
+         *  ≥ 1024px with the current 7 items. */}
         <nav className="hidden md:flex items-center gap-0.5 ml-2 overflow-x-auto scrollbar-hide">
           {NAV_ITEMS.map((item) => {
+            if (item.disabled) {
+              return (
+                <span
+                  key={item.label}
+                  className="inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 rounded-full text-[12.5px] font-semibold text-[var(--ink-3)]/60 cursor-not-allowed"
+                  title="Coming soon"
+                >
+                  {item.label}
+                  <span className="bg-[var(--hair)] text-[var(--ink-3)] rounded-full px-1.5 py-0.5 text-[9px] font-extrabold tracking-wide">
+                    SOON
+                  </span>
+                </span>
+              );
+            }
             const isActive = item.href === activeHref;
             return (
               <Link
@@ -209,20 +229,47 @@ export function TopNav({
             </div>
           </button>
           {menuOpen && (
-            <div className="absolute right-0 top-12 w-56 bg-white rounded-2xl card-shadow-lg border border-[var(--hair)] overflow-hidden z-50">
+            <div className="absolute right-0 top-12 w-60 bg-white rounded-2xl card-shadow-lg border border-[var(--hair)] overflow-hidden z-50">
+              {/* Identity header — matches the legacy dropdown pattern
+               *  (name + email). Gives the menu an anchor and
+               *  disambiguates multi-account users. */}
+              {teacher && (
+                <div className="px-4 py-3 border-b border-[var(--hair)]">
+                  <div className="text-[13px] font-bold truncate leading-tight">
+                    {teacher.name}
+                  </div>
+                  <div className="text-[11.5px] text-[var(--ink-3)] truncate mt-0.5">
+                    {teacher.email}
+                  </div>
+                </div>
+              )}
               <Link
                 href="/teacher/settings"
                 onClick={() => setMenuOpen(false)}
-                className="w-full flex items-center gap-3 px-4 py-3 text-left text-[13px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg)]"
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[13px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg)]"
               >
                 <I name="gear" size={14} /> Settings
               </Link>
+              {/* Parked secondary items (Toolkit / Badges / Library) —
+               *  mirrors the shipped legacy dropdown. Moves back into
+               *  the top nav once Phase 18 reshuffles. */}
+              <div className="border-t border-[var(--hair)]" />
+              {DROPDOWN_ITEMS.map((d) => (
+                <Link
+                  key={d.href}
+                  href={d.href}
+                  onClick={() => setMenuOpen(false)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[13px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg)]"
+                >
+                  {d.label}
+                </Link>
+              ))}
               <button
                 onClick={() => {
                   setMenuOpen(false);
                   handleLogout();
                 }}
-                className="w-full flex items-center gap-3 px-4 py-3 text-left text-[13px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg)] border-t border-[var(--hair)]"
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[13px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg)] border-t border-[var(--hair)]"
               >
                 <I name="logout" size={14} /> Log out
               </button>
