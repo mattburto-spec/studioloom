@@ -26,6 +26,7 @@
  * (class-level), but borrows the phase vocabulary + visual DNA.
  */
 
+import Link from "next/link";
 import { Admin } from "../Admin";
 import { Insights } from "../Insights";
 import { UnitsGrid } from "../UnitsGrid";
@@ -80,6 +81,78 @@ export function PypxView({
 
   return (
     <>
+      {/* Exhibition setup CTA — always-visible strip guiding the teacher
+       *  to each PYP class's setup page. First-time PYP teachers would
+       *  otherwise have to discover the small "Exhibition" button buried
+       *  inside each class detail page; this surfaces the setup route
+       *  prominently on the main dashboard. Renders one card per PYP
+       *  class the teacher currently has in scope. */}
+      {classes.length > 0 && (
+        <section className="max-w-[1400px] mx-auto px-4 md:px-6 pt-6 md:pt-8">
+          <div className="bg-white rounded-2xl border border-[var(--hair)] p-5 md:p-6">
+            <div className="flex items-start justify-between gap-4 mb-3">
+              <div>
+                <div className="cap text-[var(--ink-3)]">Exhibition setup</div>
+                <h2 className="display text-[22px] lg:text-[26px] leading-none mt-1">
+                  Configure dates, mentors, and projects.
+                </h2>
+                <p className="text-[13px] text-[var(--ink-3)] mt-2 max-w-xl leading-snug">
+                  Set the Exhibition date and milestones, then assign each
+                  student a mentor and seed their project inquiry. Students
+                  can take over their own entries once the PYPX student view
+                  ships.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {classes.map((c) => {
+                const needsUnit = c.units.length === 0;
+                return (
+                  <Link
+                    key={c.id}
+                    href={`/teacher/classes/${c.id}/exhibition`}
+                    className="group flex items-center gap-3 px-4 py-3 rounded-xl border border-[var(--hair)] hover:border-transparent hover:shadow-md transition bg-gradient-to-br from-white to-purple-50/40"
+                  >
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-white font-extrabold text-[13px]"
+                      style={{
+                        background:
+                          "linear-gradient(135deg, #9333EA 0%, #C026D3 100%)",
+                      }}
+                    >
+                      🌱
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13.5px] font-bold text-[var(--ink)] truncate">
+                        {c.name}
+                      </div>
+                      <div className="text-[11px] text-[var(--ink-3)] mt-0.5">
+                        {needsUnit
+                          ? "Needs a unit · set up →"
+                          : `${c.studentCount} student${c.studentCount === 1 ? "" : "s"} · set up →`}
+                      </div>
+                    </div>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-[var(--ink-3)] group-hover:text-purple-700 transition shrink-0"
+                    >
+                      <path d="M5 12h14M13 6l6 6-6 6" />
+                    </svg>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Exhibition banner — purple gradient, Bold type. Replaces the
        *  MYP hero entirely. */}
       <section className="max-w-[1400px] mx-auto px-4 md:px-6 pt-6 md:pt-8">
