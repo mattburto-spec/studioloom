@@ -48,6 +48,13 @@ export default function FabricatorsClient({
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-10">
+      {/* Phase 8-4 navigation hint: Lab setup is the new primary admin surface. */}
+      <a
+        href="/teacher/preflight/lab-setup"
+        className="inline-block mb-4 text-sm text-brand-purple hover:underline"
+      >
+        ← Back to Lab setup
+      </a>
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Fabricators</h1>
