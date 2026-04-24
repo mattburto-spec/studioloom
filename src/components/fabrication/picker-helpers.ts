@@ -15,12 +15,48 @@ export interface MachineProfileOption {
   nozzle_diameter_mm?: number | null;
   kerf_mm?: number | null;
   is_system_template?: boolean;
+  /** Phase 8-5: lab_id used by the client-side filter. Machines with
+   *  lab_id = class.default_lab_id are shown; system templates and
+   *  any null-lab machines stay visible as a legacy fallback. */
+  lab_id?: string | null;
 }
 
 export interface ClassOption {
   id: string;
   name: string;
   code: string;
+  /** Phase 8-5: drives the silent machine-picker filter. Null = show
+   *  all teacher-owned machines (legacy behaviour for any class the
+   *  8-1 backfill somehow missed). */
+  default_lab_id?: string | null;
+}
+
+/**
+ * Phase 8-5: filter machines by a class's default_lab_id. When the
+ * class has no default_lab_id (legacy/null state), returns all
+ * machines unfiltered. System templates always stay visible to
+ * preserve the "add machine from template" path at teacher-admin
+ * time — though students picking a system-template machine is
+ * unusual post-8-3 (teachers usually copy templates to owned rows).
+ */
+export function filterMachinesForClass(
+  machines: MachineProfileOption[],
+  selectedClass: ClassOption | null | undefined
+): MachineProfileOption[] {
+  if (!selectedClass || !selectedClass.default_lab_id) {
+    return machines;
+  }
+  const targetLab = selectedClass.default_lab_id;
+  return machines.filter((m) => {
+    // Keep system templates (teachers copy these before use; edge case)
+    if (m.is_system_template) return true;
+    // Keep machines in the class's default lab
+    if (m.lab_id === targetLab) return true;
+    // Keep orphan-lab machines as a safety net (shouldn't exist
+    // post-backfill but defensive)
+    if (m.lab_id === null || m.lab_id === undefined) return true;
+    return false;
+  });
 }
 
 export function formatMachineLabel(p: MachineProfileOption): string {
