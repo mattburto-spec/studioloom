@@ -10,44 +10,9 @@ interface TodayRailProps {
   cards: RailCard[];
   /** Wall-clock "today" used for the rail heading. */
   now: Date;
-  /** False while the schedule fetch is still in flight. We don't
-   *  render skeletons here — the dashboard-level skeleton covers it. */
+  /** False while the schedule fetch is still in flight. Dashboard-level
+   *  skeleton covers that case — we just return null. */
   loaded: boolean;
-}
-
-/** View-model the rail renders. Keeps the mock + real-data branches
- *  converging on one shape. */
-interface CardVM {
-  key: string;
-  num: string;
-  time: string;
-  className: string;
-  color: string;
-  tint: string;
-  unitTitle: string;
-  sub: string;
-  state: "done" | "live" | "next" | "upcoming";
-  progress: number;
-  ungradedCount: number;
-  note?: string;
-  href: string | null;
-}
-
-function fromCard(c: RailCard): CardVM {
-  return {
-    key: c.key,
-    num: c.num,
-    time: c.time,
-    className: c.className,
-    color: c.color,
-    tint: c.tint,
-    unitTitle: c.unitTitle,
-    sub: c.sub,
-    state: c.state,
-    progress: c.progress,
-    ungradedCount: c.ungradedCount,
-    href: c.unitId ? `/teacher/teach/${c.unitId}` : null,
-  };
 }
 
 function formatRailHeading(d: Date): string {
@@ -57,14 +22,126 @@ function formatRailHeading(d: Date): string {
   return `Today · ${weekday} ${day} ${month}`;
 }
 
-export function TodayRail({ cards, now, loaded }: TodayRailProps) {
-  // Cap at 4 visible slots so the grid stays single-row at the Bold
-  // design's width. Teachers with >4 periods/day see the first 4 —
-  // layout pass can add a "+N more" affordance.
-  const vms: CardVM[] = cards.slice(0, 4).map(fromCard);
+/** Single compact rail card. Vertical footprint is ~96px (was ~170px
+ *  in the pre-compaction Phase 4 layout) — block number inlines with
+ *  the unit title, class/meta sits below, Manage button + ungraded
+ *  chip in the footer. Progress bar dropped. */
+function RailCardView({ c }: { c: RailCard }) {
+  const isLive = c.state === "live";
+  const isNext = c.state === "next";
+  const isDone = c.state === "done";
+  const manageHref =
+    c.unitId && c.classId
+      ? `/teacher/units/${c.unitId}/class/${c.classId}`
+      : null;
 
-  // Nothing to render pre-load — the dashboard-level skeleton already
-  // has a placeholder for this section.
+  return (
+    <div
+      className={`relative rounded-2xl p-4 transition overflow-hidden ${
+        isLive || isNext ? "ring-live" : ""
+      } ${isDone ? "opacity-60" : ""}`}
+      style={{
+        background: c.tint,
+        border: `1px solid ${c.color}22`,
+      }}
+    >
+      {/* Top row: block number + title on the left, state pill + time
+       *  stacked on the right. Two-line header keeps the block number
+       *  visually tied to the unit it's for. */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-baseline gap-3 flex-1 min-w-0">
+          <div
+            className="display text-[28px] leading-none tnum shrink-0"
+            style={{ color: c.color }}
+          >
+            {c.num}
+          </div>
+          <div className="display text-[16px] leading-tight text-[var(--ink)] truncate">
+            {c.unitTitle}
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          {isLive && (
+            <span
+              className="inline-flex items-center gap-1 bg-white rounded-full px-2 py-0.5 text-[9.5px] font-extrabold"
+              style={{ color: c.color }}
+            >
+              <span
+                className="pulse"
+                style={{ color: c.color, width: 5, height: 5 }}
+              />
+              LIVE
+            </span>
+          )}
+          {isNext && (
+            <span
+              className="inline-flex items-center gap-1 bg-white rounded-full px-2 py-0.5 text-[9.5px] font-extrabold"
+              style={{ color: c.color }}
+            >
+              <span
+                className="pulse"
+                style={{ color: c.color, width: 5, height: 5 }}
+              />
+              NEXT
+            </span>
+          )}
+          {isDone && (
+            <span
+              className="inline-flex items-center gap-1 bg-white/60 rounded-full px-2 py-0.5 text-[9.5px] font-extrabold"
+              style={{ color: c.color }}
+            >
+              DONE
+            </span>
+          )}
+          {c.time && (
+            <span
+              className="text-[11px] font-bold tnum"
+              style={{ color: c.color }}
+            >
+              {c.time}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Meta row: class name + student count, one line. */}
+      <div className="mt-2 text-[11px] font-extrabold truncate" style={{ color: c.color }}>
+        {c.className}
+        <span className="font-bold text-[var(--ink-3)]">
+          {" · "}
+          {c.studentCount} student{c.studentCount === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      {/* Footer: Manage button + ungraded chip. No progress bar. */}
+      <div className="mt-3 flex items-center justify-between gap-2">
+        {manageHref ? (
+          <Link
+            href={manageHref}
+            className="border border-[var(--hair)] bg-white hover:bg-[var(--bg)] rounded-full px-3 py-1 text-[11px] font-bold transition whitespace-nowrap"
+          >
+            Manage
+          </Link>
+        ) : (
+          <span className="text-[11px] text-[var(--ink-3)] font-semibold">
+            —
+          </span>
+        )}
+        {c.ungradedCount > 0 && (
+          <span className="bg-[#FBBF24] text-[#78350F] rounded-full px-2 py-0.5 text-[10px] font-extrabold tnum">
+            {c.ungradedCount} to grade
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function TodayRail({ cards, now, loaded }: TodayRailProps) {
+  // Cap at 4 visible slots so the rail column doesn't grow taller than
+  // the hero card beside it.
+  const visible = cards.slice(0, 4);
+
   if (!loaded) return null;
 
   return (
@@ -74,17 +151,17 @@ export function TodayRail({ cards, now, loaded }: TodayRailProps) {
           <div className="cap text-[var(--ink-3)]">
             {formatRailHeading(now)}
           </div>
-          <h2 className="display text-[32px] leading-none mt-1">
-            Your day, at a glance.
+          <h2 className="display text-[24px] lg:text-[26px] leading-none mt-1">
+            Your day.
           </h2>
         </div>
-        {vms.length > 0 && (
-          <button className="text-[12.5px] font-bold text-[var(--ink-2)] hover:text-[var(--ink)] inline-flex items-center gap-1">
-            See week <I name="chevR" size={12} s={2.5} />
+        {visible.length > 0 && (
+          <button className="text-[12px] font-bold text-[var(--ink-2)] hover:text-[var(--ink)] inline-flex items-center gap-1">
+            Week <I name="chevR" size={12} s={2.5} />
           </button>
         )}
       </div>
-      {vms.length === 0 ? (
+      {visible.length === 0 ? (
         <SectionEmpty
           eyebrow="No classes today"
           heading="Enjoy the quiet."
@@ -93,118 +170,11 @@ export function TodayRail({ cards, now, loaded }: TodayRailProps) {
           ctaHref="/teacher/timetable"
         />
       ) : (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3 flex-1 content-start">
-        {vms.map((s) => {
-          const isLive = s.state === "live";
-          const isNext = s.state === "next";
-          const isDone = s.state === "done";
-          const card = (
-            <div
-              className={`relative rounded-2xl p-5 cursor-pointer transition hover:-translate-y-0.5 overflow-hidden ${
-                isLive || isNext ? "ring-live" : ""
-              } ${isDone ? "opacity-60" : ""}`}
-              style={{
-                background: s.tint,
-                border: `1px solid ${s.color}22`,
-              }}
-            >
-              <div className="flex items-start justify-between">
-                <div
-                  className="display text-[44px] leading-none tnum"
-                  style={{ color: s.color }}
-                >
-                  {s.num}
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  {isLive && (
-                    <span
-                      className="inline-flex items-center gap-1 bg-white rounded-full px-2 py-0.5 text-[10px] font-extrabold"
-                      style={{ color: s.color }}
-                    >
-                      <span
-                        className="pulse"
-                        style={{ color: s.color, width: 6, height: 6 }}
-                      />{" "}
-                      LIVE
-                    </span>
-                  )}
-                  {isNext && (
-                    <span
-                      className="inline-flex items-center gap-1 bg-white rounded-full px-2 py-0.5 text-[10px] font-extrabold"
-                      style={{ color: s.color }}
-                    >
-                      <span
-                        className="pulse"
-                        style={{ color: s.color, width: 6, height: 6 }}
-                      />{" "}
-                      NEXT
-                    </span>
-                  )}
-                  {isDone && (
-                    <span
-                      className="inline-flex items-center gap-1 bg-white/60 rounded-full px-2 py-0.5 text-[10px] font-extrabold"
-                      style={{ color: s.color }}
-                    >
-                      DONE
-                    </span>
-                  )}
-                  <span
-                    className="text-[11px] font-bold tnum"
-                    style={{ color: s.color }}
-                  >
-                    {s.time}
-                  </span>
-                </div>
-              </div>
-              <div className="mt-4">
-                <div
-                  className="text-[11px] font-extrabold"
-                  style={{ color: s.color }}
-                >
-                  {s.className}
-                </div>
-                <div className="display text-[18px] leading-tight mt-0.5 text-[var(--ink)]">
-                  {s.unitTitle}
-                </div>
-                <div className="text-[11px] text-[var(--ink-3)] mt-1 line-clamp-1">
-                  {s.sub}
-                </div>
-              </div>
-              <div className="mt-3 flex items-center gap-2">
-                <div
-                  className="flex-1 h-1 rounded-full overflow-hidden"
-                  style={{ background: `${s.color}33` }}
-                >
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${Math.max(s.progress, 2)}%`,
-                      background: s.color,
-                    }}
-                  />
-                </div>
-                {s.ungradedCount > 0 && (
-                  <span className="bg-[#FBBF24] text-[#78350F] rounded-full px-1.5 py-0.5 text-[9.5px] font-extrabold tnum">
-                    {s.ungradedCount}
-                  </span>
-                )}
-                {s.note && (
-                  <span className="bg-[#FEE2E2] text-[#B91C1C] rounded-full px-1.5 py-0.5 text-[9.5px] font-extrabold">
-                    !
-                  </span>
-                )}
-              </div>
-            </div>
-          );
-          return s.href ? (
-            <Link key={s.key} href={s.href} className="block">
-              {card}
-            </Link>
-          ) : (
-            <div key={s.key}>{card}</div>
-          );
-        })}
-      </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3 flex-1 content-start">
+          {visible.map((c) => (
+            <RailCardView key={c.key} c={c} />
+          ))}
+        </div>
       )}
     </div>
   );

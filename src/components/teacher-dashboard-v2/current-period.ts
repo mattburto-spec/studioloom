@@ -273,6 +273,7 @@ export interface RailCard {
   num: string;
   /** "9:00" when the timetable has periods wired, else "". */
   time: string;
+  classId: string;
   className: string;
   /** Bold palette color (hex). */
   color: string;
@@ -280,11 +281,9 @@ export interface RailCard {
   tint: string;
   unitId: string | null;
   unitTitle: string;
-  /** Subhead below the unit: "{N} students". */
-  sub: string;
+  /** Student count — rendered as "{N} students" after the class name. */
+  studentCount: number;
   state: "done" | "live" | "next" | "upcoming";
-  /** 0-100 unit completion. 0 when no progress data. */
-  progress: number;
   /** Ungraded pages for this class+unit. 0 hides the amber chip. */
   ungradedCount: number;
 }
@@ -336,16 +335,13 @@ export function buildTodayRail(
           ? "next"
           : "upcoming";
 
-    // Join with dashboard data for progress + student count.
-    let progress = 0;
+    // Join with dashboard data for student count only. (Progress bar
+    // was dropped from the rail card — not worth the visual weight in
+    // the narrow 1/3-column layout.)
     let studentCount = 0;
     for (const cls of classes) {
       if (cls.id !== e.classId) continue;
       studentCount = cls.studentCount;
-      if (e.unitId) {
-        const unit = cls.units.find((u) => u.unitId === e.unitId);
-        if (unit) progress = unit.completionPct;
-      }
       break;
     }
 
@@ -367,14 +363,14 @@ export function buildTodayRail(
           ? String(e.period).padStart(2, "0")
           : "—",
       time: period ? period.start : "",
+      classId: e.classId,
       className: e.className,
       color,
       tint: tint(color, 0.85),
       unitId: e.unitId,
       unitTitle: e.unitTitle ?? "—",
-      sub: `${studentCount} student${studentCount === 1 ? "" : "s"}`,
+      studentCount,
       state,
-      progress,
       ungradedCount,
     };
   });
