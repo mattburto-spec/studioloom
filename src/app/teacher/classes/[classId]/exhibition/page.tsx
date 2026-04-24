@@ -17,6 +17,7 @@ import { useCallback, useEffect, useMemo, useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { DatesCard } from "./DatesCard";
 
 interface ClassInfo {
   id: string;
@@ -221,25 +222,9 @@ export default function ExhibitionSetupPage({
       ) : (
         <div className="space-y-5">
           {/* Dates card — wired in 13a-4. */}
-          <section className="bg-white rounded-2xl border border-gray-200 p-6">
-            <div className="flex items-start justify-between mb-2">
-              <div>
-                <h2 className="text-base font-bold text-gray-900">
-                  Exhibition dates
-                </h2>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  The big day plus any milestones you want to track — rehearsal,
-                  boards due, research checkpoints.
-                </p>
-              </div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-100 rounded-full px-2 py-0.5">
-                Coming next
-              </span>
-            </div>
-            <div className="mt-4 py-8 text-center text-sm text-gray-400 italic">
-              Dates editor arrives in the next build step.
-            </div>
-          </section>
+          {selectedUnitId && (
+            <DatesCard classId={classId} unitId={selectedUnitId} />
+          )}
 
           {/* Student projects card — wired in 13a-5. */}
           <section className="bg-white rounded-2xl border border-gray-200 p-6">
