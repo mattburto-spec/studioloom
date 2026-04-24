@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { DashboardClass } from "@/types/dashboard";
 import type { Teacher } from "@/types";
+import { createClient } from "@/lib/supabase/client";
 import { I } from "./icons";
 import { NAV_ITEMS, activeNavHref, classColor, getInitials } from "./nav-config";
 
@@ -20,6 +21,17 @@ interface TopNavProps {
   pathname: string;
 }
 
+async function handleLogout() {
+  try {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+  } catch {
+    // Even if signOut fails, force-navigate — the next page load will
+    // trip the middleware and re-send to /teacher/login cleanly.
+  }
+  window.location.href = "/";
+}
+
 export function TopNav({
   teacher,
   classes,
@@ -28,6 +40,21 @@ export function TopNav({
   pathname,
 }: TopNavProps) {
   const [open, setOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  // Close account menu on outside click. Same pattern as the student
+  // BoldTopNav avatar dropdown (~line 316).
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [menuOpen]);
 
   // Scope options: "All classes" + one entry per class, colour-keyed
   // by hash(class.id) so colours stay stable across reloads.
@@ -153,13 +180,54 @@ export function TopNav({
           <I name="bell" size={16} />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#E86F2C] border-2 border-[var(--bg)]" />
         </button>
-        <div className="flex items-center gap-2 pl-1 shrink-0">
-          <div
-            className="w-8 h-8 rounded-full bg-gradient-to-br from-[#9333EA] to-[#E86F2C] text-white flex items-center justify-center font-bold text-[11px]"
-            title={teacher?.name ?? undefined}
+        {/* Avatar dropdown — click to reveal Settings + Log out. Same
+         *  pattern as the student BoldTopNav. Kept inline in TopNav
+         *  rather than a shared component because the two navs have
+         *  diverged enough already (scope chip vs. class tag). */}
+        <div className="relative pl-1 shrink-0" ref={menuRef}>
+          <button
+            onClick={() => setMenuOpen((o) => !o)}
+            className="flex items-center gap-2 rounded-full hover:bg-white transition px-1 py-1"
+            aria-label="Account menu"
+            aria-expanded={menuOpen}
           >
-            {initials}
-          </div>
+            {/* Name hidden below sm to save width. */}
+            <div className="hidden sm:block text-right">
+              {teacher ? (
+                <div className="text-[12px] font-bold leading-none">
+                  {teacher.name}
+                </div>
+              ) : (
+                <div className="h-3 w-20 rounded bg-[var(--hair)] animate-pulse" />
+              )}
+            </div>
+            <div
+              className="w-8 h-8 rounded-full bg-gradient-to-br from-[#9333EA] to-[#E86F2C] text-white flex items-center justify-center font-bold text-[11px]"
+              title={teacher?.name ?? undefined}
+            >
+              {initials}
+            </div>
+          </button>
+          {menuOpen && (
+            <div className="absolute right-0 top-12 w-56 bg-white rounded-2xl card-shadow-lg border border-[var(--hair)] overflow-hidden z-50">
+              <Link
+                href="/teacher/settings"
+                onClick={() => setMenuOpen(false)}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left text-[13px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg)]"
+              >
+                <I name="gear" size={14} /> Settings
+              </Link>
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  handleLogout();
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left text-[13px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg)] border-t border-[var(--hair)]"
+              >
+                <I name="logout" size={14} /> Log out
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>

@@ -24,6 +24,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Alerts",    href: "/teacher/safety/alerts" },
   { label: "Students",  href: "/teacher/students" },
   { label: "Library",   href: "/teacher/library" },
+  { label: "Preflight", href: "/teacher/preflight" },
 ];
 
 /** Find the nav item whose href is the longest prefix of the current
