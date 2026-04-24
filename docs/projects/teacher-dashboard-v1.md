@@ -51,8 +51,12 @@ Bold's sections (in render order): `TopNav` · `NowHero` · `TodayRail`
 | 9b | Refresh button + error boundary (deferred — non-blocking) | ⏳ Planned |
 | 10 | Responsive pass — hero stacks, grids flow 1→2→4 (rail/insights) + 1→2 (units), TopNav compresses, type scales | ✅ Done |
 | 11 | Unified Bold chrome across all teacher routes — move BoldTopNav + `.tl-v2` styles into `teacher/layout.tsx` so `/teacher/classes`, `/teacher/units`, `/teacher/students`, `/teacher/skills`, `/teacher/preflight`, etc. stop rendering the legacy sticky header. Mirrors student dashboard Phase 10. Smoke every teacher route for layout clashes (z-index, sticky overlap, scoped-CSS leakage). | ⏳ Planned |
-| 12 | Accessibility pass | ⏳ Planned |
-| 13 | Delete `/teacher/dashboard-legacy` (scheduled for ≥ 2026-05-01, 1 week after cutover on 2026-04-24) | ⏳ Planned |
+| 12 | Program scope wiring — redefine the "All classes" chip as a program chip (All / MYP Design / PYPX / Service / PP / …), derived from `classes.framework` + `units.unit_type`. Filter hero + rail + insights + units + admin by the selected program. No new dashboard model yet — just correct semantics and plumbing so Phase 13 has somewhere to hang the model switch. | ⏳ Planned |
+| 13 | First alternate dashboard model: **PYPX Exhibition** — port `docs/newlook/PYPX Student Dashboard/pypx_dashboard.jsx` into a teacher view: every student's Exhibition project + milestones + next step, replacing hero/rail/units when `scope === "pypx"`. Ship the Teacher ↔ Student model-switch pattern so Phase 14+ can drop in Service, PP, Inquiry variants. Needs: per-scope view registry, default hero/rail/units model keeps working for MYP Design + others. | ⏳ Planned |
+| 14 | Service as Action dashboard model — community impact + hours + reflections. Consumes the Phase 13 registry. | ⏳ Planned |
+| 15 | Personal Project dashboard model — supervisor pairs + essay milestones + check-ins. Consumes the Phase 13 registry. | ⏳ Planned |
+| 16 | Accessibility pass | ⏳ Planned |
+| 17 | Delete `/teacher/dashboard-legacy` (scheduled for ≥ 2026-05-01, 1 week after cutover on 2026-04-24) | ⏳ Planned |
 
 ## Open questions (decide during Phase 0)
 
