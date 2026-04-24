@@ -1,7 +1,8 @@
-# Preflight Phase 8 — Lab + Machine + Fabricator Admin (DRAFT — blocked on Checkpoint 7.1)
+# Preflight Phase 8 — Lab + Machine + Fabricator Admin
 
-**Status:** DRAFT PRE-SIGN-OFF. Cannot open until Phase 7 Checkpoint 7.1 signs off. Draft captured 24 April 2026 from a Matt S1-pre-smoke conversation (`we'll do this later`) — flesh out with decisions + open questions before starting code.
+**Status:** ✅ READY — all 6 open questions resolved "all recommended" 24 April 2026 PM; Phase 7 Checkpoint 7.1 PASSED 12/12; Phase 8-1 unblocked.
 **Date drafted:** 24 April 2026 AM
+**Date signed off:** 24 April 2026 PM
 **Spec source:** `docs/projects/fabrication-pipeline.md` §13 Phase 8 + §14 "Machine profile registry is multi-tenant from day one"
 **Predecessor:** Phase 7 (Lab Tech Pickup + Completion) — blocks this because Phase 8's fab-reassignment UI reuses the Phase 1B-2 `/teacher/preflight/fabricators` admin routes + the Phase 7 `/fab/queue` needs to keep working through the migration.
 **Blocks:** Multi-lab school onboarding (e.g. Seoul Foreign School pattern from the §11 Q5 brief). NIS-scale single-area schools work with current v1 indefinitely.
@@ -122,23 +123,25 @@ Why:
 - [ ] `docs/projects/WIRING.yaml` updated — new `fabrication-labs` system.
 - [ ] Checkpoint 8.1 report filed.
 
-## 5. Open questions (resolve pre-8-1)
+## 5. Resolved decisions (signed off 24 Apr PM — "all recommended")
 
-1. **Entity name** — Location, Lab, Zone, Workshop, Room? (Matt's wording was "lab" / "2nd floor design lab" — I'd go with **Lab** for the DB (`fabrication_labs`) + Location for the UI label since "lab" feels jargon-y in a teacher setting at smaller schools. Or keep both the same: `fabrication_labs` + UI says "Labs".)
-2. **Default-location strategy on migration** — (a) auto-create "Default lab", (b) force teachers to create first lab before they can see machines, (c) allow null-lab as a legacy state. **Recommend (a)** for zero-disruption rollout.
-3. **Cross-teacher visibility** — can Teacher A see Teacher B's labs/machines? **Recommend: NO, scope by `teacher_id`** like every other preflight resource. Multi-teacher shared labs = a Phase 9 feature that needs `FU-O/P/R` access-model-v2 first.
-4. **Can ANY teacher create a lab** or **only dept heads**? **Recommend: any teacher** — dept-head role doesn't exist yet (`FU-O`). If a school needs stricter governance later, easy add.
-5. **Student-side impact** — does the student PICK a lab during upload, or is it class-dictated? **Recommend: class-dictated** — students don't need to know about labs, their class's `default_lab_id` drives the machine filter silently. Advanced "submit to a different lab" = Phase 9.
-6. **Drag-drop or click?** — **Recommend: click-based (Option B)** per §2.
+All 6 open questions locked in per the original recommendations:
+
+1. ✅ **Entity name: `fabrication_labs` in DB + "Labs" in UI.** Single vocabulary across DB + UI keeps the mental model clean. "2nd floor design lab" reads naturally; "Location" was a hedge for smaller schools but adds a vocabulary split with zero upside.
+2. ✅ **Default-lab strategy: auto-create "Default lab" per teacher on migration.** Zero-disruption rollout — every existing `machine_profiles` row gets `lab_id = <teacher's default lab>`; every existing `classes.default_lab_id` points at the same row. Students + fabricators see no change. Teachers can rename the auto-created lab or add more later.
+3. ✅ **Cross-teacher visibility: NO — scope by `teacher_id`.** Matches every other Preflight resource. Multi-teacher shared labs = Phase 9+ after access-model-v2 (FU-O/P/R) ships school-membership + dept-head roles.
+4. ✅ **Who creates labs: any teacher.** Dept-head role doesn't exist yet. Stricter governance is a later-add.
+5. ✅ **Student-side impact: class-dictated silent filter.** Student picker auto-filters machines by `class.default_lab_id`. No student-facing "pick a lab" UI. Advanced cross-lab submission = Phase 9+.
+6. ✅ **UI: click-based (Option B).** Ships ~30-50% faster, accessible out of box, real-world teachers don't reorg layout daily. Drag-drop filed as `PH8-FU-DRAG-DROP` P3 for post-pilot if teachers ask.
 
 ---
 
-## 6. Pre-conditions (must be true before opening 8-1)
+## 6. Pre-conditions (all ✅ as of 24 Apr PM — 8-1 unblocked)
 
-- [ ] Phase 7 Checkpoint 7.1 PASSED + report marked ✅
-- [ ] Phase 7 merged to main (already done 24 Apr AM)
-- [ ] Matt has resolved the 6 open questions above (or said "all recommended")
-- [ ] No outstanding Phase 7 production bugs
+- [x] Phase 7 Checkpoint 7.1 PASSED + report marked ✅ (12/12 PASS, signed off 24 Apr PM)
+- [x] Phase 7 merged to main (`7fefd6e` pre-smoke + `d5eb596` hotfix + `2e576fc` saveme)
+- [x] Matt has resolved the 6 open questions above (signed off "all recommended" 24 Apr PM)
+- [x] No outstanding Phase 7 production bugs (4 open follow-ups all P2/P3, Phase 9 scope — not blocking)
 
 ## 7. Known deviations from original spec
 
@@ -150,4 +153,4 @@ The **"Rule overrides UI"** from the original §13 Phase 8 is explicitly DEFERRE
 
 ---
 
-**When ready:** Matt signs off the 6 open questions (or says "all recommended"), I flip status to READY, then open 8-1 (migration + backfill).
+**Status 24 Apr PM:** ✅ READY. All pre-conditions met. Phase 8-1 (migration + backfill) opens next — see dedicated brief: `preflight-phase-8-1-brief.md` (draft pending).

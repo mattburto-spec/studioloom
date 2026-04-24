@@ -2169,6 +2169,7 @@ tables:
     framework: TEXT DEFAULT 'IB_MYP'
     instruction_language: TEXT DEFAULT 'en'
     additional_languages: TEXT[] DEFAULT NULL
+    default_lab_id: UUID REFERENCES fabrication_labs(id) ON DELETE SET NULL   # added Phase 8-1 migration 114 — drives student machine-picker filter (8-5)
   classification:
     id:
       pii: false
@@ -9139,6 +9140,7 @@ tables:
     min_feature_mm: NUMERIC
     rule_overrides: JSONB
     notes: TEXT
+    lab_id: UUID REFERENCES fabrication_labs(id) ON DELETE SET NULL   # added Phase 8-1 migration 113
     created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
     updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
   indexes:
@@ -9147,13 +9149,42 @@ tables:
     - idx_machine_profiles_category ON (machine_category)
     - uq_machine_profiles_system_template_name ON (name) WHERE is_system_template = true
     - uq_machine_profiles_teacher_name ON (teacher_id, name) WHERE teacher_id IS NOT NULL
+    - idx_machine_profiles_lab_id ON (lab_id) WHERE lab_id IS NOT NULL   # added Phase 8-1 migration 113
   check_constraints:
     - "machine_profile_ownership_check: (is_system_template AND teacher_id IS NULL) OR (NOT is_system_template AND teacher_id IS NOT NULL)"
   rls:
     read: "Teachers read own profiles + all system templates; service_role full access"
     write: "Teachers INSERT/UPDATE/DELETE own non-template rows; is_system_template flag is append-only (seed + admin via service_role)"
-  writers: ["teacher settings page (TBD Phase 1B)", "094_machine_profile_seed.sql"]
+  writers: ["teacher settings page (TBD Phase 1B)", "094_machine_profile_seed.sql", "114_backfill_fabrication_labs.sql (lab_id)"]
   readers: ["teacher machine-profile UI", "preflight scanner worker", "preflight job submission API"]
+  spec_drift:
+    - date: 2026-04-25
+      migration: 113_fabrication_labs.sql
+      note: "Phase 8-1 added lab_id FK column (nullable). Backfilled by migration 114 for teacher-owned non-template rows only — system templates stay NULL."
+
+- name: fabrication_labs
+  source_migration: 113_fabrication_labs.sql
+  status: applied_repo_pending_prod
+  applied_date: 2026-04-25
+  purpose: "Phase 8 Lab entity — per-teacher grouping of machine_profiles (e.g. '2nd floor design lab', 'Makerspace A'). Each class has a default_lab_id pointing at one of the teacher's labs; student machine-picker filters by that (student filter UI lands in 8-5). Cross-teacher sharing explicitly OUT OF SCOPE v1 per parent brief §5 Q3 — gated on FU-P access-model-v2."
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    teacher_id: UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE
+    school_id: UUID REFERENCES schools(id) ON DELETE SET NULL   # reserved for FU-P access-model-v2; NULL in v1
+    name: TEXT NOT NULL CHECK (length(trim(name)) > 0)
+    description: TEXT
+    is_default: BOOLEAN NOT NULL DEFAULT false   # true on the auto-created default per teacher; enforced unique via uq_fabrication_labs_one_default_per_teacher
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  indexes:
+    - idx_fabrication_labs_teacher_id ON (teacher_id)
+    - idx_fabrication_labs_school_id ON (school_id) WHERE school_id IS NOT NULL
+    - uq_fabrication_labs_one_default_per_teacher ON (teacher_id) WHERE is_default = true   # one-default-per-teacher safety rail
+  rls:
+    read: "Teachers read their own labs only (teacher_id = auth.uid()); service_role bypasses for server-side orchestration joins through machine_profiles"
+    write: "Teachers INSERT/UPDATE/DELETE their own labs only"
+  writers: ["114_backfill_fabrication_labs.sql", "/api/teacher/labs (Phase 8-2)"]
+  readers: ["/api/teacher/labs (Phase 8-2)", "lab-setup admin page (Phase 8-4)", "student picker-data endpoint (Phase 8-5)"]
 
 - name: fabrication_jobs
   source_migration: 095_fabrication_jobs.sql
