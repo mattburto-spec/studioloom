@@ -2362,6 +2362,22 @@ docs:
     max_age_days: 180
     last_scanned: "2026-04-23"
 
+  - path: docs/projects/preflight-phase-7-checkpoint-7-1.md
+    title: "Preflight Phase 7 Checkpoint 7.1 Report (PENDING smoke)"
+    purpose: "Checkpoint 7.1 exit report draft — code complete 24 Apr 2026, smoke PENDING. 12-criterion success matrix + 3 smoke scenarios (S1 happy-path print, S2 failed run, S3 optional 2-fab race). Phase 7 merged to main pre-smoke at `7fefd6e` (explicit Matt call: no active users, no new migrations, additive app layer). Tests 1854 → 1939 (+85). 5 new fab API routes. No new migrations. §11 Q8 idempotent re-download verified in unit tests. Inclusive-wording sweep (7-5b/5c) landed post-merge."
+    category: projects
+    last_verified: "2026-04-24"
+    max_age_days: 180
+    last_scanned: "2026-04-24"
+
+  - path: docs/projects/preflight-phase-8-brief.md
+    title: "Preflight Phase 8 Brief — Lab + Machine + Fabricator Admin (DRAFT)"
+    purpose: "Phase 8 build brief DRAFT (pre-sign-off — blocked on Checkpoint 7.1). Unified visual lab+machine+fab admin replacing Phase 1B-2 flat list. Ships: `fabrication_labs` table, `machine_profiles.lab_id` FK, `classes.default_lab_id` FK, `/teacher/preflight/lab-setup` page, machine CRUD from template or scratch, laser operation colour map editor, fabricator reassignment, student picker filter by `class.default_lab_id`. 5 sub-phases (8-1 migration → 8-2 lab CRUD → 8-3 machine CRUD → 8-4 visual page → 8-5 student filter+smoke). ~2–3 days. Recommends Option B click-based over drag-drop. 6 open questions pending Matt sign-off. Absorbs originally-Phase-9 PH6-FU-MULTI-LAB-SCOPING + closes FU-CLASS-MACHINE-LINK P3."
+    category: projects
+    last_verified: "2026-04-24"
+    max_age_days: 90
+    last_scanned: "2026-04-24"
+
   - path: docs/projects/fabrication-pipeline-phase-0-brief.md
     title: "Preflight Phase 0 Brief — Spec & Pre-Build Checklist"
     purpose: "Phase 0 pre-build ritual: fixture gathering, rule threshold sign-off, machine profile verification, Fabricator kickoff call, decision doc template, Checkpoint 0.1 gates"

@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 332
+# Total routes: 337
 
 routes:
 - path: /api/admin/ai-model
@@ -494,6 +494,42 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/fab/jobs/[jobId]
+  method: GET
+  file: src/app/api/fab/jobs/[jobId]/route.ts
+  auth: service-role
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/fab/jobs/[jobId]/complete
+  method: POST
+  file: src/app/api/fab/jobs/[jobId]/complete/route.ts
+  auth: service-role
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/fab/jobs/[jobId]/download
+  method: GET
+  file: src/app/api/fab/jobs/[jobId]/download/route.ts
+  auth: service-role
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/fab/jobs/[jobId]/fail
+  method: POST
+  file: src/app/api/fab/jobs/[jobId]/fail/route.ts
+  auth: service-role
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/fab/login
   method: POST
   file: src/app/api/fab/login/route.ts
@@ -508,6 +544,15 @@ routes:
 - path: /api/fab/logout
   method: POST
   file: src/app/api/fab/logout/route.ts
+  auth: service-role
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/fab/queue
+  method: GET
+  file: src/app/api/fab/queue/route.ts
   auth: service-role
   tables_read: []
   tables_written: []

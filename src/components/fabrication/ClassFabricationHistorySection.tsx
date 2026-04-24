@@ -21,7 +21,10 @@ import {
   HistorySummaryCards,
   HistoryJobList,
 } from "./StudentFabricationHistory";
-import { formatPassRate } from "./fabrication-history-helpers";
+import {
+  formatPassRate,
+  fabricationStatusPill,
+} from "./fabrication-history-helpers";
 import type {
   HistorySuccess,
   PerStudentHistoryRow,
@@ -243,10 +246,26 @@ function PerStudentTable({ rows }: { rows: PerStudentHistoryRow[] }) {
                     ({r.passed}/{r.totalJobs})
                   </span>
                 </div>
-                <div className="text-xs text-gray-500 text-right whitespace-nowrap">
-                  {r.latestJobStatus
-                    ? r.latestJobStatus.replace(/_/g, " ")
-                    : "—"}
+                <div className="text-xs text-right whitespace-nowrap">
+                  {r.latestJobStatus ? (
+                    (() => {
+                      // Phase 7-5d: branches on completion_status so
+                      // "completed+failed" reads as "RUN FAILED" not "COMPLETED".
+                      const { label, pillClass } = fabricationStatusPill(
+                        r.latestJobStatus,
+                        r.latestJobCompletionStatus
+                      );
+                      return (
+                        <span
+                          className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${pillClass}`}
+                        >
+                          {label}
+                        </span>
+                      );
+                    })()
+                  ) : (
+                    <span className="text-gray-500">—</span>
+                  )}
                 </div>
               </Link>
             </li>

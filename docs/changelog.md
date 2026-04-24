@@ -71,6 +71,97 @@ Controlled-verb enforcement: typing a demo line triggers a soft amber warning if
 
 ---
 
+## 24 Apr 2026 AM — Preflight Phase 7 code complete + Phase 8 brief drafted
+
+**Context:** Closing saveme after Phase 7 (Lab Tech Pickup + Completion)
+landed on main pre-smoke and the Phase 8 brief was drafted + merged.
+Phase 7 is the first Fabricator-facing UI in Preflight. Phase 8 brief
+captures the unified visual lab+machine+fab admin that Matt flagged
+mid-Phase-7 ("need an easy visual management page... drag and drop,
+shows relationships and visual rep of machines, in locations that can
+have custom names").
+
+**Phase 7 SHIPPED (code complete, smoke PENDING):**
+- 10+ commits on `preflight-active` merged to main as `7fefd6e`
+  (pre-smoke merge — explicit Matt call: no active users, no new
+  migrations, all additive app layer, safer to land before smoke so
+  follow-up fixes go straight to main).
+- **7-1** `src/lib/fabrication/fab-orchestration.ts` (~560 lines,
+  5 exports: `listFabricatorQueue`, `getFabJobDetail`, `pickupJob`,
+  `markComplete`, `markFailed`). Race safety via conditional UPDATE
+  + post-write confirm read. §11 Q8 idempotent re-download
+  (status=picked_up + self = no-op). Bug caught in build: `.range()`
+  called before tab-filter `.eq()` — PostgREST chain returns the
+  promise after `.range`. Restructured to filter first, `.order
+  + .range` at end. 23 orchestration tests.
+- **7-2** 5 API routes (queue/detail/download/complete/fail) all
+  `requireFabricatorAuth` + `Cache-Control: private, no-cache`.
+  Download = 3-step (detail → pickup → stream bytes with rewritten
+  `Content-Disposition` via Phase 6-6k `buildFabricationDownloadFilename()`).
+  33 route tests.
+- **7-3** `/fab/queue` server shell + `FabQueueClient` (~250 lines).
+  4 status tabs (queued/in_progress/completed/failed) + retry. Replaces
+  Phase 1B-2 placeholder.
+- **7-4** `/fab/jobs/[jobId]` detail page + `LabTechActionBar`
+  (Download / Complete / Fail) + canned-note chips modal (4 complete
+  presets / 6 fail presets from new `lab-tech-canned-notes.ts`).
+- **7-5** Student-side visibility: extended `orchestration.ts:getJobStatus`
+  with `completionStatus`/`completionNote`/`completedAt`;
+  `LabTechCompletionCard` (green printed/cut + red failed variants)
+  renders in `DoneStateView` when `shouldShowCompletionCard(jobStatus)`.
+  Phase 7 Checkpoint 7.1 report drafted (12 criteria + 3 smoke scenarios).
+- **7-5b** Inclusive-wording sweep after Matt pushback ("not all schools
+  have lab techs. Bit of a luxury. In some cases this may be a computer
+  setup near the 3d printers/laser cutters that anyone can access as
+  its always logged in"). Swept 5 surfaces of user-facing copy "lab tech"
+  → "fabricator"/passive voice. Code comments kept as "lab tech" for
+  developer readability.
+- **7-5c** Missed `/teacher/preflight` header button "Lab techs" →
+  "Fabricators" (caught by Matt screenshot).
+
+**Phase 8 brief DRAFTED (`docs/projects/preflight-phase-8-brief.md`):**
+- 222 lines. Unified visual lab + machine + fab admin page.
+- Ships: `fabrication_labs` table + `machine_profiles.lab_id` FK +
+  `classes.default_lab_id` FK, `/teacher/preflight/lab-setup` page,
+  machine CRUD from template or scratch, laser operation colour map
+  editor, fabricator reassignment, student picker filter by
+  `class.default_lab_id`.
+- 5 sub-phases (8-1 migration → 8-2 lab CRUD → 8-3 machine CRUD →
+  8-4 visual page → 8-5 student filter+smoke). ~2–3 days.
+- **Recommends Option B (click-based)** over drag-drop: ~30–50%
+  faster ship, accessible out of box, real-world teachers don't
+  reorg daily. Drag-drop filed as `PH8-FU-DRAG-DROP` P3 for post-pilot.
+- **6 open questions pending Matt sign-off** (entity naming / default-
+  location strategy / cross-teacher visibility / who creates labs /
+  student-side impact / drag-drop vs click). Recommendations documented.
+- Absorbs originally-Phase-9 `PH6-FU-MULTI-LAB-SCOPING` + closes
+  `FU-CLASS-MACHINE-LINK` P3. Phase 9 scope reduced to "Analytics + Polish".
+- Merged to main as `bca5327` (rebased over 3 parallel Skills Library
+  commits; resolved stale untracked skills-library files in main
+  worktree that were blocking rebase).
+
+**Testing:**
+- `npm test`: 1854 → **1939 passing** (+85) + 8 skipped. No regression.
+- `tsc --noEmit`: clean on all new files.
+- `scan-api-routes.py`: 332 → **337 routes** (+5 fab routes).
+- `scan-ai-calls.py`: no drift.
+- `scan-feature-flags.py` / `scan-vendors.py` / `scan-rls-coverage.py`:
+  timestamp-only updates to reports, no structural drift.
+
+**Systems affected:**
+- `preflight-pipeline` (extended key_files list with fab-orchestration
+  + 5 fab routes).
+- `api-registry.yaml` (+5 fab routes).
+- Follow-ups updated: PH6-FU-MULTI-LAB-SCOPING promoted P2 → Phase 8;
+  FU-CLASS-MACHINE-LINK P3 folded into Phase 8-5 scope.
+
+**Next session:** Matt runs Phase 7 Checkpoint 7.1 smoke (3 scenarios:
+S1 happy-path print, S2 failed run, optional S3 2-fab race). After
+sign-off, Matt resolves the 6 open questions in Phase 8 brief; then
+Phase 8-1 (migration + backfill) opens.
+
+---
+
 ## 23 Apr 2026 PM — Preflight Phase 6 SHIPPED + Checkpoint 6.1 PASSED 🎉
 
 **Context:** Closing saveme for Phase 6. Matt ran all 4 smoke

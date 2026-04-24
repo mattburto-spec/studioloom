@@ -149,8 +149,14 @@ export async function POST(request: NextRequest) {
     .select("display_name, email")
     .eq("id", user.id)
     .maybeSingle();
+  // Prefer the teacher's display name. If unset, fall back to the
+  // local-part of their email (everything before the @) rather than
+  // the full address — Gmail auto-linkifies raw emails, which overrides
+  // our inline header styling and renders blue-on-purple (Phase 7-5d).
   const teacherDisplayName =
-    teacherRow?.display_name || teacherRow?.email || "Your teacher";
+    teacherRow?.display_name?.trim() ||
+    teacherRow?.email?.split("@")[0] ||
+    "Your teacher";
 
   // Find an existing fabricator owned by this teacher with the same email.
   const { data: existing } = await admin
