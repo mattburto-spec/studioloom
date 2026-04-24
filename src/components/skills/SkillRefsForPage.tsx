@@ -61,22 +61,6 @@ const TIER_CHIP_CLS: Record<SkillTier, string> = {
 
 export function SkillRefsForPage({ pageId }: { pageId: string }) {
   const [cards, setCards] = useState<PinnedCard[] | null>(null);
-  const [fetchStatus, setFetchStatus] = useState<number | null>(null);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-
-  // Debug mode: add `?debug_skills=1` to the URL to see a visible empty /
-  // loading / error panel even when no pins exist. Client-only flag —
-  // the initial SSR render reads debug=false because `window` is undefined,
-  // then useEffect flips it on client. This matches how Next handles
-  // URL-driven UI in app router client components without hydration
-  // warnings.
-  const [debug, setDebug] = useState(false);
-  useEffect(() => {
-    const on =
-      typeof window !== "undefined" &&
-      new URLSearchParams(window.location.search).get("debug_skills") === "1";
-    if (on) setDebug(true);
-  }, []);
 
   useEffect(() => {
     let abort = false;
@@ -87,17 +71,14 @@ export function SkillRefsForPage({ pageId }: { pageId: string }) {
           { credentials: "include" }
         );
         if (abort) return;
-        setFetchStatus(res.status);
         if (!res.ok) {
-          setFetchError(`API returned ${res.status}`);
           setCards([]);
           return;
         }
         const json = await res.json();
         setCards(json.cards ?? []);
-      } catch (err) {
+      } catch {
         if (abort) return;
-        setFetchError(err instanceof Error ? err.message : "Network error");
         setCards([]);
       }
     })();
@@ -106,56 +87,7 @@ export function SkillRefsForPage({ pageId }: { pageId: string }) {
     };
   }, [pageId]);
 
-  // Debug panel — shows current state even when empty/loading/errored.
-  if (debug) {
-    return (
-      <section className="mb-6 rounded-2xl border-2 border-dashed border-amber-400 bg-amber-50 p-4 text-sm">
-        <div className="font-bold text-amber-900 mb-2">
-          [debug] Skills for this lesson
-        </div>
-        <dl className="space-y-1 text-amber-800">
-          <div>
-            <dt className="inline font-semibold">pageId:</dt>{" "}
-            <code className="bg-white px-1.5 py-0.5 rounded border border-amber-200">
-              {pageId}
-            </code>
-          </div>
-          <div>
-            <dt className="inline font-semibold">API status:</dt>{" "}
-            <code className="bg-white px-1.5 py-0.5 rounded border border-amber-200">
-              {fetchStatus ?? "loading…"}
-            </code>
-          </div>
-          {fetchError && (
-            <div>
-              <dt className="inline font-semibold">error:</dt>{" "}
-              <code className="bg-white px-1.5 py-0.5 rounded border border-amber-200">
-                {fetchError}
-              </code>
-            </div>
-          )}
-          <div>
-            <dt className="inline font-semibold">cards returned:</dt>{" "}
-            <code className="bg-white px-1.5 py-0.5 rounded border border-amber-200">
-              {cards === null ? "loading…" : cards.length}
-            </code>
-          </div>
-        </dl>
-        {cards && cards.length > 0 && (
-          <ul className="mt-3 space-y-1">
-            {cards.map((c) => (
-              <li key={c.ref.id} className="text-xs">
-                ✓ {c.card.title} ({c.card.slug})
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    );
-  }
-
-  // Production: hide entirely when loading or empty — zero visual noise
-  // if nothing's pinned.
+  // Hide entirely when loading or empty — zero visual noise if nothing's pinned.
   if (cards === null || cards.length === 0) return null;
 
   return (

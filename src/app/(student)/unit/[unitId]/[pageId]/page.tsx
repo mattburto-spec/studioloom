@@ -247,6 +247,13 @@ function UnitPageViewInner({
       )}
 
       {currentPage && (<>
+        {/* Skills for this lesson — renders at the top so students see
+            "here's what this lesson uses" BEFORE diving into content.
+            Zero visual noise when nothing's pinned (component returns null). */}
+        <div className="max-w-5xl mx-auto px-6 mt-6">
+          <SkillRefsForPage pageId={pageId} />
+        </div>
+
         {/* ── Section 1: Context (Learning Goal + Vocab + Intro) ── */}
         {hasContext && (
           <>
@@ -341,11 +348,6 @@ function UnitPageViewInner({
             )}
           </>
         )}
-
-        {/* Skills for this lesson — renders only when teacher has pinned
-            skill cards to this page via the "Used in" panel on the card
-            edit page. Zero noise when there are no pins. */}
-        <SkillRefsForPage pageId={pageId} />
 
         {/* ── Activity sections with dividers ── */}
         {pageContent?.sections ? (
