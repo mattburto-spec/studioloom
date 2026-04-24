@@ -1415,6 +1415,10 @@ export interface StudentJobRow {
   currentRevision: number;
   ruleCounts: { block: number; warn: number; fyi: number };
   jobStatus: string;
+  /** Phase 7-5d: `printed` / `cut` / `failed` when jobStatus='completed'.
+   *  null otherwise. UI uses fabricationStatusPill() to branch the list
+   *  pill so failed runs don't display as green "COMPLETED". */
+  completionStatus: string | null;
   createdAt: string;
   updatedAt: string;
   originalFilename: string;
@@ -1428,6 +1432,7 @@ export type ListStudentJobsResult = ListStudentJobsSuccess | OrchestrationError;
 interface RawStudentJobRow {
   id: string;
   status: string;
+  completion_status: string | null;
   current_revision: number;
   created_at: string;
   updated_at: string;
@@ -1463,7 +1468,7 @@ export async function listStudentJobs(
     .from("fabrication_jobs")
     .select(
       `
-      id, status, current_revision, created_at, updated_at, original_filename,
+      id, status, completion_status, current_revision, created_at, updated_at, original_filename,
       classes(name),
       units(title),
       machine_profiles(name, machine_category),
@@ -1527,6 +1532,7 @@ export async function listStudentJobs(
         currentRevision: raw.current_revision,
         ruleCounts: counts,
         jobStatus: raw.status,
+        completionStatus: raw.completion_status ?? null,
         createdAt: raw.created_at,
         updatedAt: raw.updated_at,
         originalFilename: raw.original_filename,

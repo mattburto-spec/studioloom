@@ -19,6 +19,7 @@ import Link from "next/link";
 import {
   formatPassRate,
   formatAvgRevisions,
+  fabricationStatusPill,
 } from "./fabrication-history-helpers";
 import {
   formatRuleCountsCompact,
@@ -242,7 +243,12 @@ function HistoryJobRowItem({
 }) {
   const counts = formatRuleCountsCompact(row.ruleCounts);
   const submittedAt = formatDateTime(row.createdAt);
-  const pill = statusPillClass(row.status);
+  // Phase 7-5d: branches on completion_status so failed runs don't
+  // show as green "COMPLETED". See fabrication-history-helpers.ts.
+  const { label: statusLabel, pillClass } = fabricationStatusPill(
+    row.status,
+    row.completionStatus
+  );
 
   return (
     <li>
@@ -258,9 +264,9 @@ function HistoryJobRowItem({
               </span>
             )}
             <span
-              className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${pill}`}
+              className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${pillClass}`}
             >
-              {row.status.replace(/_/g, " ")}
+              {statusLabel}
             </span>
             <span className="text-xs text-gray-500">Rev {row.currentRevision}</span>
             {counts ? (
@@ -291,26 +297,7 @@ function HistoryJobRowItem({
   );
 }
 
-function statusPillClass(status: string): string {
-  switch (status) {
-    case "approved":
-    case "completed":
-      return "bg-green-100 text-green-900";
-    case "pending_approval":
-      return "bg-amber-100 text-amber-900";
-    case "needs_revision":
-      return "bg-orange-100 text-orange-900";
-    case "rejected":
-    case "cancelled":
-      return "bg-red-100 text-red-900";
-    case "uploaded":
-    case "scanning":
-      return "bg-blue-100 text-blue-900";
-    case "picked_up":
-      return "bg-purple-100 text-purple-900";
-    default:
-      return "bg-gray-100 text-gray-900";
-  }
-}
+// Phase 7-5d: previously-local `statusPillClass` was replaced by the
+// shared `fabricationStatusPill()` helper in fabrication-history-helpers.ts.
 
 export default StudentFabricationHistory;

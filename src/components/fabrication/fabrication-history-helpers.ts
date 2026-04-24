@@ -197,3 +197,84 @@ export function formatAvgRevisions(
   if (totalSubmissions === 0) return "—";
   return avg.toFixed(1);
 }
+
+/**
+ * Phase 7-5d hotfix: terminal status + completion_status combine into
+ * a single user-visible pill.
+ *
+ * Background: Phase 7 split the terminal `completed` status into two
+ * sub-states via `fabrication_jobs.completion_status`:
+ *   - printed / cut → run succeeded
+ *   - failed        → run couldn't complete
+ *
+ * Early 7-1..7-5 built list views that rendered `status` alone, so a
+ * `completed+failed` job mis-labelled as green "COMPLETED" on student
+ * + teacher history tabs. This helper is the single source of truth
+ * for the pill label + colour on any fabrication list view.
+ *
+ * Intentionally NOT overloaded for the detail page — that uses the
+ * full LabTechCompletionCard and doesn't share this pill vocabulary.
+ */
+export interface FabricationStatusPill {
+  /** UPPERCASE short label for the pill ("COMPLETED", "RUN FAILED", etc). */
+  label: string;
+  /** Tailwind pill class (`bg-... text-...`). */
+  pillClass: string;
+}
+
+export function fabricationStatusPill(
+  status: string,
+  completionStatus: string | null | undefined
+): FabricationStatusPill {
+  // Split `completed` on the sub-status. This is the whole reason
+  // the helper exists; everything else is a straight one-to-one.
+  if (status === "completed") {
+    if (completionStatus === "failed") {
+      return {
+        label: "RUN FAILED",
+        pillClass: "bg-red-100 text-red-900",
+      };
+    }
+    if (completionStatus === "printed") {
+      return { label: "PRINTED", pillClass: "bg-green-100 text-green-900" };
+    }
+    if (completionStatus === "cut") {
+      return { label: "CUT", pillClass: "bg-green-100 text-green-900" };
+    }
+    // Legacy rows with no completion_status (pre-7-5) land here.
+    // Treat as succeeded — that's the backward-compatible read and
+    // nobody printed anything "failed" before the failure sub-state
+    // existed in code.
+    return { label: "COMPLETED", pillClass: "bg-green-100 text-green-900" };
+  }
+
+  switch (status) {
+    case "approved":
+      return { label: "APPROVED", pillClass: "bg-green-100 text-green-900" };
+    case "pending_approval":
+      return {
+        label: "PENDING APPROVAL",
+        pillClass: "bg-amber-100 text-amber-900",
+      };
+    case "needs_revision":
+      return {
+        label: "NEEDS REVISION",
+        pillClass: "bg-orange-100 text-orange-900",
+      };
+    case "rejected":
+      return { label: "REJECTED", pillClass: "bg-red-100 text-red-900" };
+    case "cancelled":
+      return { label: "CANCELLED", pillClass: "bg-red-100 text-red-900" };
+    case "uploaded":
+      return { label: "UPLOADED", pillClass: "bg-blue-100 text-blue-900" };
+    case "scanning":
+      return { label: "SCANNING", pillClass: "bg-blue-100 text-blue-900" };
+    case "picked_up":
+      return { label: "IN PROGRESS", pillClass: "bg-purple-100 text-purple-900" };
+    default:
+      return {
+        label: status.toUpperCase().replace(/_/g, " "),
+        pillClass: "bg-gray-100 text-gray-900",
+      };
+  }
+}
