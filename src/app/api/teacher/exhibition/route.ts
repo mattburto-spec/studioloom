@@ -28,7 +28,13 @@ export interface ExhibitionMilestone {
 
 export interface ExhibitionConfig {
   exhibition_date?: string | null;
-  mentor_checkin_interval_days?: number | null;
+  /** Free-text description of the mentor check-in rhythm. Examples:
+   *  "Every Wed at 11am", "Day 3 of cycle, P3 in the learning commons",
+   *  "Twice per 8-day cycle", "Ad-hoc — when students message me".
+   *  Kit will read this verbatim when automated nudges ship; humans
+   *  describing their actual schedule in their own words is more
+   *  robust than modelling every school's timetable system. */
+  mentor_checkin_schedule?: string | null;
   milestones?: ExhibitionMilestone[];
 }
 
@@ -81,7 +87,7 @@ export async function GET(request: NextRequest) {
 
 // ─────────────────────────────────────────────────────────────
 // PATCH /api/teacher/exhibition
-// body: { classId, unitId, exhibition_date?, mentor_checkin_interval_days?,
+// body: { classId, unitId, exhibition_date?, mentor_checkin_schedule?,
 //         milestones? }
 //
 // Partial merge — only fields present in the body are updated. Pass
@@ -96,7 +102,7 @@ export async function PATCH(request: NextRequest) {
     classId?: string;
     unitId?: string;
     exhibition_date?: string | null;
-    mentor_checkin_interval_days?: number | null;
+    mentor_checkin_schedule?: string | null;
     milestones?: ExhibitionMilestone[];
   };
   try {
@@ -134,10 +140,16 @@ export async function PATCH(request: NextRequest) {
 
   const next: ExhibitionConfig = { ...prev };
   if ("exhibition_date" in body) next.exhibition_date = body.exhibition_date;
-  if ("mentor_checkin_interval_days" in body) {
-    next.mentor_checkin_interval_days = body.mentor_checkin_interval_days;
+  if ("mentor_checkin_schedule" in body) {
+    next.mentor_checkin_schedule = body.mentor_checkin_schedule;
   }
   if ("milestones" in body) next.milestones = body.milestones;
+  // Legacy cleanup — drop the older interval-days key if it's still
+  // hanging around in the JSONB from an early-adopter row. Safe to
+  // delete because nobody consumes it yet.
+  if ("mentor_checkin_interval_days" in (next as Record<string, unknown>)) {
+    delete (next as Record<string, unknown>).mentor_checkin_interval_days;
+  }
 
   const { error: updateErr } = await db
     .from("class_units")

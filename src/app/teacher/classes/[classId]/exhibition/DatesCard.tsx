@@ -31,7 +31,7 @@ interface Milestone {
 
 interface ExhibitionConfig {
   exhibition_date: string | null;
-  mentor_checkin_interval_days: number | null;
+  mentor_checkin_schedule: string | null;
   milestones: Milestone[];
 }
 
@@ -59,7 +59,7 @@ export function DatesCard({
 }) {
   const [config, setConfig] = useState<ExhibitionConfig>({
     exhibition_date: null,
-    mentor_checkin_interval_days: null,
+    mentor_checkin_schedule: null,
     milestones: [],
   });
   const [loading, setLoading] = useState(true);
@@ -81,7 +81,7 @@ export function DatesCard({
         if (res.status === 404) {
           setConfig({
             exhibition_date: null,
-            mentor_checkin_interval_days: null,
+            mentor_checkin_schedule: null,
             milestones: [],
           });
         } else {
@@ -94,8 +94,8 @@ export function DatesCard({
         await res.json();
       setConfig({
         exhibition_date: json.exhibition_config?.exhibition_date ?? null,
-        mentor_checkin_interval_days:
-          json.exhibition_config?.mentor_checkin_interval_days ?? null,
+        mentor_checkin_schedule:
+          json.exhibition_config?.mentor_checkin_schedule ?? null,
         milestones: json.exhibition_config?.milestones ?? [],
       });
     } catch {
@@ -120,7 +120,7 @@ export function DatesCard({
           classId,
           unitId,
           exhibition_date: config.exhibition_date,
-          mentor_checkin_interval_days: config.mentor_checkin_interval_days,
+          mentor_checkin_schedule: config.mentor_checkin_schedule,
           milestones: config.milestones,
         }),
       });
@@ -272,30 +272,28 @@ export function DatesCard({
         </div>
         <div>
           <label
-            htmlFor="mentor-cadence"
+            htmlFor="mentor-schedule"
             className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1"
           >
-            Mentor check-in cadence
+            Mentor check-in schedule
           </label>
-          <div className="flex items-center gap-2">
-            <input
-              id="mentor-cadence"
-              type="number"
-              min={1}
-              max={30}
-              value={config.mentor_checkin_interval_days ?? ""}
-              onChange={(e) => {
-                const n = parseInt(e.target.value, 10);
-                setConfig((c) => ({
-                  ...c,
-                  mentor_checkin_interval_days: Number.isFinite(n) ? n : null,
-                }));
-              }}
-              placeholder="e.g. 7"
-              className="w-24 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
-            />
-            <span className="text-[12px] text-gray-500">days between check-ins</span>
-          </div>
+          <input
+            id="mentor-schedule"
+            type="text"
+            value={config.mentor_checkin_schedule ?? ""}
+            onChange={(e) =>
+              setConfig((c) => ({
+                ...c,
+                mentor_checkin_schedule: e.target.value || null,
+              }))
+            }
+            placeholder="e.g. Every Wed at 11am · Day 3 of cycle · Twice per fortnight"
+            className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+          />
+          <p className="text-[11px] text-gray-500 mt-1">
+            Describe your actual rhythm — school cycles, fixed weekdays,
+            ad-hoc. Kit will use this when automated nudges ship.
+          </p>
         </div>
       </div>
 
