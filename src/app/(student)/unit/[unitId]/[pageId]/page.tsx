@@ -31,6 +31,7 @@ import { useOpenStudio } from "@/hooks/useOpenStudio";
 import { CompetencyPulse } from "@/components/nm";
 import { ErrorBoundary } from "@/components/student/ErrorBoundary";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
+import { SkillRefsForPage } from "@/components/skills/SkillRefsForPage";
 import type { PageContent } from "@/types";
 import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
 
@@ -340,6 +341,11 @@ function UnitPageViewInner({
             )}
           </>
         )}
+
+        {/* Skills for this lesson — renders only when teacher has pinned
+            skill cards to this page via the "Used in" panel on the card
+            edit page. Zero noise when there are no pins. */}
+        <SkillRefsForPage pageId={pageId} />
 
         {/* ── Activity sections with dividers ── */}
         {pageContent?.sections ? (
