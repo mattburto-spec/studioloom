@@ -4,6 +4,114 @@
 
 ---
 
+## 24 Apr 2026 PM — Preflight Phase 7 Checkpoint 7.1 PASSED 12/12 🎉
+
+**Context:** Closing saveme for Phase 7. Matt ran Phase 7 smoke against
+prod on studioloom.org as teacher + `test` student + newly-invited
+Fabricator account. S1 + S2 both PASS; S3 skipped as optional/unit-
+test-covered. One data-correctness bug caught mid-smoke and hotfixed
+before sign-off.
+
+**Smoke outcomes (all PASS):**
+- **S1 Happy-path print:** student upload `small-cube-25mm.stl` →
+  auto-approved 3D printer → fabricator `/fab/queue` → `/fab/jobs/[jobId]`
+  → **Download & pick up** with rewritten filename via
+  `buildFabricationDownloadFilename()` → status flipped to `picked_up`
+  → action bar switched to Re-download + Mark complete + Mark failed →
+  **Mark complete** (printed) with free-text note → student
+  `/fabrication/jobs/[jobId]` showed green `LabTechCompletionCard`
+  with fabricator note, header flipped to "Printed", scan viewer
+  hidden correctly.
+- **S2 Failed run:** fabricator **Mark failed** on a second job with
+  note "Warped off the bed partway through. Needs a brim / better bed
+  adhesion." → student saw red "Your run didn't complete" card + note
+  + "Start a fresh submission →" link. **Bug caught:** list view
+  (student `/fabrication` + teacher per-student/per-class history)
+  showed green "COMPLETED" pill for the same failed job — click-through
+  was correct, list was lying. **Fixed Phase 7-5d** — see below.
+- **S3 2-fab race:** skipped (optional per brief; race-safety is
+  unit-test covered in `pickupJob` conditional UPDATE + post-write
+  confirm read).
+
+**Mid-smoke hotfix — Phase 7-5d (commit `433188b`):**
+- **Data-correctness bug:** list views rendered the pill from `status`
+  alone, ignoring the `completion_status` sub-state introduced in
+  Phase 7-5. Fix: shared `fabricationStatusPill(status,
+  completionStatus)` helper in `fabrication-history-helpers.ts` is
+  now the single source of truth for pill label + colour across
+  Preflight. Three list views + three orchestration row-builders
+  updated. `completed+failed` → red "RUN FAILED"; `completed+printed`
+  → green "PRINTED"; `completed+cut` → green "CUT". Legacy `completed`
+  with null `completion_status` (pre-7-5 data) → green "COMPLETED"
+  (backwards-compat).
+- **Invite email legibility:** teacher `display_name` unset → fallback
+  to raw email → Gmail auto-linkified → overrode our inline purple
+  header styling with Gmail's default mailto blue (blue-on-purple
+  unreadable). Fix: fall back to email local-part ("mattburto") instead
+  of full address. Eliminates the auto-link vector entirely.
+- Tests: 1939 → **1950** (+11 regression guards across all 3 completion
+  branches + legacy fallback + non-terminal-status defensiveness +
+  unknown-status graceful degradation + approved/rejected/picked_up
+  mappings).
+- Merged to main as `d5eb596`. Small rebase conflict in changelog.md
+  resolved (parallel Skills Library session commit history).
+
+**Setup gotcha — documented for Phase 8 onwards:**
+- `RESEND_API_KEY` was not set on Vercel. StudioLoom teacher-invite
+  flow works via `supabase.auth.admin.inviteUserByEmail()` (Supabase's
+  own SMTP config holds a separate copy of the Resend key); Preflight
+  fab-invite flow does a direct fetch to `api.resend.com` via
+  `src/lib/preflight/email.ts` and needs the env var on Vercel
+  directly. Resolution: created dedicated `re_...` Resend API key
+  (named `preflight-vercel`), added to Vercel Production + Preview
+  env vars, redeployed. Known setup step for any future Preflight
+  deploy to a new project. Captured in checkpoint report for
+  operational-runbook value.
+
+**4 new follow-ups filed (all P2/P3, Phase 9 scope):**
+- `PH7-FU-COMPLETION-NOTIFICATIONS` P2 — wire student email on
+  pickup/complete/fail. `email.ts` kinds already exist; needs
+  orchestration call sites in `pickupJob` / `markComplete` /
+  `markFailed`. ~1-2h. Matt flagged during S2: "also later need to be
+  able to add a notification for these events".
+- `PH7-FU-INLINE-QUEUE-ACTIONS` P2 — Download/Complete/Fail inline on
+  queue cards, skip detail page round-trip for triage. Matt's
+  observation during S1: "so much empty space on these job cards. you
+  could add buttons like 'fail' could also be added. means you don't
+  need to click in so many places".
+- `PH7-FU-FAB-SCAN-SUMMARY` P2 — rewrite jargon-y "2I (B = blocker,
+  W = warning, I = info)" to "Scan passed · 2 info notes, no blockers"
+  style. Matt's observation: "not sure what scan summary means. prob
+  need to make that more intuitive".
+- `PH7-FU-PRE-PICKUP-FAIL` P3 — Reject-without-pickup variant of Fail
+  for "this file is wrong, can't run" case.
+
+**Phase 7 totals:**
+- 8 commits on `preflight-active` (7-1 through 7-5d), all merged to
+  main across two merge commits (`7fefd6e` pre-smoke, `d5eb596`
+  hotfix). Plus the saveme + checkpoint-PASS commit landing now.
+- Tests: 1854 → **1950** (+96 across Phase 7 including hotfix).
+- api-registry: 332 → **337** routes (+5 fab routes).
+- No new migrations — Phase 7 was pure app layer on columns already
+  existing from migration 095.
+- `preflight-pipeline` system in WIRING extended with
+  fab-orchestration + 5 fab routes + component files + future_needs
+  pointer to Phase 8 brief.
+
+**Next session:** Matt resolves the 6 open questions in the Phase 8
+brief (`docs/projects/preflight-phase-8-brief.md` §5). Options: answer
+each individually, or fast-track with "all recommended" like Phase 7.
+Once resolved, Phase 8-1 (fabrication_labs migration + backfill) opens.
+
+**Systems affected:**
+- `preflight-pipeline` (status remains `in-progress` — Phase 7
+  complete, Phase 8 pending).
+- Documentation: `preflight-phase-7-checkpoint-7-1.md` flipped to
+  ✅ PASSED status with full smoke outcomes + hotfix narrative + 4
+  new follow-ups.
+
+---
+
 ## 24 Apr 2026 AM — Preflight Phase 7 code complete + Phase 8 brief drafted
 
 **Context:** Closing saveme after Phase 7 (Lab Tech Pickup + Completion)
