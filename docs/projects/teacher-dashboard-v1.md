@@ -58,6 +58,11 @@ Bold's sections (in render order): `TopNav` · `NowHero` · `TodayRail`
 | 16 | Accessibility pass | ⏳ Planned |
 | 17 | Delete `/teacher/dashboard-legacy` (scheduled for ≥ 2026-05-01, 1 week after cutover on 2026-04-24) | ⏳ Planned |
 
+## Future (post-v1, not scheduled)
+
+- **Dedicated week view page** — the TodayRail "Week" button currently jumps to `/teacher/settings?tab=timetable` (the cycle-editor). A better destination is a dedicated `/teacher/week` (or similar) route rendering this week's classes beautifully: timeline strip / day columns / unit thumbnails per period, lesson status pills, quick "start teaching" per period. Bold-styled, not a config table.
+- **Year viewer + planner** — pair with the week view: `/teacher/year` zooms out to term/semester blocks showing unit assignments across the calendar. Room for the teacher to drag units onto weeks, see term start/end, holidays, etc. Bigger piece of work — likely after Phases 13-17 land.
+
 ## Open questions (decide during Phase 0)
 
 1. **Scope chip behavior.** Current data has `framework` per class, no "program" concept. Options: (a) hide scope chip for v1, (b) make it class-filter ("All classes / 7 Design / 10 Design …"), (c) framework-filter ("All / MYP / GCSE …"). Recommend **(b)** — matches what teachers actually want.
