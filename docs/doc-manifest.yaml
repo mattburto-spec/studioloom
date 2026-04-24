@@ -2363,8 +2363,8 @@ docs:
     last_scanned: "2026-04-23"
 
   - path: docs/projects/preflight-phase-7-checkpoint-7-1.md
-    title: "Preflight Phase 7 Checkpoint 7.1 Report (PENDING smoke)"
-    purpose: "Checkpoint 7.1 exit report draft — code complete 24 Apr 2026, smoke PENDING. 12-criterion success matrix + 3 smoke scenarios (S1 happy-path print, S2 failed run, S3 optional 2-fab race). Phase 7 merged to main pre-smoke at `7fefd6e` (explicit Matt call: no active users, no new migrations, additive app layer). Tests 1854 → 1939 (+85). 5 new fab API routes. No new migrations. §11 Q8 idempotent re-download verified in unit tests. Inclusive-wording sweep (7-5b/5c) landed post-merge."
+    title: "Preflight Phase 7 Checkpoint 7.1 Report (✅ PASS)"
+    purpose: "Checkpoint 7.1 exit report — PASSED 12/12 on 24 Apr 2026 PM via prod smoke on studioloom.org (Matt as teacher + `test` student + newly-invited Fabricator account). S1 happy-path print ✅ + S2 failed run ✅ (with mid-smoke Phase 7-5d hotfix for list-view pill data-correctness bug + invite email Gmail-auto-link legibility fix) + S3 2-fab race ⏭️ skipped as optional/unit-test-covered. Tests 1854 → 1950 (+96). 5 new fab API routes. No new migrations. §11 Q8 idempotent re-download verified in prod. 4 new follow-ups filed: PH7-FU-COMPLETION-NOTIFICATIONS P2, PH7-FU-INLINE-QUEUE-ACTIONS P2, PH7-FU-FAB-SCAN-SUMMARY P2, PH7-FU-PRE-PICKUP-FAIL P3 — all Phase 9 scope. Setup gotcha documented: RESEND_API_KEY needs to be set on Vercel directly for Preflight (Supabase SMTP copy doesn't propagate)."
     category: projects
     last_verified: "2026-04-24"
     max_age_days: 180
