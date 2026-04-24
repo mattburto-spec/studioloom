@@ -90,6 +90,7 @@ interface TimetableParseResult {
 // Keep in sync with VALID_FRAMEWORKS in /api/teacher/welcome/create-class.
 const FRAMEWORKS = [
   { id: "IB_MYP", label: "IB MYP", desc: "Design cycle - Criteria A-D" },
+  { id: "IB_PYP", label: "IB PYP", desc: "Primary Years - Exhibition" },
   { id: "GCSE_DT", label: "GCSE D&T", desc: "AO1-AO5 assessment" },
   { id: "IGCSE_DT", label: "IGCSE D&T", desc: "Cambridge pathway" },
   { id: "A_LEVEL_DT", label: "A-Level D&T", desc: "Advanced design" },

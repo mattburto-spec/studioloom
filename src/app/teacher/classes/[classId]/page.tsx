@@ -847,11 +847,11 @@ export default function ClassDetailPage({
             {classInfo?.framework && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
                 style={{
-                  background: ({ IB_MYP: "#EEF2FF", GCSE_DT: "#ECFDF5", IGCSE_DT: "#EFF6FF", A_LEVEL_DT: "#FFFBEB", ACARA_DT: "#FDF2F8", PLTW: "#F5F3FF", NESA_DT: "#F0F9FF", VIC_DT: "#F0FDFA" } as Record<string, string>)[classInfo.framework] || "#F3F4F6",
-                  color: ({ IB_MYP: "#3730A3", GCSE_DT: "#065F46", IGCSE_DT: "#1E40AF", A_LEVEL_DT: "#92400E", ACARA_DT: "#9D174D", PLTW: "#5B21B6", NESA_DT: "#0369A1", VIC_DT: "#0F766E" } as Record<string, string>)[classInfo.framework] || "#374151",
-                  borderColor: ({ IB_MYP: "#C7D2FE", GCSE_DT: "#A7F3D0", IGCSE_DT: "#BFDBFE", A_LEVEL_DT: "#FEF3C7", ACARA_DT: "#FBCFE8", PLTW: "#EDE9FE", NESA_DT: "#BAE6FD", VIC_DT: "#99F6E4" } as Record<string, string>)[classInfo.framework] || "#E5E7EB",
+                  background: ({ IB_MYP: "#EEF2FF", IB_PYP: "#FAF5FF", GCSE_DT: "#ECFDF5", IGCSE_DT: "#EFF6FF", A_LEVEL_DT: "#FFFBEB", ACARA_DT: "#FDF2F8", PLTW: "#F5F3FF", NESA_DT: "#F0F9FF", VIC_DT: "#F0FDFA" } as Record<string, string>)[classInfo.framework] || "#F3F4F6",
+                  color: ({ IB_MYP: "#3730A3", IB_PYP: "#6B21A8", GCSE_DT: "#065F46", IGCSE_DT: "#1E40AF", A_LEVEL_DT: "#92400E", ACARA_DT: "#9D174D", PLTW: "#5B21B6", NESA_DT: "#0369A1", VIC_DT: "#0F766E" } as Record<string, string>)[classInfo.framework] || "#374151",
+                  borderColor: ({ IB_MYP: "#C7D2FE", IB_PYP: "#E9D5FF", GCSE_DT: "#A7F3D0", IGCSE_DT: "#BFDBFE", A_LEVEL_DT: "#FEF3C7", ACARA_DT: "#FBCFE8", PLTW: "#EDE9FE", NESA_DT: "#BAE6FD", VIC_DT: "#99F6E4" } as Record<string, string>)[classInfo.framework] || "#E5E7EB",
                 }}>
-                {({ IB_MYP: "MYP", GCSE_DT: "GCSE", IGCSE_DT: "IGCSE", A_LEVEL_DT: "A-Level", ACARA_DT: "ACARA", PLTW: "PLTW", NESA_DT: "NESA", VIC_DT: "VIC" } as Record<string, string>)[classInfo.framework] || classInfo.framework}
+                {({ IB_MYP: "MYP", IB_PYP: "PYP", GCSE_DT: "GCSE", IGCSE_DT: "IGCSE", A_LEVEL_DT: "A-Level", ACARA_DT: "ACARA", PLTW: "PLTW", NESA_DT: "NESA", VIC_DT: "VIC" } as Record<string, string>)[classInfo.framework] || classInfo.framework}
               </span>
             )}
             {classInfo?.subject && classInfo.subject !== "design" && (
@@ -954,6 +954,7 @@ export default function ClassDetailPage({
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
                   { id: "IB_MYP", label: "IB MYP", desc: "Criteria A-D, 1-8", color: "#6366F1" },
+                  { id: "IB_PYP", label: "IB PYP", desc: "PYP Exhibition", color: "#9333EA" },
                   { id: "GCSE_DT", label: "GCSE D&T", desc: "AO1-AO5, %", color: "#10B981" },
                   { id: "IGCSE_DT", label: "IGCSE D&T", desc: "AO1-AO4, %", color: "#3B82F6" },
                   { id: "A_LEVEL_DT", label: "A-Level D&T", desc: "AO1-AO4, %", color: "#F59E0B" },
