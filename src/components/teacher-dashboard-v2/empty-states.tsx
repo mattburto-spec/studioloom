@@ -13,14 +13,17 @@ import Link from "next/link";
 export function DashboardSkeleton() {
   return (
     <div className="max-w-[1400px] mx-auto px-4 md:px-6 pt-6 md:pt-8">
-      <div className="rounded-[24px] lg:rounded-[32px] h-[280px] lg:h-[360px] bg-white/60 animate-pulse" />
-      <div className="mt-8 md:mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {[0, 1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="rounded-2xl h-[170px] bg-white/60 animate-pulse"
-          />
-        ))}
+      {/* Hero (2/3) + TodayRail (1/3) row — matches the loaded layout. */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="lg:col-span-2 rounded-[24px] lg:rounded-[32px] h-[320px] lg:h-[420px] bg-white/60 animate-pulse" />
+        <div className="lg:col-span-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3">
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="rounded-2xl h-[96px] lg:h-[96px] bg-white/60 animate-pulse"
+            />
+          ))}
+        </div>
       </div>
       <div className="mt-10 md:mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[0, 1, 2, 3].map((i) => (

@@ -68,7 +68,7 @@ export function TodayRail({ cards, now, loaded }: TodayRailProps) {
   if (!loaded) return null;
 
   return (
-    <section className="max-w-[1400px] mx-auto px-6 pt-10">
+    <div className="h-full flex flex-col">
       <div className="flex items-end justify-between mb-4">
         <div>
           <div className="cap text-[var(--ink-3)]">
@@ -93,7 +93,7 @@ export function TodayRail({ cards, now, loaded }: TodayRailProps) {
           ctaHref="/teacher/timetable"
         />
       ) : (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3 flex-1 content-start">
         {vms.map((s) => {
           const isLive = s.state === "live";
           const isNext = s.state === "next";
@@ -206,6 +206,6 @@ export function TodayRail({ cards, now, loaded }: TodayRailProps) {
         })}
       </div>
       )}
-    </section>
+    </div>
   );
 }

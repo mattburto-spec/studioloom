@@ -157,8 +157,23 @@ export default function TeacherDashboardClient() {
         <NoClassesWelcome teacherName={teacher?.name ?? ""} />
       ) : (
         <>
-          <NowHero current={currentPeriod} loaded={scheduleLoaded} />
-          <TodayRail cards={railCards} now={now} loaded={scheduleLoaded} />
+          {/* Hero + today rail share the same row on lg+ (2/3 + 1/3 split)
+           *  so the huge hero doesn't push the rail below the fold on
+           *  wide screens. Stacks as two blocks below lg. */}
+          <section className="max-w-[1400px] mx-auto px-4 md:px-6 pt-6 md:pt-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
+              <div className="lg:col-span-2">
+                <NowHero current={currentPeriod} loaded={scheduleLoaded} />
+              </div>
+              <div className="lg:col-span-1">
+                <TodayRail
+                  cards={railCards}
+                  now={now}
+                  loaded={scheduleLoaded}
+                />
+              </div>
+            </div>
+          </section>
           <Insights buckets={insightBuckets} loaded={dashboardLoaded} />
           <UnitsGrid cards={unitCards} loaded={dashboardLoaded} />
           <Admin classes={classes} loaded={dashboardLoaded} />

@@ -58,11 +58,10 @@ function fromCurrent(c: CurrentPeriod): HeroVM {
 /** "No class right now" hero — black background, nothing pulsing. */
 function NoClassHero() {
   return (
-    <section className="max-w-[1400px] mx-auto px-4 md:px-6 pt-6 md:pt-8">
-      <div
-        className="relative rounded-[24px] lg:rounded-[32px] overflow-hidden card-shadow-lg p-6 md:p-8 lg:p-12 min-h-[240px] md:min-h-[280px] flex flex-col justify-center"
-        style={{ background: "#0A0A0A" }}
-      >
+    <div
+      className="relative rounded-[24px] lg:rounded-[32px] overflow-hidden card-shadow-lg p-6 md:p-8 lg:p-12 min-h-[240px] md:min-h-[280px] flex flex-col justify-center h-full"
+      style={{ background: "#0A0A0A" }}
+    >
         <div className="max-w-2xl text-white">
           <div className="cap text-white/60 mb-3">Nothing on now</div>
           <h1 className="display-lg text-[40px] sm:text-[48px] md:text-[56px] leading-[0.95]">
@@ -88,7 +87,6 @@ function NoClassHero() {
           </div>
         </div>
       </div>
-    </section>
   );
 }
 
@@ -126,11 +124,10 @@ export function NowHero({ current, loaded }: NowHeroProps) {
         : "";
 
   return (
-    <section className="max-w-[1400px] mx-auto px-6 pt-8">
-      <div
-        className="relative rounded-[24px] lg:rounded-[32px] overflow-hidden card-shadow-lg glow-inner"
-        style={{ background: vm.color }}
-      >
+    <div
+      className="relative rounded-[24px] lg:rounded-[32px] overflow-hidden card-shadow-lg glow-inner h-full"
+      style={{ background: vm.color }}
+    >
         <div className="flex flex-col lg:grid lg:grid-cols-12 gap-0 items-stretch">
           {/* Left: content */}
           <div className="lg:col-span-7 p-6 md:p-8 lg:p-10 flex flex-col justify-between text-white relative z-10 order-2 lg:order-1">
@@ -311,7 +308,6 @@ export function NowHero({ current, loaded }: NowHeroProps) {
           </div>
         </div>
       </div>
-    </section>
   );
 }
 
