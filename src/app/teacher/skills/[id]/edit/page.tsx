@@ -13,7 +13,6 @@ import Link from "next/link";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { SkillCardForm } from "@/components/skills/SkillCardForm";
 import { DemoAckPanel } from "@/components/skills/DemoAckPanel";
-import { UsedInPanel } from "@/components/skills/UsedInPanel";
 import { useTeacher } from "@/app/teacher/teacher-context";
 import type { CreateSkillCardPayload, SkillCardHydrated } from "@/types/skills";
 
@@ -333,15 +332,12 @@ export default function EditSkillCardPage() {
         }
       />
 
-      {/* "Used in" panel — pin this card to lesson pages so students see
-          it at the moment of need. Visible on drafts too (pin-first-publish-
-          later is a valid workflow). */}
-      <section className="mt-8">
-        <UsedInPanel cardId={card.id} />
-      </section>
-
       {/* Teacher-ack demo panel. Only meaningful once published — a draft
-          card can't be demonstrated until students can see it. */}
+          card can't be demonstrated until students can see it.
+          The "Used in" panel previously lived here (Item #7 first pass,
+          24 Apr 2026). Moved to the lesson editor per Matt's feedback —
+          teachers think "what skills does this lesson need?" when editing
+          a lesson, not when writing a skill card. */}
       {card.is_published && (
         <section className="mt-8">
           <DemoAckPanel cardId={card.id} teacherId={teacher?.id} />
