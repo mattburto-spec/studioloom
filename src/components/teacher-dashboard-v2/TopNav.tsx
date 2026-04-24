@@ -10,9 +10,9 @@ import {
   DROPDOWN_ITEMS,
   NAV_ITEMS,
   activeNavHref,
-  classColor,
   getInitials,
 } from "./nav-config";
+import { deriveTeacherPrograms } from "./program";
 
 interface TopNavProps {
   /** Current teacher — null while TeacherContext resolves. */
@@ -62,15 +62,19 @@ export function TopNav({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [menuOpen]);
 
-  // Scope options: "All classes" + one entry per class, colour-keyed
-  // by hash(class.id) so colours stay stable across reloads.
+  // Scope options: "All programs" + one entry per program the teacher
+  // actually teaches (derived from classes via program.ts rules). The
+  // teacher's class roster no longer shows up in the chip — individual
+  // classes are available inside the Classes page once they pick a
+  // scope.
+  const programs = deriveTeacherPrograms(classes);
   const scopeOptions = [
-    { id: "all", name: "All classes", color: "#0A0A0A", icon: "🏠" },
-    ...classes.map((c) => ({
-      id: c.id,
-      name: c.name,
-      color: classColor(c.id).color,
-      icon: "📓",
+    { id: "all", name: "All programs", color: "#0A0A0A", icon: "🏠" },
+    ...programs.map((p) => ({
+      id: p.id,
+      name: p.name,
+      color: p.color,
+      icon: p.icon,
     })),
   ];
   const cur = scopeOptions.find((p) => p.id === scope) ?? scopeOptions[0];

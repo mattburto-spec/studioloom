@@ -28,6 +28,8 @@ import {
 import { useTeacher } from "@/app/teacher/teacher-context";
 import { buildInsightBuckets } from "@/components/teacher-dashboard-v2/insight-buckets";
 import { buildUnitCards } from "@/components/teacher-dashboard-v2/unit-cards";
+import { useTeacherShell } from "@/components/teacher-dashboard-v2/TeacherShellContext";
+import { filterClassesByScope } from "@/components/teacher-dashboard-v2/program";
 import type {
   DashboardData,
   DashboardClass,
@@ -37,6 +39,7 @@ import type {
 
 export default function TeacherDashboardClient() {
   const { teacher } = useTeacher();
+  const { scope } = useTeacherShell();
   const [classes, setClasses] = useState<DashboardClass[]>([]);
   const [unmarkedWork, setUnmarkedWork] = useState<UnmarkedWorkItem[]>([]);
   const [insights, setInsights] = useState<DashboardInsight[] | null>(null);
@@ -108,24 +111,62 @@ export default function TeacherDashboardClient() {
     };
   }, [teacher]);
 
+  // Phase 12 — narrow all four body sections to the selected program.
+  // The scope chip writes to TeacherShell; everything below reads the
+  // filtered roster so hero/rail/insights/units/admin all agree.
+  const filteredClasses = useMemo(
+    () => filterClassesByScope(classes, scope),
+    [classes, scope],
+  );
+  const filteredClassIds = useMemo(
+    () => new Set(filteredClasses.map((c) => c.id)),
+    [filteredClasses],
+  );
+  const filteredUnmarkedWork = useMemo(
+    () => unmarkedWork.filter((w) => filteredClassIds.has(w.classId)),
+    [unmarkedWork, filteredClassIds],
+  );
+  const filteredInsights = useMemo(() => {
+    if (insights === null) return null;
+    if (scope === "all") return insights;
+    // DashboardInsight carries subtitle like "Student · Class Name · Unit".
+    // We don't have classId on the insight row itself, so we match by
+    // class name contained in the subtitle. Imperfect but reasonable
+    // for a v1 filter.
+    const allowedNames = new Set(filteredClasses.map((c) => c.name));
+    return insights.filter((i) =>
+      Array.from(allowedNames).some((n) => i.subtitle.includes(` · ${n} · `)),
+    );
+  }, [insights, filteredClasses, scope]);
+
   const currentPeriod = useMemo(() => {
     if (!schedule) return null;
-    return resolveCurrentPeriod(schedule, classes, unmarkedWork, now);
-  }, [schedule, classes, unmarkedWork, now]);
+    return resolveCurrentPeriod(
+      schedule,
+      filteredClasses,
+      filteredUnmarkedWork,
+      now,
+    );
+  }, [schedule, filteredClasses, filteredUnmarkedWork, now]);
 
   const railCards = useMemo(() => {
     if (!schedule) return [];
-    return buildTodayRail(schedule, classes, unmarkedWork, now);
-  }, [schedule, classes, unmarkedWork, now]);
+    const all = buildTodayRail(schedule, filteredClasses, filteredUnmarkedWork, now);
+    // buildTodayRail maps every schedule entry → a card, even ones
+    // whose class isn't in the filtered roster (student counts come
+    // from the `classes` param; meetings come from the schedule). Drop
+    // rail cards that aren't in the selected program.
+    return all.filter((c) => filteredClassIds.has(c.classId));
+  }, [schedule, filteredClasses, filteredClassIds, filteredUnmarkedWork, now]);
 
   const insightBuckets = useMemo(() => {
-    if (insights === null) return [];
-    return buildInsightBuckets(insights);
-  }, [insights]);
+    if (filteredInsights === null) return [];
+    return buildInsightBuckets(filteredInsights);
+  }, [filteredInsights]);
 
   const unitCards = useMemo(
-    () => buildUnitCards(classes, unmarkedWork),
-    [classes, unmarkedWork],
+    () => buildUnitCards(filteredClasses, filteredUnmarkedWork),
+    [filteredClasses, filteredUnmarkedWork],
   );
 
   const allLoaded = dashboardLoaded && scheduleLoaded;
@@ -151,7 +192,7 @@ export default function TeacherDashboardClient() {
       </section>
       <Insights buckets={insightBuckets} loaded={dashboardLoaded} />
       <UnitsGrid cards={unitCards} loaded={dashboardLoaded} />
-      <Admin classes={classes} loaded={dashboardLoaded} />
+      <Admin classes={filteredClasses} loaded={dashboardLoaded} />
     </>
   );
 }
