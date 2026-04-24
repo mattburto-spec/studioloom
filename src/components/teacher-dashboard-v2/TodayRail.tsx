@@ -156,9 +156,13 @@ export function TodayRail({ cards, now, loaded }: TodayRailProps) {
           </h2>
         </div>
         {visible.length > 0 && (
-          <button className="text-[12px] font-bold text-[var(--ink-2)] hover:text-[var(--ink)] inline-flex items-center gap-1">
+          <Link
+            href="/teacher/settings?tab=timetable"
+            className="text-[12px] font-bold text-[var(--ink-2)] hover:text-[var(--ink)] inline-flex items-center gap-1"
+            title="Open the weekly timetable in Settings"
+          >
             Week <I name="chevR" size={12} s={2.5} />
-          </button>
+          </Link>
         )}
       </div>
       {visible.length === 0 ? (
