@@ -2346,6 +2346,22 @@ docs:
     max_age_days: 180
     last_scanned: "2026-04-21"
 
+  - path: docs/projects/preflight-phase-6-brief.md
+    title: "Preflight Phase 6 Brief — Teacher Queue + Approval"
+    purpose: "Phase 6 build brief: 7 sub-phases (6-0 reducer fix → 6-6 checkpoint). Scope: first teacher-facing surface (`/teacher/preflight` queue with status tabs + detail page + approve/return/reject/note actions), per-student + per-class fabrication history tabs, student-side `needs_revision` view. 8 open questions resolved pre-build. No new migrations. Commit plan + success criteria matrix."
+    category: projects
+    last_verified: "2026-04-23"
+    max_age_days: 90
+    last_scanned: "2026-04-23"
+
+  - path: docs/projects/preflight-phase-6-checkpoint-6-1.md
+    title: "Preflight Phase 6 Checkpoint 6.1 Report (✅ PASS)"
+    purpose: "Checkpoint 6.1 exit report — signed off 23 Apr 2026 PM. All 4 smoke scenarios verified in prod on studioloom.org: S1 happy-path approve, S2 return-for-revision (closed PH5-FU-REUPLOAD-POLL-STUCK via layered 6-0 + 6-5b fix), S3 reject, S4 per-student + per-class history. 6 new follow-ups filed: PH6-FU-PREVIEW-OVERLAY P2, PH6-FU-PREVIEW-PINCH-ZOOM P3, PH6-FU-RULE-MEDIA-EMBEDS P2, PH6-FU-TEACHER-CANNED-NOTES-EDITABLE P3, PH6-FU-MULTI-LAB-SCOPING P2, PH6-FU-HISTORY-PAGINATION P2. No new migrations. Tests 1668 → 1854 (+186)."
+    category: projects
+    last_verified: "2026-04-23"
+    max_age_days: 180
+    last_scanned: "2026-04-23"
+
   - path: docs/projects/fabrication-pipeline-phase-0-brief.md
     title: "Preflight Phase 0 Brief — Spec & Pre-Build Checklist"
     purpose: "Phase 0 pre-build ritual: fixture gathering, rule threshold sign-off, machine profile verification, Fabricator kickoff call, decision doc template, Checkpoint 0.1 gates"

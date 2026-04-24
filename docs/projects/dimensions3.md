@@ -6,6 +6,31 @@
 
 ---
 
+## ⚠️ READ FIRST — Strategic Shift (19 April 2026)
+
+**Auto-generation of full units is being replaced by an interactive unit planner.** When you come back to this project, the first job is reconciling this doc with the new direction before writing any more generator code.
+
+**What changed:**
+Matt's existing ingestion + unit generation runs didn't produce units good enough to trust — because every teacher has their own style, and a generator that aims for "done" always lands in the uncanny valley for the teacher who actually has to use the unit. Disappointment is baked in when the system promises a finished unit.
+
+**The new model:**
+1. **Unit planner drives the flow, not the generator.** Matt has built a new planner with a better theoretical framework: starts with **concepts**, works down to **strategies**, then **skills**, then wraps in the **framework** (MYP in Matt's case, pluggable for others). Teacher walks through this sequentially. The planner replaces the generator.
+2. **Saved units become "unit kernels" (recipe cards), not finished lessons.** The library is browsable colourful cards — each one a seed: *artefact + concept + provocation*. Teachers can't grab-and-go; clicking a kernel opens the planner pre-seeded, and the teacher still walks through skills + framework + constraints (lesson count, equipment, etc.) before anything is generated. Forced customisation removes "this isn't my style" disappointment, because the teacher IS the author.
+3. **Kernel library has three organisational axes as filters over one pool, not three libraries:** by final artefact, by concept lens, by context/provocation.
+4. **The generator's remaining job is gap-fill, not unit creation.** Once the teacher has set concepts/strategies/skills/framework/constraints, the AI assembles blocks + fills connective tissue. Not "write me a unit" — "fit these teacher-chosen blocks into lessons that meet the teacher-set constraints."
+5. **Ingestion's role is now block surfacing, not unit input** — see the note on `systems/Ingestion/ingestion-pipeline-summary.md`. Ingested content becomes tagged activity blocks surfaced inside the planner at the moment the teacher has set enough context (concepts + skills) for suggestions to be useful. Return 5 ranked blocks with a reason each, not 30.
+
+**What this means for Dimensions3's existing phases:**
+- The "6-stage compartmentalised pipeline" survives but its entry point changes: teacher-set planner output, not AI-drafted-unit-output.
+- Activity Block Library (Phase A) is MORE important under the new model — it's the payload the planner surfaces and the planner assembles.
+- Block tagging (concept / strategy / skill / artefact / age band) is now on the critical path. The surfacing quality of the whole product depends on tag quality.
+- Full end-to-end generation from a source doc is DEPRIORITISED. Don't build it as the primary flow.
+- Sandbox / dryRun / feedback-loop scaffolding still applies — just anchored to the new planner-driven flow.
+
+**Open question still unanswered:** is the first audience Matt's own class (hand-authored kernels are fine) or a wider teacher beta (kernel library + ingestion-fed blocks are on the critical path)? Answer this before scoping the next phase.
+
+---
+
 ## 1. What This Is
 
 A ground-up rebuild of StudioLoom's generation and ingestion pipelines, replacing both quarantined systems (knowledge pipeline + unit generation pipeline, 42 entry points sealed 3 Apr 2026).

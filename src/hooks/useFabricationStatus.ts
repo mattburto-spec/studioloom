@@ -31,16 +31,35 @@ export interface UseFabricationStatusOptions {
   timeoutMs?: number;
   /** Override fetch for testing. Defaults to global fetch. */
   fetcher?: typeof fetch;
+  /**
+   * Phase 5-4: when true, polls with `?include=results` so the response
+   * includes scan_results + acknowledged_warnings. Used by the results
+   * page (Phase 5-4) where the bucketed UI needs the full rule list.
+   * Default false — keeps the 2s poll payload light.
+   */
+  includeResults?: boolean;
+}
+
+/**
+ * Returned alongside the poll state so callers can force-reset after a
+ * re-upload (Phase 5-5). Without this, the reducer's terminal-state
+ * freeze would keep the UI stuck on the previous revision's "done" card
+ * even after a new revision starts scanning.
+ */
+export interface UseFabricationStatusReturn {
+  state: FabricationPollState;
+  reset: () => void;
 }
 
 export function useFabricationStatus(
   jobId: string,
   options: UseFabricationStatusOptions = {}
-): FabricationPollState {
+): UseFabricationStatusReturn {
   const {
     pollIntervalMs = 2000,
     timeoutMs = 90000,
     fetcher,
+    includeResults = false,
   } = options;
 
   // fetcher captured once per mount — changing it mid-lifecycle isn't a
@@ -66,13 +85,14 @@ export function useFabricationStatus(
 
     const elapsed = () => Date.now() - startedAtRef.current;
 
+    const statusUrl = includeResults
+      ? `/api/student/fabrication/jobs/${jobId}/status?include=results`
+      : `/api/student/fabrication/jobs/${jobId}/status`;
+
     async function pollOnce() {
       if (cancelled) return;
       try {
-        const res = await fetcherRef.current(
-          `/api/student/fabrication/jobs/${jobId}/status`,
-          { credentials: "same-origin" }
-        );
+        const res = await fetcherRef.current(statusUrl, { credentials: "same-origin" });
         if (cancelled) return;
         if (!res.ok) {
           const body = await res.json().catch(() => ({ error: "" }));
@@ -131,12 +151,21 @@ export function useFabricationStatus(
       if (pollTimer) clearTimeout(pollTimer);
       if (tickTimer) clearInterval(tickTimer);
     };
-  }, [jobId, pollIntervalMs, timeoutMs]);
+  }, [jobId, pollIntervalMs, timeoutMs, includeResults]);
 
   // Terminal-state guard: once the reducer says we're in done/error/
   // timeout, we could bail the effect early on next mount — but the
   // reducer itself already freezes terminal states against late events,
   // so no extra logic needed here.
 
-  return state;
+  // reset() — dispatched by the page after a successful re-upload so
+  // the next POLL_SUCCESS can move the reducer off the frozen 'done'
+  // state into a fresh 'polling' state for the new revision. We also
+  // reset startedAtRef so the staged messaging elapsed-time restarts.
+  const reset = React.useCallback(() => {
+    startedAtRef.current = Date.now();
+    dispatch({ type: "RESET" });
+  }, []);
+
+  return { state, reset };
 }

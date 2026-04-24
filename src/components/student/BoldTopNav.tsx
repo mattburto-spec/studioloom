@@ -170,7 +170,7 @@ export function Icon({ name, size = 16, s = 2 }: { name: IconName; size?: number
 
 // Pill nav supports three variants:
 //   - { anchor } → smooth-scroll to an id on /dashboard; /dashboard#id elsewhere
-//   - { route }  → navigate to a dedicated route
+//   - { route }  → navigate to a dedicated route (supports subroutes for active match)
 //   - {}         → disabled "Coming soon"
 type NavItem =
   | { label: string; anchor: string }
@@ -181,6 +181,11 @@ const NAV_S: NavItem[] = [
   { label: "My work",   anchor: "dashboard-hero" },
   { label: "Units",     anchor: "dashboard-units" },
   { label: "Skills",    route:  "/skills" },
+  // Preflight Phase 6-6i — lands students on the /fabrication
+  // overview (list of their submissions). "+ New submission" CTA on
+  // that page jumps to /fabrication/new. Pill highlights across every
+  // /fabrication/* subpath via the route + startsWith match below.
+  { label: "Preflight", route:  "/fabrication" },
   { label: "Journal"    }, // disabled — Phase 14 notes system
   { label: "Resources"  }, // disabled — Phase 18 resources library
 ];
@@ -354,10 +359,11 @@ export function BoldTopNav({
             const hasAnchor = "anchor" in n;
             const hasRoute = "route" in n;
             const disabled = !hasAnchor && !hasRoute;
-            // Active when on the matching route (for route pills) OR on dashboard
-            // for the default "My work" anchor pill.
+            // Active when on the matching route or any subroute (for route
+            // pills; e.g. /fabrication/jobs/... lights up Preflight) OR on
+            // dashboard for the default "My work" anchor pill.
             const active =
-              (hasRoute && pathname === n.route) ||
+              (hasRoute && (pathname === n.route || pathname.startsWith(n.route + "/") || (n.route === "/fabrication/new" && pathname.startsWith("/fabrication/")))) ||
               (onDashboard && hasAnchor && n.anchor === "dashboard-hero");
             const classNames = `px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition ${
               active

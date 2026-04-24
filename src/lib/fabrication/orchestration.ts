@@ -30,6 +30,9 @@
  *                             noted for the status route)
  */
 
+// rule-buckets module imports only types from this file, so no cycle.
+import { canSubmit } from "./rule-buckets";
+
 export const MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB — Supabase Free Plan ceiling
 export const FABRICATION_UPLOAD_BUCKET = "fabrication-uploads";
 export const FABRICATION_THUMBNAIL_BUCKET = "fabrication-thumbnails";
@@ -378,8 +381,46 @@ export interface JobStatusSuccess {
   jobId: string;
   jobStatus: string; // fabrication_jobs.status ('uploaded' | 'scanning' | ...)
   currentRevision: number;
+  /** Phase 5-5: file_type of the job (stl | svg). Needed by ReuploadModal
+   *  to lock the new revision to the same type as the original. */
+  fileType: "stl" | "svg";
   revision: JobStatusRevision | null;
   scanJob: JobStatusScanJob | null;
+  /**
+   * Phase 5-4: full scan_results JSONB when `includeResults` was passed.
+   * Omitted when absent to keep the 2s-poll payload light. Shape is the
+   * worker's scan_results JSONB: { rules: Rule[], ruleset_version,
+   *   scan_duration_ms, thumbnail_path }.
+   */
+  scanResults?: { rules?: Array<{ id: string; severity: string; [k: string]: unknown }> | null } | null;
+  /**
+   * Phase 5-4: acknowledged_warnings JSONB from fabrication_jobs when
+   * includeResults=true. Omitted on thin polls.
+   */
+  acknowledgedWarnings?: { [revisionKey: string]: { [ruleId: string]: { choice: string; timestamp: string } } } | null;
+  /**
+   * Phase 6-5: teacher_review_note + teacher_reviewed_at from
+   * fabrication_jobs when includeResults=true. Populated after a
+   * teacher acts via /api/teacher/fabrication/jobs/[jobId]/{approve,
+   * return-for-revision, reject, note}. Student UI keys off jobStatus
+   * + the note to render the amber/red review card (see
+   * TeacherReviewNoteCard). Both fields null when teacher hasn't
+   * touched the job. Omitted (not in the payload at all) on thin
+   * polls so the 2s poll stays tiny.
+   */
+  teacherReviewNote?: string | null;
+  teacherReviewedAt?: string | null;
+  /**
+   * Phase 7-5: lab-tech completion fields from fabrication_jobs when
+   * includeResults=true. Populated after a fabricator acts via
+   * /api/fab/jobs/[jobId]/{complete,fail}. Student UI keys off
+   * `completionStatus` + `completionNote` to render the green/red
+   * result card (LabTechCompletionCard). All three null when no
+   * fabricator action yet. Omitted on thin polls.
+   */
+  completionStatus?: string | null;
+  completionNote?: string | null;
+  completedAt?: string | null;
 }
 
 export type JobStatusResult = JobStatusSuccess | OrchestrationError;
@@ -391,6 +432,444 @@ export function isOrchestrationError(r: unknown): r is OrchestrationError {
     "error" in r &&
     typeof (r as { error: unknown }).error === "object"
   );
+}
+
+// ============================================================
+// Phase 5-1 — revisions + acknowledge + submit
+// ============================================================
+
+/** Choice values from the 3-option radio group in the should-fix UI. */
+export const ACK_CHOICES = ["intentional", "will-fix-slicer", "acknowledged"] as const;
+export type AckChoice = (typeof ACK_CHOICES)[number];
+
+/**
+ * Shape of acknowledged_warnings JSONB on fabrication_jobs.
+ * Keyed `revision_<N>` → `{rule_id: {choice, timestamp}}`. Nested structure
+ * gives per-revision audit trail which the teacher queue (Phase 6) will need.
+ *
+ * Note: migration 095's comment suggested a flat `[{rule_id, ack_at}]` array
+ * — that was written in Phase 1A before the spec matured. JSONB column has
+ * no CHECK constraint, so this nested shape is a conscious deviation for
+ * better multi-revision audit.
+ */
+export type AcknowledgedWarnings = {
+  [revisionKey: string]: {
+    [ruleId: string]: { choice: AckChoice; timestamp: string };
+  };
+};
+
+export interface CreateRevisionRequest {
+  studentId: string;
+  jobId: string;
+  fileType: string;
+  originalFilename: string;
+  fileSizeBytes: number;
+}
+
+export type CreateRevisionResult = CreateUploadJobSuccess | CreateUploadJobError;
+
+/**
+ * Create revision N+1 on an existing job. Minimal version of createUploadJob
+ * — skips the enrolment + machine-profile lookups (those were validated when
+ * the job was first created) and just bumps the revision_number.
+ */
+export async function createRevision(
+  db: SupabaseLike,
+  req: CreateRevisionRequest
+): Promise<CreateRevisionResult> {
+  // 0. Validate body shape — mirror the Phase 4-1 validator rules but without
+  //    classId / machineProfileId (those are locked to the existing job).
+  if (!req.originalFilename || req.originalFilename.trim().length === 0) {
+    return { error: { status: 400, message: "originalFilename required" } };
+  }
+  const trimmedFilename = req.originalFilename.trim();
+  const ext = trimmedFilename.toLowerCase().split(".").pop() ?? "";
+  if (!ALLOWED_FILE_TYPES.includes(req.fileType as FileType)) {
+    return {
+      error: {
+        status: 400,
+        message: `fileType must be one of: ${ALLOWED_FILE_TYPES.join(", ")}`,
+      },
+    };
+  }
+  if (ext !== req.fileType) {
+    return {
+      error: {
+        status: 400,
+        message: `originalFilename extension (.${ext}) does not match fileType (${req.fileType})`,
+      },
+    };
+  }
+  if (
+    typeof req.fileSizeBytes !== "number" ||
+    !Number.isFinite(req.fileSizeBytes) ||
+    req.fileSizeBytes <= 0
+  ) {
+    return { error: { status: 400, message: "fileSizeBytes must be a positive number" } };
+  }
+  if (req.fileSizeBytes > MAX_UPLOAD_SIZE_BYTES) {
+    return {
+      error: {
+        status: 413,
+        message: `File exceeds ${MAX_UPLOAD_SIZE_BYTES} byte limit (${MAX_UPLOAD_SIZE_BYTES / 1024 / 1024} MB)`,
+      },
+    };
+  }
+
+  // 1. Load job + verify ownership.
+  const ownership = await db
+    .from("fabrication_jobs")
+    .select("id, student_id, teacher_id, current_revision, file_type")
+    .eq("id", req.jobId)
+    .maybeSingle();
+  if (ownership.error) {
+    return {
+      error: { status: 500, message: `Job lookup failed: ${ownership.error.message}` },
+    };
+  }
+  if (!ownership.data) {
+    return { error: { status: 404, message: "Job not found" } };
+  }
+  if (ownership.data.student_id !== req.studentId) {
+    // 404 not 403 — don't telegraph job existence to non-owners (same
+    // convention as the Phase 4-2 enqueue/status endpoints).
+    return { error: { status: 404, message: "Job not found" } };
+  }
+
+  // 2. Validate re-upload file_type matches the job's file_type. A student
+  //    who started with STL can't switch to SVG mid-job — machine profile
+  //    applicability depends on file type.
+  if (ownership.data.file_type !== req.fileType) {
+    return {
+      error: {
+        status: 400,
+        message: `Re-upload fileType (${req.fileType}) must match the original job fileType (${ownership.data.file_type})`,
+      },
+    };
+  }
+
+  // 3. Find the highest existing revision_number — we bump from there rather
+  //    than trusting fabrication_jobs.current_revision (which may lag).
+  const latestRev = await db
+    .from("fabrication_job_revisions")
+    .select("revision_number")
+    .eq("job_id", req.jobId)
+    .order("revision_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (latestRev.error) {
+    return {
+      error: {
+        status: 500,
+        message: `Latest revision lookup failed: ${latestRev.error.message}`,
+      },
+    };
+  }
+  const nextRevisionNumber: number = (latestRev.data?.revision_number ?? 0) + 1;
+
+  // 4. Build storage path for the new revision and INSERT.
+  const teacherId: string = ownership.data.teacher_id;
+  const storagePath = buildStoragePath({
+    teacherId,
+    studentId: req.studentId,
+    jobId: req.jobId,
+    revisionNumber: nextRevisionNumber,
+    fileType: req.fileType as FileType,
+  });
+
+  const revInsert = await db
+    .from("fabrication_job_revisions")
+    .insert({
+      job_id: req.jobId,
+      revision_number: nextRevisionNumber,
+      storage_path: storagePath,
+      file_size_bytes: req.fileSizeBytes,
+      scan_status: "pending",
+    })
+    .select("id")
+    .single();
+  if (revInsert.error || !revInsert.data) {
+    return {
+      error: {
+        status: 500,
+        message: `Revision insert failed: ${revInsert.error?.message ?? "unknown"}`,
+      },
+    };
+  }
+  const revisionId: string = revInsert.data.id;
+
+  // 5. Also bump fabrication_jobs.current_revision so the denormalised column
+  //    stays in sync (status endpoint reads current_revision to find the
+  //    latest revision via join).
+  const bump = await db
+    .from("fabrication_jobs")
+    .update({ current_revision: nextRevisionNumber })
+    .eq("id", req.jobId);
+  if (bump.error) {
+    // Not fatal — revision row exists. Log via error path but don't delete
+    // the revision (cleanup would cascade to undo the whole attempt).
+    // Phase 6 can reconcile via max(revision_number) if current_revision
+    // ever drifts.
+  }
+
+  // 6. Mint the signed upload URL.
+  const urlResult = await db.storage
+    .from(FABRICATION_UPLOAD_BUCKET)
+    .createSignedUploadUrl(storagePath);
+  if (urlResult.error || !urlResult.data) {
+    // Delete the revision row we just created — no orphan storage path.
+    await db.from("fabrication_job_revisions").delete().eq("id", revisionId);
+    // Roll current_revision back only if we successfully bumped it above.
+    if (!bump.error) {
+      await db
+        .from("fabrication_jobs")
+        .update({ current_revision: nextRevisionNumber - 1 })
+        .eq("id", req.jobId);
+    }
+    return {
+      error: {
+        status: 500,
+        message: `Signed URL mint failed: ${urlResult.error?.message ?? "unknown"}`,
+      },
+    };
+  }
+
+  return {
+    jobId: req.jobId,
+    revisionId,
+    uploadUrl: urlResult.data.signedUrl,
+    storagePath,
+  };
+}
+
+// ------------------------------------------------------------
+// acknowledgeWarning
+// ------------------------------------------------------------
+
+export interface AcknowledgeWarningRequest {
+  studentId: string;
+  jobId: string;
+  revisionNumber: number;
+  ruleId: string;
+  choice: AckChoice;
+}
+
+export type AcknowledgeWarningResult =
+  | { acknowledgedWarnings: AcknowledgedWarnings }
+  | OrchestrationError;
+
+/**
+ * Persist a single rule acknowledgement. Merge-patches
+ * fabrication_jobs.acknowledged_warnings JSONB — READ-MODIFY-WRITE (no
+ * atomic JSONB update RPC in v1; concurrent acks by the same student
+ * would race but the same student can't realistically click two radios
+ * simultaneously).
+ */
+export async function acknowledgeWarning(
+  db: SupabaseLike,
+  req: AcknowledgeWarningRequest
+): Promise<AcknowledgeWarningResult> {
+  if (!ACK_CHOICES.includes(req.choice)) {
+    return {
+      error: {
+        status: 400,
+        message: `choice must be one of: ${ACK_CHOICES.join(", ")}`,
+      },
+    };
+  }
+  if (!req.ruleId || typeof req.ruleId !== "string") {
+    return { error: { status: 400, message: "ruleId required" } };
+  }
+  if (!Number.isInteger(req.revisionNumber) || req.revisionNumber < 1) {
+    return { error: { status: 400, message: "revisionNumber must be a positive integer" } };
+  }
+
+  // 1. Load job + verify ownership + read current acknowledged_warnings.
+  const ownership = await db
+    .from("fabrication_jobs")
+    .select("student_id, acknowledged_warnings")
+    .eq("id", req.jobId)
+    .maybeSingle();
+  if (ownership.error) {
+    return {
+      error: { status: 500, message: `Job lookup failed: ${ownership.error.message}` },
+    };
+  }
+  if (!ownership.data || ownership.data.student_id !== req.studentId) {
+    return { error: { status: 404, message: "Job not found" } };
+  }
+
+  // 2. Merge-patch.
+  const existing: AcknowledgedWarnings = ownership.data.acknowledged_warnings ?? {};
+  const revisionKey = `revision_${req.revisionNumber}`;
+  const updated: AcknowledgedWarnings = {
+    ...existing,
+    [revisionKey]: {
+      ...(existing[revisionKey] ?? {}),
+      [req.ruleId]: {
+        choice: req.choice,
+        timestamp: new Date().toISOString(),
+      },
+    },
+  };
+
+  // 3. Write back.
+  const write = await db
+    .from("fabrication_jobs")
+    .update({ acknowledged_warnings: updated })
+    .eq("id", req.jobId);
+  if (write.error) {
+    return {
+      error: {
+        status: 500,
+        message: `Ack write failed: ${write.error.message}`,
+      },
+    };
+  }
+
+  return { acknowledgedWarnings: updated };
+}
+
+// ------------------------------------------------------------
+// submitJob
+// ------------------------------------------------------------
+
+export interface SubmitJobRequest {
+  studentId: string;
+  jobId: string;
+}
+
+export type SubmitJobResult =
+  | {
+      jobId: string;
+      newStatus: "pending_approval" | "approved";
+      requiresTeacherApproval: boolean;
+    }
+  | OrchestrationError;
+
+/**
+ * Validate + transition. Reads the latest revision's scan_results, confirms
+ * zero BLOCK rules fired AND every WARN rule has an ack for the current
+ * revision, then transitions fabrication_jobs.status to 'pending_approval'
+ * or 'approved' based on machine_profiles.requires_teacher_approval.
+ */
+export async function submitJob(
+  db: SupabaseLike,
+  req: SubmitJobRequest
+): Promise<SubmitJobResult> {
+  // 1. Load job (student ownership + machine profile id + current revision +
+  //    acknowledged warnings + status).
+  const jobResult = await db
+    .from("fabrication_jobs")
+    .select(
+      "id, student_id, machine_profile_id, current_revision, acknowledged_warnings, status"
+    )
+    .eq("id", req.jobId)
+    .maybeSingle();
+  if (jobResult.error) {
+    return {
+      error: { status: 500, message: `Job lookup failed: ${jobResult.error.message}` },
+    };
+  }
+  if (!jobResult.data || jobResult.data.student_id !== req.studentId) {
+    return { error: { status: 404, message: "Job not found" } };
+  }
+  const job = jobResult.data;
+
+  // 2. Guard against double-submit — once the job has progressed past
+  //    'uploaded' / 'scanning' / 'needs_revision', it's in the teacher's
+  //    or lab tech's court.
+  const submittableStatuses = new Set(["uploaded", "scanning", "needs_revision"]);
+  if (!submittableStatuses.has(job.status)) {
+    return {
+      error: {
+        status: 409,
+        message: `Job is in status '${job.status}' — can't submit from this state`,
+      },
+    };
+  }
+
+  // 3. Load the current revision's scan results.
+  const revResult = await db
+    .from("fabrication_job_revisions")
+    .select("scan_status, scan_results, revision_number")
+    .eq("job_id", req.jobId)
+    .eq("revision_number", job.current_revision)
+    .maybeSingle();
+  if (revResult.error) {
+    return {
+      error: { status: 500, message: `Revision lookup failed: ${revResult.error.message}` },
+    };
+  }
+  if (!revResult.data) {
+    return { error: { status: 500, message: "Current revision not found" } };
+  }
+  if (revResult.data.scan_status !== "done") {
+    return {
+      error: {
+        status: 400,
+        message: `Scan not complete — status is '${revResult.data.scan_status}'`,
+      },
+    };
+  }
+
+  // 4. Validate via the shared gate (Phase 5-2). canSubmit is the single
+  //    source of truth for "is this student cleared to submit" — same
+  //    predicate the results viewer uses to enable the Submit button.
+  //    Lesson #39: pattern bugs get fixed in one place, not duplicated.
+  //    rule-buckets uses type-only imports from this file so no cycle.
+  const gate = canSubmit({
+    results: revResult.data.scan_results ?? { rules: [] },
+    acknowledgedWarnings: job.acknowledged_warnings ?? {},
+    revisionNumber: revResult.data.revision_number,
+  });
+  if (!gate.ok) {
+    return {
+      error: { status: 400, message: gate.message },
+    };
+  }
+
+  // 5. Look up machine profile for approval routing.
+  const profileResult = await db
+    .from("machine_profiles")
+    .select("requires_teacher_approval")
+    .eq("id", job.machine_profile_id)
+    .maybeSingle();
+  if (profileResult.error) {
+    return {
+      error: {
+        status: 500,
+        message: `Machine profile lookup failed: ${profileResult.error.message}`,
+      },
+    };
+  }
+  if (!profileResult.data) {
+    return { error: { status: 500, message: "Machine profile not found" } };
+  }
+  const requiresTeacherApproval: boolean = !!profileResult.data.requires_teacher_approval;
+  const newStatus: "pending_approval" | "approved" = requiresTeacherApproval
+    ? "pending_approval"
+    : "approved";
+
+  // 6. Transition status.
+  const write = await db
+    .from("fabrication_jobs")
+    .update({ status: newStatus })
+    .eq("id", req.jobId);
+  if (write.error) {
+    return {
+      error: {
+        status: 500,
+        message: `Status transition failed: ${write.error.message}`,
+      },
+    };
+  }
+
+  return {
+    jobId: req.jobId,
+    newStatus,
+    requiresTeacherApproval,
+  };
 }
 
 /**
@@ -405,12 +884,20 @@ async function loadOwnedJob(
   studentId: string,
   jobId: string
 ): Promise<
-  | { job: { id: string; student_id: string; status: string; current_revision: number } }
+  | {
+      job: {
+        id: string;
+        student_id: string;
+        status: string;
+        current_revision: number;
+        file_type: "stl" | "svg";
+      };
+    }
   | OrchestrationError
 > {
   const result = await db
     .from("fabrication_jobs")
-    .select("id, student_id, status, current_revision")
+    .select("id, student_id, status, current_revision, file_type")
     .eq("id", jobId)
     .maybeSingle();
   if (result.error) {
@@ -557,20 +1044,69 @@ export async function enqueueScanJob(
  */
 export async function getJobStatus(
   db: SupabaseLike,
-  params: { studentId: string; jobId: string }
+  params: { studentId: string; jobId: string; includeResults?: boolean }
 ): Promise<JobStatusResult> {
-  const { studentId, jobId } = params;
+  const { studentId, jobId, includeResults = false } = params;
 
-  const ownership = await loadOwnedJob(db, studentId, jobId);
-  if (isOrchestrationError(ownership)) return ownership;
-  const job = ownership.job;
+  // Phase 5-4: when includeResults=true, fetch acknowledged_warnings from
+  // the job row inline. Otherwise use loadOwnedJob's lean SELECT for the
+  // 2s poll case. One DB round trip either way.
+  let ackWarnings: { [k: string]: { [r: string]: { choice: string; timestamp: string } } } | null =
+    null;
+  // Phase 6-5: teacher review fields surface on includeResults=true
+  // polls so the student status page can render the amber/red review
+  // card without an extra round-trip. Thin polls skip these.
+  let teacherReviewNote: string | null = null;
+  let teacherReviewedAt: string | null = null;
+  let completionStatus: string | null = null;
+  let completionNote: string | null = null;
+  let completedAt: string | null = null;
+  let job: {
+    id: string;
+    student_id: string;
+    status: string;
+    current_revision: number;
+    file_type: "stl" | "svg";
+  };
 
-  // Latest revision for the job.
+  if (includeResults) {
+    const full = await db
+      .from("fabrication_jobs")
+      .select(
+        "id, student_id, status, current_revision, acknowledged_warnings, file_type, teacher_review_note, teacher_reviewed_at, completion_status, completion_note, completed_at"
+      )
+      .eq("id", jobId)
+      .maybeSingle();
+    if (full.error) {
+      return {
+        error: { status: 500, message: `Job lookup failed: ${full.error.message}` },
+      };
+    }
+    if (!full.data || full.data.student_id !== studentId) {
+      return { error: { status: 404, message: "Job not found" } };
+    }
+    ackWarnings = full.data.acknowledged_warnings ?? null;
+    teacherReviewNote = full.data.teacher_review_note ?? null;
+    teacherReviewedAt = full.data.teacher_reviewed_at ?? null;
+    completionStatus = full.data.completion_status ?? null;
+    completionNote = full.data.completion_note ?? null;
+    completedAt = full.data.completed_at ?? null;
+    job = full.data;
+  } else {
+    const ownership = await loadOwnedJob(db, studentId, jobId);
+    if (isOrchestrationError(ownership)) return ownership;
+    job = ownership.job;
+  }
+
+  // Latest revision for the job. Include scan_results JSONB when
+  // includeResults is set.
+  const selectCols = includeResults
+    ? "id, revision_number, scan_status, scan_error, scan_completed_at, scan_ruleset_version, thumbnail_path, scan_results"
+    : "id, revision_number, scan_status, scan_error, scan_completed_at, scan_ruleset_version, thumbnail_path";
+
   const revResult = await db
     .from("fabrication_job_revisions")
-    .select(
-      "id, revision_number, scan_status, scan_error, scan_completed_at, scan_ruleset_version, thumbnail_path"
-    )
+    .select(selectCols)
     .eq("job_id", jobId)
     .order("revision_number", { ascending: false })
     .limit(1)
@@ -644,7 +1180,360 @@ export async function getJobStatus(
     jobId: job.id,
     jobStatus: job.status,
     currentRevision: job.current_revision,
+    fileType: job.file_type,
     revision,
     scanJob,
+    ...(includeResults
+      ? {
+          scanResults: revResult.data?.scan_results ?? null,
+          acknowledgedWarnings: ackWarnings,
+          teacherReviewNote,
+          teacherReviewedAt,
+          completionStatus,
+          completionNote,
+          completedAt,
+        }
+      : {}),
   };
 }
+
+// ============================================================
+// Phase 5-5 — listRevisions
+// ============================================================
+
+export interface RevisionSummary {
+  id: string;
+  revisionNumber: number;
+  scanStatus: string | null;
+  scanError: string | null;
+  scanCompletedAt: string | null;
+  thumbnailUrl: string | null;
+  /** Counts derived from scan_results JSONB. Zero if scan not done or no rules. */
+  ruleCounts: { block: number; warn: number; fyi: number };
+  createdAt: string;
+}
+
+export interface ListRevisionsSuccess {
+  revisions: RevisionSummary[];
+}
+export type ListRevisionsResult = ListRevisionsSuccess | OrchestrationError;
+
+interface RevisionRow {
+  id: string;
+  revision_number: number;
+  scan_status: string | null;
+  scan_error: string | null;
+  scan_completed_at: string | null;
+  thumbnail_path: string | null;
+  scan_results: { rules?: Array<{ severity?: string }> | null } | null;
+  uploaded_at: string;
+}
+
+/**
+ * Count rules by severity for the history panel summary strip.
+ * Lowercase per worker contract — anything else is dropped.
+ */
+function countRulesBySeverity(rules: Array<{ severity?: string }> | null | undefined): {
+  block: number;
+  warn: number;
+  fyi: number;
+} {
+  const counts = { block: 0, warn: 0, fyi: 0 };
+  for (const r of rules ?? []) {
+    if (r.severity === "block") counts.block++;
+    else if (r.severity === "warn") counts.warn++;
+    else if (r.severity === "fyi") counts.fyi++;
+  }
+  return counts;
+}
+
+/**
+ * Return all revisions for a job, newest first, with mini-thumbnail
+ * signed URLs + rule-count summaries. Used by the RevisionHistoryPanel
+ * on the status page.
+ */
+export async function listRevisions(
+  db: SupabaseLike,
+  params: { studentId: string; jobId: string }
+): Promise<ListRevisionsResult> {
+  const { studentId, jobId } = params;
+
+  // 1. Ownership via the existing helper.
+  const ownership = await loadOwnedJob(db, studentId, jobId);
+  if (isOrchestrationError(ownership)) return ownership;
+
+  // 2. Fetch all revisions. Order DESC so most recent is first.
+  const result = await db
+    .from("fabrication_job_revisions")
+    .select(
+      "id, revision_number, scan_status, scan_error, scan_completed_at, thumbnail_path, scan_results, uploaded_at"
+    )
+    .eq("job_id", jobId)
+    .order("revision_number", { ascending: false });
+
+  // `order` on supabase-js returns a thenable at the bottom of the chain —
+  // treat as an array result.
+  const { data, error } = result as {
+    data: RevisionRow[] | null;
+    error: { message: string } | null;
+  };
+  if (error) {
+    return {
+      error: { status: 500, message: `Revisions lookup failed: ${error.message}` },
+    };
+  }
+
+  const rows = data ?? [];
+
+  // 3. Mint signed thumbnail URLs in parallel. 10-min TTL matches the
+  //    status endpoint's thumbnail minting.
+  const summaries: RevisionSummary[] = await Promise.all(
+    rows.map(async (row) => {
+      let thumbnailUrl: string | null = null;
+      if (row.thumbnail_path) {
+        const signed = await db.storage
+          .from(FABRICATION_THUMBNAIL_BUCKET)
+          .createSignedUrl(row.thumbnail_path, THUMBNAIL_URL_TTL_SECONDS);
+        if (!signed.error && signed.data) {
+          thumbnailUrl = signed.data.signedUrl;
+        }
+      }
+      return {
+        id: row.id,
+        revisionNumber: row.revision_number,
+        scanStatus: row.scan_status,
+        scanError: row.scan_error,
+        scanCompletedAt: row.scan_completed_at,
+        thumbnailUrl,
+        ruleCounts: countRulesBySeverity(row.scan_results?.rules),
+        createdAt: row.uploaded_at,
+      };
+    })
+  );
+
+  return { revisions: summaries };
+}
+
+// ============================================================
+// Phase 6-6k — cancelJob (student withdraw)
+// ============================================================
+
+/** Which statuses a student is allowed to withdraw from. After the
+ *  teacher has actioned the job (approved/returned/rejected) or the
+ *  fabricator has picked it up, the decision is no longer
+ *  student-reversible. `cancelled` is idempotent. */
+const CANCELLABLE_STATUSES: readonly string[] = [
+  "uploaded",
+  "scanning",
+  "pending_approval",
+  "needs_revision",
+];
+
+export interface CancelJobRequest {
+  studentId: string;
+  jobId: string;
+}
+
+export interface CancelJobSuccess {
+  jobId: string;
+  newStatus: "cancelled";
+}
+
+export type CancelJobResult = CancelJobSuccess | OrchestrationError;
+
+/**
+ * Student withdraws their own submission. Transitions
+ * `fabrication_jobs.status` → `cancelled` when the current status is
+ * one of the student-reversible states (see `CANCELLABLE_STATUSES`).
+ *
+ *   - Ownership: 404 when job not found OR student_id mismatch.
+ *   - Status guard: 409 with an explanatory message when the job is
+ *     already terminal from the teacher's POV (approved / rejected /
+ *     picked_up / completed / cancelled).
+ *   - Idempotent: calling cancel on an already-cancelled job returns
+ *     200 with newStatus: 'cancelled' (no 409 noise on
+ *     double-clicks).
+ *
+ * Data is NOT deleted — the row stays in `fabrication_jobs` for
+ * audit trail. Phase 9+ can add a soft-hide UI toggle if the
+ * cancelled list gets noisy.
+ */
+export async function cancelJob(
+  db: SupabaseLike,
+  params: CancelJobRequest
+): Promise<CancelJobResult> {
+  const ownership = await loadOwnedJob(db, params.studentId, params.jobId);
+  if (isOrchestrationError(ownership)) return ownership;
+
+  // Idempotent: already cancelled → return the same success shape.
+  if (ownership.job.status === "cancelled") {
+    return { jobId: params.jobId, newStatus: "cancelled" };
+  }
+
+  if (!CANCELLABLE_STATUSES.includes(ownership.job.status)) {
+    return {
+      error: {
+        status: 409,
+        message: `Can't withdraw a job in status '${ownership.job.status}'. Your teacher has already acted on this submission.`,
+      },
+    };
+  }
+
+  const update = await db
+    .from("fabrication_jobs")
+    .update({ status: "cancelled" })
+    .eq("id", params.jobId);
+  if (update.error) {
+    return {
+      error: {
+        status: 500,
+        message: `Status transition failed: ${update.error.message}`,
+      },
+    };
+  }
+
+  return { jobId: params.jobId, newStatus: "cancelled" };
+}
+
+// ============================================================
+// Phase 6-6i — listStudentJobs (student-side overview)
+// ============================================================
+
+/**
+ * Compact summary row for the student's own overview page at
+ * `/fabrication`. Mirrors the teacher queue row shape but scoped to
+ * `fabrication_jobs.student_id = studentId` so each student sees
+ * only their own submissions.
+ */
+export interface StudentJobRow {
+  jobId: string;
+  machineLabel: string;
+  machineCategory: "3d_printer" | "laser_cutter" | null;
+  unitTitle: string | null;
+  className: string | null;
+  thumbnailUrl: string | null;
+  currentRevision: number;
+  ruleCounts: { block: number; warn: number; fyi: number };
+  jobStatus: string;
+  createdAt: string;
+  updatedAt: string;
+  originalFilename: string;
+}
+
+export interface ListStudentJobsSuccess {
+  jobs: StudentJobRow[];
+}
+export type ListStudentJobsResult = ListStudentJobsSuccess | OrchestrationError;
+
+interface RawStudentJobRow {
+  id: string;
+  status: string;
+  current_revision: number;
+  created_at: string;
+  updated_at: string;
+  original_filename: string;
+  classes: { name: string | null } | null;
+  units: { title: string | null } | null;
+  machine_profiles: { name: string | null; machine_category: string | null } | null;
+  fabrication_job_revisions: Array<{
+    revision_number: number;
+    thumbnail_path: string | null;
+    scan_results: { rules?: Array<{ severity?: string }> | null } | null;
+  }> | null;
+}
+
+/**
+ * Return all fabrication jobs for a student, newest first, with a
+ * signed thumbnail URL + rule-count summary for the current
+ * revision. Used by the `/fabrication` overview page.
+ *
+ * One round-trip via PostgREST nested-select — joins student →
+ * classes / units / machine_profiles + all revisions. Matches the
+ * pattern used by the teacher-side `getTeacherQueue` so behaviour
+ * stays consistent.
+ */
+export async function listStudentJobs(
+  db: SupabaseLike,
+  params: { studentId: string; limit?: number }
+): Promise<ListStudentJobsResult> {
+  const { studentId, limit = 100 } = params;
+  const boundedLimit = Math.max(1, Math.min(limit, 200));
+
+  const result = await db
+    .from("fabrication_jobs")
+    .select(
+      `
+      id, status, current_revision, created_at, updated_at, original_filename,
+      classes(name),
+      units(title),
+      machine_profiles(name, machine_category),
+      fabrication_job_revisions(revision_number, thumbnail_path, scan_results)
+      `
+    )
+    .eq("student_id", studentId)
+    .order("created_at", { ascending: false })
+    .range(0, boundedLimit - 1);
+
+  const { data, error } = result as {
+    data: RawStudentJobRow[] | null;
+    error: { message: string } | null;
+  };
+  if (error) {
+    return {
+      error: { status: 500, message: `Student jobs lookup failed: ${error.message}` },
+    };
+  }
+
+  const rows = data ?? [];
+
+  // Build StudentJobRow shape with per-row signed thumbnail URLs
+  // (parallel mint, same pattern as getTeacherQueue).
+  const built: StudentJobRow[] = await Promise.all(
+    rows.map(async (raw) => {
+      const latestRev = (raw.fabrication_job_revisions ?? []).find(
+        (r) => r.revision_number === raw.current_revision
+      );
+
+      let thumbnailUrl: string | null = null;
+      if (latestRev?.thumbnail_path) {
+        const signed = await db.storage
+          .from(FABRICATION_THUMBNAIL_BUCKET)
+          .createSignedUrl(latestRev.thumbnail_path, THUMBNAIL_URL_TTL_SECONDS);
+        if (!signed.error && signed.data) {
+          thumbnailUrl = signed.data.signedUrl;
+        }
+      }
+
+      const counts = countRulesBySeverity(latestRev?.scan_results?.rules);
+
+      // Defensive: PostgREST may return nested joins as array-of-one
+      // (1:1 FK) or object (inferred singular). Accept both shapes —
+      // same pattern as teacher-orchestration.ts pickFirst helper.
+      const classRow = Array.isArray(raw.classes) ? raw.classes[0] : raw.classes;
+      const unitRow = Array.isArray(raw.units) ? raw.units[0] : raw.units;
+      const machineRow = Array.isArray(raw.machine_profiles)
+        ? raw.machine_profiles[0]
+        : raw.machine_profiles;
+
+      return {
+        jobId: raw.id,
+        machineLabel: machineRow?.name ?? "Unknown machine",
+        machineCategory:
+          (machineRow?.machine_category as StudentJobRow["machineCategory"]) ??
+          null,
+        unitTitle: unitRow?.title ?? null,
+        className: classRow?.name ?? null,
+        thumbnailUrl,
+        currentRevision: raw.current_revision,
+        ruleCounts: counts,
+        jobStatus: raw.status,
+        createdAt: raw.created_at,
+        updatedAt: raw.updated_at,
+        originalFilename: raw.original_filename,
+      };
+    })
+  );
+
+  return { jobs: built };
+}
+

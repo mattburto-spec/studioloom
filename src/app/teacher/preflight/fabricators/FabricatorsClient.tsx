@@ -47,13 +47,18 @@ export default function FabricatorsClient({
   const [banner, setBanner] = useState<{ kind: "success" | "error"; text: string } | null>(null);
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-8">
+    <div className="mx-auto max-w-6xl px-6 py-10">
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Fabricators</h1>
-          <p className="mt-1 max-w-2xl text-sm text-gray-600">
-            Fabricators are lab techs who pick up scanned jobs and run them on the machines.
-            They have their own login and only see jobs for the machines you assign them to.
+          <h1 className="text-3xl font-bold text-gray-900">Fabricators</h1>
+          <p className="mt-2 max-w-2xl text-base text-gray-600">
+            A Fabricator account picks up approved submissions + runs them on
+            your machines. This could be a dedicated lab tech, a shared
+            computer next to the printers that&apos;s always signed in, or just
+            you — whoever&apos;s actually running the machines.
+          </p>
+          <p className="mt-2 max-w-2xl text-sm text-gray-500">
+            Each account only sees jobs for the machines you assign it to.
           </p>
         </div>
         <button

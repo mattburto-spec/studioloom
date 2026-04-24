@@ -340,7 +340,7 @@ systems:
   - id: skills-library
     name: Skills Library — Canonical Content Layer
     category: Content / Curriculum
-    status: planned
+    status: in_progress
     currentVersion: 0
     summary: |
       One canonical skill card, many embed contexts (library browse, Stone prereqs, lesson activity blocks, Open Studio capability-gap, crit board pins, badges). Schema: skill_cards + tags + prerequisites + external_links + categories + quizzes. Completions as learning_events → student_skill_state derived view. Six quiz types all gradable without a model. State ladder (not_started → viewed → quiz_passed → demonstrated → mastered) + freshness (current/cooling/stale). Context-aware gating (state × freshness × embed requirement → full card / refresh / skip). Strength radar chart computed on view. Strategic frame — the library is the moat (15 years of teacher-authored material competitors cannot copy). Supersedes self-help-library.md idea. Workshop project ~4-6 days.
@@ -388,7 +388,30 @@ systems:
       - view: student_skill_state
         columns: [student_id, skill_id, highest_state, last_used_at, freshness]
         notes: Derived view over learning_events. Cheap on read for v1; materialise overnight via pg_cron if needed at scale.
-    key_files: []
+    key_files:
+      - path: supabase/migrations/105_skills_library_schema.sql
+      - path: supabase/migrations/106_learning_events.sql
+      - path: supabase/migrations/107_student_skill_state_view.sql
+      - path: supabase/migrations/108_skills_library_sample_seeds.sql
+      - path: supabase/migrations/109_skills_library_authoring.sql
+      - path: supabase/migrations/110_skills_library_world_class_schema.sql
+      - path: src/types/skills.ts
+      - path: src/components/skills/BlockEditor.tsx
+      - path: src/components/skills/BlockRenderer.tsx
+      - path: src/components/skills/SkillCardForm.tsx
+      - path: src/app/api/teacher/skills/cards/route.ts
+      - path: src/app/api/teacher/skills/cards/[id]/route.ts
+      - path: src/app/api/teacher/skills/cards/[id]/publish/route.ts
+      - path: src/app/api/teacher/skills/categories/route.ts
+      - path: src/app/api/teacher/skills/domains/route.ts
+      - path: src/app/api/student/skills/cards/[slug]/route.ts
+      - path: src/app/teacher/skills/page.tsx
+      - path: src/app/teacher/skills/new/page.tsx
+      - path: src/app/teacher/skills/[id]/page.tsx
+      - path: src/app/teacher/skills/[id]/edit/page.tsx
+      - path: src/app/(student)/skills/cards/[slug]/page.tsx
+      - path: docs/projects/skills-library-research-brief.md
+      - path: docs/projects/skills-library-catalogue-v1.md
     future_needs: |
       Quiz types beyond MC/T/F (image identification, ordering, matching). Badge engine with teacher sign-off workflow. Forking/lineage UI. Cross-school visibility. Strength radar chart visualisation. Mastery derivation from Stone completions. Refresh mode quiz logic. Community contributor marketplace (phase 4).
     adrs: []
@@ -2305,7 +2328,7 @@ systems:
     category: Submission
     status: in-progress
     currentVersion: 1
-    summary: "Upload, scan, gate, route, pickup, complete pipeline for student fabrication submissions (3D print, laser). User-facing brand Preflight. Schema tables prefixed fabrication_*. Phase 1A schema applied; Phase 1B-1 (additive columns 098-101 + storage buckets 102 + AI-guardrail seed 103) applied; Phase 1B-2 (teacher invite UI, /fab/login, email dispatch) and Phase 2 (scanner worker + upload UI) upcoming."
+    summary: "Upload, scan, gate, route, pickup, complete pipeline for student fabrication submissions (3D print, laser). User-facing brand Preflight. Schema tables prefixed fabrication_*. Phases 0, 1A, 1B-1, 1B-2, 2 (STL scanner — Checkpoint 2.1 PASSED), 3 (SVG scanner — Checkpoint 3.1 PASSED), 4 (student upload UI — Checkpoint 4.1 PASSED 22 Apr 2026) all SHIPPED. 4 new student-facing routes (POST /api/student/fabrication/upload, POST .../jobs/[jobId]/enqueue-scan, GET .../jobs/[jobId]/status, GET .../picker-data) + upload page + status page with polling hook. Multi-revision upload deferred to Phase 5 (soft-gate). Next: Phase 5 — per-rule evidence viewer + acknowledge-each-one flow + re-upload endpoint."
     depends_on: [storage, preflight-scanner, auth-system, machine-profiles]
     affects: [teacher-dashboard, student-dashboard, audit-log, students]
     docs:

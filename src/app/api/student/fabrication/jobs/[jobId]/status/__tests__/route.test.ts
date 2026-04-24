@@ -75,6 +75,27 @@ describe("GET /api/student/fabrication/jobs/[jobId]/status", () => {
     expect(getStatusSpy.mock.calls[0][1]).toEqual({
       studentId: "student-1",
       jobId: "job-xyz",
+      includeResults: false,
+    });
+  });
+
+  it("passes includeResults: true when ?include=results is in the URL", async () => {
+    getStatusSpy.mockResolvedValueOnce({
+      jobId: "job-1",
+      jobStatus: "scanning",
+      currentRevision: 1,
+      revision: null,
+      scanJob: null,
+    });
+    const req = new NextRequest(
+      "http://localhost/api/student/fabrication/jobs/job-1/status?include=results",
+      { method: "GET" }
+    );
+    await GET(req, { params: Promise.resolve({ jobId: "job-1" }) });
+    expect(getStatusSpy.mock.calls[0][1]).toEqual({
+      studentId: "student-1",
+      jobId: "job-1",
+      includeResults: true,
     });
   });
 
