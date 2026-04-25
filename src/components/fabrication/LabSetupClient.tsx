@@ -17,13 +17,13 @@ import * as React from "react";
 import Link from "next/link";
 import {
   groupMachinesByLab,
-  labAutoApproveState,
   type LabWithMachines,
 } from "./lab-setup-helpers";
 import { MachineEditModal } from "./MachineEditModal";
 import { AddLabModal } from "./AddLabModal";
 import { AddMachineModal } from "./AddMachineModal";
 import { AssignClassesToLabModal } from "./AssignClassesToLabModal";
+import { ApprovalWorkflowCard } from "./ApprovalWorkflowCard";
 import type { LabListRow } from "@/lib/fabrication/lab-orchestration";
 import type { MachineProfileRow } from "@/lib/fabrication/machine-orchestration";
 
@@ -359,38 +359,11 @@ export function LabSetupClient() {
                 </button>
                 {lab.id !== "__unassigned__" && (
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {machines.length > 0 &&
-                      (() => {
-                        // Phase 8.1d-5: action-verb labels, not status.
-                        // Tells the teacher what clicking will DO.
-                        const state = labAutoApproveState(machines);
-                        const isAllAuto = state === "all";
-                        const isAllRequire = state === "none";
-                        const label = isAllAuto
-                          ? "Require approval for all"
-                          : isAllRequire
-                            ? "Skip approval for all"
-                            : "Make all require approval"; // mixed → safer default
-                        const nextValue = !isAllRequire; // flip from current dominant state
-                        const titleText = isAllAuto
-                          ? "Currently: every machine auto-approves student jobs. Click to require approval on all."
-                          : isAllRequire
-                            ? "Currently: every machine requires teacher approval. Click to skip approval on all."
-                            : "Mixed approval — some machines auto-approve, some require approval. Click to require approval on all.";
-                        return (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleBulkApproval(lab.id, lab.name, nextValue);
-                            }}
-                            className="text-xs px-2 py-1 rounded border border-gray-300 bg-white hover:bg-gray-100"
-                            title={titleText}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })()}
+                    {/* Phase 8.1d-6: bulk approval toggle moved to a
+                         visualised card at the top of the lab body
+                         (ApprovalWorkflowCard). The action-verb button
+                         that used to live here was confusing — toggle
+                         + workflow diagram makes the consequence visceral. */}
                     {!lab.isDefault && (
                       <button
                         type="button"
@@ -427,15 +400,25 @@ export function LabSetupClient() {
                 )}
               </div>
 
-              {/* Lab body — Phase 8.1d-5 polish: + Add machine moves to a
-                   dashed-border tile at the END of the grid (action-oriented,
-                   discoverable). Empty labs show only the tile. */}
+              {/* Lab body — Phase 8.1d-5/6 polish:
+                   - ApprovalWorkflowCard at top: visualised flow + toggle
+                   - + Add machine tile at end of grid */}
               {expandedLabs.has(lab.id) && (
                 <div className="p-4">
                   {lab.description && (
                     <p className="text-xs text-gray-500 mb-3">
                       {lab.description}
                     </p>
+                  )}
+                  {lab.id !== "__unassigned__" && machines.length > 0 && (
+                    <ApprovalWorkflowCard
+                      labId={lab.id}
+                      labName={lab.name}
+                      machines={machines}
+                      onToggle={(requireApproval) =>
+                        toggleBulkApproval(lab.id, lab.name, requireApproval)
+                      }
+                    />
                   )}
                   {(() => {
                     return (
