@@ -22,6 +22,7 @@ Every phase starts with, in this order:
 - `npm test` baseline captured (Lesson #34) — the new test count becomes the new baseline
 - Relevant prior Lessons re-read (list them in the phase brief so Code sees them)
 - Audit what exists before touching it — grep, list, map, count
+- **If the phase adds a migration**: run `bash scripts/migrations/next-free-number.sh` to get the next safe migration number across ALL active branches (not just your worktree's view). Phase 8-1 collision story (`docs/projects/preflight-phase-8-1-brief.md`) is the cautionary tale — local `ls supabase/migrations/` lies when parallel branches have claimed numbers.
 - **STOP and report the audit before any changes**
 
 The pre-flight has caught more problems than any test suite. Skipping it is the most common failure mode.
