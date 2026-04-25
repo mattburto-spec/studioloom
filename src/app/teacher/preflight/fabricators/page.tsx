@@ -11,6 +11,7 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import FabricatorsClient from "./FabricatorsClient";
+import { PreflightTeacherNav } from "@/components/fabrication/PreflightTeacherNav";
 
 // The teacher layout (src/app/teacher/layout.tsx) is a client component
 // that handles auth redirection to /teacher/login. We don't issue a
@@ -124,5 +125,10 @@ export default async function FabricatorsPage() {
     machine_category: m.machine_category,
   }));
 
-  return <FabricatorsClient initialFabricators={fabricators} machines={machines} />;
+  return (
+    <div className="mx-auto max-w-6xl px-6 pt-10">
+      <PreflightTeacherNav />
+      <FabricatorsClient initialFabricators={fabricators} machines={machines} />
+    </div>
+  );
 }
