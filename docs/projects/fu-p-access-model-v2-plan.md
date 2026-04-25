@@ -106,6 +106,7 @@ The "their invitees" qualifier on teacher/co_teacher means: the dept_head + admi
   );
   ```
 - ~~Migration adds `classes.school_id`~~ — already done in mig 117 (Phase 8.1d).
+- **Add missing partial index on `machine_profiles.school_id`** (mig 093 reserved the column without an index; mig 116/117 added indexes for fabricators + classes for parity but `machine_profiles` was missed). One line: `CREATE INDEX IF NOT EXISTS idx_machine_profiles_school_id ON machine_profiles(school_id) WHERE school_id IS NOT NULL;`
 - RLS on `schools` + `school_memberships` (admin + self-read).
 - **Backfill script** — for every distinct teacher in `auth.users` with any classes/machines/labs:
   - Create (or reuse) a `schools` row. Naming heuristic: group by email domain (`@nanjing-school.com` → one school).
