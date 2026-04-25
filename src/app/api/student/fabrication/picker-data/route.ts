@@ -69,16 +69,15 @@ export async function GET(request: NextRequest) {
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  // Machine profiles — ship lab_id (Phase 8-5) so the client can
-  // filter by class.default_lab_id. Exclude soft-deleted machines
-  // (is_active = false) — students shouldn't see them at all. System
-  // templates first for the "add from template" UX at teacher-admin
-  // time (students rarely see templates but they're included for the
-  // legacy no-lab fallback).
+  // Machine profiles — Phase 8.1d-5: nested-select the lab name so
+  // the picker can group machines by lab without a second query.
+  // Excludes soft-deleted (is_active=false). System templates first
+  // — they have no lab and bucket into "Unassigned" / "Templates"
+  // group on the picker side.
   const profilesResult = await db
     .from("machine_profiles")
     .select(
-      "id, name, machine_category, bed_size_x_mm, bed_size_y_mm, nozzle_diameter_mm, kerf_mm, is_system_template, lab_id"
+      "id, name, machine_category, bed_size_x_mm, bed_size_y_mm, nozzle_diameter_mm, kerf_mm, is_system_template, lab_id, fabrication_labs(name)"
     )
     .eq("is_active", true)
     .order("is_system_template", { ascending: false })
@@ -91,10 +90,45 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // Flatten the nested fabrication_labs join into a `lab_name` field.
+  // PostgREST nests as object or array depending on the FK; normalise.
+  type RawProfile = {
+    id: string;
+    name: string;
+    machine_category: string;
+    bed_size_x_mm: number;
+    bed_size_y_mm: number;
+    nozzle_diameter_mm: number | null;
+    kerf_mm: number | null;
+    is_system_template: boolean;
+    lab_id: string | null;
+    fabrication_labs:
+      | { name: string }
+      | { name: string }[]
+      | null;
+  };
+  const machineProfiles = (profilesResult.data as RawProfile[] | null ?? []).map((p) => {
+    const labRow = Array.isArray(p.fabrication_labs)
+      ? p.fabrication_labs[0]
+      : p.fabrication_labs;
+    return {
+      id: p.id,
+      name: p.name,
+      machine_category: p.machine_category,
+      bed_size_x_mm: p.bed_size_x_mm,
+      bed_size_y_mm: p.bed_size_y_mm,
+      nozzle_diameter_mm: p.nozzle_diameter_mm,
+      kerf_mm: p.kerf_mm,
+      is_system_template: p.is_system_template,
+      lab_id: p.lab_id,
+      lab_name: labRow?.name ?? null,
+    };
+  });
+
   return NextResponse.json(
     {
       classes,
-      machineProfiles: profilesResult.data ?? [],
+      machineProfiles,
     },
     { status: 200, headers: NO_CACHE_HEADERS }
   );

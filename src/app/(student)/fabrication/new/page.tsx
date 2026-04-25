@@ -36,10 +36,7 @@ import {
   initialUploadState,
   type UploadAction,
 } from "@/components/fabrication/upload-state";
-import {
-  filterMachinesForClass,
-  type FabricationFileType,
-} from "@/components/fabrication/picker-helpers";
+import type { FabricationFileType } from "@/components/fabrication/picker-helpers";
 
 interface PickerData {
   classes: ClassOption[];
@@ -279,34 +276,16 @@ export default function FabricationNewPage() {
         </div>
       )}
 
-      {loadState.kind === "ready" && (() => {
-        // Phase 8-5: filter machines by selected class's default_lab_id
-        // via the pure helper. Null default_lab_id = show all (legacy).
-        // Also clears the selected machine if it's not in the filtered
-        // set — prevents the student submitting to a machine that's
-        // not in their class's lab.
-        const selectedClass = selectedClassId
-          ? loadState.data.classes.find((c) => c.id === selectedClassId) ?? null
-          : null;
-        const filteredMachines = filterMachinesForClass(
-          loadState.data.machineProfiles,
-          selectedClass
-        );
-        // If the current machine selection disappeared from the
-        // filtered list, drop it.
-        if (
-          selectedMachineProfileId &&
-          !filteredMachines.some((m) => m.id === selectedMachineProfileId)
-        ) {
-          // Set next tick to avoid React render-inside-render warning.
-          queueMicrotask(() => setSelectedMachineProfileId(null));
-        }
-
-        return (
+      {loadState.kind === "ready" && (
         <div className="space-y-6">
+          {/* Phase 8.1d-5: dropped the class-to-lab filter. Picker now
+               shows all machines grouped by lab name (via
+               groupMachinesByLab inside ClassMachinePicker). Teacher
+               organisation flows through naturally; no class-to-lab
+               assignment overhead. */}
           <ClassMachinePicker
             classes={loadState.data.classes}
-            machineProfiles={filteredMachines}
+            machineProfiles={loadState.data.machineProfiles}
             selectedClassId={selectedClassId}
             selectedMachineProfileId={selectedMachineProfileId}
             onClassChange={setSelectedClassId}
@@ -350,8 +329,7 @@ export default function FabricationNewPage() {
             </p>
           )}
         </div>
-        );
-      })()}
+      )}
     </main>
   );
 }

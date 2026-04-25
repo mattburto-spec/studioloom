@@ -15,48 +15,86 @@ export interface MachineProfileOption {
   nozzle_diameter_mm?: number | null;
   kerf_mm?: number | null;
   is_system_template?: boolean;
-  /** Phase 8-5: lab_id used by the client-side filter. Machines with
-   *  lab_id = class.default_lab_id are shown; system templates and
-   *  any null-lab machines stay visible as a legacy fallback. */
   lab_id?: string | null;
+  /** Phase 8.1d-5: lab name for the group-by-lab picker. Null when
+   *  the machine has no lab (system templates + orphans). */
+  lab_name?: string | null;
 }
 
 export interface ClassOption {
   id: string;
   name: string;
   code: string;
-  /** Phase 8-5: drives the silent machine-picker filter. Null = show
-   *  all teacher-owned machines (legacy behaviour for any class the
-   *  8-1 backfill somehow missed). */
+  /** Phase 8-5 → 8.1d-5 deprecation: drove the silent class-to-lab
+   *  filter. Phase 8.1d-5 dropped that filter (Matt's UX call: just
+   *  show all machines grouped by lab name; class-to-lab assignment
+   *  was teacher overhead with no clear benefit at NIS scale). The
+   *  field stays on the schema + still ships in the API response for
+   *  backwards-compat, but no UI consumer reads it as of 8.1d-5. */
   default_lab_id?: string | null;
 }
 
 /**
- * Phase 8-5: filter machines by a class's default_lab_id. When the
- * class has no default_lab_id (legacy/null state), returns all
- * machines unfiltered. System templates always stay visible to
- * preserve the "add machine from template" path at teacher-admin
- * time — though students picking a system-template machine is
- * unusual post-8-3 (teachers usually copy templates to owned rows).
+ * Phase 8.1d-5: group machines by lab name for the picker dropdown.
+ * Returns an array of groups, each with a label + the machines in
+ * that group. Sort order:
+ *   1. Real labs first, sorted by name
+ *   2. "Unassigned" group at the end (machines without a lab — orphans
+ *      from Phase 8 cascade or user-created without a lab)
+ *   3. System templates kept in "Unassigned" since they're cross-tenant
+ *
+ * Single-lab schools collapse to one group, which the picker can
+ * render as a flat list (no group header needed).
+ *
+ * Replaces filterMachinesForClass — see header note.
+ */
+export interface MachineGroup {
+  label: string; // "2nd Floor Design Lab", "Unassigned", etc.
+  machines: MachineProfileOption[];
+}
+
+export function groupMachinesByLab(
+  machines: MachineProfileOption[]
+): MachineGroup[] {
+  const byLab = new Map<string, MachineGroup>();
+  const unassigned: MachineProfileOption[] = [];
+
+  for (const m of machines) {
+    if (!m.lab_id || !m.lab_name) {
+      unassigned.push(m);
+      continue;
+    }
+    const existing = byLab.get(m.lab_id);
+    if (existing) {
+      existing.machines.push(m);
+    } else {
+      byLab.set(m.lab_id, { label: m.lab_name, machines: [m] });
+    }
+  }
+
+  // Sort lab groups alpha by name (case-insensitive).
+  const labGroups = Array.from(byLab.values()).sort((a, b) =>
+    a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
+  );
+
+  // Append unassigned bucket at the end if non-empty.
+  const result: MachineGroup[] = [...labGroups];
+  if (unassigned.length > 0) {
+    result.push({ label: "Unassigned", machines: unassigned });
+  }
+  return result;
+}
+
+/**
+ * @deprecated Phase 8.1d-5: class-to-lab filtering removed. Use
+ * groupMachinesByLab in the picker instead. Kept as a no-op for any
+ * stale imports — returns the input list unchanged.
  */
 export function filterMachinesForClass(
   machines: MachineProfileOption[],
-  selectedClass: ClassOption | null | undefined
+  _selectedClass: ClassOption | null | undefined
 ): MachineProfileOption[] {
-  if (!selectedClass || !selectedClass.default_lab_id) {
-    return machines;
-  }
-  const targetLab = selectedClass.default_lab_id;
-  return machines.filter((m) => {
-    // Keep system templates (teachers copy these before use; edge case)
-    if (m.is_system_template) return true;
-    // Keep machines in the class's default lab
-    if (m.lab_id === targetLab) return true;
-    // Keep orphan-lab machines as a safety net (shouldn't exist
-    // post-backfill but defensive)
-    if (m.lab_id === null || m.lab_id === undefined) return true;
-    return false;
-  });
+  return machines;
 }
 
 export function formatMachineLabel(p: MachineProfileOption): string {

@@ -318,7 +318,10 @@ export function LabSetupClient() {
               key={lab.id}
               className="rounded-xl border border-gray-200 bg-white overflow-hidden"
             >
-              {/* Lab header */}
+              {/* Lab header — Phase 8.1d-5 polish:
+                   - pencil icon for rename (next to name, click stops bubble)
+                   - action-verb approval button (no status display)
+                   - "+ Add machine" moved to body as a tile (see below) */}
               <div className="flex items-center justify-between gap-3 p-4 bg-gray-50 border-b border-gray-200">
                 <button
                   type="button"
@@ -331,6 +334,20 @@ export function LabSetupClient() {
                   <h2 className="font-semibold text-gray-900 truncate">
                     {lab.name}
                   </h2>
+                  {lab.id !== "__unassigned__" && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        renameLab(lab);
+                      }}
+                      className="text-gray-400 hover:text-gray-700 px-1 text-sm"
+                      title="Rename lab"
+                      aria-label={`Rename ${lab.name}`}
+                    >
+                      ✏️
+                    </button>
+                  )}
                   {lab.isDefault && (
                     <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-brand-purple/10 text-brand-purple font-bold shrink-0">
                       Default
@@ -344,15 +361,22 @@ export function LabSetupClient() {
                   <div className="flex items-center gap-1.5 shrink-0">
                     {machines.length > 0 &&
                       (() => {
+                        // Phase 8.1d-5: action-verb labels, not status.
+                        // Tells the teacher what clicking will DO.
                         const state = labAutoApproveState(machines);
-                        const isOn = state === "all";
-                        const isMixed = state === "mixed";
-                        const label = isMixed
-                          ? "Approval: mixed"
-                          : isOn
-                            ? "Approval: OFF for lab"
-                            : "Approval: ON for lab";
-                        const nextValue = isOn; // flip to require
+                        const isAllAuto = state === "all";
+                        const isAllRequire = state === "none";
+                        const label = isAllAuto
+                          ? "Require approval for all"
+                          : isAllRequire
+                            ? "Skip approval for all"
+                            : "Make all require approval"; // mixed → safer default
+                        const nextValue = !isAllRequire; // flip from current dominant state
+                        const titleText = isAllAuto
+                          ? "Currently: every machine auto-approves student jobs. Click to require approval on all."
+                          : isAllRequire
+                            ? "Currently: every machine requires teacher approval. Click to skip approval on all."
+                            : "Mixed approval — some machines auto-approve, some require approval. Click to require approval on all.";
                         return (
                           <button
                             type="button"
@@ -361,33 +385,12 @@ export function LabSetupClient() {
                               toggleBulkApproval(lab.id, lab.name, nextValue);
                             }}
                             className="text-xs px-2 py-1 rounded border border-gray-300 bg-white hover:bg-gray-100"
-                            title="Toggle teacher-approval for every machine in this lab"
+                            title={titleText}
                           >
                             {label}
                           </button>
                         );
                       })()}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setModal({ kind: "add-machine", labId: lab.id });
-                      }}
-                      className="text-xs px-2 py-1 rounded border border-gray-300 bg-white hover:bg-gray-100"
-                    >
-                      + Add machine
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        renameLab(lab);
-                      }}
-                      className="text-xs px-2 py-1 rounded border border-gray-300 bg-white hover:bg-gray-100"
-                      title="Rename lab"
-                    >
-                      Rename
-                    </button>
                     {!lab.isDefault && (
                       <button
                         type="button"
@@ -396,26 +399,18 @@ export function LabSetupClient() {
                           makeDefaultLab(lab);
                         }}
                         className="text-xs px-2 py-1 rounded border border-brand-purple/40 bg-white text-brand-purple hover:bg-brand-purple/5"
-                        title="Make this the default lab. Existing classes' default lab won't change automatically — assign them via the Classes section."
+                        title="Make this the default lab"
                       >
                         Make default
                       </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setModal({
-                          kind: "assign-classes",
-                          labId: lab.id,
-                          labName: lab.name,
-                        });
-                      }}
-                      className="text-xs px-2 py-1 rounded border border-gray-300 bg-white hover:bg-gray-100"
-                      title="Pick which classes use this lab as their default"
-                    >
-                      Assign classes
-                    </button>
+                    {/* Phase 8.1d-5: "Assign classes" button removed —
+                         class-to-lab filtering deprecated in favour of
+                         group-by-lab picker (matches Matt's UX call:
+                         "have all labs available for students to see and
+                         make sure they are named well"). The Assign-classes
+                         modal + class-to-lab API endpoint stay in the repo
+                         as no-op surfaces until Phase 9 cleanup. */}
                     <button
                       type="button"
                       onClick={(e) => {
@@ -432,7 +427,9 @@ export function LabSetupClient() {
                 )}
               </div>
 
-              {/* Lab body */}
+              {/* Lab body — Phase 8.1d-5 polish: + Add machine moves to a
+                   dashed-border tile at the END of the grid (action-oriented,
+                   discoverable). Empty labs show only the tile. */}
               {expandedLabs.has(lab.id) && (
                 <div className="p-4">
                   {lab.description && (
@@ -440,11 +437,8 @@ export function LabSetupClient() {
                       {lab.description}
                     </p>
                   )}
-                  {machines.length === 0 ? (
-                    <p className="text-sm text-gray-500 italic py-4 text-center">
-                      No machines in this lab yet.
-                    </p>
-                  ) : (
+                  {(() => {
+                    return (
                     <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                       {machines.map((m) => (
                         <li
@@ -498,8 +492,29 @@ export function LabSetupClient() {
                           </div>
                         </li>
                       ))}
+                      {/* Phase 8.1d-5: dashed "+ Add machine" tile at end of grid.
+                           Hidden for the synthetic Unassigned bucket — adding
+                           a machine there would orphan it on creation. */}
+                      {lab.id !== "__unassigned__" && (
+                        <li>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setModal({ kind: "add-machine", labId: lab.id })
+                            }
+                            className="w-full h-full min-h-[120px] rounded border-2 border-dashed border-gray-300 bg-white text-gray-500 hover:border-brand-purple/50 hover:bg-brand-purple/5 hover:text-brand-purple transition flex flex-col items-center justify-center gap-1 p-4"
+                            aria-label={`Add machine to ${lab.name}`}
+                          >
+                            <span className="text-2xl leading-none">＋</span>
+                            <span className="text-sm font-semibold">
+                              Add machine
+                            </span>
+                          </button>
+                        </li>
+                      )}
                     </ul>
-                  )}
+                    );
+                  })()}
                 </div>
               )}
             </li>

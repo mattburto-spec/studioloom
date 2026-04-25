@@ -14,6 +14,7 @@
 import * as React from "react";
 import {
   formatMachineLabel,
+  groupMachinesByLab,
   type ClassOption,
   type MachineProfileOption,
 } from "./picker-helpers";
@@ -80,6 +81,10 @@ export function ClassMachinePicker(props: ClassMachinePickerProps) {
         >
           Machine
         </label>
+        {/* Phase 8.1d-5: machines grouped by lab name via <optgroup>.
+             Single-lab schools (one group) render as a flat list with
+             no group header — native <optgroup> behaviour. Multi-lab
+             schools see "── Lab Name ──" headers in the dropdown. */}
         <select
           id="fab-machine-select"
           value={selectedMachineProfileId ?? ""}
@@ -90,11 +95,27 @@ export function ClassMachinePicker(props: ClassMachinePickerProps) {
           <option value="" disabled>
             {hasMachines ? "Select a machine…" : "No machines configured"}
           </option>
-          {machineProfiles.map((m) => (
-            <option key={m.id} value={m.id}>
-              {formatMachineLabel(m)}
-            </option>
-          ))}
+          {(() => {
+            const groups = groupMachinesByLab(machineProfiles);
+            // Single group: no header — render flat.
+            if (groups.length === 1) {
+              return groups[0].machines.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {formatMachineLabel(m)}
+                </option>
+              ));
+            }
+            // Multi-group: <optgroup> per lab.
+            return groups.map((g) => (
+              <optgroup key={g.label} label={g.label}>
+                {g.machines.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {formatMachineLabel(m)}
+                  </option>
+                ))}
+              </optgroup>
+            ));
+          })()}
         </select>
         {machineProfiles.length > 0 && (
           <p className="text-xs text-gray-500 mt-1">
