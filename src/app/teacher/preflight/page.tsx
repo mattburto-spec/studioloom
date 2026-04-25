@@ -21,10 +21,10 @@
  */
 
 import * as React from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TeacherQueueTabs } from "@/components/fabrication/TeacherQueueTabs";
 import { TeacherQueueTable } from "@/components/fabrication/TeacherQueueTable";
+import { PreflightTeacherNav } from "@/components/fabrication/PreflightTeacherNav";
 import {
   bucketRowsForTab,
   countRowsPerTab,
@@ -111,9 +111,11 @@ export default function TeacherPreflightPage() {
   }
 
   return (
-    <main className="max-w-6xl mx-auto px-6 py-10 space-y-6">
+    <main className="max-w-6xl mx-auto px-6 py-10">
+      <PreflightTeacherNav />
+
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">
             Preflight submissions
@@ -131,18 +133,6 @@ export default function TeacherPreflightPage() {
           >
             {state.loading ? "Refreshing…" : "Refresh"}
           </button>
-          <Link
-            href="/teacher/preflight/lab-setup"
-            className="text-sm px-3 py-1.5 rounded border border-gray-300 bg-white text-gray-700 transition-all hover:bg-gray-50 active:scale-[0.97]"
-          >
-            Lab setup
-          </Link>
-          <Link
-            href="/teacher/preflight/fabricators"
-            className="text-sm px-3 py-1.5 rounded border border-gray-300 bg-white text-gray-700 transition-all hover:bg-gray-50 active:scale-[0.97]"
-          >
-            Fabricators
-          </Link>
         </div>
       </div>
 

@@ -16,6 +16,7 @@
  */
 
 import { LabSetupClient } from "@/components/fabrication/LabSetupClient";
+import { PreflightTeacherNav } from "@/components/fabrication/PreflightTeacherNav";
 
 export const metadata = {
   title: "Lab setup · Preflight · StudioLoom",
@@ -24,6 +25,7 @@ export const metadata = {
 export default function LabSetupPage() {
   return (
     <main className="max-w-6xl mx-auto px-6 py-10">
+      <PreflightTeacherNav />
       <LabSetupClient />
     </main>
   );

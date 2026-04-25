@@ -47,14 +47,9 @@ export default function FabricatorsClient({
   const [banner, setBanner] = useState<{ kind: "success" | "error"; text: string } | null>(null);
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10">
-      {/* Phase 8-4 navigation hint: Lab setup is the new primary admin surface. */}
-      <a
-        href="/teacher/preflight/lab-setup"
-        className="inline-block mb-4 text-sm text-brand-purple hover:underline"
-      >
-        ← Back to Lab setup
-      </a>
+    <div className="pb-10">
+      {/* PreflightTeacherNav is mounted by the server page wrapper,
+       *  so this client component just renders its own content. */}
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Fabricators</h1>
