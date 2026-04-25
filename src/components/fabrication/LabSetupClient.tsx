@@ -50,8 +50,11 @@ export function LabSetupClient() {
   const [expandedLabs, setExpandedLabs] = React.useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus] = React.useState<string | null>(null);
 
-  const fetchAll = React.useCallback(async () => {
-    setState({ kind: "loading" });
+  const fetchAll = React.useCallback(async (silent = false) => {
+    // Phase 8.1d-7: silent mode for background refetches after
+    // optimistic updates. Skips the "Loading lab setup..." spinner
+    // flash when the user has already seen valid data.
+    if (!silent) setState({ kind: "loading" });
     try {
       const [labsRes, machinesRes] = await Promise.all([
         fetch("/api/teacher/labs", { credentials: "same-origin" }),
@@ -89,12 +92,16 @@ export function LabSetupClient() {
           systemTemplates: machines.systemTemplates,
         },
       });
-      // Auto-expand labs that have machines by default.
-      const toExpand = new Set<string>();
-      for (const lab of labs.labs) {
-        if (lab.machineCount > 0) toExpand.add(lab.id);
+      // Auto-expand labs that have machines by default — but only
+      // on initial load, not on silent refetches (the user may have
+      // collapsed a lab manually since).
+      if (!silent) {
+        const toExpand = new Set<string>();
+        for (const lab of labs.labs) {
+          if (lab.machineCount > 0) toExpand.add(lab.id);
+        }
+        setExpandedLabs(toExpand);
       }
-      setExpandedLabs(toExpand);
     } catch (e) {
       setState({
         kind: "error",
@@ -104,7 +111,8 @@ export function LabSetupClient() {
   }, []);
 
   React.useEffect(() => {
-    fetchAll();
+    // Initial mount — show loading spinner (no data yet).
+    fetchAll(false);
   }, [fetchAll]);
 
   function toggleLab(labId: string) {
@@ -128,7 +136,7 @@ export function LabSetupClient() {
       alert(body.error || `Delete failed (HTTP ${res.status})`);
       return;
     }
-    fetchAll();
+    fetchAll(true);
   }
 
   async function deleteLab(lab: LabListRow) {
@@ -150,7 +158,7 @@ export function LabSetupClient() {
       alert(body.error || `Delete failed (HTTP ${res.status})`);
       return;
     }
-    fetchAll();
+    fetchAll(true);
   }
 
   async function renameLab(lab: LabListRow) {
@@ -168,7 +176,7 @@ export function LabSetupClient() {
       alert(body.error || `Rename failed (HTTP ${res.status})`);
       return;
     }
-    fetchAll();
+    fetchAll(true);
   }
 
   async function makeDefaultLab(lab: LabListRow) {
@@ -205,7 +213,7 @@ export function LabSetupClient() {
         alert(body.error || `Promotion failed (HTTP ${promote.status})`);
         return;
       }
-      fetchAll();
+      fetchAll(true);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Network error");
     }
@@ -216,24 +224,60 @@ export function LabSetupClient() {
     labName: string,
     nextValue: boolean
   ) {
+    // Phase 8.1d-7: optimistic update + silent background sync.
+    // No more page-level loading-spinner flash on every toggle.
     setBulkStatus(null);
-    const res = await fetch(`/api/teacher/labs/${labId}/bulk-approval`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify({ requireApproval: nextValue }),
-    });
-    const body = await res.json().catch(() => ({ error: "" }));
-    if (!res.ok) {
-      alert(body.error || `Bulk toggle failed (HTTP ${res.status})`);
-      return;
+
+    // 1. Capture previous state for rollback on API failure.
+    const previousState = state;
+
+    // 2. Optimistic local update — flip every active teacher-owned
+    //    machine in this lab to the new value, immediately.
+    if (state.kind === "ready") {
+      setState({
+        kind: "ready",
+        data: {
+          ...state.data,
+          teacherMachines: state.data.teacherMachines.map((m) =>
+            m.labId === labId &&
+            !m.isSystemTemplate &&
+            m.isActive &&
+            m.requiresTeacherApproval !== nextValue
+              ? { ...m, requiresTeacherApproval: nextValue }
+              : m
+          ),
+        },
+      });
     }
-    setBulkStatus(
-      `Updated ${body.updatedMachineCount} machine${
-        body.updatedMachineCount === 1 ? "" : "s"
-      } in "${labName}" — approval now ${nextValue ? "REQUIRED" : "SKIPPED"}.`
-    );
-    fetchAll();
+
+    // 3. Background API call.
+    try {
+      const res = await fetch(`/api/teacher/labs/${labId}/bulk-approval`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ requireApproval: nextValue }),
+      });
+      const body = await res.json().catch(() => ({ error: "" }));
+      if (!res.ok) {
+        // Revert + show error.
+        setState(previousState);
+        alert(body.error || `Bulk toggle failed (HTTP ${res.status})`);
+        return;
+      }
+      setBulkStatus(
+        `Updated ${body.updatedMachineCount} machine${
+          body.updatedMachineCount === 1 ? "" : "s"
+        } in "${labName}" — approval now ${nextValue ? "REQUIRED" : "SKIPPED"}.`
+      );
+      // Silent refetch so any server-side drift gets reconciled
+      // without the loading-spinner flash. Race-safe: this is just
+      // the canonical state from the server.
+      fetchAll(true);
+    } catch (err) {
+      setState(previousState);
+      alert(err instanceof Error ? err.message : "Network error");
+    }
   }
 
   if (state.kind === "loading") {
@@ -251,7 +295,7 @@ export function LabSetupClient() {
         <p className="text-sm text-red-900">{state.message}</p>
         <button
           type="button"
-          onClick={fetchAll}
+          onClick={() => fetchAll(false)}
           className="mt-2 text-sm px-3 py-1.5 rounded border border-red-300 bg-white hover:bg-red-50"
         >
           Retry
@@ -511,7 +555,7 @@ export function LabSetupClient() {
           onClose={() => setModal(null)}
           onSaved={() => {
             setModal(null);
-            fetchAll();
+            fetchAll(true);
           }}
         />
       )}
@@ -522,7 +566,7 @@ export function LabSetupClient() {
           onClose={() => setModal(null)}
           onSaved={() => {
             setModal(null);
-            fetchAll();
+            fetchAll(true);
           }}
         />
       )}
@@ -537,7 +581,7 @@ export function LabSetupClient() {
           onClose={() => setModal(null)}
           onSaved={() => {
             setModal(null);
-            fetchAll();
+            fetchAll(true);
           }}
         />
       )}
@@ -548,7 +592,7 @@ export function LabSetupClient() {
           onClose={() => setModal(null)}
           onSaved={() => {
             setModal(null);
-            fetchAll();
+            fetchAll(true);
           }}
         />
       )}
