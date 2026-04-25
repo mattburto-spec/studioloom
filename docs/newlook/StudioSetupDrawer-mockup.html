@@ -286,6 +286,41 @@
   }
   .drawer-help-row .serif-em { color: var(--ink-2); }
 
+  /* ===== Profile recap block — read-only summary at top of drawer ===== */
+  .profile-recap {
+    margin-bottom: 24px;
+    padding: 14px 16px;
+    background: var(--bg);
+    border-radius: 14px;
+  }
+  .profile-recap-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .profile-recap-label { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-3); margin-bottom: 4px; }
+  .profile-recap-value { font-size: 13.5px; font-weight: 700; color: var(--ink); display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .profile-recap-sep { color: var(--hair); }
+  .profile-recap-help { font-size: 11.5px; color: var(--ink-3); margin-top: 8px; line-height: 1.45; }
+  .profile-recap-help .serif-em { color: var(--ink-2); }
+
+  /* ===== More settings link — opens full Studio Setup page ===== */
+  .more-settings-link {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px; margin-top: 24px;
+    background: var(--paper); border: 1px solid var(--hair); border-radius: 14px;
+    text-decoration: none; color: inherit;
+    transition: all 180ms ease;
+  }
+  .more-settings-link:hover { background: var(--bg); border-color: var(--ink); transform: translateY(-1px); box-shadow: 0 4px 14px -4px rgba(15,14,12,0.10); }
+  .more-settings-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: var(--ink); color: white;
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .more-settings-content { flex: 1; min-width: 0; }
+  .more-settings-title { font-size: 14px; font-weight: 800; color: var(--ink); }
+  .more-settings-sub { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; line-height: 1.4; }
+  .more-settings-chevron { color: var(--ink-3); flex-shrink: 0; }
+  .more-settings-link:hover .more-settings-chevron { color: var(--ink); }
+
   /* Pulse hint to draw the eye to the new sidebar pill on first paint */
   @keyframes setup-pulse {
     0%, 100% { box-shadow: 0 0 0 0 rgba(147, 51, 234, 0); }
@@ -328,19 +363,19 @@
           </span>
           <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </div>
-        <!-- Row 2: binary toggle status — filled = on, outlined = off -->
+        <!-- Row 2: 4 lesson-time toggle states — filled = on, outlined = off.
+             These mirror the drawer's 4 lesson-time toggles only. Profile-
+             level settings (language, text size, contrast etc.) live on
+             row 1's text + the "More settings" page, not here. -->
         <div class="toggles-row" id="toggles-row">
           <span class="pill-tile on" data-pill="hints" title="Hints on">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/></svg>
           </span>
-          <span class="pill-tile off" data-pill="tts" title="Read aloud off — best practice is opt-in">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5zM19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-          </span>
           <span class="pill-tile off" data-pill="examples" title="Examples off">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
           </span>
-          <span class="pill-tile off" data-pill="alt" title="Alt text off">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+          <span class="pill-tile off" data-pill="tts" title="Read aloud off — best practice is opt-in">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5zM19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
           </span>
           <span class="pill-tile off" data-pill="pace" title="Standard pace">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
@@ -446,149 +481,76 @@
 
   <div class="drawer-body">
 
-    <!-- 1. LANGUAGE SUPPORT -->
-    <div class="drawer-section">
-      <div class="drawer-section-eyebrow">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6M4 14l6-6 2-3M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6"/></svg>
-        <span class="drawer-section-title">Language support</span>
+    <!-- Stable profile recap (read-only here — change via "More settings") -->
+    <div class="profile-recap">
+      <div class="profile-recap-row">
+        <div>
+          <div class="profile-recap-label">Your studio profile</div>
+          <div class="profile-recap-value">
+            <span id="profile-lang">Standard support</span>
+            <span class="profile-recap-sep">·</span>
+            <span id="profile-l1">English only</span>
+          </div>
+        </div>
       </div>
-      <div class="radio-grid" id="lang-grid">
-        <button class="radio-card" data-lang="more"><div class="name">More support</div><div class="sub">Sentence starters · simpler vocab · pictures</div></button>
-        <button class="radio-card selected" data-lang="standard"><div class="name">Standard</div><div class="sub">Default lesson language</div></button>
-        <button class="radio-card" data-lang="challenge"><div class="name">Challenge me</div><div class="sub">Extension prompts · richer vocab</div></button>
-      </div>
+      <div class="profile-recap-help"><span class="serif-em">Set once</span> in Studio Setup — language level, text size, captions and more live there.</div>
     </div>
 
-    <!-- 2. TRANSLATE -->
-    <div class="drawer-section">
-      <div class="drawer-section-eyebrow">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s4-8 10-8 10 8 10 8M12 4v16M2 12s4 8 10 8 10-8 10-8"/></svg>
-        <span class="drawer-section-title">First language</span>
-      </div>
-      <div class="chip-row" id="lang-l1">
-        <button class="chip selected" data-l1="none">English only</button>
-        <button class="chip" data-l1="zh">中文</button>
-        <button class="chip" data-l1="ko">한국어</button>
-        <button class="chip" data-l1="ja">日本語</button>
-        <button class="chip" data-l1="es">Español</button>
-        <button class="chip" data-l1="vi">Tiếng Việt</button>
-      </div>
-      <div class="drawer-help-row"><span class="serif-em">Show key terms in your home language</span> alongside the lesson.</div>
-    </div>
-
-    <!-- 3. SEE — visual access -->
-    <div class="drawer-section">
-      <div class="drawer-section-eyebrow">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-        <span class="drawer-section-title">See</span>
-      </div>
-      <div style="margin-bottom: 12px;">
-        <div class="drawer-help-row" style="margin-bottom: 6px; margin-top: 0;">Text size</div>
-        <div class="chip-row" id="text-size">
-          <button class="chip" data-size="s">Small</button>
-          <button class="chip selected" data-size="m">Medium</button>
-          <button class="chip" data-size="l">Large</button>
-        </div>
-      </div>
-      <div class="toggle-row">
-        <div class="label-block">
-          <div class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg></div>
-          <div><div class="label">Dyslexia-friendly font</div><div class="desc">Heavier baselines · wider spacing</div></div>
-        </div>
-        <button class="switch" data-toggle="dyslexia"></button>
-      </div>
-      <div class="toggle-row">
-        <div class="label-block">
-          <div class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 0 0 20z" fill="currentColor"/></svg></div>
-          <div><div class="label">High contrast</div><div class="desc">Stronger borders · darker text</div></div>
-        </div>
-        <button class="switch" data-toggle="contrast"></button>
-      </div>
-    </div>
-
-    <!-- 4. LISTEN — auditory + captions -->
-    <div class="drawer-section">
-      <div class="drawer-section-eyebrow">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5zM19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-        <span class="drawer-section-title">Listen</span>
-      </div>
-      <div class="toggle-row">
-        <div class="label-block">
-          <div class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5zM19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></div>
-          <div><div class="label">Auto-play read aloud</div><div class="desc">The play button is always there. Auto-play starts it for you on each prompt.</div></div>
-        </div>
-        <button class="switch" data-toggle="tts"></button>
-      </div>
-      <div class="toggle-row">
-        <div class="label-block">
-          <div class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M7 12h10M7 16h6"/></svg></div>
-          <div><div class="label">Video captions</div><div class="desc">Show subtitles on every video</div></div>
-        </div>
-        <button class="switch" data-toggle="captions"></button>
-      </div>
-    </div>
-
-    <!-- 5. VISIBLE HELP — pedagogical scaffolds -->
+    <!-- 1. SHOW IN THIS LESSON — pedagogical scaffolds you might toggle mid-lesson -->
     <div class="drawer-section">
       <div class="drawer-section-eyebrow">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/></svg>
-        <span class="drawer-section-title">Visible help</span>
+        <span class="drawer-section-title">Show in this lesson</span>
       </div>
       <div class="toggle-row">
         <div class="label-block">
           <div class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/></svg></div>
-          <div><div class="label">Show hints</div><div class="desc">Hints stay nearby — open them when stuck</div></div>
+          <div><div class="label">Hints</div><div class="desc">Hints stay nearby — open them when stuck</div></div>
         </div>
         <button class="switch on" data-toggle="hints"></button>
       </div>
       <div class="toggle-row">
         <div class="label-block">
           <div class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg></div>
-          <div><div class="label">Show example responses</div><div class="desc">See an example after you've tried it yourself</div></div>
+          <div><div class="label">Example responses</div><div class="desc">See an example after you've tried it yourself</div></div>
         </div>
         <button class="switch" data-toggle="examples"></button>
       </div>
       <div class="toggle-row">
         <div class="label-block">
-          <div class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg></div>
-          <div><div class="label">Image alt-text descriptions</div><div class="desc">Describe images so a screen reader can read them</div></div>
+          <div class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5zM19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></div>
+          <div><div class="label">Auto-play read aloud</div><div class="desc">Play button is always there. Auto-play starts it for each prompt.</div></div>
         </div>
-        <button class="switch" data-toggle="alt"></button>
+        <button class="switch" data-toggle="tts"></button>
       </div>
     </div>
 
-    <!-- 6. EXPRESS — output flexibility -->
-    <div class="drawer-section">
-      <div class="drawer-section-eyebrow">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-        <span class="drawer-section-title">How I respond</span>
-      </div>
-      <div class="chip-row" id="output-row">
-        <button class="chip selected" data-output="text">Type</button>
-        <button class="chip" data-output="voice">Voice</button>
-        <button class="chip" data-output="sketch">Sketch</button>
-        <button class="chip" data-output="photo">Photo</button>
-      </div>
-      <div class="drawer-help-row">Default response type for this lesson — you can still switch on any single activity.</div>
-    </div>
-
-    <!-- 7. PACE -->
+    <!-- 2. PACE — also lesson-time -->
     <div class="drawer-section">
       <div class="drawer-section-eyebrow">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
         <span class="drawer-section-title">Pace</span>
       </div>
-      <div class="radio-grid" style="grid-template-columns: repeat(2, 1fr);" id="pace-grid">
-        <button class="radio-card selected" data-pace="standard"><div class="name">Standard</div><div class="sub">One lesson per class period</div></button>
-        <button class="radio-card" data-pace="extended"><div class="name">More time per page</div><div class="sub">Longer breaks · pause &amp; reflect built in</div></button>
+      <div class="toggle-row">
+        <div class="label-block">
+          <div class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+          <div><div class="label">More time on this lesson</div><div class="desc">Longer pauses · reflect prompts before moving on</div></div>
+        </div>
+        <button class="switch" data-toggle="pace"></button>
       </div>
     </div>
 
-    <div class="drawer-footer-note">
-      <span class="serif-em label">A note from the platform.</span>
-      Choosing what fits you helps you learn — research shows it's more effective than someone choosing for you.
-      <span class="serif-em">You can change anytime.</span>
-    </div>
+    <!-- More settings link -->
+    <a class="more-settings-link" href="#" onclick="event.preventDefault(); alert('In production: opens /studio-setup — full preferences page (language level, first language, text size, dyslexia font, contrast, captions, alt text, default response type).');">
+      <div class="more-settings-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </div>
+      <div class="more-settings-content">
+        <div class="more-settings-title">More settings</div>
+        <div class="more-settings-sub">Language level · first language · text size · contrast · captions · how I respond</div>
+      </div>
+      <svg class="more-settings-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </a>
   </div>
 </aside>
 
@@ -597,9 +559,10 @@
   const backdrop = document.getElementById('drawer-backdrop');
   window.toggleDrawer = () => { drawer.classList.toggle('open'); backdrop.classList.toggle('open'); };
 
-  // Live updates — pill state mirrors drawer state
-  const langLabels = { more: 'More support', standard: 'Standard support', challenge: 'Challenge mode' };
-  const l1Labels = { none: null, zh: '中文', ko: '한국어', ja: '日本語', es: 'Español', vi: 'Tiếng Việt' };
+  // Live updates — pill state mirrors drawer state.
+  // Drawer is intentionally slim: only mid-lesson toggles live here.
+  // Profile-level settings (language level, first language, text size,
+  // contrast, captions, alt text, output type) live on /studio-setup.
 
   function setPillTile(pill, on) {
     const el = document.querySelector(`.pill-tile[data-pill="${pill}"]`);
@@ -608,77 +571,17 @@
     el.classList.toggle('off', !on);
   }
 
-  function val(grid, attr) {
-    const sel = document.querySelector(`#${grid} .selected`);
-    return sel ? sel.dataset[attr] : null;
-  }
   function tog(name) {
     const el = document.querySelector(`[data-toggle="${name}"]`);
     return el ? el.classList.contains('on') : false;
   }
 
   function updateSummary() {
-    const lang = val('lang-grid', 'lang') || 'standard';
-    const l1 = val('lang-l1', 'l1') || 'none';
-    const pace = val('pace-grid', 'pace') || 'standard';
-    const size = val('text-size', 'size') || 'm';
-
-    // Build the language summary line — append L1 chip if active
-    let langText = langLabels[lang];
-    if (l1 !== 'none' && l1Labels[l1]) {
-      langText += ` · ${l1Labels[l1]}`;
-    }
-    document.getElementById('lang-summary').textContent = langText;
-
-    // Tile states (5 visible). Pace shown as "extended on" only when extended.
     setPillTile('hints', tog('hints'));
-    setPillTile('tts', tog('tts'));
     setPillTile('examples', tog('examples'));
-    setPillTile('alt', tog('alt'));
-    setPillTile('pace', pace === 'extended');
-
-    // Hidden axes that exist in drawer but don't get pill tiles in v4:
-    //   text size · dyslexia · contrast · captions · output type
-    // If 2+ of these are non-default we add a "+N" overflow indicator.
-    const overflow = [
-      size !== 'm',
-      tog('dyslexia'),
-      tog('contrast'),
-      tog('captions'),
-      val('output-row', 'output') !== 'text',
-    ].filter(Boolean).length;
-
-    let overflowEl = document.getElementById('pill-overflow');
-    if (overflow > 0) {
-      if (!overflowEl) {
-        overflowEl = document.createElement('span');
-        overflowEl.id = 'pill-overflow';
-        overflowEl.className = 'pill-tile on';
-        overflowEl.style.fontSize = '10px';
-        overflowEl.style.fontWeight = '800';
-        overflowEl.title = `${overflow} more setting${overflow === 1 ? '' : 's'} customised`;
-        document.getElementById('toggles-row').appendChild(overflowEl);
-      }
-      overflowEl.textContent = `+${overflow}`;
-    } else if (overflowEl) {
-      overflowEl.remove();
-    }
+    setPillTile('tts', tog('tts'));
+    setPillTile('pace', tog('pace'));
   }
-
-  // Wire single-select rows (radio + chip-row both follow same "selected" rule)
-  function wireSingleSelect(rootSelector, itemSelector) {
-    document.querySelectorAll(rootSelector).forEach(grid => {
-      grid.querySelectorAll(itemSelector).forEach(item => {
-        item.addEventListener('click', () => {
-          grid.querySelectorAll(itemSelector).forEach(c => c.classList.remove('selected'));
-          item.classList.add('selected');
-          updateSummary();
-        });
-      });
-    });
-  }
-  wireSingleSelect('.radio-grid', '.radio-card');
-  wireSingleSelect('.chip-row', '.chip');
 
   document.querySelectorAll('.switch').forEach(sw => {
     sw.addEventListener('click', () => {
