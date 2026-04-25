@@ -206,6 +206,55 @@ export function MachineEditModal({ mode, availableLabs, onClose, onSaved }: Prop
             : `Edit ${mode.machine.name}`}
         </h2>
 
+        {/* Phase 8.1d-8: category picker as segmented buttons at the top
+             of the form for create-from-scratch. Replaces the dropdown
+             which Matt didn't notice during S2 ("can't see kerf or min
+             feature options, just nozzle"). Now you SEE which category
+             you're configuring + the form fields update visibly below. */}
+        {mode.kind === "create" && !mode.fromTemplate && (
+          <div className="space-y-1">
+            <span className="block text-sm font-medium text-gray-700">
+              What kind of machine?
+            </span>
+            <div
+              role="radiogroup"
+              aria-label="Machine category"
+              className="grid grid-cols-2 gap-2"
+            >
+              <button
+                type="button"
+                role="radio"
+                aria-checked={category === "3d_printer"}
+                onClick={() => setCategory("3d_printer")}
+                className={
+                  "flex flex-col items-center gap-1.5 px-3 py-3 rounded-lg border-2 transition-all text-sm " +
+                  (category === "3d_printer"
+                    ? "border-brand-purple bg-brand-purple/5 text-brand-purple font-semibold"
+                    : "border-gray-200 bg-white text-gray-700 hover:border-gray-400")
+                }
+              >
+                <span className="text-2xl leading-none">🖨️</span>
+                <span>3D printer</span>
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={category === "laser_cutter"}
+                onClick={() => setCategory("laser_cutter")}
+                className={
+                  "flex flex-col items-center gap-1.5 px-3 py-3 rounded-lg border-2 transition-all text-sm " +
+                  (category === "laser_cutter"
+                    ? "border-brand-purple bg-brand-purple/5 text-brand-purple font-semibold"
+                    : "border-gray-200 bg-white text-gray-700 hover:border-gray-400")
+                }
+              >
+                <span className="text-2xl leading-none">🔥</span>
+                <span>Laser cutter</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         <label className="block text-sm font-medium text-gray-700">
           Name
           <input
@@ -246,19 +295,8 @@ export function MachineEditModal({ mode, availableLabs, onClose, onSaved }: Prop
           </label>
         )}
 
-        {mode.kind === "create" && !mode.fromTemplate && (
-          <label className="block text-sm font-medium text-gray-700">
-            Category
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value as MachineCategory)}
-              className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm bg-white"
-            >
-              <option value="3d_printer">3D printer</option>
-              <option value="laser_cutter">Laser cutter</option>
-            </select>
-          </label>
-        )}
+        {/* Phase 8.1d-8: category dropdown moved to top of form
+             as segmented buttons (see above). */}
 
         <label className="block text-sm font-medium text-gray-700">
           Model (optional)
@@ -349,24 +387,31 @@ export function MachineEditModal({ mode, availableLabs, onClose, onSaved }: Prop
           </>
         )}
 
-        <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={requiresApproval}
-            onChange={(e) => setRequiresApproval(e.target.checked)}
-            className="mt-0.5"
-          />
-          <span>
-            <span className="font-medium">Require teacher approval before
-            fabricator pickup</span>
-            <br />
-            <span className="text-xs text-gray-500">
-              When checked, students' submissions land in your review queue
-              before reaching the fabricator. Useful for higher-risk machines
-              (lasers, expensive filament). Off = jobs auto-approve on clean scan.
+        {/* Phase 8.1d-8: approval checkbox only in edit mode. New machines
+             default to "auto-approve"; teachers use the lab's Approval
+             workflow card or come back to per-machine Edit to flip this.
+             Keeps the create flow tight + avoids duplicating the workflow
+             card's job. */}
+        {mode.kind === "edit" && (
+          <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={requiresApproval}
+              onChange={(e) => setRequiresApproval(e.target.checked)}
+              className="mt-0.5"
+            />
+            <span>
+              <span className="font-medium">Require teacher approval before
+              fabricator pickup</span>
+              <br />
+              <span className="text-xs text-gray-500">
+                When checked, students' submissions land in your review queue
+                before reaching the fabricator. Useful for higher-risk machines
+                (lasers, expensive filament). Off = jobs auto-approve on clean scan.
+              </span>
             </span>
-          </span>
-        </label>
+          </label>
+        )}
 
         <label className="block text-sm font-medium text-gray-700">
           Notes (optional)
