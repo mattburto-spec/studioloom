@@ -88,6 +88,10 @@ interface FakeOpts {
   machinesError?: { message: string };
   /** fabrication_labs `.neq().limit()` for deleteLab default-safety check. */
   otherLabsExist?: boolean;
+  /** Phase 8.1d-2 last-lab guard: machine_profiles `.limit()` returns 1 row when true. */
+  hasActiveMachinesAnywhere?: boolean;
+  /** Phase 8.1d-2 last-lab guard: classes `.limit()` returns 1 row when true. */
+  hasClassesAnywhere?: boolean;
   /** Single machine lookup for reassignMachineToLab. */
   machineLookupRow?: {
     id: string;
@@ -138,11 +142,31 @@ function makeFakeClient(opts: FakeOpts = {}) {
     chain.limit = () => ({
       then: (resolve: (v: unknown) => unknown) => {
         log.push({ ...entry });
-        // only used by deleteLab default-safety check
+        // fabrication_labs.limit() — for default-safety check + last-lab guard
         if (table === "fabrication_labs") {
           return Promise.resolve(
             resolve({
               data: opts.otherLabsExist ? [{ id: "other-lab" }] : [],
+              error: null,
+            })
+          );
+        }
+        // machine_profiles.limit() — for last-lab guard footprint check
+        if (table === "machine_profiles") {
+          return Promise.resolve(
+            resolve({
+              data: opts.hasActiveMachinesAnywhere
+                ? [{ id: "any-machine" }]
+                : [],
+              error: null,
+            })
+          );
+        }
+        // classes.limit() — for last-lab guard footprint check
+        if (table === "classes") {
+          return Promise.resolve(
+            resolve({
+              data: opts.hasClassesAnywhere ? [{ id: "any-class" }] : [],
               error: null,
             })
           );
@@ -778,6 +802,79 @@ describe("reassignMachineToLab", () => {
 // assert the orchestration code applies the .eq("is_active", true)
 // filter on both queries — which is what fixes the bug at the
 // PostgREST layer in prod.
+
+// ============================================================
+// Phase 8.1d-2: last-lab guard (PH8-FU-LAST-LAB-GUARD)
+// ============================================================
+//
+// Regression for the bad UX Matt hit during S1 smoke 25 Apr PM:
+// teacher deleted ALL labs and ended up in a degraded state where
+// student picker fell back to "show all" and they couldn't add new
+// machines (API requires labId). New rule: if delete would leave
+// the teacher with zero labs AND they have active machines or
+// classes, 409.
+
+describe("Phase 8.1d-2: last-lab guard", () => {
+  it("blocks deleting the last lab when teacher has active machines", async () => {
+    const fake = makeFakeClient({
+      labRows: [labRow({ id: L1, teacher_id: T1, is_default: false })],
+      otherLabsExist: false, // last lab
+      hasActiveMachinesAnywhere: true,
+    });
+    const result = await deleteLab(fake as never, {
+      teacherId: T1,
+      labId: L1,
+    });
+    expect(isOrchestrationError(result)).toBe(true);
+    if (!isOrchestrationError(result)) return;
+    expect(result.error.status).toBe(409);
+    expect(result.error.message).toMatch(/last lab/);
+  });
+
+  it("blocks deleting the last lab when teacher has any classes", async () => {
+    const fake = makeFakeClient({
+      labRows: [labRow({ id: L1, teacher_id: T1, is_default: false })],
+      otherLabsExist: false,
+      hasClassesAnywhere: true,
+    });
+    const result = await deleteLab(fake as never, {
+      teacherId: T1,
+      labId: L1,
+    });
+    expect(isOrchestrationError(result)).toBe(true);
+    if (!isOrchestrationError(result)) return;
+    expect(result.error.status).toBe(409);
+  });
+
+  it("ALLOWS deleting the last lab when teacher has zero footprint (clean reset)", async () => {
+    const fake = makeFakeClient({
+      labRows: [labRow({ id: L1, teacher_id: T1, is_default: true })],
+      otherLabsExist: false,
+      hasActiveMachinesAnywhere: false,
+      hasClassesAnywhere: false,
+      machinesByLab: [],
+    });
+    const result = await deleteLab(fake as never, {
+      teacherId: T1,
+      labId: L1,
+    });
+    expect(isOrchestrationError(result)).toBe(false);
+  });
+
+  it("does NOT trigger the last-lab guard when other labs exist", async () => {
+    const fake = makeFakeClient({
+      labRows: [labRow({ id: L1, teacher_id: T1, is_default: false })],
+      otherLabsExist: true,
+      hasActiveMachinesAnywhere: true, // doesn't matter — other labs exist
+      machinesByLab: [],
+    });
+    const result = await deleteLab(fake as never, {
+      teacherId: T1,
+      labId: L1,
+    });
+    expect(isOrchestrationError(result)).toBe(false);
+  });
+});
 
 describe("Phase 8.1d hotfix: is_active filter on lab counts", () => {
   it("deleteLab includes is_active=true on the machine count query", async () => {

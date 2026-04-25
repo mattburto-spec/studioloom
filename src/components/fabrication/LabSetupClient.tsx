@@ -23,6 +23,7 @@ import {
 import { MachineEditModal } from "./MachineEditModal";
 import { AddLabModal } from "./AddLabModal";
 import { AddMachineModal } from "./AddMachineModal";
+import { AssignClassesToLabModal } from "./AssignClassesToLabModal";
 import type { LabListRow } from "@/lib/fabrication/lab-orchestration";
 import type { MachineProfileRow } from "@/lib/fabrication/machine-orchestration";
 
@@ -40,7 +41,8 @@ type FetchState =
 type Modal =
   | { kind: "add-lab" }
   | { kind: "add-machine"; labId: string }
-  | { kind: "edit-machine"; machine: MachineProfileRow };
+  | { kind: "edit-machine"; machine: MachineProfileRow }
+  | { kind: "assign-classes"; labId: string; labName: string };
 
 export function LabSetupClient() {
   const [state, setState] = React.useState<FetchState>({ kind: "loading" });
@@ -167,6 +169,46 @@ export function LabSetupClient() {
       return;
     }
     fetchAll();
+  }
+
+  async function makeDefaultLab(lab: LabListRow) {
+    // Phase 8.1d-3 (PH8-FU-SET-DEFAULT-LAB): two-step swap.
+    // The DB has a unique partial index `WHERE is_default = true` so
+    // we can't just set is_default=true on this lab while another
+    // lab also has it — that returns 23505 → 409. Instead: PATCH the
+    // current default to false first, then this one to true.
+    if (lab.isDefault) return;
+    if (state.kind !== "ready") return;
+    const currentDefault = state.data.labs.find((l) => l.isDefault);
+    try {
+      if (currentDefault) {
+        const res = await fetch(`/api/teacher/labs/${currentDefault.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ isDefault: false }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({ error: "" }));
+          alert(body.error || `Couldn't unset current default (HTTP ${res.status})`);
+          return;
+        }
+      }
+      const promote = await fetch(`/api/teacher/labs/${lab.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ isDefault: true }),
+      });
+      if (!promote.ok) {
+        const body = await promote.json().catch(() => ({ error: "" }));
+        alert(body.error || `Promotion failed (HTTP ${promote.status})`);
+        return;
+      }
+      fetchAll();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Network error");
+    }
   }
 
   async function toggleBulkApproval(
@@ -346,6 +388,34 @@ export function LabSetupClient() {
                     >
                       Rename
                     </button>
+                    {!lab.isDefault && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          makeDefaultLab(lab);
+                        }}
+                        className="text-xs px-2 py-1 rounded border border-brand-purple/40 bg-white text-brand-purple hover:bg-brand-purple/5"
+                        title="Make this the default lab. Existing classes' default lab won't change automatically — assign them via the Classes section."
+                      >
+                        Make default
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setModal({
+                          kind: "assign-classes",
+                          labId: lab.id,
+                          labName: lab.name,
+                        });
+                      }}
+                      className="text-xs px-2 py-1 rounded border border-gray-300 bg-white hover:bg-gray-100"
+                      title="Pick which classes use this lab as their default"
+                    >
+                      Assign classes
+                    </button>
                     <button
                       type="button"
                       onClick={(e) => {
@@ -461,6 +531,17 @@ export function LabSetupClient() {
       {modal?.kind === "edit-machine" && (
         <MachineEditModal
           mode={{ kind: "edit", machine: modal.machine }}
+          onClose={() => setModal(null)}
+          onSaved={() => {
+            setModal(null);
+            fetchAll();
+          }}
+        />
+      )}
+      {modal?.kind === "assign-classes" && (
+        <AssignClassesToLabModal
+          labId={modal.labId}
+          labName={modal.labName}
           onClose={() => setModal(null)}
           onSaved={() => {
             setModal(null);
