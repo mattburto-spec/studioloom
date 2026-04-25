@@ -531,6 +531,11 @@ export function LabSetupClient() {
       {modal?.kind === "edit-machine" && (
         <MachineEditModal
           mode={{ kind: "edit", machine: modal.machine }}
+          availableLabs={
+            state.kind === "ready"
+              ? state.data.labs.filter((l) => l.id !== "__unassigned__")
+              : undefined
+          }
           onClose={() => setModal(null)}
           onSaved={() => {
             setModal(null);

@@ -62,6 +62,7 @@ interface PatchMachineBody {
   supportedMaterials?: unknown;
   supportsAutoSupports?: unknown;
   maxPrintTimeMin?: unknown;
+  labId?: unknown; // Phase 8.1d-4 — move machine between labs
 }
 
 export async function PATCH(
@@ -142,6 +143,7 @@ export async function PATCH(
         : typeof body.maxPrintTimeMin === "number"
           ? body.maxPrintTimeMin
           : undefined,
+    labId: typeof body.labId === "string" ? body.labId : undefined,
   });
 
   if (isOrchestrationError(result)) {

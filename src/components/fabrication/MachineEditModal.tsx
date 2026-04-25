@@ -27,6 +27,7 @@ import type {
   MachineCategory,
   OperationColorMap,
 } from "@/lib/fabrication/machine-orchestration";
+import type { LabListRow } from "@/lib/fabrication/lab-orchestration";
 
 type Mode =
   | { kind: "create"; labId: string; fromTemplate?: MachineProfileRow }
@@ -34,11 +35,16 @@ type Mode =
 
 interface Props {
   mode: Mode;
+  /** Phase 8.1d-4: in edit mode, used to populate the "Move to lab"
+   *  dropdown so teachers can reassign a machine between labs (or
+   *  out of the orphan/Unassigned bucket). Optional — falls back
+   *  to "current lab only" if not provided. */
+  availableLabs?: LabListRow[];
   onClose: () => void;
   onSaved: (machine: MachineProfileRow) => void;
 }
 
-export function MachineEditModal({ mode, onClose, onSaved }: Props) {
+export function MachineEditModal({ mode, availableLabs, onClose, onSaved }: Props) {
   const existing: MachineProfileRow | null =
     mode.kind === "edit" ? mode.machine : mode.fromTemplate ?? null;
 
@@ -67,6 +73,12 @@ export function MachineEditModal({ mode, onClose, onSaved }: Props) {
   const [notes, setNotes] = React.useState(existing?.notes ?? "");
   const [colorMapRows, setColorMapRows] = React.useState<ColorMapRow[]>(
     colorMapToRows(existing?.operationColorMap)
+  );
+  // Phase 8.1d-4: lab selection. In edit mode, defaults to the
+  // machine's current lab (or "" for orphan). In create mode, the
+  // lab is fixed via mode.labId — dropdown is hidden.
+  const [labId, setLabId] = React.useState<string>(
+    mode.kind === "edit" ? mode.machine.labId ?? "" : mode.labId
   );
 
   const [submitting, setSubmitting] = React.useState(false);
@@ -123,6 +135,14 @@ export function MachineEditModal({ mode, onClose, onSaved }: Props) {
     else if (mode.kind === "edit") payload.kerfMm = null;
     if (minFeature !== "") payload.minFeatureMm = Number(minFeature);
     else if (mode.kind === "edit") payload.minFeatureMm = null;
+
+    // Phase 8.1d-4: include labId only when we're editing AND it
+    // changed. Create-mode lab assignment goes via createPayload.labId
+    // below. labId="" in edit mode means "leave the orphan state
+    // alone" — server ignores undefined.
+    if (mode.kind === "edit" && labId && labId !== mode.machine.labId) {
+      payload.labId = labId;
+    }
 
     setSubmitting(true);
     try {
@@ -197,6 +217,34 @@ export function MachineEditModal({ mode, onClose, onSaved }: Props) {
             className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm"
           />
         </label>
+
+        {/* Phase 8.1d-4: lab selector. Only shown in edit mode (creates
+            inherit lab from the parent lab card's "+ Add machine"). */}
+        {mode.kind === "edit" && availableLabs && availableLabs.length > 0 && (
+          <label className="block text-sm font-medium text-gray-700">
+            Lab
+            <select
+              value={labId}
+              onChange={(e) => setLabId(e.target.value)}
+              className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm bg-white"
+            >
+              {/* Empty option — only meaningful for orphan machines.
+                  Hidden for normally-assigned ones to avoid an
+                  accidental "unassign" via the dropdown. */}
+              {!labId && <option value="">— Unassigned —</option>}
+              {availableLabs.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                  {l.isDefault ? " (default)" : ""}
+                </option>
+              ))}
+            </select>
+            <span className="mt-1 block text-xs text-gray-500">
+              Move this machine to a different lab. The student picker
+              filters by class → lab → machines.
+            </span>
+          </label>
+        )}
 
         {mode.kind === "create" && !mode.fromTemplate && (
           <label className="block text-sm font-medium text-gray-700">
