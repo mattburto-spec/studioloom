@@ -66,7 +66,7 @@ The "their invitees" qualifier on teacher/co_teacher means: the dept_head + admi
 
 1. **`schools` table** — created in migration 085. Columns: `id`, `name`, `created_at`. That's it — no admin / owner FK yet.
 2. **Reserved `school_id` columns** — on `machine_profiles` (from migration 093) and on `fabrication_labs` (from migration 113, Phase 8-1). Both `NULLABLE`, unused in v1. Deliberately reserved to make FU-P land as `ADD POLICY` not `ALTER TABLE`.
-3. **Classes table** — currently `classes.teacher_id` is single-owner. No `classes.school_id` column. Adding it is one migration.
+3. **Classes table** — currently `classes.teacher_id` is single-owner. **`classes.school_id` reserved nullable in migration 117** (Phase 8.1d, 25 Apr PM). FU-P-1 just backfills it.
 4. **Student identity** — `students.author_teacher_id` (migration 041) ties a student to one teacher. This is FU-Q (dual student identity) territory — treat separately, don't let it block FU-P.
 5. **Existing RLS patterns** — every table in the `fabrication_*` namespace scopes by `teacher_id = auth.uid()`. Those policies need to be rewritten for FU-P; they DO NOT need to be dropped first.
 
@@ -77,7 +77,7 @@ The "their invitees" qualifier on teacher/co_teacher means: the dept_head + admi
 3. **Role enum** — `owner | admin | dept_head | teacher | co_teacher | ta | observer`. FU-O maps here.
 4. **`fabrication_labs.school_id`** — already exists as nullable column. Backfill.
 5. **`machine_profiles.school_id`** — already exists as nullable column. Backfill.
-6. **`classes.school_id`** — new column; backfill.
+6. **`classes.school_id`** — already nullable column from migration 117. Backfill.
 7. **RLS policy rewrite** — on ~12 tables: `fabrication_labs`, `machine_profiles`, `fabricators`, `fabrication_jobs`, `fabrication_job_revisions`, `fabrication_scan_jobs`, `classes`, `class_students`, `units`, `knowledge_uploads`, `student_projects` (dashboard-v2's PYPx addition), `teacher_style_profile`. Each policy's `teacher_id = auth.uid()` becomes `EXISTS (SELECT 1 FROM school_memberships WHERE ...)`.
 8. **Admin / dept-head UI** — minimum viable: dept head can see all labs/machines/classes at their school; school admin can manage memberships + roles.
 9. **Backfill script** — for every existing teacher, create a `schools` row (if none), create a `school_memberships` row with role='owner' or 'teacher', populate `school_id` on every relevant row.
@@ -105,7 +105,7 @@ The "their invitees" qualifier on teacher/co_teacher means: the dept_head + admi
     UNIQUE (user_id, school_id, role)
   );
   ```
-- Migration adds `classes.school_id UUID REFERENCES schools(id)`.
+- ~~Migration adds `classes.school_id`~~ — already done in mig 117 (Phase 8.1d).
 - RLS on `schools` + `school_memberships` (admin + self-read).
 - **Backfill script** — for every distinct teacher in `auth.users` with any classes/machines/labs:
   - Create (or reuse) a `schools` row. Naming heuristic: group by email domain (`@nanjing-school.com` → one school).

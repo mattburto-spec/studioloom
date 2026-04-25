@@ -2170,6 +2170,7 @@ tables:
     instruction_language: TEXT DEFAULT 'en'
     additional_languages: TEXT[] DEFAULT NULL
     default_lab_id: UUID REFERENCES fabrication_labs(id) ON DELETE SET NULL   # added Phase 8-1 migration 114 — drives student machine-picker filter (8-5)
+    school_id: UUID REFERENCES schools(id) ON DELETE SET NULL                 # added Phase 8.1d migration 117 — reserved for FU-P access-model-v2; nullable in v1
   classification:
     id:
       pii: false
