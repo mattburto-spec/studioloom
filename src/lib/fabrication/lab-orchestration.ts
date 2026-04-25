@@ -501,11 +501,9 @@ export async function deleteLab(
   const owned = await loadTeacherOwnedLab(db, params.teacherId, params.labId);
   if (isOrchestrationError(owned)) return owned;
 
-  // Guard: don't let teachers delete their last remaining default lab
-  // if they still have other labs. Rule: if the lab being deleted is
-  // the default AND there are other labs, require the caller to
-  // promote one first. Keeps the invariant "teachers with footprint
-  // have at least one default lab" consistent.
+  // Guard 1: if this is the default lab AND others exist, require the
+  // caller to promote a different lab as default first. Keeps the
+  // invariant that exactly one lab per teacher carries `is_default = true`.
   if (owned.lab.isDefault) {
     const othersQuery = await db
       .from("fabrication_labs")
@@ -523,9 +521,63 @@ export async function deleteLab(
         },
       };
     }
-    // If this is the teacher's only lab, allow the delete — they're
-    // cleaning up and we don't force them to keep one. Machine
-    // reassignment below will return 409 if there are machines.
+  }
+
+  // Guard 2 (Phase 8.1d-2 — PH8-FU-LAST-LAB-GUARD): if this would
+  // leave the teacher with ZERO labs AND they still have any
+  // fabrication footprint (active machines or classes), block. The
+  // degraded zero-lab state turns the lab admin page into a dead-end
+  // — teachers can't add machines without a lab. Better to require
+  // them to rename the existing lab (or wait until they've cleaned
+  // up) than to silently allow the bad state.
+  const labCountQuery = await db
+    .from("fabrication_labs")
+    .select("id")
+    .eq("teacher_id", params.teacherId)
+    .neq("id", params.labId)
+    .limit(1);
+  const { data: otherLabs } = labCountQuery as {
+    data: Array<{ id: string }> | null;
+  };
+  const willBeLastLab = (otherLabs?.length ?? 0) === 0;
+
+  if (willBeLastLab) {
+    // Check footprint: any active machines or any classes anywhere.
+    const machineFootprint = await db
+      .from("machine_profiles")
+      .select("id")
+      .eq("teacher_id", params.teacherId)
+      .eq("is_system_template", false)
+      .eq("is_active", true)
+      .limit(1);
+    const { data: hasActiveMachines } = machineFootprint as {
+      data: Array<{ id: string }> | null;
+    };
+
+    const classFootprint = await db
+      .from("classes")
+      .select("id")
+      .eq("teacher_id", params.teacherId)
+      .limit(1);
+    const { data: hasClasses } = classFootprint as {
+      data: Array<{ id: string }> | null;
+    };
+
+    const hasFootprint =
+      (hasActiveMachines?.length ?? 0) > 0 ||
+      (hasClasses?.length ?? 0) > 0;
+
+    if (hasFootprint) {
+      return {
+        error: {
+          status: 409,
+          message:
+            "You can't delete your last lab while you still have active machines or classes. Rename this lab if you want to repurpose it, or move all your fabrication footprint elsewhere first.",
+        },
+      };
+    }
+    // Else: teacher has no footprint at all — let them delete. They're
+    // either brand-new (no fabrication usage yet) or cleaning up.
   }
 
   // Count ACTIVE machines in this lab. Phase 8.1d hotfix: soft-deleted

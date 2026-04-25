@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 347
+# Total routes: 349
 
 routes:
 - path: /api/admin/ai-model
@@ -2067,6 +2067,29 @@ routes:
   - unit_badge_requirements
   - units
   tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/fabrication/classes
+  method: GET
+  file: src/app/api/teacher/fabrication/classes/route.ts
+  auth: teacher
+  tables_read:
+  - classes
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/fabrication/classes/[classId]/default-lab
+  method: PATCH
+  file: src/app/api/teacher/fabrication/classes/[classId]/default-lab/route.ts
+  auth: teacher
+  tables_read:
+  - classes
+  - fabrication_labs
+  tables_written:
+  - classes
+  - fabrication_labs
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null

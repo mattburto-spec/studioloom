@@ -2,11 +2,37 @@
 
 **Status:** PLAN DRAFT — not yet committed to a sprint.
 **Drafted:** 25 April 2026 PM (after Phase 8 main merge + prod smoke prep).
-**Motivation:** Matt asked during Phase 8 smoke prep — "does the system know that if I work at NIS and setup a lab, the other NIS teachers also get that info? also if a teacher at same school changes machines, other teachers get those updates?" — answer today is NO (per-teacher scoping everywhere). This plan is the sequencing to change that without breaking anything already in prod.
-**Scope:** The FU-P half of the "FU-O/P/R Access Model v2" cluster that's been blocking school-level deployments since Dimensions3 Phase 6 closed out (14 Apr). Also touches FU-O (role enum) and FU-R (auth model split), but those are treated as follow-on work once the school entity is wired.
+**Revised:** 25 April 2026 PM (after Matt asked the deeper architectural question: "is there a central place to store school machines and labs? when a new design teacher comes will their students auto see the same labs and machines?").
+**Motivation:** Matt asked during Phase 8 smoke prep — "does the system know that if I work at NIS and setup a lab, the other NIS teachers also get that info?" — answer today is NO. This plan is the sequencing to fix it.
+**Scope:** The FU-P half of the "FU-O/P/R Access Model v2" cluster. Includes FU-O (role enum) inline. FU-R (auth model split) stays separate.
+
+---
+
+## ⚠️ ARCHITECTURAL DECISION: school-owned fleet, not teacher-owned with cross-team read
+
+Original v1 of this plan treated FU-P as a "share read access overlay on top of teacher-owned resources." That's wrong, and Matt called it out 25 Apr PM:
+
+> "Is there a central place to store school machines and labs? in the future with the new advanced login when a new design teacher comes will their students auto see the same labs and machines as the other existing teachers students?"
+
+**The right model — labs + machines are SCHOOL-OWNED.** Not teacher-owned-with-shared-read.
+
+| Concern | Old v1 plan ("share read") | New design ("school-owned") |
+|---|---|---|
+| `fabrication_labs.teacher_id` | Owner. NOT NULL. | "Created by" audit. NULLable for system-created. |
+| `fabrication_labs.school_id` | Optional. Nullable. Used for share scope. | OWNER. NOT NULL post-migration. |
+| New teacher joins school | Has to set up own labs/machines | Inherits the school's existing fleet automatically |
+| Same physical printer, 2 teachers | 2 database rows | 1 row, both teachers reference it |
+| Editing a machine spec | Each teacher edits their own copy | Edit affects every teacher's view (changes to canonical row) |
+| Audit ("who changed kerf?") | Inferred from teacher_id ownership | Recorded via `created_by_user_id` + `updated_by_user_id` fields |
+
+This is a meaningful architectural shift and it changes the plan below (specifically FU-P-2 and FU-P-3). It does NOT change the existing Phase 8 schema reservations (`school_id` columns are already nullable on `fabrication_labs` + `machine_profiles` + `classes` from migrations 093 + 113). Those reservations remain correct — FU-P just flips them from NULLable to NOT NULL and rewires RLS to read from them.
+
+**Existing per-teacher data does NOT need to be deduped during migration.** Each existing row keeps its identity and gets a school_id assigned (via the email-domain heuristic). Optional dedupe tool ships in FU-P-4 — school admin can collapse duplicates manually.
+
+---
 **Blocks:** Cross-teacher sharing of fabrication labs, machines, fabricators, units, classes. Dept-head / school-admin dashboards. Multi-school deployments (Seoul Foreign School pattern — 3 labs per building, different teachers per lab).
 **Pre-conditions:** Phase 8 Checkpoint 8.1 PASSED in prod. No Phase 9 work in flight (this is a tenancy-boundary migration; concurrent feature work on any affected tables is risky).
-**Estimated total effort:** ~7–10 days, split across 5 named sub-phases with Matt Checkpoints.
+**Estimated total effort:** ~8–11 days (revised from 7–10 after the school-owned-fleet pivot — slightly more migration work, slightly less write-permission complexity), split across 5 named sub-phases with Matt Checkpoints.
 
 ---
 
@@ -69,11 +95,13 @@
 
 **Checkpoint: FU-P-1.1 — schema + backfill correct.**
 
-### FU-P-2 — RLS policy rewrite (~2 days)
+### FU-P-2 — Ownership flip + RLS rewrite (~2.5 days, was 2 days)
 
-**Scope:**
-- For each of ~12 tables, drop the existing `<table>_select_teacher` / insert / update / delete policies and replace with school-membership-scoped versions.
-- Convention:
+**Scope (revised — school-owned, not share-overlay):**
+- Migration: add `school_id NOT NULL` constraint on `fabrication_labs`, `machine_profiles` (where `is_system_template = false`), `classes`. (Backfill from FU-P-1 has populated values; this just enforces the invariant going forward.)
+- Migration: add `created_by_user_id UUID REFERENCES auth.users(id)` and `updated_by_user_id UUID REFERENCES auth.users(id)` on `fabrication_labs`, `machine_profiles`, `classes`. Populated by orchestration on every write — replaces the implicit "teacher_id = owner" pattern.
+- Keep `teacher_id` as a column for now (backwards-compat), repurposed as "primary teacher contact" for the resource. NULLable. School admins can reassign.
+- For each of ~12 tables, drop the existing `<table>_select_teacher` / insert / update / delete policies and replace with school-membership-scoped versions:
   ```sql
   CREATE POLICY <table>_select_via_school
     ON <table>
@@ -82,49 +110,59 @@
       school_id IN (
         SELECT school_id FROM school_memberships
         WHERE user_id = auth.uid()
-          AND role IN ('owner', 'admin', 'dept_head', 'teacher', 'co_teacher')
+          AND role IN ('owner', 'admin', 'dept_head', 'teacher', 'co_teacher', 'ta', 'observer')
       )
     );
+
+  CREATE POLICY <table>_modify_via_school_role
+    ON <table>
+    FOR INSERT, UPDATE, DELETE
+    USING (
+      school_id IN (
+        SELECT school_id FROM school_memberships
+        WHERE user_id = auth.uid()
+          AND role IN ('owner', 'admin', 'dept_head', 'teacher', 'co_teacher')
+        -- ta + observer get READ only
+      )
+    )
+    WITH CHECK ( ... same ... );
   ```
 - Dropping old policies + adding new in the SAME transaction prevents any window where RLS is off. Migration wraps in BEGIN/COMMIT.
-- For tables that need both owner-read AND school-read (edge cases):
-  ```sql
-  USING (
-    teacher_id = auth.uid()  -- current owner
-    OR school_id IN (...)    -- school member with right role
-  )
-  ```
-- `system_template` rows on `machine_profiles` stay globally readable per existing policy.
+- `system_template` rows on `machine_profiles` keep their existing global-read policy.
+- **Note: this is a meaningful semantics change.** Today, only `teacher_id = auth.uid()` can write to a row. After FU-P-2, ANY teacher in the same school with appropriate role can write. That's the whole point — but it's worth flagging in change-management for any school doing the migration. Pre-migration audit query: "show me all writes to fabrication_labs in the last 30 days" — should be ~zero unexpected cross-teacher writes since today's RLS prevents them.
 
 **Gate to FU-P-3:**
 - Every existing API route still works in prod.
-- Spot-check: a second teacher at NIS can now see the first teacher's labs + machines + classes (direct SQL query; UI changes land in FU-P-3+).
-- The 12 tables' write paths still respect their original "owner can write their own" rules — school_memberships adds READ sharing but not WRITE by default.
-- New tests: RLS probe per table asserting cross-teacher reads succeed when school_memberships.role allows it.
+- Spot-check: a second teacher at NIS can NOW SEE AND EDIT the first teacher's labs, machines, classes — that's the new model.
+- system templates still globally readable.
+- Audit fields (`created_by_user_id` / `updated_by_user_id`) populated correctly on test writes.
+- New tests: RLS probe per table per role (~50 tests).
 
-**Checkpoint: FU-P-2.1 — RLS isolation correct + no regressions.**
+**Checkpoint: FU-P-2.1 — school-owned fleet works correctly + no regressions on Phase 8 smoke.**
 
-### FU-P-3 — Read APIs + UI adjustments (~1.5 days)
+### FU-P-3 — UI: school-fleet view + new-teacher onboarding (~1.5 days)
 
-**Scope:**
-- No API route changes REQUIRED (RLS does the filtering), but:
-  - `/api/teacher/labs` `listMyLabs` → rename to `listVisibleLabs` conceptually; physical function stays + returns labs where RLS grants SELECT, which is now school-wide.
-  - Same for machines, classes, fabricators.
-- Teacher UI tweak: labs + machines now show WHICH teacher owns each row (so Mr. Jones's labs show "Owned by Mr. Jones" chip when Ms. Smith views them).
-- New tab on `/teacher/preflight/lab-setup`: "My labs" vs "All at NIS" filter.
-- Read-only for non-owners by default — writes still require `teacher_id = auth.uid()` at route level.
+**Scope (revised — school-owned model):**
+- All existing teacher-facing list APIs (`listMyLabs`, `listMyMachines`) now return school-fleet data via RLS — no route changes needed.
+- Lab Setup UI shows the WHOLE school's labs + machines, not just "your own". Optional filter chip: "Show only labs I created" (rare use case).
+- Each row gets a small "Created by: Mx Smith" subtitle so it's clear who set it up.
+- New empty-state for new-teacher onboarding: when a teacher joins a school that already has ≥1 lab, the lab-setup page shows:
+  > "✨ Welcome to NIS Preflight. Your school already has X labs and Y machines set up — students will start submitting to those automatically. Add a lab if you need a new one."
+  No more "create your first lab" forced ritual.
+- Class default-lab assignment UI from Phase 8.1d-3 (`AssignClassesToLabModal`) keeps working unchanged — it operates on the school's labs.
 
 **Gate to FU-P-4:**
-- Teachers at same school see each other's labs/machines by default.
-- Teachers can't MODIFY another teacher's resources (only read).
-- No regression in own-resource flows.
+- New teacher (test account, second @nanjing-school.com email) joining the existing NIS school sees the existing fleet immediately on first lab-setup page load.
+- Teachers at same school can edit each other's labs/machines (audit log records the change).
+- No regression in single-teacher flows.
 
-**Checkpoint: FU-P-3.1 — cross-teacher visibility verified in prod.**
+**Checkpoint: FU-P-3.1 — new-teacher inheritance verified in prod.**
 
-### FU-P-4 — Write permissions via role + memberships UI (~2 days)
+### FU-P-4 — Role-based write permissions + memberships UI + dedupe tool (~2.5 days, was 2)
 
 **Scope:**
-- Write paths start checking `school_memberships.role` in addition to owner.
+- Refine write permissions per role (RLS in FU-P-2 was a coarse pass; this fine-tunes).
+- New optional admin dedupe tool: school admin sees a list of "duplicate machines" (same name + same spec across teachers' historical rows), can collapse to one canonical row + reassign FK references. Closes the data-cleanup gap from the no-dedupe-during-migration choice.
 - Rule matrix:
   | Role | Can create own | Can edit own | Can edit others at same school |
   |---|---|---|---|
