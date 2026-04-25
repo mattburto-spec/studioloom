@@ -591,6 +591,14 @@ export interface UpdateMachineProfilePatch {
   supportedMaterials?: unknown;
   supportsAutoSupports?: boolean | null;
   maxPrintTimeMin?: number | null;
+  /** Phase 8.1d-4 (PH8-FU-MOVE-MACHINE-UI): teachers can reassign a
+   *  machine to a different lab via the edit modal. The path through
+   *  reassignMachineToLab requires a non-null sourceLabId in the URL,
+   *  which doesn't work for orphan machines (lab_id IS NULL after
+   *  cascade SET NULL on lab delete). updateMachineProfile handles
+   *  any source state including null. Validates ownership of the
+   *  target lab same way reassignMachineToLab does. */
+  labId?: string;
 }
 
 export interface UpdateMachineProfileRequest extends UpdateMachineProfilePatch {
@@ -654,6 +662,40 @@ export async function updateMachineProfile(
     patch.supports_auto_supports = params.supportsAutoSupports;
   if (params.maxPrintTimeMin !== undefined)
     patch.max_print_time_min = params.maxPrintTimeMin;
+
+  // Phase 8.1d-4: lab reassignment via edit modal. Validate target
+  // lab ownership before letting the patch through — same pattern as
+  // reassignMachineToLab. Allows orphan→lab, lab→lab, lab→orphan
+  // (the last one by passing labId=null... but we don't expose that
+  // route here; teachers should soft-delete instead of orphan).
+  if (params.labId !== undefined) {
+    if (typeof params.labId !== "string" || params.labId.length === 0) {
+      return {
+        error: {
+          status: 400,
+          message: "`labId` must be a non-empty lab UUID string.",
+        },
+      };
+    }
+    const labResult = await db
+      .from("fabrication_labs")
+      .select("id, teacher_id")
+      .eq("id", params.labId)
+      .maybeSingle();
+    const { data: labRow, error: labError } = labResult as {
+      data: { id: string; teacher_id: string } | null;
+      error: { message: string } | null;
+    };
+    if (labError) {
+      return {
+        error: { status: 500, message: `Lab lookup failed: ${labError.message}` },
+      };
+    }
+    if (!labRow || labRow.teacher_id !== params.teacherId) {
+      return { error: { status: 404, message: "Lab not found." } };
+    }
+    patch.lab_id = params.labId;
+  }
 
   if (Object.keys(patch).length === 0) {
     return {

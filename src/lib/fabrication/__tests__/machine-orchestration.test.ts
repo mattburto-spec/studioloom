@@ -586,6 +586,72 @@ describe("updateMachineProfile", () => {
     if (isOrchestrationError(result)) return;
     expect(result.machine.requiresTeacherApproval).toBe(true);
   });
+
+  // ----- Phase 8.1d-4: labId reassignment via update -----
+
+  it("reassigns labId to a teacher-owned target lab", async () => {
+    const fake = makeFakeClient({
+      machineLookupRows: [fullRow({ id: M1, teacher_id: T1, lab_id: LAB1 })],
+      labRows: [{ id: LAB2, teacher_id: T1 }],
+      updatedRow: fullRow({ id: M1, lab_id: LAB2 }),
+    });
+    const result = await updateMachineProfile(fake as never, {
+      teacherId: T1,
+      machineProfileId: M1,
+      labId: LAB2,
+    });
+    expect(isOrchestrationError(result)).toBe(false);
+    if (isOrchestrationError(result)) return;
+    expect(result.machine.labId).toBe(LAB2);
+  });
+
+  it("404s when target lab is not owned by this teacher", async () => {
+    const fake = makeFakeClient({
+      machineLookupRows: [fullRow({ id: M1, teacher_id: T1, lab_id: LAB1 })],
+      labRows: [{ id: LAB2, teacher_id: T2 }],
+    });
+    const result = await updateMachineProfile(fake as never, {
+      teacherId: T1,
+      machineProfileId: M1,
+      labId: LAB2,
+    });
+    expect(isOrchestrationError(result)).toBe(true);
+    if (!isOrchestrationError(result)) return;
+    expect(result.error.status).toBe(404);
+  });
+
+  it("400s when labId is empty string", async () => {
+    const fake = makeFakeClient({
+      machineLookupRows: [fullRow({ id: M1, teacher_id: T1, lab_id: LAB1 })],
+    });
+    const result = await updateMachineProfile(fake as never, {
+      teacherId: T1,
+      machineProfileId: M1,
+      labId: "",
+    });
+    expect(isOrchestrationError(result)).toBe(true);
+    if (!isOrchestrationError(result)) return;
+    expect(result.error.status).toBe(400);
+  });
+
+  it("supports orphan→lab transition (machine with lab_id=null gets a lab)", async () => {
+    // The whole reason this lives in updateMachineProfile rather than
+    // reassignMachineToLab — orphans don't have a sourceLabId for the
+    // /labs/[id]/machines route to anchor on.
+    const fake = makeFakeClient({
+      machineLookupRows: [fullRow({ id: M1, teacher_id: T1, lab_id: null })],
+      labRows: [{ id: LAB1, teacher_id: T1 }],
+      updatedRow: fullRow({ id: M1, lab_id: LAB1 }),
+    });
+    const result = await updateMachineProfile(fake as never, {
+      teacherId: T1,
+      machineProfileId: M1,
+      labId: LAB1,
+    });
+    expect(isOrchestrationError(result)).toBe(false);
+    if (isOrchestrationError(result)) return;
+    expect(result.machine.labId).toBe(LAB1);
+  });
 });
 
 // ============================================================
