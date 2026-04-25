@@ -6,4 +6,14 @@ export { LessonIntro } from "./LessonIntro";
 export { VideoBlock } from "./VideoBlock";
 export { LessonFooter } from "./LessonFooter";
 export { LessonToolsRail, type LessonTool } from "./LessonToolsRail";
-export { AUTONOMY_LEVELS, derivePhaseState, isLevelSelected, type AutonomyLevel } from "./helpers";
+export {
+  AUTONOMY_LEVELS,
+  derivePhaseState,
+  isLevelSelected,
+  resolveAutonomyDisplay,
+  hintsAvailable,
+  hintsOpenByDefault,
+  exampleVisible,
+  exampleOpenByDefault,
+  type AutonomyLevel,
+} from "./helpers";

@@ -55,3 +55,49 @@ export const AUTONOMY_LEVELS: readonly AutonomyLevelConfig[] = [
 export function isLevelSelected(value: AutonomyLevel | null, id: AutonomyLevel): boolean {
   return value === id;
 }
+
+/**
+ * Resolves a stored autonomy level (which may be NULL when the student
+ * hasn't picked yet) to the level the UI should display under. Default
+ * fallback is 'balanced' — the middle ground that preserves the
+ * pre-AutonomyPicker behaviour (hints behind try-first, examples collapsed).
+ *
+ * Sub-Phase 3 of Lesson Bold. Used everywhere ActivityCard renders.
+ */
+export function resolveAutonomyDisplay(
+  level: AutonomyLevel | null | undefined
+): AutonomyLevel {
+  return level ?? "balanced";
+}
+
+/**
+ * Are hints AVAILABLE on this card at all? `independent` hides them entirely
+ * (the student wants to drive — Kit only on request).
+ */
+export function hintsAvailable(level: AutonomyLevel): boolean {
+  return level !== "independent";
+}
+
+/**
+ * Should the hints block render OPEN by default vs sit behind a try-first
+ * button? `scaffolded` opens by default. `balanced` gates behind a button.
+ * `independent` is irrelevant — hints aren't available at all.
+ */
+export function hintsOpenByDefault(level: AutonomyLevel): boolean {
+  return level === "scaffolded";
+}
+
+/**
+ * Is the example response visible at all? Mirrors hintsAvailable.
+ */
+export function exampleVisible(level: AutonomyLevel): boolean {
+  return level !== "independent";
+}
+
+/**
+ * Should the example response render EXPANDED by default vs collapsed under
+ * a `<details>` summary? Mirrors hintsOpenByDefault.
+ */
+export function exampleOpenByDefault(level: AutonomyLevel): boolean {
+  return level === "scaffolded";
+}

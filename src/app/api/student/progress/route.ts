@@ -61,8 +61,21 @@ export const POST = withErrorHandler("student/progress:POST", async (request: Ne
   if (auth.error) return auth.error;
   const studentId = auth.studentId;
 
-  const { unitId, pageId, status, responses, timeSpent, integrityMetadata } =
+  const { unitId, pageId, status, responses, timeSpent, integrityMetadata, autonomyLevel } =
     await request.json();
+
+  // Validate autonomyLevel against the migration 116 CHECK enum. Reject
+  // unknown values rather than letting Postgres throw a constraint violation.
+  if (
+    autonomyLevel !== undefined &&
+    autonomyLevel !== null &&
+    !["scaffolded", "balanced", "independent"].includes(autonomyLevel)
+  ) {
+    return NextResponse.json(
+      { error: "autonomyLevel must be one of scaffolded, balanced, independent" },
+      { status: 400 }
+    );
+  }
 
   if (!unitId || !pageId) {
     return NextResponse.json(
@@ -128,6 +141,7 @@ export const POST = withErrorHandler("student/progress:POST", async (request: Ne
     ...(responses && { responses }),
     ...(timeSpent !== undefined && { time_spent: timeSpent }),
     ...(integrityMetadata && { integrity_metadata: integrityMetadata }),
+    ...(autonomyLevel !== undefined && { autonomy_level: autonomyLevel }),
   };
 
   if (integrityMetadata) {
@@ -159,6 +173,25 @@ export const POST = withErrorHandler("student/progress:POST", async (request: Ne
     error = retry.error;
   }
 
+  // Lesson Learned #17 (again): retry without autonomy_level if migration 116
+  // hasn't applied yet. Same pattern. Triggered when the integrity_metadata
+  // retry above didn't fire (or did, then this column is the next one missing).
+  if (error && autonomyLevel !== undefined && (
+    error.message?.includes("autonomy_level") ||
+    error.code === "PGRST204" ||
+    error.code === "42703"
+  )) {
+    console.warn("[student/progress] autonomy_level column not found, retrying without it. Error:", error.message, error.code);
+    delete upsertPayload.autonomy_level;
+    const retry = await supabase
+      .from("student_progress")
+      .upsert(upsertPayload, { onConflict: "student_id,unit_id,page_id" })
+      .select()
+      .single();
+    data = retry.data;
+    error = retry.error;
+  }
+
   if (error && (error.message?.includes("does not exist") || error.message?.includes("Could not find"))) {
     // Fallback: migration 011 not yet applied, use page_number
     const pageNumber = PAGE_ID_TO_NUMBER[pageId];
@@ -169,24 +202,39 @@ export const POST = withErrorHandler("student/progress:POST", async (request: Ne
       );
     }
 
-    const { data: fallbackData, error: fallbackError } = await supabase
+    const fallbackPayload: Record<string, unknown> = {
+      student_id: studentId,
+      unit_id: unitId,
+      page_number: pageNumber,
+      ...(resolvedClassId && { class_id: resolvedClassId }),
+      ...(status && { status }),
+      ...(responses && { responses }),
+      ...(timeSpent !== undefined && { time_spent: timeSpent }),
+      ...(autonomyLevel !== undefined && { autonomy_level: autonomyLevel }),
+    };
+
+    let { data: fallbackData, error: fallbackError } = await supabase
       .from("student_progress")
-      .upsert(
-        {
-          student_id: studentId,
-          unit_id: unitId,
-          page_number: pageNumber,
-          ...(resolvedClassId && { class_id: resolvedClassId }),
-          ...(status && { status }),
-          ...(responses && { responses }),
-          ...(timeSpent !== undefined && { time_spent: timeSpent }),
-        },
-        {
-          onConflict: "student_id,unit_id,page_number",
-        }
-      )
+      .upsert(fallbackPayload, { onConflict: "student_id,unit_id,page_number" })
       .select()
       .single();
+
+    // Lesson Learned #17: same retry pattern on the page_number path —
+    // strip autonomy_level if the column doesn't exist on the deployed db.
+    if (fallbackError && autonomyLevel !== undefined && (
+      fallbackError.message?.includes("autonomy_level") ||
+      fallbackError.code === "PGRST204" ||
+      fallbackError.code === "42703"
+    )) {
+      delete fallbackPayload.autonomy_level;
+      const retry = await supabase
+        .from("student_progress")
+        .upsert(fallbackPayload, { onConflict: "student_id,unit_id,page_number" })
+        .select()
+        .single();
+      fallbackData = retry.data;
+      fallbackError = retry.error;
+    }
 
     if (fallbackError) {
       return NextResponse.json(
