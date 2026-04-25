@@ -24,6 +24,8 @@ import {
   LessonIntro,
   LessonFooter,
   LessonToolsRail,
+  AutonomyPicker,
+  resolveAutonomyDisplay,
   type LessonTool,
 } from "@/components/student/lesson-bold";
 import StudentFeedbackPulse from "@/components/teacher/knowledge/StudentFeedbackPulse";
@@ -69,8 +71,17 @@ function UnitPageViewInner({
     getTrackingPayload,
   } = useActivityTracking(pageId, {});
 
-  const { responses, setResponses, saving, showSaveToast, saveProgress, moderationError } =
-    usePageResponses(unitId, pageId, currentPage, data, integrityMetadataRef, getTrackingPayload);
+  const {
+    responses,
+    setResponses,
+    saving,
+    showSaveToast,
+    saveProgress,
+    moderationError,
+    autonomyLevel,
+    setAutonomyLevel,
+  } = usePageResponses(unitId, pageId, currentPage, data, integrityMetadataRef, getTrackingPayload);
+  const autonomyDisplay = resolveAutonomyDisplay(autonomyLevel);
 
   const { student, classInfo } = useStudent();
   const openStudio = useOpenStudio(unitId);
@@ -266,6 +277,15 @@ function UnitPageViewInner({
           </ScrollReveal>
         )}
 
+        {/* ── Autonomy Picker — pedagogical scaffolding preference (Sub-Phase 3) ── */}
+        {pageContent?.sections && pageContent.sections.length > 0 && (
+          <ScrollReveal>
+            <div className="mt-5">
+              <AutonomyPicker value={autonomyLevel} onChange={setAutonomyLevel} />
+            </div>
+          </ScrollReveal>
+        )}
+
         {/* Skills for this lesson — renders only when teacher has pinned
             skill cards to this page via the "Used in" panel on the card
             edit page. Zero noise when there are no pins. */}
@@ -286,6 +306,7 @@ function UnitPageViewInner({
                   section={section}
                   index={i}
                   ellLevel={data.ellLevel}
+                  autonomyLevel={autonomyDisplay}
                   responseValue={responses[responseKey] || ""}
                   onResponseChange={(val) => {
                     recordInteraction(responseKey);
