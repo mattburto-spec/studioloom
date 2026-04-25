@@ -151,6 +151,24 @@ export function LabSetupClient() {
     fetchAll();
   }
 
+  async function renameLab(lab: LabListRow) {
+    // Phase 8.1d: simple window.prompt for v1; richer modal in 9-polish.
+    const next = window.prompt(`Rename "${lab.name}":`, lab.name);
+    if (!next || next.trim() === lab.name.trim()) return;
+    const res = await fetch(`/api/teacher/labs/${lab.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ name: next.trim() }),
+    });
+    const body = await res.json().catch(() => ({ error: "" }));
+    if (!res.ok) {
+      alert(body.error || `Rename failed (HTTP ${res.status})`);
+      return;
+    }
+    fetchAll();
+  }
+
   async function toggleBulkApproval(
     labId: string,
     labName: string,
@@ -321,13 +339,24 @@ export function LabSetupClient() {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
+                        renameLab(lab);
+                      }}
+                      className="text-xs px-2 py-1 rounded border border-gray-300 bg-white hover:bg-gray-100"
+                      title="Rename lab"
+                    >
+                      Rename
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
                         deleteLab(lab);
                       }}
-                      className="text-xs text-gray-400 hover:text-red-600 px-2"
+                      className="text-xs px-2 py-1 rounded border border-red-300 bg-white text-red-700 hover:bg-red-50"
                       title="Delete lab"
                       aria-label={`Delete ${lab.name}`}
                     >
-                      ×
+                      Delete lab
                     </button>
                   </div>
                 )}
