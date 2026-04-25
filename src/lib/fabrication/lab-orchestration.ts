@@ -329,7 +329,8 @@ export async function listMyLabs(
     .select("lab_id")
     .in("lab_id", labIds)
     .eq("teacher_id", params.teacherId)
-    .eq("is_system_template", false);
+    .eq("is_system_template", false)
+    .eq("is_active", true); // Phase 8.1d: count visible machines only — soft-deleted ones are gone from the UI grid
   const { data: machineData, error: machineError } = machinesQuery as {
     data: Array<{ lab_id: string }> | null;
     error: { message: string } | null;
@@ -527,13 +528,19 @@ export async function deleteLab(
     // reassignment below will return 409 if there are machines.
   }
 
-  // Count machines in this lab. If >0 and no reassignTo, 409.
+  // Count ACTIVE machines in this lab. Phase 8.1d hotfix: soft-deleted
+  // (is_active=false) machines used to block lab deletion even though
+  // the UI showed them as gone — fixed by filtering here.
+  // The cascade-reassign UPDATE below leaves is_active alone so any
+  // inactive machines come along too, keeping FK references valid in
+  // case the teacher reactivates them later.
   const machinesQuery = await db
     .from("machine_profiles")
     .select("id")
     .eq("lab_id", params.labId)
     .eq("teacher_id", params.teacherId)
-    .eq("is_system_template", false);
+    .eq("is_system_template", false)
+    .eq("is_active", true);
   const { data: machines, error: machineError } = machinesQuery as {
     data: Array<{ id: string }> | null;
     error: { message: string } | null;

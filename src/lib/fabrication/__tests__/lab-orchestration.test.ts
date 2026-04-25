@@ -762,3 +762,60 @@ describe("reassignMachineToLab", () => {
     expect(result.error.message).toMatch(/system.template/i);
   });
 });
+
+// ============================================================
+// Phase 8.1d hotfix: deleteLab + listMyLabs filter is_active=true
+// ============================================================
+//
+// Regression for the bug Matt found during S1 smoke 25 Apr PM:
+//   - Teacher soft-deletes 2 machines (is_active=false)
+//   - UI grid shows 0 machines (correct — already filtered)
+//   - Try to delete the lab
+//   - Server pre-fix: counts ALL rows (including inactive) → 409
+//   - Server post-fix: counts is_active=true only → 0 → succeeds
+//
+// We can't run the actual SQL filter through the fake, but we CAN
+// assert the orchestration code applies the .eq("is_active", true)
+// filter on both queries — which is what fixes the bug at the
+// PostgREST layer in prod.
+
+describe("Phase 8.1d hotfix: is_active filter on lab counts", () => {
+  it("deleteLab includes is_active=true on the machine count query", async () => {
+    const fake = makeFakeClient({
+      labRows: [labRow({ id: L1, teacher_id: T1, is_default: false })],
+      machinesByLab: [], // simulating "no active machines"
+    });
+    await deleteLab(fake as never, { teacherId: T1, labId: L1 });
+
+    // Find the machine_profiles SELECT query (count phase, before delete).
+    const machineCountEntry = fake._log.find(
+      (e) =>
+        e.table === "machine_profiles" &&
+        e.op === "select" &&
+        e.eq.some(([col]) => col === "lab_id")
+    );
+    expect(machineCountEntry).toBeDefined();
+    const eqMap = new Map(machineCountEntry!.eq as [string, unknown][]);
+    expect(eqMap.get("is_active")).toBe(true);
+  });
+
+  it("listMyLabs includes is_active=true on the per-lab machine count query", async () => {
+    const fake = makeFakeClient({
+      listLabsRows: [labRow({ id: L1 })],
+      machinesByLab: [],
+    });
+    await listMyLabs(fake as never, { teacherId: T1 });
+
+    const machineCountEntry = fake._log.find(
+      (e) =>
+        e.table === "machine_profiles" &&
+        e.op === "select" &&
+        // listMyLabs uses .in("lab_id", labIds) not .eq, but is_active
+        // still appears as an .eq filter in the same chain.
+        e.eq.some(([col]) => col === "is_active")
+    );
+    expect(machineCountEntry).toBeDefined();
+    const eqMap = new Map(machineCountEntry!.eq as [string, unknown][]);
+    expect(eqMap.get("is_active")).toBe(true);
+  });
+});
