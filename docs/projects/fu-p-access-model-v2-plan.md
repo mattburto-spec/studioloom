@@ -29,6 +29,32 @@ This is a meaningful architectural shift and it changes the plan below (specific
 
 **Existing per-teacher data does NOT need to be deduped during migration.** Each existing row keeps its identity and gets a school_id assigned (via the email-domain heuristic). Optional dedupe tool ships in FU-P-4 — school admin can collapse duplicates manually.
 
+### Fabricators are also school-owned
+
+Matt asked the right follow-up 25 Apr PM:
+
+> "have you considered the fabricator account and how it interacts with school_id?"
+
+Honest answer: I missed it in the original FU-P plan. Fabricators (lab techs, shared lab computers, etc.) are scoped per-teacher today via `fabricators.invited_by_teacher_id`. That breaks under school-owned-fleet — a school's lab tech (Cynthia) needs to be manageable by every teacher at that school, not just the one who invited her. Otherwise the "Mr. Jones invited her, only he can edit her machines" rule re-creates exactly the per-teacher silo we're escaping.
+
+**Note:** the existing fabricator-side **queue** already works correctly under school-owned (it filters by machine, not by teacher). Only the teacher-side **management** UX is broken today.
+
+**Schema reservation:** `fabricators.school_id` was reserved as a nullable FK in **migration 097 (Phase 1A)**, before this plan was drafted. So the column already exists. Migration 116 (25 Apr PM) added the partial index that 097 didn't include. FU-P-2 just flips the column to NOT NULL + rewires RLS.
+
+**Role matrix for fabricator management** (mirrors lab/machine matrix):
+
+| Role | Invite fabricators | Assign fabs to machines | Reset password / deactivate | Read |
+|---|---|---|---|---|
+| `owner` | ✅ | ✅ | ✅ | ✅ |
+| `admin` | ✅ | ✅ | ✅ | ✅ |
+| `dept_head` | ✅ | ✅ | ✅ | ✅ |
+| `teacher` | ✅ | ✅ | ✅ (their invitees) | ✅ |
+| `co_teacher` | ✅ | ✅ | ✅ (their invitees) | ✅ |
+| `ta` | ❌ | ❌ | ❌ | ✅ |
+| `observer` | ❌ | ❌ | ❌ | ✅ |
+
+The "their invitees" qualifier on teacher/co_teacher means: the dept_head + admin level can deactivate any fabricator at the school, but rank-and-file teachers can only deactivate fabricators they personally invited. This protects against "Mr. Jones nukes Ms. Smith's lab tech in a fight." Optional — could simplify to "any teacher can do anything," but the per-teacher-rank model matches social reality of school hierarchies.
+
 ---
 **Blocks:** Cross-teacher sharing of fabrication labs, machines, fabricators, units, classes. Dept-head / school-admin dashboards. Multi-school deployments (Seoul Foreign School pattern — 3 labs per building, different teachers per lab).
 **Pre-conditions:** Phase 8 Checkpoint 8.1 PASSED in prod. No Phase 9 work in flight (this is a tenancy-boundary migration; concurrent feature work on any affected tables is risky).
