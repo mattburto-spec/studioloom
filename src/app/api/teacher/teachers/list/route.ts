@@ -54,6 +54,12 @@ export async function GET(request: NextRequest) {
   }
 
   const teachers = (data ?? [])
+    // Exclude internal system accounts (e.g. system@studioloom.internal
+    // used for moderation logging) — never a real mentor candidate.
+    .filter((t) => {
+      const email = (t.email as string | null) ?? "";
+      return !email.endsWith("@studioloom.internal");
+    })
     .map((t) => ({
       id: t.id as string,
       name: ((t.display_name as string | null) ||
