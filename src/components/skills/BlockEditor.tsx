@@ -62,6 +62,7 @@ const BLOCK_LABELS: Record<BlockType, string> = {
   step_by_step: "Step by step",
   comprehension_check: "Quick check",
   video_embed: "Video",
+  spot_the_hazard: "Spot the hazard",
   // Generic (kept)
   embed: "Embed",
   accordion: "Accordion",
