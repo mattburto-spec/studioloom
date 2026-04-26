@@ -147,6 +147,59 @@
   - ⏳ **Answer fixture classification ambiguities surfaced during Phase 2-0** (bucketing session will flag any).
   - ⏳ `jordan2.svg` (2.3MB) — keep as perf stress-test fixture; may need a dedicated `borderline/stl/` entry for scan-time regression.
 
+### Lesson Bold — Student Lesson Page Redesign (warm-paper Bold)
+- **Status:** ⚠️ ON BRANCH (not merged) — Sub-Phases 1, 2A, 2B, 2C, 3 all SHIPPED on `lesson-bold-build` (24 Apr 2026, 14 commits, all pushed to origin). Migration 121 applied to local dev only. Not yet merged to main — awaiting language-scaffolding-redesign Phase 0 to roll back AutonomyPicker before merge.
+- **Priority:** TIER 0 P0 | **Est:** 5-day rolling pivot now → language-scaffolding-redesign | **Worktree:** `/Users/matt/CWORK/questerra-lesson-bold` | **Doc:** [`lesson-bold-brief.md`](lesson-bold-brief.md)
+- **Pivot context (26 Apr 2026):** Sub-Phase 3's AutonomyPicker (3-up Scaffolded / Balanced / Independent picker driving hint + example gating) bet on configuration. Cowork research session against ~10 platforms (Newsela, Duolingo, Immersive Reader, Read&Write, Lexia, Read Along, Khan, Seesaw, CommonLit, Medley) showed configuration loses to invocation. AutonomyPicker scheduled for rollback in language-scaffolding-redesign Phase 0 (next session). The warm-paper Bold restyle (Sub-Phases 1, 2A–2C) survives — that's the visual layer; Sub-Phase 3 was the pedagogical layer that got the wrong model.
+- **What stays after the pivot:**
+  - Warm-paper token scope (`.sl-v2 .lesson-bold` block in BoldTopNav.tsx)
+  - Server-component font template at `src/app/(student)/unit/[unitId]/template.tsx` (Manrope + DM Sans + Instrument Serif via next/font/google)
+  - LessonHeader + LessonIntro + VideoBlock + LessonFooter + LessonToolsRail components
+  - LessonSidebar warm-paper restyle
+  - PhaseStrip + KeyConcept stub components (kept for future use)
+- **What gets rolled back (Phase 0 of language-scaffolding-redesign):**
+  - `lesson-bold/AutonomyPicker.tsx` → DELETE
+  - 5 helpers in `lesson-bold/helpers.ts` (`hintsAvailable`, `hintsOpenByDefault`, `exampleVisible`, `exampleOpenByDefault`, `resolveAutonomyDisplay`) → DELETE; keep `derivePhaseState`
+  - `student_progress.autonomy_level` column → migration 122 `DROP COLUMN`
+  - ActivityCard hint/example gating → revert to ELL-only logic
+  - 8 helper tests + migration 121 shape tests → DELETE (1952 → ~1944)
+- **Tests at branch HEAD:** 1952 passed · 8 skipped · 1960 total · 127 files. Typecheck clean.
+- **Mockup history:** 5 iterations of `docs/newlook/StudioSetupDrawer-mockup.html` (v1–v5) committed as historical artefacts. The drawer concept ultimately died in the redesign pivot.
+
+### Language Scaffolding Redesign — Tap-a-word + Response Starters
+- **Status:** 🔴 PHASE 0 SHIPPED + Checkpoint 0.1 PASSED (26 Apr 2026). Phases 1-5 awaiting next session.
+- **Priority:** TIER 0 P0 | **Est:** 6 phases / ~3-4 weeks | **Worktree:** `/Users/matt/CWORK/questerra-lesson-bold` (continues from Lesson Bold) | **Doc:** [`language-scaffolding-redesign-brief.md`](language-scaffolding-redesign-brief.md)
+- **One-line goal:** Replace AutonomyPicker (configuration model) with two inline invocation affordances — Tap-a-word (input scaffold, shared TappableText component) and Response Starters (output scaffold, magic-wand-pen → side panel with Word Bank + Sentence Starters on text response inputs).
+- **Pattern derivation:** Newsela Word Pop + Microsoft Immersive Reader Picture Dictionary + Medley Learning Response Starters, converged.
+- **Locked decisions (§0.5 of brief):**
+  - Q1: Pivot (a) — AutonomyPicker dies entirely
+  - Q2: WIRING fix mid-build (i) — `student-learning-support` flips to `status: planned` in Phase 0; `FU-LS-DRIFT` filed
+  - Q3: Single L1 from `learning_profile.languages_at_home[0]`
+  - Q4: Fade trigger = taps_per_100_words rolling 5-lesson average + RS-secondary + teacher one-click override + invocation never disappears (floor protects right-to-ask)
+  - Phase 1 mounts on full surface set (lesson prompt + intro + vocab + hints + sentence starters + AI mentor output + toolkit prompts + source material — 8 surfaces)
+  - Image source: Wikimedia Commons + Open Symbols, curated static manifest committed to repo
+  - Sandbox bypass threaded into every AI call site from day 1
+- **Phases:**
+  - **Phase 0 — Rollback** ✅ SHIPPED 26 Apr (`c58aa1c` + `513818f`): AutonomyPicker deleted, migration 122 (`DROP COLUMN`) applied to local dev, ELL-only ActivityCard gating restored, FU-LS-DRIFT filed, WIRING `student-learning-support` flipped to `status: planned`. Tests 1952 → 1942 (−10). Visual smoke verified ELL-1 hints / ELL-2 silent / ELL-3 extensions matches expected. Checkpoint 0.1 PASSED.
+  - **Phase 1 — Tap-a-word v1** (definition only): TappableText component, WordPopover, `/api/student/word-lookup` endpoint with sandbox bypass, migration 118 (word_definitions cache table), 500-word pre-warm seed. Mount on 8 surfaces. Stop-trigger: cold-cache rate >20 words per first-time student per lesson.
+  - **Phase 2 — Tap-a-word v2** (translation + audio + image): WordPopover gets L1 translation + browser SpeechSynthesis + curated image dictionary (Wikimedia + Open Symbols, ~2000 entries). WIRING entry `tap-a-word` added.
+  - **Phase 3 — Response Starters**: ResponseStartersPanel, magic-wand-pen affordance, `/api/student/response-starters` endpoint with sandbox bypass, migration 121 (activity_response_starters cache table). Lazy first-invocation generation, class-shared cache.
+  - **Phase 4 — Scaffold fading + teacher preview + unified student settings**: signal-driven tier (taps_per_100_words), teacher one-click override, `/teacher/preview/[unitId]/[pageId]?profile=...` route, **+ unified `/teacher/students/[studentId]` settings page (folded in 26 Apr — was FU-TS-UNIFY).** 6 sections: identity / language & scaffolding (ELL + L1 override + tier override) / learning profile (read-only) / studio prefs (read-only) / notifications / recent activity. New API: `PATCH /api/teacher/students/[studentId]` extended + `GET /api/teacher/students/[studentId]/scaffold-signals`. No schema migration — JSONB nesting on `learning_profile`.
+  - **Phase 5 — Live E2E gate**: `RUN_E2E=1` test against real Anthropic on both endpoints, latency budget, stop_reason guard verification.
+
+- **Deferred AI ideas (filed in §11 of brief, not shipping in v1):**
+  - v2-AI-1: passive-signal-driven ELL-level suggestion to teacher — needs pilot data to calibrate
+  - v2-AI-2: mentor personality adaptation per student — subsumed by Designer Mentor System v2
+  - v2-AI-3: AI-inferred learning differences — NON-STARTER (privacy + ethics)
+  - v2-AI-4: auto-grading via AI — deferred to grading-system-overhaul project
+  - v2-AI-5: content adaptation per student — NON-STARTER (same configuration→invocation principle)
+- **Cost analysis:** ~$0.0007/student/week. ~$0.25 for a 30-student 12-week pilot. Negligible. Class-shared cache amortizes first-student cost across the class.
+- **Migration plan:** 117 (DROP autonomy_level), 118 (word_definitions cache), 119 (activity_response_starters cache). All cache tables shared across class, RLS allowing read-anon (definitions are public-domain content), write service-role only.
+- **Re-onboarding:** Not needed. `learning_profile.languages_at_home[0]` becomes the L1 target — no new intake question.
+- **Open follow-ups created:**
+  - `FU-LS-DRIFT` P2 — WIRING `student-learning-support` entry was claiming complete features that didn't exist (translation, dyslexia fonts, UDL, ADHD focus). Update entry to `status: planned` + `currentVersion: 0` in Phase 0. Same drift family as FU-Y.
+- **Stop-triggers spec'd:** cold-cache rate >20 words per first-time student per lesson (Phase 1), browser TTS unsupported on Chromebook for any L1 (Phase 2), Word Bank generation latency >2s p95 first invocation (Phase 3), any new call site without `stop_reason === "max_tokens"` guard (Lesson #39, non-negotiable), migration 122 attempted before AutonomyPicker code references removed.
+
 ---
 
 ## 🟢 Ready to Build
@@ -196,9 +249,18 @@
 - **Priority:** P1 | **Est:** 14-18 days (7 phases) | **Doc:** [grading.md](grading.md)
 - Replaces single-grade-per-unit with multi-task assessment model. **Three new pillars added (13 Apr 2026):** (1) **Teacher Marking Experience** — `/teacher/marking` queue aggregating all pending work across classes, split-view in-context marking (student work left / rubric+scoring right), batch marking flow with prev/next, criteria coverage heatmap on Class Hub; (2) **AI Role in Grading** — Haiku pre-scoring with confidence (ghost scores teacher confirms/overrides), consistency checker ("you gave similar work different scores"), per-task feedback draft generation, class-level insights post-marking, integrity-informed grading signals, all opt-in per class; (3) **Student Feedback Experience** — notification cards on dashboard when work returned, inline feedback anchored to specific activities on lesson pages, growth trajectory charts per criterion, AI "What to do next" nudges linking to toolkit tools, formative (coaching) vs summative (milestone) UI framing. 10 key decisions. 7 phases: data model → lesson editor → grading UI + marking queue → AI-assisted grading → student feedback → report writing → moderation & analytics. Depends on Dimensions3, MYPflex (DONE), MonitoredTextarea (DONE), Phase 0.5 Editor (DONE).
 
+### Access Model v2 — Auth Unification, Multi-Tenancy & Privacy Foundation
+- **Priority:** P1 (gates school deployments + paying customers) | **Est:** 16-22 days across 6 phases | **Doc:** [access-model-v2.md](access-model-v2.md)
+- **Status:** DESIGN PHASE — plan signed off + 8 decisions resolved 25 Apr 2026; waiting on Preflight Phase 8 + dashboard-v2 polish to wrap before Phase 0 begins.
+- **Collapses these backlog items into one project:** FU-O (no co-teacher / dept-head / admin) + FU-P (no school/org entity) + FU-R (auth model split) + FU-Q (dual student identity) + FU-W (no audit log). Unblocks `PH6-FU-MULTI-LAB-SCOPING`. Provides the missing `access-model-v2-spec.md` referenced by Governance GOV-2 component (2). Supersedes the smaller "Auth / ServiceContext Seam" entry.
+- **Architecture decisions (8 locked):** (1) every student is an `auth.users` row from day one — classcode+name becomes a custom Supabase auth flow, not a parallel system. (2) `schools` is a first-class entity with **flat membership and no designated admin** — any teacher can edit school settings under a two-tier rule (low-stakes instant + 7-day revert; high-stakes need 2nd-teacher confirm in 48h or expire), with a 7-day bootstrap grace for single-teacher schools. (3) immutable append-only `audit_events` wired into every mutation route. (4) `region` column on schools (no project-split commitment). (5) `unit_version_id` on submission-shaped tables for assessment integrity. (6) per-student AI budgets enforced at route layer (default 100k tokens/day, school-level override). (7) class-level roles via `class_members` (lead_teacher / co_teacher / dept_head / lab_tech / observer); flat at school level — Matt's super-admin view sits on a separate `is_platform_admin` flag. (8) flat governance model + bootstrap grace.
+- **6 phases:** P0 Foundation Schema (~3d) → P1 Auth Unification (~3d) → P2 OAuth (Google + Microsoft + email/PW; Apple deferred) (~3d) → P3 Class Roles & Permissions (~3d) → P4 School Registration + Settings + Governance (~3d) → P5 Privacy & Compliance — export + delete + audit hooks + AI budgets (~2-3d) → P6 Cutover & Cleanup (~2d). Each phase ends with a named Matt Checkpoint.
+- **Forward-compat seams (Phase 0 schema only, no UX):** `school_resources` + `school_resource_relations` polymorphic tables (first consumer = Matt's PYP/Service "people, places, things" library + future Mentor Manager); `guardians` + `student_guardians` (parent comms ready, no UI); `external_id`/`sis_source`/`last_synced_at` columns on students+teachers+classes (SIS sync ready); `consents` table for FERPA/GDPR/PIPL; `schools.status` lifecycle enum (`active`/`dormant`/`archived`/`merged_into`); extensible `auth.users.user_type` enum for future `community_member` role (§8.7 — invite-only magic-link login for guest speakers, Service mentors, partner orgs).
+- **Worktree (when work begins):** `/Users/matt/CWORK/questerra-access-v2` on branch `access-model-v2`. Do not run parallel with Preflight or dashboard-v2 — surface area too large. Created 25 Apr 2026.
+
 ### Governance — Phase GOV-2: Multi-School Enablement
 - **Priority:** P0 (school deployment gate) | **Est:** 7-8 days | **Doc:** [governance-systems-plan.md](governance-systems-plan.md)
-- Four systems. (1) **Audit log** (closes FU-W) — `audit_log` table with `actor_id`, `impersonated_by`, `action`, `target_table`, `target_id`, `class_id`, `meta`, `severity`; instrument ~20 critical write sites (PII, grades, safety, moderation); admin sub-tab in 7I. (2) **Access Model v2** (closes FU-O/P/R) — `schools` + `school_memberships` + `class_memberships` with role enum (owner/admin/dept_head/teacher/co_teacher/ta/observer); RLS rewritten across ~30 tables to use membership joins; needs own spec (`access-model-v2-spec.md`) before build (+1d). (3) **Impersonation / support-view** — middleware wraps auth context with `acting_as`; every write logs `actor + impersonated_by`; red banner; 60min timeout; teachers only (not students). (4) **DSR runbook** — `scripts/dsr/export.ts` + `scripts/dsr/delete.ts` reading data-classification registry to walk PII tables; 30-day legal SLA; sub-processor notify list. Depends on GOV-1.1 (classification). Blocks: any multi-school deployment. Created 14 Apr 2026.
+- Four systems. (1) **Audit log** (closes FU-W) — *now subsumed by Access Model v2 §3 (immutable `audit_events` table). Instrument ~20 critical write sites still applies as Phase 5 work.* (2) **Access Model v2** (closes FU-O/P/R) — *now its own project, see [access-model-v2.md](access-model-v2.md). Spec gap closed 25 Apr 2026.* Note: role enum revised to flat school membership + class-level roles (lead_teacher/co_teacher/dept_head/lab_tech/observer), differs from this entry's earlier owner/admin/ta listing. (3) **Impersonation / support-view** — middleware wraps auth context with `acting_as`; every write logs `actor + impersonated_by`; red banner; 60min timeout; teachers only (not students). Built post-Access-Model-v2. (4) **DSR runbook** — `scripts/dsr/export.ts` + `scripts/dsr/delete.ts` reading data-classification registry to walk PII tables; 30-day legal SLA; sub-processor notify list. *Subsumed by Access Model v2 Phase 5 export/delete endpoints.* Net effect: Access Model v2 absorbs (1)+(2)+(4); GOV-2 reduces to just impersonation/support-view (~1-2d) once Access Model v2 ships. Created 14 Apr 2026; reconciled 25 Apr 2026.
 
 ### Governance — Phase GOV-3: Production Hardening
 - **Priority:** P1 | **Est:** 3-4 days | **Doc:** [governance-systems-plan.md](governance-systems-plan.md)
@@ -248,9 +310,8 @@
 - **Phase:** Tech Debt | **Est:** 2 days
 - 17× copied `callHaiku()` = ~2,890 wasted lines. Consolidate into single AI service helper. Prerequisite for clean Dimensions3 pipeline. Source: OS service mapping #12 (Feedback Engine) + code audit.
 
-### Auth / ServiceContext Seam
-- **Phase:** OS Seam | **Est:** 1-2 days | **Source:** ADR-001, OS Service #3
-- Add `requireAuth(role)` helper + tenant-aware `ServiceContext` pattern (product-aware, role-aware) without rebuilding auth. Lightweight architectural seam that makes Makloom extraction cleaner. Not SSO/RBAC (that's in School Readiness) — just clean interfaces over the current student-token + Supabase Auth dual system.
+### ~~Auth / ServiceContext Seam~~ — SUPERSEDED 25 Apr 2026
+- **Status:** Superseded by [access-model-v2.md](access-model-v2.md). The unified `getStudentSession()` / `getActorSession()` helpers + `can(actor, action, resource)` permission helper from Access Model v2 Decision 1 + Decision 7 fully subsume the lightweight ServiceContext + `requireAuth(role)` seam this entry described. ADR-001 OS Service #3 still applies — Access Model v2 is the implementation that makes Makloom extraction cleaner. No separate work needed.
 
 ### AI Safety & Content Guardrails
 - **Phase:** Pre-Pilot | **Priority:** P1 | **Est:** 10-14 days | **Doc:** [ai-safety.md](ai-safety.md)
@@ -275,6 +336,7 @@
 | **Student Self-Help Library** | Student XP | 6-8d | Searchable micro-lessons (2-5 min). Doc: [self-help-library.md](self-help-library.md) |
 | **Processing Queue / Async Jobs** | Infrastructure | 3-4d | Job queue for AI calls (generation blocks HTTP ~45s). Supabase-native or Bull/Redis. Priority levels, retry, status tracking. OS Service #8. |
 | **Better Stack Uptime Monitoring** | Infrastructure | 10 min | Free tier. 2 monitors: site (HTTP 200) + `/api/health` (keyword `"ok":true`). 3-min interval. Push notifications via mobile app. Quiet hours 11pm-6am Nanjing. |
+| **Mentor Manager (PYP / G5 / Service Learning)** | Teacher XP | 4-6d | Annual mentor recruitment workflow for PYP Exhibition coordinators, G5 teachers, and Service Learning leads. Maintain a school-scoped mentor roster (name, contact, expertise areas, language, availability windows). Bulk-invite the annual cohort with one-click; each mentor receives a magic-link to a self-completed intake survey (areas they can mentor, time commitment, scheduling preferences). AI-assisted student↔mentor matching by project topic + mentor expertise + language fit. Light-weight mentor login (no full account creation) to comment on mentee work, see milestone updates, schedule check-ins. **Gated on `access-model-v2`** — built directly on §8.6 `school_resources` schema (`resource_type = 'person'` + `details_jsonb` for expertise/availability) and §8.7 community member auth. Validates that the forward-compat seams were worth designing. Doc: see [access-model-v2.md](access-model-v2.md) §8.6–8.7 for the underlying schema. |
 
 ### Medium Priority Ideas
 

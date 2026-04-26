@@ -159,3 +159,42 @@ export function parseTabParam(raw: string | null): QueueTab {
     ? (raw as QueueTab)
     : "pending";
 }
+
+/**
+ * Phase 8.1d-16: a "clean" pending row has zero scanner findings —
+ * no BLOCK rules, no WARN rules. Used to power the "Approve all
+ * clean" smart-button on the pending tab. FYI rules don't disqualify
+ * (they're advisory, never gate-blocking).
+ */
+export function isCleanRow(row: QueueRow): boolean {
+  return row.ruleCounts.block === 0 && row.ruleCounts.warn === 0;
+}
+
+/**
+ * Phase 8.1d-16: text-search match across the row's user-visible
+ * fields. Case-insensitive substring match — cheap, predictable.
+ * Empty query returns true (no filter).
+ */
+export function matchesSearch(row: QueueRow, rawQuery: string): boolean {
+  const q = rawQuery.trim().toLowerCase();
+  if (q.length === 0) return true;
+  const haystacks = [
+    row.studentName,
+    row.originalFilename,
+    row.unitTitle ?? "",
+    row.className ?? "",
+    row.machineLabel,
+  ];
+  return haystacks.some((h) => h.toLowerCase().includes(q));
+}
+
+/**
+ * Phase 8.1d-16: stable sort key for the queue. Pending tab sorts by
+ * createdAt (how long has it been waiting); other tabs sort by
+ * updatedAt (most recent activity). Centralised so the page + future
+ * test fixtures agree on order.
+ */
+export function sortKeyForRow(row: QueueRow, tab: QueueTab): string {
+  if (tab === "pending") return row.createdAt;
+  return row.updatedAt || row.createdAt;
+}

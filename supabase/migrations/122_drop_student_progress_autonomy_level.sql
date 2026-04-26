@@ -1,0 +1,21 @@
+-- Migration 122: drop student_progress.autonomy_level
+--
+-- Rollback of migration 121. Phase 0 of the language-scaffolding-redesign
+-- pivot — see docs/projects/language-scaffolding-redesign-brief.md.
+--
+-- AutonomyPicker (Sub-Phase 3 of Lesson Bold) bet on configuration —
+-- students picking a "support level" up front. Cowork research session
+-- against ~10 platforms (Newsela, Duolingo, Immersive Reader, Read&Write,
+-- Lexia, Read Along, Khan, Seesaw, CommonLit, Medley) confirmed
+-- invocation models outperform configuration models for student-facing
+-- scaffolding. Picker dies; replaced with Tap-a-word (input scaffold)
+-- and Response Starters (output scaffold) inline affordances in upcoming
+-- phases.
+--
+-- Migration 121 was applied to local dev only — no prod data exists for
+-- this column. Drop is silent (no row migration needed). IF EXISTS guard
+-- so the migration is re-runnable on environments that never received 116
+-- (e.g. fresh-database bootstraps that landed after both 116 and 117 were
+-- in the migrations folder).
+
+ALTER TABLE student_progress DROP COLUMN IF EXISTS autonomy_level;

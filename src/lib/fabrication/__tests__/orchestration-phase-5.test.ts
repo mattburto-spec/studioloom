@@ -886,4 +886,84 @@ describe("listRevisions", () => {
     expect(r.error.status).toBe(500);
     expect(r.error.message).toMatch(/rls denied/);
   });
+
+  // Phase 8.1d-11 regression: a single bad signed-URL mint must not
+  // collapse the whole Promise.all and 500 the endpoint. Previously
+  // a thrown createSignedUrl rejected listRevisions, the route had
+  // no try/catch, and the student page hung on "Loading your
+  // submission…" because /revisions errored in parallel with /status.
+  it("returns rows with thumbnailUrl=null when storage createSignedUrl throws", async () => {
+    // Custom client with a throwing storage layer.
+    const tableHandler = (table: string) => {
+      const entry: { eq: Array<[string, unknown]>; order?: unknown } = { eq: [] };
+      const chain: Record<string, unknown> = {};
+      chain.eq = (col: string, val: unknown) => {
+        entry.eq.push([col, val]);
+        return chain;
+      };
+      chain.order = () => {
+        (chain as { then: unknown }).then = (resolve: (v: unknown) => void) => {
+          if (table !== "fabrication_job_revisions") {
+            return resolve({ data: null, error: null });
+          }
+          return resolve({
+            data: [
+              {
+                id: "rev-1",
+                revision_number: 1,
+                scan_status: "done",
+                scan_error: null,
+                scan_completed_at: "2026-04-22T00:00:00Z",
+                thumbnail_path: "rev-1.png",
+                scan_results: { rules: [] },
+                uploaded_at: "2026-04-22T00:00:00Z",
+              },
+            ],
+            error: null,
+          });
+        };
+        return chain;
+      };
+      chain.maybeSingle = async () => {
+        if (table === "fabrication_jobs") {
+          return {
+            data: {
+              id: entry.eq[0][1],
+              student_id: "student-1",
+              status: "uploaded",
+              current_revision: 1,
+              file_type: "stl",
+            },
+            error: null,
+          };
+        }
+        return { data: null, error: null };
+      };
+      return { select: (_cols: string) => chain };
+    };
+
+    const storage = {
+      from: (_bucket: string) => ({
+        createSignedUrl: async () => {
+          throw new Error("supabase storage transient failure");
+        },
+      }),
+    };
+
+    // Silence the warn we expect listRevisions to emit.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const r = await listRevisions(
+      { from: tableHandler, storage } as unknown as Parameters<typeof listRevisions>[0],
+      { studentId: "student-1", jobId: "job-1" }
+    );
+
+    if (isOrchestrationError(r)) throw new Error("expected success despite storage throw");
+    expect(r.revisions).toHaveLength(1);
+    expect(r.revisions[0].id).toBe("rev-1");
+    expect(r.revisions[0].thumbnailUrl).toBeNull();
+    expect(warnSpy).toHaveBeenCalled();
+
+    warnSpy.mockRestore();
+  });
 });

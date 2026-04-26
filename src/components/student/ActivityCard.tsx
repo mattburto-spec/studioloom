@@ -203,7 +203,10 @@ export function ActivityCard({
             </div>
           )}
 
-          {/* Hints for ELL 1 */}
+          {/* Hints for ELL 1 — restored to pre-Sub-Phase-3 ELL-only gating
+              after Phase 0 of language-scaffolding-redesign rolled back the
+              autonomy-driven gating. Will be replaced by signal-driven
+              Tap-a-word + Response Starters affordances in upcoming phases. */}
           {ellLevel === 1 &&
             (scaffolding as { hints?: string[] })?.hints && (
               <div className="bg-amber-50 rounded-xl p-4 mb-4">
@@ -241,7 +244,8 @@ export function ActivityCard({
             />
           )}
 
-          {/* Example response (collapsible) */}
+          {/* Example response (collapsible) — restored to pre-Sub-Phase-3
+              default-collapsed behaviour after Phase 0 rollback. */}
           {section.exampleResponse && (
             <details className="mt-3">
               <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600">

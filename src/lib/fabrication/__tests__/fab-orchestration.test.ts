@@ -30,6 +30,12 @@ interface FakeOpts {
   assignedMachineIds?: string[];
   /** Overrides the fabricator-assignments lookup to return an error. */
   assignmentLookupError?: string;
+  /** Phase 8.1d-9: who invited this fabricator. Drives the new
+   *  scope-by-teacher visibility model. Default "teacher-1". Set to
+   *  null to simulate inactive/missing fabricator. */
+  inviterTeacherId?: string | null;
+  /** Force the fabricators.maybeSingle() lookup to error. */
+  fabricatorLookupError?: string;
   /** Job row if looked up — null = not-found (404), an object = found. */
   jobRow?: {
     id: string;
@@ -37,6 +43,7 @@ interface FakeOpts {
     machine_profile_id: string;
     lab_tech_picked_up_by: string | null;
     current_revision?: number;
+    teacher_id?: string;
   } | null;
   /** For detail tests: joined student / class / unit / machine nested rows. */
   detailJobOverrides?: Record<string, unknown>;
@@ -107,6 +114,23 @@ function makeFakeClient(opts: FakeOpts = {}) {
         // (handled by .select().eq().then thenable — see below)
         return { data: null, error: null };
       }
+      // Phase 8.1d-9: fabricators.maybeSingle() returns the inviter
+      // teacher id. Drives the new scope-by-teacher model.
+      if (table === "fabricators") {
+        if (opts.fabricatorLookupError) {
+          return { data: null, error: { message: opts.fabricatorLookupError } };
+        }
+        if (opts.inviterTeacherId === null) {
+          return { data: null, error: null };
+        }
+        return {
+          data: {
+            invited_by_teacher_id: opts.inviterTeacherId ?? "teacher-1",
+            is_active: true,
+          },
+          error: null,
+        };
+      }
       if (table === "fabrication_jobs") {
         fabJobMaybeSingleCalls++;
         if (opts.jobLookupError) {
@@ -145,7 +169,14 @@ function makeFakeClient(opts: FakeOpts = {}) {
           : opts.jobRow === null
             ? { data: null, error: null }
             : {
-                data: { ...opts.jobRow, ...opts.detailJobOverrides },
+                // Phase 8.1d-9: default teacher_id matches the
+                // default inviter ("teacher-1") so existing tests
+                // don't need an explicit teacher_id on every jobRow.
+                data: {
+                  teacher_id: opts.inviterTeacherId ?? "teacher-1",
+                  ...opts.jobRow,
+                  ...opts.detailJobOverrides,
+                },
                 error: null,
               };
       }
@@ -236,8 +267,12 @@ function makeFakeClient(opts: FakeOpts = {}) {
 // ============================================================
 
 describe("listFabricatorQueue", () => {
-  it("returns empty when fabricator has no assigned machines", async () => {
-    const { client } = makeFakeClient({ assignedMachineIds: [] });
+  // Phase 8.1d-9: tests rewritten for the scope-by-inviter model.
+  // Fabricator sees ALL jobs from their inviting teacher, not filtered
+  // by per-machine `fabricator_machines` junction.
+
+  it("returns empty when fabricator is missing/inactive (no inviter)", async () => {
+    const { client } = makeFakeClient({ inviterTeacherId: null });
     const result = await listFabricatorQueue(client, {
       fabricatorId: "fab-1",
       tab: "ready",
@@ -246,9 +281,7 @@ describe("listFabricatorQueue", () => {
   });
 
   it("filters by status=approved on 'ready' tab", async () => {
-    const { client, log } = makeFakeClient({
-      assignedMachineIds: ["machine-1"],
-    });
+    const { client, log } = makeFakeClient({});
     await listFabricatorQueue(client, { fabricatorId: "fab-1", tab: "ready" });
     const jobQuery = log.find((l) => l.table === "fabrication_jobs");
     const hasApprovedFilter = jobQuery?.eq.some(
@@ -258,9 +291,7 @@ describe("listFabricatorQueue", () => {
   });
 
   it("filters by status=picked_up + picked_up_by=self on 'in_progress' tab", async () => {
-    const { client, log } = makeFakeClient({
-      assignedMachineIds: ["machine-1"],
-    });
+    const { client, log } = makeFakeClient({});
     await listFabricatorQueue(client, {
       fabricatorId: "fab-7",
       tab: "in_progress",
@@ -275,22 +306,25 @@ describe("listFabricatorQueue", () => {
     ).toBe(true);
   });
 
-  it("scopes machine_profile_id IN (assigned ids) on every fetch", async () => {
+  it("scopes teacher_id = inviter on every fetch (no per-machine junction)", async () => {
     const { client, log } = makeFakeClient({
-      assignedMachineIds: ["machine-a", "machine-b"],
+      inviterTeacherId: "teacher-99",
     });
     await listFabricatorQueue(client, { fabricatorId: "fab-1", tab: "ready" });
     const jobQuery = log.find((l) => l.table === "fabrication_jobs");
-    const inFilter = jobQuery?.eq.find(
+    const teacherFilter = jobQuery?.eq.find(([col]) => col === "teacher_id");
+    expect(teacherFilter).toBeDefined();
+    expect(teacherFilter?.[1]).toBe("teacher-99");
+    // Crucially: NO per-machine filter anymore.
+    const machineFilter = jobQuery?.eq.find(
       ([col]) => col === "machine_profile_id"
     );
-    expect(inFilter).toBeDefined();
-    expect(inFilter?.[1]).toEqual(["machine-a", "machine-b"]);
+    expect(machineFilter).toBeUndefined();
   });
 
-  it("surfaces assignment-lookup errors as 500", async () => {
+  it("surfaces fabricator-lookup errors as 500", async () => {
     const { client } = makeFakeClient({
-      assignmentLookupError: "connection dropped",
+      fabricatorLookupError: "connection dropped",
     });
     const result = await listFabricatorQueue(client, {
       fabricatorId: "fab-1",
@@ -385,15 +419,18 @@ describe("getFabJobDetail", () => {
     expect("error" in result).toBe(false);
   });
 
-  it("returns 404 when not assigned AND not owner", async () => {
+  it("returns 404 when job belongs to a different teacher AND fab isn't the owner", async () => {
+    // Phase 8.1d-9: visibility = (job.teacher_id == inviter) OR
+    // (lab_tech_picked_up_by == fabricator). Neither here → 404.
     const { client } = makeFakeClient({
-      assignedMachineIds: ["machine-other"],
+      inviterTeacherId: "teacher-1",
       jobRow: {
         id: "job-1",
         status: "approved",
         machine_profile_id: "machine-1",
         lab_tech_picked_up_by: "some-other-fab",
         current_revision: 1,
+        teacher_id: "teacher-other", // different teacher
       },
       detailJobOverrides: { file_type: "stl", original_filename: "x.stl" },
     });
@@ -544,14 +581,16 @@ describe("pickupJob", () => {
     expect(result.error.status).toBe(409);
   });
 
-  it("returns 404 when machine is not assigned to the fabricator", async () => {
+  it("returns 404 when job belongs to a different teacher", async () => {
+    // Phase 8.1d-9: pickup ownership scoped to inviter, not junction.
     const { client } = makeFakeClient({
-      assignedMachineIds: ["machine-other"],
+      inviterTeacherId: "teacher-1",
       jobRow: {
         id: "job-1",
         status: "approved",
         machine_profile_id: "machine-1",
         lab_tech_picked_up_by: null,
+        teacher_id: "teacher-other", // different teacher
       },
     });
     const result = await pickupJob(client, {

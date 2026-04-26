@@ -1109,3 +1109,34 @@ RLS-coverage scanner (`scan-rls-coverage.py`) added to prevent recurrence.
 **Resolution:** `extractDocument` relocated to `src/lib/ingestion/document-extract.ts` (canonical location). All 7 consumers updated to new import path. Original `src/lib/knowledge/extract.ts` first converted to re-export shim, then fully deleted when zero consumers remained. Shim lifecycle: created → all imports migrated → deleted in same session.
 
 **Commits:** `64d7df9` (relocate + shim), cleanup commit (shim deletion + final consumer updates).
+
+---
+
+## FU-LS-DRIFT — WIRING `student-learning-support` was claiming complete features that didn't exist (P2)
+**Surfaced:** Audit pass for language-scaffolding-redesign (26 Apr 2026, on `lesson-bold-build`)
+**Target phase:** Phase 0 of language-scaffolding-redesign — RESOLVED in this Phase 0 commit.
+
+**Issue:** Pre-26-Apr WIRING entry for `student-learning-support` had `status: complete`, `currentVersion: 1`, summary claiming "Tier 2/3 translation via Claude (ELL level configurable), UDL scaffolding (checkpoints 1-31), ADHD visual focus helpers, dyslexia-friendly fonts." Grep across `src/` confirmed zero references for any of the four claimed features:
+- 0 `dyslexic` / `OpenDyslexic` / `dyslexia.*font` references in any TSX/CSS
+- 0 `translateContent` / `tier2_translation` / `tier3_translation` references
+- `udl_checkpoints` exists only as a teacher-side authoring tag on `activity_blocks` (curriculum metadata), not a student-facing render-time accessibility feature
+- Teacher settings has an `enable_udl` toggle that affects lesson generation, not student render
+
+**The system was paper-only.** Same drift family as `FU-Y` (Groq + Gemini fallbacks never shipped). The drift would have stayed invisible if the language-scaffolding-redesign brief had trusted the existing entry's premise.
+
+**Captured in:**
+- Lesson #54 (`docs/lessons-learned.md`) — "WIRING.yaml entries can claim 'complete' features that don't exist; audit by grep before trusting any system summary." Adds the rule: marketing-shaped summaries are higher-risk than implementation-specific summaries.
+- §0.5 + §1.5 of `docs/projects/language-scaffolding-redesign-brief.md` (`a8c0907`).
+- Decision log entry (26 Apr 2026): "WIRING `student-learning-support` doc-vs-reality drift fix mid-build — option (i)."
+
+**Resolution (Phase 0 of language-scaffolding-redesign):** WIRING entry rewritten in this Phase 0 commit:
+- `status: complete` → `status: planned`
+- `currentVersion: 1` → `currentVersion: 0`
+- Summary rewritten to describe the redesign deliverable (Tap-a-word + Response Starters)
+- `affects:` extended to include all the consumers the redesign will reach: lesson-view, discovery-engine, student-open-studio, ai-mentor, toolkit
+- `docs:` updated to point at `language-scaffolding-redesign-brief.md`
+- `change_impacts:` documents the drift discovery + signals when the entry will flip back to `complete`
+
+**Definition of done:** WIRING entry honest about reality + scheduled work. Will flip back to `status: complete`, `currentVersion: 1` when Phase 5 (live E2E gate) of the language-scaffolding-redesign ships.
+
+**Wider audit:** Periodic drift scanners exist for api-registry, ai-call-sites, schema-registry, feature-flags, vendors. WIRING.yaml has no scanner — manual maintenance only. Most likely registry to drift. Adding a saveme spot-check rule per Lesson #54: when a WIRING entry has a marketing-shaped summary, grep for at least 2 of its claimed features before trusting `status: complete`.

@@ -47,7 +47,9 @@ export default function FabricatorsClient({
   const [banner, setBanner] = useState<{ kind: "success" | "error"; text: string } | null>(null);
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10">
+    <div className="pb-10">
+      {/* PreflightTeacherNav is mounted by the server page wrapper,
+       *  so this client component just renders its own content. */}
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Fabricators</h1>
@@ -58,7 +60,10 @@ export default function FabricatorsClient({
             you — whoever&apos;s actually running the machines.
           </p>
           <p className="mt-2 max-w-2xl text-sm text-gray-500">
-            Each account only sees jobs for the machines you assign it to.
+            Each Fabricator account sees every job from your classes.
+            Per-machine restrictions aren't part of v1; if you need
+            them later (e.g. dedicated laser-cutter operator), file a
+            request.
           </p>
         </div>
         <button
@@ -93,7 +98,10 @@ export default function FabricatorsClient({
               <tr>
                 <th className="px-4 py-3 text-left font-medium">Name</th>
                 <th className="px-4 py-3 text-left font-medium">Email / Login</th>
-                <th className="px-4 py-3 text-left font-medium">Machines</th>
+                {/* Phase 8.1d-9: Machines column removed — fabricators
+                     now see ALL of the inviting teacher's jobs, no
+                     per-fabricator restriction. The fabricator_machines
+                     junction is deprecated as a visibility mechanism. */}
                 <th className="px-4 py-3 text-left font-medium">Status</th>
                 <th className="px-4 py-3 text-right font-medium">Actions</th>
               </tr>
@@ -209,22 +217,7 @@ function FabricatorRow({
           last login: {formatRelative(fabricator.last_login_at)}
         </div>
       </td>
-      <td className="px-4 py-3">
-        <div className="flex flex-wrap gap-1">
-          {fabricator.machines.length === 0 ? (
-            <span className="text-xs text-gray-400">No machines assigned</span>
-          ) : (
-            fabricator.machines.map((m) => (
-              <span
-                key={m.id}
-                className="inline-flex items-center rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-800 ring-1 ring-purple-200"
-              >
-                {m.name}
-              </span>
-            ))
-          )}
-        </div>
-      </td>
+      {/* Phase 8.1d-9: Machines cell removed — see thead comment. */}
       <td className="px-4 py-3">
         {fabricator.invite_pending ? (
           <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
@@ -388,42 +381,17 @@ function InviteModal({
           />
         </label>
 
-        <fieldset className="mt-3">
-          <legend className="text-sm font-medium text-gray-700">
-            Assign to machines
-          </legend>
-          <div className="mt-2 max-h-40 space-y-1 overflow-y-auto rounded-md border border-gray-200 p-3">
-            {machines.length === 0 ? (
-              <p className="text-sm text-gray-500">
-                No machines available. Seed system templates run at app startup;
-                if you're seeing this, something is wrong.
-              </p>
-            ) : (
-              machines.map((m) => (
-                <label key={m.id} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={machineIds.includes(m.id)}
-                    onChange={() => toggleMachine(m.id)}
-                    disabled={submitting}
-                    className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                  />
-                  <span>
-                    <strong>{m.name}</strong>{" "}
-                    <span className="text-xs text-gray-500">
-                      ({m.machine_category})
-                    </span>
-                  </span>
-                </label>
-              ))
-            )}
-          </div>
-          {machineIds.length === 0 && (
-            <p className="mt-1 text-xs text-rose-600">
-              Pick at least one machine.
-            </p>
-          )}
-        </fieldset>
+        {/* Phase 8.1d-9: machine-assignment checkboxes removed.
+             Fabricators now see ALL jobs from their inviting teacher
+             — no per-machine restrictions. Per-machine opt-in scoping
+             stays as a future possibility (PH9-FU-FAB-MACHINE-RESTRICT)
+             but isn't part of v1. Eliminates teacher-side overhead
+             that wasn't carrying its weight at NIS scale. */}
+        <p className="mt-3 rounded-md bg-blue-50 border border-blue-200 p-3 text-sm text-blue-900">
+          This fabricator will see <strong>every job</strong> from your
+          classes — no per-machine setup needed. They just log in and
+          pick up the next job from the queue.
+        </p>
 
         <div className="mt-6 flex justify-end gap-2">
           <button
@@ -436,7 +404,7 @@ function InviteModal({
           </button>
           <button
             type="submit"
-            disabled={submitting || machineIds.length === 0}
+            disabled={submitting}
             className="rounded-md bg-purple-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-purple-700 disabled:opacity-60"
           >
             {submitting ? "Sending…" : resend ? "Re-send invite" : "Send invite"}

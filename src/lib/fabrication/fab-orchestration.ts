@@ -76,12 +76,20 @@ export interface FabJobRow {
   className: string | null;
   unitTitle: string | null;
   originalFilename: string;
+  /** Phase 8.1d-17: file type so the queue UI can render a chip
+   *  (.STL / .SVG) without parsing the filename. Source is
+   *  `fabrication_jobs.file_type`. */
+  fileType: "stl" | "svg";
   machineLabel: string;
   machineCategory: "3d_printer" | "laser_cutter" | null;
   thumbnailUrl: string | null;
   currentRevision: number;
   fileSizeBytes: number | null;
   jobStatus: string;
+  /** Phase 8.1d-17: time the student first submitted the job
+   *  (= jobs.created_at). Distinct from approvedAt — lets the fab
+   *  queue show how long total a job has been in flight. */
+  createdAt: string;
   approvedAt: string | null;
   pickedUpAt: string | null;
   teacherReviewNote: string | null;
@@ -176,6 +184,50 @@ async function fabricatorMachineIds(
 }
 
 /**
+ * Phase 8.1d-9: returns the teacher_id who invited this fabricator.
+ *
+ * Replaces the per-machine `fabricator_machines` junction filtering
+ * for queue + pickup operations. Matt's UX call 26 Apr AM:
+ * "the fabricator needs to be able to manage the machines themselves,
+ * dont want a teacher to need to do this. they should be able to
+ * see all machines."
+ *
+ * Fabricators now see ALL jobs from their inviting teacher's classes
+ * — no per-machine restrictions. Cynthia (NIS lab tech) sees every
+ * job regardless of which machine, no setup overhead for the teacher.
+ *
+ * The fabricator_machines table + its API routes stay in the schema
+ * (deferred deprecation). Post-FU-P, school-scoped roles can re-add
+ * fine-grain restrictions if needed (filed as
+ * PH9-FU-FAB-MACHINE-RESTRICT). For v1, all-access is the right call.
+ *
+ * Returns null on missing/inactive fabricator (route should 404).
+ */
+async function fabricatorInvitingTeacherId(
+  db: SupabaseLike,
+  fabricatorId: string
+): Promise<string | null | OrchestrationError> {
+  const result = await db
+    .from("fabricators")
+    .select("invited_by_teacher_id, is_active")
+    .eq("id", fabricatorId)
+    .maybeSingle();
+  if (result.error) {
+    return {
+      error: {
+        status: 500,
+        message: `Fabricator lookup failed: ${result.error.message}`,
+      },
+    };
+  }
+  const row = result.data as
+    | { invited_by_teacher_id: string | null; is_active: boolean }
+    | null;
+  if (!row || !row.is_active) return null;
+  return row.invited_by_teacher_id;
+}
+
+/**
  * Confirms the fabricator can CURRENTLY pick up this job — job
  * exists AND its machine is in the fabricator's assignment list.
  * Used for fresh pickups; NOT used for complete/fail on an own
@@ -196,12 +248,17 @@ async function loadFabricatorAssignedJob(
     }
   | OrchestrationError
 > {
-  const assignedIds = await fabricatorMachineIds(db, fabricatorId);
-  if ("error" in assignedIds) return assignedIds;
+  // Phase 8.1d-9: scope by inviting teacher's jobs, not by junction.
+  // Fabricator can pick up any job from their inviting teacher.
+  const teacherId = await fabricatorInvitingTeacherId(db, fabricatorId);
+  if (teacherId !== null && typeof teacherId === "object") return teacherId;
+  if (!teacherId) {
+    return { error: { status: 404, message: "Job not found" } };
+  }
 
   const result = await db
     .from("fabrication_jobs")
-    .select("id, status, machine_profile_id, lab_tech_picked_up_by")
+    .select("id, status, machine_profile_id, lab_tech_picked_up_by, teacher_id")
     .eq("id", jobId)
     .maybeSingle();
   if (result.error) {
@@ -212,10 +269,25 @@ async function loadFabricatorAssignedJob(
   if (!result.data) {
     return { error: { status: 404, message: "Job not found" } };
   }
-  if (!assignedIds.includes(result.data.machine_profile_id)) {
+  // 404 (not 403) on cross-teacher job — don't leak existence.
+  const data = result.data as {
+    id: string;
+    status: string;
+    machine_profile_id: string;
+    lab_tech_picked_up_by: string | null;
+    teacher_id: string;
+  };
+  if (data.teacher_id !== teacherId) {
     return { error: { status: 404, message: "Job not found" } };
   }
-  return { job: result.data };
+  return {
+    job: {
+      id: data.id,
+      status: data.status,
+      machine_profile_id: data.machine_profile_id,
+      lab_tech_picked_up_by: data.lab_tech_picked_up_by,
+    },
+  };
 }
 
 /**
@@ -287,6 +359,7 @@ interface RawFabQueueJob {
   id: string;
   status: string;
   current_revision: number;
+  file_type: string;
   original_filename: string;
   teacher_review_note: string | null;
   lab_tech_picked_up_at: string | null;
@@ -321,13 +394,16 @@ export async function listFabricatorQueue(
   const { fabricatorId, tab, limit = 100 } = params;
   const boundedLimit = Math.max(1, Math.min(limit, 200));
 
-  const assignedIds = await fabricatorMachineIds(db, fabricatorId);
-  if ("error" in assignedIds) return assignedIds;
+  // Phase 8.1d-9: scope by inviting teacher (sees ALL their machines)
+  // not by per-machine junction. Drops the "teacher must assign
+  // machines per fabricator" overhead. See fabricatorInvitingTeacherId
+  // for the rationale.
+  const teacherId = await fabricatorInvitingTeacherId(db, fabricatorId);
+  if (teacherId !== null && typeof teacherId === "object") return teacherId;
 
-  // No machines assigned → empty queue (route returns 200 with empty
-  // array so the UI can show the "ask your teacher to assign you to
-  // a machine" empty-state message). Not an error.
-  if (assignedIds.length === 0) {
+  // Fabricator missing/inactive — empty queue (route still returns
+  // 200; the fab session middleware would have 401'd if truly invalid).
+  if (!teacherId) {
     return { jobs: [] };
   }
 
@@ -338,7 +414,7 @@ export async function listFabricatorQueue(
     .from("fabrication_jobs")
     .select(
       `
-      id, status, current_revision, original_filename,
+      id, status, current_revision, file_type, original_filename,
       teacher_review_note, lab_tech_picked_up_at, machine_profile_id,
       created_at, updated_at, notifications_sent,
       students(display_name, username),
@@ -348,7 +424,7 @@ export async function listFabricatorQueue(
       fabrication_job_revisions(revision_number, thumbnail_path, file_size_bytes)
       `
     )
-    .in("machine_profile_id", assignedIds);
+    .eq("teacher_id", teacherId);
 
   if (tab === "ready") {
     query = query.eq("status", "approved");
@@ -420,6 +496,7 @@ export async function listFabricatorQueue(
         className: classRow?.name ?? null,
         unitTitle: unitRow?.title ?? null,
         originalFilename: raw.original_filename,
+        fileType: (raw.file_type === "svg" ? "svg" : "stl") as "stl" | "svg",
         machineLabel: machineRow?.name ?? "Unknown machine",
         machineCategory:
           (machineRow?.machine_category as FabJobRow["machineCategory"]) ??
@@ -428,6 +505,7 @@ export async function listFabricatorQueue(
         currentRevision: raw.current_revision,
         fileSizeBytes: latestRev?.file_size_bytes ?? null,
         jobStatus: raw.status,
+        createdAt: raw.created_at,
         approvedAt,
         pickedUpAt: raw.lab_tech_picked_up_at,
         teacherReviewNote: raw.teacher_review_note,
@@ -496,8 +574,10 @@ export async function getFabJobDetail(
 ): Promise<FabJobDetail | OrchestrationError> {
   const { fabricatorId, jobId } = params;
 
-  const assignedIds = await fabricatorMachineIds(db, fabricatorId);
-  if ("error" in assignedIds) return assignedIds;
+  // Phase 8.1d-9: scope by inviting teacher rather than per-machine
+  // junction. Fabricator can see any job from their inviting teacher.
+  const teacherId = await fabricatorInvitingTeacherId(db, fabricatorId);
+  if (teacherId !== null && typeof teacherId === "object") return teacherId;
 
   // 1. Job row with joins.
   const jobResult = await db
@@ -507,7 +587,7 @@ export async function getFabJobDetail(
       id, status, current_revision, file_type, original_filename,
       teacher_review_note, lab_tech_picked_up_at, lab_tech_picked_up_by,
       completion_status, completion_note, completed_at, notifications_sent,
-      student_id, class_id, unit_id, machine_profile_id,
+      student_id, class_id, unit_id, machine_profile_id, teacher_id,
       students(display_name, username),
       classes(id, name),
       units(id, title),
@@ -522,20 +602,25 @@ export async function getFabJobDetail(
     };
   }
   const rawJob = jobResult.data as
-    | (RawFabDetailJob & { lab_tech_picked_up_by: string | null })
+    | (RawFabDetailJob & {
+        lab_tech_picked_up_by: string | null;
+        teacher_id: string;
+      })
     | null;
   if (!rawJob) {
     return { error: { status: 404, message: "Job not found" } };
   }
 
-  // Visibility check: the fabricator sees this job if either
-  //   (a) it's currently assigned to one of their machines (ready /
-  //       available to work on), OR
-  //   (b) THEY are the one who picked it up (in-progress / completed
-  //       by them — §11 Q8 allows access after unassignment).
-  const assignedToMe = assignedIds.includes(rawJob.machine_profile_id);
+  // Visibility: the fabricator sees this job if either
+  //   (a) it's owned by their inviting teacher (default model — they
+  //       see ALL of that teacher's jobs), OR
+  //   (b) THEY are the one who picked it up (§11 Q8 — allows
+  //       complete/fail access even if the inviter relationship
+  //       changed mid-job, e.g. fabricator account got reassigned
+  //       between teachers).
+  const sameTeacher = teacherId && rawJob.teacher_id === teacherId;
   const ownedByMe = rawJob.lab_tech_picked_up_by === fabricatorId;
-  if (!assignedToMe && !ownedByMe) {
+  if (!sameTeacher && !ownedByMe) {
     return { error: { status: 404, message: "Job not found" } };
   }
 

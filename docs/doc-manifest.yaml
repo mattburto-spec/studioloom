@@ -313,10 +313,19 @@ docs:
     title: "StudioLoom — Master Project Index"
     purpose: "CANONICAL project tracker. ALL project status, new projects, completions. Single source of truth."
     category: projects
-    last_verified: "2026-04-22"
+    last_verified: "2026-04-25"
     referenced_from: ["CLAUDE.md project tracking section"]
     max_age_days: 90
-    last_scanned: "2026-04-22"
+    last_scanned: "2026-04-25"
+
+  - path: docs/projects/access-model-v2.md
+    title: "Access Model v2 — Auth Unification, Multi-Tenancy & Privacy Foundation"
+    purpose: "Project plan (16-22 days, 6 phases) for unifying StudioLoom's auth model (every student → auth.users, classcode+name as custom Supabase flow), introducing schools as a first-class entity with flat membership + no-designated-admin governance (two-tier change rules, 7-day revert, 48h confirm window), audit log, per-student AI budgets, FERPA/GDPR/PIPL data export+delete, OAuth (Google + Microsoft + email/PW; Apple deferred), and forward-compat schema seams (school_resources polymorphic for PYP/Service library + alumni + partners; guardians; SIS external IDs; consents; school lifecycle). Collapses FU-O/P/R/Q/W into one project. Provides the spec gap referenced by Governance GOV-2. Design phase signed off 25 Apr 2026; Phase 0 trigger = Preflight Phase 8 ships + dashboard-v2 polish quiescent."
+    category: projects
+    last_verified: "2026-04-25"
+    referenced_from: ["ALL-PROJECTS.md Access Model v2 project", "ALL-PROJECTS.md Governance GOV-2 (subsumed components)", "ALL-PROJECTS.md Mentor Manager (gated dependency)"]
+    max_age_days: 90
+    last_scanned: "2026-04-25"
 
   - path: docs/projects/discovery-engine-cognitive-layer.md
     title: "Discovery Engine — Cognitive Layer (MindPrint-Informed)"
@@ -2377,6 +2386,31 @@ docs:
     last_verified: "2026-04-24"
     max_age_days: 90
     last_scanned: "2026-04-24"
+
+  # --- LESSON BOLD + LANGUAGE SCAFFOLDING REDESIGN (merged from lesson-bold-build 26 Apr) ---
+  - path: docs/projects/lesson-bold-brief.md
+    title: "Lesson Bold — Student Lesson Page Redesign master brief"
+    purpose: "5-sub-phase brief for the warm-paper Bold visual restyle of the student lesson page. Sub-Phases 1, 2A–2C, 3 SHIPPED on lesson-bold-build (24 Apr 2026, 14 commits, all pushed to origin). Sub-Phase 3 (AutonomyPicker) rolled back in language-scaffolding-redesign Phase 0 (26 Apr)."
+    category: projects
+    last_verified: "2026-04-26"
+    max_age_days: 90
+    last_scanned: "2026-04-26"
+
+  - path: docs/projects/language-scaffolding-redesign-brief.md
+    title: "Language Scaffolding Redesign — Pre-Build Spec (Tap-a-word + Response Starters)"
+    purpose: "Pivot from configuration (AutonomyPicker) to invocation (inline affordances on the artefact). Two new student-facing affordances: Tap-a-word (input scaffold, shared TappableText component, 8 mount surfaces) and Response Starters (output scaffold, magic-wand-pen → side panel with Word Bank + Sentence Starters). 6-phase build plan, audit findings caught WIRING student-learning-support drift (FU-LS-DRIFT filed), Q1-Q6 with Matt's 7 locked decisions in §0.5, ~$0.0007/student/week cost, no re-onboarding needed. Phase 0 SHIPPED + Checkpoint 0.1 PASSED 26 Apr."
+    category: projects
+    last_verified: "2026-04-26"
+    max_age_days: 90
+    last_scanned: "2026-04-26"
+
+  - path: docs/newlook/StudioSetupDrawer-mockup.html
+    title: "Studio Setup Drawer — historical mockup iterations (v1–v5)"
+    purpose: "Five HTML mockup iterations exploring the chip-strip → sidebar pill → drawer pattern for in-lesson scaffolding controls. v1 chip-strip below header, v2 moved to sidebar, v3 drawer-from-right, v4 expanded to 7 sections, v5 slimmed to 4 toggles + profile recap + 'More settings' link. The whole drawer concept ultimately died in the language-scaffolding-redesign pivot (configuration → invocation). Kept as historical artefacts for context on how the design evolved."
+    category: prototypes
+    last_verified: "2026-04-26"
+    max_age_days: 365
+    last_scanned: "2026-04-26"
 
   - path: docs/projects/fabrication-pipeline-phase-0-brief.md
     title: "Preflight Phase 0 Brief — Spec & Pre-Build Checklist"

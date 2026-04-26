@@ -28,6 +28,7 @@ import {
   ClassMachinePicker,
   type ClassOption,
   type MachineProfileOption,
+  type MachineCategory,
 } from "@/components/fabrication/ClassMachinePicker";
 import { FileDropzone } from "@/components/fabrication/FileDropzone";
 import { UploadProgress } from "@/components/fabrication/UploadProgress";
@@ -52,6 +53,9 @@ export default function FabricationNewPage() {
   const router = useRouter();
   const [loadState, setLoadState] = React.useState<LoadState>({ kind: "loading" });
   const [selectedClassId, setSelectedClassId] = React.useState<string | null>(null);
+  // Phase 8.1d-10: type-first picker. Category narrows the machine list.
+  const [selectedCategory, setSelectedCategory] =
+    React.useState<MachineCategory | null>(null);
   const [selectedMachineProfileId, setSelectedMachineProfileId] = React.useState<
     string | null
   >(null);
@@ -59,6 +63,15 @@ export default function FabricationNewPage() {
   const [fileType, setFileType] = React.useState<FabricationFileType | null>(null);
   const [validationError, setValidationError] = React.useState<string | null>(null);
   const [uploadState, dispatch] = React.useReducer(uploadReducer, initialUploadState);
+  // Phase 8.1d-11: instant click feedback. The /upload POST takes
+  // 100-500ms before uploadReducer transitions to "uploading", so
+  // the button stayed clickable + double-clickable in that window.
+  // `isPreparing` flips true synchronously on click and clears
+  // when uploadState moves out of idle. Don't fold this into the
+  // reducer — the reducer's "idle" lane is the right rest state
+  // and we'd otherwise need a fourth pre-upload status to model
+  // "click sent, fetch in flight" without lying about jobId/total.
+  const [isPreparing, setIsPreparing] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -99,14 +112,22 @@ export default function FabricationNewPage() {
     selectedMachineProfileId !== null &&
     file !== null &&
     fileType !== null &&
-    (uploadState.kind === "idle" || uploadState.kind === "error");
+    (uploadState.kind === "idle" || uploadState.kind === "error") &&
+    !isPreparing;
 
   const isBusy =
-    uploadState.kind === "uploading" || uploadState.kind === "enqueuing";
+    uploadState.kind === "uploading" ||
+    uploadState.kind === "enqueuing" ||
+    isPreparing;
 
   async function handleUpload() {
     if (!file || !fileType || !selectedClassId || !selectedMachineProfileId) return;
+    if (isPreparing) return; // double-click guard
     setValidationError(null);
+    // Flip the button to its "preparing" state synchronously, BEFORE
+    // the await on /upload. This is the user-visible feedback the
+    // student needs in the 100-500ms before START_UPLOAD lands.
+    setIsPreparing(true);
 
     // Step 1: POST /upload to create rows + mint signed URL.
     let initResult: {
@@ -134,6 +155,7 @@ export default function FabricationNewPage() {
           type: "ERROR",
           message: body.error || `Upload init failed (HTTP ${res.status})`,
         });
+        setIsPreparing(false);
         return;
       }
       initResult = await res.json();
@@ -142,15 +164,20 @@ export default function FabricationNewPage() {
         type: "ERROR",
         message: e instanceof Error ? e.message : "Upload init failed",
       });
+      setIsPreparing(false);
       return;
     }
 
+    // Hand control to the reducer — uploadState moves to "uploading"
+    // which already covers the disabled-button / progress-bar UI, so
+    // isPreparing can drop here.
     dispatch({
       type: "START_UPLOAD",
       jobId: initResult.jobId,
       revisionId: initResult.revisionId,
       totalBytes: file.size,
     });
+    setIsPreparing(false);
 
     // Step 2: PUT file to the signed URL with XHR progress.
     //
@@ -278,12 +305,25 @@ export default function FabricationNewPage() {
 
       {loadState.kind === "ready" && (
         <div className="space-y-6">
+          {/* Phase 8.1d-5: dropped the class-to-lab filter. Picker now
+               shows all machines grouped by lab name (via
+               groupMachinesByLab inside ClassMachinePicker). Teacher
+               organisation flows through naturally; no class-to-lab
+               assignment overhead. */}
           <ClassMachinePicker
             classes={loadState.data.classes}
             machineProfiles={loadState.data.machineProfiles}
             selectedClassId={selectedClassId}
+            selectedCategory={selectedCategory}
             selectedMachineProfileId={selectedMachineProfileId}
             onClassChange={setSelectedClassId}
+            onCategoryChange={(cat) => {
+              // Phase 8.1d-10: switching category clears the machine
+              // selection so a stale 3D-printer pick doesn't survive a
+              // switch to laser.
+              setSelectedCategory(cat);
+              setSelectedMachineProfileId(null);
+            }}
             onMachineChange={setSelectedMachineProfileId}
             disabled={isBusy}
           />
@@ -312,9 +352,18 @@ export default function FabricationNewPage() {
             type="button"
             onClick={handleUpload}
             disabled={!canUpload}
-            className="w-full py-2.5 rounded-xl bg-brand-purple text-white text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+            className="w-full py-2.5 rounded-xl bg-brand-purple text-white text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 flex items-center justify-center gap-2"
           >
-            {uploadState.kind === "error" ? "Try again" : "Upload and scan"}
+            {isPreparing ? (
+              <>
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Preparing upload…
+              </>
+            ) : uploadState.kind === "error" ? (
+              "Try again"
+            ) : (
+              "Upload and scan"
+            )}
           </button>
 
           {loadState.data.classes.length === 0 && (

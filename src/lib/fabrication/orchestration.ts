@@ -1287,15 +1287,30 @@ export async function listRevisions(
 
   // 3. Mint signed thumbnail URLs in parallel. 10-min TTL matches the
   //    status endpoint's thumbnail minting.
+  //
+  // Phase 8.1d-11: each createSignedUrl is wrapped so one bad
+  // thumbnail_path (deleted blob, malformed path, transient bucket
+  // glitch) doesn't reject the whole Promise.all and 500 the
+  // endpoint. The history panel happily renders a missing thumbnail
+  // as a placeholder; it must not block the rest of the column.
   const summaries: RevisionSummary[] = await Promise.all(
     rows.map(async (row) => {
       let thumbnailUrl: string | null = null;
       if (row.thumbnail_path) {
-        const signed = await db.storage
-          .from(FABRICATION_THUMBNAIL_BUCKET)
-          .createSignedUrl(row.thumbnail_path, THUMBNAIL_URL_TTL_SECONDS);
-        if (!signed.error && signed.data) {
-          thumbnailUrl = signed.data.signedUrl;
+        try {
+          const signed = await db.storage
+            .from(FABRICATION_THUMBNAIL_BUCKET)
+            .createSignedUrl(row.thumbnail_path, THUMBNAIL_URL_TTL_SECONDS);
+          if (!signed.error && signed.data) {
+            thumbnailUrl = signed.data.signedUrl;
+          }
+        } catch (e) {
+          // Swallow — log on the server, hand back null so the row
+          // still renders.
+          console.warn(
+            "[listRevisions] thumbnail signed URL failed",
+            { path: row.thumbnail_path, revisionId: row.id, error: e }
+          );
         }
       }
       return {

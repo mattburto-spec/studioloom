@@ -122,6 +122,9 @@ describe("GET /api/student/fabrication/picker-data", () => {
   });
 
   it("passes through machine profile shape with all expected columns", async () => {
+    // Phase 8.1d-5: route now flattens the nested fabrication_labs join
+    // into a `lab_name` field. lab_id is shipped too. System templates
+    // pass through with both as null.
     machineProfilesData = [
       {
         id: "m1",
@@ -132,6 +135,8 @@ describe("GET /api/student/fabrication/picker-data", () => {
         nozzle_diameter_mm: 0.4,
         kerf_mm: null,
         is_system_template: true,
+        lab_id: null,
+        fabrication_labs: null,
       },
       {
         id: "m2",
@@ -142,12 +147,72 @@ describe("GET /api/student/fabrication/picker-data", () => {
         nozzle_diameter_mm: null,
         kerf_mm: 0.2,
         is_system_template: true,
+        lab_id: null,
+        fabrication_labs: null,
       },
     ];
     const res = await GET(makeRequest());
     const body = await res.json();
     expect(body.machineProfiles).toHaveLength(2);
-    expect(body.machineProfiles[0]).toEqual(machineProfilesData[0]);
+    // Flattened shape — fabrication_labs nested object replaced by lab_name.
+    expect(body.machineProfiles[0]).toEqual({
+      id: "m1",
+      name: "Bambu X1C",
+      machine_category: "3d_printer",
+      bed_size_x_mm: 256,
+      bed_size_y_mm: 256,
+      nozzle_diameter_mm: 0.4,
+      kerf_mm: null,
+      is_system_template: true,
+      lab_id: null,
+      lab_name: null,
+    });
+  });
+
+  it("flattens nested fabrication_labs join into lab_name (Phase 8.1d-5)", async () => {
+    machineProfilesData = [
+      {
+        id: "m-owned",
+        name: "Teacher's Bambu",
+        machine_category: "3d_printer",
+        bed_size_x_mm: 256,
+        bed_size_y_mm: 256,
+        nozzle_diameter_mm: 0.4,
+        kerf_mm: null,
+        is_system_template: false,
+        lab_id: "lab-1",
+        // PostgREST commonly returns the embedded table as an object
+        // (not array) when the FK is singular. Test that path.
+        fabrication_labs: { name: "2nd Floor Design Lab" },
+      },
+    ];
+    const res = await GET(makeRequest());
+    const body = await res.json();
+    expect(body.machineProfiles[0].lab_name).toBe("2nd Floor Design Lab");
+    expect(body.machineProfiles[0].lab_id).toBe("lab-1");
+    // fabrication_labs nested object should NOT pass through to client.
+    expect(body.machineProfiles[0]).not.toHaveProperty("fabrication_labs");
+  });
+
+  it("handles array-shape fabrication_labs join (PostgREST quirk)", async () => {
+    machineProfilesData = [
+      {
+        id: "m-owned",
+        name: "Teacher's Bambu",
+        machine_category: "3d_printer",
+        bed_size_x_mm: 256,
+        bed_size_y_mm: 256,
+        nozzle_diameter_mm: 0.4,
+        kerf_mm: null,
+        is_system_template: false,
+        lab_id: "lab-1",
+        // Some PostgREST versions / select shapes return as array.
+        fabrication_labs: [{ name: "Default lab" }],
+      },
+    ];
+    const res = await GET(makeRequest());
+    const body = await res.json();
+    expect(body.machineProfiles[0].lab_name).toBe("Default lab");
   });
 
   it("returns 500 on enrolment lookup error with the underlying message", async () => {
