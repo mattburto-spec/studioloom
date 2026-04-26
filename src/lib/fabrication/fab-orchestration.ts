@@ -76,12 +76,20 @@ export interface FabJobRow {
   className: string | null;
   unitTitle: string | null;
   originalFilename: string;
+  /** Phase 8.1d-17: file type so the queue UI can render a chip
+   *  (.STL / .SVG) without parsing the filename. Source is
+   *  `fabrication_jobs.file_type`. */
+  fileType: "stl" | "svg";
   machineLabel: string;
   machineCategory: "3d_printer" | "laser_cutter" | null;
   thumbnailUrl: string | null;
   currentRevision: number;
   fileSizeBytes: number | null;
   jobStatus: string;
+  /** Phase 8.1d-17: time the student first submitted the job
+   *  (= jobs.created_at). Distinct from approvedAt — lets the fab
+   *  queue show how long total a job has been in flight. */
+  createdAt: string;
   approvedAt: string | null;
   pickedUpAt: string | null;
   teacherReviewNote: string | null;
@@ -351,6 +359,7 @@ interface RawFabQueueJob {
   id: string;
   status: string;
   current_revision: number;
+  file_type: string;
   original_filename: string;
   teacher_review_note: string | null;
   lab_tech_picked_up_at: string | null;
@@ -405,7 +414,7 @@ export async function listFabricatorQueue(
     .from("fabrication_jobs")
     .select(
       `
-      id, status, current_revision, original_filename,
+      id, status, current_revision, file_type, original_filename,
       teacher_review_note, lab_tech_picked_up_at, machine_profile_id,
       created_at, updated_at, notifications_sent,
       students(display_name, username),
@@ -487,6 +496,7 @@ export async function listFabricatorQueue(
         className: classRow?.name ?? null,
         unitTitle: unitRow?.title ?? null,
         originalFilename: raw.original_filename,
+        fileType: (raw.file_type === "svg" ? "svg" : "stl") as "stl" | "svg",
         machineLabel: machineRow?.name ?? "Unknown machine",
         machineCategory:
           (machineRow?.machine_category as FabJobRow["machineCategory"]) ??
@@ -495,6 +505,7 @@ export async function listFabricatorQueue(
         currentRevision: raw.current_revision,
         fileSizeBytes: latestRev?.file_size_bytes ?? null,
         jobStatus: raw.status,
+        createdAt: raw.created_at,
         approvedAt,
         pickedUpAt: raw.lab_tech_picked_up_at,
         teacherReviewNote: raw.teacher_review_note,
