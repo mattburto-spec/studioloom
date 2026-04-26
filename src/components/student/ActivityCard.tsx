@@ -1,17 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { ResponseInput } from "@/components/student/ResponseInput";
 import { TextToSpeech } from "@/components/student/TextToSpeech";
 import { MarkdownPrompt, stripMarkdown } from "@/components/student/MarkdownPrompt";
 import { toEmbedUrl } from "@/lib/video-embed";
-import {
-  hintsAvailable,
-  hintsOpenByDefault,
-  exampleVisible,
-  exampleOpenByDefault,
-  type AutonomyLevel,
-} from "@/components/student/lesson-bold";
 import type { ActivitySection } from "@/types";
 
 import type { IntegrityMetadata } from "./MonitoredTextarea";
@@ -20,15 +12,6 @@ interface ActivityCardProps {
   section: ActivitySection;
   index: number;
   ellLevel: number;
-  /**
-   * Pedagogical scaffolding level for this lesson (Sub-Phase 3 of Lesson Bold).
-   * Drives hint + example visibility:
-   *   - 'scaffolded'  → hints auto-open, example expanded
-   *   - 'balanced'    → hints behind try-first button, example collapsed (default)
-   *   - 'independent' → hints + example hidden entirely
-   * Defaults to 'balanced' when omitted (same behaviour as pre-Lesson-Bold).
-   */
-  autonomyLevel?: AutonomyLevel;
   responseValue: string;
   onResponseChange: (value: string) => void;
   cardRef?: (el: HTMLDivElement | null) => void;
@@ -124,7 +107,6 @@ export function ActivityCard({
   section,
   index,
   ellLevel,
-  autonomyLevel = "balanced",
   responseValue,
   onResponseChange,
   cardRef,
@@ -144,15 +126,6 @@ export function ActivityCard({
     ellLevel === 3
       ? (scaffolding as { extensionPrompts?: string[] })?.extensionPrompts || []
       : [];
-  const hintsArr = (scaffolding as { hints?: string[] })?.hints || [];
-
-  // Sub-Phase 3 — autonomy-driven gating. Hints + example are content axes
-  // (ELL still controls what's authored); autonomy controls how/whether
-  // they surface. Defaults to balanced when no level is wired in.
-  const showHintsBlock = hintsArr.length > 0 && hintsAvailable(autonomyLevel);
-  const [hintsOpen, setHintsOpen] = useState<boolean>(hintsOpenByDefault(autonomyLevel));
-  const showExampleBlock = !!section.exampleResponse && exampleVisible(autonomyLevel);
-  const exampleDefaultOpen = exampleOpenByDefault(autonomyLevel);
 
   const isContentOnly = !section.responseType;
   const style = isContentOnly ? CONTENT_STYLE_CONFIG[section.contentStyle || "context"] : null;
@@ -230,70 +203,25 @@ export function ActivityCard({
             </div>
           )}
 
-          {/* Hints — autonomy-gated (Sub-Phase 3 of Lesson Bold).
-              Authored content is currently only under scaffolding.ell1.hints,
-              so non-ELL-1 students don't see this block until the field is
-              promoted off the ELL key — flagged as a follow-up. */}
-          {showHintsBlock && (
-            <div className="mb-4">
-              {!hintsOpen ? (
-                <button
-                  type="button"
-                  onClick={() => setHintsOpen(true)}
-                  className="inline-flex items-center gap-2 text-[12px] font-extrabold rounded-full px-4 py-2 transition border border-dashed"
-                  style={{
-                    color: "var(--sl-ink-3)",
-                    borderColor: "var(--sl-hair)",
-                  }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <rect x="4" y="11" width="16" height="10" rx="2" />
-                    <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-                  </svg>
-                  Stuck? Try for 3 min first — then unlock hints
-                </button>
-              ) : (
-                <div
-                  className="rounded-2xl p-5"
-                  style={{
-                    background: "#FEF9E7",
-                    border: "1px solid #FDE68A",
-                  }}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div
-                      className="inline-flex items-center gap-2 cap"
-                      style={{ color: "#92400E" }}
-                    >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <circle cx="12" cy="12" r="10" />
-                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01" />
-                      </svg>
-                      Hints unlocked
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setHintsOpen(false)}
-                      style={{ color: "rgba(146,64,14,0.7)" }}
-                      aria-label="Close hints"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M18 6L6 18M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                  <ul
-                    className="space-y-1.5"
-                    style={{ fontSize: "12.5px", color: "#78350F" }}
-                  >
-                    {hintsArr.map((hint, j) => (
-                      <li key={j}>— {hint}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
+          {/* Hints for ELL 1 — restored to pre-Sub-Phase-3 ELL-only gating
+              after Phase 0 of language-scaffolding-redesign rolled back the
+              autonomy-driven gating. Will be replaced by signal-driven
+              Tap-a-word + Response Starters affordances in upcoming phases. */}
+          {ellLevel === 1 &&
+            (scaffolding as { hints?: string[] })?.hints && (
+              <div className="bg-amber-50 rounded-xl p-4 mb-4">
+                <p className="text-xs font-semibold text-amber-700 mb-1">
+                  Hints
+                </p>
+                {((scaffolding as { hints?: string[] }).hints || []).map(
+                  (hint, j) => (
+                    <p key={j} className="text-sm text-gray-600">
+                      {hint}
+                    </p>
+                  )
+                )}
+              </div>
+            )}
 
           {section.responseType && (
             <ResponseInput
@@ -316,24 +244,14 @@ export function ActivityCard({
             />
           )}
 
-          {/* Example response — autonomy-gated. `independent` hides entirely,
-              `scaffolded` opens by default, `balanced` keeps it collapsed. */}
-          {showExampleBlock && (
-            <details className="mt-3" open={exampleDefaultOpen}>
-              <summary
-                className="text-xs cursor-pointer transition"
-                style={{ color: "var(--sl-ink-3)" }}
-              >
+          {/* Example response (collapsible) — restored to pre-Sub-Phase-3
+              default-collapsed behaviour after Phase 0 rollback. */}
+          {section.exampleResponse && (
+            <details className="mt-3">
+              <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600">
                 Show example response
               </summary>
-              <div
-                className="mt-2 rounded-xl p-4 text-sm italic"
-                style={{
-                  background: "var(--sl-bg)",
-                  color: "var(--sl-ink-2)",
-                  border: "1px solid var(--sl-hair)",
-                }}
-              >
+              <div className="mt-2 bg-gray-50 rounded-xl p-4 text-sm text-gray-500 italic">
                 {section.exampleResponse}
               </div>
             </details>

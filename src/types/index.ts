@@ -205,13 +205,6 @@ export interface StudentProgress {
   responses: Record<string, unknown>;
   time_spent: number;
   updated_at: string;
-  /**
-   * Pedagogical scaffolding preference picked via AutonomyPicker. Migration 116.
-   * NULL = not yet picked (UI resolves to 'balanced'). Cross-referenced with
-   * the CHECK constraint in 116_student_progress_autonomy_level.sql — the
-   * union literals here MUST match the SQL CHECK list (Lesson #38).
-   */
-  autonomy_level?: "scaffolded" | "balanced" | "independent" | null;
 }
 
 export type PlanningTaskStatus = "todo" | "in_progress" | "done";
