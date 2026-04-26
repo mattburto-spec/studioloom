@@ -12,7 +12,13 @@ between sessions on the same branch.**
 - One file per branch: `docs/handoff/<branch-name>.md`
 - Replace `/` in branch names with `__` (so `feature/foo` → `feature__foo.md`).
 - Overwrite, don't append. The next session reads it once and picks up.
-- Wired into the `saveme` ritual (step 12 in `questerra/CLAUDE.md`).
+
+## How it gets written
+
+Two triggers. Both write the same file format.
+
+- **`sessionhandover`** (lightweight) — type the word `sessionhandover` on a line by itself. Claude writes the handoff file AND outputs a ready-to-paste code block for the new session. No registry sync, no project-tracker update. Use this when you're ending a session and immediately starting another.
+- **`saveme`** (full ritual) — the handoff is step 12 of saveme. Use this when you're closing out for the day or after meaningful project state changes (saveme also syncs registries, ALL-PROJECTS.md, changelog, etc.).
 
 ## How a new session uses it
 
