@@ -46,10 +46,22 @@ type FileType = (typeof ALLOWED_FILE_TYPES)[number];
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/**
+ * Phase 8.1d-22: upload accepts EITHER a specific machineProfileId
+ * OR a (labId + machineCategory) pair. Discriminated by presence of
+ * machineProfileId in the request body. Both result in a row with
+ * lab_id + machine_category populated; the difference is whether
+ * machine_profile_id is also bound or left null for the fab to
+ * assign on pickup.
+ */
 export interface CreateUploadJobRequest {
   studentId: string;
   classId: string;
-  machineProfileId: string;
+  // EITHER pick a specific machine (existing flow):
+  machineProfileId?: string;
+  // OR pick category + lab and let the fab assign a machine:
+  labId?: string;
+  machineCategory?: "3d_printer" | "laser_cutter";
   fileType: string; // validated here, not at type level, so bad input surfaces as 400 not TS error
   originalFilename: string;
   fileSizeBytes: number;
@@ -115,8 +127,54 @@ export function validateUploadRequest(
   if (typeof b.classId !== "string" || !UUID_RE.test(b.classId)) {
     return { error: { status: 400, message: "classId must be a UUID" } };
   }
-  if (typeof b.machineProfileId !== "string" || !UUID_RE.test(b.machineProfileId)) {
-    return { error: { status: 400, message: "machineProfileId must be a UUID" } };
+
+  // Phase 8.1d-22: accept either a specific machineProfileId OR a
+  // (labId + machineCategory) pair. Validate exactly ONE shape was
+  // sent — both or neither is a 400.
+  const hasMachine =
+    typeof b.machineProfileId === "string" && b.machineProfileId.length > 0;
+  const hasCategoryLab =
+    (typeof b.labId === "string" && b.labId.length > 0) ||
+    (typeof b.machineCategory === "string" && b.machineCategory.length > 0);
+
+  if (hasMachine && hasCategoryLab) {
+    return {
+      error: {
+        status: 400,
+        message:
+          "Send either machineProfileId OR (labId + machineCategory), not both.",
+      },
+    };
+  }
+  if (!hasMachine && !hasCategoryLab) {
+    return {
+      error: {
+        status: 400,
+        message:
+          "Pick a machine — provide machineProfileId, or labId + machineCategory.",
+      },
+    };
+  }
+
+  if (hasMachine) {
+    if (typeof b.machineProfileId !== "string" || !UUID_RE.test(b.machineProfileId)) {
+      return { error: { status: 400, message: "machineProfileId must be a UUID" } };
+    }
+  } else {
+    if (typeof b.labId !== "string" || !UUID_RE.test(b.labId)) {
+      return { error: { status: 400, message: "labId must be a UUID" } };
+    }
+    if (
+      b.machineCategory !== "3d_printer" &&
+      b.machineCategory !== "laser_cutter"
+    ) {
+      return {
+        error: {
+          status: 400,
+          message: "machineCategory must be '3d_printer' or 'laser_cutter'",
+        },
+      };
+    }
   }
   if (typeof b.fileType !== "string" || !ALLOWED_FILE_TYPES.includes(b.fileType as FileType)) {
     return {
@@ -158,7 +216,17 @@ export function validateUploadRequest(
     data: {
       studentId: "", // filled in by caller before passing to createUploadJob
       classId: b.classId,
-      machineProfileId: b.machineProfileId,
+      // Phase 8.1d-22: pass through whichever of the two shapes the
+      // caller sent. createUploadJob's branch logic deals with the
+      // resolution.
+      ...(hasMachine
+        ? { machineProfileId: b.machineProfileId as string }
+        : {
+            labId: b.labId as string,
+            machineCategory: b.machineCategory as
+              | "3d_printer"
+              | "laser_cutter",
+          }),
       fileType: b.fileType as FileType,
       originalFilename: trimmedFilename,
       fileSizeBytes: b.fileSizeBytes,
@@ -231,22 +299,91 @@ export async function createUploadJob(
   }
   const teacherId: string = classRow.data.teacher_id;
 
-  // 3. Verify machine profile exists. v1 unfiltered per FU-CLASS-MACHINE-LINK.
-  const profile = await db
-    .from("machine_profiles")
-    .select("id")
-    .eq("id", req.machineProfileId)
-    .maybeSingle();
-  if (profile.error) {
-    return {
-      error: {
-        status: 500,
-        message: `Machine profile lookup failed: ${profile.error.message}`,
-      },
-    };
-  }
-  if (!profile.data) {
-    return { error: { status: 404, message: "Machine profile not found" } };
+  // 3. Resolve lab_id + machine_category. Two paths per Phase
+  //    8.1d-22:
+  //      a) machineProfileId set → look up the machine, derive lab
+  //         + category from it. machine_profile_id stays bound on
+  //         the row.
+  //      b) labId + machineCategory set → validate the lab is owned
+  //         by this teacher; leave machine_profile_id NULL so the
+  //         fab assigns it on pickup.
+  //    Both paths converge on the same set of three fields written
+  //    to the row: lab_id, machine_category, machine_profile_id (or
+  //    null in path b).
+  let resolvedLabId: string;
+  let resolvedCategory: "3d_printer" | "laser_cutter";
+  let resolvedMachineId: string | null;
+
+  if (req.machineProfileId) {
+    const profile = await db
+      .from("machine_profiles")
+      .select("id, teacher_id, lab_id, machine_category, is_active")
+      .eq("id", req.machineProfileId)
+      .maybeSingle();
+    if (profile.error) {
+      return {
+        error: {
+          status: 500,
+          message: `Machine profile lookup failed: ${profile.error.message}`,
+        },
+      };
+    }
+    if (!profile.data || profile.data.is_active === false) {
+      return { error: { status: 404, message: "Machine profile not found" } };
+    }
+    if (
+      profile.data.teacher_id !== null &&
+      profile.data.teacher_id !== teacherId
+    ) {
+      // System templates (teacher_id null) pass through; teacher-
+      // owned machines must belong to THIS class's teacher.
+      return { error: { status: 404, message: "Machine profile not found" } };
+    }
+    if (!profile.data.lab_id) {
+      return {
+        error: {
+          status: 409,
+          message:
+            "This machine isn't assigned to a lab. Ask your teacher to move it into a lab from the Lab Setup page.",
+        },
+      };
+    }
+    if (
+      profile.data.machine_category !== "3d_printer" &&
+      profile.data.machine_category !== "laser_cutter"
+    ) {
+      return {
+        error: {
+          status: 409,
+          message: `Machine has unknown category '${profile.data.machine_category}'`,
+        },
+      };
+    }
+    resolvedLabId = profile.data.lab_id;
+    resolvedCategory = profile.data.machine_category;
+    resolvedMachineId = profile.data.id;
+  } else {
+    // Path b: labId + machineCategory provided directly. validate
+    // the lab is real + owned by this teacher.
+    const labRow = await db
+      .from("fabrication_labs")
+      .select("id, teacher_id")
+      .eq("id", req.labId as string)
+      .maybeSingle();
+    if (labRow.error) {
+      return {
+        error: {
+          status: 500,
+          message: `Lab lookup failed: ${labRow.error.message}`,
+        },
+      };
+    }
+    if (!labRow.data || labRow.data.teacher_id !== teacherId) {
+      return { error: { status: 404, message: "Lab not found" } };
+    }
+    resolvedLabId = req.labId as string;
+    resolvedCategory = req.machineCategory as "3d_printer" | "laser_cutter";
+    resolvedMachineId = null;
   }
 
   // 4. INSERT fabrication_jobs. status='uploaded' + current_revision=1 are
@@ -257,7 +394,9 @@ export async function createUploadJob(
       teacher_id: teacherId,
       student_id: req.studentId,
       class_id: req.classId,
-      machine_profile_id: req.machineProfileId,
+      lab_id: resolvedLabId,
+      machine_category: resolvedCategory,
+      machine_profile_id: resolvedMachineId,
       file_type: req.fileType,
       original_filename: req.originalFilename,
       status: "uploaded",

@@ -82,8 +82,17 @@ export interface FabJobRow {
    *  (.STL / .SVG) without parsing the filename. Source is
    *  `fabrication_jobs.file_type`. */
   fileType: "stl" | "svg";
-  machineLabel: string;
+  /** Phase 8.1d-22: machineLabel is null when the job is unassigned
+   *  (machine_profile_id IS NULL on the row). The dashboard buckets
+   *  unassigned jobs into the "Any [category]" lane for the lab. */
+  machineLabel: string | null;
   machineCategory: "3d_printer" | "laser_cutter" | null;
+  /** Phase 8.1d-22: every job belongs to a lab — the fab dashboard
+   *  scopes by it so the "3rd floor" fab only sees their lab's jobs. */
+  labId: string;
+  labName: string | null;
+  /** Phase 8.1d-22: machine_profile_id (nullable post-migration 120). */
+  machineProfileId: string | null;
   thumbnailUrl: string | null;
   currentRevision: number;
   fileSizeBytes: number | null;
@@ -214,7 +223,7 @@ async function fabricatorMachineIds(
  *
  * Returns null on missing/inactive fabricator (route should 404).
  */
-async function fabricatorInvitingTeacherId(
+export async function fabricatorInvitingTeacherId(
   db: SupabaseLike,
   fabricatorId: string
 ): Promise<string | null | OrchestrationError> {
@@ -374,7 +383,14 @@ interface RawFabQueueJob {
   original_filename: string;
   teacher_review_note: string | null;
   lab_tech_picked_up_at: string | null;
-  machine_profile_id: string;
+  // Phase 8.1d-22: machine_profile_id nullable post-migration 120;
+  // category-only jobs sit unassigned until a fab clicks Send to.
+  machine_profile_id: string | null;
+  // Phase 8.1d-22: row-level lab + category — required regardless of
+  // whether a specific machine is bound. Drives the "Any [category]"
+  // lane on the dashboard.
+  lab_id: string;
+  machine_category: string;
   created_at: string;
   updated_at: string;
   // Phase 8.1d-20: pulled in for the done_today tab so the
@@ -387,6 +403,7 @@ interface RawFabQueueJob {
   classes: { name: string | null } | null;
   units: { title: string | null } | null;
   machine_profiles: { name: string | null; machine_category: string | null } | null;
+  fabrication_labs: { name: string | null } | null;
   fabrication_job_revisions: Array<{
     revision_number: number;
     thumbnail_path: string | null;
@@ -432,12 +449,14 @@ export async function listFabricatorQueue(
       `
       id, status, current_revision, file_type, original_filename,
       teacher_review_note, lab_tech_picked_up_at, machine_profile_id,
+      lab_id, machine_category,
       created_at, updated_at,
       completion_status, completion_note, completed_at, notifications_sent,
       students(display_name, username),
       classes(name),
       units(title),
       machine_profiles(name, machine_category),
+      fabrication_labs(name),
       fabrication_job_revisions(revision_number, thumbnail_path, file_size_bytes)
       `
     )
@@ -518,6 +537,7 @@ export async function listFabricatorQueue(
       const classRow = pickFirst(raw.classes);
       const unitRow = pickFirst(raw.units);
       const machineRow = pickFirst(raw.machine_profiles);
+      const labRow = pickFirst(raw.fabrication_labs);
 
       // `approvedAt` lives on notifications_sent.approved_at per
       // migration 098 design — the column stores a JSONB map of
@@ -539,6 +559,21 @@ export async function listFabricatorQueue(
         | "failed"
         | null;
 
+      // Phase 8.1d-22: machineLabel is null when the job is
+      // unassigned (machine_profile_id IS NULL). Don't pretend
+      // there's a machine — the UI puts these in the "Any X" lane.
+      const machineLabel = raw.machine_profile_id
+        ? machineRow?.name ?? "Unknown machine"
+        : null;
+      // machineCategory falls back to the row-level column (always
+      // set post-120). machine_profiles.machine_category may differ
+      // for legacy rows, but the row-level value is canonical.
+      const machineCategory =
+        (raw.machine_category === "3d_printer" ||
+          raw.machine_category === "laser_cutter")
+          ? raw.machine_category
+          : null;
+
       return {
         jobId: raw.id,
         studentName:
@@ -549,10 +584,11 @@ export async function listFabricatorQueue(
         unitTitle: unitRow?.title ?? null,
         originalFilename: raw.original_filename,
         fileType: (raw.file_type === "svg" ? "svg" : "stl") as "stl" | "svg",
-        machineLabel: machineRow?.name ?? "Unknown machine",
-        machineCategory:
-          (machineRow?.machine_category as FabJobRow["machineCategory"]) ??
-          null,
+        machineLabel,
+        machineCategory,
+        labId: raw.lab_id,
+        labName: labRow?.name ?? null,
+        machineProfileId: raw.machine_profile_id,
         thumbnailUrl,
         currentRevision: raw.current_revision,
         fileSizeBytes: latestRev?.file_size_bytes ?? null,
@@ -772,6 +808,178 @@ export async function getFabJobDetail(
           ruleCounts: countSeverities(rawRev.scan_results?.rules),
         }
       : null,
+  };
+}
+
+// ============================================================
+// assignMachine — Phase 8.1d-22
+// ============================================================
+//
+// Binds a category-only job (machine_profile_id IS NULL) to a
+// specific machine. Allowed only when:
+//   - the job is currently in "approved" status (post-teacher-OK,
+//     pre-pickup) — we don't shuffle running jobs
+//   - the target machine belongs to the inviting teacher
+//   - the target machine matches the job's lab_id + machine_category
+//     (can't move a job from the 3rd-floor printer lab to a laser
+//     in the maker space)
+//
+// This is the core action behind the fab dashboard's "Send to →"
+// menu. PH9-FU-FAB-DRAG-ASSIGN will replace the menu UI but call
+// this same endpoint — keep the contract narrow.
+
+export interface AssignMachineRequest {
+  fabricatorId: string;
+  jobId: string;
+  machineProfileId: string;
+}
+
+export interface AssignMachineSuccess {
+  jobId: string;
+  machineProfileId: string;
+  machineLabel: string;
+}
+export type AssignMachineResult = AssignMachineSuccess | OrchestrationError;
+
+export async function assignMachine(
+  db: SupabaseLike,
+  params: AssignMachineRequest
+): Promise<AssignMachineResult> {
+  const { fabricatorId, jobId, machineProfileId } = params;
+
+  // 1. Resolve inviter teacher + check fab is active.
+  const teacherId = await fabricatorInvitingTeacherId(db, fabricatorId);
+  if (teacherId !== null && typeof teacherId === "object") return teacherId;
+  if (!teacherId) {
+    return { error: { status: 401, message: "Fabricator not active" } };
+  }
+
+  // 2. Load the job. Need lab_id + machine_category + status to
+  //    validate the assignment.
+  const jobLookup = await db
+    .from("fabrication_jobs")
+    .select(
+      "id, status, teacher_id, lab_id, machine_category, machine_profile_id"
+    )
+    .eq("id", jobId)
+    .maybeSingle();
+  const jobRow = jobLookup.data as
+    | {
+        id: string;
+        status: string;
+        teacher_id: string;
+        lab_id: string;
+        machine_category: string;
+        machine_profile_id: string | null;
+      }
+    | null;
+  if (jobLookup.error) {
+    return {
+      error: { status: 500, message: `Job lookup failed: ${jobLookup.error.message}` },
+    };
+  }
+  if (!jobRow || jobRow.teacher_id !== teacherId) {
+    return { error: { status: 404, message: "Job not found" } };
+  }
+  if (jobRow.status !== "approved") {
+    return {
+      error: {
+        status: 409,
+        message: `Can only assign machine to approved jobs (current status: ${jobRow.status}).`,
+      },
+    };
+  }
+
+  // 3. Load the target machine. Must belong to the inviting teacher,
+  //    match the job's lab + category, and be active.
+  const machineLookup = await db
+    .from("machine_profiles")
+    .select(
+      "id, name, teacher_id, lab_id, machine_category, is_active"
+    )
+    .eq("id", machineProfileId)
+    .maybeSingle();
+  const machineRow = machineLookup.data as
+    | {
+        id: string;
+        name: string;
+        teacher_id: string | null;
+        lab_id: string | null;
+        machine_category: string | null;
+        is_active: boolean;
+      }
+    | null;
+  if (machineLookup.error) {
+    return {
+      error: {
+        status: 500,
+        message: `Machine lookup failed: ${machineLookup.error.message}`,
+      },
+    };
+  }
+  if (!machineRow || machineRow.is_active === false) {
+    return { error: { status: 404, message: "Machine not found" } };
+  }
+  if (machineRow.teacher_id !== teacherId) {
+    // Teacher-owned machines must match — system templates can't be
+    // assigned to (they have teacher_id = null).
+    return { error: { status: 404, message: "Machine not found" } };
+  }
+  if (machineRow.lab_id !== jobRow.lab_id) {
+    return {
+      error: {
+        status: 409,
+        message:
+          "Machine is in a different lab from the job. Move the machine to this lab or pick another one.",
+      },
+    };
+  }
+  if (machineRow.machine_category !== jobRow.machine_category) {
+    return {
+      error: {
+        status: 409,
+        message:
+          "Machine category doesn't match — can't send a 3D-printer job to a laser cutter or vice versa.",
+      },
+    };
+  }
+
+  // 4. UPDATE machine_profile_id. Conditional on status='approved'
+  //    so a race between assign + pickup is harmless: if pickup
+  //    wins, status flipped to picked_up and this UPDATE 0-rows;
+  //    if this wins, pickup proceeds with the assigned machine.
+  const update = await db
+    .from("fabrication_jobs")
+    .update({ machine_profile_id: machineProfileId })
+    .eq("id", jobId)
+    .eq("status", "approved")
+    .select("id");
+  const { data: updateData, error: updateError } = update as {
+    data: Array<{ id: string }> | null;
+    error: { message: string } | null;
+  };
+  if (updateError) {
+    return {
+      error: {
+        status: 500,
+        message: `Assign update failed: ${updateError.message}`,
+      },
+    };
+  }
+  if (!updateData || updateData.length === 0) {
+    return {
+      error: {
+        status: 409,
+        message:
+          "Job moved out of 'approved' state before the assignment landed — refresh and try again.",
+      },
+    };
+  }
+
+  return {
+    jobId,
+    machineProfileId,
+    machineLabel: machineRow.name ?? "Unknown machine",
   };
 }
 
