@@ -6,11 +6,15 @@
  * Shape on wire:
  *   {
  *     exhibition_date: "YYYY-MM-DD" | null,
- *     mentor_checkin_interval_days: number | null,
  *     milestones: [
  *       { id, label, date: "YYYY-MM-DD", type }
  *     ]
  *   }
+ *
+ * Mentor check-in schedule was originally in this card but moved to
+ * the upcoming Mentor Manager (per-mentor, not per-class). The API
+ * still accepts a payload that omits the field; existing JSONB rows
+ * with a stale schedule key are dropped on next PATCH.
  *
  * Save strategy — explicit "Save" button per section so teachers don't
  * get surprised by auto-save on an every-keystroke basis. Milestones
@@ -31,7 +35,6 @@ interface Milestone {
 
 interface ExhibitionConfig {
   exhibition_date: string | null;
-  mentor_checkin_schedule: string | null;
   milestones: Milestone[];
 }
 
@@ -59,7 +62,6 @@ export function DatesCard({
 }) {
   const [config, setConfig] = useState<ExhibitionConfig>({
     exhibition_date: null,
-    mentor_checkin_schedule: null,
     milestones: [],
   });
   const [loading, setLoading] = useState(true);
@@ -81,7 +83,6 @@ export function DatesCard({
         if (res.status === 404) {
           setConfig({
             exhibition_date: null,
-            mentor_checkin_schedule: null,
             milestones: [],
           });
         } else {
@@ -94,8 +95,6 @@ export function DatesCard({
         await res.json();
       setConfig({
         exhibition_date: json.exhibition_config?.exhibition_date ?? null,
-        mentor_checkin_schedule:
-          json.exhibition_config?.mentor_checkin_schedule ?? null,
         milestones: json.exhibition_config?.milestones ?? [],
       });
     } catch {
@@ -120,7 +119,6 @@ export function DatesCard({
           classId,
           unitId,
           exhibition_date: config.exhibition_date,
-          mentor_checkin_schedule: config.mentor_checkin_schedule,
           milestones: config.milestones,
         }),
       });
@@ -232,68 +230,41 @@ export function DatesCard({
       )}
 
       {/* Exhibition date + countdown */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
-        <div>
-          <label
-            htmlFor="exhibition-date"
-            className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1"
-          >
-            Exhibition date
-          </label>
-          <div className="flex items-center gap-3">
-            <input
-              id="exhibition-date"
-              type="date"
-              value={config.exhibition_date ?? ""}
-              onChange={(e) =>
-                setConfig((c) => ({
-                  ...c,
-                  exhibition_date: e.target.value || null,
-                }))
-              }
-              className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
-            />
-            {daysUntil != null && (
-              <span
-                className="text-[11px] font-extrabold px-2.5 py-1 rounded-full whitespace-nowrap"
-                style={{
-                  background: daysUntil < 14 ? "#FEE2E2" : "#FAF5FF",
-                  color: daysUntil < 14 ? "#B91C1C" : "#6B21A8",
-                }}
-              >
-                {daysUntil > 0
-                  ? `in ${daysUntil} day${daysUntil === 1 ? "" : "s"}`
-                  : daysUntil === 0
-                    ? "today 🎉"
-                    : `${Math.abs(daysUntil)} day${Math.abs(daysUntil) === 1 ? "" : "s"} ago`}
-              </span>
-            )}
-          </div>
-        </div>
-        <div>
-          <label
-            htmlFor="mentor-schedule"
-            className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1"
-          >
-            Mentor check-in schedule
-          </label>
+      <div className="mb-5">
+        <label
+          htmlFor="exhibition-date"
+          className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1"
+        >
+          Exhibition date
+        </label>
+        <div className="flex items-center gap-3">
           <input
-            id="mentor-schedule"
-            type="text"
-            value={config.mentor_checkin_schedule ?? ""}
+            id="exhibition-date"
+            type="date"
+            value={config.exhibition_date ?? ""}
             onChange={(e) =>
               setConfig((c) => ({
                 ...c,
-                mentor_checkin_schedule: e.target.value || null,
+                exhibition_date: e.target.value || null,
               }))
             }
-            placeholder="e.g. Every Wed at 11am · Day 3 of cycle · Twice per fortnight"
-            className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+            className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
           />
-          <p className="text-[11px] text-gray-500 mt-1">
-            Describe your actual rhythm — school cycles, fixed weekdays,
-            ad-hoc. Kit will use this when automated nudges ship.
-          </p>
+          {daysUntil != null && (
+            <span
+              className="text-[11px] font-extrabold px-2.5 py-1 rounded-full whitespace-nowrap"
+              style={{
+                background: daysUntil < 14 ? "#FEE2E2" : "#FAF5FF",
+                color: daysUntil < 14 ? "#B91C1C" : "#6B21A8",
+              }}
+            >
+              {daysUntil > 0
+                ? `in ${daysUntil} day${daysUntil === 1 ? "" : "s"}`
+                : daysUntil === 0
+                  ? "today 🎉"
+                  : `${Math.abs(daysUntil)} day${Math.abs(daysUntil) === 1 ? "" : "s"} ago`}
+            </span>
+          )}
         </div>
       </div>
 
