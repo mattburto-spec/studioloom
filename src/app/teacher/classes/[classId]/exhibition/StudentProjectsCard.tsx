@@ -3,8 +3,14 @@
 /* Student projects inline editor (Phase 13a-5).
  *
  * One row per enrolled student. Columns: title · central idea ·
- * theme · mentor · phase. Auto-save per row, debounced 600ms. Row
- * status indicator (saving / saved / error) sits in the right gutter.
+ * theme · mentor. Auto-save per row, debounced 600ms. Row status
+ * indicator (saving / saved / error) sits in the right gutter.
+ *
+ * `current_phase` lives on the row in the API + DB but is NOT
+ * editable here — it's an output (derived from student work + AI
+ * analysis), not an input the teacher hand-sets. Reduces teacher
+ * cognitive load + avoids drift between teacher's mental model and
+ * the system's source of truth.
  *
  * Data layer:
  *  - GET  /api/teacher/student-projects?classId=…&unitId=…
@@ -23,7 +29,7 @@
  * first" banner per the 13a brief Don't-stop-for list.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type ProjectPhase = "wonder" | "findout" | "make" | "share" | "reflect";
 
@@ -47,14 +53,6 @@ interface TeacherOption {
   name: string;
   email: string;
 }
-
-const PHASES: { id: ProjectPhase; label: string; color: string }[] = [
-  { id: "wonder",  label: "Wonder",   color: "#FBBF24" },
-  { id: "findout", label: "Find out", color: "#3B82F6" },
-  { id: "make",    label: "Make",     color: "#14B8A6" },
-  { id: "share",   label: "Share",    color: "#FF3366" },
-  { id: "reflect", label: "Reflect",  color: "#8B2FC9" },
-];
 
 type RowSaveState = "idle" | "saving" | "saved" | "error";
 
@@ -266,7 +264,6 @@ export function StudentProjectsCard({
                 <th className="px-2 py-2">Central idea</th>
                 <th className="px-2 py-2 w-[150px]">Theme</th>
                 <th className="px-2 py-2 w-[170px]">Mentor</th>
-                <th className="px-2 py-2 w-[120px]">Phase</th>
                 <th className="px-2 py-2 w-[28px]" aria-label="Save status" />
               </tr>
             </thead>
@@ -308,11 +305,6 @@ function ProjectRow({
     patch: Partial<StudentProject>,
   ) => void;
 }) {
-  const phaseColor = useMemo(
-    () => PHASES.find((p) => p.id === project.current_phase)?.color,
-    [project.current_phase],
-  );
-
   return (
     <tr className="border-b border-gray-100 last:border-b-0 align-top">
       <td className="px-2 py-2">
@@ -382,29 +374,6 @@ function ProjectRow({
           {teachers.map((t) => (
             <option key={t.id} value={t.id}>
               {t.name}
-            </option>
-          ))}
-        </select>
-      </td>
-
-      <td className="px-2 py-2">
-        <select
-          value={project.current_phase ?? ""}
-          onChange={(e) => {
-            const v = (e.target.value || null) as ProjectPhase | null;
-            onEdit(
-              project,
-              { current_phase: v },
-              { current_phase: v },
-            );
-          }}
-          className="w-full bg-white border border-gray-200 rounded-md px-2 py-1.5 text-[13px] font-semibold focus:outline-none focus:ring-2 focus:ring-purple-300"
-          style={{ color: phaseColor ?? undefined }}
-        >
-          <option value="">—</option>
-          {PHASES.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.label}
             </option>
           ))}
         </select>
