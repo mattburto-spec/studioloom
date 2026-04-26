@@ -1578,3 +1578,50 @@ Trying to handle both in one route produces silent failures — either "PKCE ver
 **Systems affected:** `preflight-scanner` (v1 — writeback column correctness fix; now truly end-to-end correct on both STL and SVG paths).
 
 **Session context:** Continued from previous day's Checkpoint 3.1 verification work where the NULL `thumbnail_path` was first observed. Root-caused inside the Python adapter, fixed, tested, deployed, verified, backfilled, documented, and filed as Lesson #53 — all in one session on main. Changelog drift note: entries between 13 Apr and today (22 Apr) are missing — Dimensions3 Phases 7+ and Preflight Phases 1A/1B-1/1B-2/2A/2B-1..6 all shipped in that window without changelog appends. Out of scope to backfill now; project state is captured in ALL-PROJECTS.md + WIRING.yaml + CLAUDE.md master header instead.
+
+---
+
+### 24–26 April 2026 — Lesson Bold Sub-Phases 1–3 SHIPPED on branch + language-scaffolding-redesign spec written
+
+**Branch context:** All work on worktree `/Users/matt/CWORK/questerra-lesson-bold`, branch `lesson-bold-build` (new branch off main `6870eac`). Branch pushed to origin. `main` untouched.
+
+**What changed:**
+
+- **Sub-Phase 1: warm-paper Bold token scope + 3 stub components (24 Apr).** Extended `.sl-v2` scoped CSS in `BoldTopNav.tsx` with a nested `.lesson-bold` block carrying warm-paper tokens. Added `src/app/(student)/unit/[unitId]/template.tsx` (server component) loading Manrope + DM Sans + Instrument Serif via `next/font/google` — fixes pre-existing gap where lesson pages silently fell back to system-ui. Stub components `PhaseStrip`, `KeyConcept`, `AutonomyPicker`. Tests 1939 → 1943 (+4).
+- **Sub-Phase 2A: LessonHeader + LessonIntro + VideoBlock (24 Apr).** Extracted hero header + learning-goal block + intro media. `pageContent.learningGoal` becomes the italic-serif "Why this matters" line. `pageContent.success_criteria` becomes the 3-up numbered LO strip. Wiring-lock test in `render-path-fixtures.test.ts` rewritten (chip rendering moved into LessonHeader). Tests 1943 → 1944.
+- **Sub-Phase 2B: LessonFooter + LessonToolsRail (24 Apr).** Replaced legacy full-bleed Complete & Continue block + 4 floating FAB buttons. Modal panels + QuickCaptureFAB + MobileBottomNav + StudentFeedbackPulse preserved verbatim.
+- **Sub-Phase 2C: LessonSidebar warm-paper restyle (24 Apr).** Token-only refactor — sidebar `<aside>` got `lesson-bold` class so warm-paper tokens activate locally.
+- **Sub-Phase 3: AutonomyPicker + migration 116 + ActivityCard hint/example gating (24 Apr).** Migration 116 added `student_progress.autonomy_level TEXT CHECK IN ('scaffolded','balanced','independent')` — no DEFAULT, no NOT NULL, no backfill (Lesson #38). 5 helpers gating hints + examples. Lesson #17 retry-without-column on both upsert paths. Tests 1944 → 1952 (+8). NC: flipped `hintsAvailable` to always-true, confirmed test failed at expected line, reverted via Edit (Lesson #41). Migration 116 applied to local dev only — scheduled for rollback in language-scaffolding-redesign Phase 0 (migration 117 DROP COLUMN).
+- **5 mockup iterations on the StudioSetup drawer (24–26 Apr).** `docs/newlook/StudioSetupDrawer-mockup.html` v1 → v5. The drawer concept ultimately died in the language-scaffolding-redesign pivot (configuration → invocation).
+- **Cowork research session against ~10 platforms (Newsela, Duolingo, Immersive Reader, Read&Write, Lexia, Read Along, Khan, Seesaw, CommonLit, Medley) (26 Apr).** Established the configuration→invocation pattern. Closest reference: Medley Learning's Response Starters panel.
+- **Language scaffolding redesign pre-build spec written (26 Apr).** `docs/projects/language-scaffolding-redesign-brief.md` — 594-line spec covering audit findings (caught WIRING `student-learning-support` doc-vs-reality drift on translation / dyslexia / UDL / ADHD focus claims with no code), proposed architecture (Tap-a-word + Response Starters), 6-phase build plan, Q1–Q6 with proposed defaults, cost analysis ($0.0007/student/week, ~$0.25 per 30-student 12-week pilot), migration notes. Matt locked 7 decisions in §0.5: pivot (Q1=a), WIRING fix mid-build (Q2=i), single L1 (Q3), taps_per_100_words fade trigger (Q4), full Phase 1 mount surface, image source Wikimedia + Open Symbols, sandbox threaded from day 1.
+
+**Files created:**
+- `src/app/(student)/unit/[unitId]/template.tsx`
+- `src/components/student/lesson-bold/{PhaseStrip,KeyConcept,AutonomyPicker,LessonHeader,LessonIntro,VideoBlock,LessonFooter,LessonToolsRail,helpers,index}.tsx`
+- `src/components/student/lesson-bold/__tests__/shell.test.tsx`
+- `supabase/migrations/116_student_progress_autonomy_level.sql` — applied dev only, scheduled for rollback
+- `docs/newlook/StudioSetupDrawer-mockup.html` — 5 historical iterations
+- `docs/projects/lesson-bold-brief.md` — Lesson Bold master brief
+- `docs/projects/language-scaffolding-redesign-brief.md` — pre-build spec for the next build
+
+**Files modified:**
+- `src/components/student/BoldTopNav.tsx` — appended `.sl-v2 .lesson-bold` block
+- `src/components/student/LessonSidebar.tsx` — token-only restyle
+- `src/app/(student)/unit/[unitId]/[pageId]/page.tsx` — 661 → 565 lines
+- `src/components/student/ActivityCard.tsx` — `autonomyLevel` prop + warm-paper hint/example UI
+- `src/hooks/usePageResponses.ts` — exposes `autonomyLevel` + setter
+- `src/app/api/student/progress/route.ts` — accepts `autonomyLevel` + retry-without-column
+- `src/types/index.ts` — `StudentProgress.autonomy_level?` union
+- `src/lib/frameworks/__tests__/render-path-fixtures.test.ts` — wiring-lock rewrite
+
+**Test counts:** 1939 → **1952 passed · 8 skipped · 1960 total · 127 files**.
+
+**Commits (all pushed to `origin/lesson-bold-build`):** `e77a313` · `ba8594c` · `537fbdd` · `dbde598` · `6e64ad3` · `ba87542` · `7aa3421` · `a721dcf` · `fb7085d` · `31847bf` · `8e28195` · `6de8a1f` · `c8a194d` · `a8c0907`.
+
+**Systems affected:** `lesson-view` (v1 → v1.5, warm-paper Bold restyle on branch), `student-learning-support` (planned doc-vs-reality drift fix in Phase 0 of redesign), new tracked work `language-scaffolding-redesign`. AutonomyPicker flagged for rollback next session.
+
+**Follow-ups filed:**
+- `FU-LS-DRIFT` — WIRING `student-learning-support` entry was claiming complete features that didn't exist (translation, dyslexia fonts, UDL, ADHD focus). Update entry to `status: planned` + `currentVersion: 0` in Phase 0 of language-scaffolding-redesign.
+
+**Session context:** Hybrid build session — Sub-Phases 1–3 of Lesson Bold shipped methodically against a brief written at session start; mid-session pivot triggered by Matt observing that AutonomyPicker felt off; Cowork research session led to invocation-over-configuration thesis; spec for the redesign written + signed off; AutonomyPicker scheduled for rollback. Branch `lesson-bold-build` is push-clean but not yet merged to main — merge happens after language-scaffolding-redesign Phase 0 (rollback) lands cleanly. **Migration 116 in dev only — DROP via migration 117 will land in same Phase 0.** Pending-push count to main: 0 (work is on feature branch).
