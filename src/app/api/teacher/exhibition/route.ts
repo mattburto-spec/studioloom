@@ -28,14 +28,12 @@ export interface ExhibitionMilestone {
 
 export interface ExhibitionConfig {
   exhibition_date?: string | null;
-  /** Free-text description of the mentor check-in rhythm. Examples:
-   *  "Every Wed at 11am", "Day 3 of cycle, P3 in the learning commons",
-   *  "Twice per 8-day cycle", "Ad-hoc — when students message me".
-   *  Kit will read this verbatim when automated nudges ship; humans
-   *  describing their actual schedule in their own words is more
-   *  robust than modelling every school's timetable system. */
-  mentor_checkin_schedule?: string | null;
   milestones?: ExhibitionMilestone[];
+  /* Mentor check-in schedule used to live here. Removed — schedules
+   * vary per mentor, not per class, so they belong to the upcoming
+   * Mentor Manager instead. The PATCH handler drops any stale
+   * mentor_checkin_schedule key from existing JSONB rows on next
+   * write (see cleanup block below). */
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -87,8 +85,7 @@ export async function GET(request: NextRequest) {
 
 // ─────────────────────────────────────────────────────────────
 // PATCH /api/teacher/exhibition
-// body: { classId, unitId, exhibition_date?, mentor_checkin_schedule?,
-//         milestones? }
+// body: { classId, unitId, exhibition_date?, milestones? }
 //
 // Partial merge — only fields present in the body are updated. Pass
 // `null` to clear a field (e.g. `{ exhibition_date: null }`). `milestones`
@@ -102,7 +99,6 @@ export async function PATCH(request: NextRequest) {
     classId?: string;
     unitId?: string;
     exhibition_date?: string | null;
-    mentor_checkin_schedule?: string | null;
     milestones?: ExhibitionMilestone[];
   };
   try {
@@ -140,15 +136,18 @@ export async function PATCH(request: NextRequest) {
 
   const next: ExhibitionConfig = { ...prev };
   if ("exhibition_date" in body) next.exhibition_date = body.exhibition_date;
-  if ("mentor_checkin_schedule" in body) {
-    next.mentor_checkin_schedule = body.mentor_checkin_schedule;
-  }
   if ("milestones" in body) next.milestones = body.milestones;
-  // Legacy cleanup — drop the older interval-days key if it's still
-  // hanging around in the JSONB from an early-adopter row. Safe to
-  // delete because nobody consumes it yet.
-  if ("mentor_checkin_interval_days" in (next as Record<string, unknown>)) {
-    delete (next as Record<string, unknown>).mentor_checkin_interval_days;
+  // Legacy cleanup — drop fields that lived here in earlier iterations.
+  // Both moved out of class-scope (interval_days replaced by free-text
+  // schedule, which itself moved to Mentor Manager). Safe to delete —
+  // nothing reads them.
+  for (const stale of [
+    "mentor_checkin_interval_days",
+    "mentor_checkin_schedule",
+  ]) {
+    if (stale in (next as Record<string, unknown>)) {
+      delete (next as Record<string, unknown>)[stale];
+    }
   }
 
   const { error: updateErr } = await db
