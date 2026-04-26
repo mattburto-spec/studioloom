@@ -22,7 +22,8 @@ Every phase starts with, in this order:
 - `npm test` baseline captured (Lesson #34) — the new test count becomes the new baseline
 - Relevant prior Lessons re-read (list them in the phase brief so Code sees them)
 - Audit what exists before touching it — grep, list, map, count
-- **If the phase adds a migration**: run `bash scripts/migrations/next-free-number.sh` to get the next safe migration number across ALL active branches (not just your worktree's view). Phase 8-1 collision story (`docs/projects/preflight-phase-8-1-brief.md`) is the cautionary tale — local `ls supabase/migrations/` lies when parallel branches have claimed numbers.
+- **If the phase adds a migration**: mint with `bash scripts/migrations/new-migration.sh <descriptor>` (timestamp-prefixed, claim-discipline workflow). Don't author 3-digit numbered migrations any more — we collided twice in 24 hours during Preflight Phase 8 / Lesson Bold overlap. Legacy helper `next-free-number.sh` still exists for emergency use only. Read `/Users/matt/CWORK/.active-sessions.txt` first to see which other worktrees are mid-flight.
+- **If the phase adds a migration, before merging**: run `bash scripts/migrations/verify-no-collision.sh`. Exits non-zero on any same-prefix-different-filename collision against `origin/main`. This is a Matt Checkpoint gate — do not sign off without a clean run.
 - **STOP and report the audit before any changes**
 
 The pre-flight has caught more problems than any test suite. Skipping it is the most common failure mode.
@@ -60,8 +61,11 @@ Don't push to `origin/main` until:
 - Checkpoint is signed off in chat
 - Any migrations are applied to prod Supabase
 - Smoke-test run locally (or an honest flag that interactive smoke wasn't feasible)
+- `bash scripts/migrations/verify-no-collision.sh` exits clean (if the phase added migrations)
 
 Backup pattern: `git push origin main:phase-X-wip` pushes working state to a wip branch without triggering Vercel prod deploys. Keeps long phases safe without risking prod. `phase-X-wip` gets refreshed after every meaningful commit.
+
+**Don't run merges in the main worktree** (`/Users/matt/CWORK/questerra`) if you're mid-session and might get interrupted. An in-progress merge with conflicts can strand WIP for days (we hit this 26 Apr). Either fast-forward via PR on origin, or use a throwaway worktree (`git worktree add ../questerra-merge main`) you delete after.
 
 ## Follow-ups tracked, never dropped
 

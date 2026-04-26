@@ -1,5 +1,17 @@
 #!/bin/bash
-# Migration Number Reserver
+# Migration Number Reserver — LEGACY HELPER
+#
+# ⚠️  DEPRECATED for new migrations as of 26 Apr 2026.
+#     New migrations should use timestamp prefixes (Supabase CLI default):
+#         bash scripts/migrations/new-migration.sh <descriptor>
+#     Two parallel sessions cannot pick the same UTC second, which kills
+#     the collision class entirely. We had two collisions in 24 hours
+#     during the Preflight Phase 8 / Lesson Bold overlap before switching.
+#
+#     This script is kept working for emergency use, branch audits, and
+#     reading legacy migration history. Don't author new 3-digit
+#     migrations with it unless you have a specific reason and have
+#     coordinated with every active worktree.
 #
 # Finds the next safe migration number across ALL active branches on
 # origin, not just your current worktree. Prevents the collision
@@ -61,11 +73,15 @@ fi
 
 # Helper: extract numeric prefixes from supabase/migrations/ on a branch.
 # Filters to .sql files (skips .down.sql to avoid double-counting).
+# Also filters OUT timestamp-prefixed migrations (≥9 digits), since those
+# don't compete for the small-integer namespace.
 extract_nums() {
   local branch="$1"
   git ls-tree -r --name-only "$branch" supabase/migrations/ 2>/dev/null \
     | grep -E '^supabase/migrations/[0-9]+_[^.]+\.sql$' \
+    | grep -v '\.down\.sql$' \
     | sed -E 's|^supabase/migrations/([0-9]+)_.*$|\1|' \
+    | awk 'length($0) <= 5' \
     | sort -un
 }
 
