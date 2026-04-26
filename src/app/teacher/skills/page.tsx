@@ -157,12 +157,21 @@ export default function TeacherSkillsListPage() {
             demonstration and quiz.
           </p>
         </div>
-        <Link
-          href="/teacher/skills/new"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700"
-        >
-          + New card
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href="/teacher/skills/import"
+            title="Paste a JSON card authored in Claude Code"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-medium"
+          >
+            ⤓ Import JSON
+          </Link>
+          <Link
+            href="/teacher/skills/new"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700"
+          >
+            + New card
+          </Link>
+        </div>
       </div>
 
       {/* --- Filters --- */}
