@@ -24,7 +24,10 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { FabJobRow } from "@/lib/fabrication/fab-orchestration";
-import { formatRelativeTime } from "@/components/fabrication/revision-history-helpers";
+import {
+  formatRelativeTime,
+  formatDateTime,
+} from "@/components/fabrication/revision-history-helpers";
 import {
   formatFileSize,
   machineCategoryLabel,
@@ -32,6 +35,15 @@ import {
   fabEmptyMessage,
   type FabQueueTab,
 } from "@/components/fabrication/fab-queue-helpers";
+
+// Phase 8.1d-15: client-side filter + sort. Lab techs were
+// triaging across multiple classes / machines / days with no way
+// to narrow down. Keeping the filter state purely client-side
+// means no API changes — the queue endpoint already returns all
+// the jobs the fabricator is allowed to see; we just slice + sort
+// in the browser.
+type SortOrder = "newest" | "oldest";
+const _ALL = "__all__"; // sentinel for "no filter"
 
 const TABS: FabQueueTab[] = ["ready", "in_progress"];
 
@@ -163,21 +175,177 @@ export default function FabQueueClient() {
 }
 
 function FabJobList({ jobs }: { jobs: FabJobRow[] }) {
+  // Filter + sort state — local to the list since we want it to
+  // reset when the tab changes (different jobs anyway).
+  const [classFilter, setClassFilter] = React.useState<string>(_ALL);
+  const [machineFilter, setMachineFilter] = React.useState<string>(_ALL);
+  const [sortOrder, setSortOrder] = React.useState<SortOrder>("newest");
+
+  // Derive available filter values from the jobs we actually have.
+  // No need to fetch the full class/machine lists; the dropdown
+  // only shows values that match at least one row.
+  const { classOptions, machineOptions } = React.useMemo(() => {
+    const classes = new Set<string>();
+    const machines = new Set<string>();
+    for (const j of jobs) {
+      if (j.className) classes.add(j.className);
+      if (j.machineLabel) machines.add(j.machineLabel);
+    }
+    return {
+      classOptions: Array.from(classes).sort((a, b) => a.localeCompare(b)),
+      machineOptions: Array.from(machines).sort((a, b) => a.localeCompare(b)),
+    };
+  }, [jobs]);
+
+  // Sort key: prefer pickedUpAt (in_progress tab) else approvedAt.
+  // Both are ISO strings → string-compare works for sorting.
+  function sortKey(job: FabJobRow): string {
+    return job.pickedUpAt ?? job.approvedAt ?? "";
+  }
+
+  const visibleJobs = React.useMemo(() => {
+    const filtered = jobs.filter((j) => {
+      if (classFilter !== _ALL && j.className !== classFilter) return false;
+      if (machineFilter !== _ALL && j.machineLabel !== machineFilter)
+        return false;
+      return true;
+    });
+    return filtered.sort((a, b) => {
+      const ka = sortKey(a);
+      const kb = sortKey(b);
+      if (ka === kb) return 0;
+      const cmp = ka < kb ? -1 : 1;
+      return sortOrder === "newest" ? -cmp : cmp;
+    });
+  }, [jobs, classFilter, machineFilter, sortOrder]);
+
+  const isFiltered = classFilter !== _ALL || machineFilter !== _ALL;
+  const showFilterBar =
+    jobs.length > 1 && (classOptions.length > 1 || machineOptions.length > 1);
+
   return (
-    <ul className="space-y-3">
-      {jobs.map((job) => (
-        <FabJobListRow key={job.jobId} job={job} />
-      ))}
-    </ul>
+    <div>
+      {showFilterBar && (
+        <div className="mb-4 rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {classOptions.length > 1 && (
+              <FilterSelect
+                label="Class"
+                value={classFilter}
+                onChange={setClassFilter}
+                options={classOptions}
+              />
+            )}
+            {machineOptions.length > 1 && (
+              <FilterSelect
+                label="Machine"
+                value={machineFilter}
+                onChange={setMachineFilter}
+                options={machineOptions}
+              />
+            )}
+            <div className="ml-auto flex items-center gap-2">
+              <label className="text-xs text-slate-400">Sort</label>
+              <select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value as SortOrder)}
+                className="rounded border border-slate-700 bg-slate-950 text-slate-200 text-xs px-2 py-1 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+              >
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+              </select>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            {isFiltered ? (
+              <>
+                Showing {visibleJobs.length} of {jobs.length} jobs.{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClassFilter(_ALL);
+                    setMachineFilter(_ALL);
+                  }}
+                  className="text-sky-400 hover:text-sky-300 underline underline-offset-2"
+                >
+                  Clear filters
+                </button>
+              </>
+            ) : (
+              <>
+                {jobs.length} {jobs.length === 1 ? "job" : "jobs"} total
+              </>
+            )}
+          </p>
+        </div>
+      )}
+
+      {visibleJobs.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 p-8 text-center">
+          <p className="text-sm text-slate-300">
+            No jobs match your filters.{" "}
+            <button
+              type="button"
+              onClick={() => {
+                setClassFilter(_ALL);
+                setMachineFilter(_ALL);
+              }}
+              className="text-sky-400 hover:text-sky-300 underline underline-offset-2"
+            >
+              Clear filters
+            </button>
+          </p>
+        </div>
+      ) : (
+        <ul className="space-y-3">
+          {visibleJobs.map((job) => (
+            <FabJobListRow key={job.jobId} job={job} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+  options: string[];
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <label className="text-xs text-slate-400">{label}</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded border border-slate-700 bg-slate-950 text-slate-200 text-xs px-2 py-1 max-w-[12rem] truncate focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+      >
+        <option value={_ALL}>All</option>
+        {options.map((opt) => (
+          <option key={opt} value={opt}>
+            {opt}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }
 
 function FabJobListRow({ job }: { job: FabJobRow }) {
-  const when = job.pickedUpAt
-    ? `Picked up ${formatRelativeTime(job.pickedUpAt)}`
-    : job.approvedAt
-      ? `Approved ${formatRelativeTime(job.approvedAt)}`
-      : "—";
+  // Phase 8.1d-15: show BOTH relative ("2h ago") + absolute
+  // ("23 Apr · 14:32") timestamps. Lab techs need to triage across
+  // days, and "2d ago" loses meaning fast — the absolute stamp
+  // resolves "is this from yesterday or last week" at a glance.
+  const tsIso = job.pickedUpAt ?? job.approvedAt ?? null;
+  const tsLabel = job.pickedUpAt ? "Picked up" : "Approved";
+  const relativeWhen = tsIso ? `${tsLabel} ${formatRelativeTime(tsIso)}` : "—";
+  const absoluteWhen = tsIso ? formatDateTime(tsIso) : null;
 
   return (
     <li>
@@ -245,9 +413,15 @@ function FabJobListRow({ job }: { job: FabJobRow }) {
             )}
           </div>
 
-          {/* Right-side time */}
-          <div className="text-xs text-slate-500 whitespace-nowrap shrink-0 mt-0.5">
-            {when}
+          {/* Right-side time — relative on top (quick triage), absolute
+              underneath (resolves "yesterday vs last week" precisely). */}
+          <div className="text-xs whitespace-nowrap shrink-0 mt-0.5 text-right">
+            <div className="text-slate-400">{relativeWhen}</div>
+            {absoluteWhen && (
+              <div className="text-slate-600 mt-0.5 font-mono">
+                {absoluteWhen}
+              </div>
+            )}
           </div>
         </div>
       </Link>
