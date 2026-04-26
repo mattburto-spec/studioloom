@@ -434,6 +434,54 @@ describe("createMachineProfile", () => {
     if (!isOrchestrationError(result)) return;
     expect(result.error.status).toBe(409);
   });
+
+  // Phase 8.1d-13: when 23505 fires AND there's a soft-deleted
+  // machine with the same name, surface the "you have a deactivated
+  // one" framing so the teacher knows to either rename the new one
+  // or restore the old one — instead of being told "you already
+  // have one" with no obvious next step.
+  it("23505 + inactive duplicate surfaces 'deactivated machine' message", async () => {
+    const fake = makeFakeClient({
+      labRows: [{ id: LAB1, teacher_id: T1 }],
+      insertError: { message: "dup", code: "23505" },
+      machineLookupRows: [{ id: "soft-deleted-id" }],
+    });
+    const result = await createMachineProfile(fake as never, {
+      teacherId: T1,
+      labId: LAB1,
+      name: "Bambu Lab P1S",
+      machineCategory: "3d_printer",
+      bedSizeXMm: 256,
+      bedSizeYMm: 256,
+    });
+    expect(isOrchestrationError(result)).toBe(true);
+    if (!isOrchestrationError(result)) return;
+    expect(result.error.status).toBe(409);
+    expect(result.error.message).toMatch(/deactivated machine/i);
+    expect(result.error.message).toContain("Bambu Lab P1S");
+    expect(result.error.message).toMatch(/reactivate|restore|bin/i);
+  });
+
+  it("23505 with no inactive duplicate surfaces 'another in this lab' message + suggested name", async () => {
+    const fake = makeFakeClient({
+      labRows: [{ id: LAB1, teacher_id: T1 }],
+      insertError: { message: "dup", code: "23505" },
+      machineLookupRows: [null], // inactive probe finds nothing
+    });
+    const result = await createMachineProfile(fake as never, {
+      teacherId: T1,
+      labId: LAB1,
+      name: "Bambu Lab P1S",
+      machineCategory: "3d_printer",
+      bedSizeXMm: 256,
+      bedSizeYMm: 256,
+    });
+    expect(isOrchestrationError(result)).toBe(true);
+    if (!isOrchestrationError(result)) return;
+    expect(result.error.status).toBe(409);
+    expect(result.error.message).toMatch(/another machine in this lab/i);
+    expect(result.error.message).toContain('"Bambu Lab P1S #2"');
+  });
 });
 
 // ============================================================

@@ -479,13 +479,43 @@ export async function createMachineProfile(
   };
 
   if (insertError) {
-    // 23505 = unique name collision (per-teacher or system-template scope).
+    // 23505 = unique name collision. Pre-118 the index was scoped on
+    // (teacher_id, name) without the is_active predicate, so a
+    // soft-deleted machine could hold the name hostage and surface
+    // as a confusing "you already have a machine with that name"
+    // error. Migration 118 narrows the scope to (teacher_id, lab_id,
+    // name) WHERE is_active = true, but keep the diagnostic split
+    // here so the message stays correct on hosts that haven't
+    // applied 118 yet — and so the friendly "{name} #2" suggestion
+    // lands either way.
     if (insertError.code === "23505") {
+      // Phase 8.1d-13: probe whether an inactive duplicate is the
+      // culprit. Cheap — only runs on the error path.
+      const inactiveProbe = await db
+        .from("machine_profiles")
+        .select("id")
+        .eq("teacher_id", params.teacherId)
+        .eq("name", name)
+        .eq("is_active", false)
+        .maybeSingle();
+      if (inactiveProbe.data) {
+        return {
+          error: {
+            status: 409,
+            message:
+              `You have a deactivated machine called "${name}". ` +
+              `Either rename this one (try "${name} #2"), or ` +
+              `reactivate the existing one from the bin.`,
+          },
+        };
+      }
       return {
         error: {
           status: 409,
           message:
-            "You already have a machine with that name. Pick a unique name per teacher.",
+            `Another machine in this lab is already called "${name}". ` +
+            `Pick a different name (e.g., "${name} #2"). Two ` +
+            `labs can each have a "${name}" — only the same lab can't.`,
         },
       };
     }
