@@ -1777,3 +1777,37 @@ Trying to handle both in one route produces silent failures — either "PKCE ver
 **Systems affected:** `preflight-scanner` (v1 — writeback column correctness fix; now truly end-to-end correct on both STL and SVG paths).
 
 **Session context:** Continued from previous day's Checkpoint 3.1 verification work where the NULL `thumbnail_path` was first observed. Root-caused inside the Python adapter, fixed, tested, deployed, verified, backfilled, documented, and filed as Lesson #53 — all in one session on main. Changelog drift note: entries between 13 Apr and today (22 Apr) are missing — Dimensions3 Phases 7+ and Preflight Phases 1A/1B-1/1B-2/2A/2B-1..6 all shipped in that window without changelog appends. Out of scope to backfill now; project state is captured in ALL-PROJECTS.md + WIRING.yaml + CLAUDE.md master header instead.
+
+---
+
+### 25 April 2026 — Access Model v2 project plan drafted (planning session, no code)
+
+**What changed:**
+- New project plan written: `docs/projects/access-model-v2.md` (~430 lines, 11 sections, 6 phases). Architecture spec for unifying StudioLoom's three parallel auth systems (student token + Supabase teacher Auth + Fabricator Argon2id), introducing schools as a first-class entity, audit log, per-student AI budgets, FERPA/GDPR/PIPL data export+delete, and OAuth (Google + Microsoft + email/PW; Apple deferred behind feature flag).
+- **8 architecture decisions locked** during the planning session: (1) every student is an `auth.users` row from day one — classcode+name becomes a custom Supabase auth flow rather than a parallel system; (2) flat school membership with no designated admin — any teacher edits school settings under a two-tier rule (low-stakes instant + 7-day revert; high-stakes need 2nd-teacher confirm in 48h); (3) immutable append-only audit_events; (4) `region` column on schools as forward-prep for residency splits; (5) `unit_version_id` on submission-shaped tables for assessment integrity; (6) per-student AI budget (default 100k tokens/day) enforced at route layer; (7) class-level roles via `class_members`, flat at school level — Matt's super-admin sits on a separate `is_platform_admin` flag on `auth.users`; (8) bootstrap grace window of 7 days for single-teacher schools.
+- **5 forward-compat schema seams** added to Phase 0 (schema only, no UX): `school_resources` polymorphic table + relations (first consumer = PYP/Service "people, places, things" library); `guardians` + `student_guardians`; SIS columns (`external_id`/`sis_source`/`last_synced_at`) on students+teachers+classes; `consents` table for FERPA/GDPR/PIPL; `schools.status` lifecycle enum.
+- **External community member auth (§8.7)** added as future appendix — `community_member` user_type extensibility, invite-only magic-link, time-bounded class-scoped access. First concrete consumer: Mentor Manager for PYP coordinators / G5 teachers / Service Learning leads (annual mentor recruitment + matching workflow).
+- **ALL-PROJECTS.md updates:** added "Access Model v2" entry in Planned section; added "Mentor Manager (PYP / G5 / Service Learning)" entry in Ideas Backlog → High Priority Ideas (4-6d, gated on Access Model v2 shipping); marked "Auth / ServiceContext Seam" as superseded by Access Model v2; reconciled Governance GOV-2 entry — components (1) audit log + (2) Access Model v2 + (4) DSR runbook are now subsumed by Access Model v2, GOV-2 reduces to just (3) impersonation/support-view (~1-2d).
+- **Governance + scope reconciliation:** Access Model v2 closes FU-O (no co-teacher/dept-head/admin) + FU-P (no school/org entity) + FU-R (auth model split) + FU-Q (dual student identity) + FU-W (no audit log) — five backlog items collapsed into one project. Unblocks `PH6-FU-MULTI-LAB-SCOPING` (Phase 6 Preflight follow-up). Provides the missing `access-model-v2-spec.md` referenced by GOV-2.
+- **Phase 0 trigger:** Preflight Phase 8 ships + merges to main, dashboard-v2 polish quiescent. Estimated wait ~1–2 weeks. Worktree (when work begins): `/Users/matt/CWORK/questerra-access-v2` on branch `access-model-v2`. Do not run parallel with Preflight or dashboard-v2 — surface area too large.
+
+**Files created:**
+- `docs/projects/access-model-v2.md` (~430 lines) — full project plan with §1 Why Now, §2 Architecture Decisions (7), §3 Scope (28 in-scope items + 9 explicitly deferred), §4 Phase Plan (6 phases, named Matt Checkpoints), §5 Migration Strategy, §6 Risks, §7 Resolved Decisions (8), §8 School Settings & Governance (8.1 inventory, 8.2 4-layer dedup, 8.3 governance model, 8.4 platform super-admin view, 8.5 migration of existing settings, 8.6 forward-compat seams, 8.7 external community member appendix), §9 Impact on Existing Systems (per WIRING.yaml), §10 Pre-Build Checklist, §11 References.
+
+**Files modified:**
+- `docs/projects/ALL-PROJECTS.md` — Access Model v2 project entry added; Mentor Manager idea added; Auth / ServiceContext Seam marked superseded; Governance GOV-2 reconciled.
+- `docs/doc-manifest.yaml` — new entry for `access-model-v2.md`; bumped `last_verified` on `ALL-PROJECTS.md`.
+- `docs/changelog.md` — this entry.
+
+**Test counts:** unchanged (no code changes). `npm test` baseline 1854 untouched. pytest 245 untouched.
+
+**Systems affected:** *None shipped.* Plan documents future work on `auth-system`, `class-management`, `student-progress`, `fabrication-pipeline`, `nm-assessment`, `student-content-moderation-log`, `ingestion-pipeline`, `school-calendar` and four new planned systems (`school-governance`, `school-registration`, `school-library`, `platform-admin-console`). No WIRING.yaml updates this session — planned tables/systems do not enter registries until they're built.
+
+**Registry sync results (saveme step 11):**
+- `api-registry.yaml` — drift from prior sessions captured (+182 lines, not from this session). Reviewed and committed.
+- `ai-call-sites.yaml` — drift from prior sessions captured (no diff this session). No-op.
+- `feature-flags.yaml` — `SENTRY_AUTH_TOKEN` orphan persists (FU-CC, P3 known).
+- `vendors.yaml` — status: ok, no drift.
+- `rls-coverage.json` — 7 tables with `rls_enabled_no_policy` (FU-FF, P3 known — `ai_model_config`, `ai_model_config_history`, `fabrication_scan_jobs`, `fabricator_sessions`, `student_sessions`, `teacher_access_requests`).
+
+**Session context:** 8-turn planning conversation initiated by Matt asking about adding OAuth (Google/Microsoft/Apple + email+PW) for students in regions outside China while preserving the classcode+name path for Chinese students (PIPL constraint). Conversation widened to "what else should we lock in now while there are zero students" and produced a world-class spec for the broader access model rather than just OAuth. Matt explicitly approved the elegant unified-auth approach over the simpler dual-auth shortcut: *"id rather do the more elegant approach that is better long term. make this world class. there still aren't any students using it."* Matt also locked in the flat-school-governance model (no designated admin, two-tier change rules) over the conventional school_admin role — *"have teachers be able to edit for all teachers for school-wide settings rather than have a single person who is designated admin of school (who would manage that?) or avoid having another separate school login"*. No code touched. Trigger to begin Phase 0 work: Preflight Phase 8 ships + dashboard-v2 polish quiescent.

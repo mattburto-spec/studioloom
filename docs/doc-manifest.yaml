@@ -313,10 +313,19 @@ docs:
     title: "StudioLoom — Master Project Index"
     purpose: "CANONICAL project tracker. ALL project status, new projects, completions. Single source of truth."
     category: projects
-    last_verified: "2026-04-22"
+    last_verified: "2026-04-25"
     referenced_from: ["CLAUDE.md project tracking section"]
     max_age_days: 90
-    last_scanned: "2026-04-22"
+    last_scanned: "2026-04-25"
+
+  - path: docs/projects/access-model-v2.md
+    title: "Access Model v2 — Auth Unification, Multi-Tenancy & Privacy Foundation"
+    purpose: "Project plan (16-22 days, 6 phases) for unifying StudioLoom's auth model (every student → auth.users, classcode+name as custom Supabase flow), introducing schools as a first-class entity with flat membership + no-designated-admin governance (two-tier change rules, 7-day revert, 48h confirm window), audit log, per-student AI budgets, FERPA/GDPR/PIPL data export+delete, OAuth (Google + Microsoft + email/PW; Apple deferred), and forward-compat schema seams (school_resources polymorphic for PYP/Service library + alumni + partners; guardians; SIS external IDs; consents; school lifecycle). Collapses FU-O/P/R/Q/W into one project. Provides the spec gap referenced by Governance GOV-2. Design phase signed off 25 Apr 2026; Phase 0 trigger = Preflight Phase 8 ships + dashboard-v2 polish quiescent."
+    category: projects
+    last_verified: "2026-04-25"
+    referenced_from: ["ALL-PROJECTS.md Access Model v2 project", "ALL-PROJECTS.md Governance GOV-2 (subsumed components)", "ALL-PROJECTS.md Mentor Manager (gated dependency)"]
+    max_age_days: 90
+    last_scanned: "2026-04-25"
 
   - path: docs/projects/discovery-engine-cognitive-layer.md
     title: "Discovery Engine — Cognitive Layer (MindPrint-Informed)"
