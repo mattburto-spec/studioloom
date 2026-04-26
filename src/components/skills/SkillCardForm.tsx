@@ -13,9 +13,10 @@
  * Scouts-style pamphlet is structured.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BlockEditor } from "./BlockEditor";
 import { BlockRenderer } from "./BlockRenderer";
+import { AISuggestBox } from "./AISuggestBox";
 import "./skills.css";
 import { nanoid } from "nanoid";
 import {
@@ -277,6 +278,35 @@ export function SkillCardForm({
     const first = demoOfCompetency.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
     return (CONTROLLED_VERBS as readonly string[]).includes(first);
   }, [demoOfCompetency]);
+
+  // ---------- AI assist — builds the draft snapshot sent to /api/teacher
+  // /skills/ai/* endpoints. Read inside a callback so each click captures
+  // the latest form state (controlled inputs).
+  const buildAIDraft = useCallback(() => {
+    return {
+      title: title.trim(),
+      summary: summary.trim() || null,
+      tier: tier || null,
+      age_min: ageMin ? Number(ageMin) : null,
+      age_max: ageMax ? Number(ageMax) : null,
+      body,
+      demo_of_competency: demoOfCompetency.trim() || null,
+      learning_outcomes: learningOutcomes.map((o) => o.trim()).filter(Boolean),
+      framework_anchors: frameworkAnchors.filter(
+        (a) => a.framework && a.label?.trim()
+      ),
+    };
+  }, [
+    title,
+    summary,
+    tier,
+    ageMin,
+    ageMax,
+    body,
+    demoOfCompetency,
+    learningOutcomes,
+    frameworkAnchors,
+  ]);
 
   // ---------- Dynamic list helpers ----------
   function updateListAt<T>(
@@ -626,6 +656,29 @@ export function SkillCardForm({
               </span>
             )}
         </label>
+        <AISuggestBox<string>
+          endpoint="/api/teacher/skills/ai/suggest-demo"
+          buildDraft={buildAIDraft}
+          responseKey="suggestions"
+          mode="single"
+          buttonLabel="✨ Suggest demo lines"
+          hint="Generates 3-5 candidates starting with a controlled verb."
+          precheck={(d) =>
+            (d.title as string)?.trim()
+              ? null
+              : "Add a card title first."
+          }
+          onPick={(s) => setDemoOfCompetency(s)}
+          renderSuggestion={(s, i, onPick) => (
+            <button
+              type="button"
+              onClick={() => onPick(s)}
+              className="w-full text-left text-sm px-3 py-1.5 rounded-md bg-white border border-indigo-100 hover:border-indigo-300 hover:bg-indigo-50"
+            >
+              {s}
+            </button>
+          )}
+        />
 
         <div>
           <div className="flex items-center justify-between mb-2">
@@ -672,6 +725,36 @@ export function SkillCardForm({
               </li>
             ))}
           </ul>
+          <AISuggestBox<string>
+            endpoint="/api/teacher/skills/ai/suggest-outcomes"
+            buildDraft={buildAIDraft}
+            responseKey="suggestions"
+            mode="multi"
+            buttonLabel="✨ Suggest outcomes"
+            hint="Adds 'Student can…' outcomes drawn from your card body."
+            precheck={(d) =>
+              (d.title as string)?.trim()
+                ? null
+                : "Add a card title first."
+            }
+            onPick={(s) => {
+              setLearningOutcomes((prev) => {
+                // Drop any leading empty input then append
+                const cleaned = prev.filter((o) => o.trim().length > 0);
+                if (cleaned.includes(s)) return prev;
+                return [...cleaned, s];
+              });
+            }}
+            renderSuggestion={(s, i, onPick) => (
+              <button
+                type="button"
+                onClick={() => onPick(s)}
+                className="w-full text-left text-sm px-3 py-1.5 rounded-md bg-white border border-indigo-100 hover:border-indigo-300 hover:bg-indigo-50"
+              >
+                + {s}
+              </button>
+            )}
+          />
         </div>
 
         <div>
@@ -752,6 +835,42 @@ export function SkillCardForm({
               })}
             </ul>
           )}
+          <AISuggestBox<FrameworkAnchor>
+            endpoint="/api/teacher/skills/ai/suggest-anchors"
+            buildDraft={buildAIDraft}
+            responseKey="anchors"
+            mode="multi"
+            buttonLabel="✨ Suggest anchors"
+            hint="Maps this card to 1-3 framework labels."
+            precheck={(d) =>
+              (d.title as string)?.trim()
+                ? null
+                : "Add a card title first."
+            }
+            onPick={(a) => {
+              setFrameworkAnchors((prev) => {
+                const dupe = prev.some(
+                  (x) =>
+                    x.framework === a.framework &&
+                    x.label.trim().toLowerCase() === a.label.trim().toLowerCase()
+                );
+                if (dupe) return prev;
+                return [...prev, a];
+              });
+            }}
+            renderSuggestion={(a, i, onPick) => (
+              <button
+                type="button"
+                onClick={() => onPick(a)}
+                className="w-full text-left text-sm px-3 py-1.5 rounded-md bg-white border border-indigo-100 hover:border-indigo-300 hover:bg-indigo-50 flex items-center gap-2"
+              >
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded">
+                  {a.framework}
+                </span>
+                <span>+ {a.label}</span>
+              </button>
+            )}
+          />
         </div>
 
         <div>
@@ -1075,6 +1194,7 @@ export function SkillCardForm({
         setRetakeCooldown={setRetakeCooldown}
         questionCount={questionCount}
         setQuestionCount={setQuestionCount}
+        buildAIDraft={buildAIDraft}
       />
 
       {/* =============== Submit =============== */}
@@ -1157,6 +1277,7 @@ function QuizSection({
   setRetakeCooldown,
   questionCount,
   setQuestionCount,
+  buildAIDraft,
 }: {
   questions: QuizQuestion[];
   setQuestions: React.Dispatch<React.SetStateAction<QuizQuestion[]>>;
@@ -1166,7 +1287,68 @@ function QuizSection({
   setRetakeCooldown: React.Dispatch<React.SetStateAction<string>>;
   questionCount: string;
   setQuestionCount: React.Dispatch<React.SetStateAction<string>>;
+  buildAIDraft: () => Record<string, unknown>;
 }) {
+  // ---------- AI quiz generator state ----------
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiCount, setAiCount] = useState<number>(6);
+  const [aiMix, setAiMix] = useState<"mostly_mc" | "mostly_tf" | "balanced">(
+    "mostly_mc"
+  );
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  async function generateQuiz(replace: boolean) {
+    setAiError(null);
+    const draft = buildAIDraft();
+    const body = (draft as { body?: unknown[] }).body;
+    if (!body || !Array.isArray(body) || body.length === 0) {
+      setAiError(
+        "Quiz generation needs body content. Add at least one Key concept / Step / Scenario block first."
+      );
+      return;
+    }
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/teacher/skills/ai/generate-quiz", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draft, count: aiCount, mix: aiMix }),
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(`Quiz generator failed (${res.status}): ${txt || res.statusText}`);
+      }
+      const json = await res.json();
+      const generated = (json?.questions ?? []) as QuizQuestion[];
+      if (!Array.isArray(generated) || generated.length === 0) {
+        setAiError("AI returned no questions. Try again with a richer body.");
+        return;
+      }
+      // The helper stores correct_answer as the option STRING. The form
+      // editor uses the option INDEX (as a string) — convert here so the
+      // questions slot into the existing UI.
+      const normalised = generated.map((q) => {
+        const opts = q.options ?? [];
+        const idx =
+          typeof q.correct_answer === "string"
+            ? Math.max(0, opts.findIndex((o) => o === q.correct_answer))
+            : 0;
+        return {
+          ...q,
+          correct_answer: String(idx >= 0 ? idx : 0),
+        };
+      });
+      setQuestions((prev) => (replace ? normalised : [...prev, ...normalised]));
+      setAiOpen(false);
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
   function addQuestion() {
     const q: QuizQuestion = {
       id: nanoid(8),
@@ -1243,15 +1425,102 @@ function QuizSection({
 
   return (
     <section className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
-      <header>
-        <h2 className="text-lg font-semibold text-gray-900">9 · Quiz</h2>
-        <p className="text-sm text-gray-500 mt-0.5">
-          Optional. When a card has one or more questions here, students see
-          a &ldquo;Take the quiz&rdquo; section at the bottom of the card.
-          Passing writes <code>skill.quiz_passed</code> and advances the
-          student&apos;s skill state.
-        </p>
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">9 · Quiz</h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Optional. When a card has one or more questions here, students see
+            a &ldquo;Take the quiz&rdquo; section at the bottom of the card.
+            Passing writes <code>skill.quiz_passed</code> and advances the
+            student&apos;s skill state.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setAiOpen((v) => !v)}
+          className="flex-shrink-0 inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200"
+        >
+          ✨ {aiOpen ? "Hide AI panel" : "Generate with AI"}
+        </button>
       </header>
+
+      {aiOpen && (
+        <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <label className="text-sm text-gray-700 flex flex-col gap-1">
+              How many questions?
+              <input
+                type="number"
+                min={1}
+                max={10}
+                value={aiCount}
+                onChange={(e) =>
+                  setAiCount(Math.max(1, Math.min(10, Number(e.target.value) || 1)))
+                }
+                className="border border-gray-200 rounded-lg px-3 py-2 bg-white"
+              />
+            </label>
+            <label className="text-sm text-gray-700 flex flex-col gap-1">
+              Mix
+              <select
+                value={aiMix}
+                onChange={(e) =>
+                  setAiMix(
+                    e.target.value as "mostly_mc" | "mostly_tf" | "balanced"
+                  )
+                }
+                className="border border-gray-200 rounded-lg px-3 py-2 bg-white"
+              >
+                <option value="mostly_mc">Mostly multiple choice</option>
+                <option value="balanced">Balanced</option>
+                <option value="mostly_tf">Mostly true/false</option>
+              </select>
+            </label>
+            <div className="text-xs text-gray-500 self-end">
+              The AI reads your card body + demo + outcomes, then writes
+              questions answerable from the card.
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => generateQuiz(false)}
+              disabled={aiLoading}
+              className="px-3 py-1.5 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {aiLoading ? "Generating…" : "Generate + append"}
+            </button>
+            {questions.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (
+                    !confirm(
+                      `Replace all ${questions.length} existing questions with AI-generated ones?`
+                    )
+                  )
+                    return;
+                  generateQuiz(true);
+                }}
+                disabled={aiLoading}
+                className="px-3 py-1.5 rounded-md bg-white text-rose-700 text-sm font-medium border border-rose-200 hover:bg-rose-50 disabled:opacity-50"
+              >
+                Replace existing
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setAiOpen(false)}
+              className="px-3 py-1.5 rounded-md text-gray-600 text-sm hover:bg-gray-100"
+            >
+              Cancel
+            </button>
+          </div>
+          {aiError && (
+            <p className="text-xs text-rose-600">⚠ {aiError}</p>
+          )}
+        </div>
+      )}
 
       {/* Quiz-level settings */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
