@@ -56,7 +56,6 @@ export function PypxView({
   insightBuckets,
   unitCards,
   dashboardLoaded,
-  teacher,
 }: DashboardViewProps) {
   // Aggregate class completion % — average of unit completionPcts
   // weighted by student count. If no classes yet, falls back to 0.
@@ -78,7 +77,12 @@ export function PypxView({
       ? Math.round(totals.weightedSum / totals.totalStudents)
       : 0;
   const currentPhaseIdx = bucketToPhase(overallPct);
-  const firstName = teacher?.name?.trim().split(/\s+/)[0] || "there";
+
+  // Hero year — calendar year for now. Once exhibition_config flows
+  // into the dashboard payload, prefer the year from exhibition_date
+  // (so a January 2027 exhibition renders "2027 Exhibition" even when
+  // teachers are setting up in late 2026).
+  const exhibitionYear = new Date().getFullYear();
 
   // Setup popover — anchored to the cog button on the hero. Dismisses
   // on outside click + Escape so it behaves like a normal menu without
@@ -230,7 +234,7 @@ export function PypxView({
               PYPX · Exhibition
             </div>
             <h1 className="display-lg text-[44px] sm:text-[56px] md:text-[72px] lg:text-[80px] leading-[0.95] mt-4">
-              {firstName}&apos;s Exhibition.
+              {exhibitionYear} Exhibition.
             </h1>
             <p className="text-[15px] md:text-[18px] leading-snug mt-3 text-white/85 font-medium">
               {totals.totalClasses} class{totals.totalClasses === 1 ? "" : "es"}{" "}
