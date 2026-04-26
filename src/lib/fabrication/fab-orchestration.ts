@@ -65,8 +65,10 @@ interface SupabaseLike {
 
 /** Queue tab keys. `ready` shows approved jobs waiting to be picked
  *  up. `in_progress` shows this fabricator's own picked_up jobs
- *  (cross-fabricator visibility is intentionally not surfaced). */
-export const FAB_QUEUE_TABS = ["ready", "in_progress"] as const;
+ *  (cross-fabricator visibility is intentionally not surfaced).
+ *  `done_today` (Phase 8.1d-20) shows the inviting teacher's
+ *  completed jobs since UTC midnight — team output, not just self. */
+export const FAB_QUEUE_TABS = ["ready", "in_progress", "done_today"] as const;
 export type FabQueueTab = (typeof FAB_QUEUE_TABS)[number];
 
 /** Single queue row — kept compact for the queue page's list. */
@@ -92,6 +94,11 @@ export interface FabJobRow {
   createdAt: string;
   approvedAt: string | null;
   pickedUpAt: string | null;
+  /** Phase 8.1d-20: completion lifecycle for the Done Today strip
+   *  on the redesigned dashboard. Null on ready/in_progress rows. */
+  completedAt: string | null;
+  completionStatus: "printed" | "cut" | "failed" | null;
+  completionNote: string | null;
   teacherReviewNote: string | null;
 }
 
@@ -370,6 +377,11 @@ interface RawFabQueueJob {
   machine_profile_id: string;
   created_at: string;
   updated_at: string;
+  // Phase 8.1d-20: pulled in for the done_today tab so the
+  // dashboard can render lifecycle timestamps + sort by completion.
+  completion_status: string | null;
+  completion_note: string | null;
+  completed_at: string | null;
   notifications_sent: Record<string, unknown> | null;
   students: { display_name: string | null; username: string | null } | null;
   classes: { name: string | null } | null;
@@ -420,7 +432,8 @@ export async function listFabricatorQueue(
       `
       id, status, current_revision, file_type, original_filename,
       teacher_review_note, lab_tech_picked_up_at, machine_profile_id,
-      created_at, updated_at, notifications_sent,
+      created_at, updated_at,
+      completion_status, completion_note, completed_at, notifications_sent,
       students(display_name, username),
       classes(name),
       units(title),
@@ -430,17 +443,46 @@ export async function listFabricatorQueue(
     )
     .eq("teacher_id", teacherId);
 
+  // Phase 8.1d-20: determine the order direction up front because
+  // each tab keys on a different column + direction:
+  //   ready: oldest waiter first (FIFO, lab tech runs the longest-
+  //          waiting job first)
+  //   in_progress: oldest pickup first (same triage rationale —
+  //          longer-running jobs surface higher)
+  //   done_today: newest finish FIRST (most recent activity at the
+  //          top — a freshly finished job is the most likely to be
+  //          ready for collection)
+  let orderColumn: string = "updated_at";
+  let orderAscending = true;
+
   if (tab === "ready") {
     query = query.eq("status", "approved");
-  } else {
+  } else if (tab === "in_progress") {
     // in_progress — this fabricator's own picked-up jobs
     query = query
       .eq("status", "picked_up")
       .eq("lab_tech_picked_up_by", fabricatorId);
+  } else {
+    // Phase 8.1d-20: done_today — completed jobs from this teacher's
+    // classes finished since UTC midnight. Lab tech's "what came
+    // off the machines today" view; not scoped to lab_tech_picked_
+    // up_by because the dashboard surfaces team output, not just
+    // mine (matches the design's "Done today · 2 awaiting collection"
+    // framing). UTC midnight is a stable cutoff regardless of the
+    // fabricator's locale; ~8h slop on the boundary is acceptable
+    // for a "today" view in v1, file `PH9-FU-FAB-DONE-TIMEZONE` if
+    // teachers complain.
+    const utcMidnight = new Date();
+    utcMidnight.setUTCHours(0, 0, 0, 0);
+    query = query
+      .eq("status", "completed")
+      .gte("completed_at", utcMidnight.toISOString());
+    orderColumn = "completed_at";
+    orderAscending = false;
   }
 
   const result = await query
-    .order("updated_at", { ascending: true })
+    .order(orderColumn, { ascending: orderAscending })
     .range(0, boundedLimit - 1);
   const { data, error } = result as {
     data: RawFabQueueJob[] | null;
@@ -491,6 +533,12 @@ export async function listFabricatorQueue(
         approvedAt = (notifs as Record<string, string>).approved_at;
       }
 
+      const completionStatus = raw.completion_status as
+        | "printed"
+        | "cut"
+        | "failed"
+        | null;
+
       return {
         jobId: raw.id,
         studentName:
@@ -512,6 +560,9 @@ export async function listFabricatorQueue(
         createdAt: raw.created_at,
         approvedAt,
         pickedUpAt: raw.lab_tech_picked_up_at,
+        completedAt: raw.completed_at,
+        completionStatus,
+        completionNote: raw.completion_note,
         teacherReviewNote: raw.teacher_review_note,
       };
     })

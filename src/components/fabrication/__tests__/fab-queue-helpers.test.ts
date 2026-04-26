@@ -64,13 +64,23 @@ describe("fabTabLabel", () => {
 });
 
 describe("fabEmptyMessage", () => {
-  it("returns the no-machines message when fabricator has no assignments", () => {
+  it("returns the inviting-teacher message when no jobs are visible to the fabricator (8.1d-9 + 8.1d-20)", () => {
+    // Phase 8.1d-9 dropped per-machine assignments — fabricators now
+    // see ALL their inviting teacher's jobs. The empty-state copy
+    // shifted with it; "no machines assigned" is no longer the right
+    // mental model.
     const msg = fabEmptyMessage("ready", true);
-    expect(msg).toContain("No machines assigned");
-    expect(msg).toContain("teacher");
+    expect(msg).toContain("inviting teacher");
   });
-  it("returns tab-specific empty copy when assignments exist", () => {
+  it("returns tab-specific empty copy when jobs do exist on this teacher", () => {
     expect(fabEmptyMessage("ready", false)).toContain("No approved jobs");
-    expect(fabEmptyMessage("in_progress", false)).toContain("jobs in progress");
+    // 8.1d-20 reframed in_progress empty state to nudge action ("Pick
+    // a job from a lane") rather than just describing the empty set.
+    expect(fabEmptyMessage("in_progress", false)).toMatch(
+      /currently picked up|Pick a job/
+    );
+  });
+  it("returns a done-today empty message for the new 8.1d-20 tab", () => {
+    expect(fabEmptyMessage("done_today", false)).toContain("today");
   });
 });
