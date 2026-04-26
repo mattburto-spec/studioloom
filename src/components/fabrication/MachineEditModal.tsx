@@ -22,6 +22,7 @@ import {
   validateColorMapRows,
   type ColorMapRow,
 } from "./lab-setup-helpers";
+import { PrinterIcon, LaserIcon } from "./MachineCategoryIcons";
 import type {
   MachineProfileRow,
   MachineCategory,
@@ -233,7 +234,7 @@ export function MachineEditModal({ mode, availableLabs, onClose, onSaved }: Prop
                     : "border-gray-200 bg-white text-gray-700 hover:border-gray-400")
                 }
               >
-                <span className="text-2xl leading-none">🖨️</span>
+                <span className="w-7 h-7"><PrinterIcon /></span>
                 <span>3D printer</span>
               </button>
               <button
@@ -248,7 +249,7 @@ export function MachineEditModal({ mode, availableLabs, onClose, onSaved }: Prop
                     : "border-gray-200 bg-white text-gray-700 hover:border-gray-400")
                 }
               >
-                <span className="text-2xl leading-none">🔥</span>
+                <span className="w-7 h-7"><LaserIcon /></span>
                 <span>Laser cutter</span>
               </button>
             </div>

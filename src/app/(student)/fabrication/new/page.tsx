@@ -28,6 +28,7 @@ import {
   ClassMachinePicker,
   type ClassOption,
   type MachineProfileOption,
+  type MachineCategory,
 } from "@/components/fabrication/ClassMachinePicker";
 import { FileDropzone } from "@/components/fabrication/FileDropzone";
 import { UploadProgress } from "@/components/fabrication/UploadProgress";
@@ -52,6 +53,9 @@ export default function FabricationNewPage() {
   const router = useRouter();
   const [loadState, setLoadState] = React.useState<LoadState>({ kind: "loading" });
   const [selectedClassId, setSelectedClassId] = React.useState<string | null>(null);
+  // Phase 8.1d-10: type-first picker. Category narrows the machine list.
+  const [selectedCategory, setSelectedCategory] =
+    React.useState<MachineCategory | null>(null);
   const [selectedMachineProfileId, setSelectedMachineProfileId] = React.useState<
     string | null
   >(null);
@@ -287,8 +291,16 @@ export default function FabricationNewPage() {
             classes={loadState.data.classes}
             machineProfiles={loadState.data.machineProfiles}
             selectedClassId={selectedClassId}
+            selectedCategory={selectedCategory}
             selectedMachineProfileId={selectedMachineProfileId}
             onClassChange={setSelectedClassId}
+            onCategoryChange={(cat) => {
+              // Phase 8.1d-10: switching category clears the machine
+              // selection so a stale 3D-printer pick doesn't survive a
+              // switch to laser.
+              setSelectedCategory(cat);
+              setSelectedMachineProfileId(null);
+            }}
             onMachineChange={setSelectedMachineProfileId}
             disabled={isBusy}
           />
