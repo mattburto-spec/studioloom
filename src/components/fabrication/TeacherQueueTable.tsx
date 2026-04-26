@@ -21,15 +21,33 @@ import type { QueueRow } from "@/lib/fabrication/teacher-orchestration";
 import {
   formatRuleCountsCompact,
   formatRelativeTime,
+  formatDateTime,
 } from "./revision-history-helpers";
 import { shouldFlagRevisionCount } from "./teacher-queue-helpers";
 
 export interface TeacherQueueTableProps {
   rows: QueueRow[];
   emptyMessage: string;
+  /** Phase 8.1d-16: when set, each row gets a checkbox in the
+   *  leading column and the click target on the row body still
+   *  goes to the detail page. Caller manages the selected-id set
+   *  + the toggle handler. */
+  selection?: {
+    selectedIds: Set<string>;
+    onToggle: (jobId: string) => void;
+    onToggleAll: () => void;
+    /** Subset of rows that are currently eligible for selection
+     *  (e.g. just `pending_approval` rows). Used to drive the
+     *  master checkbox's checked/indeterminate state. */
+    selectableIds: Set<string>;
+  };
 }
 
-export function TeacherQueueTable({ rows, emptyMessage }: TeacherQueueTableProps) {
+export function TeacherQueueTable({
+  rows,
+  emptyMessage,
+  selection,
+}: TeacherQueueTableProps) {
   if (rows.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
@@ -38,10 +56,53 @@ export function TeacherQueueTable({ rows, emptyMessage }: TeacherQueueTableProps
     );
   }
 
+  // Master checkbox state — checked when ALL selectable rows are
+  // selected, indeterminate when SOME, unchecked when none.
+  const masterRef = React.useRef<HTMLInputElement>(null);
+  const selectableCount = selection?.selectableIds.size ?? 0;
+  const selectedCount = selection
+    ? Array.from(selection.selectedIds).filter((id) =>
+        selection.selectableIds.has(id)
+      ).length
+    : 0;
+  const allSelected = selectableCount > 0 && selectedCount === selectableCount;
+  const someSelected = selectedCount > 0 && selectedCount < selectableCount;
+
+  React.useEffect(() => {
+    if (masterRef.current) masterRef.current.indeterminate = someSelected;
+  }, [someSelected]);
+
+  // Grid template adjusts when selection is on — adds a leading
+  // 32px checkbox column.
+  const desktopGridCols = selection
+    ? "md:grid-cols-[32px_72px_minmax(0,1.5fr)_minmax(0,1.5fr)_minmax(0,1fr)_auto_auto]"
+    : "md:grid-cols-[72px_minmax(0,1.5fr)_minmax(0,1.5fr)_minmax(0,1fr)_auto_auto]";
+
   return (
     <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
       {/* Header row — desktop only. Mobile renders as cards. */}
-      <div className="hidden md:grid md:grid-cols-[72px_minmax(0,1.5fr)_minmax(0,1.5fr)_minmax(0,1fr)_auto_auto] gap-4 px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
+      <div
+        className={`hidden md:grid ${desktopGridCols} gap-4 px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500`}
+      >
+        {selection && (
+          <div className="flex items-center justify-center">
+            <input
+              ref={masterRef}
+              type="checkbox"
+              checked={allSelected}
+              onChange={selection.onToggleAll}
+              disabled={selectableCount === 0}
+              aria-label={
+                allSelected
+                  ? "Deselect all"
+                  : someSelected
+                    ? "Select all (currently partial)"
+                    : "Select all"
+              }
+              className="rounded border-gray-300 text-brand-purple focus:ring-brand-purple/30 disabled:opacity-30"
+            />
+          </div>
+        )}
         <div aria-hidden="true" />
         <div>Student</div>
         <div>Unit / File</div>
@@ -52,27 +113,62 @@ export function TeacherQueueTable({ rows, emptyMessage }: TeacherQueueTableProps
 
       <ul className="divide-y divide-gray-100">
         {rows.map((row) => (
-          <QueueRowItem key={row.jobId} row={row} />
+          <QueueRowItem key={row.jobId} row={row} selection={selection} />
         ))}
       </ul>
     </div>
   );
 }
 
-function QueueRowItem({ row }: { row: QueueRow }) {
+function QueueRowItem({
+  row,
+  selection,
+}: {
+  row: QueueRow;
+  selection?: TeacherQueueTableProps["selection"];
+}) {
   const ruleCounts = formatRuleCountsCompact(row.ruleCounts);
   const waiting = formatRelativeTime(row.createdAt);
+  const absoluteWaiting = formatDateTime(row.createdAt);
   const flagRev = shouldFlagRevisionCount(row.currentRevision);
   const statusPill = statusPillClass(row.jobStatus);
+  const isSelectable = selection?.selectableIds.has(row.jobId) ?? false;
+  const isSelected = selection?.selectedIds.has(row.jobId) ?? false;
+  const desktopGridCols = selection
+    ? "md:grid-cols-[32px_72px_minmax(0,1.5fr)_minmax(0,1.5fr)_minmax(0,1fr)_auto_auto]"
+    : "md:grid-cols-[72px_minmax(0,1.5fr)_minmax(0,1.5fr)_minmax(0,1fr)_auto_auto]";
 
   return (
-    <li>
+    <li className={isSelected ? "bg-brand-purple/5" : ""}>
+      <div className="relative">
+        {/* Phase 8.1d-16: when selection is on, the checkbox sits OUTSIDE
+             the link wrapper so a click on it doesn't navigate to the
+             detail page. The link covers the rest of the row. */}
+        {selection && (
+          <div className="absolute left-4 top-0 bottom-0 hidden md:flex items-center z-10">
+            <input
+              type="checkbox"
+              checked={isSelected}
+              disabled={!isSelectable}
+              onChange={() => selection.onToggle(row.jobId)}
+              onClick={(e) => e.stopPropagation()}
+              aria-label={`Select ${row.studentName}'s submission`}
+              className="rounded border-gray-300 text-brand-purple focus:ring-brand-purple/30 disabled:opacity-30 disabled:cursor-not-allowed"
+              title={
+                isSelectable
+                  ? "Select for batch action"
+                  : "Only pending-approval rows can be batch-actioned"
+              }
+            />
+          </div>
+        )}
       <Link
         href={`/teacher/preflight/jobs/${row.jobId}`}
         className="block hover:bg-gray-50 focus-visible:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-purple/30"
       >
         {/* Desktop row */}
-        <div className="hidden md:grid md:grid-cols-[72px_minmax(0,1.5fr)_minmax(0,1.5fr)_minmax(0,1fr)_auto_auto] gap-4 items-center px-4 py-3">
+        <div className={`hidden md:grid ${desktopGridCols} gap-4 items-center px-4 py-3`}>
+          {selection && <div aria-hidden="true" />}
           {/* Thumbnail */}
           <div className="w-14 h-14 rounded border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden shrink-0">
             {row.thumbnailUrl ? (
@@ -152,9 +248,13 @@ function QueueRowItem({ row }: { row: QueueRow }) {
             )}
           </div>
 
-          {/* Time waiting */}
-          <div className="text-xs text-gray-500 whitespace-nowrap text-right">
-            {waiting}
+          {/* Time waiting — relative on top, absolute below for
+               longer-waiting rows where "2d ago" loses precision. */}
+          <div className="text-xs whitespace-nowrap text-right">
+            <div className="text-gray-500">{waiting}</div>
+            <div className="text-gray-400 text-[11px] mt-0.5 font-mono">
+              {absoluteWaiting}
+            </div>
           </div>
         </div>
 
@@ -200,10 +300,12 @@ function QueueRowItem({ row }: { row: QueueRow }) {
                 </span>
               )}
               <span>· {waiting}</span>
+              <span className="font-mono text-gray-400">· {absoluteWaiting}</span>
             </div>
           </div>
         </div>
       </Link>
+      </div>
     </li>
   );
 }
