@@ -196,7 +196,26 @@ function makeClient(params: {
         }
         if (table === "machine_profiles") {
           if (machineError) return { data: null, error: { message: machineError } };
-          return { data: machineFound ? { id: entry.eq![0][1] } : null, error: null };
+          // Phase 8.1d-22: orchestration now selects (id, teacher_id,
+          // lab_id, machine_category, is_active). Provide all five so
+          // the path-A branch (specific machine pick) doesn't bail.
+          return {
+            data: machineFound
+              ? {
+                  id: entry.eq![0][1],
+                  teacher_id: classTeacherId,
+                  lab_id: "lab-uuid-aaa",
+                  machine_category: "3d_printer",
+                  is_active: true,
+                }
+              : null,
+            error: null,
+          };
+        }
+        if (table === "fabrication_labs") {
+          // 8.1d-22: only used by path B (labId+machineCategory). The
+          // path-A tests don't exercise this branch.
+          return { data: null, error: null };
         }
         return { data: null, error: null };
       },
@@ -295,11 +314,16 @@ describe("createUploadJob — happy path", () => {
     ]);
 
     // fabrication_jobs INSERT payload matches schema requirements.
+    // Phase 8.1d-22: lab_id + machine_category resolved from the
+    // bound machine on the path-A flow (machineProfileId set) and
+    // written to the row alongside machine_profile_id.
     const jobInsert = log.find((e) => e.table === "fabrication_jobs" && e.op === "insert");
     expect(jobInsert?.payload).toEqual({
       teacher_id: "teacher-uuid-111",
       student_id: validReq.studentId,
       class_id: validReq.classId,
+      lab_id: "lab-uuid-aaa",
+      machine_category: "3d_printer",
       machine_profile_id: validReq.machineProfileId,
       file_type: "stl",
       original_filename: "cube.stl",

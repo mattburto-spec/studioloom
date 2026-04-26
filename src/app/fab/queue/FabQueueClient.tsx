@@ -82,16 +82,22 @@ export default function FabQueueClient({
   // (lab tech can mark machine A printed AND machine B failed in
   // parallel; one action shouldn't freeze the other).
   const [inFlight, setInFlight] = React.useState<
-    Record<string, "complete" | "fail" | "pickup" | undefined>
+    Record<string, "complete" | "fail" | "pickup" | "assign" | undefined>
   >({});
+
+  // Phase 8.1d-22: machines list for the Send-to menu. Fetched
+  // alongside the queue tabs on every refresh so freshly-added
+  // machines show up without a page reload.
+  const [machines, setMachines] = React.useState<FabMachineOption[]>([]);
 
   const fetchAll = React.useCallback(async () => {
     setState({ kind: "loading" });
     try {
-      const [r, ip, dt] = await Promise.all([
+      const [r, ip, dt, machinesResult] = await Promise.all([
         fetchTab("ready"),
         fetchTab("in_progress"),
         fetchTab("done_today"),
+        fetchMachines(),
       ]);
       // If any one tab errored, surface the first message but keep
       // the others' data — the lab tech still wants what we have.
@@ -103,6 +109,9 @@ export default function FabQueueClient({
         inProgress: "jobs" in ip ? ip.jobs : [],
         doneToday: "jobs" in dt ? dt.jobs : [],
       });
+      if ("machines" in machinesResult) {
+        setMachines(machinesResult.machines);
+      }
       if (firstError) {
         setState({ kind: "error", message: firstError.error });
       } else {
@@ -152,6 +161,29 @@ export default function FabQueueClient({
     }
   }
 
+  async function assignToMachine(jobId: string, machineProfileId: string) {
+    setInFlight((p) => ({ ...p, [jobId]: "assign" }));
+    try {
+      const res = await fetch(`/api/fab/jobs/${jobId}/assign-machine`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ machineProfileId }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "" }));
+        alertUser(
+          body.error || `Couldn't assign machine (HTTP ${res.status})`
+        );
+      }
+    } catch (e) {
+      alertUser(e instanceof Error ? e.message : "Network error");
+    } finally {
+      setInFlight((p) => ({ ...p, [jobId]: undefined }));
+      await fetchAll();
+    }
+  }
+
   async function markFailed(jobId: string) {
     // Phase 8.1d-20 keeps it simple — the design's failure-reason
     // sheet is filed as PH9-FU-FAB-FAILURE-SHEET. For now a minimal
@@ -184,31 +216,85 @@ export default function FabQueueClient({
     }
   }
 
-  // Derived: machines list — the lanes show one column per machine
-  // the teacher actually owns (any machine that appears in ANY of
-  // the three tab lists). Sorted by category then label so the
-  // layout is stable across refreshes.
-  const machines = React.useMemo<MachineSummary[]>(() => {
+  // Phase 8.1d-22: lane derivation now produces TWO kinds of lanes:
+  //   1. Per-specific-machine lanes (existing) — built from jobs
+  //      whose machineLabel is set.
+  //   2. "Any [category] in [lab]" pseudo-lanes (new) — built from
+  //      jobs with machineLabel === null AND machineProfileId === null,
+  //      one pseudo-lane per (labId, category) pair.
+  // Both render through MachineLane; the unassigned variant surfaces
+  // a Send-to menu instead of the usual Pick up button.
+  //
+  // Specific-machine lanes ALSO derived from the machines list so
+  // a freshly-added machine with no jobs yet still shows up as an
+  // empty queue — lab tech can already see "I have a P1S" without
+  // waiting for the first submission.
+  const lanes = React.useMemo<MachineSummary[]>(() => {
     const seen = new Map<string, MachineSummary>();
-    for (const j of [...data.ready, ...data.inProgress, ...data.doneToday]) {
-      const key = `${j.machineLabel}|${j.machineCategory ?? ""}`;
+
+    // From the machines endpoint: every active machine the teacher
+    // owns gets a lane (even if currently empty).
+    for (const m of machines) {
+      const key = `M:${m.id}`;
       if (!seen.has(key)) {
         seen.set(key, {
-          label: j.machineLabel,
-          category: j.machineCategory,
+          key,
+          label: m.name,
+          category: m.machine_category,
+          labId: m.lab_id,
+          labName: m.lab_name,
+          isUnassigned: false,
         });
       }
     }
+
+    // From the jobs: also surface any machine that appears in jobs
+    // but isn't in the machines list (defensive — soft-deleted but
+    // still has running jobs, etc.). And derive the unassigned
+    // pseudo-lanes from category-only jobs.
+    for (const j of [...data.ready, ...data.inProgress, ...data.doneToday]) {
+      if (j.machineProfileId && j.machineLabel) {
+        const key = `M:${j.machineProfileId}`;
+        if (!seen.has(key)) {
+          seen.set(key, {
+            key,
+            label: j.machineLabel,
+            category: j.machineCategory,
+            labId: j.labId,
+            labName: j.labName,
+            isUnassigned: false,
+          });
+        }
+      } else if (!j.machineProfileId && j.machineCategory && j.labId) {
+        // Unassigned: bucket by (labId, category).
+        const key = `U:${j.labId}|${j.machineCategory}`;
+        if (!seen.has(key)) {
+          const labLabel = j.labName ?? "this lab";
+          const catLabel =
+            j.machineCategory === "3d_printer" ? "3D printer" : "Laser cutter";
+          seen.set(key, {
+            key,
+            label: `Any ${catLabel.toLowerCase()} in ${labLabel}`,
+            category: j.machineCategory,
+            labId: j.labId,
+            labName: j.labName,
+            isUnassigned: true,
+          });
+        }
+      }
+    }
     return Array.from(seen.values()).sort((a, b) => {
-      // Group by category first (printer / laser / unknown), then
-      // alphabetical within. categoryRank keeps "3D printer" before
-      // "Laser cutter" before unknown.
+      // Group by category first, then unassigned-first within each
+      // category (those need attention), then alphabetical by label.
       const ra = categoryRank(a.category);
       const rb = categoryRank(b.category);
       if (ra !== rb) return ra - rb;
+      if (a.isUnassigned !== b.isUnassigned) {
+        return a.isUnassigned ? -1 : 1;
+      }
       return a.label.localeCompare(b.label);
     });
-  }, [data]);
+  }, [data, machines]);
 
   return (
     <div className={styles.fabRoot}>
@@ -261,32 +347,36 @@ export default function FabQueueClient({
           </div>
         )}
 
-        {/* Now Running strip */}
+        {/* Now Running strip — only specific-machine lanes can have a
+            "running" job (unassigned jobs by definition aren't on a
+            machine yet). */}
         <NowRunningStrip
-          machines={machines}
+          lanes={lanes.filter((l) => !l.isUnassigned)}
           inProgress={data.inProgress}
           inFlight={inFlight}
           onComplete={markComplete}
           onFailed={markFailed}
         />
 
-        {/* Machine lanes */}
-        {machines.length === 0 ? (
+        {/* Machine lanes — includes "Any [category] in [lab]"
+            pseudo-lanes for unassigned jobs. */}
+        {lanes.length === 0 ? (
           <EmptyDashboard loading={state.kind === "loading"} />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-            {machines.map((m) => (
+            {lanes.map((lane) => (
               <MachineLane
-                key={`${m.label}|${m.category}`}
-                machine={m}
-                readyJobs={data.ready.filter(
-                  (j) =>
-                    j.machineLabel === m.label && j.machineCategory === m.category
-                )}
-                runningJob={data.inProgress.find(
-                  (j) =>
-                    j.machineLabel === m.label && j.machineCategory === m.category
-                ) ?? null}
+                key={lane.key}
+                lane={lane}
+                readyJobs={filterJobsForLane(data.ready, lane)}
+                runningJob={
+                  lane.isUnassigned
+                    ? null
+                    : filterJobsForLane(data.inProgress, lane)[0] ?? null
+                }
+                machines={machines}
+                inFlight={inFlight}
+                onAssign={assignToMachine}
               />
             ))}
           </div>
@@ -303,9 +393,30 @@ export default function FabQueueClient({
 // Helpers
 // ============================================================
 
+/** Phase 8.1d-22: a lane in the dashboard is either:
+ *   - a specific machine (machineProfileId set on its jobs), OR
+ *   - a "Any [category] in [lab]" pseudo-machine for unassigned jobs
+ * The two render with the same shell but different headers + card
+ * actions (Send-to menu vs Pick up). MachineSummary is the union. */
 interface MachineSummary {
+  /** Stable key for React keys + machine bucket. */
+  key: string;
+  /** Display name — machine label OR "Any 3D printer in Lab Name". */
   label: string;
   category: FabJobRow["machineCategory"];
+  labId: string | null;
+  labName: string | null;
+  /** When set, this lane is for category-only jobs in this lab —
+   *  cards show Send-to instead of Pick up. */
+  isUnassigned: boolean;
+}
+
+interface FabMachineOption {
+  id: string;
+  name: string;
+  lab_id: string | null;
+  lab_name: string | null;
+  machine_category: "3d_printer" | "laser_cutter" | null;
 }
 
 interface FetchTabSuccess {
@@ -330,6 +441,48 @@ async function fetchTab(
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Network error" };
   }
+}
+
+async function fetchMachines(): Promise<
+  { machines: FabMachineOption[] } | { error: string }
+> {
+  try {
+    const res = await fetch("/api/fab/machines", {
+      credentials: "same-origin",
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: "" }));
+      return { error: body.error || `HTTP ${res.status} on /machines` };
+    }
+    return (await res.json()) as { machines: FabMachineOption[] };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Network error" };
+  }
+}
+
+/** Phase 8.1d-22: pick the jobs that belong in a given lane.
+ *  - Specific-machine lane: jobs whose machineProfileId matches the
+ *    machine label + category combo. We key on machineLabel because
+ *    legacy rows that pre-date the machineProfileId-on-row exposure
+ *    still carry the label correctly via the orchestration build.
+ *  - Unassigned lane: jobs in this lab + category with no
+ *    machineProfileId set. */
+function filterJobsForLane(
+  jobs: FabJobRow[],
+  lane: MachineSummary
+): FabJobRow[] {
+  if (lane.isUnassigned) {
+    return jobs.filter(
+      (j) =>
+        !j.machineProfileId &&
+        j.labId === lane.labId &&
+        j.machineCategory === lane.category
+    );
+  }
+  return jobs.filter(
+    (j) =>
+      j.machineLabel === lane.label && j.machineCategory === lane.category
+  );
 }
 
 /** Order machines by category for stable lane layout. Lower wins. */
@@ -438,19 +591,19 @@ function FabTopNav({
 // ============================================================
 
 function NowRunningStrip({
-  machines,
+  lanes,
   inProgress,
   inFlight,
   onComplete,
   onFailed,
 }: {
-  machines: MachineSummary[];
+  lanes: MachineSummary[];
   inProgress: FabJobRow[];
-  inFlight: Record<string, "complete" | "fail" | "pickup" | undefined>;
+  inFlight: Record<string, "complete" | "fail" | "pickup" | "assign" | undefined>;
   onComplete: (jobId: string, category: FabJobRow["machineCategory"]) => void;
   onFailed: (jobId: string) => void;
 }) {
-  if (machines.length === 0) return null;
+  if (lanes.length === 0) return null;
   return (
     <div className={styles.card} style={{ overflow: "hidden" }}>
       <div
@@ -463,9 +616,9 @@ function NowRunningStrip({
             Now running
           </div>
           <div className="text-[12px] font-semibold" style={{ color: "var(--ink-2)" }}>
-            {inProgress.length} of {machines.length} machine
-            {machines.length === 1 ? "" : "s"} active ·{" "}
-            {Math.max(0, machines.length - inProgress.length)} idle
+            {inProgress.length} of {lanes.length} machine
+            {lanes.length === 1 ? "" : "s"} active ·{" "}
+            {Math.max(0, lanes.length - inProgress.length)} idle
           </div>
         </div>
       </div>
@@ -473,15 +626,16 @@ function NowRunningStrip({
         className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-px"
         style={{ background: "var(--hair)" }}
       >
-        {machines.map((m) => {
+        {lanes.map((lane) => {
           const running =
             inProgress.find(
-              (j) => j.machineLabel === m.label && j.machineCategory === m.category
+              (j) =>
+                j.machineLabel === lane.label && j.machineCategory === lane.category
             ) ?? null;
           return (
             <NowRunningCell
-              key={`${m.label}|${m.category}`}
-              machine={m}
+              key={lane.key}
+              lane={lane}
               running={running}
               busy={running ? inFlight[running.jobId] : undefined}
               onComplete={onComplete}
@@ -495,19 +649,19 @@ function NowRunningStrip({
 }
 
 function NowRunningCell({
-  machine,
+  lane,
   running,
   busy,
   onComplete,
   onFailed,
 }: {
-  machine: MachineSummary;
+  lane: MachineSummary;
   running: FabJobRow | null;
-  busy: "complete" | "fail" | "pickup" | undefined;
+  busy: "complete" | "fail" | "pickup" | "assign" | undefined;
   onComplete: (jobId: string, category: FabJobRow["machineCategory"]) => void;
   onFailed: (jobId: string) => void;
 }) {
-  const accent = categoryAccentVar(machine.category);
+  const accent = categoryAccentVar(lane.category);
   return (
     <div className="p-4" style={{ background: "var(--surface)" }}>
       {/* Phase 8.1d-21: heading scale bumped from 12px to 16px so
@@ -523,17 +677,17 @@ function NowRunningCell({
             color: accent,
           }}
         >
-          <CategoryIcon category={machine.category} size={16} />
+          <CategoryIcon category={lane.category} size={16} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-[15px] font-extrabold leading-tight truncate">
-            {machine.label}
+            {lane.label}
           </div>
           <div
             className="text-[10px] font-semibold leading-tight mt-0.5"
             style={{ color: "var(--ink-3)" }}
           >
-            {machineCategoryLabel(machine.category)}
+            {machineCategoryLabel(lane.category)}
           </div>
         </div>
       </div>
@@ -561,7 +715,7 @@ function RunningBlock({
 }: {
   job: FabJobRow;
   accent: string;
-  busy: "complete" | "fail" | "pickup" | undefined;
+  busy: "complete" | "fail" | "pickup" | "assign" | undefined;
   onComplete: (jobId: string, category: FabJobRow["machineCategory"]) => void;
   onFailed: (jobId: string) => void;
 }) {
@@ -655,31 +809,54 @@ function IdleBlock() {
 // ============================================================
 
 function MachineLane({
-  machine,
+  lane,
   readyJobs,
   runningJob,
+  machines,
+  inFlight,
+  onAssign,
 }: {
-  machine: MachineSummary;
+  lane: MachineSummary;
   readyJobs: FabJobRow[];
   runningJob: FabJobRow | null;
+  machines: FabMachineOption[];
+  inFlight: Record<string, "complete" | "fail" | "pickup" | "assign" | undefined>;
+  onAssign: (jobId: string, machineProfileId: string) => void;
 }) {
-  const accent = categoryAccentVar(machine.category);
+  const accent = categoryAccentVar(lane.category);
+
+  // Phase 8.1d-22: candidate machines for the Send-to menu —
+  // active machines in this lab + category. Only used by
+  // unassigned lanes; specific-machine lanes don't render the menu.
+  const sendToCandidates = React.useMemo(() => {
+    if (!lane.isUnassigned) return [];
+    return machines.filter(
+      (m) =>
+        m.lab_id === lane.labId && m.machine_category === lane.category
+    );
+  }, [machines, lane.isUnassigned, lane.labId, lane.category]);
+
   return (
     <div
       className={`${styles.card} flex flex-col`}
-      style={{ minHeight: 540 }}
+      style={{
+        minHeight: 540,
+        // Unassigned lanes get a dashed top-border instead of solid
+        // so the eye reads "this is a virtual lane" at a glance.
+        ...(lane.isUnassigned
+          ? {
+              borderStyle: "dashed",
+              borderColor: "color-mix(in srgb, var(--ink-2) 40%, transparent)",
+            }
+          : {}),
+      }}
     >
-      {/* Phase 8.1d-21: lane heading bumped to scale with the
-           dashboard's display headline above. Machine name now
-           17px (was 12.5px) so it reads as a section title, not
-           a chip. Icon up from 7/14 to 10/20. Queue count number
-           up from 18 to 24. Top-border thickness up from 2 to 3
-           so the machine-color accent registers from across the
-           room. */}
       <div
         className="px-4 py-4 flex items-center gap-3"
         style={{
-          borderTop: `3px solid ${accent}`,
+          borderTop: lane.isUnassigned
+            ? `3px dashed ${accent}`
+            : `3px solid ${accent}`,
           borderTopLeftRadius: 16,
           borderTopRightRadius: 16,
           borderBottom: "1px solid var(--hair)",
@@ -692,17 +869,19 @@ function MachineLane({
             color: accent,
           }}
         >
-          <CategoryIcon category={machine.category} size={20} />
+          <CategoryIcon category={lane.category} size={20} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-[17px] font-extrabold leading-tight truncate">
-            {machine.label}
+            {lane.label}
           </div>
           <div
             className="text-[11px] font-semibold mt-0.5"
             style={{ color: "var(--ink-3)" }}
           >
-            {machineCategoryLabel(machine.category)}
+            {lane.isUnassigned
+              ? `Awaiting machine · ${lane.labName ?? "this lab"}`
+              : machineCategoryLabel(lane.category)}
           </div>
         </div>
         <div className="text-right shrink-0">
@@ -760,10 +939,22 @@ function MachineLane({
             className="text-center py-6 text-[11px]"
             style={{ color: "var(--ink-3)" }}
           >
-            No jobs in queue
+            {lane.isUnassigned
+              ? "No unassigned jobs — students who picked specific machines show up under their own lane."
+              : "No jobs in queue"}
           </div>
         ) : (
-          readyJobs.map((j) => <LaneJobCard key={j.jobId} job={j} accent={accent} />)
+          readyJobs.map((j) => (
+            <LaneJobCard
+              key={j.jobId}
+              job={j}
+              accent={accent}
+              isUnassignedLane={lane.isUnassigned}
+              sendToCandidates={sendToCandidates}
+              busy={inFlight[j.jobId]}
+              onAssign={onAssign}
+            />
+          ))
         )}
       </div>
     </div>
@@ -774,7 +965,37 @@ function MachineLane({
 // Lane job card
 // ============================================================
 
-function LaneJobCard({ job, accent }: { job: FabJobRow; accent: string }) {
+function LaneJobCard({
+  job,
+  accent,
+  isUnassignedLane,
+  sendToCandidates,
+  busy,
+  onAssign,
+}: {
+  job: FabJobRow;
+  accent: string;
+  isUnassignedLane: boolean;
+  sendToCandidates: FabMachineOption[];
+  busy: "complete" | "fail" | "pickup" | "assign" | undefined;
+  onAssign: (jobId: string, machineProfileId: string) => void;
+}) {
+  const [sendToOpen, setSendToOpen] = React.useState(false);
+  // Close the menu on outside click — keeps the keyboard-only flow
+  // explicit (Tab to button + Enter, no surprise focus traps).
+  const menuRef = React.useRef<HTMLDivElement | null>(null);
+  React.useEffect(() => {
+    if (!sendToOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setSendToOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [sendToOpen]);
+
+
   return (
     <div
       className={`${styles.card2} group transition relative`}
@@ -855,17 +1076,69 @@ function LaneJobCard({ job, accent }: { job: FabJobRow; accent: string }) {
           </div>
         )}
 
-        <div className="mt-2.5 flex items-center gap-1.5">
-          {/* Pick up = download. The download endpoint flips status
-              to picked_up + streams the file in one request. Native
-              <a download> works the same way the existing
-              LabTechActionBar does. */}
-          <a
-            href={`/api/fab/jobs/${job.jobId}/download`}
-            className={`${styles.btnPrimary} rounded-md px-3 py-1.5 text-[11px] inline-flex items-center gap-1.5 flex-1 justify-center`}
-          >
-            <PlayIcon size={9} /> Pick up
-          </a>
+        <div className="mt-2.5 flex items-center gap-1.5 relative" ref={menuRef}>
+          {isUnassignedLane ? (
+            // Phase 8.1d-22: unassigned-lane cards show Send-to →
+            // menu instead of Pick up. Picking a machine binds the
+            // job to it; the next refresh moves the card into that
+            // machine's lane where it gets the normal Pick up flow.
+            <>
+              <button
+                type="button"
+                onClick={() => setSendToOpen((v) => !v)}
+                disabled={busy !== undefined || sendToCandidates.length === 0}
+                className={`${styles.btnPrimary} rounded-md px-3 py-1.5 text-[11px] inline-flex items-center gap-1.5 flex-1 justify-center disabled:opacity-50`}
+              >
+                {busy === "assign" ? "Assigning…" : "Send to →"}
+              </button>
+              {sendToOpen && sendToCandidates.length > 0 && (
+                <div
+                  role="menu"
+                  className="absolute bottom-full left-0 mb-1 z-20 rounded-lg overflow-hidden min-w-[180px]"
+                  style={{
+                    background: "var(--surface)",
+                    border: "1px solid var(--hair-2)",
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                  }}
+                >
+                  {sendToCandidates.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setSendToOpen(false);
+                        onAssign(job.jobId, m.id);
+                      }}
+                      className="block w-full text-left px-3 py-2 text-[12px] font-semibold hover:bg-[var(--surface-2)] transition"
+                      style={{ color: "var(--ink)" }}
+                    >
+                      {m.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {sendToCandidates.length === 0 && (
+                <span
+                  className="text-[10px] flex-1 text-center"
+                  style={{ color: "var(--ink-3)" }}
+                >
+                  No machines in this lab yet
+                </span>
+              )}
+            </>
+          ) : (
+            // Pick up = download. The download endpoint flips status
+            // to picked_up + streams the file in one request. Native
+            // <a download> works the same way the existing
+            // LabTechActionBar does.
+            <a
+              href={`/api/fab/jobs/${job.jobId}/download`}
+              className={`${styles.btnPrimary} rounded-md px-3 py-1.5 text-[11px] inline-flex items-center gap-1.5 flex-1 justify-center`}
+            >
+              <PlayIcon size={9} /> Pick up
+            </a>
+          )}
           <Link
             href={`/fab/jobs/${job.jobId}`}
             title="View details"

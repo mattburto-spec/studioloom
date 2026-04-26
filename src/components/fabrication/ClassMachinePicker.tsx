@@ -1,20 +1,31 @@
 /**
- * ClassMachinePicker — Preflight Phase 4-3.
+ * ClassMachinePicker — Phase 4-3 → 8.1d-22 evolution.
  *
- * Controlled component: takes classes + machineProfiles arrays as props,
- * emits class/machine selections back via onClassChange / onMachineChange.
- * Completely stateless — parent manages selection state so 4-4 can wire
- * the full upload flow (selection + file + button) on one form.
+ * Step sequence (steps elide when there's only one option):
+ *   1. Pick class
+ *   2. Pick category (3D printer / Laser cutter)         — elided when teacher has only one
+ *   3. Pick lab (Secondary Design 3rd floor / etc.)      — elided when teacher has only one in this category
+ *   4. "Any [category] in [lab]" (default)               — opt-in to specific machine via toggle
  *
- * No data fetching here. No API calls. Just UI + callbacks. This keeps
- * the component unit-testable without mocking fetch and lets Phase 8's
- * teacher machine-admin UI reuse the component unchanged.
+ * 8.1d-22 (Matt's S3 smoke 27 Apr): "we have 2x P1P and 1x P1S
+ * but they all print the same really and students don't know the
+ * difference … ideally the fabricator sees just 3D printing or
+ * laser cutting jobs coming in." So step 4 defaults to category-
+ * only ("Any 3D printer in Secondary Design"), and the fab decides
+ * which physical machine to load it onto. Specific-machine still
+ * available for schools that have meaningful per-machine
+ * differences (P1S with AMS for multicolour vs plain P1Ps, etc.)
+ * — collapsed under a "Pick a specific machine" toggle so it
+ * doesn't clutter the default flow.
+ *
+ * Controlled component — parent owns all selection state. Lab + category
+ * + machine are independent props so the parent can derive the right
+ * upload payload (machineProfileId, OR labId+machineCategory).
  */
 
 import * as React from "react";
 import {
   formatMachineLabel,
-  groupMachinesByLab,
   type ClassOption,
   type MachineProfileOption,
 } from "./picker-helpers";
@@ -27,24 +38,6 @@ import {
 export { formatMachineLabel };
 export type { ClassOption, MachineProfileOption };
 
-/**
- * Phase 8.1d-10: type-first student picker.
- *
- * Matt's UX call 26 Apr AM: "as a student submitting a new job, i think
- * it would be best to start with the type and have pictures eg 3d print,
- * laser cutter (and other options later). this then determines which
- * machines are able to be selected because otherwise its a huge list and
- * confusing"
- *
- * Flow:
- *   1. Pick class (existing dropdown — sets the assignment context)
- *   2. Pick category (NEW — visual cards: 3D printer / Laser cutter)
- *   3. Pick specific machine (filtered by category, grouped by lab)
- *
- * The category step only renders when the teacher has machines in
- * MORE than one category. Single-category teachers see the simpler
- * 2-step flow they had before.
- */
 export type MachineCategory = "3d_printer" | "laser_cutter";
 
 export interface ClassMachinePickerProps {
@@ -52,11 +45,22 @@ export interface ClassMachinePickerProps {
   machineProfiles: MachineProfileOption[];
   selectedClassId: string | null;
   selectedCategory: MachineCategory | null;
+  /** Phase 8.1d-22: lab is now an explicit selection (not derived from
+   *  the picked machine). Required for "Any [category] in [lab]"
+   *  uploads; also disambiguates specific-machine picks across labs. */
+  selectedLabId: string | null;
   selectedMachineProfileId: string | null;
   onClassChange: (classId: string) => void;
   onCategoryChange: (category: MachineCategory) => void;
-  onMachineChange: (machineProfileId: string) => void;
+  onLabChange: (labId: string) => void;
+  /** Pass null to clear specific-machine selection (revert to "Any X"). */
+  onMachineChange: (machineProfileId: string | null) => void;
   disabled?: boolean;
+}
+
+interface LabSummary {
+  id: string;
+  name: string;
 }
 
 export function ClassMachinePicker(props: ClassMachinePickerProps) {
@@ -65,47 +69,100 @@ export function ClassMachinePicker(props: ClassMachinePickerProps) {
     machineProfiles,
     selectedClassId,
     selectedCategory,
+    selectedLabId,
     selectedMachineProfileId,
     onClassChange,
     onCategoryChange,
+    onLabChange,
     onMachineChange,
     disabled = false,
   } = props;
 
   const hasClasses = classes.length > 0;
 
-  // Phase 8.1d-10: derive available categories from the machine list.
-  // A category is "available" if at least one non-template, active
-  // machine has it. (System templates show in the picker for legacy
-  // fallback but don't unlock a category by themselves.)
+  // Available categories — only those with at least one active,
+  // non-template, lab-bound machine count.
   const availableCategories = React.useMemo(() => {
     const cats = new Set<MachineCategory>();
     for (const m of machineProfiles) {
       if (m.is_system_template) continue;
+      if (!m.lab_id) continue; // orphan machines don't unlock a category
       if (m.machine_category === "3d_printer") cats.add("3d_printer");
       else if (m.machine_category === "laser_cutter") cats.add("laser_cutter");
     }
     return Array.from(cats);
   }, [machineProfiles]);
 
-  // Skip the category step entirely when only one category exists.
-  // Single-lab single-category teachers see the simpler 2-step flow.
   const showCategoryStep = availableCategories.length > 1;
   const effectiveCategory = showCategoryStep
     ? selectedCategory
     : (availableCategories[0] ?? null);
 
-  // Filter machines for the dropdown: must match the effective category.
-  // System templates pass through (legacy fallback / "add from template"
-  // path — students rarely see them but harmless).
-  const filteredMachines = React.useMemo(() => {
+  // Available labs in the picked category.
+  const availableLabs = React.useMemo<LabSummary[]>(() => {
     if (!effectiveCategory) return [];
-    return machineProfiles.filter(
-      (m) => m.is_system_template || m.machine_category === effectiveCategory
+    const seen = new Map<string, LabSummary>();
+    for (const m of machineProfiles) {
+      if (m.is_system_template) continue;
+      if (!m.lab_id || !m.lab_name) continue;
+      if (m.machine_category !== effectiveCategory) continue;
+      if (!seen.has(m.lab_id)) {
+        seen.set(m.lab_id, { id: m.lab_id, name: m.lab_name });
+      }
+    }
+    return Array.from(seen.values()).sort((a, b) =>
+      a.name.localeCompare(b.name)
     );
   }, [machineProfiles, effectiveCategory]);
 
-  const hasMachines = filteredMachines.length > 0;
+  const showLabStep = availableLabs.length > 1;
+  const effectiveLabId = showLabStep
+    ? selectedLabId
+    : (availableLabs[0]?.id ?? null);
+
+  // Auto-pick the only lab when there's just one — keeps the parent
+  // state in sync without forcing the user to click. Same pattern as
+  // single-category auto-resolution.
+  React.useEffect(() => {
+    if (!showLabStep && availableLabs.length === 1 && selectedLabId !== availableLabs[0].id) {
+      onLabChange(availableLabs[0].id);
+    }
+  }, [showLabStep, availableLabs, selectedLabId, onLabChange]);
+
+  // Same for single-category auto-resolution.
+  React.useEffect(() => {
+    if (
+      !showCategoryStep &&
+      availableCategories.length === 1 &&
+      selectedCategory !== availableCategories[0]
+    ) {
+      onCategoryChange(availableCategories[0]);
+    }
+  }, [showCategoryStep, availableCategories, selectedCategory, onCategoryChange]);
+
+  // Specific-machine picker visibility — collapsed by default, opens
+  // when the user toggles "Pick a specific machine".
+  const [showSpecific, setShowSpecific] = React.useState(false);
+  // If the parent has a specific machine selected (e.g. on edit /
+  // navigation back), keep the specific picker open so they can see
+  // their selection.
+  React.useEffect(() => {
+    if (selectedMachineProfileId) setShowSpecific(true);
+  }, [selectedMachineProfileId]);
+
+  // Filter the specific-machine list to lab + category.
+  const specificMachines = React.useMemo(() => {
+    if (!effectiveCategory || !effectiveLabId) return [];
+    return machineProfiles.filter(
+      (m) =>
+        !m.is_system_template &&
+        m.lab_id === effectiveLabId &&
+        m.machine_category === effectiveCategory
+    );
+  }, [machineProfiles, effectiveCategory, effectiveLabId]);
+
+  const labelForLab = (id: string | null) =>
+    availableLabs.find((l) => l.id === id)?.name ?? "this lab";
 
   return (
     <div className="space-y-4">
@@ -134,9 +191,6 @@ export function ClassMachinePicker(props: ClassMachinePickerProps) {
         </select>
       </div>
 
-      {/* Phase 8.1d-10: category step — visual cards. Only shown when
-           teacher has machines in MORE than one category (otherwise
-           it's a needless click). */}
       {showCategoryStep && (
         <div>
           <span className="block text-sm font-semibold mb-1.5">
@@ -176,63 +230,113 @@ export function ClassMachinePicker(props: ClassMachinePickerProps) {
         </div>
       )}
 
-      <div>
-        <label
-          htmlFor="fab-machine-select"
-          className="block text-sm font-semibold mb-1.5"
-        >
-          Machine
-        </label>
-        {/* Phase 8.1d-5/10: machines grouped by lab name via <optgroup>,
-             filtered by selected category. Single-lab schools render
-             as a flat list. Multi-lab schools see "── Lab Name ──"
-             headers in the dropdown. */}
-        <select
-          id="fab-machine-select"
-          value={selectedMachineProfileId ?? ""}
-          onChange={(e) => onMachineChange(e.target.value)}
-          disabled={
-            disabled ||
-            !hasMachines ||
-            (showCategoryStep && !selectedCategory)
-          }
-          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple disabled:opacity-50"
-        >
-          <option value="" disabled>
-            {showCategoryStep && !selectedCategory
-              ? "Pick a machine type first…"
-              : hasMachines
-                ? "Select a machine…"
-                : "No machines configured"}
-          </option>
-          {(() => {
-            const groups = groupMachinesByLab(filteredMachines);
-            // Single group: no header — render flat.
-            if (groups.length === 1) {
-              return groups[0].machines.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {formatMachineLabel(m)}
-                </option>
-              ));
+      {/* Phase 8.1d-22: lab picker. Only renders when there's >1 lab
+           in the chosen category. Single-lab schools auto-resolve in
+           the effect above. */}
+      {showLabStep && (
+        <div>
+          <label
+            htmlFor="fab-lab-select"
+            className="block text-sm font-semibold mb-1.5"
+          >
+            Lab
+          </label>
+          <select
+            id="fab-lab-select"
+            value={selectedLabId ?? ""}
+            onChange={(e) => onLabChange(e.target.value)}
+            disabled={
+              disabled ||
+              (showCategoryStep && !selectedCategory)
             }
-            // Multi-group: <optgroup> per lab.
-            return groups.map((g) => (
-              <optgroup key={g.label} label={g.label}>
-                {g.machines.map((m) => (
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple disabled:opacity-50"
+          >
+            <option value="" disabled>
+              {showCategoryStep && !selectedCategory
+                ? "Pick a machine type first…"
+                : "Select a lab…"}
+            </option>
+            {availableLabs.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Phase 8.1d-22: "Any [category] in [lab]" default summary +
+           collapsible specific-machine picker. */}
+      {effectiveCategory && effectiveLabId && (
+        <div>
+          <span className="block text-sm font-semibold mb-1.5">
+            Machine
+          </span>
+          {!showSpecific ? (
+            <div className="rounded-lg border-2 border-brand-purple bg-brand-purple/5 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm">
+                  <span className="font-semibold text-brand-purple">
+                    Any {labelForCategory(effectiveCategory).toLowerCase()}
+                  </span>
+                  {showLabStep && (
+                    <span className="text-gray-700">
+                      {" "}
+                      in {labelForLab(effectiveLabId)}
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSpecific(true)}
+                  disabled={disabled || specificMachines.length === 0}
+                  className="text-xs font-semibold text-brand-purple hover:underline disabled:opacity-50 disabled:no-underline shrink-0"
+                >
+                  Pick a specific machine →
+                </button>
+              </div>
+              <p className="text-xs text-gray-600 mt-1.5 leading-snug">
+                The fabricator picks an available {labelForCategory(effectiveCategory).toLowerCase()} when your
+                file&apos;s next in the queue.{" "}
+                {specificMachines.length === 0 &&
+                  "(No specific machines available — keep this default.)"}
+              </p>
+            </div>
+          ) : (
+            <div>
+              <select
+                id="fab-machine-select"
+                value={selectedMachineProfileId ?? ""}
+                onChange={(e) => onMachineChange(e.target.value)}
+                disabled={disabled || specificMachines.length === 0}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple disabled:opacity-50"
+              >
+                <option value="" disabled>
+                  {specificMachines.length > 0
+                    ? "Select a specific machine…"
+                    : "No specific machines in this lab"}
+                </option>
+                {specificMachines.map((m) => (
                   <option key={m.id} value={m.id}>
                     {formatMachineLabel(m)}
                   </option>
                 ))}
-              </optgroup>
-            ));
-          })()}
-        </select>
-        {machineProfiles.length > 0 && (
-          <p className="text-xs text-gray-500 mt-1">
-            Bed size shown is the maximum drawing area your file must fit within.
-          </p>
-        )}
-      </div>
+              </select>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSpecific(false);
+                  onMachineChange(null);
+                }}
+                disabled={disabled}
+                className="text-xs font-semibold text-brand-purple hover:underline mt-2 disabled:opacity-50"
+              >
+                ← Use any {labelForCategory(effectiveCategory).toLowerCase()} instead
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

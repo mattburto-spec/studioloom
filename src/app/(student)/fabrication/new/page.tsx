@@ -56,6 +56,10 @@ export default function FabricationNewPage() {
   // Phase 8.1d-10: type-first picker. Category narrows the machine list.
   const [selectedCategory, setSelectedCategory] =
     React.useState<MachineCategory | null>(null);
+  // Phase 8.1d-22: lab is its own selection so "Any [category] in [lab]"
+  // can be the default upload payload. Specific-machine path is opt-in
+  // via the picker's collapsible toggle.
+  const [selectedLabId, setSelectedLabId] = React.useState<string | null>(null);
   const [selectedMachineProfileId, setSelectedMachineProfileId] = React.useState<
     string | null
   >(null);
@@ -106,10 +110,18 @@ export default function FabricationNewPage() {
     };
   }, []);
 
+  // Phase 8.1d-22: a valid pick is EITHER a specific machine OR
+  // (lab + category). The picker's auto-resolution effects fill
+  // single-option cases for us, so by the time a class is picked
+  // we should have a valid combo for the active student.
+  const hasValidMachineSelection =
+    selectedMachineProfileId !== null ||
+    (selectedLabId !== null && selectedCategory !== null);
+
   const canUpload =
     loadState.kind === "ready" &&
     selectedClassId !== null &&
-    selectedMachineProfileId !== null &&
+    hasValidMachineSelection &&
     file !== null &&
     fileType !== null &&
     (uploadState.kind === "idle" || uploadState.kind === "error") &&
@@ -121,13 +133,31 @@ export default function FabricationNewPage() {
     isPreparing;
 
   async function handleUpload() {
-    if (!file || !fileType || !selectedClassId || !selectedMachineProfileId) return;
+    if (!file || !fileType || !selectedClassId) return;
+    // Phase 8.1d-22: require EITHER specific machine OR (lab + category).
+    if (
+      !selectedMachineProfileId &&
+      !(selectedLabId && selectedCategory)
+    ) {
+      return;
+    }
     if (isPreparing) return; // double-click guard
     setValidationError(null);
     // Flip the button to its "preparing" state synchronously, BEFORE
     // the await on /upload. This is the user-visible feedback the
     // student needs in the 100-500ms before START_UPLOAD lands.
     setIsPreparing(true);
+
+    // Phase 8.1d-22: send machineProfileId when the student opted into
+    // a specific machine; otherwise send (labId + machineCategory) so
+    // the fab assigns a machine on pickup. Validation server-side
+    // rejects sending both.
+    const machineFields: Record<string, string> = selectedMachineProfileId
+      ? { machineProfileId: selectedMachineProfileId }
+      : {
+          labId: selectedLabId as string,
+          machineCategory: selectedCategory as string,
+        };
 
     // Step 1: POST /upload to create rows + mint signed URL.
     let initResult: {
@@ -143,7 +173,7 @@ export default function FabricationNewPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           classId: selectedClassId,
-          machineProfileId: selectedMachineProfileId,
+          ...machineFields,
           fileType,
           originalFilename: file.name,
           fileSizeBytes: file.size,
@@ -315,13 +345,21 @@ export default function FabricationNewPage() {
             machineProfiles={loadState.data.machineProfiles}
             selectedClassId={selectedClassId}
             selectedCategory={selectedCategory}
+            selectedLabId={selectedLabId}
             selectedMachineProfileId={selectedMachineProfileId}
             onClassChange={setSelectedClassId}
             onCategoryChange={(cat) => {
-              // Phase 8.1d-10: switching category clears the machine
-              // selection so a stale 3D-printer pick doesn't survive a
-              // switch to laser.
+              // Switching category clears lab + machine — both were
+              // scoped to the previous category so they shouldn't
+              // survive the change.
               setSelectedCategory(cat);
+              setSelectedLabId(null);
+              setSelectedMachineProfileId(null);
+            }}
+            onLabChange={(labId) => {
+              // Switching lab clears the specific machine (it was
+              // scoped to a different lab).
+              setSelectedLabId(labId);
               setSelectedMachineProfileId(null);
             }}
             onMachineChange={setSelectedMachineProfileId}
