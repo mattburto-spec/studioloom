@@ -120,18 +120,39 @@ export async function GET(
     );
   }
 
-  const db = createAdminClient();
-  const result = await listRevisions(db, { studentId: auth.studentId, jobId });
+  // Phase 8.1d-11: wrap orchestration in try/catch so an unexpected
+  // throw (Supabase client glitch, malformed signed-URL path, etc.)
+  // returns a structured 500 with a logged message — the previous
+  // raw-throw fell through to Next's default handler, which the
+  // student page surfaces as "Loading your submission…" forever
+  // because /revisions is fired in parallel with /status. The
+  // status page treats a /revisions failure as soft (renders
+  // revisionsError text) only when we return JSON.
+  try {
+    const db = createAdminClient();
+    const result = await listRevisions(db, { studentId: auth.studentId, jobId });
 
-  if (isOrchestrationError(result)) {
+    if (isOrchestrationError(result)) {
+      return NextResponse.json(
+        { error: result.error.message },
+        { status: result.error.status, headers: NO_CACHE_HEADERS }
+      );
+    }
+
     return NextResponse.json(
-      { error: result.error.message },
-      { status: result.error.status, headers: NO_CACHE_HEADERS }
+      { revisions: result.revisions },
+      { status: 200, headers: NO_CACHE_HEADERS }
+    );
+  } catch (e) {
+    // Log enough context to trace which jobId + studentId blew up
+    // without leaking to the response body.
+    console.error(
+      "[/api/student/fabrication/jobs/:jobId/revisions GET] unhandled error",
+      { jobId, studentId: auth.studentId, error: e }
+    );
+    return NextResponse.json(
+      { error: "Couldn't load revision history. Please refresh." },
+      { status: 500, headers: NO_CACHE_HEADERS }
     );
   }
-
-  return NextResponse.json(
-    { revisions: result.revisions },
-    { status: 200, headers: NO_CACHE_HEADERS }
-  );
 }

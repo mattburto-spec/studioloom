@@ -1,12 +1,25 @@
 source: "Authored from makercase-box-back-panel.svg (21 Apr 2026)"
 source_filename: null
 intended_machine: "glowforge_plus"
-expected_result: "block"
-triggers_rules:
-  - R-SVG-01
+# Phase 8.1d-12 calibration: this fixture's path geometry is small
+# (~150×300mm — inherited from the makercase source). Only the
+# width/height/viewBox were rewritten to 10000mm. Under content-bbox
+# checking (R-SVG-01 post-8.1d-12) the fixture is genuinely fine; the
+# old expected_result: "block" was an artefact of the artboard-only
+# implementation that 8.1d-12 removed.
+#
+# We keep this fixture as a regression marker — flipping back to
+# artboard checking would re-fire R-SVG-01 here. For a fixture that
+# triggers the new content-bbox path, see _TRULY_OVERSIZED_SVG inline
+# in tests/test_rules_svg_machine.py, or author a new fixture with a
+# `<rect width="10000" height="10000"/>` style geometry.
+expected_result: "pass"
+triggers_rules: []
 notes: |
   SYNTHETIC FIXTURE. Derived from makercase-box-back-panel.svg with width/height/viewBox
-  rewritten to 10000mm × 10000mm. Exceeds every machine in the seeded profile set (largest
-  bed is ~600 mm). Authored to cover R-SVG-01.
+  rewritten to 10000mm × 10000mm but the path geometry left as the (small) original ~150×300mm
+  drawing. With Phase 8.1d-12's content-bbox check, R-SVG-01 correctly does NOT fire here.
+  Pre-8.1d-12 it fired on the artboard size — that was the bug the patch addresses.
 date_added: 2026-04-21
+last_calibrated: 2026-04-26
 anonymised: false

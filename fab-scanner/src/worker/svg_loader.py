@@ -30,6 +30,12 @@ class SvgDocument:
     """
 
     root: etree._Element
+    # Phase 8.1d-12: raw_bytes kept around so worker.svg_bbox can
+    # re-render via cairosvg for the R-SVG-01 content-bbox check
+    # without re-downloading from storage. Lxml round-trips
+    # `etree.tostring(root)` are subtly lossy on namespace decls so
+    # we just carry the original bytes through.
+    raw_bytes: bytes
     # Raw attribute strings preserved with their units. Parsing into
     # mm / px / percent is the job of R-SVG-02 / R-SVG-03 in Phase 2B-2.
     width_raw: str | None
@@ -82,6 +88,7 @@ def load_svg_document(data: bytes) -> SvgDocument:
 
     return SvgDocument(
         root=root,
+        raw_bytes=data,
         width_raw=root.get("width"),
         height_raw=root.get("height"),
         viewbox=viewbox,

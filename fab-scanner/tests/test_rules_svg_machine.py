@@ -4,11 +4,18 @@ Phase 2B-2. Every assertion names the expected rule ID + severity
 explicitly (Lesson #38 — verify = assert expected values, not existence).
 
 Fixture coverage:
-- R-SVG-01: box-oversized-10m.svg (10000mm × 10000mm)
+- R-SVG-01: box-oversized-10m.svg (10000mm × 10000mm artboard, but small
+  content — see Phase 8.1d-12 note below)
 - R-SVG-02: korean-draw-unit-mismatch.svg (297mm / viewBox 742.5 → ratio 2.5)
 - R-SVG-03: coaster-flower-percent-width.svg (width="100%")
 
 Plus: known-good SVGs assert NO machine-fit rules fire.
+
+Phase 8.1d-12 — R-SVG-01 now checks content bbox via cairosvg, not
+the artboard. Tests that need the content-bbox path are marked
+@requires_cairo and skip on macOS dev envs without libcairo. Tests
+of the artboard-fallback (cairo missing OR render fails) use inline
+SVGs that exercise that branch deterministically.
 """
 
 from __future__ import annotations
@@ -23,8 +30,29 @@ from rules.svg.machine_fit import run_machine_fit_rules
 from worker.svg_loader import load_svg_document
 
 
+def _has_cairo() -> bool:
+    """True when cairosvg + libcairo are dlopen-able. Mirrors the runtime
+    check in worker.svg_bbox so tests are honest about what they cover."""
+    try:
+        import cairosvg  # type: ignore  # noqa: F401
+    except (ImportError, OSError):
+        return False
+    return True
+
+
+requires_cairo = pytest.mark.skipif(
+    not _has_cairo(), reason="cairosvg/libcairo not available in this env"
+)
+
+
 def _load_fixture(relpath: str):
     return load_svg_document((FIXTURES_DIR / relpath).read_bytes())
+
+
+def _load_inline(svg: str):
+    """Load an inline SVG string — useful for tests that need a precise
+    geometry/artboard combination without authoring a fixture file."""
+    return load_svg_document(svg.encode("utf-8"))
 
 
 def _glowforge_plus() -> MachineProfile:
@@ -95,32 +123,150 @@ def _generic_large_laser() -> MachineProfile:
 
 
 # ---------------------------------------------------------------------------
-# R-SVG-01 — bed size
+# R-SVG-01 — bed size (Phase 8.1d-12: content-bbox-based, with artboard
+#                     fallback when libcairo isn't available)
 # ---------------------------------------------------------------------------
 
 
-def test_r_svg_01_fires_on_oversized_drawing() -> None:
-    doc = _load_fixture("known-broken/svg/box-oversized-10m.svg")
+# Truly-oversized inline SVG: a 10m×10m rect with explicit fill so cairo
+# rasterises full alpha across the whole viewbox. The artboard AND the
+# geometry are both 10000×10000mm, so R-SVG-01 fires regardless of which
+# bbox path is taken — no cairo dependency needed for this assertion.
+_TRULY_OVERSIZED_SVG = """<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="10000mm" height="10000mm" viewBox="0 0 10000 10000">
+  <rect x="0" y="0" width="10000" height="10000" fill="#ff0000" stroke="#000000"/>
+</svg>
+"""
+
+# A 250mm × 250mm artboard with only a 90mm circle in the middle — the
+# bug Matt reported during the Phase 8.1 smoke. Content fits a 200mm
+# bed; the artboard does not. R-SVG-01 must NOT fire.
+_COASTER_ON_BIG_ARTBOARD_SVG = """<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="250mm" height="250mm" viewBox="0 0 250 250">
+  <circle cx="125" cy="125" r="45" stroke="#ff0000" fill="none" stroke-width="0.25"/>
+</svg>
+"""
+
+
+def test_r_svg_01_fires_on_truly_oversized_geometry() -> None:
+    """R-SVG-01 fires when the actual rendered content exceeds the bed.
+
+    Uses an inline 10000×10000mm rect so the geometry — not just the
+    artboard — is over-budget. Both bbox paths (cairo or fallback)
+    must agree, so this test runs without the requires_cairo marker.
+    """
+    doc = _load_inline(_TRULY_OVERSIZED_SVG)
     results = run_machine_fit_rules(doc, _glowforge_plus())
     fired_ids = [r.id for r in results]
     assert "R-SVG-01" in fired_ids, (
-        f"expected R-SVG-01 on 10000mm drawing, got {fired_ids}"
+        f"expected R-SVG-01 on a 10000mm-wide rect, got {fired_ids}"
     )
 
     r = next(r for r in results if r.id == "R-SVG-01")
     assert r.severity == "block"
-    assert r.evidence["drawing_mm"]["width"] == 10000.0
-    assert r.evidence["drawing_mm"]["height"] == 10000.0
     assert r.evidence["bed_mm"]["width"] == 495
     assert r.evidence["bed_mm"]["height"] == 279
+    assert r.evidence["artboard_mm"]["width"] == 10000.0
+    assert r.evidence["artboard_mm"]["height"] == 10000.0
     assert len(r.evidence["violations"]) == 2  # both axes exceed
+    # bbox_source should be "content" when cairo is available, "artboard"
+    # otherwise — both are correct, only the messaging changes.
+    assert r.evidence["bbox_source"] in ("content", "artboard")
+
+
+@requires_cairo
+def test_r_svg_01_does_not_fire_on_small_content_with_huge_artboard() -> None:
+    """Phase 8.1d-12 regression: a 90mm coaster on a 250mm artboard
+    must NOT trip R-SVG-01 against a 495×279mm Glowforge bed.
+
+    This was the actual smoke-test bug — students design at a generous
+    artboard and the laser slicer only consumes the geometry's bbox.
+    Failing this test means the rule has reverted to artboard checking.
+    """
+    doc = _load_inline(_COASTER_ON_BIG_ARTBOARD_SVG)
+    results = run_machine_fit_rules(doc, _glowforge_plus())
+    ids = [r.id for r in results]
+    assert "R-SVG-01" not in ids, (
+        f"R-SVG-01 fired on a 90mm circle inside a 250mm artboard — "
+        f"the geometry fits a 495mm bed easily. Got: {ids}"
+    )
+
+
+@requires_cairo
+def test_r_svg_01_evidence_records_content_bbox_source() -> None:
+    """When cairo is available, R-SVG-01's evidence should distinguish
+    artboard size from the measured content bbox so the UI / future
+    debugging can tell which path fired."""
+    doc = _load_inline(_TRULY_OVERSIZED_SVG)
+    results = run_machine_fit_rules(doc, _glowforge_plus())
+    r = next(r for r in results if r.id == "R-SVG-01")
+    assert r.evidence["bbox_source"] == "content"
+    # Content bbox of a fully-filled 10m rect at our render resolution
+    # should be very close to 10000mm — allow a couple of percent for
+    # the 4096-pixel-cap rounding.
+    assert r.evidence["drawing_mm"]["width"] >= 9500
+    assert r.evidence["drawing_mm"]["height"] >= 9500
+
+
+def test_r_svg_01_box_oversized_fixture_geometry_is_actually_small() -> None:
+    """Phase 8.1d-12 calibration: the legacy box-oversized-10m fixture
+    has a 10m artboard but only ~150×300mm of actual path geometry
+    (it was synthesised by rewriting width/height/viewBox on a
+    makercase-derived drawing). With content-bbox checking, R-SVG-01
+    must NOT fire — the fixture turned out to be the exact bug the
+    rule was designed to catch.
+
+    If a future engineer wants a fixture for "true 10m geometry",
+    use _TRULY_OVERSIZED_SVG above (already covered by
+    test_r_svg_01_fires_on_truly_oversized_geometry). The legacy
+    fixture is preserved as a regression marker — flipping back to
+    artboard checking would make this test fail loudly.
+
+    Skips on no-cairo envs because the fallback path correctly
+    surfaces the artboard violation there.
+    """
+    if not _has_cairo():
+        pytest.skip("artboard fallback path covered separately")
+    doc = _load_fixture("known-broken/svg/box-oversized-10m.svg")
+    results = run_machine_fit_rules(doc, _glowforge_plus())
+    ids = [r.id for r in results]
+    assert "R-SVG-01" not in ids, (
+        "box-oversized-10m's content geometry is small (~150×300mm); "
+        "R-SVG-01 should not fire when content-bbox checking is active. "
+        f"Got: {ids}"
+    )
+
+
+def test_r_svg_01_artboard_fallback_when_render_fails() -> None:
+    """When the content-bbox helper returns None (cairo missing or
+    render error), R-SVG-01 falls back to the artboard check.
+
+    We exercise this by patching compute_content_bbox_mm to return
+    None, regardless of whether cairo is actually installed locally.
+    Important: a cairo-less prod deploy must still catch oversized
+    artboards rather than silently letting them through."""
+    import rules.svg.machine_fit as mf
+
+    doc = _load_inline(_TRULY_OVERSIZED_SVG)
+    original = mf.compute_content_bbox_mm
+    mf.compute_content_bbox_mm = lambda *_a, **_k: None  # type: ignore[assignment]
+    try:
+        results = run_machine_fit_rules(doc, _glowforge_plus())
+    finally:
+        mf.compute_content_bbox_mm = original  # type: ignore[assignment]
+
+    r = next(r for r in results if r.id == "R-SVG-01")
+    assert r.severity == "block"
+    assert r.evidence["bbox_source"] == "artboard"
+    assert r.evidence["drawing_mm"]["width"] == 10000.0
+    assert r.evidence["drawing_mm"]["height"] == 10000.0
 
 
 def test_r_svg_01_skips_on_3d_printer_profile() -> None:
     """Laser-only rule; 3D printer profiles must not fire it even on
-    the oversized fixture (3D printers don't accept SVGs in practice,
-    but belt-and-braces on the rule-level skip)."""
-    doc = _load_fixture("known-broken/svg/box-oversized-10m.svg")
+    a 10000mm rect (3D printers don't accept SVGs in practice, but
+    belt-and-braces on the rule-level skip)."""
+    doc = _load_inline(_TRULY_OVERSIZED_SVG)
     results = run_machine_fit_rules(doc, _bambu_x1c())
     ids = [r.id for r in results]
     assert "R-SVG-01" not in ids
