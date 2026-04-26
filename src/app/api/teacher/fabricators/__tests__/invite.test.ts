@@ -155,9 +155,17 @@ describe("POST /api/teacher/fabricators (invite)", () => {
     expect(res.status).toBe(400);
   });
 
-  it("rejects empty machineIds with 400", async () => {
-    const res = await POST(makeRequest({ email: "x@x.com", displayName: "X", machineIds: [] }));
-    expect(res.status).toBe(400);
+  it("ACCEPTS empty machineIds — fabricators see all teacher jobs (Phase 8.1d-9)", async () => {
+    // Phase 8.1d-9 dropped the per-machine assignment requirement.
+    // machineIds is now optional; the queue + pickup paths scope by
+    // inviting teacher_id directly. The junction is deprecated as a
+    // visibility mechanism. Future PH9-FU-FAB-MACHINE-RESTRICT may
+    // re-introduce per-machine opt-in scoping.
+    tableState.insertedFabricator = { id: "fab-empty" };
+    const res = await POST(
+      makeRequest({ email: "x@x.com", displayName: "X", machineIds: [] })
+    );
+    expect(res.status).toBe(200);
   });
 
   it("fresh invite: inserts fabricator, creates setup session, dispatches invite email", async () => {

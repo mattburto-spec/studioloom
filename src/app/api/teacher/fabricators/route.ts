@@ -137,9 +137,12 @@ export async function POST(request: NextRequest) {
   if (!displayName) {
     return privateJson({ error: "Display name required" }, 400);
   }
-  if (machineIds.length === 0) {
-    return privateJson({ error: "At least one machine must be assigned" }, 400);
-  }
+  // Phase 8.1d-9: machineIds is now OPTIONAL. Fabricators see ALL
+  // jobs from their inviting teacher (queue scopes by teacher_id).
+  // The fabricator_machines junction is deprecated as a visibility
+  // mechanism; kept in schema for future opt-in restrictions
+  // (PH9-FU-FAB-MACHINE-RESTRICT). Empty machineIds → no junction
+  // rows are inserted (no harm, the queue ignores them anyway).
 
   const admin = createAdminClient();
 
@@ -222,25 +225,34 @@ export async function POST(request: NextRequest) {
     fabricatorId = inserted.id;
   }
 
-  // Assign machines. Replace any prior set.
+  // Phase 8.1d-9: drop any prior junction rows (deprecated as a
+  // visibility mechanism; might still exist from older invite flows
+  // before Phase 8.1d-9 — clean them up so they don't mislead future
+  // PH9-FU-FAB-MACHINE-RESTRICT work into thinking they're meaningful).
   await admin
     .from("fabricator_machines")
     .delete()
     .eq("fabricator_id", fabricatorId);
 
-  const machineRows = machineIds.map((machineId) => ({
-    fabricator_id: fabricatorId,
-    machine_profile_id: machineId,
-    assigned_by_teacher_id: user.id,
-  }));
-  const { error: machineError } = await admin
-    .from("fabricator_machines")
-    .insert(machineRows);
-  if (machineError) {
-    return privateJson(
-      { error: `Machine assignment failed: ${machineError.message}` },
-      500
-    );
+  // Insert junction rows ONLY if the caller explicitly supplied them
+  // (legacy clients still might). The queue + pickup orchestration
+  // ignore these rows. Empty machineIds → no inserts; that's the
+  // expected v1 default.
+  if (machineIds.length > 0) {
+    const machineRows = machineIds.map((machineId) => ({
+      fabricator_id: fabricatorId,
+      machine_profile_id: machineId,
+      assigned_by_teacher_id: user.id,
+    }));
+    const { error: machineError } = await admin
+      .from("fabricator_machines")
+      .insert(machineRows);
+    if (machineError) {
+      return privateJson(
+        { error: `Machine assignment failed: ${machineError.message}` },
+        500
+      );
+    }
   }
 
   // Create the is_setup invite session.
