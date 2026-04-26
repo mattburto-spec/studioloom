@@ -163,7 +163,7 @@
 - **Mockup history:** 5 iterations of `docs/newlook/StudioSetupDrawer-mockup.html` (v1–v5) committed as historical artefacts. The drawer concept ultimately died in the redesign pivot.
 
 ### Language Scaffolding Redesign — Tap-a-word + Response Starters
-- **Status:** 🔵 SPEC SIGNED OFF — pre-build complete. Phase 0 (rollback AutonomyPicker) is the first executable phase, awaiting trigger phrase "go phase 0" or "language scaffolding next" in next session.
+- **Status:** 🔴 PHASE 0 SHIPPED + Checkpoint 0.1 PASSED (26 Apr 2026). Phases 1-5 awaiting next session.
 - **Priority:** TIER 0 P0 | **Est:** 6 phases / ~3-4 weeks | **Worktree:** `/Users/matt/CWORK/questerra-lesson-bold` (continues from Lesson Bold) | **Doc:** [`language-scaffolding-redesign-brief.md`](language-scaffolding-redesign-brief.md)
 - **One-line goal:** Replace AutonomyPicker (configuration model) with two inline invocation affordances — Tap-a-word (input scaffold, shared TappableText component) and Response Starters (output scaffold, magic-wand-pen → side panel with Word Bank + Sentence Starters on text response inputs).
 - **Pattern derivation:** Newsela Word Pop + Microsoft Immersive Reader Picture Dictionary + Medley Learning Response Starters, converged.
@@ -176,12 +176,19 @@
   - Image source: Wikimedia Commons + Open Symbols, curated static manifest committed to repo
   - Sandbox bypass threaded into every AI call site from day 1
 - **Phases:**
-  - **Phase 0 — Rollback** (~30 min): delete AutonomyPicker, drop migration 116 via 117, restore ELL-only ActivityCard gating, file FU-LS-DRIFT, update WIRING entry. ~13 file changes + 1 migration.
+  - **Phase 0 — Rollback** ✅ SHIPPED 26 Apr (`c58aa1c` + `513818f`): AutonomyPicker deleted, migration 117 (`DROP COLUMN`) applied to local dev, ELL-only ActivityCard gating restored, FU-LS-DRIFT filed, WIRING `student-learning-support` flipped to `status: planned`. Tests 1952 → 1942 (−10). Visual smoke verified ELL-1 hints / ELL-2 silent / ELL-3 extensions matches expected. Checkpoint 0.1 PASSED.
   - **Phase 1 — Tap-a-word v1** (definition only): TappableText component, WordPopover, `/api/student/word-lookup` endpoint with sandbox bypass, migration 118 (word_definitions cache table), 500-word pre-warm seed. Mount on 8 surfaces. Stop-trigger: cold-cache rate >20 words per first-time student per lesson.
   - **Phase 2 — Tap-a-word v2** (translation + audio + image): WordPopover gets L1 translation + browser SpeechSynthesis + curated image dictionary (Wikimedia + Open Symbols, ~2000 entries). WIRING entry `tap-a-word` added.
   - **Phase 3 — Response Starters**: ResponseStartersPanel, magic-wand-pen affordance, `/api/student/response-starters` endpoint with sandbox bypass, migration 119 (activity_response_starters cache table). Lazy first-invocation generation, class-shared cache.
-  - **Phase 4 — Scaffold fading + teacher preview**: signal-driven tier (taps_per_100_words), teacher one-click override, `/teacher/preview/[unitId]/[pageId]?profile=...` route.
+  - **Phase 4 — Scaffold fading + teacher preview + unified student settings**: signal-driven tier (taps_per_100_words), teacher one-click override, `/teacher/preview/[unitId]/[pageId]?profile=...` route, **+ unified `/teacher/students/[studentId]` settings page (folded in 26 Apr — was FU-TS-UNIFY).** 6 sections: identity / language & scaffolding (ELL + L1 override + tier override) / learning profile (read-only) / studio prefs (read-only) / notifications / recent activity. New API: `PATCH /api/teacher/students/[studentId]` extended + `GET /api/teacher/students/[studentId]/scaffold-signals`. No schema migration — JSONB nesting on `learning_profile`.
   - **Phase 5 — Live E2E gate**: `RUN_E2E=1` test against real Anthropic on both endpoints, latency budget, stop_reason guard verification.
+
+- **Deferred AI ideas (filed in §11 of brief, not shipping in v1):**
+  - v2-AI-1: passive-signal-driven ELL-level suggestion to teacher — needs pilot data to calibrate
+  - v2-AI-2: mentor personality adaptation per student — subsumed by Designer Mentor System v2
+  - v2-AI-3: AI-inferred learning differences — NON-STARTER (privacy + ethics)
+  - v2-AI-4: auto-grading via AI — deferred to grading-system-overhaul project
+  - v2-AI-5: content adaptation per student — NON-STARTER (same configuration→invocation principle)
 - **Cost analysis:** ~$0.0007/student/week. ~$0.25 for a 30-student 12-week pilot. Negligible. Class-shared cache amortizes first-student cost across the class.
 - **Migration plan:** 117 (DROP autonomy_level), 118 (word_definitions cache), 119 (activity_response_starters cache). All cache tables shared across class, RLS allowing read-anon (definitions are public-domain content), write service-role only.
 - **Re-onboarding:** Not needed. `learning_profile.languages_at_home[0]` becomes the L1 target — no new intake question.

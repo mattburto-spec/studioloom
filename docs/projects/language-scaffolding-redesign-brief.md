@@ -1,9 +1,10 @@
 # Language Scaffolding Redesign — Pre-Build Spec
 
-**Status:** SPEC (research + design only — no code yet)
+**Status:** Phase 0 ✅ SHIPPED + Checkpoint 0.1 PASSED (26 Apr 2026). Phases 1–5 awaiting next session.
 **Mode:** Pivot from configuration to invocation.
 **Worktree at brief time:** `/Users/matt/CWORK/questerra-lesson-bold` on `lesson-bold-build` @ `c8a194d`. All commits pushed.
-**Test baseline:** 1952 passed · 8 skipped · 1960 total · 127 files.
+**Test baseline at brief time:** 1952 passed · 8 skipped · 1960 total · 127 files.
+**Test baseline after Phase 0:** 1942 passed · 8 skipped · 1950 total · 127 files (−10, all autonomy/migration-116 tests removed).
 **Last updated:** 26 Apr 2026.
 
 ---
@@ -386,9 +387,9 @@ Each phase: pre-flight ritual (git status clean, baseline `npm test` matches, au
 
 **Matt Checkpoint 3.1:** Open a real lesson → tap magic-wand-pen on a text response activity → panel slides in with 10 word chips + 3 sentence frames. Click a chip → inserts at cursor. Click a frame → replaces textarea content with the template. Reload page → second student in the same class hits the panel → instant render (cache hit).
 
-### Phase 4 — Scaffold fading + signal collection + teacher preview
+### Phase 4 — Scaffold fading + signal collection + teacher preview + unified student settings
 
-**Goal:** Soft signal-driven fading + teacher "experience as student profile" preview.
+**Goal:** Soft signal-driven fading + teacher "experience as student profile" preview + unified per-student settings editor at `/teacher/students/[studentId]` (folded in 26 Apr 2026 after Checkpoint 0.1 sign-off — addresses the scatter problem where ELL/UDL/profile data lived across 3 surfaces with no single edit point).
 
 **Modifications:**
 - `useWordLookup` + `useResponseStarters` — append a `usage_signals` event on every invocation. Aggregated server-side into `learning_profile.usage_signals` (rolling 5-lesson average).
@@ -396,7 +397,45 @@ Each phase: pre-flight ritual (git status clean, baseline `npm test` matches, au
 - New route `/teacher/preview/[unitId]/[pageId]?profile=...` — gated to teacher auth, renders the lesson with a synthetic `learning_profile`. Toggle for L1, ELL level, design_confidence.
 - WIRING + ai-call-sites + api-registry: sync via saveme.
 
-**Matt Checkpoint 4.1:** Teacher logs in, opens a unit, clicks "Preview as student" → modal with profile picker → preview renders with the chosen settings. Switch profile → re-render. Saveme green.
+**Unified teacher student settings (NEW — folded in from `FU-TS-UNIFY` per Matt sign-off):**
+
+The current scatter:
+
+| Surface today | What it shows | What's editable |
+|---|---|---|
+| `/teacher/students/[studentId]` | Intake survey output, mentor, theme | Read-only |
+| `/teacher/classes/[classId]/students/[studentId]` | ELL level + per-class override + portfolio + grading | ELL level + override |
+| `/teacher/classes/[classId]/students` | Class roster with ELL chips | Bulk edit ELL only |
+
+The unification: **`/teacher/students/[studentId]` becomes the canonical "everything I can edit about this student" page.** Existing class-roster ELL editing stays for bulk operations; the per-student detail moves here.
+
+Sections, in priority order:
+1. **Identity** (read-only) — name · class enrollments · framework · year
+2. **Language & scaffolding** (editable inline, pencil-on-hover):
+   - ELL level (1/2/3) — direct edit, syncs to `students.ell_level`
+   - Per-class ELL override — read-only here (bulk edit happens on class roster); shown for awareness
+   - L1 target — read from `learning_profile.languages_at_home[0]`; teacher override stored in new field `students.learning_profile.l1_override` (no schema migration — JSONB nesting). For trilingual / migrant kids whose array order is wrong.
+   - Scaffold-fading tier (signal-derived) — shows the current taps_per_100_words tier with one-click reset action that sets a `tier_override` valid for the next 10 lessons (per spec §4 Q4).
+3. **Learning profile** (read-only — student's voice, don't edit) — languages at home, countries lived in, design confidence, working style, feedback preference, learning differences. Surface for teacher awareness only. Privacy line: this is the student's self-report.
+4. **Studio preferences** (read-only — student's pick) — mentor (Kit/Sage/Spark), theme (Clean/Bold/Warm/Dark).
+5. **Notifications** (editable) — fabrication-notify email opt-in.
+6. **Recent activity** (link panel) — portfolio · grading · safety alerts · Open Studio status.
+
+**Edit pattern:** pencil-icon-on-hover per editable row, inline save via existing `PATCH /api/teacher/students/[studentId]` shape. No separate edit page.
+
+**New API endpoints (Phase 4):**
+- `PATCH /api/teacher/students/[studentId]` — extend to accept `ell_level`, `l1_override`, `scaffold_tier_override`. Lesson #4 (teacher auth) + Lesson #29 (RLS junction) apply.
+- `GET /api/teacher/students/[studentId]/scaffold-signals` — returns the signal-derived tier + the rolling taps_per_100_words history (for the "see what the system thinks" affordance).
+
+**Migration:** none. `learning_profile.l1_override` and `learning_profile.scaffold_tier_override` are JSONB nesting on the existing column. No schema change.
+
+**Matt Checkpoint 4.1 (expanded):**
+- Teacher logs in, opens a unit, clicks "Preview as student" → modal with profile picker → preview renders with chosen settings. Switch profile → re-render.
+- Teacher hits `/teacher/students/[studentId]` → unified settings page renders with all 6 sections.
+- Edit ELL level inline → save persists, signal tier recalculates next lesson load.
+- Edit L1 override (e.g. set to Korean for a student whose `languages_at_home[0]` is Mandarin) → next lesson opens, Tap-a-word shows Korean translations.
+- Click "reset scaffold tier" → tier resets, override valid for next 10 lessons (verified by `/scaffold-signals` endpoint).
+- Saveme green.
 
 ### Phase 5 — Live E2E test harness verification
 
@@ -587,8 +626,56 @@ Numbering note: 116 was used for `autonomy_level` (now being dropped). 117/118/1
 - 🔜 PHASE 0: 13 file modifications listed in §3 Phase 0
 - 🔜 PHASE 1: 7 new files + 1 migration
 - 🔜 PHASE 2: 5 file modifications + curated image dictionary commit
+- ✅ PHASE 0: 13 file modifications + migration 117 — SHIPPED (`c58aa1c`, `513818f`). Checkpoint 0.1 PASSED.
+- 🔜 PHASE 1: 7 new files + 1 migration
+- 🔜 PHASE 2: 5 file modifications + curated image dictionary commit
 - 🔜 PHASE 3: 5 new files + 1 migration + ResponseInput modification
-- 🔜 PHASE 4: 1 new route + 2 hook extensions + WIRING/registry sync
+- 🔜 PHASE 4: 1 new route + 2 hook extensions + unified `/teacher/students/[studentId]` settings page + 1 new API endpoint + WIRING/registry sync
 - 🔜 PHASE 5: 2 sandbox modules + RUN_E2E gating
 
-**No code in this brief.** No commits beyond this markdown file. Sign off on §2 architecture + §4 Q1–Q6 defaults before Phase 0 starts.
+---
+
+## 11. Deferred to v2 — AI automation ideas filed for later
+
+These came up during the Phase 0 sign-off conversation (26 Apr 2026). Matt's call: **file, don't ship.** They sit here as v2 backlog so they're findable when the redesign's v1 is in pilot and we have real signal data to ground the decisions.
+
+### v2-AI-1 — Passive-signal-driven ELL-level suggestion to teacher
+**Idea:** When a student's `taps_per_100_words` rolling average drops below a threshold for 5+ consecutive lessons (signal: language proficiency improving), the teacher's `/teacher/students/[studentId]` page surfaces a soft prompt: *"System thinks Aiko is now ELL 2 — confirm?"* with one-click accept / dismiss.
+
+**Why deferred:** Needs real signal data from a pilot class to calibrate the threshold. Shipping this in v1 risks false positives that erode teacher trust in the system. v2 = pilot data → tuned threshold → ship.
+
+**Estimate:** Half a day once thresholds are calibrated. Hooks into Phase 4's `/scaffold-signals` endpoint.
+
+### v2-AI-2 — Mentor personality adaptation per student
+**Idea:** Kit/Sage/Spark currently have static personalities defined in `src/lib/student/mentors.ts`. AI-driven personality drift — Kit speaks slightly more directly to students who consistently pick `working_style: "solo"`, more collaboratively to `partner` / `small_group` — could deepen the mentor relationship.
+
+**Why deferred:** Already on the Designer Mentor System backlog (`docs/projects/designer-mentor-system.md`). That project is the v2 home for mentor system evolution. Don't fork the work.
+
+**Estimate:** Subsumed by Designer Mentor v2 (~3-4 weeks). Not a standalone item.
+
+### v2-AI-3 — AI-inferred learning differences
+**Idea:** Pattern-match across a student's interaction signals (response latency, tap-translate frequency, error patterns) to surface likely learning differences (dyslexia signals, ADHD signals, etc.) to the teacher.
+
+**Why NOT shipping (any version):** Privacy + ethics. Learning difference identification should come from teacher / parent / IEP / educational psychologist — not AI inference. The risk of false positives or labeling effects outweighs any automation gain. Captured here to formally close the question if it comes up again. **Filed as a non-starter, not a backlog item.**
+
+### v2-AI-4 — Auto-grading via AI
+**Idea:** Replace teacher grading entirely with AI scoring of student responses + integrity-monitoring metadata.
+
+**Why deferred:** Teacher grading is the current trust contract. AI assists today via `/api/tools/marking-comments` (suggested comments, teacher accepts/edits). Full auto-grading is a separate scope decision involving assessment validity, pilot trust building, framework compliance (IB / GCSE / etc. have specific assessor requirements). Out of scope for language-scaffolding-redesign. Goes in `docs/projects/grading-system-overhaul.md` if/when that project starts.
+
+### v2-AI-5 — Content adaptation per student
+**Idea:** Generate slightly different lesson content per student based on their profile (e.g. simpler vocabulary for ELL 1, harder challenge prompts for ELL 3).
+
+**Why NOT shipping:** Same principle as the configuration→invocation pivot — content stays one-size, scaffolding adapts. Forking content per student creates maintenance debt (every edit multiplies), breaks the teacher's mental model of "what my class is doing today", and obviates the assessment fairness model. Captured as a non-starter, not a backlog item. The redesign's bet: the SAME content + adaptive scaffolding > different content per student.
+
+---
+
+## 12. Sign-off audit trail
+
+- **Spec written + locked:** 26 Apr 2026 — committed at `a8c0907`. Matt's 7 picks captured in §0.5.
+- **Phase 0 SHIPPED + Checkpoint 0.1 PASSED:** 26 Apr 2026 — code rollback at `c58aa1c`, migration + WIRING + FU-LS-DRIFT at `513818f`. Migration 117 applied to local dev only. Visual smoke verified ELL-1 hints / ELL-2 silent / ELL-3 extensions matches pre-Sub-Phase-3 behaviour. Tests 1942 passed.
+- **Phase 4 scope expansion:** 26 Apr 2026 — unified teacher student settings folded in (was `FU-TS-UNIFY`, now part of Phase 4 per Matt sign-off). Brief §3 Phase 4 + Checkpoint 4.1 updated.
+- **§11 v2-AI deferrals filed:** 26 Apr 2026 — 5 ideas filed (3 deferred, 2 non-starters).
+- **Next executable phase:** Phase 1 (Tap-a-word v1, 8 mount surfaces). Trigger phrase: "go phase 1" or "tap-a-word".
+
+**No code beyond Phase 0.** Sign off on §3 Phase 1 file list before Phase 1 starts.
