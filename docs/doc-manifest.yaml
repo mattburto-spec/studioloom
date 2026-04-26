@@ -2387,6 +2387,31 @@ docs:
     max_age_days: 90
     last_scanned: "2026-04-24"
 
+  # --- LESSON BOLD + LANGUAGE SCAFFOLDING REDESIGN (merged from lesson-bold-build 26 Apr) ---
+  - path: docs/projects/lesson-bold-brief.md
+    title: "Lesson Bold — Student Lesson Page Redesign master brief"
+    purpose: "5-sub-phase brief for the warm-paper Bold visual restyle of the student lesson page. Sub-Phases 1, 2A–2C, 3 SHIPPED on lesson-bold-build (24 Apr 2026, 14 commits, all pushed to origin). Sub-Phase 3 (AutonomyPicker) rolled back in language-scaffolding-redesign Phase 0 (26 Apr)."
+    category: projects
+    last_verified: "2026-04-26"
+    max_age_days: 90
+    last_scanned: "2026-04-26"
+
+  - path: docs/projects/language-scaffolding-redesign-brief.md
+    title: "Language Scaffolding Redesign — Pre-Build Spec (Tap-a-word + Response Starters)"
+    purpose: "Pivot from configuration (AutonomyPicker) to invocation (inline affordances on the artefact). Two new student-facing affordances: Tap-a-word (input scaffold, shared TappableText component, 8 mount surfaces) and Response Starters (output scaffold, magic-wand-pen → side panel with Word Bank + Sentence Starters). 6-phase build plan, audit findings caught WIRING student-learning-support drift (FU-LS-DRIFT filed), Q1-Q6 with Matt's 7 locked decisions in §0.5, ~$0.0007/student/week cost, no re-onboarding needed. Phase 0 SHIPPED + Checkpoint 0.1 PASSED 26 Apr."
+    category: projects
+    last_verified: "2026-04-26"
+    max_age_days: 90
+    last_scanned: "2026-04-26"
+
+  - path: docs/newlook/StudioSetupDrawer-mockup.html
+    title: "Studio Setup Drawer — historical mockup iterations (v1–v5)"
+    purpose: "Five HTML mockup iterations exploring the chip-strip → sidebar pill → drawer pattern for in-lesson scaffolding controls. v1 chip-strip below header, v2 moved to sidebar, v3 drawer-from-right, v4 expanded to 7 sections, v5 slimmed to 4 toggles + profile recap + 'More settings' link. The whole drawer concept ultimately died in the language-scaffolding-redesign pivot (configuration → invocation). Kept as historical artefacts for context on how the design evolved."
+    category: prototypes
+    last_verified: "2026-04-26"
+    max_age_days: 365
+    last_scanned: "2026-04-26"
+
   - path: docs/projects/fabrication-pipeline-phase-0-brief.md
     title: "Preflight Phase 0 Brief — Spec & Pre-Build Checklist"
     purpose: "Phase 0 pre-build ritual: fixture gathering, rule threshold sign-off, machine profile verification, Fabricator kickoff call, decision doc template, Checkpoint 0.1 gates"

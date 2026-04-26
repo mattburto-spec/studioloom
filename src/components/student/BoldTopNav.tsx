@@ -269,6 +269,39 @@ const SCOPED_CSS = `
   box-shadow: 0 12px 28px -12px rgba(10,10,10,0.35);
 }
 .sl-v2 .ring-track { stroke: var(--sl-hair); }
+
+/* Lesson Bold — warm-paper scope for /unit/[unitId]/[pageId]. Nested inside .sl-v2
+   so dashboard + nav styles above stay untouched. Activated by the page wrapper
+   adding class="lesson-bold" to its root. */
+.sl-v2 .lesson-bold {
+  --sl-bg: #F5F1EA;
+  --sl-paper: #FDFBF6;
+  --sl-ink: #0F0E0C;
+  --sl-ink-2: #413D36;
+  --sl-ink-3: #8A8477;
+  --sl-hair: #E5DFD2;
+  --sl-hair-2: #EFE9DB;
+  --sl-accent: #E86F2C;
+  --sl-phase-default: #9333EA;
+  background: var(--sl-bg);
+  color: var(--sl-ink);
+}
+.sl-v2 .lesson-bold .serif-em {
+  font-family: var(--font-instrument-serif), "Instrument Serif", serif;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+.sl-v2 .lesson-bold .card-lb {
+  background: var(--sl-paper);
+  border: 1px solid var(--sl-hair);
+  border-radius: 20px;
+}
+.sl-v2 .lesson-bold .bar-phase {
+  height: 3px;
+  border-radius: 3px;
+  background: var(--sl-phase-default);
+}
 `;
 
 function useScopedStyles() {

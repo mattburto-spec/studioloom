@@ -147,6 +147,59 @@
   - ⏳ **Answer fixture classification ambiguities surfaced during Phase 2-0** (bucketing session will flag any).
   - ⏳ `jordan2.svg` (2.3MB) — keep as perf stress-test fixture; may need a dedicated `borderline/stl/` entry for scan-time regression.
 
+### Lesson Bold — Student Lesson Page Redesign (warm-paper Bold)
+- **Status:** ⚠️ ON BRANCH (not merged) — Sub-Phases 1, 2A, 2B, 2C, 3 all SHIPPED on `lesson-bold-build` (24 Apr 2026, 14 commits, all pushed to origin). Migration 119 applied to local dev only. Not yet merged to main — awaiting language-scaffolding-redesign Phase 0 to roll back AutonomyPicker before merge.
+- **Priority:** TIER 0 P0 | **Est:** 5-day rolling pivot now → language-scaffolding-redesign | **Worktree:** `/Users/matt/CWORK/questerra-lesson-bold` | **Doc:** [`lesson-bold-brief.md`](lesson-bold-brief.md)
+- **Pivot context (26 Apr 2026):** Sub-Phase 3's AutonomyPicker (3-up Scaffolded / Balanced / Independent picker driving hint + example gating) bet on configuration. Cowork research session against ~10 platforms (Newsela, Duolingo, Immersive Reader, Read&Write, Lexia, Read Along, Khan, Seesaw, CommonLit, Medley) showed configuration loses to invocation. AutonomyPicker scheduled for rollback in language-scaffolding-redesign Phase 0 (next session). The warm-paper Bold restyle (Sub-Phases 1, 2A–2C) survives — that's the visual layer; Sub-Phase 3 was the pedagogical layer that got the wrong model.
+- **What stays after the pivot:**
+  - Warm-paper token scope (`.sl-v2 .lesson-bold` block in BoldTopNav.tsx)
+  - Server-component font template at `src/app/(student)/unit/[unitId]/template.tsx` (Manrope + DM Sans + Instrument Serif via next/font/google)
+  - LessonHeader + LessonIntro + VideoBlock + LessonFooter + LessonToolsRail components
+  - LessonSidebar warm-paper restyle
+  - PhaseStrip + KeyConcept stub components (kept for future use)
+- **What gets rolled back (Phase 0 of language-scaffolding-redesign):**
+  - `lesson-bold/AutonomyPicker.tsx` → DELETE
+  - 5 helpers in `lesson-bold/helpers.ts` (`hintsAvailable`, `hintsOpenByDefault`, `exampleVisible`, `exampleOpenByDefault`, `resolveAutonomyDisplay`) → DELETE; keep `derivePhaseState`
+  - `student_progress.autonomy_level` column → migration 120 `DROP COLUMN`
+  - ActivityCard hint/example gating → revert to ELL-only logic
+  - 8 helper tests + migration 119 shape tests → DELETE (1952 → ~1944)
+- **Tests at branch HEAD:** 1952 passed · 8 skipped · 1960 total · 127 files. Typecheck clean.
+- **Mockup history:** 5 iterations of `docs/newlook/StudioSetupDrawer-mockup.html` (v1–v5) committed as historical artefacts. The drawer concept ultimately died in the redesign pivot.
+
+### Language Scaffolding Redesign — Tap-a-word + Response Starters
+- **Status:** 🔴 PHASE 0 SHIPPED + Checkpoint 0.1 PASSED (26 Apr 2026). Phases 1-5 awaiting next session.
+- **Priority:** TIER 0 P0 | **Est:** 6 phases / ~3-4 weeks | **Worktree:** `/Users/matt/CWORK/questerra-lesson-bold` (continues from Lesson Bold) | **Doc:** [`language-scaffolding-redesign-brief.md`](language-scaffolding-redesign-brief.md)
+- **One-line goal:** Replace AutonomyPicker (configuration model) with two inline invocation affordances — Tap-a-word (input scaffold, shared TappableText component) and Response Starters (output scaffold, magic-wand-pen → side panel with Word Bank + Sentence Starters on text response inputs).
+- **Pattern derivation:** Newsela Word Pop + Microsoft Immersive Reader Picture Dictionary + Medley Learning Response Starters, converged.
+- **Locked decisions (§0.5 of brief):**
+  - Q1: Pivot (a) — AutonomyPicker dies entirely
+  - Q2: WIRING fix mid-build (i) — `student-learning-support` flips to `status: planned` in Phase 0; `FU-LS-DRIFT` filed
+  - Q3: Single L1 from `learning_profile.languages_at_home[0]`
+  - Q4: Fade trigger = taps_per_100_words rolling 5-lesson average + RS-secondary + teacher one-click override + invocation never disappears (floor protects right-to-ask)
+  - Phase 1 mounts on full surface set (lesson prompt + intro + vocab + hints + sentence starters + AI mentor output + toolkit prompts + source material — 8 surfaces)
+  - Image source: Wikimedia Commons + Open Symbols, curated static manifest committed to repo
+  - Sandbox bypass threaded into every AI call site from day 1
+- **Phases:**
+  - **Phase 0 — Rollback** ✅ SHIPPED 26 Apr (`c58aa1c` + `513818f`): AutonomyPicker deleted, migration 120 (`DROP COLUMN`) applied to local dev, ELL-only ActivityCard gating restored, FU-LS-DRIFT filed, WIRING `student-learning-support` flipped to `status: planned`. Tests 1952 → 1942 (−10). Visual smoke verified ELL-1 hints / ELL-2 silent / ELL-3 extensions matches expected. Checkpoint 0.1 PASSED.
+  - **Phase 1 — Tap-a-word v1** (definition only): TappableText component, WordPopover, `/api/student/word-lookup` endpoint with sandbox bypass, migration 118 (word_definitions cache table), 500-word pre-warm seed. Mount on 8 surfaces. Stop-trigger: cold-cache rate >20 words per first-time student per lesson.
+  - **Phase 2 — Tap-a-word v2** (translation + audio + image): WordPopover gets L1 translation + browser SpeechSynthesis + curated image dictionary (Wikimedia + Open Symbols, ~2000 entries). WIRING entry `tap-a-word` added.
+  - **Phase 3 — Response Starters**: ResponseStartersPanel, magic-wand-pen affordance, `/api/student/response-starters` endpoint with sandbox bypass, migration 119 (activity_response_starters cache table). Lazy first-invocation generation, class-shared cache.
+  - **Phase 4 — Scaffold fading + teacher preview + unified student settings**: signal-driven tier (taps_per_100_words), teacher one-click override, `/teacher/preview/[unitId]/[pageId]?profile=...` route, **+ unified `/teacher/students/[studentId]` settings page (folded in 26 Apr — was FU-TS-UNIFY).** 6 sections: identity / language & scaffolding (ELL + L1 override + tier override) / learning profile (read-only) / studio prefs (read-only) / notifications / recent activity. New API: `PATCH /api/teacher/students/[studentId]` extended + `GET /api/teacher/students/[studentId]/scaffold-signals`. No schema migration — JSONB nesting on `learning_profile`.
+  - **Phase 5 — Live E2E gate**: `RUN_E2E=1` test against real Anthropic on both endpoints, latency budget, stop_reason guard verification.
+
+- **Deferred AI ideas (filed in §11 of brief, not shipping in v1):**
+  - v2-AI-1: passive-signal-driven ELL-level suggestion to teacher — needs pilot data to calibrate
+  - v2-AI-2: mentor personality adaptation per student — subsumed by Designer Mentor System v2
+  - v2-AI-3: AI-inferred learning differences — NON-STARTER (privacy + ethics)
+  - v2-AI-4: auto-grading via AI — deferred to grading-system-overhaul project
+  - v2-AI-5: content adaptation per student — NON-STARTER (same configuration→invocation principle)
+- **Cost analysis:** ~$0.0007/student/week. ~$0.25 for a 30-student 12-week pilot. Negligible. Class-shared cache amortizes first-student cost across the class.
+- **Migration plan:** 117 (DROP autonomy_level), 118 (word_definitions cache), 119 (activity_response_starters cache). All cache tables shared across class, RLS allowing read-anon (definitions are public-domain content), write service-role only.
+- **Re-onboarding:** Not needed. `learning_profile.languages_at_home[0]` becomes the L1 target — no new intake question.
+- **Open follow-ups created:**
+  - `FU-LS-DRIFT` P2 — WIRING `student-learning-support` entry was claiming complete features that didn't exist (translation, dyslexia fonts, UDL, ADHD focus). Update entry to `status: planned` + `currentVersion: 0` in Phase 0. Same drift family as FU-Y.
+- **Stop-triggers spec'd:** cold-cache rate >20 words per first-time student per lesson (Phase 1), browser TTS unsupported on Chromebook for any L1 (Phase 2), Word Bank generation latency >2s p95 first invocation (Phase 3), any new call site without `stop_reason === "max_tokens"` guard (Lesson #39, non-negotiable), migration 120 attempted before AutonomyPicker code references removed.
+
 ---
 
 ## 🟢 Ready to Build

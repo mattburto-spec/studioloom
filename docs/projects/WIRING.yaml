@@ -626,18 +626,22 @@ systems:
   - id: student-learning-support
     name: Student Learning Support (Accessibility & Language)
     category: Student Experience
-    status: complete
-    currentVersion: 1
-    summary: Tier 2/3 translation via Claude (ELL level configurable), UDL scaffolding (checkpoints 1-31), ADHD visual focus helpers, dyslexia-friendly fonts.
-    depends_on: [student-profile, udl-layer, ai-provider]
-    affects: [lesson-view, student-data, ai-mentor]
+    status: planned
+    currentVersion: 0
+    summary: "PLANNED — replacing the doc-vs-reality drift caught 26 Apr 2026 (FU-LS-DRIFT). Two inline invocation affordances landing via the language-scaffolding-redesign build: Tap-a-word (shared TappableText component on 8 educational text surfaces, popover with definition + L1 translation + audio + image + contextual example) and Response Starters (magic-wand-pen → side panel with task-specific Word Bank + Sentence Starters on text response inputs). Class-shared cache tables (word_definitions, activity_response_starters). Signal-driven scaffold-fading (taps_per_100_words rolling 5-lesson average, teacher one-click override, invocation-floor that never hides the affordance)."
+    depends_on: [student-profile, lesson-view, ai-mentor]
+    affects: [lesson-view, discovery-engine, student-open-studio, ai-mentor, toolkit]
     docs:
+      - path: docs/projects/language-scaffolding-redesign-brief.md
+        purpose: Pre-build spec — pivot from configuration to invocation, 6-phase plan, locked decisions, cost analysis, migration notes
       - path: docs/research/student-influence-factors.md
         purpose: Cultural and linguistic influence factors
-    future_needs: Parent-configured accommodations, teacher UDL tagging.
+      - path: docs/education-ai-patterns.md
+        purpose: Effort-gating + soft-gating patterns this build applies inline
+    future_needs: "Phase 0: AutonomyPicker rollback (this commit). Phase 1: Tap-a-word v1 (definition only) on 8 surfaces. Phase 2: + L1 translation + audio + image. Phase 3: Response Starters panel. Phase 4: scaffold-fading + teacher-as-student preview. Phase 5: live E2E gate. Migrations: 117 DROP autonomy_level, 118 word_definitions cache, 119 activity_response_starters cache."
     adrs: ["008"]
-    os_seam: ready
-    change_impacts: Changes to UDL checkpoint definitions affect all activities. Changes to translation logic affect content delivery.
+    os_seam: planned
+    change_impacts: "Drift caught 26 Apr 2026 — previous summary claimed Tier 2/3 translation, UDL scaffolding (checkpoints 1-31), ADHD visual focus, dyslexia-friendly fonts, all status:complete. None existed in code (grep confirmed zero references). Same drift family as FU-Y. Entry rewritten to describe the planned redesign deliverable; will flip back to complete + currentVersion:1 when Phase 5 ships."
 
   - id: mentor-choice
     name: Mentor System (Studio Mentors)
