@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import pytest
 
+from schemas.ruleset_version import SCAN_RULESET_VERSION
 from worker.scan_runner import scan_one_revision
 from worker.supabase_client import ClaimedJob
 
@@ -71,8 +72,8 @@ def test_known_good_svg_scans_clean(
     assert non_fyi == [], (
         f"expected no BLOCK/WARN rules on known-good SVG, got {non_fyi}"
     )
-    assert results.ruleset_version == "stl-v1.0.0+svg-v1.0.0", (
-        f"ruleset tag drift - expected combined stl+svg, got "
+    assert results.ruleset_version == SCAN_RULESET_VERSION, (
+        f"ruleset tag drift - expected {SCAN_RULESET_VERSION!r}, got "
         f"{results.ruleset_version!r}"
     )
     # Phase 2B-6 wires a cairo-based thumbnail. On dev machines without

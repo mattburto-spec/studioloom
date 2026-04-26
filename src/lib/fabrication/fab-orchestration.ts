@@ -103,6 +103,10 @@ export interface FabJobDetail {
     currentRevision: number;
     fileType: "stl" | "svg";
     originalFilename: string;
+    /** Phase 8.1d-19: stamped onto the download filename so two
+     *  jobs from the same student / class / unit don't overwrite
+     *  each other in the lab tech's downloads folder. */
+    createdAt: string;
     approvedAt: string | null;
     pickedUpAt: string | null;
     teacherReviewNote: string | null;
@@ -526,6 +530,7 @@ interface RawFabDetailJob {
   current_revision: number;
   file_type: string;
   original_filename: string;
+  created_at: string;
   teacher_review_note: string | null;
   lab_tech_picked_up_at: string | null;
   completion_status: string | null;
@@ -584,7 +589,7 @@ export async function getFabJobDetail(
     .from("fabrication_jobs")
     .select(
       `
-      id, status, current_revision, file_type, original_filename,
+      id, status, current_revision, file_type, original_filename, created_at,
       teacher_review_note, lab_tech_picked_up_at, lab_tech_picked_up_by,
       completion_status, completion_note, completed_at, notifications_sent,
       student_id, class_id, unit_id, machine_profile_id, teacher_id,
@@ -675,6 +680,7 @@ export async function getFabJobDetail(
       currentRevision: rawJob.current_revision,
       fileType: (rawJob.file_type === "svg" ? "svg" : "stl") as "stl" | "svg",
       originalFilename: rawJob.original_filename,
+      createdAt: rawJob.created_at,
       approvedAt,
       pickedUpAt: rawJob.lab_tech_picked_up_at,
       teacherReviewNote: rawJob.teacher_review_note,
