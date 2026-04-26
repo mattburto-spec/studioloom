@@ -92,6 +92,11 @@ export interface MachineProfileRow {
   isSystemTemplate: boolean;
   name: string;
   machineCategory: MachineCategory;
+  /** Phase 8.1d-14: brand kept separate from `name` so a teacher who
+   *  renames "Bambu Lab P1S" → "Alpha" still keeps the brand+model
+   *  visible. Nullable for legacy rows + custom-from-scratch
+   *  machines whose teacher hasn't entered a brand yet. */
+  machineBrand: string | null;
   machineModel: string | null;
   isActive: boolean;
   requiresTeacherApproval: boolean;
@@ -225,6 +230,7 @@ type MachineProfileRawRow = {
   is_system_template: boolean;
   name: string;
   machine_category: string;
+  machine_brand: string | null;
   machine_model: string | null;
   is_active: boolean;
   requires_teacher_approval: boolean;
@@ -253,6 +259,7 @@ function toRow(raw: MachineProfileRawRow): MachineProfileRow {
     isSystemTemplate: raw.is_system_template,
     name: raw.name,
     machineCategory: raw.machine_category as MachineCategory,
+    machineBrand: raw.machine_brand,
     machineModel: raw.machine_model,
     isActive: raw.is_active,
     requiresTeacherApproval: raw.requires_teacher_approval,
@@ -274,7 +281,7 @@ function toRow(raw: MachineProfileRawRow): MachineProfileRow {
 }
 
 const FULL_SELECT =
-  "id, teacher_id, school_id, lab_id, is_system_template, name, machine_category, machine_model, is_active, requires_teacher_approval, bed_size_x_mm, bed_size_y_mm, bed_size_z_mm, nozzle_diameter_mm, supported_materials, max_print_time_min, supports_auto_supports, kerf_mm, operation_color_map, min_feature_mm, rule_overrides, notes, created_at, updated_at";
+  "id, teacher_id, school_id, lab_id, is_system_template, name, machine_category, machine_brand, machine_model, is_active, requires_teacher_approval, bed_size_x_mm, bed_size_y_mm, bed_size_z_mm, nozzle_diameter_mm, supported_materials, max_print_time_min, supports_auto_supports, kerf_mm, operation_color_map, min_feature_mm, rule_overrides, notes, created_at, updated_at";
 
 /**
  * Load a machine profile by id, scoped to a teacher. Returns 404 on
@@ -328,6 +335,10 @@ export interface CreateMachineProfileRequest {
    *  (main) — south corner"). */
   name: string;
   machineCategory?: MachineCategory;
+  /** Phase 8.1d-14: brand carried separately from `name`. Defaults
+   *  to the template's brand when fromTemplateId is set; teacher
+   *  can override. */
+  machineBrand?: string | null;
   machineModel?: string | null;
   bedSizeXMm?: number;
   bedSizeYMm?: number;
@@ -410,6 +421,7 @@ export async function createMachineProfile(
       is_system_template: false,
       name,
       machine_category: tplRaw.machine_category,
+      machine_brand: params.machineBrand ?? tplRaw.machine_brand,
       machine_model: tplRaw.machine_model,
       is_active: true,
       requires_teacher_approval:
@@ -450,6 +462,7 @@ export async function createMachineProfile(
       is_system_template: false,
       name,
       machine_category: category,
+      machine_brand: params.machineBrand ?? null,
       machine_model: params.machineModel ?? null,
       is_active: true,
       requires_teacher_approval: params.requiresTeacherApproval ?? false,
@@ -608,6 +621,8 @@ export async function listMyMachines(
  */
 export interface UpdateMachineProfilePatch {
   name?: string;
+  /** Phase 8.1d-14: editable per-machine. Pass null to clear. */
+  machineBrand?: string | null;
   machineModel?: string | null;
   bedSizeXMm?: number;
   bedSizeYMm?: number;
@@ -662,6 +677,7 @@ export async function updateMachineProfile(
     if (isOrchestrationError(name)) return name;
     patch.name = name;
   }
+  if (params.machineBrand !== undefined) patch.machine_brand = params.machineBrand;
   if (params.machineModel !== undefined) patch.machine_model = params.machineModel;
   if (params.bedSizeXMm !== undefined) {
     const v = validateBedSize(params.bedSizeXMm, "bedSizeXMm");

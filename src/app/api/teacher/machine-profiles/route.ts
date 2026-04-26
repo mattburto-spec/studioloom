@@ -75,6 +75,7 @@ interface CreateMachineBody {
   labId?: unknown;
   name?: unknown;
   machineCategory?: unknown;
+  machineBrand?: unknown;
   machineModel?: unknown;
   bedSizeXMm?: unknown;
   bedSizeYMm?: unknown;
@@ -113,6 +114,10 @@ export async function POST(request: NextRequest) {
     labId: body.labId,
     name: typeof body.name === "string" ? body.name : "",
     machineCategory: body.machineCategory as MachineCategory | undefined,
+    machineBrand:
+      typeof body.machineBrand === "string" || body.machineBrand === null
+        ? (body.machineBrand as string | null)
+        : undefined,
     machineModel:
       typeof body.machineModel === "string" || body.machineModel === null
         ? (body.machineModel as string | null)

@@ -49,6 +49,7 @@ function privateJson(body: unknown, status = 200) {
 
 interface PatchMachineBody {
   name?: unknown;
+  machineBrand?: unknown;
   machineModel?: unknown;
   bedSizeXMm?: unknown;
   bedSizeYMm?: unknown;
@@ -86,6 +87,10 @@ export async function PATCH(
     teacherId: user.id,
     machineProfileId,
     name: typeof body.name === "string" ? body.name : undefined,
+    machineBrand:
+      typeof body.machineBrand === "string" || body.machineBrand === null
+        ? (body.machineBrand as string | null)
+        : undefined,
     machineModel:
       typeof body.machineModel === "string" || body.machineModel === null
         ? (body.machineModel as string | null)

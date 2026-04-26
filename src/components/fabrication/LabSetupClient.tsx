@@ -477,11 +477,25 @@ export function LabSetupClient() {
                               <p className="font-semibold text-sm text-gray-900 truncate">
                                 {m.name}
                               </p>
+                              {/* Phase 8.1d-14: brand + model under the
+                                   user-chosen name. Falls back to category
+                                   alone when brand isn't set (legacy custom
+                                   machines). */}
                               <p className="text-xs text-gray-500 truncate">
+                                {m.machineBrand ? (
+                                  <>
+                                    <span className="font-medium text-gray-700">
+                                      {m.machineBrand}
+                                    </span>
+                                    {m.machineModel && ` ${m.machineModel}`}
+                                    {" · "}
+                                  </>
+                                ) : (
+                                  m.machineModel && `${m.machineModel} · `
+                                )}
                                 {m.machineCategory === "3d_printer"
                                   ? "3D printer"
                                   : "Laser cutter"}
-                                {m.machineModel && ` · ${m.machineModel}`}
                               </p>
                             </div>
                             {m.requiresTeacherApproval && (
