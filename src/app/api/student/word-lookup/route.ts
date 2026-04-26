@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { requireStudentAuth } from "@/lib/auth/student";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { lookupSandbox } from "@/lib/ai/sandbox/word-lookup-sandbox";
+import { MODELS } from "@/lib/ai/models";
 
 /**
  * POST /api/student/word-lookup
@@ -27,7 +28,7 @@ import { lookupSandbox } from "@/lib/ai/sandbox/word-lookup-sandbox";
 
 const CACHE_HEADERS = { "Cache-Control": "private, no-cache, no-store, must-revalidate" };
 const MAX_TOKENS = 250;
-const MODEL = "claude-haiku-4-5-20251001";
+const MODEL = MODELS.HAIKU;
 const TOOL_NAME = "word_definition";
 
 interface WordLookupBody {
