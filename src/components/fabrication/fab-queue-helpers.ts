@@ -41,26 +41,37 @@ export function machineCategoryLabel(
   return "Unknown";
 }
 
-export type FabQueueTab = "ready" | "in_progress";
+/**
+ * Phase 8.1d-20: extended from `"ready" | "in_progress"` to add
+ * `done_today` so the redesigned dashboard can render all three
+ * surfaces (Now Running / Lanes / Done Today) on one page without
+ * a global re-architecture.
+ */
+export type FabQueueTab = "ready" | "in_progress" | "done_today";
 
 /** Human label for a tab — used by the tab bar + empty-state copy. */
 export function fabTabLabel(tab: FabQueueTab): string {
-  return tab === "ready" ? "Ready to pick up" : "In progress";
+  if (tab === "ready") return "Ready to pick up";
+  if (tab === "in_progress") return "In progress";
+  return "Done today";
 }
 
 /**
  * Empty-state copy per tab. Lab techs don't read dashboards — keep
- * it short and actionable. `hasNoAssignments` is the important
- * edge case (fabricator invited but no machines assigned yet).
+ * it short and actionable. `hasNoAssignments` was a Phase 7 hint
+ * for fabricators with no machines assigned via the (now-removed
+ * 8.1d-9) per-machine junction; we keep the param for backwards
+ * compatibility but route it to the inviting-teacher flavour.
  */
 export function fabEmptyMessage(
   tab: FabQueueTab,
   hasNoAssignments: boolean
 ): string {
   if (hasNoAssignments) {
-    return "No machines assigned to you yet. Ask your teacher to assign you to a machine via the Fabricators admin page.";
+    return "Your inviting teacher has no jobs queued for any of their classes right now.";
   }
-  return tab === "ready"
-    ? "No approved jobs waiting to be picked up right now."
-    : "You don't have any jobs in progress right now.";
+  if (tab === "ready") return "No approved jobs waiting to be picked up right now.";
+  if (tab === "in_progress")
+    return "Nothing currently picked up. Pick a job from a lane to start.";
+  return "Nothing finished yet today.";
 }

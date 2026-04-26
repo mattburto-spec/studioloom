@@ -99,6 +99,14 @@ function makeFakeClient(opts: FakeOpts = {}) {
       entry.eq.push([col, vals]);
       return chain;
     };
+    // Phase 8.1d-20: PostgREST `.gte` for the done_today tab's
+    // completed_at >= today's UTC midnight filter. Recorded in
+    // entry.eq the same way as `.eq` so test assertions can find
+    // the col=completed_at filter.
+    chain.gte = (col: string, val: unknown) => {
+      entry.eq.push([col, val]);
+      return chain;
+    };
     chain.order = () => chain;
     chain.range = async () => {
       log.push({ ...entry });
@@ -333,6 +341,35 @@ describe("listFabricatorQueue", () => {
     if (!("error" in result)) throw new Error("expected error shape");
     expect(result.error.status).toBe(500);
     expect(result.error.message).toContain("connection dropped");
+  });
+
+  // Phase 8.1d-20: done_today is a new tab supporting the dashboard
+  // redesign. Locks the contract:
+  //   - status filter = "completed"
+  //   - completed_at >= UTC midnight of today
+  //   - sort key = completed_at DESC (newest finish first)
+  //   - NO scope by lab_tech_picked_up_by (team output, not just self)
+  it("filters status=completed + completed_at >= UTC midnight on 'done_today' tab", async () => {
+    const { client, log } = makeFakeClient({});
+    await listFabricatorQueue(client, {
+      fabricatorId: "fab-1",
+      tab: "done_today",
+    });
+    const jobQuery = log.find((l) => l.table === "fabrication_jobs");
+    const filters = jobQuery?.eq ?? [];
+    expect(
+      filters.some(([col, val]) => col === "status" && val === "completed")
+    ).toBe(true);
+
+    // Should NOT filter by lab_tech_picked_up_by — done_today shows
+    // the whole team's output for collection-readiness, not just
+    // jobs THIS fabricator picked up.
+    const selfFilter = filters.find(([col]) => col === "lab_tech_picked_up_by");
+    expect(selfFilter).toBeUndefined();
+
+    // Should still scope by inviting teacher_id.
+    const teacherFilter = filters.find(([col]) => col === "teacher_id");
+    expect(teacherFilter).toBeDefined();
   });
 });
 

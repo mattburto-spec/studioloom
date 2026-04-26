@@ -1,0 +1,186 @@
+/* Phase 8.1d-20 — fabricator dashboard design tokens.
+ *
+ * Scoped to the /fab/queue page via CSS-module. Mirrors the dark
+ * warm theme from the design handoff (Manrope + Instrument Serif
+ * italic + JetBrains Mono, machine-coloured accents, hairline
+ * borders on near-black surfaces).
+ *
+ * Why a CSS module over Tailwind classes:
+ *   - The design uses 12+ semantic colour vars + 6 reusable
+ *     "blocks" (.card, .card-2, .btn-*, .pulse, .grid-bg). Inlining
+ *     these as Tailwind utility chains explodes the markup.
+ *   - The :root tokens live next to the prototype's HTML which
+ *     made the handoff readable. Keeping them on this surface
+ *     makes the prototype-to-app diff cheap to audit.
+ *   - Module scope means none of these names leak into the rest
+ *     of the app — the global Tailwind theme stays untouched.
+ */
+
+.fabRoot {
+  /* === Base palette === */
+  --bg: #0E0F12;
+  --surface: #16181D;
+  --surface-2: #1C1F26;
+  --surface-3: #232730;
+  --hair: #2A2E37;
+  --hair-2: #353A45;
+  --ink: #F2EFE8;
+  --ink-2: #B7B2A6;
+  --ink-3: #6E6A60;
+
+  /* === Accent + machine + status === */
+  --accent: #E86F2C;
+  --laser: #F97316;
+  --printer: #14B8A6;
+  --vinyl: #EC4899;
+  --cnc: #A855F7;
+  --ok: #10B981;
+  --warn: #F59E0B;
+  --bad: #EF4444;
+
+  /* Phase 8.1d-20: --font-manrope / --font-instrument-serif /
+   * --font-jetbrains-mono come from next/font in the fab layout.
+   * Fall back to system-ui so the page is still readable if the
+   * font CSS variables aren't injected (SSR pre-hydration on
+   * cold cache). */
+  --serif: var(--font-instrument-serif), serif;
+
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-manrope), system-ui, -apple-system, "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif;
+  min-height: 100vh;
+}
+
+/* === Display + serif emphasis ===
+ * Lab tech reads at-a-glance, so the headlines lean heavy + tight. */
+.display {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.displayLg {
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+.displayXl {
+  font-weight: 800;
+  letter-spacing: -0.045em;
+}
+.serifEm {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* === Mono + small caps ===
+ * mono = JetBrains, with tabular-nums so durations + sizes line up. */
+.mono {
+  font-family: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo,
+    monospace;
+  font-variant-numeric: tabular-nums;
+}
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+.cap {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* === Cards ===
+ * `card` is the outermost panel; `card2` is for nested chrome
+ * (job card inside a lane, done-today cell). */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--hair);
+  border-radius: 16px;
+}
+.card2 {
+  background: var(--surface-2);
+  border: 1px solid var(--hair);
+  border-radius: 14px;
+}
+
+/* === Buttons ===
+ * Primary = inverted ink on bg, ok/bad use status tints with a
+ * 16% fill + 30% border so they read as "soft" without losing
+ * affordance on a dark surface. */
+.btnPrimary {
+  background: var(--ink);
+  color: var(--bg);
+  font-weight: 800;
+}
+.btnPrimary:hover:not(:disabled) {
+  background: #fff;
+}
+.btnPrimary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.btnSecondary {
+  background: var(--surface-2);
+  color: var(--ink);
+  border: 1px solid var(--hair);
+  font-weight: 700;
+}
+.btnSecondary:hover:not(:disabled) {
+  border-color: var(--hair-2);
+  background: #232730;
+}
+.btnSecondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.btnOk {
+  background: rgba(16, 185, 129, 0.16);
+  color: #34D399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  font-weight: 800;
+}
+.btnOk:hover:not(:disabled) {
+  background: rgba(16, 185, 129, 0.26);
+}
+.btnOk:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btnBad {
+  background: rgba(239, 68, 68, 0.16);
+  color: #F87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  font-weight: 800;
+}
+.btnBad:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.26);
+}
+.btnBad:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* === Pulse ===
+ * Live "running" indicator. The keyframe expands an outline
+ * shadow then fades — works on any colour by inheriting
+ * currentColor. */
+.pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 0 currentColor;
+  animation: fabPulse 1.6s infinite;
+}
+@keyframes fabPulse {
+  0% {
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  70% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}

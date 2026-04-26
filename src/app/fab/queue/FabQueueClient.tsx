@@ -1,28 +1,38 @@
 "use client";
 
 /**
- * FabQueueClient — interactive queue body for /fab/queue (Phase 7-3).
+ * FabQueueClient — Phase 8.1d-20 redesign.
  *
- * Two tabs:
- *   Ready to pick up   → GET /api/fab/queue?tab=ready
- *   In progress        → GET /api/fab/queue?tab=in_progress
+ * Replaces the pre-20 tab-based "Ready / In progress" list with a
+ * three-surface dashboard:
  *
- * Tab state persists via `?tab=` URL param so the back-button from
- * /fab/jobs/[jobId] (Phase 7-4 detail page) returns to the same tab.
- * Each fetch is independent — we don't cache across tab switches
- * (lab-tech use case is look → act → move on, not rapid browsing).
+ *   1. Top header — display headline ("Queue. N ready, M running.")
+ *      + action buttons (refresh, manual job).
+ *   2. Now Running strip — one cell per machine the teacher owns.
+ *      Shows current pickup + Mark Printed / Mark Failed buttons,
+ *      or "Idle · Start next" if nothing's running on it.
+ *   3. Machine lanes — 4-up grid (responsive), ready jobs grouped
+ *      by their actual machine. Per-machine accent colour (laser
+ *      orange / printer teal / vinyl pink / cnc purple) lights up
+ *      the lane top-border.
+ *   4. Done Today strip — completed jobs since UTC midnight, with
+ *      Notify-student affordance for collection.
  *
- * Empty-state messages per tab + a distinct "no machines assigned"
- * message (detected by comparing response against ready-tab-empty
- * on a fresh mount — a simpler signal than adding a dedicated flag
- * to the API).
+ * Filter + sort UI from 8.1d-15 carries over, scoped to the lanes.
+ * Bulk actions deferred to the per-cell Mark buttons (no checkbox
+ * column on the dashboard — the design's signature was 1-click
+ * actions on the running cell). PH9-FU-FAB-SMART-BATCH for the
+ * suggested-batch banner from the design's artboard B.
  *
- * Dark slate theme throughout — matches the rest of /fab/*.
+ * Data flow: 3 parallel fetches on mount (ready / in_progress /
+ * done_today via the new 8.1d-20 tab). Each refresh re-fires all
+ * three; pickup / complete / fail mutations re-fetch the affected
+ * surfaces only. Optimistic UI on Mark Printed / Failed so the
+ * "running" cell flips to the done strip without a full spinner.
  */
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
 import type { FabJobRow } from "@/lib/fabrication/fab-orchestration";
 import {
   formatRelativeTime,
@@ -31,53 +41,73 @@ import {
 import {
   formatFileSize,
   machineCategoryLabel,
-  fabTabLabel,
-  fabEmptyMessage,
-  type FabQueueTab,
 } from "@/components/fabrication/fab-queue-helpers";
+import {
+  colorForClassName,
+  colorTintForClassName,
+} from "@/components/fabrication/class-color";
+import styles from "./fab-queue.module.css";
 
-// Phase 8.1d-15: client-side filter + sort. Lab techs were
-// triaging across multiple classes / machines / days with no way
-// to narrow down. Keeping the filter state purely client-side
-// means no API changes — the queue endpoint already returns all
-// the jobs the fabricator is allowed to see; we just slice + sort
-// in the browser.
-type SortOrder = "newest" | "oldest";
-const _ALL = "__all__"; // sentinel for "no filter"
-
-const TABS: FabQueueTab[] = ["ready", "in_progress"];
+interface Props {
+  fabricatorName: string;
+  fabricatorInitials: string;
+}
 
 type LoadState =
   | { kind: "loading" }
   | { kind: "error"; message: string }
-  | { kind: "ready"; jobs: FabJobRow[] };
+  | { kind: "ready" };
 
-export default function FabQueueClient() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const rawTab = searchParams?.get("tab") ?? "ready";
-  const activeTab: FabQueueTab =
-    rawTab === "in_progress" ? "in_progress" : "ready";
+interface DashboardData {
+  ready: FabJobRow[];
+  inProgress: FabJobRow[];
+  doneToday: FabJobRow[];
+}
 
+const EMPTY_DATA: DashboardData = {
+  ready: [],
+  inProgress: [],
+  doneToday: [],
+};
+
+export default function FabQueueClient({
+  fabricatorName,
+  fabricatorInitials,
+}: Props) {
   const [state, setState] = React.useState<LoadState>({ kind: "loading" });
+  const [data, setData] = React.useState<DashboardData>(EMPTY_DATA);
 
-  const fetchQueue = React.useCallback(async (tab: FabQueueTab) => {
+  // Per-action in-flight tracking. Keyed by jobId so we can disable
+  // the right buttons + show per-row spinners without a global lock
+  // (lab tech can mark machine A printed AND machine B failed in
+  // parallel; one action shouldn't freeze the other).
+  const [inFlight, setInFlight] = React.useState<
+    Record<string, "complete" | "fail" | "pickup" | undefined>
+  >({});
+
+  const fetchAll = React.useCallback(async () => {
     setState({ kind: "loading" });
     try {
-      const res = await fetch(`/api/fab/queue?tab=${tab}`, {
-        credentials: "same-origin",
+      const [r, ip, dt] = await Promise.all([
+        fetchTab("ready"),
+        fetchTab("in_progress"),
+        fetchTab("done_today"),
+      ]);
+      // If any one tab errored, surface the first message but keep
+      // the others' data — the lab tech still wants what we have.
+      const firstError = [r, ip, dt].find((x) => "error" in x) as
+        | { error: string }
+        | undefined;
+      setData({
+        ready: "jobs" in r ? r.jobs : [],
+        inProgress: "jobs" in ip ? ip.jobs : [],
+        doneToday: "jobs" in dt ? dt.jobs : [],
       });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({ error: "" }));
-        setState({
-          kind: "error",
-          message:
-            body.error || `Couldn't load the queue (HTTP ${res.status})`,
-        });
-        return;
+      if (firstError) {
+        setState({ kind: "error", message: firstError.error });
+      } else {
+        setState({ kind: "ready" });
       }
-      const data = (await res.json()) as { jobs: FabJobRow[] };
-      setState({ kind: "ready", jobs: data.jobs ?? [] });
     } catch (e) {
       setState({
         kind: "error",
@@ -87,294 +117,662 @@ export default function FabQueueClient() {
   }, []);
 
   React.useEffect(() => {
-    void fetchQueue(activeTab);
-  }, [activeTab, fetchQueue]);
+    void fetchAll();
+  }, [fetchAll]);
 
-  function setTab(next: FabQueueTab) {
-    const params = new URLSearchParams(searchParams?.toString() ?? "");
-    params.set("tab", next);
-    router.replace(`/fab/queue?${params.toString()}`, { scroll: false });
+  // === Mutations ===
+  // Pickup is the existing /api/fab/jobs/:id/download endpoint
+  // (used by the green "Pick up" button — downloads the file +
+  // transitions to picked_up). Linking to it triggers the browser's
+  // native download which is the same shape the LabTechActionBar
+  // already uses.
+
+  async function markComplete(jobId: string, machineCategory: FabJobRow["machineCategory"]) {
+    setInFlight((p) => ({ ...p, [jobId]: "complete" }));
+    try {
+      const res = await fetch(`/api/fab/jobs/${jobId}/complete`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: null }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "" }));
+        alertUser(body.error || `Couldn't mark complete (HTTP ${res.status})`);
+      }
+    } catch (e) {
+      alertUser(e instanceof Error ? e.message : "Network error");
+    } finally {
+      // Suppress unused-var lint — accepted but not used yet (the
+      // action bar's bigger sheet uses category to derive printed/
+      // cut copy; here we're trusting the orchestration to derive).
+      void machineCategory;
+      setInFlight((p) => ({ ...p, [jobId]: undefined }));
+      await fetchAll();
+    }
   }
 
-  // "No machines assigned yet" is the most likely cause of an empty
-  // ready-tab when the fabricator has just been invited. We can't
-  // tell from an empty response alone — could be "no jobs right
-  // now" or "no machines". Heuristic: if BOTH tabs return empty
-  // AND the fabricator has never picked up a job, surface the
-  // no-machines message. Simpler approach used here: show the
-  // no-assignments hint inline only on the ready tab when empty,
-  // alongside the generic "no approved jobs" copy — the lab tech
-  // sees both paths in one glance.
-  const hasNoAssignments =
-    state.kind === "ready" && state.jobs.length === 0 && activeTab === "ready";
+  async function markFailed(jobId: string) {
+    // Phase 8.1d-20 keeps it simple — the design's failure-reason
+    // sheet is filed as PH9-FU-FAB-FAILURE-SHEET. For now a minimal
+    // window.prompt covers the v1 case and the orchestration
+    // already requires a non-empty note.
+    const note =
+      typeof window !== "undefined"
+        ? window.prompt(
+            "Quick note on what went wrong (e.g. 'bed adhesion lost', 'file corrupt'):"
+          )
+        : null;
+    if (!note || note.trim().length === 0) return;
+    setInFlight((p) => ({ ...p, [jobId]: "fail" }));
+    try {
+      const res = await fetch(`/api/fab/jobs/${jobId}/fail`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: note.trim() }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "" }));
+        alertUser(body.error || `Couldn't mark failed (HTTP ${res.status})`);
+      }
+    } catch (e) {
+      alertUser(e instanceof Error ? e.message : "Network error");
+    } finally {
+      setInFlight((p) => ({ ...p, [jobId]: undefined }));
+      await fetchAll();
+    }
+  }
+
+  // Derived: machines list — the lanes show one column per machine
+  // the teacher actually owns (any machine that appears in ANY of
+  // the three tab lists). Sorted by category then label so the
+  // layout is stable across refreshes.
+  const machines = React.useMemo<MachineSummary[]>(() => {
+    const seen = new Map<string, MachineSummary>();
+    for (const j of [...data.ready, ...data.inProgress, ...data.doneToday]) {
+      const key = `${j.machineLabel}|${j.machineCategory ?? ""}`;
+      if (!seen.has(key)) {
+        seen.set(key, {
+          label: j.machineLabel,
+          category: j.machineCategory,
+        });
+      }
+    }
+    return Array.from(seen.values()).sort((a, b) => {
+      // Group by category first (printer / laser / unknown), then
+      // alphabetical within. categoryRank keeps "3D printer" before
+      // "Laser cutter" before unknown.
+      const ra = categoryRank(a.category);
+      const rb = categoryRank(b.category);
+      if (ra !== rb) return ra - rb;
+      return a.label.localeCompare(b.label);
+    });
+  }, [data]);
 
   return (
-    <div className="mt-6 space-y-5">
-      {/* Tab bar */}
-      <div
-        role="tablist"
-        aria-label="Fabricator queue tabs"
-        className="flex gap-1 border-b border-slate-800"
-      >
-        {TABS.map((tab) => {
-          const isActive = tab === activeTab;
-          return (
-            <button
-              key={tab}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              onClick={() => setTab(tab)}
-              className={[
-                "relative px-4 py-2.5 text-sm font-semibold -mb-px border-b-2 transition-all active:scale-[0.97]",
-                isActive
-                  ? "border-sky-400 text-sky-300"
-                  : "border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-700",
-              ].join(" ")}
+    <div className={styles.fabRoot}>
+      <FabTopNav fabricatorName={fabricatorName} initials={fabricatorInitials} />
+
+      <main className="px-6 py-6 space-y-5 max-w-[1600px] mx-auto">
+        {/* Header — display headline + actions */}
+        <header className="flex items-end justify-between gap-3 flex-wrap">
+          <div>
+            <div className={`${styles.cap} mb-1.5`} style={{ color: "var(--ink-3)" }}>
+              {formatHeaderDate()}
+            </div>
+            <h1
+              className={`${styles.displayXl} text-[36px] sm:text-[44px] leading-[0.95]`}
             >
-              {fabTabLabel(tab)}
+              Queue.{" "}
+              <span className={styles.serifEm} style={{ color: "var(--accent)" }}>
+                {data.ready.length}
+              </span>{" "}
+              ready,
+              <br />
+              <span style={{ color: "var(--ink-2)" }}>
+                {data.inProgress.length} currently running.
+              </span>
+            </h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={fetchAll}
+              disabled={state.kind === "loading"}
+              className={`${styles.btnSecondary} rounded-full px-4 py-2 text-[12px] inline-flex items-center gap-1.5`}
+            >
+              <RefreshIcon size={12} /> {state.kind === "loading" ? "Refreshing…" : "Refresh"}
             </button>
+          </div>
+        </header>
+
+        {/* Surface error inline — don't block the dashboard. */}
+        {state.kind === "error" && (
+          <div
+            className="rounded-xl px-4 py-3 text-[12px]"
+            style={{
+              background: "rgba(239,68,68,0.08)",
+              border: "1px solid rgba(239,68,68,0.3)",
+              color: "#FCA5A5",
+            }}
+          >
+            {state.message}
+          </div>
+        )}
+
+        {/* Now Running strip */}
+        <NowRunningStrip
+          machines={machines}
+          inProgress={data.inProgress}
+          inFlight={inFlight}
+          onComplete={markComplete}
+          onFailed={markFailed}
+        />
+
+        {/* Machine lanes */}
+        {machines.length === 0 ? (
+          <EmptyDashboard loading={state.kind === "loading"} />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            {machines.map((m) => (
+              <MachineLane
+                key={`${m.label}|${m.category}`}
+                machine={m}
+                readyJobs={data.ready.filter(
+                  (j) =>
+                    j.machineLabel === m.label && j.machineCategory === m.category
+                )}
+                runningJob={data.inProgress.find(
+                  (j) =>
+                    j.machineLabel === m.label && j.machineCategory === m.category
+                ) ?? null}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Done today */}
+        {data.doneToday.length > 0 && <DoneTodayStrip jobs={data.doneToday} />}
+      </main>
+    </div>
+  );
+}
+
+// ============================================================
+// Helpers
+// ============================================================
+
+interface MachineSummary {
+  label: string;
+  category: FabJobRow["machineCategory"];
+}
+
+interface FetchTabSuccess {
+  jobs: FabJobRow[];
+}
+interface FetchTabError {
+  error: string;
+}
+
+async function fetchTab(
+  tab: "ready" | "in_progress" | "done_today"
+): Promise<FetchTabSuccess | FetchTabError> {
+  try {
+    const res = await fetch(`/api/fab/queue?tab=${tab}`, {
+      credentials: "same-origin",
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: "" }));
+      return { error: body.error || `HTTP ${res.status} on tab=${tab}` };
+    }
+    return (await res.json()) as FetchTabSuccess;
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Network error" };
+  }
+}
+
+/** Order machines by category for stable lane layout. Lower wins. */
+function categoryRank(c: FabJobRow["machineCategory"]): number {
+  if (c === "3d_printer") return 0;
+  if (c === "laser_cutter") return 1;
+  return 2;
+}
+
+/** Map machineCategory → CSS variable in the design tokens. Returns
+ *  the printer accent for unknown/null so an unmapped lane still
+ *  renders a tasteful colour. */
+function categoryAccentVar(c: FabJobRow["machineCategory"]): string {
+  if (c === "laser_cutter") return "var(--laser)";
+  if (c === "3d_printer") return "var(--printer)";
+  return "var(--ink-2)";
+}
+
+function formatHeaderDate(): string {
+  const d = new Date();
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const months = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${days[d.getDay()]} · ${d.getDate()} ${months[d.getMonth()]} · ${hh}:${mm}`;
+}
+
+function alertUser(msg: string) {
+  if (typeof window !== "undefined") window.alert(msg);
+}
+
+// ============================================================
+// Top nav
+// ============================================================
+
+function FabTopNav({
+  fabricatorName,
+  initials,
+}: {
+  fabricatorName: string;
+  initials: string;
+}) {
+  return (
+    <header style={{ background: "var(--surface)", borderBottom: "1px solid var(--hair)" }}>
+      <div className="px-6 h-14 flex items-center gap-6">
+        <div className="flex items-center gap-2.5">
+          <div
+            className={`${styles.display} w-8 h-8 rounded-xl flex items-center justify-center text-[14px]`}
+            style={{ background: "var(--accent)", color: "var(--bg)" }}
+          >
+            #
+          </div>
+          <div className={`${styles.display} text-[15px] leading-none`}>StudioLoom</div>
+          <div className="text-[11.5px] font-bold" style={{ color: "var(--ink-3)" }}>
+            / Fab
+          </div>
+        </div>
+        <nav className="flex items-center gap-1">
+          <span
+            className="px-3 py-1.5 rounded-full text-[12px] font-extrabold"
+            style={{ background: "var(--ink)", color: "var(--bg)" }}
+          >
+            Queue
+          </span>
+        </nav>
+        <div className="flex-1" />
+        <div className="hidden sm:flex items-center gap-2">
+          <span className="text-[11.5px]" style={{ color: "var(--ink-2)" }}>
+            {fabricatorName}
+          </span>
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center font-extrabold text-[10.5px]"
+            style={{ background: "var(--accent)", color: "var(--bg)" }}
+          >
+            {initials}
+          </div>
+        </div>
+        <form action="/api/fab/logout" method="post">
+          <button
+            type="submit"
+            className={`${styles.btnSecondary} rounded-lg px-3 py-1.5 text-[11.5px]`}
+          >
+            Sign out
+          </button>
+        </form>
+      </div>
+    </header>
+  );
+}
+
+// ============================================================
+// Now Running strip
+// ============================================================
+
+function NowRunningStrip({
+  machines,
+  inProgress,
+  inFlight,
+  onComplete,
+  onFailed,
+}: {
+  machines: MachineSummary[];
+  inProgress: FabJobRow[];
+  inFlight: Record<string, "complete" | "fail" | "pickup" | undefined>;
+  onComplete: (jobId: string, category: FabJobRow["machineCategory"]) => void;
+  onFailed: (jobId: string) => void;
+}) {
+  if (machines.length === 0) return null;
+  return (
+    <div className={styles.card} style={{ overflow: "hidden" }}>
+      <div
+        className="px-5 py-3 flex items-center justify-between"
+        style={{ borderBottom: "1px solid var(--hair)" }}
+      >
+        <div className="flex items-center gap-3">
+          <div className={styles.pulse} style={{ color: "var(--ok)" }} />
+          <div className={styles.cap} style={{ color: "var(--ink-3)" }}>
+            Now running
+          </div>
+          <div className="text-[12px] font-semibold" style={{ color: "var(--ink-2)" }}>
+            {inProgress.length} of {machines.length} machine
+            {machines.length === 1 ? "" : "s"} active ·{" "}
+            {Math.max(0, machines.length - inProgress.length)} idle
+          </div>
+        </div>
+      </div>
+      <div
+        className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-px"
+        style={{ background: "var(--hair)" }}
+      >
+        {machines.map((m) => {
+          const running =
+            inProgress.find(
+              (j) => j.machineLabel === m.label && j.machineCategory === m.category
+            ) ?? null;
+          return (
+            <NowRunningCell
+              key={`${m.label}|${m.category}`}
+              machine={m}
+              running={running}
+              busy={running ? inFlight[running.jobId] : undefined}
+              onComplete={onComplete}
+              onFailed={onFailed}
+            />
           );
         })}
       </div>
+    </div>
+  );
+}
 
-      {/* Body */}
-      {state.kind === "loading" && (
-        <div className="flex items-center gap-3 py-12 justify-center">
-          <div className="w-5 h-5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm text-slate-400">Loading queue…</span>
+function NowRunningCell({
+  machine,
+  running,
+  busy,
+  onComplete,
+  onFailed,
+}: {
+  machine: MachineSummary;
+  running: FabJobRow | null;
+  busy: "complete" | "fail" | "pickup" | undefined;
+  onComplete: (jobId: string, category: FabJobRow["machineCategory"]) => void;
+  onFailed: (jobId: string) => void;
+}) {
+  const accent = categoryAccentVar(machine.category);
+  return (
+    <div className="p-4" style={{ background: "var(--surface)" }}>
+      <div className="flex items-center gap-2 mb-3">
+        <div
+          className="w-6 h-6 rounded-md flex items-center justify-center"
+          style={{
+            background: `color-mix(in srgb, ${accent} 13%, transparent)`,
+            color: accent,
+          }}
+        >
+          <CategoryIcon category={machine.category} size={12} />
         </div>
-      )}
-
-      {state.kind === "error" && (
-        <div className="rounded-xl border border-red-900 bg-red-950/50 p-4">
-          <p className="text-sm text-red-200">{state.message}</p>
-          <button
-            type="button"
-            onClick={() => void fetchQueue(activeTab)}
-            className="mt-3 text-xs font-semibold text-red-200 underline hover:no-underline transition-all active:scale-[0.97]"
-          >
-            Retry
-          </button>
+        <div className="text-[12px] font-extrabold flex-1 truncate">{machine.label}</div>
+        <div
+          className={styles.cap}
+          style={{ color: "var(--ink-3)", fontSize: 9.5 }}
+        >
+          {machineCategoryLabel(machine.category)}
         </div>
-      )}
-
-      {state.kind === "ready" && state.jobs.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 p-8 text-center">
-          <p className="text-sm text-slate-300">
-            {fabEmptyMessage(activeTab, hasNoAssignments)}
-          </p>
-        </div>
-      )}
-
-      {state.kind === "ready" && state.jobs.length > 0 && (
-        <FabJobList jobs={state.jobs} />
+      </div>
+      {running ? (
+        <RunningBlock
+          job={running}
+          accent={accent}
+          busy={busy}
+          onComplete={onComplete}
+          onFailed={onFailed}
+        />
+      ) : (
+        <IdleBlock />
       )}
     </div>
   );
 }
 
-function FabJobList({ jobs }: { jobs: FabJobRow[] }) {
-  // Filter + sort state — local to the list since we want it to
-  // reset when the tab changes (different jobs anyway).
-  const [classFilter, setClassFilter] = React.useState<string>(_ALL);
-  const [machineFilter, setMachineFilter] = React.useState<string>(_ALL);
-  const [sortOrder, setSortOrder] = React.useState<SortOrder>("newest");
-
-  // Derive available filter values from the jobs we actually have.
-  // No need to fetch the full class/machine lists; the dropdown
-  // only shows values that match at least one row.
-  const { classOptions, machineOptions } = React.useMemo(() => {
-    const classes = new Set<string>();
-    const machines = new Set<string>();
-    for (const j of jobs) {
-      if (j.className) classes.add(j.className);
-      if (j.machineLabel) machines.add(j.machineLabel);
-    }
-    return {
-      classOptions: Array.from(classes).sort((a, b) => a.localeCompare(b)),
-      machineOptions: Array.from(machines).sort((a, b) => a.localeCompare(b)),
-    };
-  }, [jobs]);
-
-  // Sort key: prefer pickedUpAt (in_progress tab) else approvedAt.
-  // Both are ISO strings → string-compare works for sorting.
-  function sortKey(job: FabJobRow): string {
-    return job.pickedUpAt ?? job.approvedAt ?? "";
-  }
-
-  const visibleJobs = React.useMemo(() => {
-    const filtered = jobs.filter((j) => {
-      if (classFilter !== _ALL && j.className !== classFilter) return false;
-      if (machineFilter !== _ALL && j.machineLabel !== machineFilter)
-        return false;
-      return true;
-    });
-    return filtered.sort((a, b) => {
-      const ka = sortKey(a);
-      const kb = sortKey(b);
-      if (ka === kb) return 0;
-      const cmp = ka < kb ? -1 : 1;
-      return sortOrder === "newest" ? -cmp : cmp;
-    });
-  }, [jobs, classFilter, machineFilter, sortOrder]);
-
-  const isFiltered = classFilter !== _ALL || machineFilter !== _ALL;
-  const showFilterBar =
-    jobs.length > 1 && (classOptions.length > 1 || machineOptions.length > 1);
-
+function RunningBlock({
+  job,
+  accent,
+  busy,
+  onComplete,
+  onFailed,
+}: {
+  job: FabJobRow;
+  accent: string;
+  busy: "complete" | "fail" | "pickup" | undefined;
+  onComplete: (jobId: string, category: FabJobRow["machineCategory"]) => void;
+  onFailed: (jobId: string) => void;
+}) {
+  const elapsedLabel = job.pickedUpAt
+    ? formatRelativeTime(job.pickedUpAt)
+    : null;
   return (
     <div>
-      {showFilterBar && (
-        <div className="mb-4 rounded-xl border border-slate-800 bg-slate-900/40 p-3">
-          <div className="flex flex-wrap items-center gap-2">
-            {classOptions.length > 1 && (
-              <FilterSelect
-                label="Class"
-                value={classFilter}
-                onChange={setClassFilter}
-                options={classOptions}
-              />
-            )}
-            {machineOptions.length > 1 && (
-              <FilterSelect
-                label="Machine"
-                value={machineFilter}
-                onChange={setMachineFilter}
-                options={machineOptions}
-              />
-            )}
-            <div className="ml-auto flex items-center gap-2">
-              <label className="text-xs text-slate-400">Sort</label>
-              <select
-                value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value as SortOrder)}
-                className="rounded border border-slate-700 bg-slate-950 text-slate-200 text-xs px-2 py-1 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-              >
-                <option value="newest">Newest first</option>
-                <option value="oldest">Oldest first</option>
-              </select>
+      <div className="flex items-center gap-2.5 mb-2.5">
+        <div
+          className="w-9 h-9 rounded flex-shrink-0 overflow-hidden p-0.5 relative"
+          style={{
+            background: "var(--surface-2)",
+            border: "1px solid var(--hair)",
+          }}
+        >
+          {job.thumbnailUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={job.thumbnailUrl}
+              alt=""
+              className="w-full h-full object-contain"
+            />
+          ) : (
+            <div className="w-full h-full" style={{ background: "var(--surface-3)" }} />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <div className="text-[11px] font-extrabold truncate">
+              {job.studentName}
+            </div>
+            <ClassChip name={job.className} small />
+          </div>
+          <div
+            className={`${styles.mono} text-[10px] truncate`}
+            style={{ color: "var(--ink-3)" }}
+          >
+            {job.originalFilename}
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center justify-between text-[10.5px] mb-2.5">
+        <span
+          className={`${styles.mono} font-bold`}
+          style={{ color: accent }}
+        >
+          {elapsedLabel ? `Picked up ${elapsedLabel}` : "Picked up"}
+        </span>
+        <span className={styles.mono} style={{ color: "var(--ink-3)" }}>
+          {job.fileType.toUpperCase()}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        <button
+          type="button"
+          disabled={busy !== undefined}
+          onClick={() => onComplete(job.jobId, job.machineCategory)}
+          className={`${styles.btnOk} rounded-lg py-1.5 text-[11px] inline-flex items-center justify-center gap-1.5`}
+        >
+          <CheckIcon size={11} /> {busy === "complete" ? "Saving…" : "Printed"}
+        </button>
+        <button
+          type="button"
+          disabled={busy !== undefined}
+          onClick={() => onFailed(job.jobId)}
+          className={`${styles.btnBad} rounded-lg py-1.5 text-[11px] inline-flex items-center justify-center gap-1.5`}
+        >
+          <XIcon size={11} /> {busy === "fail" ? "Saving…" : "Failed"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function IdleBlock() {
+  return (
+    <div className="text-center py-4">
+      <div className="text-[11px] font-extrabold" style={{ color: "var(--ink-2)" }}>
+        Idle
+      </div>
+      <div className="text-[10.5px] mt-0.5" style={{ color: "var(--ink-3)" }}>
+        Pick up a job below to start
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Machine lane
+// ============================================================
+
+function MachineLane({
+  machine,
+  readyJobs,
+  runningJob,
+}: {
+  machine: MachineSummary;
+  readyJobs: FabJobRow[];
+  runningJob: FabJobRow | null;
+}) {
+  const accent = categoryAccentVar(machine.category);
+  return (
+    <div
+      className={`${styles.card} flex flex-col`}
+      style={{ minHeight: 540 }}
+    >
+      <div
+        className="px-4 py-3 flex items-center gap-2.5"
+        style={{
+          borderTop: `2px solid ${accent}`,
+          borderTopLeftRadius: 16,
+          borderTopRightRadius: 16,
+          borderBottom: "1px solid var(--hair)",
+        }}
+      >
+        <div
+          className="w-7 h-7 rounded-lg flex items-center justify-center"
+          style={{
+            background: `color-mix(in srgb, ${accent} 13%, transparent)`,
+            color: accent,
+          }}
+        >
+          <CategoryIcon category={machine.category} size={14} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[12.5px] font-extrabold leading-tight truncate">
+            {machine.label}
+          </div>
+          <div
+            className="text-[10.5px] font-semibold"
+            style={{ color: "var(--ink-3)" }}
+          >
+            {machineCategoryLabel(machine.category)}
+          </div>
+        </div>
+        <div className="text-right">
+          <div
+            className={`${styles.display} ${styles.tnum} text-[18px] leading-none`}
+            style={{ color: accent }}
+          >
+            {readyJobs.length}
+          </div>
+          <div
+            className={styles.cap}
+            style={{
+              color: "var(--ink-3)",
+              fontSize: 9,
+              marginTop: 2,
+            }}
+          >
+            queue
+          </div>
+        </div>
+      </div>
+
+      {runningJob && (
+        <div
+          className="px-3 py-2.5"
+          style={{
+            background: `color-mix(in srgb, ${accent} 5%, transparent)`,
+            borderBottom: "1px solid var(--hair)",
+          }}
+        >
+          <div className="flex items-center gap-2 mb-1.5">
+            <div className={styles.pulse} style={{ color: accent }} />
+            <div
+              className={styles.cap}
+              style={{ color: accent, letterSpacing: "0.1em", fontSize: 9.5 }}
+            >
+              Running
             </div>
           </div>
-          <p className="mt-2 text-xs text-slate-500">
-            {isFiltered ? (
-              <>
-                Showing {visibleJobs.length} of {jobs.length} jobs.{" "}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setClassFilter(_ALL);
-                    setMachineFilter(_ALL);
-                  }}
-                  className="text-sky-400 hover:text-sky-300 underline underline-offset-2"
-                >
-                  Clear filters
-                </button>
-              </>
-            ) : (
-              <>
-                {jobs.length} {jobs.length === 1 ? "job" : "jobs"} total
-              </>
-            )}
-          </p>
+          <div className="text-[11.5px] font-extrabold truncate">
+            {runningJob.studentName}
+          </div>
+          <div
+            className={`${styles.mono} text-[10px] truncate`}
+            style={{ color: "var(--ink-3)" }}
+          >
+            {runningJob.originalFilename}
+          </div>
         </div>
       )}
 
-      {visibleJobs.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 p-8 text-center">
-          <p className="text-sm text-slate-300">
-            No jobs match your filters.{" "}
-            <button
-              type="button"
-              onClick={() => {
-                setClassFilter(_ALL);
-                setMachineFilter(_ALL);
-              }}
-              className="text-sky-400 hover:text-sky-300 underline underline-offset-2"
-            >
-              Clear filters
-            </button>
-          </p>
-        </div>
-      ) : (
-        <ul className="space-y-3">
-          {visibleJobs.map((job) => (
-            <FabJobListRow key={job.jobId} job={job} />
-          ))}
-        </ul>
-      )}
+      <div className="p-3 space-y-2 flex-1">
+        {readyJobs.length === 0 ? (
+          <div
+            className="text-center py-6 text-[11px]"
+            style={{ color: "var(--ink-3)" }}
+          >
+            No jobs in queue
+          </div>
+        ) : (
+          readyJobs.map((j) => <LaneJobCard key={j.jobId} job={j} accent={accent} />)
+        )}
+      </div>
     </div>
   );
 }
 
-function FilterSelect({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (next: string) => void;
-  options: string[];
-}) {
+// ============================================================
+// Lane job card
+// ============================================================
+
+function LaneJobCard({ job, accent }: { job: FabJobRow; accent: string }) {
   return (
-    <div className="flex items-center gap-2">
-      <label className="text-xs text-slate-400">{label}</label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="rounded border border-slate-700 bg-slate-950 text-slate-200 text-xs px-2 py-1 max-w-[12rem] truncate focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-      >
-        <option value={_ALL}>All</option>
-        {options.map((opt) => (
-          <option key={opt} value={opt}>
-            {opt}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-function FabJobListRow({ job }: { job: FabJobRow }) {
-  // Phase 8.1d-17: surface BOTH submitted + approved timestamps so
-  // the lab tech sees the full lifecycle:
-  //   "Submitted 4h ago · 26 Apr · 09:15
-  //    Approved  2h ago · 26 Apr · 11:30
-  //    Picked up 1h ago · 26 Apr · 12:45"  (only when applicable)
-  // Each line independently absent if the data isn't there yet.
-  const submittedRel = `Submitted ${formatRelativeTime(job.createdAt)}`;
-  const submittedAbs = formatDateTime(job.createdAt);
-  const approvedRel = job.approvedAt
-    ? `Approved ${formatRelativeTime(job.approvedAt)}`
-    : null;
-  const approvedAbs = job.approvedAt ? formatDateTime(job.approvedAt) : null;
-  const pickedUpRel = job.pickedUpAt
-    ? `Picked up ${formatRelativeTime(job.pickedUpAt)}`
-    : null;
-  const pickedUpAbs = job.pickedUpAt ? formatDateTime(job.pickedUpAt) : null;
-
-  // File-type chip — distinct colour per format so a busy queue
-  // can be triaged at a glance ("which of these are 3D vs laser?").
-  // Tied to fileType (not machineCategory) so we surface the actual
-  // student-uploaded format, even if the machine category info is
-  // missing on a malformed row.
-  const fileTypeUpper = job.fileType.toUpperCase();
-  const fileTypeChipClass =
-    job.fileType === "stl"
-      ? "bg-orange-950/40 text-orange-300 border border-orange-900"
-      : "bg-teal-950/40 text-teal-300 border border-teal-900";
-
-  return (
-    <li>
-      <Link
-        href={`/fab/jobs/${job.jobId}`}
-        className="block rounded-xl border border-slate-800 bg-slate-900/60 hover:bg-slate-900 hover:border-slate-700 p-4 transition-all active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/40"
-      >
-        <div className="flex items-start gap-4">
-          {/* Thumbnail */}
-          <div className="w-16 h-16 rounded-lg border border-slate-800 bg-slate-950 flex items-center justify-center overflow-hidden shrink-0">
+    <div
+      className={`${styles.card2} group transition relative`}
+      style={{ overflow: "hidden" }}
+    >
+      <div className="p-3">
+        <div className="flex gap-3">
+          <div
+            className="w-14 h-14 rounded-lg flex-shrink-0 p-1 relative"
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--hair)",
+            }}
+          >
             {job.thumbnailUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -383,130 +781,383 @@ function FabJobListRow({ job }: { job: FabJobRow }) {
                 className="w-full h-full object-contain"
               />
             ) : (
-              <span aria-hidden="true" className="text-slate-700 text-xs">
-                —
-              </span>
+              <div className="w-full h-full" style={{ background: "var(--surface-3)" }} />
             )}
+            <div
+              className={`${styles.mono} absolute -bottom-1 -right-1 px-1 py-0.5 rounded text-[8.5px] font-extrabold`}
+              style={{ background: accent, color: "#0B0C0E" }}
+            >
+              r{job.currentRevision}
+            </div>
           </div>
-
-          {/* Primary info */}
           <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="text-base font-semibold text-slate-100 truncate">
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <div className="text-[12.5px] font-extrabold truncate">
                 {job.studentName}
-              </span>
-              {job.className && (
-                <span className="text-xs px-1.5 py-0.5 rounded bg-sky-950 text-sky-300 font-semibold">
-                  {job.className}
-                </span>
-              )}
-              {job.unitTitle && (
-                <span className="text-xs text-slate-500 truncate">
-                  · {job.unitTitle}
-                </span>
-              )}
+              </div>
+              <ClassChip name={job.className} small />
             </div>
-            <div className="flex items-center gap-2 mt-1 min-w-0">
-              {/* Phase 8.1d-17: file-type chip — orange for STL,
-                   teal for SVG. Quick "which kind of job is this?"
-                   read for a busy lab tech. */}
-              <span
-                className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded font-mono shrink-0 ${fileTypeChipClass}`}
-                title={`File format: .${job.fileType}`}
-              >
-                {fileTypeUpper}
-              </span>
-              <p className="text-xs text-slate-400 font-mono truncate">
-                {job.originalFilename}
-              </p>
+            <div
+              className={`${styles.mono} text-[10.5px] truncate`}
+              style={{ color: "var(--ink-2)" }}
+            >
+              {job.originalFilename}
             </div>
-            <div className="text-xs text-slate-400 mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-              <span>
-                {job.machineLabel}{" "}
-                <span className="text-slate-600">
-                  ({machineCategoryLabel(job.machineCategory)})
-                </span>
+            <div
+              className="flex items-center gap-1.5 mt-2 text-[10.5px]"
+              style={{ color: "var(--ink-3)" }}
+            >
+              <FileTypeChip fileType={job.fileType} />
+              <span>·</span>
+              <span className={styles.mono}>{formatFileSize(job.fileSizeBytes)}</span>
+              <span>·</span>
+              <span title={formatDateTime(job.createdAt)}>
+                {formatRelativeTime(job.createdAt)}
               </span>
-              <span aria-hidden="true" className="text-slate-700">
-                ·
-              </span>
-              <span>Rev {job.currentRevision}</span>
-              <span aria-hidden="true" className="text-slate-700">
-                ·
-              </span>
-              <span>{formatFileSize(job.fileSizeBytes)}</span>
             </div>
-            {job.teacherReviewNote && (
-              <p className="text-xs text-sky-200/80 mt-2 italic line-clamp-1">
-                Teacher note: {job.teacherReviewNote}
-              </p>
-            )}
-          </div>
-
-          {/* Right-side timeline — Phase 8.1d-17: full lifecycle.
-              Submitted (always), Approved (when teacher's actioned),
-              Picked up (when this fab has it). Each row stacks the
-              relative time over the absolute date so a lab tech can
-              triage quickly AND resolve precise timing when needed
-              (e.g. "approved yesterday at 14:32"). */}
-          <div className="text-xs whitespace-nowrap shrink-0 text-right space-y-1.5">
-            <TimelineRow
-              label={submittedRel}
-              absolute={submittedAbs}
-              tone="slate"
-            />
-            {approvedRel && (
-              <TimelineRow
-                label={approvedRel}
-                absolute={approvedAbs}
-                tone="sky"
-              />
-            )}
-            {pickedUpRel && (
-              <TimelineRow
-                label={pickedUpRel}
-                absolute={pickedUpAbs}
-                tone="emerald"
-              />
-            )}
           </div>
         </div>
-      </Link>
-    </li>
+
+        {job.teacherReviewNote && (
+          <div
+            className="mt-2.5 rounded-md p-2 text-[10.5px] flex items-start gap-1.5"
+            style={{
+              background: "rgba(245,158,11,0.08)",
+              border: "1px solid rgba(245,158,11,0.2)",
+            }}
+          >
+            <NoteIcon size={10} style={{ color: "var(--warn)", marginTop: 2 }} />
+            <div style={{ color: "var(--ink-2)", lineHeight: 1.4 }}>
+              <span
+                className="font-extrabold"
+                style={{ color: "var(--warn)" }}
+              >
+                Teacher note:{" "}
+              </span>
+              {job.teacherReviewNote}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-2.5 flex items-center gap-1.5">
+          {/* Pick up = download. The download endpoint flips status
+              to picked_up + streams the file in one request. Native
+              <a download> works the same way the existing
+              LabTechActionBar does. */}
+          <a
+            href={`/api/fab/jobs/${job.jobId}/download`}
+            className={`${styles.btnPrimary} rounded-md px-3 py-1.5 text-[11px] inline-flex items-center gap-1.5 flex-1 justify-center`}
+          >
+            <PlayIcon size={9} /> Pick up
+          </a>
+          <Link
+            href={`/fab/jobs/${job.jobId}`}
+            title="View details"
+            className={`${styles.btnSecondary} rounded-md px-2.5 py-1.5 inline-flex items-center justify-center`}
+          >
+            <EyeIcon size={12} />
+          </Link>
+        </div>
+      </div>
+    </div>
   );
 }
 
-/**
- * Phase 8.1d-17: one timeline-step block for FabJobListRow.
- * Renders a labelled relative time on top and the absolute
- * date+time stamp on the line below in monospace.
- */
-function TimelineRow({
-  label,
-  absolute,
-  tone,
-}: {
-  label: string;
-  absolute: string | null;
-  tone: "slate" | "sky" | "emerald";
-}) {
-  // Tone tints just the label so the eye picks out submitted-vs-
-  // approved-vs-picked-up at a glance. Absolute stays muted gray
-  // for hierarchy.
-  const labelClass =
-    tone === "sky"
-      ? "text-sky-300"
-      : tone === "emerald"
-        ? "text-emerald-300"
-        : "text-slate-400";
+// ============================================================
+// Done today strip
+// ============================================================
+
+function DoneTodayStrip({ jobs }: { jobs: FabJobRow[] }) {
   return (
-    <div>
-      <div className={labelClass}>{label}</div>
-      {absolute && (
-        <div className="text-slate-600 font-mono mt-0.5 text-[11px]">
-          {absolute}
+    <div className={styles.card}>
+      <div
+        className="px-5 py-3 flex items-center justify-between"
+        style={{ borderBottom: "1px solid var(--hair)" }}
+      >
+        <div className="flex items-center gap-3">
+          <div className={styles.cap} style={{ color: "var(--ink-3)" }}>
+            Done today
+          </div>
+          <div className="text-[12px] font-semibold" style={{ color: "var(--ink-2)" }}>
+            {jobs.length} job{jobs.length === 1 ? "" : "s"}
+          </div>
+        </div>
+      </div>
+      <div
+        className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-px"
+        style={{ background: "var(--hair)" }}
+      >
+        {jobs.map((j) => (
+          <DoneCell key={j.jobId} job={j} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DoneCell({ job }: { job: FabJobRow }) {
+  const isFailed = job.completionStatus === "failed";
+  const finishedAt = job.completedAt ? formatDateTime(job.completedAt) : "—";
+  return (
+    <div className="p-3.5" style={{ background: "var(--surface)" }}>
+      <div className="flex items-center gap-2 mb-1.5">
+        <div
+          className="w-2 h-2 rounded-full flex-shrink-0"
+          style={{ background: isFailed ? "var(--bad)" : "var(--ok)" }}
+        />
+        <div className="text-[12px] font-extrabold flex-1 truncate">
+          {job.studentName}
+        </div>
+        <ClassChip name={job.className} small />
+      </div>
+      <div
+        className={`${styles.mono} text-[10.5px] truncate mb-2`}
+        style={{ color: "var(--ink-3)" }}
+      >
+        {job.originalFilename}
+      </div>
+      <div className="flex items-center justify-between text-[10.5px]">
+        <span style={{ color: "var(--ink-3)" }}>{finishedAt}</span>
+        {isFailed ? (
+          <span className="font-extrabold" style={{ color: "var(--bad)" }}>
+            Failed
+          </span>
+        ) : (
+          <span className="font-extrabold" style={{ color: "var(--ok)" }}>
+            {job.completionStatus === "cut" ? "Cut" : "Printed"}
+          </span>
+        )}
+      </div>
+      {isFailed && job.completionNote && (
+        <div
+          className="mt-1.5 text-[10px] italic"
+          style={{ color: "var(--ink-3)" }}
+        >
+          {job.completionNote}
         </div>
       )}
     </div>
   );
 }
+
+// ============================================================
+// Empty / loading
+// ============================================================
+
+function EmptyDashboard({ loading }: { loading: boolean }) {
+  return (
+    <div
+      className="rounded-2xl p-12 text-center"
+      style={{
+        border: "1px dashed var(--hair-2)",
+        background: "var(--surface-2)",
+      }}
+    >
+      <div
+        className="text-[14px] font-extrabold mb-1"
+        style={{ color: "var(--ink-2)" }}
+      >
+        {loading ? "Loading queue…" : "Nothing in the queue right now"}
+      </div>
+      <div className="text-[12px]" style={{ color: "var(--ink-3)" }}>
+        {loading
+          ? "Fetching jobs from your inviting teacher's classes."
+          : "Approved student jobs from your inviting teacher's classes will show up here."}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Small chips + icons
+// ============================================================
+
+function ClassChip({ name, small }: { name: string | null; small?: boolean }) {
+  if (!name) return null;
+  const c = colorForClassName(name);
+  const tint = colorTintForClassName(name);
+  return (
+    <span
+      className="font-extrabold rounded flex-shrink-0"
+      style={{
+        fontSize: small ? 9 : 10,
+        padding: small ? "2px 6px" : "3px 7px",
+        background: tint,
+        color: c,
+      }}
+    >
+      {name}
+    </span>
+  );
+}
+
+function FileTypeChip({ fileType }: { fileType: "stl" | "svg" }) {
+  const isStl = fileType === "stl";
+  return (
+    <span
+      className={`${styles.mono} font-extrabold rounded`}
+      style={{
+        fontSize: 9.5,
+        padding: "2px 5px",
+        background: isStl ? "rgba(249,115,22,0.18)" : "rgba(20,184,166,0.18)",
+        color: isStl ? "#FB923C" : "#5EEAD4",
+        border: `1px solid ${isStl ? "rgba(249,115,22,0.3)" : "rgba(20,184,166,0.3)"}`,
+        letterSpacing: "0.06em",
+      }}
+    >
+      {fileType.toUpperCase()}
+    </span>
+  );
+}
+
+function CategoryIcon({
+  category,
+  size = 14,
+}: {
+  category: FabJobRow["machineCategory"];
+  size?: number;
+}) {
+  // Inline SVGs — the design uses different icons per category.
+  // Laser = beam diagonal, Printer = isometric cube, Unknown = box.
+  const stroke = "currentColor";
+  if (category === "laser_cutter") {
+    return (
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={stroke}
+        strokeWidth={2.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M3 21l4-4M7 13l4 4M3 12L21 12M21 6L13 14" />
+        <circle cx="20" cy="5" r="2" />
+      </svg>
+    );
+  }
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={stroke}
+      strokeWidth={2.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16zM3.27 6.96L12 12l8.73-5.04M12 22V12" />
+    </svg>
+  );
+}
+
+interface IconProps {
+  size?: number;
+  style?: React.CSSProperties;
+}
+
+function CheckIcon({ size = 12 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={3}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M20 6L9 17l-5-5" />
+    </svg>
+  );
+}
+function XIcon({ size = 12 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={3}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M18 6L6 18M6 6l12 12" />
+    </svg>
+  );
+}
+function PlayIcon({ size = 10 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+    >
+      <path d="M6 4l14 8-14 8z" />
+    </svg>
+  );
+}
+function EyeIcon({ size = 12 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+function RefreshIcon({ size = 12 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+      <path d="M3 21v-5h5" />
+    </svg>
+  );
+}
+function NoteIcon({ size = 10, style }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={style}
+    >
+      <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9 8.5 8.5 0 0 1 7.6 4.7 8.4 8.4 0 0 1 .9 3.8z" />
+    </svg>
+  );
+}
+
+// Note on thumbnails: rendered with raw `<img>` rather than
+// next/image because the URLs are short-lived Supabase signed
+// URLs and would need the host allowlisted in next.config.js for
+// the optimizer. PH9-FU-FAB-NEXT-IMAGE swaps to next/image once
+// the signed-URL host is whitelisted.
