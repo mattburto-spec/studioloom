@@ -45,3 +45,6 @@ karpathy/
 
 # Supabase temp files
 supabase/.temp/
+
+# Migration script outputs (regen via scripts/)
+outputs/

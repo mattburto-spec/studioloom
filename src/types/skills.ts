@@ -140,6 +140,44 @@ export type VideoEmbedBlock = {
   caption?: string;
 };
 
+/**
+ * "Spot the hazards in this scene" interactive challenge — ported from the
+ * safety modules system (src/lib/safety/content-blocks.ts SpotTheHazardBlock).
+ *
+ * The block carries the SVG scene id + a list of hazard zones (percentage
+ * coordinates so they scale to any viewport). Each hazard has a severity,
+ * a click target rectangle, an explanation, and an optional rule reference.
+ *
+ * The renderer is owned by the safety system today; for skill cards the body
+ * round-trips through JSONB as an opaque payload until a generic skills-side
+ * renderer is added. Authoring is import-only at v1 — the editor doesn't yet
+ * expose this block in the "Add block" menu (kept out of AUTHORABLE_BLOCK_TYPES).
+ */
+export type SpotTheHazardBlock = {
+  type: "spot_the_hazard";
+  title: string;
+  scene_id: string;
+  scene_type:
+    | "wood"
+    | "metal"
+    | "textiles"
+    | "food"
+    | "digital_fab"
+    | "general"
+    | "custom";
+  hazards: Array<{
+    id: string;
+    zone: { x: number; y: number; width: number; height: number }; // % coords (0-100)
+    severity: "critical" | "warning" | "minor";
+    label: string;
+    explanation: string;
+    rule_reference?: string;
+  }>;
+  total_hazards: number;
+  time_limit_seconds?: number;
+  pass_threshold: number; // e.g. find 6 of 8 to pass
+};
+
 // ============================================================================
 // Generic blocks that safety doesn't have — keep because they fill real gaps
 // ============================================================================
@@ -279,6 +317,7 @@ export type Block =
   | StepByStepBlock
   | ComprehensionCheckBlock
   | VideoEmbedBlock
+  | SpotTheHazardBlock
   // Generic blocks that fill real gaps
   | EmbedBlock
   | AccordionBlock
@@ -308,6 +347,7 @@ export const BLOCK_TYPES = [
   "step_by_step",
   "comprehension_check",
   "video_embed",
+  "spot_the_hazard",
   // Generic (kept)
   "embed",
   "accordion",
@@ -398,6 +438,19 @@ export function emptyBlock(type: BlockType): Block {
       };
     case "video_embed":
       return { type: "video_embed", url: "" };
+    case "spot_the_hazard":
+      // Authoring not yet wired — block only appears via import. Stub kept so
+      // the exhaustive switch compiles and matches the editor's surface area
+      // if AUTHORABLE_BLOCK_TYPES adds it later (renderer pending).
+      return {
+        type: "spot_the_hazard",
+        title: "",
+        scene_id: "",
+        scene_type: "general",
+        hazards: [],
+        total_hazards: 0,
+        pass_threshold: 0,
+      };
     case "embed":
       return { type: "embed", url: "", title: "", aspectRatio: "16:9" };
     case "accordion":
