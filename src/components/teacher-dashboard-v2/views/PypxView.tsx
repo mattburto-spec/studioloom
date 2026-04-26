@@ -26,6 +26,7 @@
  * (class-level), but borrows the phase vocabulary + visual DNA.
  */
 
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Admin } from "../Admin";
 import { Insights } from "../Insights";
@@ -79,13 +80,40 @@ export function PypxView({
   const currentPhaseIdx = bucketToPhase(overallPct);
   const firstName = teacher?.name?.trim().split(/\s+/)[0] || "there";
 
+  // Setup popover — anchored to the cog button on the hero. Dismisses
+  // on outside click + Escape so it behaves like a normal menu without
+  // pulling in a popover library.
+  const [setupOpen, setSetupOpen] = useState(false);
+  const setupRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!setupOpen) return;
+    function onMouseDown(e: MouseEvent) {
+      if (
+        setupRef.current &&
+        !setupRef.current.contains(e.target as Node)
+      ) {
+        setSetupOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setSetupOpen(false);
+    }
+    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [setupOpen]);
+
   return (
     <>
       {/* Exhibition banner — purple gradient, Bold type. Replaces the
-       *  MYP hero entirely. On lg+ splits into left (text) + right
-       *  (per-class setup cards) so the previously-empty right side
-       *  is earning its keep. Setup cards are the primary CTA for
-       *  first-time PYP teachers. */}
+       *  MYP hero entirely. Setup is hidden behind a cog top-right
+       *  (popover with one tile per class) so the hero stays focused
+       *  on identity + headline status; the 5-phase strip below
+       *  carries the live state. */}
       <section className="max-w-[1400px] mx-auto px-4 md:px-6 pt-6 md:pt-8">
         <div
           className="relative rounded-[24px] lg:rounded-[32px] overflow-hidden card-shadow-lg p-6 md:p-8 lg:p-10"
@@ -107,82 +135,109 @@ export function PypxView({
             <circle cx="190" cy="24" r="18" fill="#fff" />
           </svg>
 
-          <div className="relative grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-8 items-center">
-            {/* Left: title + summary */}
-            <div className="lg:col-span-3 text-white">
-              <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur rounded-full px-3 py-1.5 text-[11.5px] font-bold">
-                PYPX · Exhibition
-              </div>
-              <h1 className="display-lg text-[44px] sm:text-[56px] md:text-[72px] lg:text-[80px] leading-[0.95] mt-4">
-                {firstName}&apos;s Exhibition.
-              </h1>
-              <p className="text-[15px] md:text-[18px] leading-snug mt-3 text-white/85 font-medium">
-                {totals.totalClasses} class{totals.totalClasses === 1 ? "" : "es"}{" "}
-                · {totals.totalStudents} student
-                {totals.totalStudents === 1 ? "" : "s"} · tracking towards
-                Exhibition day.
-              </p>
-            </div>
+          {/* Setup cog — top-right of hero. Opens a popover listing each
+           *  PYP class with a link to its Exhibition setup page. Hidden
+           *  if there are no classes yet (nothing to set up). */}
+          {classes.length > 0 && (
+            <div ref={setupRef} className="absolute top-4 right-4 lg:top-6 lg:right-6 z-10">
+              <button
+                type="button"
+                onClick={() => setSetupOpen((o) => !o)}
+                aria-expanded={setupOpen}
+                aria-haspopup="menu"
+                aria-label="Exhibition setup"
+                className="w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur text-white flex items-center justify-center transition focus:outline-none focus:ring-2 focus:ring-white/60"
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+              </button>
 
-            {/* Right: per-class setup CTAs. Always visible (until we can
-             *  detect a fully-configured class, which needs an
-             *  exhibition_config join on the dashboard endpoint —
-             *  deferred). Card styling is semi-transparent white so it
-             *  reads on the purple gradient without competing with the
-             *  title type. */}
-            {classes.length > 0 && (
-              <div className="lg:col-span-2">
-                <div className="text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-white/70 mb-2.5">
-                  Exhibition setup
-                </div>
-                <div className="flex flex-col gap-2">
-                  {classes.map((c) => {
-                    const needsUnit = c.units.length === 0;
-                    return (
-                      <Link
-                        key={c.id}
-                        href={`/teacher/classes/${c.id}/exhibition`}
-                        className="group flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-white/95 hover:bg-white hover:-translate-y-0.5 transition shadow-sm"
-                      >
-                        <div
-                          className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-white text-[14px]"
-                          style={{
-                            background:
-                              "linear-gradient(135deg, #9333EA 0%, #C026D3 100%)",
-                          }}
-                          aria-hidden
+              {setupOpen && (
+                <div
+                  role="menu"
+                  className="absolute top-12 right-0 w-[min(20rem,calc(100vw-2rem))] rounded-2xl bg-white shadow-2xl border border-black/5 p-2"
+                >
+                  <div className="px-3 py-2 text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-[var(--ink-3)]">
+                    Exhibition setup
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {classes.map((c) => {
+                      const needsUnit = c.units.length === 0;
+                      return (
+                        <Link
+                          key={c.id}
+                          role="menuitem"
+                          href={`/teacher/classes/${c.id}/exhibition`}
+                          onClick={() => setSetupOpen(false)}
+                          className="group flex items-center gap-3 px-2.5 py-2 rounded-xl hover:bg-purple-50 transition"
                         >
-                          🌱
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[13px] font-bold text-[var(--ink)] truncate">
-                            {c.name}
+                          <div
+                            className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-white text-[14px]"
+                            style={{
+                              background:
+                                "linear-gradient(135deg, #9333EA 0%, #C026D3 100%)",
+                            }}
+                            aria-hidden
+                          >
+                            🌱
                           </div>
-                          <div className="text-[10.5px] text-[var(--ink-3)] mt-0.5">
-                            {needsUnit
-                              ? "Needs a unit · set up →"
-                              : `${c.studentCount} student${c.studentCount === 1 ? "" : "s"} · set up →`}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[13px] font-bold text-[var(--ink)] truncate">
+                              {c.name}
+                            </div>
+                            <div className="text-[10.5px] text-[var(--ink-3)] mt-0.5">
+                              {needsUnit
+                                ? "Needs a unit"
+                                : `${c.studentCount} student${c.studentCount === 1 ? "" : "s"}`}
+                            </div>
                           </div>
-                        </div>
-                        <svg
-                          width="13"
-                          height="13"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="text-[var(--ink-3)] group-hover:text-purple-700 transition shrink-0"
-                        >
-                          <path d="M5 12h14M13 6l6 6-6 6" />
-                        </svg>
-                      </Link>
-                    );
-                  })}
+                          <svg
+                            width="13"
+                            height="13"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="text-[var(--ink-3)] group-hover:text-purple-700 transition shrink-0"
+                          >
+                            <path d="M5 12h14M13 6l6 6-6 6" />
+                          </svg>
+                        </Link>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+          )}
+
+          <div className="relative text-white max-w-3xl pr-14 lg:pr-16">
+            <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur rounded-full px-3 py-1.5 text-[11.5px] font-bold">
+              PYPX · Exhibition
+            </div>
+            <h1 className="display-lg text-[44px] sm:text-[56px] md:text-[72px] lg:text-[80px] leading-[0.95] mt-4">
+              {firstName}&apos;s Exhibition.
+            </h1>
+            <p className="text-[15px] md:text-[18px] leading-snug mt-3 text-white/85 font-medium">
+              {totals.totalClasses} class{totals.totalClasses === 1 ? "" : "es"}{" "}
+              · {totals.totalStudents} student
+              {totals.totalStudents === 1 ? "" : "s"} · tracking towards
+              Exhibition day.
+            </p>
           </div>
         </div>
       </section>
