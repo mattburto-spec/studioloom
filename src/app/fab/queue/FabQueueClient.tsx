@@ -338,14 +338,33 @@ function FilterSelect({
 }
 
 function FabJobListRow({ job }: { job: FabJobRow }) {
-  // Phase 8.1d-15: show BOTH relative ("2h ago") + absolute
-  // ("23 Apr · 14:32") timestamps. Lab techs need to triage across
-  // days, and "2d ago" loses meaning fast — the absolute stamp
-  // resolves "is this from yesterday or last week" at a glance.
-  const tsIso = job.pickedUpAt ?? job.approvedAt ?? null;
-  const tsLabel = job.pickedUpAt ? "Picked up" : "Approved";
-  const relativeWhen = tsIso ? `${tsLabel} ${formatRelativeTime(tsIso)}` : "—";
-  const absoluteWhen = tsIso ? formatDateTime(tsIso) : null;
+  // Phase 8.1d-17: surface BOTH submitted + approved timestamps so
+  // the lab tech sees the full lifecycle:
+  //   "Submitted 4h ago · 26 Apr · 09:15
+  //    Approved  2h ago · 26 Apr · 11:30
+  //    Picked up 1h ago · 26 Apr · 12:45"  (only when applicable)
+  // Each line independently absent if the data isn't there yet.
+  const submittedRel = `Submitted ${formatRelativeTime(job.createdAt)}`;
+  const submittedAbs = formatDateTime(job.createdAt);
+  const approvedRel = job.approvedAt
+    ? `Approved ${formatRelativeTime(job.approvedAt)}`
+    : null;
+  const approvedAbs = job.approvedAt ? formatDateTime(job.approvedAt) : null;
+  const pickedUpRel = job.pickedUpAt
+    ? `Picked up ${formatRelativeTime(job.pickedUpAt)}`
+    : null;
+  const pickedUpAbs = job.pickedUpAt ? formatDateTime(job.pickedUpAt) : null;
+
+  // File-type chip — distinct colour per format so a busy queue
+  // can be triaged at a glance ("which of these are 3D vs laser?").
+  // Tied to fileType (not machineCategory) so we surface the actual
+  // student-uploaded format, even if the machine category info is
+  // missing on a malformed row.
+  const fileTypeUpper = job.fileType.toUpperCase();
+  const fileTypeChipClass =
+    job.fileType === "stl"
+      ? "bg-orange-950/40 text-orange-300 border border-orange-900"
+      : "bg-teal-950/40 text-teal-300 border border-teal-900";
 
   return (
     <li>
@@ -387,9 +406,20 @@ function FabJobListRow({ job }: { job: FabJobRow }) {
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-400 font-mono truncate mt-1">
-              {job.originalFilename}
-            </p>
+            <div className="flex items-center gap-2 mt-1 min-w-0">
+              {/* Phase 8.1d-17: file-type chip — orange for STL,
+                   teal for SVG. Quick "which kind of job is this?"
+                   read for a busy lab tech. */}
+              <span
+                className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded font-mono shrink-0 ${fileTypeChipClass}`}
+                title={`File format: .${job.fileType}`}
+              >
+                {fileTypeUpper}
+              </span>
+              <p className="text-xs text-slate-400 font-mono truncate">
+                {job.originalFilename}
+              </p>
+            </div>
             <div className="text-xs text-slate-400 mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
               <span>
                 {job.machineLabel}{" "}
@@ -413,18 +443,70 @@ function FabJobListRow({ job }: { job: FabJobRow }) {
             )}
           </div>
 
-          {/* Right-side time — relative on top (quick triage), absolute
-              underneath (resolves "yesterday vs last week" precisely). */}
-          <div className="text-xs whitespace-nowrap shrink-0 mt-0.5 text-right">
-            <div className="text-slate-400">{relativeWhen}</div>
-            {absoluteWhen && (
-              <div className="text-slate-600 mt-0.5 font-mono">
-                {absoluteWhen}
-              </div>
+          {/* Right-side timeline — Phase 8.1d-17: full lifecycle.
+              Submitted (always), Approved (when teacher's actioned),
+              Picked up (when this fab has it). Each row stacks the
+              relative time over the absolute date so a lab tech can
+              triage quickly AND resolve precise timing when needed
+              (e.g. "approved yesterday at 14:32"). */}
+          <div className="text-xs whitespace-nowrap shrink-0 text-right space-y-1.5">
+            <TimelineRow
+              label={submittedRel}
+              absolute={submittedAbs}
+              tone="slate"
+            />
+            {approvedRel && (
+              <TimelineRow
+                label={approvedRel}
+                absolute={approvedAbs}
+                tone="sky"
+              />
+            )}
+            {pickedUpRel && (
+              <TimelineRow
+                label={pickedUpRel}
+                absolute={pickedUpAbs}
+                tone="emerald"
+              />
             )}
           </div>
         </div>
       </Link>
     </li>
+  );
+}
+
+/**
+ * Phase 8.1d-17: one timeline-step block for FabJobListRow.
+ * Renders a labelled relative time on top and the absolute
+ * date+time stamp on the line below in monospace.
+ */
+function TimelineRow({
+  label,
+  absolute,
+  tone,
+}: {
+  label: string;
+  absolute: string | null;
+  tone: "slate" | "sky" | "emerald";
+}) {
+  // Tone tints just the label so the eye picks out submitted-vs-
+  // approved-vs-picked-up at a glance. Absolute stays muted gray
+  // for hierarchy.
+  const labelClass =
+    tone === "sky"
+      ? "text-sky-300"
+      : tone === "emerald"
+        ? "text-emerald-300"
+        : "text-slate-400";
+  return (
+    <div>
+      <div className={labelClass}>{label}</div>
+      {absolute && (
+        <div className="text-slate-600 font-mono mt-0.5 text-[11px]">
+          {absolute}
+        </div>
+      )}
+    </div>
   );
 }
