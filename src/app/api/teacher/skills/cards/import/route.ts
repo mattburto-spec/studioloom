@@ -179,6 +179,34 @@ interface ImportResult {
   error?: string;
   /** When the failure is a slug collision, suggest a free slug. */
   suggested_slug?: string;
+  /** Non-fatal warnings — e.g. question_count auto-clamped, slug
+   *  auto-shortened, etc. */
+  warnings?: string[];
+}
+
+/**
+ * Locate the first invalid block in `body`. Used to produce a sharper
+ * error message than "body invalid" — names the offending index and
+ * type so the cowork skill (or the teacher) can fix it directly.
+ */
+function findInvalidBlock(
+  body: unknown
+): { index: number; reason: string } | null {
+  if (!Array.isArray(body)) return { index: -1, reason: "not an array" };
+  for (let i = 0; i < body.length; i++) {
+    const b = body[i];
+    if (!b || typeof b !== "object") {
+      return { index: i, reason: "not an object" };
+    }
+    if (!("type" in b) || typeof (b as { type: unknown }).type !== "string") {
+      return { index: i, reason: "missing string `type` field" };
+    }
+    const type = (b as { type: string }).type;
+    if (!VALID_BLOCK_TYPES.has(type)) {
+      return { index: i, reason: `unknown block type "${type}"` };
+    }
+  }
+  return null;
 }
 
 async function importOne(
@@ -228,10 +256,14 @@ async function importOne(
 
   // --- body ---------------------------------------------------------------
   if (!validateBody(payload.body)) {
+    const bad = findInvalidBlock(payload.body);
+    const tail = bad
+      ? `block #${bad.index + 1}: ${bad.reason}`
+      : "body must be an array";
     return {
       ok: false,
       error:
-        "body must be an array of valid blocks (key_concept / micro_story / scenario / before_after / step_by_step / comprehension_check / video_embed / accordion / gallery / embed)",
+        `body invalid — ${tail}. Allowed types: key_concept / micro_story / scenario / before_after / step_by_step / comprehension_check / video_embed / accordion / gallery / embed.`,
     };
   }
 
@@ -279,8 +311,13 @@ async function importOne(
     payload.quiz?.pass_threshold ?? payload.pass_threshold ?? 80;
   const retakeCooldown =
     payload.quiz?.retake_cooldown_minutes ?? payload.retake_cooldown_minutes ?? 0;
-  const questionCount =
+  // Auto-clamp question_count to the actual pool size: a common cowork
+  // mistake is "question_count: 10" when the pool has 8 or 9. Intent is
+  // clearly "use the full pool" — null is the canonical way to express
+  // that, so coerce + warn rather than reject.
+  let questionCount: number | null =
     payload.quiz?.question_count ?? payload.question_count ?? null;
+  const importWarnings: string[] = [];
 
   // Normalise each question — accept either an index in `correct_answer` or
   // the option string verbatim, and ensure every question has an `id`.
@@ -328,6 +365,24 @@ async function importOne(
     const err = validateQuizQuestions(normalisedQuestions);
     if (err) return { ok: false, error: `quiz: ${err}` };
   }
+
+  // Clamp question_count BEFORE running validateQuestionCount, so the
+  // forgiving behaviour kicks in for the common "10 vs 9" overshoot.
+  if (
+    typeof questionCount === "number" &&
+    normalisedQuestions.length > 0 &&
+    questionCount >= normalisedQuestions.length
+  ) {
+    if (questionCount > normalisedQuestions.length) {
+      importWarnings.push(
+        `question_count (${questionCount}) clamped to ${normalisedQuestions.length} (size of quiz pool)`
+      );
+    }
+    // Either equal-to-pool or larger — both mean "use full pool". Null
+    // is the canonical encoding so the runner picks all questions.
+    questionCount = null;
+  }
+
   for (const [k, v] of [
     ["pass_threshold", validatePassThreshold(passThreshold)],
     ["retake_cooldown_minutes", validateRetakeCooldown(retakeCooldown)],
@@ -443,7 +498,12 @@ async function importOne(
       );
   }
 
-  return { ok: true, slug, card_id: cardRow.id };
+  return {
+    ok: true,
+    slug,
+    card_id: cardRow.id,
+    warnings: importWarnings.length > 0 ? importWarnings : undefined,
+  };
 }
 
 // ---------------------------------------------------------------------------

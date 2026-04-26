@@ -20,6 +20,7 @@ interface ImportResult {
   card_id?: string;
   error?: string;
   suggested_slug?: string;
+  warnings?: string[];
 }
 
 const SAMPLE = `{
@@ -249,6 +250,13 @@ export default function ImportSkillCardsPage() {
                     </Link>
                   )}
                 </div>
+                {r.warnings && r.warnings.length > 0 && (
+                  <ul className="mt-1.5 ml-6 text-xs text-amber-700 list-disc">
+                    {r.warnings.map((w, j) => (
+                      <li key={j}>⚠ {w}</li>
+                    ))}
+                  </ul>
+                )}
               </li>
             ))}
           </ul>

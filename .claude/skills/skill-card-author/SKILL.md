@@ -117,6 +117,12 @@ Up to 3 anchors total. Choose the BEST fits, not all four frameworks.
 
 ### Block types for `body`
 
+**ONLY these 10 block types are valid.** Any other `type` value will be rejected by the import endpoint:
+
+`key_concept`, `micro_story`, `scenario`, `before_after`, `step_by_step`, `comprehension_check`, `video_embed`, `accordion`, `gallery`, `embed`
+
+Do NOT invent new types like `intro`, `summary`, `safety_rules`, `hazards`, `ppe_list`, etc. — they don't exist. Encode that content as `key_concept` (with a clear title like "Hazards" or "PPE checklist") instead.
+
 Mix block types — a card with only `key_concept` blocks reads like a textbook. Aim for at least one rich block (micro_story / scenario / before_after / step_by_step) per card.
 
 #### `key_concept` — "here's what you need to know"
@@ -254,7 +260,13 @@ Use multiple_choice (3-4 options) and true_false. Every question must be answera
 
 `correct_index` is 0-based. The import endpoint also accepts `correct_answer` as the option string verbatim — but `correct_index` is preferred.
 
-`pass_threshold` defaults to 80 (%). `retake_cooldown_minutes` defaults to 0. `question_count` null = use the full pool; set to e.g. 5 if the pool has 10 and you want a random subset per attempt.
+`pass_threshold` defaults to 80 (%). `retake_cooldown_minutes` defaults to 0.
+
+**`question_count` rules:**
+- `null` (default) — use the full quiz pool. Every attempt shows every question. **Use null whenever you want every question shown.**
+- A number — random subset per attempt. ONLY set this when the pool is genuinely larger than the number of questions you want to show. Setting `question_count: 10` when there are only 8 questions is a bug — the import endpoint will auto-clamp it to null and emit a warning, but emit `null` directly to keep the JSON tidy.
+
+A safe rule: emit `"question_count": null` unless the teacher explicitly asked for a random subset.
 
 ## Authoring conversation pattern
 
