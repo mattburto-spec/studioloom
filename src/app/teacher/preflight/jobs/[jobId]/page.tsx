@@ -319,6 +319,7 @@ function ReadyView(props: {
               gradeLevel: detail.classInfo?.name ?? null,
               unitTitle: detail.unit?.title ?? null,
               originalFilename: detail.job.originalFilename,
+              submittedAt: detail.job.createdAt,
             })}
           />
 

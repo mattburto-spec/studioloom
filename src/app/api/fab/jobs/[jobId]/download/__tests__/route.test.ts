@@ -76,6 +76,10 @@ function validDetail(overrides: Record<string, unknown> = {}) {
       status: "approved",
       originalFilename: "original-upload.stl",
       fileType: "stl" as const,
+      // Phase 8.1d-19: createdAt now flows into the download
+      // filename via submittedAt → date+time discriminator.
+      // Pinned UTC moment so tests are deterministic.
+      createdAt: "2026-04-26T14:30:12Z",
       ...(overrides.job ?? {}),
     },
     student: { id: "s1", name: "Matt Burton" },
@@ -167,11 +171,13 @@ describe("GET /api/fab/jobs/[jobId]/download", () => {
     expect(res.headers.get("Content-Type")).toBe("model/stl");
     expect(res.headers.get("Content-Length")).toBe("5");
     const disposition = res.headers.get("Content-Disposition");
-    // Filename should be buildFabricationDownloadFilename output:
-    // matt-burton + 10-design + cardboard-furniture . stl
+    // Phase 8.1d-19: filename now includes originalBase + date+time
+    // so two jobs from the same student / class / unit can't
+    // overwrite each other in the lab tech's downloads folder.
+    // Format: student-grade-unit-originalBase-YYYY-MM-DD-HHMM.ext
     expect(disposition).toContain("attachment");
     expect(disposition).toContain(
-      "matt-burton-10-design-cardboard-furniture.stl"
+      "matt-burton-10-design-cardboard-furniture-original-upload-2026-04-26-1430.stl"
     );
     expect(res.headers.get("Cache-Control")).toContain("private");
   });

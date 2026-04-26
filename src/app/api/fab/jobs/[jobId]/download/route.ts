@@ -93,6 +93,10 @@ export async function GET(
     gradeLevel: detail.classInfo?.name ?? null,
     unitTitle: detail.unit?.title ?? null,
     originalFilename: detail.job.originalFilename,
+    // Phase 8.1d-19: stamp the submission time onto the filename so
+    // re-submissions of the same student/class/unit don't overwrite
+    // each other in the lab tech's downloads folder.
+    submittedAt: detail.job.createdAt,
   });
 
   const bucketDownload = await db.storage
