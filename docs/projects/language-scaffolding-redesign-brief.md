@@ -57,7 +57,7 @@ The "4-toggle in-lesson drawer" referenced in the original brief **does not exis
 - **`AutonomyPicker`** (Sub-Phase 3 of Lesson Bold, shipped this session):
   - `src/components/student/lesson-bold/AutonomyPicker.tsx` — 3-up card picker: Scaffolded / Balanced / Independent.
   - Mounted between LessonIntro and SkillRefsForPage in `src/app/(student)/unit/[unitId]/[pageId]/page.tsx`.
-  - Persists via **migration 119** → `student_progress.autonomy_level TEXT CHECK IN ('scaffolded','balanced','independent')`. Applied to local dev only (verified 24 Apr).
+  - Persists via **migration 121** → `student_progress.autonomy_level TEXT CHECK IN ('scaffolded','balanced','independent')`. Applied to local dev only (verified 24 Apr).
   - Drives gating in `src/components/student/ActivityCard.tsx` via 5 helpers in `lesson-bold/helpers.ts`:
     - `resolveAutonomyDisplay(level | null) → AutonomyLevel` (NULL → 'balanced')
     - `hintsAvailable(level) → boolean` ('independent' hides)
@@ -173,7 +173,7 @@ If the activity has authored `scaffolding.ell{1,2}.sentenceStarters[]`, those ar
 - ✅ **Stays untouched.** Mentor + theme + intake survey continue as today. **Does not grow** to add language-scaffolding-level / text-size / contrast / captions / alt-text / output-type. The brief's premise that those should live there is rejected — they're either obviated (level → invocation) or out-of-scope for this build (visual customization can ship separately if Matt wants).
 
 **AutonomyPicker (`lesson-bold/AutonomyPicker.tsx`):**
-- ❌ **Dies.** Component file deleted. Helper functions (`hintsAvailable`, `exampleVisible`, etc.) deleted. `student_progress.autonomy_level` column dropped via migration 120. ActivityCard hint/example gating reverts to ELL-only logic (the pre-Sub-Phase-3 state).
+- ❌ **Dies.** Component file deleted. Helper functions (`hintsAvailable`, `exampleVisible`, etc.) deleted. `student_progress.autonomy_level` column dropped via migration 122. ActivityCard hint/example gating reverts to ELL-only logic (the pre-Sub-Phase-3 state).
 - The existing hint UI (Stuck? Try for 3 min first) survives — it's a useful effort-gate independent of autonomy level.
 
 **ActivityCard hint/example gating:**
@@ -194,7 +194,7 @@ If the activity has authored `scaffolding.ell{1,2}.sentenceStarters[]`, those ar
 ### 2.3 Data model — new tables + columns
 
 **Drop:**
-- `student_progress.autonomy_level` (rollback of migration 119)
+- `student_progress.autonomy_level` (rollback of migration 121)
 
 **Add:**
 - **`word_definitions` cache table** (new):
@@ -273,14 +273,14 @@ Each phase: pre-flight ritual (git status clean, baseline `npm test` matches, au
 - MODIFY: `src/app/api/student/progress/route.ts` — drop `autonomyLevel` accept + retry-without-column branches.
 - MODIFY: `src/app/(student)/unit/[unitId]/[pageId]/page.tsx` — drop AutonomyPicker mount + `autonomyDisplay` derivation + prop wiring on ActivityCard.
 - MODIFY: `src/types/index.ts` — drop `autonomy_level` from `StudentProgress`.
-- DELETE: `src/components/student/lesson-bold/__tests__/shell.test.tsx` autonomy + migration 119 test sections (8 tests removed).
-- NEW: `supabase/migrations/120_drop_student_progress_autonomy_level.sql` — `ALTER TABLE student_progress DROP COLUMN IF EXISTS autonomy_level;`
+- DELETE: `src/components/student/lesson-bold/__tests__/shell.test.tsx` autonomy + migration 121 test sections (8 tests removed).
+- NEW: `supabase/migrations/122_drop_student_progress_autonomy_level.sql` — `ALTER TABLE student_progress DROP COLUMN IF EXISTS autonomy_level;`
 - MODIFY: `docs/projects/WIRING.yaml` — `student-learning-support` entry: `status: planned`, `currentVersion: 0`, rewrite summary, add `future_needs` describing tap-a-word + response-starters.
 - NEW: `docs/projects/dimensions3-followups.md` entry `FU-LS-DRIFT` documenting the doc-vs-reality finding.
 
 **Tests after Phase 0:** 1952 → ~1944 (−8 from autonomy tests removed). Matches pre-Sub-Phase-3 + 1 wiring-lock test that we kept.
 
-**Riskiest assumption:** Migration 120 DROP COLUMN won't hit any currently-running query. Mitigation: applied to local dev only first; verify by hitting the lesson page + checking `/api/student/progress` POST works (the column is now gone but the retry pattern silently strips it from the payload).
+**Riskiest assumption:** Migration 122 DROP COLUMN won't hit any currently-running query. Mitigation: applied to local dev only first; verify by hitting the lesson page + checking `/api/student/progress` POST works (the column is now gone but the retry pattern silently strips it from the payload).
 
 **Matt Checkpoint 0.1:** Lesson page renders with no AutonomyPicker, ActivityCard hints/examples behave per ELL level only, `npm test` clean at new baseline, `npx tsc --noEmit --project tsconfig.check.json` clean.
 
@@ -571,7 +571,7 @@ The bigger AI cost risk is the existing 6 student-api sites that all have `stop_
 - **118** — `CREATE TABLE word_definitions` + RLS
 - **119** — `CREATE TABLE activity_response_starters` + RLS
 
-Numbering note: 116 was used for `autonomy_level` (now being dropped). 117/118/119 are the next free numbers above. Cross-check at Phase 0 pre-flight; if preflight branch shipped 113/114 to main and dashboard shipped 115, skip to 119/120/118 (116 reused if AutonomyPicker dropped before any trace lands in main — currently safe, since the lesson-bold branch hasn't merged).
+Numbering note: 116 was used for `autonomy_level` (now being dropped). 117/118/119 are the next free numbers above. Cross-check at Phase 0 pre-flight; if preflight branch shipped 113/114 to main and dashboard shipped 115, skip to 121/122/118 (116 reused if AutonomyPicker dropped before any trace lands in main — currently safe, since the lesson-bold branch hasn't merged).
 
 ### 6.2 Re-onboarding moment
 
@@ -579,7 +579,7 @@ Numbering note: 116 was used for `autonomy_level` (now being dropped). 117/118/1
 
 ### 6.3 Data migration
 
-- **`autonomy_level` column drop:** silent — no real data to migrate. Migration 119 was applied to local dev only; prod has never seen the column. If, somehow, prod has rows with `autonomy_level` set, they're discarded silently. No backup needed.
+- **`autonomy_level` column drop:** silent — no real data to migrate. Migration 121 was applied to local dev only; prod has never seen the column. If, somehow, prod has rows with `autonomy_level` set, they're discarded silently. No backup needed.
 - **`word_definitions` cache:** empty on first deploy. Pre-warm script (Phase 1) seeds top 500 design vocab.
 - **`activity_response_starters` cache:** empty on first deploy. Lazy lookup populates as students invoke.
 
@@ -596,7 +596,7 @@ Numbering note: 116 was used for `autonomy_level` (now being dropped). 117/118/1
 - Browser TTS unsupported on school Chromebook fleet for any of the 6 L1 languages (Phase 2 risk)
 - Word Bank AI generation latency >2s p95 on first invocation (Phase 3 risk — if so, add eager-on-author trigger in lesson editor)
 - Any new call site lands without `stop_reason === "max_tokens"` guard (Lesson #39 — non-negotiable)
-- Migration 120 DROP COLUMN attempted before AutonomyPicker code references are removed (PostgreSQL would error; just sequence the migration AFTER the code changes are committed)
+- Migration 122 DROP COLUMN attempted before AutonomyPicker code references are removed (PostgreSQL would error; just sequence the migration AFTER the code changes are committed)
 - Studio Setup intake survey shape changes during this build (out of scope — different concern)
 
 ## 8. Don't-stop-for list
@@ -626,7 +626,7 @@ Numbering note: 116 was used for `autonomy_level` (now being dropped). 117/118/1
 - 🔜 PHASE 0: 13 file modifications listed in §3 Phase 0
 - 🔜 PHASE 1: 7 new files + 1 migration
 - 🔜 PHASE 2: 5 file modifications + curated image dictionary commit
-- ✅ PHASE 0: 13 file modifications + migration 120 — SHIPPED (`c58aa1c`, `513818f`). Checkpoint 0.1 PASSED.
+- ✅ PHASE 0: 13 file modifications + migration 122 — SHIPPED (`c58aa1c`, `513818f`). Checkpoint 0.1 PASSED.
 - 🔜 PHASE 1: 7 new files + 1 migration
 - 🔜 PHASE 2: 5 file modifications + curated image dictionary commit
 - 🔜 PHASE 3: 5 new files + 1 migration + ResponseInput modification
@@ -673,7 +673,7 @@ These came up during the Phase 0 sign-off conversation (26 Apr 2026). Matt's cal
 ## 12. Sign-off audit trail
 
 - **Spec written + locked:** 26 Apr 2026 — committed at `a8c0907`. Matt's 7 picks captured in §0.5.
-- **Phase 0 SHIPPED + Checkpoint 0.1 PASSED:** 26 Apr 2026 — code rollback at `c58aa1c`, migration + WIRING + FU-LS-DRIFT at `513818f`. Migration 120 applied to local dev only. Visual smoke verified ELL-1 hints / ELL-2 silent / ELL-3 extensions matches pre-Sub-Phase-3 behaviour. Tests 1942 passed.
+- **Phase 0 SHIPPED + Checkpoint 0.1 PASSED:** 26 Apr 2026 — code rollback at `c58aa1c`, migration + WIRING + FU-LS-DRIFT at `513818f`. Migration 122 applied to local dev only. Visual smoke verified ELL-1 hints / ELL-2 silent / ELL-3 extensions matches pre-Sub-Phase-3 behaviour. Tests 1942 passed.
 - **Phase 4 scope expansion:** 26 Apr 2026 — unified teacher student settings folded in (was `FU-TS-UNIFY`, now part of Phase 4 per Matt sign-off). Brief §3 Phase 4 + Checkpoint 4.1 updated.
 - **§11 v2-AI deferrals filed:** 26 Apr 2026 — 5 ideas filed (3 deferred, 2 non-starters).
 - **Next executable phase:** Phase 1 (Tap-a-word v1, 8 mount surfaces). Trigger phrase: "go phase 1" or "tap-a-word".

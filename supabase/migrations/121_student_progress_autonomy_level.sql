@@ -1,4 +1,4 @@
--- Migration 119: student_progress.autonomy_level
+-- Migration 121: student_progress.autonomy_level
 --
 -- Adds a per-(student,page) pedagogical scaffolding preference, set by the
 -- AutonomyPicker on the Lesson Bold page. Three values:

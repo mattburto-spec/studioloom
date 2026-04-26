@@ -10,7 +10,7 @@ import { derivePhaseState } from "../helpers";
  * Phase 0 of language-scaffolding-redesign rolled back the AutonomyPicker +
  * its 5 helpers (resolveAutonomyDisplay, hintsAvailable, hintsOpenByDefault,
  * exampleVisible, exampleOpenByDefault) + AUTONOMY_LEVELS + isLevelSelected.
- * Migration 119 also dropped via migration 120. The 8 corresponding tests
+ * Migration 121 also dropped via migration 122. The 8 corresponding tests
  * are gone with them. Only derivePhaseState (used by PhaseStrip) survives.
  */
 

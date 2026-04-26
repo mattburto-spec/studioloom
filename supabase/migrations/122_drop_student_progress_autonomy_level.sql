@@ -1,6 +1,6 @@
--- Migration 120: drop student_progress.autonomy_level
+-- Migration 122: drop student_progress.autonomy_level
 --
--- Rollback of migration 119. Phase 0 of the language-scaffolding-redesign
+-- Rollback of migration 121. Phase 0 of the language-scaffolding-redesign
 -- pivot — see docs/projects/language-scaffolding-redesign-brief.md.
 --
 -- AutonomyPicker (Sub-Phase 3 of Lesson Bold) bet on configuration —
@@ -12,7 +12,7 @@
 -- and Response Starters (output scaffold) inline affordances in upcoming
 -- phases.
 --
--- Migration 119 was applied to local dev only — no prod data exists for
+-- Migration 121 was applied to local dev only — no prod data exists for
 -- this column. Drop is silent (no row migration needed). IF EXISTS guard
 -- so the migration is re-runnable on environments that never received 116
 -- (e.g. fresh-database bootstraps that landed after both 116 and 117 were
