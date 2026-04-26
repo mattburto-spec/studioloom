@@ -307,8 +307,7 @@ def _rule_13_no_flat_base(
             f"Your model's flat bottom surface is only {fraction * 100:.0f}% of its "
             "bounding-box footprint — there isn't much for the printer to grip onto. "
             "Without a brim or raft, the print risks lifting off the bed mid-print "
-            "(especially with ABS/PETG). Consider adding a brim in your slicer, or "
-            "orienting the part so a flatter side faces down."
+            "(especially with ABS/PETG)."
         ),
         evidence={
             "base_area_mm2": round(base_area, 1),
@@ -316,9 +315,27 @@ def _rule_13_no_flat_base(
             "base_area_fraction": round(fraction, 3),
             "threshold_fraction": _FLAT_BASE_AREA_FRACTION_THRESHOLD,
         },
+        # Phase 8.1d-18 (Tier 1 of build-orientation gap):
+        # Re-ordered the advice so orientation comes FIRST. A better
+        # orientation removes the problem entirely; brim is a workaround
+        # that wastes material + needs cleaning afterwards. Calling out
+        # the auto-orient buttons by slicer name turns vague "consider
+        # re-orienting" into a one-click action — most students don't
+        # know their slicer can do this. Tier 2 (file as
+        # PH9-FU-STL-BUILD-ORIENTATION) would have us test 6 axis-
+        # aligned orientations server-side and recommend the best one;
+        # for now we route students at the slicer's own optimiser.
         fix_hint=(
-            "Enable 'Brim' in your slicer (5-10 mm usually). If the base is a point or "
-            "curve, consider re-orienting the model."
+            "Best fix: try your slicer's auto-orient. "
+            "Bambu Studio: right-click the part > 'Auto orient'. "
+            "OrcaSlicer / PrusaSlicer: select the part > 'Place on face' "
+            "(keyboard 'F') or 'Optimize orientation'. "
+            "Cura: right-click > 'Lay flat'. "
+            "Auto-orient finds the face that puts the most material on the "
+            "bed.\n\n"
+            "If no orientation gives a flat base (rounded models, points, "
+            "curves), enable a brim instead: 5–10 mm in any slicer. Adds a "
+            "thin rim around the print that you snap off after."
         ),
         version=STL_RULESET_VERSION,
     )
