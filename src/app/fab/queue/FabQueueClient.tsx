@@ -510,22 +510,31 @@ function NowRunningCell({
   const accent = categoryAccentVar(machine.category);
   return (
     <div className="p-4" style={{ background: "var(--surface)" }}>
-      <div className="flex items-center gap-2 mb-3">
+      {/* Phase 8.1d-21: heading scale bumped from 12px to 16px so
+           the machine name reads from a standing-desk distance.
+           Icon also up from 6/12 to 8/16. The category label
+           moves to a second line — was a right-side eyebrow but
+           it competed with the name on narrow lanes. */}
+      <div className="flex items-center gap-2.5 mb-3">
         <div
-          className="w-6 h-6 rounded-md flex items-center justify-center"
+          className="w-8 h-8 rounded-md flex items-center justify-center shrink-0"
           style={{
             background: `color-mix(in srgb, ${accent} 13%, transparent)`,
             color: accent,
           }}
         >
-          <CategoryIcon category={machine.category} size={12} />
+          <CategoryIcon category={machine.category} size={16} />
         </div>
-        <div className="text-[12px] font-extrabold flex-1 truncate">{machine.label}</div>
-        <div
-          className={styles.cap}
-          style={{ color: "var(--ink-3)", fontSize: 9.5 }}
-        >
-          {machineCategoryLabel(machine.category)}
+        <div className="min-w-0 flex-1">
+          <div className="text-[15px] font-extrabold leading-tight truncate">
+            {machine.label}
+          </div>
+          <div
+            className="text-[10px] font-semibold leading-tight mt-0.5"
+            style={{ color: "var(--ink-3)" }}
+          >
+            {machineCategoryLabel(machine.category)}
+          </div>
         </div>
       </div>
       {running ? (
@@ -660,38 +669,45 @@ function MachineLane({
       className={`${styles.card} flex flex-col`}
       style={{ minHeight: 540 }}
     >
+      {/* Phase 8.1d-21: lane heading bumped to scale with the
+           dashboard's display headline above. Machine name now
+           17px (was 12.5px) so it reads as a section title, not
+           a chip. Icon up from 7/14 to 10/20. Queue count number
+           up from 18 to 24. Top-border thickness up from 2 to 3
+           so the machine-color accent registers from across the
+           room. */}
       <div
-        className="px-4 py-3 flex items-center gap-2.5"
+        className="px-4 py-4 flex items-center gap-3"
         style={{
-          borderTop: `2px solid ${accent}`,
+          borderTop: `3px solid ${accent}`,
           borderTopLeftRadius: 16,
           borderTopRightRadius: 16,
           borderBottom: "1px solid var(--hair)",
         }}
       >
         <div
-          className="w-7 h-7 rounded-lg flex items-center justify-center"
+          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
           style={{
             background: `color-mix(in srgb, ${accent} 13%, transparent)`,
             color: accent,
           }}
         >
-          <CategoryIcon category={machine.category} size={14} />
+          <CategoryIcon category={machine.category} size={20} />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-[12.5px] font-extrabold leading-tight truncate">
+          <div className="text-[17px] font-extrabold leading-tight truncate">
             {machine.label}
           </div>
           <div
-            className="text-[10.5px] font-semibold"
+            className="text-[11px] font-semibold mt-0.5"
             style={{ color: "var(--ink-3)" }}
           >
             {machineCategoryLabel(machine.category)}
           </div>
         </div>
-        <div className="text-right">
+        <div className="text-right shrink-0">
           <div
-            className={`${styles.display} ${styles.tnum} text-[18px] leading-none`}
+            className={`${styles.display} ${styles.tnum} text-[24px] leading-none`}
             style={{ color: accent }}
           >
             {readyJobs.length}
