@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
   const profilesResult = await db
     .from("machine_profiles")
     .select(
-      "id, name, machine_category, bed_size_x_mm, bed_size_y_mm, nozzle_diameter_mm, kerf_mm, is_system_template, lab_id, fabrication_labs(name)"
+      "id, name, machine_category, machine_brand, machine_model, bed_size_x_mm, bed_size_y_mm, nozzle_diameter_mm, kerf_mm, is_system_template, lab_id, fabrication_labs(name)"
     )
     .eq("is_active", true)
     .order("is_system_template", { ascending: false })
@@ -96,6 +96,8 @@ export async function GET(request: NextRequest) {
     id: string;
     name: string;
     machine_category: string;
+    machine_brand: string | null;
+    machine_model: string | null;
     bed_size_x_mm: number;
     bed_size_y_mm: number;
     nozzle_diameter_mm: number | null;
@@ -115,6 +117,8 @@ export async function GET(request: NextRequest) {
       id: p.id,
       name: p.name,
       machine_category: p.machine_category,
+      machine_brand: p.machine_brand,
+      machine_model: p.machine_model,
       bed_size_x_mm: p.bed_size_x_mm,
       bed_size_y_mm: p.bed_size_y_mm,
       nozzle_diameter_mm: p.nozzle_diameter_mm,

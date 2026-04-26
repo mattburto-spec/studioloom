@@ -10,6 +10,11 @@ export interface MachineProfileOption {
   id: string;
   name: string;
   machine_category: string;
+  /** Phase 8.1d-14: brand + model surfaced separately so a renamed
+   *  machine ("Alpha") still shows the underlying hardware identity
+   *  to the student. Both nullable for legacy / from-scratch rows. */
+  machine_brand?: string | null;
+  machine_model?: string | null;
   bed_size_x_mm: number;
   bed_size_y_mm: number;
   nozzle_diameter_mm?: number | null;
@@ -100,7 +105,19 @@ export function filterMachinesForClass(
 export function formatMachineLabel(p: MachineProfileOption): string {
   const category = p.machine_category === "laser_cutter" ? "Laser" : "3D Printer";
   const bed = `${p.bed_size_x_mm}×${p.bed_size_y_mm}mm`;
-  return `${p.name} — ${category}, ${bed}`;
+  // Phase 8.1d-14: brand + model in parentheses after the name when
+  // present. Lets a teacher who renames "Bambu Lab P1S" → "Alpha"
+  // keep the hardware identity visible to students. Falls back to
+  // the prior format when brand isn't set.
+  const hardware =
+    p.machine_brand && p.machine_model
+      ? ` (${p.machine_brand} ${p.machine_model})`
+      : p.machine_brand
+        ? ` (${p.machine_brand})`
+        : p.machine_model
+          ? ` (${p.machine_model})`
+          : "";
+  return `${p.name}${hardware} — ${category}, ${bed}`;
 }
 
 // ============================================================

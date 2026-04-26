@@ -67,6 +67,11 @@ export function MachineEditModal({ mode, availableLabs, onClose, onSaved }: Prop
       (mode.kind === "create" ? mode.defaultCategory : undefined) ??
       "3d_printer"
   );
+  // Phase 8.1d-14: brand kept separate from name so renaming
+  // doesn't lose "this is a Bambu Lab" context.
+  const [machineBrand, setMachineBrand] = React.useState(
+    existing?.machineBrand ?? ""
+  );
   const [machineModel, setMachineModel] = React.useState(
     existing?.machineModel ?? ""
   );
@@ -132,6 +137,7 @@ export function MachineEditModal({ mode, availableLabs, onClose, onSaved }: Prop
 
     const payload: Record<string, unknown> = {
       name: name.trim(),
+      machineBrand: machineBrand.trim() || null,
       machineModel: machineModel.trim() || null,
       requiresTeacherApproval: requiresApproval,
       notes: notes.trim() || null,
@@ -311,15 +317,38 @@ export function MachineEditModal({ mode, availableLabs, onClose, onSaved }: Prop
         {/* Phase 8.1d-8: category dropdown moved to top of form
              as segmented buttons (see above). */}
 
-        <label className="block text-sm font-medium text-gray-700">
-          Model (optional)
-          <input
-            type="text"
-            value={machineModel}
-            onChange={(e) => setMachineModel(e.target.value)}
-            className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm"
-          />
-        </label>
+        {/* Phase 8.1d-14: brand + model side-by-side. Both kept
+             separate from the user-facing `name` so a teacher who
+             renames "Bambu Lab P1S" → "Alpha" doesn't lose the
+             brand context — it stays visible on the card and
+             unlocks future per-brand features (photos, AMS, brand-
+             specific G-code preflight). */}
+        <div className="grid grid-cols-2 gap-2">
+          <label className="block text-sm font-medium text-gray-700">
+            Brand
+            <input
+              type="text"
+              value={machineBrand}
+              placeholder="e.g. Bambu Lab"
+              onChange={(e) => setMachineBrand(e.target.value)}
+              className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block text-sm font-medium text-gray-700">
+            Model
+            <input
+              type="text"
+              value={machineModel}
+              placeholder="e.g. P1S"
+              onChange={(e) => setMachineModel(e.target.value)}
+              className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm"
+            />
+          </label>
+        </div>
+        <p className="-mt-2 text-xs text-gray-500">
+          Brand + model stay visible even if you rename this machine to
+          something custom (e.g. &quot;Alpha&quot;).
+        </p>
 
         <div className="grid grid-cols-3 gap-2">
           <label className="block text-sm font-medium text-gray-700">
