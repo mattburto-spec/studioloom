@@ -1858,3 +1858,37 @@ Trying to handle both in one route produces silent failures — either "PKCE ver
 - `FU-LS-DRIFT` — WIRING `student-learning-support` entry was claiming complete features that didn't exist (translation, dyslexia fonts, UDL, ADHD focus). Update entry to `status: planned` + `currentVersion: 0` in Phase 0 of language-scaffolding-redesign.
 
 **Session context:** Hybrid build session — Sub-Phases 1–3 of Lesson Bold shipped methodically against a brief written at session start; mid-session pivot triggered by Matt observing that AutonomyPicker felt off; Cowork research session led to invocation-over-configuration thesis; spec for the redesign written + signed off; AutonomyPicker scheduled for rollback. Branch `lesson-bold-build` is push-clean but not yet merged to main — merge happens after language-scaffolding-redesign Phase 0 (rollback) lands cleanly. **Migration 121 in dev only — DROP via migration 122 will land in same Phase 0.** Pending-push count to main: 0 (work is on feature branch).
+
+---
+
+### 26 April 2026 — Session close: lesson-bold-build merged to main + Phase 0 closed + saveme
+
+**What changed:**
+- Merged `lesson-bold-build` → `main` (`3c1d626`) bringing 18 commits live: warm-paper Bold restyle (Sub-Phases 1, 2A–2C) + language-scaffolding-redesign Phase 0 (AutonomyPicker rollback, ELL-only ActivityCard gating restored, FU-LS-DRIFT filed, WIRING `student-learning-support` flipped to `status: planned`).
+- Migration collisions dodged twice mid-merge: branch's 116/117 collided with Phase 8's school_id_reserved 116/117 + Preflight 8.1d-13/14's 118/119. Final renumber to **121** (ADD `student_progress.autonomy_level`) + **122** (DROP), with 120 left as gap. Migration 122 applied to prod by Matt (no-op since 121 was dev-only — symbolic only). Push-discipline obligation cleared.
+- 2 follow-up commits on main: `886c7f7` (renumber fixup) + 2 origin merges absorbing parallel Preflight 8.1d-13/14 work landed during the merge sequence.
+- Cleanup: `lesson-bold-build` branch deleted (local + remote). Worktree registration removed. Directory survives at `/Users/matt/CWORK/questerra-lesson-bold/` (~675MB, optional `rm -rf`).
+- Significant parallel work landed on main during/after this session: Preflight Phase 8.1d-15..19 (queue filter/sort/bulk-approve, fab queue lifecycle timeline, scanner copy + filename collision fixes), dashboard PYPX Phase 13a-1..4 (exhibition setup CTA, mentor cadence free-text), skills-library Path A (AI assist for skill card authoring), build-discipline v2 (sessionhandover ritual + migration timestamp prefixes). All auto-merged cleanly.
+
+**Saveme sync results (steps 11):**
+- `api-registry.yaml` — drift captured: +100 lines (new Phase 8.1d + Path 13a + skills routes from parallel sessions). Committed.
+- `ai-call-sites.yaml` — drift captured: +62 lines (new AI calls from skills-library + others). Committed.
+- `feature-flags.json` — status: `drift`, 1 orphan = `SENTRY_AUTH_TOKEN` (FU-CC, P3 known build-time-only).
+- `vendors.json` — status: `ok`, no drift.
+- `rls-coverage.json` — status: `drift_detected`, 7 tables `rls_enabled_no_policy` (FU-FF, P3 known undocumented deny-all pattern). No new tables.
+- `schema-registry.yaml` — no edit needed: migrations 121/122 cancel out (column added + dropped before prod ever saw it).
+
+**Files modified:**
+- `docs/api-registry.yaml` — +100 lines via scanner
+- `docs/ai-call-sites.yaml` — +62 lines via scanner
+- `docs/scanner-reports/{feature-flags,rls-coverage,vendors}.json` — drift JSON refreshed
+- `docs/changelog.md` — this entry
+- `docs/handoff/main.md` — refreshed via step 12
+
+**Test counts:** 2144 passed · 8 skipped · 2152 total · 136 files at last full run (pre-parallel-work). Not re-run after origin/main merges; assume current main is green based on the merge-only nature of incoming commits.
+
+**Pending-push count:** 0 → will be 1 after this saveme commit lands.
+
+**Systems affected:** `lesson-view` (v1 → v1.5 warm-paper restyle SHIPPED), `student-learning-support` (status flipped complete→planned, redesign tracked at `language-scaffolding-redesign-brief.md`). All other systems untouched by this session.
+
+**Trigger for next session:** `go phase 1` or `tap-a-word` — Phase 1 of language-scaffolding-redesign (Tap-a-word v1, definition only, 8 mount surfaces). Spec: `docs/projects/language-scaffolding-redesign-brief.md` §3 Phase 1.

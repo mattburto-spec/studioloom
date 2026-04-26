@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 363
+# Total routes: 372
 
 routes:
 - path: /api/admin/ai-model
@@ -2119,6 +2119,28 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/teacher/exhibition
+  method: GET
+  file: src/app/api/teacher/exhibition/route.ts
+  auth: teacher
+  tables_read:
+  - class_units
+  tables_written:
+  - class_units
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/exhibition
+  method: PATCH
+  file: src/app/api/teacher/exhibition/route.ts
+  auth: teacher
+  tables_read:
+  - class_units
+  tables_written:
+  - class_units
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/teacher/fabrication/classes
   method: GET
   file: src/app/api/teacher/fabrication/classes/route.ts
@@ -3228,6 +3250,42 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/teacher/skills/ai/generate-quiz
+  method: POST
+  file: src/app/api/teacher/skills/ai/generate-quiz/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/skills/ai/suggest-anchors
+  method: POST
+  file: src/app/api/teacher/skills/ai/suggest-anchors/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/skills/ai/suggest-demo
+  method: POST
+  file: src/app/api/teacher/skills/ai/suggest-demo/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/skills/ai/suggest-outcomes
+  method: POST
+  file: src/app/api/teacher/skills/ai/suggest-outcomes/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/teacher/skills/cards
   method: GET
   file: src/app/api/teacher/skills/cards/route.ts
@@ -3409,6 +3467,22 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: Reference to unknown table 'skill_card_refs' — not in schema-registry
+- path: /api/teacher/skills/cards/import
+  method: POST
+  file: src/app/api/teacher/skills/cards/import/route.ts
+  auth: teacher
+  tables_read:
+  - skill_cards
+  - skill_categories
+  - skill_domains
+  tables_written:
+  - skill_card_tags
+  - skill_cards
+  - skill_external_links
+  - skill_prerequisites
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/teacher/skills/categories
   method: GET
   file: src/app/api/teacher/skills/categories/route.ts
@@ -3429,6 +3503,30 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/teacher/student-projects
+  method: GET
+  file: src/app/api/teacher/student-projects/route.ts
+  auth: teacher
+  tables_read:
+  - class_students
+  - student_projects
+  tables_written:
+  - student_projects
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'student_projects' — not in schema-registry
+- path: /api/teacher/student-projects
+  method: POST
+  file: src/app/api/teacher/student-projects/route.ts
+  auth: teacher
+  tables_read:
+  - class_students
+  - student_projects
+  tables_written:
+  - student_projects
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'student_projects' — not in schema-registry
 - path: /api/teacher/student-snapshot
   method: GET
   file: src/app/api/teacher/student-snapshot/route.ts

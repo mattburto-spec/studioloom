@@ -5,7 +5,7 @@
 # docs/projects/dimensions3-followups.md FU-5 (stop_reason_handled seeding).
 #
 # Last synced: 2026-04-14
-# Total call sites: 48
+# Total call sites: 52
 
 call_sites:
 - id: ai_app_api_admin_ai_model_test_lesson_route_buildUnitTypeSystemPrompt
@@ -573,4 +573,64 @@ call_sites:
   has_fallback: false
   called_from_routes: []
   cost_category: generation
+  notes: null
+- id: ai_lib_skills_ai_helpers_Distractors_Distractors
+  file: src/lib/skills/ai-helpers.ts
+  function: Distractors
+  provider: anthropic
+  model: claude-sonnet-4-20250514
+  max_tokens: 4000
+  stop_reason_handled: unknown
+  has_fallback: false
+  called_from_routes:
+  - /api/teacher/skills/ai/generate-quiz
+  - /api/teacher/skills/ai/suggest-anchors
+  - /api/teacher/skills/ai/suggest-demo
+  - /api/teacher/skills/ai/suggest-outcomes
+  cost_category: unknown
+  notes: null
+- id: ai_lib_skills_ai_helpers_disposition_disposition
+  file: src/lib/skills/ai-helpers.ts
+  function: disposition
+  provider: anthropic
+  model: claude-haiku-4-5-20251001
+  max_tokens: 500
+  stop_reason_handled: unknown
+  has_fallback: false
+  called_from_routes:
+  - /api/teacher/skills/ai/generate-quiz
+  - /api/teacher/skills/ai/suggest-anchors
+  - /api/teacher/skills/ai/suggest-demo
+  - /api/teacher/skills/ai/suggest-outcomes
+  cost_category: unknown
+  notes: null
+- id: ai_lib_skills_ai_helpers_join_join
+  file: src/lib/skills/ai-helpers.ts
+  function: join
+  provider: anthropic
+  model: claude-haiku-4-5-20251001
+  max_tokens: 400
+  stop_reason_handled: unknown
+  has_fallback: false
+  called_from_routes:
+  - /api/teacher/skills/ai/generate-quiz
+  - /api/teacher/skills/ai/suggest-anchors
+  - /api/teacher/skills/ai/suggest-demo
+  - /api/teacher/skills/ai/suggest-outcomes
+  cost_category: unknown
+  notes: null
+- id: ai_lib_skills_ai_helpers_of_of
+  file: src/lib/skills/ai-helpers.ts
+  function: of
+  provider: anthropic
+  model: claude-haiku-4-5-20251001
+  max_tokens: 600
+  stop_reason_handled: unknown
+  has_fallback: false
+  called_from_routes:
+  - /api/teacher/skills/ai/generate-quiz
+  - /api/teacher/skills/ai/suggest-anchors
+  - /api/teacher/skills/ai/suggest-demo
+  - /api/teacher/skills/ai/suggest-outcomes
+  cost_category: unknown
   notes: null
