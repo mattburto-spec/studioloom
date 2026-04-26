@@ -10,6 +10,9 @@ import {
   countRowsPerTab,
   shouldFlagRevisionCount,
   parseTabParam,
+  isCleanRow,
+  matchesSearch,
+  sortKeyForRow,
 } from "../teacher-queue-helpers";
 
 /**
@@ -177,5 +180,98 @@ describe("parseTabParam", () => {
   it("falls back to 'pending' for an unknown value", () => {
     expect(parseTabParam("nonsense")).toBe("pending");
     expect(parseTabParam("")).toBe("pending");
+  });
+});
+
+// ============================================================
+// Phase 8.1d-16 — bulk-approve + filter helpers
+// ============================================================
+
+describe("isCleanRow", () => {
+  it("is true when block + warn are both zero (FYI doesn't disqualify)", () => {
+    const r = row({
+      jobStatus: "pending_approval",
+      ruleCounts: { block: 0, warn: 0, fyi: 5 },
+    });
+    expect(isCleanRow(r)).toBe(true);
+  });
+  it("is false when ANY block fires", () => {
+    const r = row({
+      jobStatus: "pending_approval",
+      ruleCounts: { block: 1, warn: 0, fyi: 0 },
+    });
+    expect(isCleanRow(r)).toBe(false);
+  });
+  it("is false when ANY warn fires (acks aren't visible at queue scope)", () => {
+    const r = row({
+      jobStatus: "pending_approval",
+      ruleCounts: { block: 0, warn: 1, fyi: 0 },
+    });
+    expect(isCleanRow(r)).toBe(false);
+  });
+});
+
+describe("matchesSearch", () => {
+  const r = row({
+    jobStatus: "pending_approval",
+    studentName: "Anna Lee",
+    originalFilename: "coaster_v3.svg",
+    unitTitle: "Cardboard chair",
+    className: "DT 9 — Eng",
+    machineLabel: "Glowforge Pro",
+  });
+
+  it("matches across student name, filename, unit, class, and machine", () => {
+    expect(matchesSearch(r, "Anna")).toBe(true);
+    expect(matchesSearch(r, "coaster")).toBe(true);
+    expect(matchesSearch(r, "chair")).toBe(true);
+    expect(matchesSearch(r, "DT 9")).toBe(true);
+    expect(matchesSearch(r, "glowforge")).toBe(true);
+  });
+  it("is case-insensitive", () => {
+    expect(matchesSearch(r, "ANNA")).toBe(true);
+    expect(matchesSearch(r, "GLOWforge")).toBe(true);
+  });
+  it("returns true on empty / whitespace-only queries (no filter)", () => {
+    expect(matchesSearch(r, "")).toBe(true);
+    expect(matchesSearch(r, "   ")).toBe(true);
+  });
+  it("returns false when no field contains the substring", () => {
+    expect(matchesSearch(r, "xyzzy")).toBe(false);
+  });
+  it("handles null unit/class without crashing", () => {
+    const sparse = row({
+      jobStatus: "pending_approval",
+      studentName: "Beth",
+      unitTitle: null,
+      className: null,
+    });
+    expect(matchesSearch(sparse, "beth")).toBe(true);
+    expect(matchesSearch(sparse, "doesnotexist")).toBe(false);
+  });
+});
+
+describe("sortKeyForRow", () => {
+  const r = row({
+    jobStatus: "pending_approval",
+    createdAt: "2026-04-20T10:00:00Z",
+    updatedAt: "2026-04-25T10:00:00Z",
+  });
+  it("uses createdAt on the pending tab (how long has it waited)", () => {
+    expect(sortKeyForRow(r, "pending")).toBe("2026-04-20T10:00:00Z");
+  });
+  it("uses updatedAt on other tabs (most recent activity)", () => {
+    expect(sortKeyForRow(r, "approved")).toBe("2026-04-25T10:00:00Z");
+    expect(sortKeyForRow(r, "revision")).toBe("2026-04-25T10:00:00Z");
+    expect(sortKeyForRow(r, "completed")).toBe("2026-04-25T10:00:00Z");
+    expect(sortKeyForRow(r, "all")).toBe("2026-04-25T10:00:00Z");
+  });
+  it("falls back to createdAt when updatedAt is empty", () => {
+    const noUpdate = row({
+      jobStatus: "approved",
+      createdAt: "2026-04-20T10:00:00Z",
+      updatedAt: "",
+    });
+    expect(sortKeyForRow(noUpdate, "approved")).toBe("2026-04-20T10:00:00Z");
   });
 });
