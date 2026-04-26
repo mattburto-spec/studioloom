@@ -6,9 +6,16 @@ Spec source: docs/projects/fabrication-pipeline.md §6 (machine fit).
 
 Rule     | Severity | Fires when
 ---------|----------|-----------
-R-SVG-01 | BLOCK    | stated dimensions exceed machine bed on either axis
-                     (only for laser_cutter profiles; skipped on 3D printers
-                     because they scan STL, not SVG)
+R-SVG-01 | BLOCK    | the bounding box of actual rendered geometry exceeds
+                     machine bed on either axis (only for laser_cutter
+                     profiles; skipped on 3D printers because they scan
+                     STL, not SVG). Phase 8.1d-12: switched from
+                     artboard-size check to content-bbox check so a
+                     90mm coaster on a 250mm artboard isn't blocked
+                     against a 200mm bed. Falls back to artboard size
+                     when content-bbox rendering fails (no libcairo,
+                     parse error, etc.) — over-report rather than
+                     silently pass.
 R-SVG-02 | BLOCK    | stated dimensions use physical units (mm/cm/in) but
                      the viewBox numbers don't correspond to a recognizable
                      scale (1:1 mm-for-mm, or ~3.78 mm-to-px at 96 dpi).
@@ -36,6 +43,7 @@ import re
 
 from rules.common import MachineProfile, RuleResult, Severity
 from schemas.ruleset_version import SVG_RULESET_VERSION
+from worker.svg_bbox import compute_content_bbox_mm
 from worker.svg_loader import SvgDocument
 
 # Unit conversion to mm.
@@ -105,9 +113,9 @@ def _rule_01_exceeds_bed(
     if profile.machine_category != "laser_cutter":
         return None
 
-    width_mm = _parse_dimension_mm(doc.width_raw)
-    height_mm = _parse_dimension_mm(doc.height_raw)
-    if width_mm is None or height_mm is None:
+    artboard_w_mm = _parse_dimension_mm(doc.width_raw)
+    artboard_h_mm = _parse_dimension_mm(doc.height_raw)
+    if artboard_w_mm is None or artboard_h_mm is None:
         # Ambiguous size → defer to R-SVG-03.
         return None
     if not (
@@ -118,36 +126,88 @@ def _rule_01_exceeds_bed(
         # defer to R-SVG-03 as the single source of truth.
         return None
 
+    # Phase 8.1d-12: prefer the bounding box of actual rendered geometry
+    # over the SVG's stated artboard. A student designing a 90mm coaster
+    # inside a 250mm Inkscape "page" was getting a BLOCK against a
+    # 200mm bed, even though the laser slicer would only consume the
+    # 90mm region. Render-and-getbbox via cairosvg gives us the truth.
+    #
+    # Fallback: if cairosvg / libcairo aren't available or the render
+    # fails, drop back to the artboard check. Over-report > silently
+    # pass an oversized job.
+    content_bbox = compute_content_bbox_mm(doc, artboard_w_mm, artboard_h_mm)
+    if content_bbox is not None:
+        check_w_mm, check_h_mm = content_bbox
+        bbox_source = "content"
+    else:
+        check_w_mm, check_h_mm = artboard_w_mm, artboard_h_mm
+        bbox_source = "artboard"
+
     violations: list[str] = []
-    if width_mm > profile.bed_size_x_mm:
-        violations.append(f"width: {width_mm:.0f} > {profile.bed_size_x_mm:.0f} mm")
-    if height_mm > profile.bed_size_y_mm:
-        violations.append(f"height: {height_mm:.0f} > {profile.bed_size_y_mm:.0f} mm")
+    if check_w_mm > profile.bed_size_x_mm:
+        violations.append(
+            f"width: {check_w_mm:.0f} > {profile.bed_size_x_mm:.0f} mm"
+        )
+    if check_h_mm > profile.bed_size_y_mm:
+        violations.append(
+            f"height: {check_h_mm:.0f} > {profile.bed_size_y_mm:.0f} mm"
+        )
 
     if not violations:
         return None
+
+    # Word the message slightly differently when the bbox came from
+    # the artboard fallback so the student knows what we measured. The
+    # primary case (content bbox) is the friendlier framing.
+    if bbox_source == "content":
+        explanation = (
+            f"Your drawing measures {check_w_mm:.0f} × {check_h_mm:.0f} mm but "
+            f"the {profile.name} bed is {profile.bed_size_x_mm:.0f} × "
+            f"{profile.bed_size_y_mm:.0f} mm. The laser cannot reach past its "
+            "bed — scale the drawing down, rotate it to the narrow dimension, "
+            "or split it into pieces that each fit on the bed."
+        )
+        fix_hint = (
+            "Scale your design so the cut/etch geometry fits the bed. The "
+            "artboard size doesn't matter — the laser only cares about the "
+            "geometry's bounding box."
+        )
+    else:
+        explanation = (
+            f"Your artboard measures {check_w_mm:.0f} × {check_h_mm:.0f} mm "
+            f"but the {profile.name} bed is {profile.bed_size_x_mm:.0f} × "
+            f"{profile.bed_size_y_mm:.0f} mm. (We couldn't measure the "
+            "actual geometry on this file, so we're checking the artboard.) "
+            "Scale the design down or split it into pieces that fit the bed."
+        )
+        fix_hint = (
+            "In Inkscape: File > Document Properties, set Width/Height to a "
+            "size that fits the bed. In Illustrator: File > Document Setup > "
+            "Edit Artboards."
+        )
 
     return RuleResult(
         id="R-SVG-01",
         severity=Severity.BLOCK,
         title=f"Drawing is larger than the {profile.name} bed",
-        explanation=(
-            f"Your design measures {width_mm:.0f} × {height_mm:.0f} mm but the "
-            f"{profile.name} bed is {profile.bed_size_x_mm:.0f} × "
-            f"{profile.bed_size_y_mm:.0f} mm. The laser cannot reach past its "
-            "bed — scale the drawing down, rotate it to the narrow dimension, "
-            "or split it into pieces that each fit on the bed."
-        ),
+        explanation=explanation,
         evidence={
-            "drawing_mm": {"width": round(width_mm, 1), "height": round(height_mm, 1)},
-            "bed_mm": {"width": profile.bed_size_x_mm, "height": profile.bed_size_y_mm},
+            "drawing_mm": {
+                "width": round(check_w_mm, 1),
+                "height": round(check_h_mm, 1),
+            },
+            "artboard_mm": {
+                "width": round(artboard_w_mm, 1),
+                "height": round(artboard_h_mm, 1),
+            },
+            "bbox_source": bbox_source,
+            "bed_mm": {
+                "width": profile.bed_size_x_mm,
+                "height": profile.bed_size_y_mm,
+            },
             "violations": violations,
         },
-        fix_hint=(
-            "In Inkscape: File > Document Properties, set Width/Height to a "
-            "size that fits the bed. In Illustrator: File > Document Setup > "
-            "Edit Artboards."
-        ),
+        fix_hint=fix_hint,
         version=SVG_RULESET_VERSION,
     )
 
