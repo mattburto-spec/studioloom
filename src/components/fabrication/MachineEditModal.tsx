@@ -31,7 +31,17 @@ import type {
 import type { LabListRow } from "@/lib/fabrication/lab-orchestration";
 
 type Mode =
-  | { kind: "create"; labId: string; fromTemplate?: MachineProfileRow }
+  | {
+      kind: "create";
+      labId: string;
+      fromTemplate?: MachineProfileRow;
+      /** Phase 8.1d-13: when AddMachineModal hands off via the
+       *  type-first picker, the chosen category pre-fills here so
+       *  the user doesn't have to flip the segmented control again
+       *  in the edit form. Ignored when `fromTemplate` is set
+       *  (template carries its own category). */
+      defaultCategory?: MachineCategory;
+    }
   | { kind: "edit"; machine: MachineProfileRow };
 
 interface Props {
@@ -53,7 +63,9 @@ export function MachineEditModal({ mode, availableLabs, onClose, onSaved }: Prop
     mode.kind === "edit" ? mode.machine.name : mode.fromTemplate?.name ?? ""
   );
   const [category, setCategory] = React.useState<MachineCategory>(
-    existing?.machineCategory ?? "3d_printer"
+    existing?.machineCategory ??
+      (mode.kind === "create" ? mode.defaultCategory : undefined) ??
+      "3d_printer"
   );
   const [machineModel, setMachineModel] = React.useState(
     existing?.machineModel ?? ""
