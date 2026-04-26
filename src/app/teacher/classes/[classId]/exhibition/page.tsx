@@ -18,6 +18,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DatesCard } from "./DatesCard";
+import { StudentProjectsCard } from "./StudentProjectsCard";
 
 interface ClassInfo {
   id: string;
@@ -227,25 +228,9 @@ export default function ExhibitionSetupPage({
           )}
 
           {/* Student projects card — wired in 13a-5. */}
-          <section className="bg-white rounded-2xl border border-gray-200 p-6">
-            <div className="flex items-start justify-between mb-2">
-              <div>
-                <h2 className="text-base font-bold text-gray-900">
-                  Student projects
-                </h2>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  One row per enrolled student — project title, central idea,
-                  transdisciplinary theme, mentor, current phase.
-                </p>
-              </div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-100 rounded-full px-2 py-0.5">
-                Coming next
-              </span>
-            </div>
-            <div className="mt-4 py-8 text-center text-sm text-gray-400 italic">
-              Projects table arrives in the next build step.
-            </div>
-          </section>
+          {selectedUnitId && (
+            <StudentProjectsCard classId={classId} unitId={selectedUnitId} />
+          )}
 
           {/* Debug footer — shows which unit we're editing. Will be
            *  subsumed into the real cards once they're wired. */}
