@@ -85,6 +85,22 @@ interface DashboardData {
 
 const EMPTY_DATA: DashboardData = { ready: [], inProgress: [] };
 
+// Phase 8.1d-28: canned reasons for the Mark Failed modal. Picked
+// from the most common modes Matt's flagged in smoke + standard
+// 3D-print failure causes. "Other" intentionally omitted — empty
+// chip selection is the same as "Other", and the textarea is
+// always editable so a fab can write anything.
+const FAILURE_REASON_CHIPS: ReadonlyArray<string> = [
+  "Bed adhesion lost",
+  "Warped / lifted off bed",
+  "Filament jam",
+  "Layer shift",
+  "File corrupt / wouldn't slice",
+  "Out of material",
+  "Nozzle clog",
+  "First-layer issue",
+];
+
 interface FabMachineOption {
   id: string;
   name: string;
@@ -130,6 +146,14 @@ export default function CategoryDashboard({
   // count, not bool, so two concurrent mutations don't unpause when
   // one resolves.
   const mutatingCount = React.useRef(0);
+
+  // Phase 8.1d-28: failure-reason modal state. Replaces the ugly
+  // window.prompt with a styled modal that has canned chips. Null
+  // = closed; { jobId } = open for that job. Confirm/cancel come
+  // from inside the modal.
+  const [failModalJobId, setFailModalJobId] = React.useState<string | null>(
+    null
+  );
 
   // Phase 8.1d-26: track the last-completed fetch so the auto-
   // refresh effect doesn't fire while one's already in flight.
@@ -217,7 +241,11 @@ export default function CategoryDashboard({
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note: null }),
+        // Phase 8.1d-28: server expects `completion_note`. Earlier
+        // 8.1d-20 redesign sent `note` and the server silently
+        // ignored it (no harm — completion is allowed without a
+        // note — but worth the rename for consistency with /fail).
+        body: JSON.stringify({ completion_note: null }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: "" }));
@@ -255,14 +283,18 @@ export default function CategoryDashboard({
     }
   }
 
-  async function markFailed(jobId: string) {
-    const note =
-      typeof window !== "undefined"
-        ? window.prompt(
-            "Quick note on what went wrong (e.g. 'bed adhesion lost', 'file corrupt'):"
-          )
-        : null;
-    if (!note || note.trim().length === 0) return;
+  // Phase 8.1d-28: opens the styled failure-reason modal. Modal's
+  // confirm callback wires through to submitFailed below. Replaces
+  // the previous inline window.prompt which (a) looked terrible,
+  // (b) had no canned reasons, and (c) sent the wrong field name
+  // so the server rejected the note as missing.
+  function openFailModal(jobId: string) {
+    setFailModalJobId(jobId);
+  }
+
+  async function submitFailed(jobId: string, note: string) {
+    const trimmed = note.trim();
+    if (trimmed.length === 0) return;
     setInFlight((p) => ({ ...p, [jobId]: "fail" }));
     mutatingCount.current += 1;
     try {
@@ -270,7 +302,11 @@ export default function CategoryDashboard({
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note: note.trim() }),
+        // Phase 8.1d-28 fix: the server expects `completion_note`,
+        // not `note`. The previous code sent `note` and got a
+        // confusing "A note is required" rejection because the
+        // server read body.completion_note as undefined.
+        body: JSON.stringify({ completion_note: trimmed }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: "" }));
@@ -431,7 +467,7 @@ export default function CategoryDashboard({
                     )}
                     inFlight={inFlight}
                     onComplete={markComplete}
-                    onFailed={markFailed}
+                    onFailed={openFailModal}
                     onUnassign={unassignFromMachine}
                   />
                 </motion.div>
@@ -440,6 +476,23 @@ export default function CategoryDashboard({
           </motion.div>
         )}
       </main>
+
+      {/* Phase 8.1d-28: failure-reason modal. Replaces window.prompt
+           with a styled overlay that has canned chips + an editable
+           textarea. Renders inside .fabRoot so theme vars cascade. */}
+      <AnimatePresence>
+        {failModalJobId && (
+          <FailureReasonModal
+            jobId={failModalJobId}
+            onCancel={() => setFailModalJobId(null)}
+            onSubmit={async (note) => {
+              const j = failModalJobId;
+              setFailModalJobId(null);
+              await submitFailed(j, note);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
     </PortalAnchorContext.Provider>
   );
@@ -509,6 +562,199 @@ function LabPill({
     >
       {label}
     </button>
+  );
+}
+
+// ============================================================
+// Failure-reason modal — Phase 8.1d-28
+// ============================================================
+
+function FailureReasonModal({
+  jobId,
+  onCancel,
+  onSubmit,
+}: {
+  jobId: string;
+  onCancel: () => void;
+  onSubmit: (note: string) => void | Promise<void>;
+}) {
+  const [note, setNote] = React.useState("");
+  const [submitting, setSubmitting] = React.useState(false);
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  // Focus the textarea when the modal mounts so a fab can start
+  // typing immediately. Picking a chip also focuses the textarea
+  // so they can extend the chip's text.
+  React.useEffect(() => {
+    textareaRef.current?.focus();
+  }, []);
+
+  // Esc closes; Cmd/Ctrl+Enter submits (if note non-empty).
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onCancel();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && note.trim()) {
+        e.preventDefault();
+        void handleSubmit();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [note]);
+
+  const trimmed = note.trim();
+  const canSubmit = trimmed.length > 0 && !submitting;
+
+  function pickChip(label: string) {
+    // Replace empty / append to existing — preserves any text the
+    // fab has already typed. Common case: empty → fill with chip;
+    // already-typed → append "; bed adhesion lost" so multiple
+    // reasons can be combined.
+    setNote((prev) => (prev.trim() === "" ? label : `${prev.trim()}; ${label}`));
+    textareaRef.current?.focus();
+  }
+
+  async function handleSubmit() {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    try {
+      await onSubmit(trimmed);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}
+      className="fixed inset-0 flex items-center justify-center p-4"
+      style={{
+        background: "rgba(0,0,0,0.6)",
+        zIndex: 200,
+      }}
+      onMouseDown={(e) => {
+        // Click on the dimmer cancels; click inside the modal does not.
+        if (e.target === e.currentTarget) onCancel();
+      }}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 8 }}
+        transition={{ duration: 0.18, ease: "easeOut" }}
+        className={`${styles.card} w-full max-w-md`}
+        style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.6)" }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={`fail-modal-title-${jobId}`}
+      >
+        <div
+          className="px-5 py-4"
+          style={{ borderBottom: "1px solid var(--hair)" }}
+        >
+          <h2
+            id={`fail-modal-title-${jobId}`}
+            className={`${styles.display} text-[18px] leading-tight`}
+            style={{ color: "var(--ink)" }}
+          >
+            Mark as failed
+          </h2>
+          <p
+            className="text-[12px] mt-1"
+            style={{ color: "var(--ink-2)" }}
+          >
+            Tell the student what went wrong. They&apos;ll see this on
+            their submission page.
+          </p>
+        </div>
+
+        <div className="px-5 py-4 space-y-3">
+          <div>
+            <div
+              className={`${styles.cap} mb-2`}
+              style={{ color: "var(--ink-3)" }}
+            >
+              Quick reasons
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {FAILURE_REASON_CHIPS.map((chip) => (
+                <button
+                  key={chip}
+                  type="button"
+                  onClick={() => pickChip(chip)}
+                  disabled={submitting}
+                  className="text-[11px] font-semibold px-2.5 py-1.5 rounded-full transition disabled:opacity-50"
+                  style={{
+                    background: "var(--surface-2)",
+                    color: "var(--ink-2)",
+                    border: "1px solid var(--hair)",
+                  }}
+                >
+                  + {chip}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label
+              htmlFor={`fail-note-${jobId}`}
+              className={`${styles.cap} block mb-1.5`}
+              style={{ color: "var(--ink-3)" }}
+            >
+              Note
+            </label>
+            <textarea
+              id={`fail-note-${jobId}`}
+              ref={textareaRef}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              disabled={submitting}
+              rows={3}
+              placeholder="What went wrong? Pick a reason above or type your own."
+              className="w-full rounded-lg p-3 text-[13px] leading-snug resize-none focus:outline-none transition disabled:opacity-50"
+              style={{
+                background: "var(--surface-2)",
+                color: "var(--ink)",
+                border: "1px solid var(--hair-2)",
+                fontFamily:
+                  "var(--font-manrope), system-ui, sans-serif",
+              }}
+            />
+          </div>
+        </div>
+
+        <div
+          className="px-5 py-3 flex items-center justify-end gap-2"
+          style={{ borderTop: "1px solid var(--hair)" }}
+        >
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={submitting}
+            className={`${styles.btnSecondary} rounded-lg px-4 py-2 text-[12px]`}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            className={`${styles.btnBad} rounded-lg px-4 py-2 text-[12px] inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            <XIcon size={11} />
+            {submitting ? "Marking failed…" : "Mark failed"}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
