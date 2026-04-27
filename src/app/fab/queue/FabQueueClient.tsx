@@ -50,7 +50,9 @@
  */
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 import type { FabJobRow } from "@/lib/fabrication/fab-orchestration";
 import {
   formatRelativeTime,
@@ -104,8 +106,30 @@ export default function CategoryDashboard({
     Record<string, "complete" | "fail" | "start" | "assign" | undefined>
   >({});
 
-  const fetchAll = React.useCallback(async () => {
-    setState({ kind: "loading" });
+  // Phase 8.1d-26: lab filter. "all" = no filter (default — single-
+  // lab schools never see the pill bar). Otherwise a specific lab_id
+  // narrows incoming jobs + machine columns. Persists to URL via
+  // ?lab= so a fab tech can bookmark "Lab B printer queue."
+  const [labFilter, setLabFilter] = React.useState<string>("all");
+
+  // Phase 8.1d-26: any in-flight mutation pauses auto-refresh so a
+  // poll doesn't blow up the optimistic state mid-action. Tracks
+  // count, not bool, so two concurrent mutations don't unpause when
+  // one resolves.
+  const mutatingCount = React.useRef(0);
+
+  // Phase 8.1d-26: track the last-completed fetch so the auto-
+  // refresh effect doesn't fire while one's already in flight.
+  const fetchInFlight = React.useRef(false);
+
+  const fetchAll = React.useCallback(async (opts?: { silent?: boolean }) => {
+    // Phase 8.1d-26: silent mode skips the loading-state flash so
+    // auto-refresh doesn't blank the UI every 30s. Still updates
+    // data + sets error/ready when the fetch resolves.
+    const silent = opts?.silent === true;
+    if (fetchInFlight.current) return; // single-flight guard
+    fetchInFlight.current = true;
+    if (!silent) setState({ kind: "loading" });
     try {
       const [r, ip, m] = await Promise.all([
         fetchTab("ready"),
@@ -126,16 +150,32 @@ export default function CategoryDashboard({
         kind: "error",
         message: e instanceof Error ? e.message : "Network error",
       });
+    } finally {
+      fetchInFlight.current = false;
     }
   }, []);
 
+  // Initial load.
   React.useEffect(() => {
     void fetchAll();
+  }, [fetchAll]);
+
+  // Phase 8.1d-26: 30-second auto-refresh in silent mode. Skipped
+  // when a mutation's in flight (single-flight guard inside
+  // fetchAll handles overlapping polls; this guard handles a poll
+  // landing mid-mutation that would clobber optimistic state).
+  React.useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      if (mutatingCount.current > 0) return;
+      void fetchAll({ silent: true });
+    }, 30_000);
+    return () => window.clearInterval(intervalId);
   }, [fetchAll]);
 
   // Mutations =============================================
   async function assignToMachine(jobId: string, machineProfileId: string) {
     setInFlight((p) => ({ ...p, [jobId]: "assign" }));
+    mutatingCount.current += 1;
     try {
       const res = await fetch(`/api/fab/jobs/${jobId}/assign-machine`, {
         method: "POST",
@@ -151,12 +191,14 @@ export default function CategoryDashboard({
       alertUser(e instanceof Error ? e.message : "Network error");
     } finally {
       setInFlight((p) => ({ ...p, [jobId]: undefined }));
+      mutatingCount.current = Math.max(0, mutatingCount.current - 1);
       await fetchAll();
     }
   }
 
   async function markComplete(jobId: string) {
     setInFlight((p) => ({ ...p, [jobId]: "complete" }));
+    mutatingCount.current += 1;
     try {
       const res = await fetch(`/api/fab/jobs/${jobId}/complete`, {
         method: "POST",
@@ -172,6 +214,7 @@ export default function CategoryDashboard({
       alertUser(e instanceof Error ? e.message : "Network error");
     } finally {
       setInFlight((p) => ({ ...p, [jobId]: undefined }));
+      mutatingCount.current = Math.max(0, mutatingCount.current - 1);
       await fetchAll();
     }
   }
@@ -185,6 +228,7 @@ export default function CategoryDashboard({
         : null;
     if (!note || note.trim().length === 0) return;
     setInFlight((p) => ({ ...p, [jobId]: "fail" }));
+    mutatingCount.current += 1;
     try {
       const res = await fetch(`/api/fab/jobs/${jobId}/fail`, {
         method: "POST",
@@ -200,6 +244,7 @@ export default function CategoryDashboard({
       alertUser(e instanceof Error ? e.message : "Network error");
     } finally {
       setInFlight((p) => ({ ...p, [jobId]: undefined }));
+      mutatingCount.current = Math.max(0, mutatingCount.current - 1);
       await fetchAll();
     }
   }
@@ -218,10 +263,48 @@ export default function CategoryDashboard({
     [data.inProgress, category]
   );
 
-  // Incoming = approved + unassigned in this category.
+  // Phase 8.1d-26: distinct labs in this category, sorted by name
+  // for the lab-pill bar. The pill bar only renders when there's
+  // more than one — single-lab schools don't need it.
+  const labOptions = React.useMemo<Array<{ id: string; name: string }>>(() => {
+    const seen = new Map<string, { id: string; name: string }>();
+    for (const m of categoryMachines) {
+      if (m.lab_id && m.lab_name && !seen.has(m.lab_id)) {
+        seen.set(m.lab_id, { id: m.lab_id, name: m.lab_name });
+      }
+    }
+    return Array.from(seen.values()).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+  }, [categoryMachines]);
+
+  // Apply lab filter on top of category filter.
+  const visibleMachines = React.useMemo(
+    () =>
+      labFilter === "all"
+        ? categoryMachines
+        : categoryMachines.filter((m) => m.lab_id === labFilter),
+    [categoryMachines, labFilter]
+  );
+  const visibleReady = React.useMemo(
+    () =>
+      labFilter === "all"
+        ? categoryReady
+        : categoryReady.filter((j) => j.labId === labFilter),
+    [categoryReady, labFilter]
+  );
+  const visibleInProgress = React.useMemo(
+    () =>
+      labFilter === "all"
+        ? categoryInProgress
+        : categoryInProgress.filter((j) => j.labId === labFilter),
+    [categoryInProgress, labFilter]
+  );
+
+  // Incoming = approved + unassigned in this category (after lab filter).
   const incomingJobs = React.useMemo(
-    () => categoryReady.filter((j) => j.machineProfileId === null),
-    [categoryReady]
+    () => visibleReady.filter((j) => j.machineProfileId === null),
+    [visibleReady]
   );
 
   return (
@@ -236,10 +319,10 @@ export default function CategoryDashboard({
         <DashboardHeader
           category={category}
           incomingCount={incomingJobs.length}
-          runningCount={categoryInProgress.length}
-          machineCount={categoryMachines.length}
+          runningCount={visibleInProgress.length}
+          machineCount={visibleMachines.length}
           state={state}
-          onRefresh={fetchAll}
+          onRefresh={() => fetchAll()}
         />
 
         {state.kind === "error" && (
@@ -255,41 +338,133 @@ export default function CategoryDashboard({
           </div>
         )}
 
+        {/* Phase 8.1d-26: lab filter pills. Only render with >1 lab —
+            single-lab schools don't need the chrome. */}
+        {labOptions.length > 1 && (
+          <LabFilterBar
+            options={labOptions}
+            value={labFilter}
+            onChange={setLabFilter}
+          />
+        )}
+
         <IncomingRow
           jobs={incomingJobs}
-          machines={categoryMachines}
+          machines={visibleMachines}
           inFlight={inFlight}
           onAssign={assignToMachine}
         />
 
-        {categoryMachines.length === 0 ? (
+        {visibleMachines.length === 0 ? (
           <EmptyMachinesState
             category={category}
             loading={state.kind === "loading"}
+            labFiltered={labFilter !== "all"}
+            onClearFilter={() => setLabFilter("all")}
           />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            {categoryMachines.map((m) => (
-              <MachineColumn
-                key={m.id}
-                machine={m}
-                runningJob={
-                  categoryInProgress.find(
-                    (j) => j.machineProfileId === m.id
-                  ) ?? null
-                }
-                queuedJobs={categoryReady.filter(
-                  (j) => j.machineProfileId === m.id
-                )}
-                inFlight={inFlight}
-                onComplete={markComplete}
-                onFailed={markFailed}
-              />
-            ))}
-          </div>
+          <motion.div
+            layout
+            className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4"
+          >
+            <AnimatePresence mode="popLayout">
+              {visibleMachines.map((m) => (
+                <motion.div
+                  key={m.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.96 }}
+                  transition={{ duration: 0.18, ease: "easeOut" }}
+                >
+                  <MachineColumn
+                    machine={m}
+                    runningJob={
+                      visibleInProgress.find(
+                        (j) => j.machineProfileId === m.id
+                      ) ?? null
+                    }
+                    queuedJobs={visibleReady.filter(
+                      (j) => j.machineProfileId === m.id
+                    )}
+                    inFlight={inFlight}
+                    onComplete={markComplete}
+                    onFailed={markFailed}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </motion.div>
         )}
       </main>
     </div>
+  );
+}
+
+// ============================================================
+// Lab filter pill bar — Phase 8.1d-26
+// ============================================================
+
+function LabFilterBar({
+  options,
+  value,
+  onChange,
+}: {
+  options: Array<{ id: string; name: string }>;
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <span
+        className={`${styles.cap} mr-1`}
+        style={{ color: "var(--ink-3)", letterSpacing: "0.12em" }}
+      >
+        Lab
+      </span>
+      <LabPill
+        label="All labs"
+        active={value === "all"}
+        onClick={() => onChange("all")}
+      />
+      {options.map((opt) => (
+        <LabPill
+          key={opt.id}
+          label={opt.name}
+          active={value === opt.id}
+          onClick={() => onChange(opt.id)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function LabPill({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="px-3 py-1.5 rounded-full text-[12px] font-extrabold transition"
+      style={
+        active
+          ? { background: "var(--ink)", color: "var(--bg)" }
+          : {
+              background: "var(--surface-2)",
+              color: "var(--ink-2)",
+              border: "1px solid var(--hair)",
+            }
+      }
+    >
+      {label}
+    </button>
   );
 }
 
@@ -507,22 +682,37 @@ function IncomingRow({
         </div>
       </div>
       {/* Horizontal scrolling row. overflow-x-auto + flex children keep
-           the cards in line; lab tech wheel-scrolls or shift-scrolls. */}
+           the cards in line; lab tech wheel-scrolls or shift-scrolls.
+           Phase 8.1d-26: cards wrapped in <motion.div layout> so a
+           card disappearing (e.g. after Send-to assignment) animates
+           out instead of jumping. The Send-to dropdown menu is
+           portalled to document.body to escape this container's
+           overflow clip — see IncomingCard. */}
       <div
         className="px-3 py-3 overflow-x-auto"
         style={{ scrollbarWidth: "thin" }}
       >
-        <div className="flex gap-3 min-w-min">
-          {jobs.map((job) => (
-            <IncomingCard
-              key={job.jobId}
-              job={job}
-              machines={machines}
-              busy={inFlight[job.jobId]}
-              onAssign={onAssign}
-            />
-          ))}
-        </div>
+        <motion.div layout className="flex gap-3 min-w-min">
+          <AnimatePresence mode="popLayout">
+            {jobs.map((job) => (
+              <motion.div
+                key={job.jobId}
+                layout
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.92 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+              >
+                <IncomingCard
+                  job={job}
+                  machines={machines}
+                  busy={inFlight[job.jobId]}
+                  onAssign={onAssign}
+                />
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </motion.div>
       </div>
     </div>
   );
@@ -540,16 +730,51 @@ function IncomingCard({
   onAssign: (jobId: string, machineProfileId: string) => void;
 }) {
   const [menuOpen, setMenuOpen] = React.useState(false);
-  const menuRef = React.useRef<HTMLDivElement | null>(null);
+  // Phase 8.1d-26: menu portal'd to <body> so it escapes the
+  // incoming-row's overflow-x-auto clip (CSS quirk: setting
+  // overflow-x:auto implicitly computes overflow-y:auto on the
+  // same element, which clips the dropdown vertically too). The
+  // button keeps a ref so we can compute viewport coords for the
+  // portal.
+  const buttonRef = React.useRef<HTMLButtonElement | null>(null);
+  const [menuPos, setMenuPos] = React.useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
+
+  // Recompute menu coords whenever it opens. Close on
+  // scroll/resize — staying open with stale coords would have the
+  // menu drift away from the button.
   React.useEffect(() => {
     if (!menuOpen) return;
+    const updatePos = () => {
+      const btn = buttonRef.current;
+      if (!btn) return;
+      const r = btn.getBoundingClientRect();
+      setMenuPos({ top: r.bottom + 4, left: r.left, width: r.width });
+    };
+    updatePos();
+    const onScroll = () => setMenuOpen(false);
+    const onResize = () => setMenuOpen(false);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
     const onDocClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
+      // Don't close when clicking the button itself (it toggles).
+      if (buttonRef.current?.contains(e.target as Node)) return;
+      // Don't close when clicking inside the portal'd menu either —
+      // selecting a machine triggers onAssign which closes via the
+      // explicit setMenuOpen(false) below.
+      const target = e.target as HTMLElement;
+      if (target.closest("[data-fab-sendto-menu]")) return;
+      setMenuOpen(false);
     };
     document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
+    return () => {
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
+      document.removeEventListener("mousedown", onDocClick);
+    };
   }, [menuOpen]);
 
   // Send-to menu only lists machines in the same lab as the job.
@@ -565,7 +790,6 @@ function IncomingCard({
 
   return (
     <div
-      ref={menuRef}
       className={`${styles.card2} relative shrink-0`}
       style={{ width: 240 }}
     >
@@ -638,6 +862,7 @@ function IncomingCard({
         )}
 
         <button
+          ref={buttonRef}
           type="button"
           onClick={() => setMenuOpen((v) => !v)}
           disabled={busy !== undefined || candidates.length === 0}
@@ -651,33 +876,53 @@ function IncomingCard({
               : "Send to →"}
         </button>
 
-        {menuOpen && candidates.length > 0 && (
-          <div
-            role="menu"
-            className="absolute top-full left-0 right-0 mt-1 z-30 rounded-lg overflow-hidden"
-            style={{
-              background: "var(--surface)",
-              border: "1px solid var(--hair-2)",
-              boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-            }}
-          >
-            {candidates.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setMenuOpen(false);
-                  onAssign(job.jobId, m.id);
-                }}
-                className="block w-full text-left px-3 py-2 text-[12px] font-semibold hover:bg-[var(--surface-2)] transition"
-                style={{ color: "var(--ink)" }}
-              >
-                {m.name}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Phase 8.1d-26: portalled to <body> so the dropdown
+            escapes the incoming-row's overflow-x-auto clip. Coords
+            computed from the button's bounding rect each open. */}
+        {menuOpen && candidates.length > 0 && menuPos && typeof document !== "undefined" &&
+          createPortal(
+            <div
+              data-fab-sendto-menu=""
+              role="menu"
+              className="rounded-lg overflow-hidden"
+              style={{
+                position: "fixed",
+                top: menuPos.top,
+                left: menuPos.left,
+                width: menuPos.width,
+                zIndex: 100,
+                background: "var(--surface)",
+                border: "1px solid var(--hair-2)",
+                boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                fontFamily: "var(--font-manrope), system-ui, sans-serif",
+              }}
+            >
+              {candidates.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onAssign(job.jobId, m.id);
+                  }}
+                  className="block w-full text-left px-3 py-2 text-[12px] font-semibold hover:bg-[var(--surface-2)] transition"
+                  style={{ color: "var(--ink)" }}
+                >
+                  {m.name}
+                  {m.lab_name && (
+                    <span
+                      className="ml-1.5 text-[10px] font-medium"
+                      style={{ color: "var(--ink-3)" }}
+                    >
+                      · {m.lab_name}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>,
+            document.body
+          )}
       </div>
     </div>
   );
@@ -766,8 +1011,14 @@ function MachineColumn({
         />
       )}
 
-      {/* Queue */}
-      <div className="p-3 space-y-2 flex-1">
+      {/* Queue. Phase 8.1d-26: AnimatePresence + layout key by jobId
+           so a card moving from incoming → queue → running animates
+           position smoothly instead of pop-in/out. The same jobId
+           appears in IncomingRow's AnimatePresence + here, so
+           framer-motion threads the move via shared layout when the
+           data changes (assign-machine resolves, refetch swaps the
+           arrays). */}
+      <motion.div layout className="p-3 space-y-2 flex-1">
         {queuedJobs.length === 0 ? (
           <div
             className="rounded-lg p-6 text-center text-[11px]"
@@ -783,16 +1034,26 @@ function MachineColumn({
             </div>
           </div>
         ) : (
-          queuedJobs.map((j) => (
-            <QueuedJobCard
-              key={j.jobId}
-              job={j}
-              accent={accent}
-              busy={inFlight[j.jobId]}
-            />
-          ))
+          <AnimatePresence mode="popLayout">
+            {queuedJobs.map((j) => (
+              <motion.div
+                key={j.jobId}
+                layout
+                initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 6, scale: 0.96 }}
+                transition={{ duration: 0.22, ease: "easeOut" }}
+              >
+                <QueuedJobCard
+                  job={j}
+                  accent={accent}
+                  busy={inFlight[j.jobId]}
+                />
+              </motion.div>
+            ))}
+          </AnimatePresence>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 }
@@ -959,9 +1220,13 @@ function QueuedJobCard({
 function EmptyMachinesState({
   category,
   loading,
+  labFiltered,
+  onClearFilter,
 }: {
   category: Category;
   loading: boolean;
+  labFiltered: boolean;
+  onClearFilter: () => void;
 }) {
   const label =
     category === "3d_printer" ? "3D printers" : "laser cutters";
@@ -979,14 +1244,31 @@ function EmptyMachinesState({
       >
         {loading
           ? "Loading machines…"
-          : `No ${label} in your inviting teacher's labs.`}
+          : labFiltered
+            ? `No ${label} in this lab.`
+            : `No ${label} in your inviting teacher's labs.`}
       </div>
       <div className="text-[12px]" style={{ color: "var(--ink-3)" }}>
-        {loading
-          ? "Fetching from your inviting teacher's lab setup."
-          : `Ask the teacher to add a ${
-              category === "3d_printer" ? "3D printer" : "laser cutter"
-            } via the Lab Setup page.`}
+        {loading ? (
+          "Fetching from your inviting teacher's lab setup."
+        ) : labFiltered ? (
+          <>
+            Try a different lab, or{" "}
+            <button
+              type="button"
+              onClick={onClearFilter}
+              className="underline font-semibold"
+              style={{ color: "var(--ink-2)" }}
+            >
+              show all labs
+            </button>
+            .
+          </>
+        ) : (
+          `Ask the teacher to add a ${
+            category === "3d_printer" ? "3D printer" : "laser cutter"
+          } via the Lab Setup page.`
+        )}
       </div>
     </div>
   );
