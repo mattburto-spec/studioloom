@@ -15,9 +15,14 @@ R-STL-08 | WARN  | rough print-time estimate exceeds machine's
                    means "no ceiling, skip rule".
 
 Design notes:
-- R-STL-06 has an honest 3-axis check. We're NOT fancy-rotating the mesh
-  to see if it would fit oriented differently — that's a slicer's job.
-  Students submit what they submit; if bbox > bed, we block.
+- R-STL-06 checks both XY orientations (Phase 8.1d-34): a part fits
+  if EITHER as-is OR rotated 90° around Z clears the bed. Z is
+  checked the same way in both cases (gravity is gravity). Slicers
+  auto-rotate around Z trivially, so blocking 250×384×N when 384×250×N
+  fits the printer is overzealous. We don't try arbitrary 3D rotation —
+  swapping X↔Z would change the print orientation, which has real
+  consequences for overhangs/surface quality and is the operator's
+  call.
 - R-STL-07 uses bbox diagonal (not single-axis extent) to avoid false
   positives on deliberately long-thin parts. Thresholds are rough.
 - R-STL-08's time formula is ±50% accurate. Good enough to catch "this
@@ -62,16 +67,37 @@ def _rule_06_exceeds_bed(
         return None
 
     extents = mesh.bounds[1] - mesh.bounds[0]  # [x, y, z] size in mm
-    violations: list[str] = []
-    if extents[0] > profile.bed_size_x_mm:
-        violations.append(f"X: {extents[0]:.1f} > {profile.bed_size_x_mm} mm")
-    if extents[1] > profile.bed_size_y_mm:
-        violations.append(f"Y: {extents[1]:.1f} > {profile.bed_size_y_mm} mm")
-    if profile.bed_size_z_mm is not None and extents[2] > profile.bed_size_z_mm:
-        violations.append(f"Z: {extents[2]:.1f} > {profile.bed_size_z_mm} mm")
+    x_size, y_size, z_size = float(extents[0]), float(extents[1]), float(extents[2])
+    bed_x = profile.bed_size_x_mm
+    bed_y = profile.bed_size_y_mm
+    bed_z = profile.bed_size_z_mm
 
-    if not violations:
+    # Phase 8.1d-34: check both XY orientations. Z stays vertical
+    # (gravity), so the Z fit is identical in both cases.
+    z_fits = bed_z is None or z_size <= bed_z
+    fits_unrotated = x_size <= bed_x and y_size <= bed_y and z_fits
+    fits_rotated = y_size <= bed_x and x_size <= bed_y and z_fits
+    if fits_unrotated or fits_rotated:
         return None
+
+    # Pick the smaller-overshoot orientation for the violation report
+    # so the student sees the gentlest framing of the problem.
+    overshoot_unrotated = max(0.0, x_size - bed_x) + max(0.0, y_size - bed_y)
+    overshoot_rotated = max(0.0, y_size - bed_x) + max(0.0, x_size - bed_y)
+    if overshoot_rotated < overshoot_unrotated:
+        eff_x, eff_y = y_size, x_size
+        orientation_note = " (rotated)"
+    else:
+        eff_x, eff_y = x_size, y_size
+        orientation_note = ""
+
+    violations: list[str] = []
+    if eff_x > bed_x:
+        violations.append(f"X{orientation_note}: {eff_x:.1f} > {bed_x} mm")
+    if eff_y > bed_y:
+        violations.append(f"Y{orientation_note}: {eff_y:.1f} > {bed_y} mm")
+    if bed_z is not None and z_size > bed_z:
+        violations.append(f"Z: {z_size:.1f} > {bed_z} mm")
 
     return RuleResult(
         id="R-STL-06",
@@ -79,27 +105,27 @@ def _rule_06_exceeds_bed(
         title=f"Model is larger than the {profile.name} build area",
         explanation=(
             f"Your model measures "
-            f"{extents[0]:.0f} × {extents[1]:.0f} × {extents[2]:.0f} mm "
+            f"{x_size:.0f} × {y_size:.0f} × {z_size:.0f} mm "
             f"but the {profile.name} print bed is "
-            f"{profile.bed_size_x_mm:.0f} × {profile.bed_size_y_mm:.0f}"
-            f"{' × ' + str(int(profile.bed_size_z_mm)) if profile.bed_size_z_mm else ''} "
-            "mm. The printer cannot physically reach past its build area — scale "
-            "the model down in your modelling tool, or split it into parts that "
-            "each fit within the bed."
+            f"{bed_x:.0f} × {bed_y:.0f}"
+            f"{' × ' + str(int(bed_z)) if bed_z else ''} "
+            "mm. Even rotated 90° around the vertical axis it doesn't "
+            "fit. Scale the model down in your modelling tool, or split "
+            "it into parts that each fit within the bed."
         ),
         evidence={
             "model_bbox_mm": [round(float(v), 1) for v in extents.tolist()],
             "bed_size_mm": {
-                "x": profile.bed_size_x_mm,
-                "y": profile.bed_size_y_mm,
-                "z": profile.bed_size_z_mm,
+                "x": bed_x,
+                "y": bed_y,
+                "z": bed_z,
             },
             "violations": violations,
         },
         fix_hint=(
             "In Tinkercad: select the shape and drag a corner to scale down. "
             "In Fusion 360: Modify > Scale. Watch the 'Dimensions' panel to "
-            "confirm the bbox fits."
+            "confirm the bbox fits in at least one orientation."
         ),
         version=STL_RULESET_VERSION,
     )
