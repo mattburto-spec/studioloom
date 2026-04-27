@@ -1933,3 +1933,39 @@ Trying to handle both in one route produces silent failures — either "PKCE ver
 **Systems affected:** `teacher-dashboard` (v1 → v2 in_progress, summary rewritten), `pypx-exhibition` (NEW, currentVersion 1 in_progress).
 
 **Trigger for next session:** `dashboard next` or `pypx 13b polish` — Phase 13b-3b (filter chips + view toggle [cards/table/by-phase] + per-student detail page) OR Phase 13c (student PYPX dashboard ~2 days, port `pypx_dashboard.jsx` to real students). Mentor Manager v0 stays parked until coordinator meeting confirms scope.
+
+---
+
+## 27 April 2026 — Tap-a-word Phase 1 SHIPPED end-to-end
+
+**Branch:** `tap-a-word-build` (24 commits) merged into `main` via `b915e02` + `000685c` (gate fix). Pushed to `origin/main` after Checkpoint 1.1 sign-off + prod migration applied.
+
+**What changed (Phase 1 of language-scaffolding-redesign):**
+- **Phase 1A (scaffold):** TappableText + WordPopover (createPortal) + useWordLookup hook + tokenize.ts + sandbox + `/api/student/word-lookup` route + migration `20260426140609_word_definitions_cache.sql` + 13 tokenizer tests + 9 route tests. Lesson #39 stop_reason guard + defensive destructure on every Haiku call. Migration: timestamp-prefix discipline (first feature branch to use it end-to-end).
+- **Phase 1B (mounts):** MarkdownPrompt `tappable` prop (markdown-aware leaf wrap) + ActivityCard prompts + ELL-1 hint card + LessonIntro + VocabWarmup definition+example + KitMentor speech bubble + DesignAssistantWidget assistant role + CheckInPanel mentor messages. Toolkit-prompt mounts deferred (28 bespoke tools — separate refinement).
+- **Phase 1C (seed + verify):** 575-word `scripts/seed-data/design-vocab-500.json` across 10 categories, expanded to 578 (added ergonomics + anthropometrics + biomechanics) + sandbox-aware seed script `scripts/preflight-tap-a-word-seed.mjs` with batched Haiku + cost tracking + gated live E2E test `tests/e2e/word-lookup-live.test.ts` + empirical cold-cache smoke `scripts/cold-cache-smoke.mjs`.
+- **Mid-build hotfix (`a6696a8`):** Route gate corrected from `RUN_E2E !== "1"` to `NODE_ENV === "test" && RUN_E2E !== "1"` — dev users now see real definitions instead of `[sandbox]` sentinel text. Lesson #56.
+- **Sandbox cache pollution discovered + cleaned:** 5 dev-test taps wrote sentinel rows to shared cache; manually purged. Filed FU-TAP-SANDBOX-POLLUTION (P2). Lesson #57.
+
+**Verification (Checkpoint 1.1):**
+- ✅ Sandbox seed pipeline: 10/10 ok end-to-end against prod Supabase, idempotent re-run
+- ✅ Live E2E: `RUN_E2E=1 vitest run tests/e2e/word-lookup-live.test.ts` returns real "ergonomics" definition in 1592ms
+- ✅ Live seed: 575/575 words processed, $0.5278 one-time, 0 failures
+- ✅ Visual smoke: real definitions in popovers across 5 mount surfaces (Matt confirmed)
+- ⚠️ Cold-cache empirical: 11.2% hit rate on real lessons → criterion #5 reframed as behavioural ("<20 uncached TAPS per student", measurable post-launch via Phase 4 signals). Lesson #58.
+
+**Migrations:** `20260426140609_word_definitions_cache.sql` applied to dev (26 Apr) + prod (27 Apr). Composite PK `(word, language, context_hash, l1_target)`, RLS read-anon, service-role write.
+
+**Tests:** 2159 → **2181 passed | 9 skipped | 139 files** (+22 tests, +3 files). tsc 0 errors. Build green with `NODE_OPTIONS=--max-old-space-size=4096`.
+
+**Decisions added (5):** route gate fix, cold-cache criterion #5 reframe, sandbox-pollution architectural lesson, migration discipline v2 vindicated, choke-point mount strategy.
+
+**Lessons added (3):** #56 (test-mode vs sandbox-mode conflation), #57 (sandbox writes pollute shared cache), #58 (empirical hit-rate smoke reframes spec criteria).
+
+**FUs added (3):** FU-TAP-SANDBOX-POLLUTION (P2), FU-BUILD-HEAP (P3), FU-AI-CALL-SCANNER-GUARD-DETECTION (P3).
+
+**Systems affected:** `tap-a-word` (NEW, status `planned`, currentVersion 0 — flips to complete/v1 when Phase 5 ships); `student-learning-support` (status stays `planned` until Phase 5).
+
+**Cost spent this session:** ~$0.53 live seed + ~$0.0005 live E2E + ~$0.003 ergonomics rerun = **~$0.535 total**.
+
+**Pending after this saveme:** Apply prod migration (DONE), push origin/main (DONE), Phase 2 (L1 translation + audio + image) awaits next session. Decide whether toolkit-prompt mounts land as a 1B refinement or fold into Phase 2.

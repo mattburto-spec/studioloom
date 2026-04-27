@@ -1140,3 +1140,43 @@ RLS-coverage scanner (`scan-rls-coverage.py`) added to prevent recurrence.
 **Definition of done:** WIRING entry honest about reality + scheduled work. Will flip back to `status: complete`, `currentVersion: 1` when Phase 5 (live E2E gate) of the language-scaffolding-redesign ships.
 
 **Wider audit:** Periodic drift scanners exist for api-registry, ai-call-sites, schema-registry, feature-flags, vendors. WIRING.yaml has no scanner — manual maintenance only. Most likely registry to drift. Adding a saveme spot-check rule per Lesson #54: when a WIRING entry has a marketing-shaped summary, grep for at least 2 of its claimed features before trusting `status: complete`.
+
+---
+
+## FU-TAP-SANDBOX-POLLUTION — Sandbox writes pollute shared word_definitions cache (P2)
+**Surfaced:** 27 Apr 2026, Tap-a-word Phase 1B/1C browser smoke (after Lesson #56 gate fix landed)
+**Captured in:** Lesson #57 (`docs/lessons-learned.md`), `docs/decisions-log.md` 27 Apr entry
+
+**Issue:** `src/app/api/student/word-lookup/route.ts` calls `await supabase.from("word_definitions").upsert(...)` in BOTH the sandbox and live branches. The sandbox upsert writes `[sandbox] definition of "X"` sentinel rows to the shared cache. Pre-Lesson #56 fix, every dev tap polluted the cache. Manual cleanup via `DELETE FROM word_definitions WHERE definition LIKE '[sandbox]%'` worked but is reactive.
+
+**Fix (Phase 2 scope):** Either (a) skip the upsert entirely in the sandbox path — the route's own in-memory cache is enough for tests + dev; or (b) stamp rows with a `source: 'sandbox' | 'live'` column + auto-purge sandbox rows on dev startup. Option (a) is simpler, cheaper, and matches Lesson #44 simplicity. Recommended.
+
+**Definition of done:** Tapping a sandbox-mode word (vitest test runs with `RUN_E2E !== "1"`) does NOT write a row to `word_definitions`. Existing dev-DB sandbox rows cleaned up via the same purge.
+
+---
+
+## FU-BUILD-HEAP — `next build` OOMs with default 2GB Node heap (P3)
+**Surfaced:** 27 Apr 2026, Tap-a-word Phase 1B verification step
+**Trigger:** `npm run build` from `/Users/matt/CWORK/questerra-tap-a-word` crashed at ~52s with `FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory` (process at 2027 MB). Workaround: `NODE_OPTIONS="--max-old-space-size=4096" npm run build` succeeds in ~90s.
+
+**Issue:** This codebase (~95K LOC, ~290 source files) needs more than Node's default 2 GB heap to compile. Vercel's CI has 8 GB by default so prod deploys work; local builds and CI on tighter machines fail with no useful error.
+
+**Fix:** Add to `package.json`:
+```json
+"build": "NODE_OPTIONS='--max-old-space-size=4096' next build"
+```
+Or pin via `.nvmrc` / engine hint that documents the requirement.
+
+**Definition of done:** `npm run build` succeeds without manual env-var setting on a default Node install.
+
+---
+
+## FU-AI-CALL-SCANNER-GUARD-DETECTION — `scan-ai-calls.py` can't see runtime stop_reason guards (P3)
+**Surfaced:** 27 Apr 2026, Tap-a-word Phase 1C registry sync step
+**Trigger:** Saveme step 11c re-ran `scan-ai-calls.py`. The new `/api/student/word-lookup` site shows `stop_reason_handled: unknown` even though the runtime guard is present at `src/app/api/student/word-lookup/route.ts:135-141`. The scanner does grep-based detection; it can't statically follow conditional throws.
+
+**Issue:** This affects the FU-5 family count — sites that LOOK unguarded in the registry may actually have guards the scanner missed. False positives in the audit make it impossible to know how many real violations exist.
+
+**Fix:** Either (a) extend `scan-ai-calls.py` to detect the `if (response.stop_reason === "max_tokens")` pattern with a few lines of AST-aware regex (the pattern is consistent enough), or (b) add a `stop_reason_handled_override` field to `ai-call-sites.yaml` that humans set manually for sites the scanner mis-flags. (a) is better for maintenance; (b) is a 5-minute hack.
+
+**Definition of done:** A site that has the canonical `if (response.stop_reason === "max_tokens") throw new Error(...)` block is recorded as `stop_reason_handled: true` automatically. False-positive count on FU-5 audit drops to actual violations only.

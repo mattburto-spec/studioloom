@@ -530,3 +530,56 @@ The whole AutonomyPicker concept got pivoted. Migration 116 scheduled for rollba
 **Why this matters for build-methodology:** The `build-phase-prep` skill's pre-flight ritual catches BAD CODE. It doesn't catch BAD MODEL. For systems where research literature has a strong opinion (anything cognitive / pedagogical / accessibility), add a "competitive-pattern check" step to the brief — list 3-5 platforms that have solved a similar problem, document what they actually do, before locking the spec. This is a Karpathy #43 ("surface assumptions") at the model level, not just at the code level.
 
 ---
+
+### Lesson #56 — Conflating "test mode" with "sandbox mode" produces broken dev UX
+**Date:** 27 Apr 2026
+**Phase:** Tap-a-word Phase 1B/1C (browser smoke surfaced the bug)
+**Trigger:** Matt opened a real lesson and tapped "isolation"; popover showed `[sandbox] definition of "isolation"` instead of a real Anthropic definition.
+
+**What happened:** Phase 1A shipped `/api/student/word-lookup` with `if (process.env.RUN_E2E !== "1") { sandbox path }` to keep `npm test` from burning the API key. The implicit assumption was "tests are the only context where we want sandbox". Reality: `npm run dev` ALSO has `RUN_E2E` unset by default → dev users hit the sandbox path → every uncached word returned the marker `[sandbox] definition of "X"`. Felt broken even though the route was returning 200 with valid JSON.
+
+**Why this was invisible in code review:** The condition `process.env.RUN_E2E !== "1"` reads as "if this isn't the gated E2E case" — naturally maps to "default behaviour". The default behaviour SHOULD be live. The trap is using a single env var to express two orthogonal concerns: (1) "are we in a test runner right now?" and (2) "do we want to use the live API or the sandbox?".
+
+**Rule:** Separate "test mode" detection from "behaviour mode" selection. Detect tests via `NODE_ENV === "test"` (vitest/jest set this automatically). Use an explicit override env var (e.g. `RUN_E2E=1`) only for the case where you want to escape the test-mode default. The default in dev/prod stays live. Concretely:
+
+```ts
+// Wrong — conflates test-mode with sandbox-mode
+if (process.env.RUN_E2E !== "1") { sandbox path }
+
+// Right — sandbox only when (in tests) AND (not explicitly overridden)
+if (process.env.NODE_ENV === "test" && process.env.RUN_E2E !== "1") { sandbox path }
+```
+
+**Wider applicability:** Audit any future "dev-mode bypass" patterns the same way. If a switch silently disables real behaviour in dev, it WILL bite. Phase 5's `tests/e2e/response-starters-live.test.ts` will inherit the same gate shape — apply this rule to it on day 1, not as a follow-up fix.
+
+---
+
+### Lesson #57 — Sandbox writes that share a real cache table corrupt downstream cache hits
+**Date:** 27 Apr 2026
+**Phase:** Tap-a-word Phase 1B/1C
+**Trigger:** After Lesson #56 fix landed, 5 specific words ("aerodynamic", "distribution", "success", "investigated", "isolation") still returned `[sandbox]` text. Cause: Matt had tapped them earlier under the broken gate; the sandbox path had upserted `[sandbox]` rows into `word_definitions`. After the gate fix, those rows became cache HITS — the new gate only protects the cache-MISS path.
+
+**What happened:** The Phase 1A route did `await supabase.from("word_definitions").upsert(...)` in BOTH the sandbox and live branches. The sandbox upsert wrote sentinel rows to the shared cache. With the v1 gate broken, every dev tap polluted the cache. Even after the gate fix, the polluted rows persisted because the cache-hit path returns whatever is in the row, regardless of whether the gate would have routed differently on a miss.
+
+**Rules:**
+- **Sandbox results MUST NOT touch the real shared cache.** Either (a) skip the upsert entirely in the sandbox path (the route's own in-memory cache is enough for tests), or (b) stamp rows with a `source: 'sandbox' | 'live'` column + auto-purge sandbox rows on dev startup. Option (a) is simpler.
+- **When fixing a gate that controls cache writes, audit + clean the rows the broken gate wrote.** A gate fix doesn't undo prior writes. Either delete the stale rows or invalidate them via versioning.
+- **Distinguish "sandbox" (deterministic test fixture) from "stub" (placeholder for unimplemented logic).** Sandbox should be self-contained — no I/O outside the function call. Stub can write to dev DB. Don't accidentally make a sandbox into a stub by including a side-effect.
+
+**Filed as `FU-TAP-SANDBOX-POLLUTION` P2.** Phase 2 fixes via option (a) — drop the upsert from the sandbox path.
+
+---
+
+### Lesson #58 — Empirical hit-rate measurement against real lessons reframes spec criteria
+**Date:** 27 Apr 2026
+**Phase:** Tap-a-word Phase 1C cold-cache analysis
+**Trigger:** Phase 1C built `scripts/cold-cache-smoke.mjs` to measure cache coverage against real published units. Sampled 3 units → 4759 unique tappable words → only 533 cache hits with the 578-word design-vocab seed (11.2% hit rate). Spec criterion #5 said "<20 uncached words per first-time student per lesson" — at first read, FAILING. Re-reading the spec's §5.2 cost projection ("5 first-encounter words / lesson") clarified the criterion was always a BEHAVIOURAL one (uncached words a student TAPS), not an INVENTORY one (uncached words present on the page).
+
+**What happened:** Without the empirical smoke, we would have either (a) shipped declaring the criterion met (wrong — based on projection), or (b) burned ~$0.50 expanding the seed to common-English coverage (wrong — students don't tap "the" or "what"). The smoke surfaced that the criterion needed reframing, not the seed needing expansion.
+
+**Rules:**
+- **For coverage / hit-rate / signal criteria, write a one-shot empirical smoke against real production data BEFORE accepting a pre-launch projection.** Projections sound reasonable until you see the real distribution.
+- **When a spec criterion has two reasonable readings (inventory vs. behavioural), make the empirical smoke the tiebreaker.** Whichever reading the empirical data supports is the one the spec actually intended.
+- **The empirical smoke script is itself a deliverable.** `cold-cache-smoke.mjs` stays in repo as a checkable baseline — Phase 4 signal data will validate the reframed criterion against real student tap behaviour.
+
+**Wider applicability:** Any system with a hit-rate / signal-driven threshold (Lesson Pulse, recommendations, scaffold-fading, drift detection) should ship with an empirical smoke. The smoke is the spec's lie-detector.
