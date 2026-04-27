@@ -5,7 +5,7 @@ import type { L1Target } from "@/lib/tap-a-word/language-mapping";
 
 /**
  * Phase 2.5 — page-session cache for the student's resolved support
- * settings. Fetches once per (studentId, classId) tuple via
+ * settings. Fetches once per (studentId, classId|unitId) tuple via
  * GET /api/student/me/support-settings, then serves from memory.
  *
  * Used by TappableText to gate rendering BEFORE any tap happens — if
@@ -15,6 +15,10 @@ import type { L1Target } from "@/lib/tap-a-word/language-mapping";
  *
  * Cache is module-scoped (Map) so all TappableText instances on the same
  * page share the result — single network request per page load.
+ *
+ * Bug 2 (28 Apr 2026): accepts optional unitId. When passed without
+ * classId, server derives classId via class_units × class_students. Lets
+ * lesson pages get correct per-class overrides without knowing classId.
  */
 
 export interface ResolvedClientSettings {
@@ -34,17 +38,26 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 
-function cacheKey(classId?: string): string {
-  return classId ? `c:${classId}` : "no-class";
+function cacheKey(classId?: string, unitId?: string): string {
+  // classId takes precedence: when both are passed the server resolves
+  // classId-first, so they should produce the same cache entry. unitId is
+  // a fallback when classId is unknown (lesson pages on Option A today).
+  if (classId) return `c:${classId}`;
+  if (unitId) return `u:${unitId}`;
+  return "no-class";
 }
 
-function fetchOnce(classId: string | undefined): Promise<void> {
-  const key = cacheKey(classId);
+function fetchOnce(classId: string | undefined, unitId: string | undefined): Promise<void> {
+  const key = cacheKey(classId, unitId);
   const existing = cache.get(key);
   if (existing?.inflight) return existing.inflight;
 
-  const url = classId
-    ? `/api/student/me/support-settings?classId=${encodeURIComponent(classId)}`
+  const params = new URLSearchParams();
+  if (classId) params.set("classId", classId);
+  if (unitId) params.set("unitId", unitId);
+  const qs = params.toString();
+  const url = qs
+    ? `/api/student/me/support-settings?${qs}`
     : "/api/student/me/support-settings";
 
   const promise = (async () => {
@@ -75,12 +88,12 @@ function fetchOnce(classId: string | undefined): Promise<void> {
   return promise;
 }
 
-export function useStudentSupportSettings(classId?: string): {
+export function useStudentSupportSettings(classId?: string, unitId?: string): {
   loaded: boolean;
   data: ResolvedClientSettings | null;
   error: string | null;
 } {
-  const key = cacheKey(classId);
+  const key = cacheKey(classId, unitId);
   const initial = cache.get(key);
   const [tick, setTick] = useState(initial?.data ? 1 : 0);
 
@@ -92,13 +105,13 @@ export function useStudentSupportSettings(classId?: string): {
       return;
     }
     let cancelled = false;
-    void fetchOnce(classId).then(() => {
+    void fetchOnce(classId, unitId).then(() => {
       if (!cancelled) setTick((t) => t + 1);
     });
     return () => {
       cancelled = true;
     };
-  }, [key, classId]);
+  }, [key, classId, unitId]);
 
   // Mute unused-var warning by referencing tick
   void tick;

@@ -51,10 +51,16 @@ export interface UseWordLookupOpts {
    * When omitted, only per-student overrides apply.
    */
   classId?: string;
+  /**
+   * Bug 2 (28 Apr 2026): optional unit context. When passed without classId,
+   * the server derives classId via class_units × class_students. classId
+   * wins when both are sent.
+   */
+  unitId?: string;
 }
 
 export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
-  const { classId } = opts;
+  const { classId, unitId } = opts;
   const [state, setState] = useState<LookupState>("idle");
   const [word, setWord] = useState<string | null>(null);
   const [definition, setDefinition] = useState<string | null>(null);
@@ -127,9 +133,10 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
     setImageUrl(null);
     setErrorMessage(null);
 
-    // Capture classId at lookup() invocation time so the value used in the
-    // debounced fetch matches the value the user saw when they tapped.
+    // Capture classId + unitId at lookup() invocation time so the values
+    // used in the debounced fetch match what the user saw when they tapped.
     const currentClassId = classId;
+    const currentUnitId = unitId;
     debounceRef.current = setTimeout(async () => {
       const controller = new AbortController();
       inFlightRef.current = controller;
@@ -137,7 +144,12 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
         const res = await fetch("/api/student/word-lookup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ word: normalized, contextSentence, classId: currentClassId }),
+          body: JSON.stringify({
+            word: normalized,
+            contextSentence,
+            classId: currentClassId,
+            unitId: currentUnitId,
+          }),
           signal: controller.signal,
         });
         if (!res.ok) {
@@ -187,7 +199,7 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
         }
       }
     }, DEBOUNCE_MS);
-  }, [classId]);
+  }, [classId, unitId]);
 
   // Clean up on unmount.
   useEffect(() => {

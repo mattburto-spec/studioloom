@@ -6,6 +6,7 @@ import { lookupSandbox } from "@/lib/ai/sandbox/word-lookup-sandbox";
 import { MODELS } from "@/lib/ai/models";
 import { l1DisplayLabel, type L1Target } from "@/lib/tap-a-word/language-mapping";
 import { resolveStudentSettings } from "@/lib/student-support/resolve-settings";
+import { resolveStudentClassId } from "@/lib/student-support/resolve-class-id";
 
 /**
  * POST /api/student/word-lookup
@@ -48,9 +49,14 @@ interface WordLookupBody {
   contextSentence?: unknown;
   /** Phase 2.5: optional class context for per-class override resolution. */
   classId?: unknown;
+  /**
+   * Bug 2: optional unit context. When the caller is on a lesson page they
+   * usually know the unitId but not the classId — server derives the
+   * (verified) classId via class_units × class_students. classId wins over
+   * unitId when both are sent (caller was specific).
+   */
+  unitId?: unknown;
 }
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function POST(request: NextRequest) {
   const auth = await requireStudentAuth(request);
@@ -66,8 +72,8 @@ export async function POST(request: NextRequest) {
   const rawWord = typeof body?.word === "string" ? body.word.trim().toLowerCase() : "";
   const contextSentence =
     typeof body?.contextSentence === "string" ? body.contextSentence.trim().slice(0, 500) : "";
-  const classId =
-    typeof body?.classId === "string" && UUID_RE.test(body.classId) ? body.classId : undefined;
+  const rawClassId = typeof body?.classId === "string" ? body.classId : undefined;
+  const rawUnitId = typeof body?.unitId === "string" ? body.unitId : undefined;
 
   if (!rawWord || rawWord.length < 2 || rawWord.length > 50) {
     return NextResponse.json(
@@ -75,6 +81,16 @@ export async function POST(request: NextRequest) {
       { status: 400, headers: CACHE_HEADERS }
     );
   }
+
+  // Bug 2: server-derive classId from (classId | unitId) so per-class
+  // overrides apply correctly even when the client only knows the unit.
+  // Returns undefined when neither input resolves to an enrollment — the
+  // resolver then falls back to per-student + intake + default.
+  const classId = await resolveStudentClassId({
+    studentId: auth.studentId,
+    classId: rawClassId,
+    unitId: rawUnitId,
+  });
 
   // Phase 2.5: resolver walks the override precedence chain
   // (class > student > intake > default) and returns both l1Target +

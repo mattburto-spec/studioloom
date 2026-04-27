@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { useParams } from "next/navigation";
 import { tokenize } from "./tokenize";
 import { useWordLookup } from "./useWordLookup";
 import { WordPopover } from "./WordPopover";
@@ -19,14 +20,23 @@ import { useStudent } from "@/app/(student)/student-context";
  * renders ALL tokens as plain spans (no buttons, no hover) — students
  * see plain text, no signal that the feature exists.
  *
- * classId resolution: read from StudentContext (the student layout
- * provides classInfo). For mounts outside the student layout (e.g.
- * teacher preview, standalone tools), classInfo is null → resolver
- * runs per-student-only.
+ * Bug 2 (28 Apr 2026): when mounted on a /unit/[unitId]/... route, auto-
+ * detects unitId from URL params and passes it to the support-settings
+ * + word-lookup hooks. Server then derives the (verified) classId via
+ * class_units × class_students — fixes the multi-class case where
+ * StudentContext's session-default classId was for a different class than
+ * the lesson's. Explicit `classId` prop still wins.
+ *
+ * classId resolution priority:
+ *   1. classId prop (explicit override)
+ *   2. unitId from URL → server resolves the right class
+ *   3. classInfo.id from StudentContext (session default)
  *
  * Untappable tokens (whitespace, punctuation, URLs, 1-char tokens,
  * pure numbers) render as plain spans preserving the original text.
  */
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface TappableTextProps {
   /** The text to render. */
@@ -50,9 +60,18 @@ export interface TappableTextProps {
 export function TappableText({ text, contextSentence, className, classId: classIdProp }: TappableTextProps) {
   const tokens = useMemo(() => tokenize(text), [text]);
   const studentCtx = useStudent();
+  // useParams returns a record of dynamic segments; on /unit/[unitId]/[pageId]
+  // routes this is { unitId, pageId }. UUID-validate to ignore non-UUID
+  // segment values that other routes might surface.
+  const params = useParams();
+  const rawParamUnitId = typeof params?.unitId === "string" ? params.unitId : undefined;
+  const unitId = rawParamUnitId && UUID_RE.test(rawParamUnitId) ? rawParamUnitId : undefined;
+  // classId prop wins (explicit caller); else fall back to the session
+  // default. unitId, when present, lets the server cross-check + derive
+  // the right class even if the session default points elsewhere.
   const classId = classIdProp ?? studentCtx.classInfo?.id;
-  const support = useStudentSupportSettings(classId);
-  const lookup = useWordLookup({ classId });
+  const support = useStudentSupportSettings(classId, unitId);
+  const lookup = useWordLookup({ classId, unitId });
   const [openWord, setOpenWord] = useState<string | null>(null);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const containerRef = useRef<HTMLSpanElement | null>(null);
