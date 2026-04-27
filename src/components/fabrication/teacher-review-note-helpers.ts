@@ -121,6 +121,26 @@ export function canWithdrawJob(jobStatus: string): boolean {
 }
 
 /**
+ * Phase 8.1d-32: is this status one the student can permanently
+ * delete? Mirrors `STUDENT_DELETABLE_STATUSES` in orchestration.ts —
+ * kept in sync by convention. UI uses this to decide whether to
+ * show the "Delete submission" button or row-level trash icon.
+ *
+ * Excludes only the two statuses where the fab/teacher is actively
+ * holding the file:
+ *   approved   — in fab queue, may be about to print
+ *   picked_up  — actively being fabricated
+ *
+ * Everything else (uploaded / scanning / pending_approval /
+ * needs_revision / cancelled / rejected / completed) is deletable
+ * so a student can clean up stuck, mistaken, or post-collection
+ * jobs they don't want cluttering their overview.
+ */
+export function canDeleteJob(jobStatus: string): boolean {
+  return jobStatus !== "approved" && jobStatus !== "picked_up";
+}
+
+/**
  * Phase 6-6c: the student can interact with the scan results viewer
  * (acknowledge, re-upload) but the "Submit for approval" button is
  * inappropriate in two cases:

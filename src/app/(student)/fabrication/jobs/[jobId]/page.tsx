@@ -40,6 +40,7 @@ import {
   studentActionsLocked,
   shouldHideSubmitButton,
   canWithdrawJob,
+  canDeleteJob,
 } from "@/components/fabrication/teacher-review-note-helpers";
 import { LabTechCompletionCard } from "@/components/fabrication/LabTechCompletionCard";
 import {
@@ -234,6 +235,46 @@ export default function FabricationJobStatusPage() {
     }
   }
 
+  // Phase 8.1d-32 — student permanent delete. Distinct from
+  // withdraw: data is wiped (DB cascade + Storage). Used to clean
+  // up stuck/failed/cancelled jobs the student no longer wants in
+  // their overview. window.confirm matches the existing withdraw
+  // pattern — student-side white theme reads fine with native
+  // chrome (the fab-side dark theme is what motivated the styled
+  // ConfirmActionModal yesterday).
+  const [isDeleting, setIsDeleting] = React.useState(false);
+  async function handleDelete() {
+    if (!jobId) return;
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        "Permanently delete this submission? Your file, scan results, and all revisions will be removed. This can't be undone."
+      )
+    ) {
+      return;
+    }
+    setActionError(null);
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/student/fabrication/jobs/${jobId}`, {
+        method: "DELETE",
+        credentials: "same-origin",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "" }));
+        setActionError(
+          body.error || `Couldn't delete (HTTP ${res.status})`
+        );
+        setIsDeleting(false);
+        return;
+      }
+      router.push("/fabrication");
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Network error deleting");
+      setIsDeleting(false);
+    }
+  }
+
   async function handleReuploadSuccess() {
     setIsReuploadOpen(false);
 
@@ -300,9 +341,11 @@ export default function FabricationJobStatusPage() {
           onSubmit={handleSubmit}
           onReupload={handleReupload}
           onWithdraw={handleWithdraw}
+          onDelete={handleDelete}
           isAckInFlight={isAckInFlight}
           isSubmitting={isSubmitting}
           isWithdrawing={isWithdrawing}
+          isDeleting={isDeleting}
           actionError={actionError}
         />
       ) : jobId ? (
@@ -375,9 +418,11 @@ function DoneStateView(props: {
   onSubmit: () => void;
   onReupload: () => void;
   onWithdraw: () => void;
+  onDelete: () => void;
   isAckInFlight: boolean;
   isSubmitting: boolean;
   isWithdrawing: boolean;
+  isDeleting: boolean;
   actionError: string | null;
 }) {
   const {
@@ -389,9 +434,11 @@ function DoneStateView(props: {
     onSubmit,
     onReupload,
     onWithdraw,
+    onDelete,
     isAckInFlight,
     isSubmitting,
     isWithdrawing,
+    isDeleting,
     actionError,
   } = props;
 
@@ -410,6 +457,14 @@ function DoneStateView(props: {
   const actionsLocked = studentActionsLocked(jobStatus);
   const hideSubmit = shouldHideSubmitButton(jobStatus);
   const showWithdraw = canWithdrawJob(jobStatus);
+  // Phase 8.1d-32: delete button. Stricter status gate than
+  // withdraw — only excludes the two states where the fab/teacher
+  // is actively holding the file. So both buttons appear together
+  // when the student can EITHER soft-cancel (audit kept) OR
+  // hard-delete (no audit, files purged). Cancelled / rejected /
+  // completed jobs only show Delete because withdraw makes no
+  // sense for terminal-from-student states.
+  const showDelete = canDeleteJob(jobStatus);
 
   // Phase 7-5: lab-tech completion state. When status=completed, the
   // LabTechCompletionCard replaces the ScanResultsViewer — the run is
@@ -492,23 +547,53 @@ function DoneStateView(props: {
             />
           )}
 
-          {/* Phase 6-6k — student withdraw. Rendered under the viewer
-              (not inside it) so teachers reading the teacher detail
-              page don't accidentally see this on their readOnly
-              render — the viewer's own button block is where teacher
-              actions go. Only shown when the job is still
-              student-reversible (not approved / rejected / picked up /
-              completed). */}
-          {showWithdraw && (
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={onWithdraw}
-                disabled={isWithdrawing || isSubmitting || isAckInFlight}
-                className="text-sm font-medium text-gray-600 hover:text-red-700 underline underline-offset-2 decoration-gray-400 hover:decoration-red-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.97]"
-              >
-                {isWithdrawing ? "Withdrawing…" : "Withdraw submission"}
-              </button>
+          {/* Phase 6-6k + 8.1d-32 — student-reversible actions.
+              Rendered under the viewer (not inside it) so the
+              teacher detail page's read-only render doesn't show
+              these buttons.
+
+              Withdraw — soft cancel, status='cancelled', audit
+                         trail kept. Only valid pre-teacher-action.
+              Delete   — permanent, no undo, files + revisions +
+                         scan results all purged. Valid for any
+                         non-active-fabrication state. Different
+                         intent so we show both when both apply
+                         (the typical mid-flight case where
+                         student wants to clean up cleanly).
+              */}
+          {(showWithdraw || showDelete) && (
+            <div className="flex justify-end items-center gap-4">
+              {showWithdraw && (
+                <button
+                  type="button"
+                  onClick={onWithdraw}
+                  disabled={
+                    isWithdrawing ||
+                    isDeleting ||
+                    isSubmitting ||
+                    isAckInFlight
+                  }
+                  className="text-sm font-medium text-gray-600 hover:text-red-700 underline underline-offset-2 decoration-gray-400 hover:decoration-red-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.97]"
+                >
+                  {isWithdrawing ? "Withdrawing…" : "Withdraw submission"}
+                </button>
+              )}
+              {showDelete && (
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  disabled={
+                    isDeleting ||
+                    isWithdrawing ||
+                    isSubmitting ||
+                    isAckInFlight
+                  }
+                  className="text-sm font-medium text-red-700 hover:text-red-900 underline underline-offset-2 decoration-red-400 hover:decoration-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.97]"
+                  title="Permanently delete this submission and all its files"
+                >
+                  {isDeleting ? "Deleting…" : "Delete permanently"}
+                </button>
+              )}
             </div>
           )}
         </div>
