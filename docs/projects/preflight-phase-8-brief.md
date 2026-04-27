@@ -1,8 +1,8 @@
 # Preflight Phase 8 — Lab + Machine + Fabricator Admin
 
-**Status:** ✅ READY — all 6 open questions resolved "all recommended" 24 April 2026 PM; Phase 7 Checkpoint 7.1 PASSED 12/12; Phase 8-1 unblocked.
+**Status:** ✅ READY (revised) — all 6 open questions re-resolved 27 April 2026 after Matt challenged Q3 (cross-teacher visibility) and Q2 (default-lab scope). The 24 Apr "all recommended" sign-off is superseded; this brief now reflects school-scoped lab ownership using existing migration 085 `schools` infrastructure.
 **Date drafted:** 24 April 2026 AM
-**Date signed off:** 24 April 2026 PM
+**Date signed off:** 24 April 2026 PM (initial "all recommended"); **revised + re-signed 27 April 2026 PM** (Q2 + Q3 flipped — see §5 + §5b).
 **Spec source:** `docs/projects/fabrication-pipeline.md` §13 Phase 8 + §14 "Machine profile registry is multi-tenant from day one"
 **Predecessor:** Phase 7 (Lab Tech Pickup + Completion) — blocks this because Phase 8's fab-reassignment UI reuses the Phase 1B-2 `/teacher/preflight/fabricators` admin routes + the Phase 7 `/fab/queue` needs to keep working through the migration.
 **Blocks:** Multi-lab school onboarding (e.g. Seoul Foreign School pattern from the §11 Q5 brief). NIS-scale single-area schools work with current v1 indefinitely.
@@ -23,13 +23,14 @@ This phase replaces the flat list with a **single visual admin page** showing al
 
 **Ships:**
 
-1. **`fabrication_labs` table** (new) — `id, school_id, teacher_id, name, description, created_at, updated_at`. Multi-tenant-ready from day one per spec §14.
-2. **`machine_profiles.lab_id`** (new FK column, nullable — legacy rows get a default "Unassigned" location).
-3. **`classes.default_lab_id`** (new FK column) — so the student machine picker can filter by class → lab → machines. Closes `FU-CLASS-MACHINE-LINK` P3.
-4. **`/teacher/preflight/lab-setup`** — the new visual admin page. Replaces the Phase 1B-2 `/teacher/preflight/fabricators` list view (that URL redirects to the new page).
-5. **Machine CRUD**: "+ Add machine" from template OR from scratch. Customise dimensions, kerf, operation colour map, `requires_teacher_approval` toggle.
-6. **Fabricator reassignment in the new UI** — move a fab to a different machine without opening a modal.
-7. **Backfill migration** — every existing `machine_profiles` row gets assigned to a "Default lab" per teacher. Every existing `classes` row gets `default_lab_id = default lab`. Student picker keeps working through the migration without any student-visible change.
+1. **`fabrication_labs` table** (new) — `id, school_id NOT NULL REFERENCES schools(id), name, description, created_by_teacher_id REFERENCES teachers(id), created_at, updated_at`. Owned by the **school**, not by an individual teacher. `created_by_teacher_id` is **audit only** — it doesn't gate access. Schools entity already exists (migration 085, shipped); this leverages it. Visibility predicate: `WHERE school_id IN (SELECT school_id FROM teachers WHERE id = current_teacher_id)` — every teacher at the same school sees + edits the same labs.
+2. **`machine_profiles.lab_id`** (new FK column, nullable initially for backfill safety; NOT NULL after migration completes).
+3. **`teachers.default_lab_id`** (new FK column, nullable) — per-teacher lab preference. Seeds the dropdown when the teacher creates a new class. **Different from** `classes.default_lab_id` which is the binding ground truth.
+4. **`classes.default_lab_id`** (new FK column) — per-class binding lab. Student upload flow reads this. Closes `FU-CLASS-MACHINE-LINK` P3. The G4 design teacher's class defaults to PYP lab; the G8 design teacher's class defaults to MYP lab — even though they're at the same school.
+5. **`/teacher/preflight/lab-setup`** — the new visual admin page. Replaces the Phase 1B-2 `/teacher/preflight/fabricators` list view (that URL redirects). All teachers at the school see the same labs page; edits propagate (Cynthia adds a lab, Matt sees it on next refresh).
+6. **Machine CRUD**: "+ Add machine" from template OR from scratch. Customise dimensions, kerf, operation colour map, `requires_teacher_approval` toggle.
+7. **Fabricator reassignment in the new UI** — move a fab to a different machine without opening a modal.
+8. **Backfill migration** — two-step: (a) for each school, create a "Default lab" row owned by `school_id`; (b) prompt each teacher on next login to pick their `teachers.default_lab_id` from the labs visible to their school, which then cascades to all their existing classes' `default_lab_id` (single UPDATE per teacher). Existing `machine_profiles` rows initially set `lab_id = <school's default lab>`; teachers can split into subsidiary labs (PYP, MYP, etc.) afterwards. Student picker keeps working throughout — legacy NULL fallback shows all school machines.
 
 ## 2. Design decision: drag-drop vs click-based v1
 
@@ -56,22 +57,33 @@ Why:
 
 ### 8-1 — Migration + backfill
 
-- Migration 111 (or whatever's next at phase-open): `fabrication_labs` table, `machine_profiles.lab_id` FK (nullable for migration safety), `classes.default_lab_id` FK.
-- Backfill script: for each teacher, create a "Default lab" row, set every owned `machine_profiles.lab_id` to it, set every owned `classes.default_lab_id` to it.
-- Defensive: idempotent — safe to re-run if Matt needs to ship a partial state.
-- Tests: migration tests + backfill tests + RLS audit on the new table.
+- Migration (timestamp-prefixed per CLAUDE.md): `fabrication_labs` table (school-owned, see §1.1), `machine_profiles.lab_id` FK (nullable initially), `classes.default_lab_id` FK, `teachers.default_lab_id` FK.
+- Backfill script (idempotent):
+  - **Pass 1:** for each `schools.id` that has at least one teacher with machines, create a single "Default lab" row owned by that `school_id`. (Schools with no machines get no lab — won't accidentally land in the picker.)
+  - **Pass 2:** for each `machine_profiles` row, set `lab_id` = the default lab of `(SELECT school_id FROM teachers WHERE id = machine_profiles.teacher_id)`. Rows where the owning teacher has `school_id IS NULL` are flagged for the migration error report (see Edge Case below).
+  - **Pass 3:** for each `teachers` row with non-null `school_id`, set `default_lab_id` to the school's default lab.
+  - **Pass 4:** for each `classes` row, set `default_lab_id` = teacher's default lab (cascades from Pass 3).
+- **Edge case — teachers without `school_id`:** existing accounts that joined before migration 085's welcome wizard or skipped it. Migration cannot guess their school. Three handled paths:
+  1. Force-prompt on next teacher login: blocking modal "Pick your school to continue" (preferred — clean UX).
+  2. Auto-create a stub "Personal" school per orphan teacher (ugly fallback if the prompt is too disruptive — discuss with Matt before shipping).
+  3. Block lab access until the teacher picks a school (similar to #1 but more punitive).
+  Migration report logs every orphan teacher so we can pick the right path before deploy.
+- RLS on `fabrication_labs`: SELECT/UPDATE/INSERT/DELETE all gated by `school_id IN (SELECT school_id FROM teachers WHERE id = auth.uid())`. Hint: use a SECURITY DEFINER function that joins `teachers` once, otherwise RLS recursion + perf concerns surface.
+- Tests: migration tests + backfill tests (including the orphan-teacher flag path) + RLS audit on the new table covering: same-school visibility (positive), cross-school invisibility (negative), orphan-teacher denial (negative).
 
-**Est:** ~0.5 day.
+**Est:** ~0.75 day (slightly higher than the original 0.5 due to the 4-pass backfill + orphan-teacher path).
 
 ### 8-2 — Lab CRUD + machine-to-lab reassignment API
 
-- `/api/teacher/labs` — POST (create), GET (list my labs), PATCH (rename/update), DELETE (soft-delete with reassign-or-block).
-- `/api/teacher/labs/[id]/machines` — PATCH to reassign a machine to a different lab.
-- Orchestration: `createLab`, `listMyLabs`, `updateLab`, `deleteLab`, `reassignMachineToLab`, all teacher-scoped.
-- Safety rails on delete: can't delete a lab with machines in it unless they're first reassigned. Clear 409 on attempted delete.
-- Tests: +~25 route + orchestration.
+- `/api/teacher/labs` — POST (create within my school), GET (list **my school's** labs), PATCH (rename/update), DELETE (soft-delete with reassign-or-block).
+- `/api/teacher/labs/[id]/machines` — PATCH to reassign a machine to a different lab in the same school.
+- Orchestration: `createLab`, `listSchoolLabs`, `updateLab`, `deleteLab`, `reassignMachineToLab`, all **school-scoped** (via `teachers.school_id` lookup, audit-stamped via `created_by_teacher_id`).
+- Cross-school protection: on every write, assert that the lab being modified has `school_id = current_teacher.school_id`. Foreign-school edits return 404 (don't leak existence).
+- Safety rails on delete: can't delete a lab with machines or with classes pointing at it as their default. Clear 409 with a "first reassign these N classes / M machines" message listing the blockers.
+- Concurrency: two teachers at the same school editing the same lab simultaneously — the brief uses last-write-wins for v1 (no `updated_at` optimistic locking). Conflict modal is a Phase 9 polish item (`PH8-FU-LAB-EDIT-CONCURRENCY`).
+- Tests: +~30 route + orchestration including same-school multi-teacher visibility tests.
 
-**Est:** ~0.5 day.
+**Est:** ~0.75 day (slightly higher than original 0.5 due to school-scoped predicates + cross-school assertion tests).
 
 ### 8-3 — Machine CRUD from the teacher side
 
@@ -101,47 +113,72 @@ Why:
 - Student `/api/student/fabrication/picker-data` — when the student picks a class, only return machines where `machine_profiles.lab_id = class.default_lab_id`. Current unfiltered behaviour becomes "if class has no default_lab_id, show all" (legacy fallback for any edge case).
 - Student upload page — no UI change needed (machines dropdown just shows the filtered set).
 - Checkpoint 8.1 report with smoke scenarios:
-  1. **Location CRUD** — create "2nd floor design lab" → add 2 Bambu X1Cs → rename → delete (with reassign prompt).
+  1. **Lab CRUD** — Matt creates "NIS Design Centre" → adds 2 Bambu X1Cs → renames → tries to delete (blocked by 409 because machines + classes still reference it) → reassigns blockers → delete succeeds.
   2. **Machine CRUD** — add a custom machine from scratch, edit dimensions, save.
   3. **Fabricator assignment** — assign a fab to a machine, click through, confirm the fab's `/fab/queue` now shows jobs for that machine.
-  4. **Student picker filter** — upload as student, verify only the class's lab's machines show.
-  5. **Migration safety** — verify existing NIS jobs still work end-to-end after the migration.
+  4. **Cross-teacher visibility (NEW — flipped from 24 Apr brief)** — Matt creates "NIS PYP Lab"; sign in as a second NIS teacher → confirm the PYP Lab is visible + editable. Sign in as a teacher at a DIFFERENT school → confirm NIS labs are NOT visible.
+  5. **Per-class default lab routing** — set Matt's G4 class `default_lab_id` to PYP Lab and his G8 class to MYP Lab. Upload as a G4 student — picker shows only PYP machines. Upload as a G8 student — picker shows only MYP machines.
+  6. **Teacher default seeding** — set `teachers.default_lab_id`. Create a NEW class — confirm the dropdown pre-selects the teacher default. Manually override per-class — confirm the class default wins.
+  7. **Orphan-teacher path** — sign in as a teacher with `school_id IS NULL` (or simulate via direct DB) → confirm the blocking modal "Pick your school" appears before lab access. Pick a school → confirm labs become visible.
+  8. **Migration safety** — verify existing NIS jobs (incl. those scanned during today's smoke) still work end-to-end after the migration.
 
 **Est:** ~0.5 day.
 
 ## 4. Success criteria (Checkpoint 8.1)
 
-- [ ] `fabrication_labs` migration applied to prod. Backfill verified: every existing machine has a lab, every class has a default lab.
-- [ ] Lab CRUD endpoints work with ownership scoping (teacher can't modify another teacher's labs).
+- [ ] Migration applied to prod. Backfill verified: every existing machine has a lab, every class has a `default_lab_id`, every teacher with non-null `school_id` has a `default_lab_id`. Orphan-teacher count from migration log = N (Matt confirms count).
+- [ ] Lab CRUD endpoints work with **school-scoped** visibility — every teacher at the same `school_id` sees + edits the same labs.
+- [ ] Cross-school protection: a teacher cannot read or modify another school's labs (verified via 404, no existence leak).
+- [ ] Orphan-teacher path: teachers with `school_id IS NULL` get the blocking school-pick modal on next lab-page access.
 - [ ] Machine CRUD from template + from scratch. Laser operation colour map editable + persists correctly.
 - [ ] Fabricator reassignment surface-level: click a chip → move to different machine → verify the fab's queue reflects the change.
-- [ ] `/teacher/preflight/lab-setup` renders all three axes (location → machine → fab) correctly for a teacher with real data.
+- [ ] `/teacher/preflight/lab-setup` renders all three axes (lab → machine → fab) correctly. Edits made by Teacher A are visible to Teacher B at the same school on next refresh.
 - [ ] Old `/teacher/preflight/fabricators` URL redirects to the new page (saves bookmarks).
-- [ ] Student picker correctly filters by `class.default_lab_id`. Legacy NULL fallback doesn't break anything.
-- [ ] Prod smoke: all 5 scenarios verified as Matt.
-- [ ] `npm test`: +60–80 new tests.
-- [ ] `docs/projects/WIRING.yaml` updated — new `fabrication-labs` system.
+- [ ] Per-class default lab routing: student picker filters machines by `class.default_lab_id`. Different classes at the same school can use different labs (G4→PYP, G8→MYP).
+- [ ] `teachers.default_lab_id` correctly seeds the new-class picker default; per-class override wins.
+- [ ] Prod smoke: all 8 scenarios verified as Matt + a second school account (or a parallel-test school created for the smoke).
+- [ ] `npm test`: +70–90 new tests (was 60-80; +10 for school-scoped multi-teacher visibility tests).
+- [ ] `docs/projects/WIRING.yaml` updated — new `fabrication-labs` system; `schools` system gains `affects: [fabrication-labs]`.
 - [ ] Checkpoint 8.1 report filed.
 
-## 5. Resolved decisions (signed off 24 Apr PM — "all recommended")
+## 5. Resolved decisions (revised 27 Apr PM — Q2 + Q3 flipped from 24 Apr "all recommended")
 
-All 6 open questions locked in per the original recommendations:
+All 6 open questions re-resolved after Matt's 27 Apr challenge to the cross-teacher visibility model:
 
-1. ✅ **Entity name: `fabrication_labs` in DB + "Labs" in UI.** Single vocabulary across DB + UI keeps the mental model clean. "2nd floor design lab" reads naturally; "Location" was a hedge for smaller schools but adds a vocabulary split with zero upside.
-2. ✅ **Default-lab strategy: auto-create "Default lab" per teacher on migration.** Zero-disruption rollout — every existing `machine_profiles` row gets `lab_id = <teacher's default lab>`; every existing `classes.default_lab_id` points at the same row. Students + fabricators see no change. Teachers can rename the auto-created lab or add more later.
-3. ✅ **Cross-teacher visibility: NO — scope by `teacher_id`.** Matches every other Preflight resource. Multi-teacher shared labs = Phase 9+ after access-model-v2 (FU-O/P/R) ships school-membership + dept-head roles.
-4. ✅ **Who creates labs: any teacher.** Dept-head role doesn't exist yet. Stricter governance is a later-add.
-5. ✅ **Student-side impact: class-dictated silent filter.** Student picker auto-filters machines by `class.default_lab_id`. No student-facing "pick a lab" UI. Advanced cross-lab submission = Phase 9+.
-6. ✅ **UI: click-based (Option B).** Ships ~30-50% faster, accessible out of box, real-world teachers don't reorg layout daily. Drag-drop filed as `PH8-FU-DRAG-DROP` P3 for post-pilot if teachers ask.
+1. ✅ **Entity name: `fabrication_labs` in DB + "Labs" in UI** (unchanged from 24 Apr). Single vocabulary across DB + UI keeps the mental model clean.
+2. ✅ **Default-lab strategy: per-teacher `teachers.default_lab_id` seeds per-class `classes.default_lab_id`; class default is the binding ground truth** (REVISED from 24 Apr "auto-create Default lab per teacher"). Reason: a single school has multiple defaults driven by what's being taught — a G4 design teacher's default = PYP lab, a G8 design teacher's default = MYP lab. Same school, different defaults. The teacher-level default seeds the dropdown when creating a new class; per-class can override. Migration backfill: prompt each teacher once → cascade to all their existing classes (`UPDATE classes SET default_lab_id = $teacher_default WHERE teacher_id = $self`).
+3. ✅ **Cross-teacher visibility: YES — school-scoped via `teachers.school_id`** (REVISED from 24 Apr "NO — scope by teacher_id"). Reason: labs are physical spaces that schools own, not individual teachers. Any teacher at the same school sees + edits the same labs/machines without setup. The 24 Apr "wait for FU-O" deferral was overcautious — `schools` already exists (migration 085) and `teachers.school_id` is the existing membership join. FU-O is about role *stratification* (co-teacher / dept-head / admin), not basic membership. Flat membership-by-school works today.
+4. ✅ **Who creates/edits labs: any teacher at the school** (unchanged from 24 Apr but reaffirmed under the revised Q3). Aligns with `access-model-v2.md` flat-membership model. Stricter governance (dept head, admin gates) is a future FU-O concern.
+5. ✅ **Student-side impact: class-dictated silent filter** (unchanged). Student picker auto-filters machines by `class.default_lab_id`. No student-facing "pick a lab" UI. Cross-lab submission = Phase 9+.
+6. ✅ **UI: click-based (Option B)** (unchanged). Ships ~30-50% faster, accessible out of box. Drag-drop filed as `PH8-FU-DRAG-DROP` P3 for post-pilot.
+
+## 5b. Why the revision happened (27 Apr context)
+
+The 24 Apr brief wrapped Q3 + Q2 with overcautious teacher-scoped answers because (a) the brief author wasn't confident `schools` infrastructure was ready and (b) FU-O role stratification was assumed to be a prerequisite for any cross-teacher sharing. Matt challenged both during smoke close-out:
+
+> "labs are not usually owned by a single teacher. they are in spaces that are perhaps teachers classrooms, but not owned by teachers. they should exist as school owned places. labs in studioloom are owned by the school right? and so any teacher in my school should automatically see those labs (and the machines in them) when they first log in without having to set anything up right?"
+
+Investigation confirmed:
+- `schools` table exists since migration 085 (April 2026), with proper FK + RLS scaffolding.
+- `teachers.school_id` already populated for teachers who completed the welcome wizard.
+- FU-O is orthogonal — it's about role stratification *within* a school, not about basic school membership.
+- `access-model-v2.md` proposes "flat membership and no designated admin" as the school governance model anyway, so school-scoped flat sharing in Phase 8 is forward-compatible.
+
+Q2 was also re-thought: the 24 Apr "Default lab per teacher" auto-create is wrong on the new model (because labs are per-school, not per-teacher). Matt's per-class default insight (G4→PYP, G8→MYP within the same school) drove the new shape: teacher-default seeds class-default at migration; class-default is binding.
+
+**Risk this introduces:** orphan teachers with `school_id IS NULL`. Handled by the §3 8-1 migration plan with a blocking school-pick prompt on next login. Migration script logs orphan count so we know how many before deploy.
 
 ---
 
-## 6. Pre-conditions (all ✅ as of 24 Apr PM — 8-1 unblocked)
+## 6. Pre-conditions (all ✅ as of 27 Apr PM — 8-1 unblocked)
 
 - [x] Phase 7 Checkpoint 7.1 PASSED + report marked ✅ (12/12 PASS, signed off 24 Apr PM)
 - [x] Phase 7 merged to main (`7fefd6e` pre-smoke + `d5eb596` hotfix + `2e576fc` saveme)
-- [x] Matt has resolved the 6 open questions above (signed off "all recommended" 24 Apr PM)
+- [x] Phase 8.1d (Fab Dashboard Polish) sub-phases 8.1d-1..35 SHIPPED + smoke 16/16 PASSED (27 Apr) — eliminates the "fab dashboard is fragile" risk that was sitting on the original brief.
+- [x] Matt has re-resolved the 6 open questions (revised 27 Apr — Q2 + Q3 flipped, see §5 + §5b)
+- [x] `schools` table verified present (migration 085, applied) — Phase 8's school-scoped model has its data foundation.
 - [x] No outstanding Phase 7 production bugs (4 open follow-ups all P2/P3, Phase 9 scope — not blocking)
+- [ ] **Pre-flight to-do**: query prod for `SELECT COUNT(*) FROM teachers WHERE school_id IS NULL` to size the orphan-teacher migration cohort. Drives whether the blocking school-pick modal is the right call or whether a softer migration UX is needed. Run before opening 8-1.
 
 ## 7. Known deviations from original spec
 
@@ -154,3 +191,5 @@ The **"Rule overrides UI"** from the original §13 Phase 8 is explicitly DEFERRE
 ---
 
 **Status 24 Apr PM:** ✅ READY. All pre-conditions met. Phase 8-1 (migration + backfill) opens next — see dedicated brief: `preflight-phase-8-1-brief.md` (draft pending).
+
+**Status 27 Apr PM (revision):** ✅ READY (revised). Q2 + Q3 re-resolved to school-scoped lab ownership using existing migration 085 `schools` infrastructure. Open pre-flight task: query prod for orphan-teacher count before opening 8-1. Estimated duration unchanged at ~2-3 days; sub-phase 8-1 + 8-2 each ticked up by ~0.25 day for school-scoping migration + RLS work, recovered by simpler 8-4 visibility model (one labs-list shared across all same-school teachers, no per-teacher filter).
