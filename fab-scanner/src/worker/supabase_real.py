@@ -116,11 +116,41 @@ class SupabaseServiceClient(SupabaseClient):
     def load_surrogate_machine_profile(
         self, lab_id: str, machine_category: str
     ) -> dict[str, Any] | None:
-        """Phase 8.1d-24: surrogate lookup for category-only jobs.
+        """Phase 8.1d-24 + 8.1d-33: surrogate lookup for category-only
+        jobs (machine_profile_id IS NULL — student picked "Any cutter"
+        / "Any printer in [lab]").
 
-        Picks the first active machine in (lab_id, machine_category)
-        ordered by name. Returns None if no active machines exist —
-        caller hard-fails the scan in that case.
+        Picks the LARGEST-bed active machine in (lab_id, category),
+        with name as deterministic tiebreak. Returns None if no
+        active machines exist — caller hard-fails the scan.
+
+        Why largest, not alphabetical (the original 8.1d-24 design):
+          The right semantics for "Any cutter" is "scan passes if the
+          file fits AT LEAST ONE machine in the lab." For the
+          bed-fit rules (R-SVG-01, R-STL-06) that's exactly what
+          "evaluate against the largest" gives you — if it fits the
+          biggest bed, it definitionally has at least one home; if
+          it doesn't fit even the biggest, no machine in the lab
+          can run it and the BLOCK is correct.
+
+          Caught by Matt's smoke 27 Apr: an SVG was BLOCKed against
+          his "xTool F1 Ultra" (220×220mm) even though his "xTool
+          P3" (600×308mm) had plenty of room — alphabetical-first
+          picked F1 → false-positive BLOCK → bad student UX.
+
+        Other rules (kerf, operation_color_map, min_feature,
+        supported_materials) all consume the same surrogate. In
+        practice these are homogeneous within a school's fleet
+        (same brand, same operating standard) so picking by bed
+        area doesn't materially change their behaviour. The proper
+        fix — evaluating each rule against every machine and
+        BLOCKing only when ALL fail — is filed as
+        PH9-FU-FAB-SURROGATE-MULTIPLE-EVAL.
+
+        Bed area = bed_size_x_mm × bed_size_y_mm. PostgREST's
+        .order() doesn't accept multiplication expressions so we
+        fetch the candidate set and rank in Python. Lab fleets are
+        small (~2–10 machines typical); the over-fetch is trivial.
         """
         result = (
             self._client.table("machine_profiles")
@@ -128,12 +158,22 @@ class SupabaseServiceClient(SupabaseClient):
             .eq("lab_id", lab_id)
             .eq("machine_category", machine_category)
             .eq("is_active", True)
-            .order("name", desc=False)
-            .limit(1)
             .execute()
         )
         rows = result.data or []
-        return rows[0] if rows else None
+        if not rows:
+            return None
+        # Sort by descending bed area, ascending name (stable
+        # tiebreak so re-runs hit the same surrogate when two beds
+        # are identical area).
+        rows.sort(
+            key=lambda r: (
+                -(float(r.get("bed_size_x_mm") or 0)
+                  * float(r.get("bed_size_y_mm") or 0)),
+                str(r.get("name") or ""),
+            )
+        )
+        return rows[0]
 
     def write_scan_results(
         self,

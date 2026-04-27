@@ -97,19 +97,29 @@ class MockSupabase:
     def load_surrogate_machine_profile(
         self, lab_id: str, machine_category: str
     ) -> dict[str, Any] | None:
-        """Phase 8.1d-24: pick the first machine in the seeded set
-        whose lab_id + machine_category match. Tests that exercise
-        the surrogate path seed a profile with explicit lab_id +
-        machine_category fields. Returns None if nothing matches —
-        scan_runner treats that as a hard fail."""
-        for profile in self.machine_profiles.values():
-            if (
-                profile.get("lab_id") == lab_id
-                and profile.get("machine_category") == machine_category
-                and profile.get("is_active", True)
-            ):
-                return profile
-        return None
+        """Phase 8.1d-24 + 8.1d-33: pick the LARGEST-bed seeded
+        machine matching (lab_id, machine_category, is_active).
+        Mirrors the prod selector in supabase_real.py — tests that
+        seed multiple machines in the same lab+category will
+        receive the one with the biggest bed area, with name
+        tiebreak."""
+        candidates = [
+            p
+            for p in self.machine_profiles.values()
+            if p.get("lab_id") == lab_id
+            and p.get("machine_category") == machine_category
+            and p.get("is_active", True)
+        ]
+        if not candidates:
+            return None
+        candidates.sort(
+            key=lambda r: (
+                -(float(r.get("bed_size_x_mm") or 0)
+                  * float(r.get("bed_size_y_mm") or 0)),
+                str(r.get("name") or ""),
+            )
+        )
+        return candidates[0]
 
     def write_scan_results(
         self,
