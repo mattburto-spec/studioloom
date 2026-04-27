@@ -9367,28 +9367,43 @@ tables:
   readers: ["fabricator queue UI scoping (Phase 1B)", "preflight pipeline routing (Phase 2)"]
 
 - name: skill_cards
-  source_migration: 105_skills_library_schema.sql + 109_skills_library_authoring.sql
+  source_migration: 105_skills_library_schema.sql + 109_skills_library_authoring.sql + 110_skills_library_world_class_schema.sql
   status: applied
-  applied_date: 2026-04-23
-  purpose: "Skills Library canonical content entity. Each row is one skill card with a structured-block body, category, difficulty, tags via join, prerequisite graph via join. The moat — authored once, referenced from library/lessons/Stones/Open Studio/crit board."
+  applied_date: 2026-04-24
+  purpose: "Skills Library canonical content entity. The moat — authored once, referenced from library / lesson activity blocks / Open Studio capability-gaps / class gallery / safety badges. Migration 110 upgraded the schema to host the v1 catalogue of 60 cards: renamed difficulty → tier (Bronze/Silver/Gold DofE vocabulary), added domain FK + age bands + framework anchors + demo_of_competency + learning_outcomes + applied_in + card_type + author_name."
   columns:
     id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
     slug: TEXT UNIQUE NOT NULL
     title: TEXT NOT NULL
     summary: TEXT
-    category_id: TEXT REFERENCES skill_categories(id) ON DELETE RESTRICT
-    difficulty: TEXT CHECK (difficulty IN ('foundational','intermediate','advanced'))
+    category_id: TEXT REFERENCES skill_categories(id) ON DELETE RESTRICT   # cognitive action (8 verbs)
+    domain_id: TEXT REFERENCES skill_domains(id)    ON DELETE RESTRICT    # subject area (10 domains) — migration 110
+    tier: TEXT CHECK (tier IN ('bronze','silver','gold'))                 # migration 110 (renamed from difficulty)
+    age_min: INT                                                          # migration 110
+    age_max: INT                                                          # migration 110
+    framework_anchors: JSONB NOT NULL DEFAULT '[]'::jsonb                 # migration 110 — ATL/CASEL/WEF/StudioHabits
+    demo_of_competency: TEXT                                              # migration 110 — controlled-verb single sentence
+    learning_outcomes: JSONB NOT NULL DEFAULT '[]'::jsonb                 # migration 110 — "Student can..." bullets
+    applied_in: JSONB NOT NULL DEFAULT '[]'::jsonb                        # migration 110 — pull-moment contexts
+    card_type: TEXT NOT NULL DEFAULT 'lesson' CHECK (card_type IN ('lesson','routine'))  # migration 110
+    author_name: TEXT                                                     # migration 110 — pamphlet-author byline
     body: JSONB NOT NULL DEFAULT '[]'::jsonb
     estimated_min: INT
     is_built_in: BOOLEAN NOT NULL DEFAULT false
     created_by_teacher_id: UUID REFERENCES auth.users(id) ON DELETE SET NULL
     is_published: BOOLEAN NOT NULL DEFAULT false
-    forked_from: UUID REFERENCES skill_cards(id) ON DELETE SET NULL  # S2A added; S2B writes on Fork
+    forked_from: UUID REFERENCES skill_cards(id) ON DELETE SET NULL       # S2A added; S2B writes on Fork
     schema_version: INT NOT NULL DEFAULT 1
     created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
     updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  check_constraints:
+    - skill_cards_age_band_sane: CHECK (age_min IS NULL OR age_max IS NULL OR age_min <= age_max)
   indexes:
     - skill_cards_category_idx ON (category_id)
+    - skill_cards_domain_idx ON (domain_id)                # migration 110
+    - skill_cards_tier_idx ON (tier)                       # migration 110
+    - skill_cards_card_type_idx ON (card_type)             # migration 110
+    - skill_cards_age_band_idx ON (age_min, age_max)       # migration 110
     - skill_cards_published_idx ON (is_published) WHERE is_published = true
     - skill_cards_slug_idx ON (slug)
     - skill_cards_author_idx ON (created_by_teacher_id) WHERE created_by_teacher_id IS NOT NULL
@@ -9397,16 +9412,16 @@ tables:
     - skill_cards_updated_at (BEFORE UPDATE, bumps updated_at)
   rls:
     read: "authenticated students/teachers can read is_published = true rows, plus their own drafts (created_by_teacher_id = auth.uid())"
-    write: "S2A — teachers INSERT/UPDATE/DELETE their own non-built-in cards (created_by_teacher_id = auth.uid() AND is_built_in = false). Built-ins service-role only."
-  writers: ["teacher API POST /api/teacher/skills/cards (S2A)", "teacher API PATCH /api/teacher/skills/cards/[id] (S2A)", "teacher API DELETE /api/teacher/skills/cards/[id] (S2A)", "teacher API POST /api/teacher/skills/cards/[id]/publish (S2A)"]
-  readers: ["teacher API GET /api/teacher/skills/cards (S2A)", "teacher API GET /api/teacher/skills/cards/[id] (S2A)", "student API GET /api/student/skills/cards/[slug] (S2A)", "/skills page (Phase S5)", "lesson activity block embeds (Phase S5)", "Open Studio capability-gap surfacing (future)"]
-  notes: "Phase S1 schema — 5 tables + learning_events + student_skill_state view. S2A adds forked_from column + teacher-write RLS. See docs/projects/skills-library.md."
+    write: "Teachers INSERT/UPDATE/DELETE their own non-built-in cards (created_by_teacher_id = auth.uid() AND is_built_in = false). Built-ins service-role only."
+  writers: ["teacher API POST /api/teacher/skills/cards", "teacher API PATCH /api/teacher/skills/cards/[id]", "teacher API DELETE /api/teacher/skills/cards/[id]", "teacher API POST /api/teacher/skills/cards/[id]/publish"]
+  readers: ["teacher API GET /api/teacher/skills/cards", "teacher API GET /api/teacher/skills/cards/[id]", "student API GET /api/student/skills/cards/[slug]", "/skills page (Phase S5)", "lesson activity block embeds (Phase S5)", "Open Studio capability-gap surfacing (future)"]
+  notes: "Catalogue-v1 schema (migration 110). See docs/projects/skills-library-catalogue-v1.md for the 60-card structure + docs/projects/skills-library-research-brief.md for the design principles this schema encodes."
 
 - name: skill_categories
   source_migration: 105_skills_library_schema.sql
   status: applied
   applied_date: 2026-04-23
-  purpose: "Skills Library 8-item lookup — neutral criterion taxonomy. Seeded by migration: researching/analysing/designing/creating/evaluating/reflecting/communicating/planning."
+  purpose: "Skills Library 8-item COGNITIVE-ACTION lookup — neutral criterion taxonomy. Seeded: researching / analysing / designing / creating / evaluating / reflecting / communicating / planning. Orthogonal to skill_domains (subject areas) — every card has both."
   columns:
     id: TEXT PRIMARY KEY
     label: TEXT NOT NULL
@@ -9418,6 +9433,24 @@ tables:
     write: "service role only"
   writers: ["migration 105 (seed)"]
   readers: ["skill_cards FK", "category filter UIs"]
+
+- name: skill_domains
+  source_migration: 110_skills_library_world_class_schema.sql
+  status: applied
+  applied_date: 2026-04-24
+  purpose: "Skills Library 10-item SUBJECT-AREA lookup from catalogue v1. Seeded: design-making (DM), visual-communication (VC), communication-presenting (CP), collaboration-teamwork (CT), leadership-influence (LI), project-management (PM), finance-enterprise (FE), research-inquiry (RI), digital-literacy (DL), self-management-resilience (SM). Short codes are used as the catalogue's card ID prefix (DM-B1 etc)."
+  columns:
+    id: TEXT PRIMARY KEY                    # 'design-making'
+    short_code: TEXT NOT NULL UNIQUE        # 'DM' — used in card IDs (DM-B1 etc.)
+    label: TEXT NOT NULL                    # 'Design & Making'
+    description: TEXT NOT NULL
+    display_order: INT NOT NULL
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  rls:
+    read: "all authenticated users"
+    write: "service role only"
+  writers: ["migration 110 (seed)"]
+  readers: ["skill_cards FK", "domain filter UIs", "catalogue generator scripts"]
 
 - name: skill_card_tags
   source_migration: 105_skills_library_schema.sql

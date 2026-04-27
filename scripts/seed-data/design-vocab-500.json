@@ -1,0 +1,143 @@
+{
+  "_meta": {
+    "phase": "language-scaffolding-redesign Phase 1C",
+    "purpose": "Top design-vocabulary words to pre-warm the word_definitions cache so first-time students hit cache rather than burning a Haiku call per word.",
+    "categories": [
+      "design_process_verbs",
+      "design_nouns",
+      "materials",
+      "tools_equipment",
+      "sustainability_ethics",
+      "criterion_assessment",
+      "cognitive_verbs",
+      "workshop_safety",
+      "cad_3d_printing",
+      "general_academic"
+    ],
+    "expansion_path": "Add words to the relevant category array; the seed script de-dupes case-insensitive and skips already-cached entries."
+  },
+  "design_process_verbs": [
+    "analyse", "analyze", "brainstorm", "communicate", "compare", "conceive",
+    "construct", "create", "critique", "decide", "define", "design", "develop",
+    "diagram", "discover", "document", "draft", "draw", "engineer", "evaluate",
+    "explain", "explore", "fabricate", "generate", "identify", "ideate",
+    "improve", "innovate", "inquire", "inspect", "investigate", "iterate",
+    "judge", "justify", "label", "list", "make", "manage", "measure", "model",
+    "modify", "observe", "organise", "organize", "outline", "plan", "predict",
+    "present", "produce", "prototype", "question", "reflect", "refine",
+    "report", "research", "review", "revise", "sketch", "solve", "specify",
+    "summarise", "summarize", "synthesise", "synthesize", "test", "trial",
+    "verify"
+  ],
+  "design_nouns": [
+    "affordance", "aesthetic", "alternative", "anthropometrics", "approach", "audience", "biomechanics", "brief", "ergonomics",
+    "client", "concept", "conclusion", "constraint", "context", "criterion",
+    "criteria", "decision", "design", "dimension", "diagram", "drawing",
+    "evaluation", "evidence", "experiment", "form", "function", "goal",
+    "hypothesis", "idea", "implication", "inquiry", "innovation", "iteration",
+    "method", "milestone", "mockup", "need", "outcome", "pattern",
+    "perspective", "phase", "philosophy", "plan", "portfolio", "principle",
+    "problem", "process", "product", "project", "proposal", "prototype",
+    "purpose", "rationale", "rendering", "research", "result", "schedule",
+    "sketch", "solution", "specification", "stakeholder", "strategy",
+    "structure", "system", "task", "team", "technique", "trial", "user",
+    "version", "viability", "workflow"
+  ],
+  "materials": [
+    "acrylic", "aluminium", "aluminum", "balsa", "bamboo", "biodegradable",
+    "biopolymer", "brass", "cardboard", "cement", "ceramic", "clay",
+    "composite", "concrete", "copper", "cork", "cotton", "denier", "fabric",
+    "felt", "fibre", "fiber", "filament", "foam", "glass", "graphite", "iron",
+    "leather", "linen", "metal", "MDF", "nylon", "paper", "plastic", "plywood",
+    "polymer", "polyester", "polypropylene", "polystyrene", "porcelain",
+    "PVC", "resin", "rubber", "silicon", "silicone", "silk", "stainless",
+    "steel", "stone", "synthetic", "thermoplastic", "thermoset", "thread",
+    "timber", "titanium", "vinyl", "wax", "wood", "wool", "yarn", "zinc"
+  ],
+  "tools_equipment": [
+    "anvil", "awl", "bandsaw", "bit", "bracket", "callipers", "calipers",
+    "chisel", "clamp", "compass", "cutter", "drill", "driver", "fastener",
+    "file", "fixture", "gauge", "grinder", "hacksaw", "hammer", "jig",
+    "knife", "laminator", "lathe", "level", "loom", "machine", "mallet",
+    "mandrel", "mill", "pliers", "press", "protractor", "punch", "ratchet",
+    "rivet", "router", "ruler", "sandblaster", "sandpaper", "saw", "scissors",
+    "screwdriver", "shears", "snips", "soldering", "spindle", "spokeshave",
+    "stapler", "stencil", "tape", "template", "thimble", "tongs", "tweezers",
+    "vice", "vise", "welder", "workbench", "wrench"
+  ],
+  "sustainability_ethics": [
+    "biodiversity", "carbon", "circular", "compost", "consumption",
+    "degradable", "depletion", "disposal", "durable", "ecology", "ecosystem",
+    "emission", "energy", "environment", "equity", "ethics", "fairtrade",
+    "footprint", "greenhouse", "habitat", "impact", "lifecycle", "longevity",
+    "minimal", "natural", "organic", "pollution", "preservation", "reclaim",
+    "recyclable", "recycle", "renewable", "repurpose", "reduce", "responsible",
+    "reusable", "stewardship", "sustainability", "sustainable", "upcycle",
+    "waste"
+  ],
+  "criterion_assessment": [
+    "achievement", "adequate", "annotation", "appropriate", "argument",
+    "authentic", "benchmark", "characteristic", "clarity", "coherent",
+    "competence", "comprehensive", "consistent", "criterion", "demonstrate",
+    "descriptor", "detailed", "effective", "effectiveness", "efficient",
+    "evaluate", "exemplify", "exemplar", "feedback", "framework", "genuine",
+    "holistic", "indicator", "insight", "judgement", "judgment", "limited",
+    "mastery", "mediocre", "objective", "outstanding", "performance",
+    "proficient", "quality", "rigour", "rigor", "rubric", "standard",
+    "subjective", "successful", "thorough", "unsatisfactory", "validity"
+  ],
+  "cognitive_verbs": [
+    "abstract", "adapt", "apply", "arrange", "assemble", "categorise",
+    "categorize", "choose", "classify", "combine", "comprehend", "connect",
+    "consider", "contrast", "decide", "deconstruct", "define", "describe",
+    "differentiate", "discuss", "distinguish", "estimate", "examine",
+    "explain", "extend", "formulate", "infer", "integrate", "interpret",
+    "memorise", "memorize", "rank", "rearrange", "recall", "recognise",
+    "recognize", "reconstruct", "relate", "repeat", "select", "sequence",
+    "structure", "transform", "translate", "understand", "use"
+  ],
+  "workshop_safety": [
+    "apron", "attentive", "awareness", "blade", "boot", "burn", "caution",
+    "clean", "compliance", "danger", "dust", "earplug", "emergency",
+    "etiquette", "eyewash", "extinguisher", "first-aid", "flammable", "glove",
+    "goggles", "guard", "hazard", "hazardous", "helmet", "hygiene",
+    "incident", "injury", "inspection", "instruction", "irritant", "label",
+    "lanyard", "machine", "mask", "operator", "PPE", "precaution",
+    "procedure", "protective", "respirator", "responsibility", "risk", "rule",
+    "safety", "secure", "shield", "spill", "supervise", "ventilation",
+    "warning"
+  ],
+  "cad_3d_printing": [
+    "axis", "bevel", "boolean", "boundary", "chamfer", "constraint", "curve",
+    "datum", "dimension", "dimetric", "draft", "edge", "extrude", "face",
+    "fillet", "filament", "geometry", "groove", "hole", "infill", "isometric",
+    "layer", "loft", "manifold", "mesh", "model", "node", "nozzle", "object",
+    "offset", "orthographic", "overhang", "parametric", "patch", "perspective",
+    "plane", "polygon", "polyline", "primitive", "prism", "profile",
+    "projection", "raster", "render", "resolution", "revolve", "scaffold",
+    "section", "shell", "skeleton", "slice", "solid", "sphere", "spline",
+    "surface", "sweep", "symmetry", "tessellate", "tolerance", "topology",
+    "vector", "vertex", "view", "viewport", "vise", "volume", "wireframe",
+    "workplane"
+  ],
+  "general_academic": [
+    "abstract", "accuracy", "ambiguous", "annotate", "approximate", "assert",
+    "assumption", "attribute", "axis", "balance", "bias", "category",
+    "challenge", "claim", "coherence", "complex", "complexity", "concise",
+    "conclude", "consequence", "context", "convention", "data", "definition",
+    "diagram", "discourse", "domain", "draft", "element", "emphasise",
+    "emphasize", "enable", "ensure", "equivalent", "essential", "evidence",
+    "example", "factor", "feature", "format", "fundamental", "generation",
+    "generic", "guideline", "hierarchy", "hypothetical", "implication",
+    "imply", "indicate", "individual", "interaction", "interpretation",
+    "issue", "literature", "logic", "logical", "magnitude", "maintain",
+    "method", "methodology", "minimal", "modify", "necessary", "negative",
+    "norm", "objective", "occurrence", "outcome", "overall", "parallel",
+    "parameter", "participate", "perceive", "phenomenon", "policy",
+    "positive", "precise", "predict", "principle", "procedure", "proportion",
+    "publication", "qualitative", "quantitative", "range", "relevance",
+    "relevant", "response", "scope", "section", "sequence", "significant",
+    "similar", "source", "specific", "subjective", "substantial", "support",
+    "synthesis", "theme", "theory", "topic", "valid", "variable", "variation"
+  ]
+}

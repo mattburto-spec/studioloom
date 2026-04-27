@@ -16,18 +16,25 @@ import { useRef, useState, useEffect, useCallback } from "react";
 import { isSafeEmbedUrl } from "@/types/skills";
 import type {
   AccordionBlock,
+  BeforeAfterBlock,
   Block,
   CalloutBlock,
   ChecklistBlock,
   CodeBlockBlock,
   CompareImagesBlock,
+  ComprehensionCheckBlock,
   EmbedBlock,
   GalleryBlock,
   ImageBlock,
+  KeyConceptBlock,
+  MicroStoryBlock,
   ProseBlock,
+  ScenarioBlock,
   SideBySideBlock,
+  StepByStepBlock,
   ThinkAloudBlock,
   VideoBlock,
+  VideoEmbedBlock,
   WorkedExampleBlock,
 } from "@/types/skills";
 
@@ -550,6 +557,490 @@ function SideBySide({ block }: { block: SideBySideBlock }) {
   );
 }
 
+// ============================================================================
+// ============================================================================
+// RICH BLOCKS — the primary authoring vocabulary
+// ============================================================================
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// KeyConcept — rich teaching card: markdown + icon + tips + examples + warning
+// ----------------------------------------------------------------------------
+function renderParagraphs(text: string): React.ReactNode {
+  return text.split(/\n\n+/).map((p, i) => (
+    <p key={i}>
+      {p.split("\n").map((line, j, arr) => (
+        <React.Fragment key={j}>
+          {renderInline(line)}
+          {j < arr.length - 1 && <br />}
+        </React.Fragment>
+      ))}
+    </p>
+  ));
+}
+
+function KeyConcept({ block }: { block: KeyConceptBlock }) {
+  return (
+    <section className="sl-skill-block sl-skill-kc">
+      <div className="sl-skill-kc__head">
+        {block.icon && (
+          <span className="sl-skill-kc__icon" aria-hidden>
+            {block.icon}
+          </span>
+        )}
+        <h3 className="sl-skill-kc__title">{block.title}</h3>
+      </div>
+      {block.image && (
+        <figure className="sl-skill-kc__image">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={block.image} alt={block.title} loading="lazy" />
+        </figure>
+      )}
+      {block.content && (
+        <div className="sl-skill-kc__content sl-skill-prose">
+          {renderParagraphs(block.content)}
+        </div>
+      )}
+      {block.tips && block.tips.length > 0 && (
+        <div className="sl-skill-kc__tips">
+          <div className="sl-skill-kc__sublabel">Tips</div>
+          <ul>
+            {block.tips.map((t, i) => (
+              <li key={i}>{renderInline(t)}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {block.examples && block.examples.length > 0 && (
+        <div className="sl-skill-kc__examples">
+          <div className="sl-skill-kc__sublabel">Examples</div>
+          <ul>
+            {block.examples.map((e, i) => (
+              <li key={i}>{renderInline(e)}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {block.warning && (
+        <aside className="sl-skill-kc__warning" role="note">
+          <span className="sl-skill-kc__warning-icon" aria-hidden>⚠️</span>
+          <div>{renderInline(block.warning)}</div>
+        </aside>
+      )}
+    </section>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// MicroStory — narrative + analysis reveals + key_lesson + optional rule ref
+// ----------------------------------------------------------------------------
+function MicroStory({ block }: { block: MicroStoryBlock }) {
+  const [revealed, setRevealed] = useState<Set<number>>(new Set());
+  const toggle = (i: number) =>
+    setRevealed((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+  return (
+    <section className="sl-skill-block sl-skill-story">
+      <header className="sl-skill-story__head">
+        {block.is_real_incident && (
+          <span className="sl-skill-story__badge">Real incident</span>
+        )}
+        <h3 className="sl-skill-story__title">{block.title}</h3>
+      </header>
+      <div className="sl-skill-story__narrative sl-skill-prose">
+        {renderParagraphs(block.narrative)}
+      </div>
+      {block.analysis_prompts.length > 0 && (
+        <div className="sl-skill-story__analysis">
+          <div className="sl-skill-kc__sublabel">Think it through</div>
+          <ul>
+            {block.analysis_prompts.map((p, i) => (
+              <li key={i} className="sl-skill-story__prompt">
+                <div className="sl-skill-story__q">{renderInline(p.question)}</div>
+                {revealed.has(i) ? (
+                  <div className="sl-skill-story__a">
+                    {renderInline(p.reveal_answer)}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="sl-skill-story__reveal"
+                    onClick={() => toggle(i)}
+                  >
+                    Reveal answer
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {block.key_lesson && (
+        <aside className="sl-skill-story__lesson">
+          <span className="sl-skill-kc__sublabel">Key lesson</span>
+          <div>{renderInline(block.key_lesson)}</div>
+        </aside>
+      )}
+      {block.related_rule && (
+        <div className="sl-skill-story__rule">
+          Related: {renderInline(block.related_rule)}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// Scenario — branching decision. Student picks a branch, gets feedback +
+// optional consequence. Supports chaining via next_branch_id. Render walks
+// the chain as student makes picks; a simple state machine in useState.
+// ----------------------------------------------------------------------------
+function Scenario({ block }: { block: ScenarioBlock }) {
+  const [history, setHistory] = useState<
+    Array<{ branchId: string; choice: ScenarioBlock["branches"][number] }>
+  >([]);
+  const branchById = (id: string) => block.branches.find((b) => b.id === id);
+
+  // Which branches are currently "choice-able"? The root is any branch
+  // that isn't the next_branch_id of an earlier one; for simplicity we
+  // treat ALL branches as choices for the first step.
+  const firstStepRoot = history.length === 0 ? block.branches : null;
+
+  // For subsequent steps we follow next_branch_id chains — but safety's
+  // scenarios mostly use single-step branches (pick once, done), so this
+  // is a minimal implementation.
+  function pick(branch: ScenarioBlock["branches"][number]) {
+    setHistory((prev) => [
+      ...prev,
+      { branchId: branch.id, choice: branch },
+    ]);
+  }
+  function reset() {
+    setHistory([]);
+  }
+
+  const lastChoice = history.length > 0 ? history[history.length - 1]?.choice : null;
+  const nextBranches =
+    lastChoice?.next_branch_id && branchById(lastChoice.next_branch_id)
+      ? [branchById(lastChoice.next_branch_id)!]
+      : null;
+
+  return (
+    <section className="sl-skill-block sl-skill-scenario">
+      <header className="sl-skill-scenario__head">
+        <h3 className="sl-skill-scenario__title">{block.title}</h3>
+      </header>
+      {block.illustration && (
+        <figure className="sl-skill-scenario__image">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={block.illustration} alt="" loading="lazy" />
+        </figure>
+      )}
+      <div className="sl-skill-scenario__setup sl-skill-prose">
+        {renderParagraphs(block.setup)}
+      </div>
+
+      {history.map((h, i) => (
+        <div key={i} className="sl-skill-scenario__step">
+          <div className="sl-skill-scenario__chosen">
+            You chose: <strong>{h.choice.choice_text}</strong>
+          </div>
+          <div
+            className={`sl-skill-scenario__feedback sl-skill-scenario__feedback--${
+              h.choice.is_correct ? "correct" : "incorrect"
+            }`}
+          >
+            {renderInline(h.choice.feedback)}
+          </div>
+          {h.choice.consequence && (
+            <div className="sl-skill-scenario__consequence">
+              <span className="sl-skill-kc__sublabel">Consequence</span>
+              <div>{renderInline(h.choice.consequence)}</div>
+            </div>
+          )}
+        </div>
+      ))}
+
+      {(firstStepRoot || nextBranches) && (
+        <div className="sl-skill-scenario__choices">
+          {(firstStepRoot ?? nextBranches ?? []).map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              className="sl-skill-scenario__choice"
+              onClick={() => pick(b)}
+            >
+              {b.choice_text}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {history.length > 0 && (!nextBranches || nextBranches.length === 0) && (
+        <div className="sl-skill-scenario__reset">
+          <button
+            type="button"
+            className="sl-skill-scenario__reset-btn"
+            onClick={reset}
+          >
+            Try again
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// BeforeAfter — structured comparison with hazards + principles + key_difference
+// ----------------------------------------------------------------------------
+function BeforeAfter({ block }: { block: BeforeAfterBlock }) {
+  return (
+    <section className="sl-skill-block sl-skill-ba">
+      <header className="sl-skill-ba__head">
+        <h3 className="sl-skill-ba__title">{block.title}</h3>
+      </header>
+      <div className="sl-skill-ba__pair">
+        <div className="sl-skill-ba__col sl-skill-ba__col--before">
+          <div className="sl-skill-ba__label">Before</div>
+          {block.before.image && (
+            <figure>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={block.before.image} alt="Before" loading="lazy" />
+            </figure>
+          )}
+          <p className="sl-skill-ba__caption">{renderInline(block.before.caption)}</p>
+          {block.before.hazards.length > 0 && (
+            <>
+              <div className="sl-skill-kc__sublabel">Hazards</div>
+              <ul className="sl-skill-ba__list sl-skill-ba__list--hazards">
+                {block.before.hazards.map((h, i) => (
+                  <li key={i}>{renderInline(h)}</li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+        <div className="sl-skill-ba__col sl-skill-ba__col--after">
+          <div className="sl-skill-ba__label">After</div>
+          {block.after.image && (
+            <figure>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={block.after.image} alt="After" loading="lazy" />
+            </figure>
+          )}
+          <p className="sl-skill-ba__caption">{renderInline(block.after.caption)}</p>
+          {block.after.principles.length > 0 && (
+            <>
+              <div className="sl-skill-kc__sublabel">Principles</div>
+              <ul className="sl-skill-ba__list sl-skill-ba__list--principles">
+                {block.after.principles.map((p, i) => (
+                  <li key={i}>{renderInline(p)}</li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      </div>
+      {block.key_difference && (
+        <aside className="sl-skill-ba__key">
+          <span className="sl-skill-kc__sublabel">Key difference</span>
+          <div>{renderInline(block.key_difference)}</div>
+        </aside>
+      )}
+    </section>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// StepByStep — numbered steps with per-step image + warning + checkpoint
+// ----------------------------------------------------------------------------
+function StepByStep({ block }: { block: StepByStepBlock }) {
+  return (
+    <section className="sl-skill-block sl-skill-sbs">
+      <header>
+        <h3 className="sl-skill-sbs__title">{block.title}</h3>
+      </header>
+      <ol className="sl-skill-sbs__steps">
+        {block.steps.map((s, i) => (
+          <li key={i} className="sl-skill-sbs__step">
+            <div className="sl-skill-sbs__num">{s.number}</div>
+            <div className="sl-skill-sbs__body">
+              <div className="sl-skill-sbs__instruction">
+                {renderInline(s.instruction)}
+              </div>
+              {s.image && (
+                <figure className="sl-skill-sbs__image">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={s.image} alt={`Step ${s.number}`} loading="lazy" />
+                </figure>
+              )}
+              {s.warning && (
+                <aside className="sl-skill-sbs__warning">
+                  <span aria-hidden>⚠️</span>
+                  <div>{renderInline(s.warning)}</div>
+                </aside>
+              )}
+              {s.checkpoint && (
+                <aside className="sl-skill-sbs__checkpoint">
+                  <span className="sl-skill-kc__sublabel">Check before continuing</span>
+                  <div>{renderInline(s.checkpoint)}</div>
+                </aside>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// ComprehensionCheck — single MC with per-option feedback + optional hint
+// ----------------------------------------------------------------------------
+function ComprehensionCheck({ block }: { block: ComprehensionCheckBlock }) {
+  const [selected, setSelected] = useState<number | null>(null);
+  const [attempts, setAttempts] = useState(0);
+  const showHint = attempts >= 1 && selected !== null && selected !== block.correct_index && !!block.hint;
+
+  function pick(i: number) {
+    setSelected(i);
+    setAttempts((a) => a + 1);
+  }
+  function retry() {
+    setSelected(null);
+  }
+
+  const isCorrect = selected !== null && selected === block.correct_index;
+  const isWrong = selected !== null && selected !== block.correct_index;
+
+  return (
+    <section className="sl-skill-block sl-skill-cc">
+      <div className="sl-skill-cc__question">{renderInline(block.question)}</div>
+      <ul className="sl-skill-cc__options">
+        {block.options.map((opt, i) => {
+          const active = selected === i;
+          const correct = i === block.correct_index;
+          return (
+            <li key={i}>
+              <button
+                type="button"
+                disabled={isCorrect}
+                onClick={() => pick(i)}
+                className={`sl-skill-cc__option${
+                  active && correct ? " sl-skill-cc__option--correct" : ""
+                }${active && !correct ? " sl-skill-cc__option--wrong" : ""}`}
+              >
+                {opt}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {isCorrect && (
+        <div className="sl-skill-cc__feedback sl-skill-cc__feedback--correct">
+          {renderInline(block.feedback_correct)}
+        </div>
+      )}
+      {isWrong && (
+        <>
+          <div className="sl-skill-cc__feedback sl-skill-cc__feedback--wrong">
+            {renderInline(block.feedback_wrong)}
+          </div>
+          {showHint && (
+            <div className="sl-skill-cc__hint">
+              <span className="sl-skill-kc__sublabel">Hint</span>
+              <div>{renderInline(block.hint!)}</div>
+            </div>
+          )}
+          <div className="sl-skill-cc__retry">
+            <button type="button" onClick={retry} className="sl-skill-cc__retry-btn">
+              Try again
+            </button>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// VideoEmbed — YouTube / Vimeo / direct mp4 with start/end trim
+// ----------------------------------------------------------------------------
+function youtubeIdFull(url: string): string | null {
+  const m =
+    url.match(/[?&]v=([\w-]{11})/) ||
+    url.match(/youtu\.be\/([\w-]{11})/) ||
+    url.match(/youtube\.com\/embed\/([\w-]{11})/);
+  return m ? m[1] : null;
+}
+function vimeoIdFull(url: string): string | null {
+  const m = url.match(/vimeo\.com\/(\d+)/);
+  return m ? m[1] : null;
+}
+
+function VideoEmbed({ block }: { block: VideoEmbedBlock }) {
+  if (!block.url) return null;
+  const yt = youtubeIdFull(block.url);
+  if (yt) {
+    const params = new URLSearchParams();
+    if (block.start_time) params.set("start", String(block.start_time));
+    if (block.end_time) params.set("end", String(block.end_time));
+    const qs = params.toString();
+    return (
+      <figure className="sl-skill-block sl-skill-video">
+        <div className="sl-skill-video__embed">
+          <iframe
+            src={`https://www.youtube-nocookie.com/embed/${yt}${qs ? `?${qs}` : ""}`}
+            title={block.title ?? "Video"}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+        {(block.caption || block.title) && (
+          <figcaption>{renderInline(block.caption ?? block.title ?? "")}</figcaption>
+        )}
+      </figure>
+    );
+  }
+  const vm = vimeoIdFull(block.url);
+  if (vm) {
+    const params = new URLSearchParams();
+    if (block.start_time) params.set("#t", `${block.start_time}s`);
+    return (
+      <figure className="sl-skill-block sl-skill-video">
+        <div className="sl-skill-video__embed">
+          <iframe
+            src={`https://player.vimeo.com/video/${vm}${params.toString() ? `?${params.toString()}` : ""}`}
+            title={block.title ?? "Video"}
+            allow="autoplay; fullscreen; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+        {(block.caption || block.title) && (
+          <figcaption>{renderInline(block.caption ?? block.title ?? "")}</figcaption>
+        )}
+      </figure>
+    );
+  }
+  // Direct mp4 fallback (trim via <source media-fragment>#t=start,end).
+  const mpSrc = block.start_time || block.end_time
+    ? `${block.url}#t=${block.start_time ?? 0}${block.end_time ? `,${block.end_time}` : ""}`
+    : block.url;
+  return (
+    <figure className="sl-skill-block sl-skill-video">
+      <video controls src={mpSrc} preload="metadata" />
+      {(block.caption || block.title) && (
+        <figcaption>{renderInline(block.caption ?? block.title ?? "")}</figcaption>
+      )}
+    </figure>
+  );
+}
+
 // ----------------------------------------------------------------------------
 // Root renderer
 // ----------------------------------------------------------------------------
@@ -564,6 +1055,29 @@ export function BlockRenderer({ blocks }: { blocks: Block[] }) {
     <>
       {blocks.map((block, i) => {
         switch (block.type) {
+          // Rich pedagogical blocks
+          case "key_concept":
+            return <KeyConcept key={i} block={block} />;
+          case "micro_story":
+            return <MicroStory key={i} block={block} />;
+          case "scenario":
+            return <Scenario key={i} block={block} />;
+          case "before_after":
+            return <BeforeAfter key={i} block={block} />;
+          case "step_by_step":
+            return <StepByStep key={i} block={block} />;
+          case "comprehension_check":
+            return <ComprehensionCheck key={i} block={block} />;
+          case "video_embed":
+            return <VideoEmbed key={i} block={block} />;
+          // Generic (kept)
+          case "embed":
+            return <Embed key={i} block={block} />;
+          case "accordion":
+            return <Accordion key={i} block={block} />;
+          case "gallery":
+            return <Gallery key={i} block={block} />;
+          // Deprecated — legacy renderers kept so old bodies don't blank
           case "prose":
             return <Prose key={i} block={block} />;
           case "callout":
@@ -576,16 +1090,10 @@ export function BlockRenderer({ blocks }: { blocks: Block[] }) {
             return <SkillVideo key={i} block={block} />;
           case "worked_example":
             return <WorkedExample key={i} block={block} />;
-          case "embed":
-            return <Embed key={i} block={block} />;
-          case "accordion":
-            return <Accordion key={i} block={block} />;
           case "think_aloud":
             return <ThinkAloud key={i} block={block} />;
           case "compare_images":
             return <CompareImages key={i} block={block} />;
-          case "gallery":
-            return <Gallery key={i} block={block} />;
           case "code":
             return <CodeRenderer key={i} block={block} />;
           case "side_by_side":

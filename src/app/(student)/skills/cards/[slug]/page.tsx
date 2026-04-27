@@ -15,18 +15,14 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { BlockRenderer } from "@/components/skills/BlockRenderer";
+import { SkillCardQuizRunner } from "@/components/skills/SkillCardQuizRunner";
 import "@/components/skills/skills.css";
-import type { SkillCardHydrated } from "@/types/skills";
+import { SKILL_TIER_LABELS, type SkillCardHydrated, type SkillTier } from "@/types/skills";
 
-const DIFFICULTY_LABELS: Record<string, string> = {
-  foundational: "Foundational",
-  intermediate: "Intermediate",
-  advanced: "Advanced",
-};
-const DIFFICULTY_COLORS: Record<string, string> = {
-  foundational: "bg-emerald-100 text-emerald-700",
-  intermediate: "bg-amber-100 text-amber-700",
-  advanced: "bg-rose-100 text-rose-700",
+const TIER_COLORS: Record<SkillTier, string> = {
+  bronze: "bg-amber-100 text-amber-800",
+  silver: "bg-slate-100 text-slate-700",
+  gold: "bg-yellow-100 text-yellow-800",
 };
 
 const STATE_LABELS: Record<string, string> = {
@@ -143,16 +139,21 @@ export default function StudentSkillCardPage() {
 
       {/* --- Status strip --- */}
       <div className="flex flex-wrap gap-2 items-center mb-3 text-xs">
-        {card.category_id && (
-          <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 capitalize">
-            {card.category_id}
+        {card.card_type === "routine" && (
+          <span className="font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">
+            Thinking Routine
           </span>
         )}
-        {card.difficulty && (
+        {card.tier && (
           <span
-            className={`px-2 py-0.5 rounded-full font-medium ${DIFFICULTY_COLORS[card.difficulty]}`}
+            className={`px-2 py-0.5 rounded-full font-medium capitalize ${TIER_COLORS[card.tier]}`}
           >
-            {DIFFICULTY_LABELS[card.difficulty]}
+            {SKILL_TIER_LABELS[card.tier]}
+          </span>
+        )}
+        {card.domain_id && (
+          <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-medium capitalize">
+            {card.domain_id.replace(/-/g, " ")}
           </span>
         )}
         {card.estimated_min && (
@@ -176,7 +177,36 @@ export default function StudentSkillCardPage() {
         {card.title}
       </h1>
       {card.summary && (
-        <p className="text-gray-600 text-lg mb-6">{card.summary}</p>
+        <p className="text-gray-600 text-lg mb-4">{card.summary}</p>
+      )}
+
+      {/* --- Pedagogical contract — Digital Promise "rubric before attempt" --- */}
+      {(card.demo_of_competency ||
+        card.learning_outcomes.length > 0) && (
+        <section className="mb-6 p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
+          {card.demo_of_competency && (
+            <div className="mb-3">
+              <div className="text-xs font-semibold text-indigo-700 uppercase tracking-wider mb-1">
+                What you&apos;ll be able to do
+              </div>
+              <p className="text-sm text-indigo-900 font-medium">
+                {card.demo_of_competency}
+              </p>
+            </div>
+          )}
+          {card.learning_outcomes.length > 0 && (
+            <div>
+              <div className="text-xs font-semibold text-indigo-700 uppercase tracking-wider mb-1">
+                You&apos;ll practise
+              </div>
+              <ul className="list-disc pl-5 space-y-0.5 text-sm text-indigo-900">
+                {card.learning_outcomes.map((o, i) => (
+                  <li key={i}>{o}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
       )}
 
       {/* --- Prereq hint --- */}
@@ -206,6 +236,25 @@ export default function StudentSkillCardPage() {
       <article>
         <BlockRenderer blocks={card.body} />
       </article>
+
+      {/* Quiz runner — Phase A (migration 112). Only renders when the card
+          has at least one quiz question. Writes skill.quiz_passed on pass
+          which advances student_skill_state to rank 2. */}
+      {card.quiz_questions && card.quiz_questions.length > 0 && (
+        <SkillCardQuizRunner
+          cardId={card.id}
+          cardSlug={card.slug}
+          cardTitle={card.title}
+          questions={card.quiz_questions}
+          questionCount={
+            card.question_count && card.question_count > 0
+              ? Math.min(card.question_count, card.quiz_questions.length)
+              : card.quiz_questions.length
+          }
+          passThreshold={card.pass_threshold ?? 80}
+          retakeCooldownMinutes={card.retake_cooldown_minutes ?? 0}
+        />
+      )}
 
       {card.external_links.length > 0 && (
         <section className="mt-8 border-t border-gray-200 pt-6">

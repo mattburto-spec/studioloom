@@ -162,6 +162,12 @@ async function GET(request: NextRequest) {
       hasTimetable: true,
       hasIcal: !!tt.ical_url,
       source: tt.source || "manual",
+      /* periods added 2026-04-24 for the Bold teacher dashboard v2 NowHero:
+       * the hero needs to render actual start/end times ("9:00 AM", "starts in 23 min"),
+       * so we expose the timetable's period definitions instead of making the
+       * client fetch /api/teacher/timetable separately. Safe to drop if/when the
+       * sidebar consumer grows a `?fields=entries` param. */
+      periods: (tt.periods || []) as Array<{ number: number; label?: string; start: string; end: string }>,
       entries,
       _debug: {
         serverTimeUTC: new Date().toISOString(),

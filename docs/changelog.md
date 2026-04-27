@@ -137,6 +137,73 @@ follow-ups filed and prioritized.
 
 ---
 
+## 24 Apr 2026 — Skills Library world-class schema upgrade (migration 110) + authoring UI rebuild
+
+**Context:** Matt's goal after reading the research brief + catalogue v1: make the skills library world-class per Digital Promise / Scouts / DofE / IB ATL / CASEL / XQ / Project Zero principles. Decisions locked via Q1–Q10:
+
+- Q1 ✓ Unified schema (safety modules migrate later as separate sprint)
+- Q2 ✓ Teacher-ack button for demonstrated (studentwork pipeline deferred)
+- Q3 ✓ DofE vocabulary — Bronze / Silver / Gold
+- Q4 ✓ Matt authors all content himself
+- Q5 ✓ `domain_id` + `category_id` as separate columns (subject × cognitive action)
+- Q6 ✓ `card_type` (`lesson` | `routine`) ships now
+- Q7 ✓ "Stone prereq" → "Activity block prereq" (Stones is dead vocabulary post-pivot-shelve)
+- Q8 ✓ Resources deferred to v2
+- Q9 ✓ DM-B1 Workshop Safety Essentials replaced with "Reading a Safety Data Sheet" (catalogue edit pending)
+- Q10 ✓ Personal pilot — Matt's own students first
+
+**Migration 110** `skills_library_world_class_schema.sql`:
+- New `skill_domains` table — 10 subject-area domains seeded (DM, VC, CP, CT, LI, PM, FE, RI, DL, SM). Orthogonal to `skill_categories` (8 cognitive-action verbs). Short codes match catalogue card ID prefix.
+- `skill_cards.difficulty` renamed → `tier` with value map (foundational→bronze, intermediate→silver, advanced→gold). DofE vocabulary verbatim per research-brief principle #3.
+- 8 new columns: `domain_id` FK, `age_min`/`age_max`, `framework_anchors` JSONB, `demo_of_competency` text, `learning_outcomes` JSONB, `applied_in` JSONB, `card_type` (lesson/routine), `author_name`.
+- New indexes: tier, domain, card_type, age_band.
+- 3 existing seed cards backfilled minimally (tier + domain_id = design-making); other new fields default to empty/null — Matt will replace when authoring catalogue.
+
+**Types (`src/types/skills.ts`) fully reshaped:** `SkillTier` replaces `SkillDifficulty`, `SKILL_TIERS` / `SKILL_TIER_LABELS` exported, `FrameworkAnchor` + `CardType` + `CONTROLLED_VERBS` introduced, `SkillDomainRow` added, `SkillCardRow` + payloads extended.
+
+**API routes updated end-to-end:**
+- `GET /api/teacher/skills/cards` — filters extended with `domain`, `tier`, `card_type`
+- `POST /api/teacher/skills/cards` — validates tier enum, domain FK, age-band sanity (5–25 + min ≤ max), framework anchors shape, card_type enum, outcomes/applied_in as string arrays
+- `PATCH /api/teacher/skills/cards/[id]` — all 8 new fields individually patchable
+- `POST /api/teacher/skills/cards/[id]/publish` — minimum-publishable gate extended: title + category + **domain** + **tier** + **demo_of_competency** + ≥1 block. Digital Promise "rubric before attempt" enforced.
+- `GET /api/teacher/skills/domains` — new lookup endpoint
+- `GET /api/student/skills/cards/[slug]` — prereq query uses `tier`
+
+**`SkillCardForm` — full rebuild in 8 numbered sections** (pedagogical order):
+1. Identity (title / slug / summary / **author byline**)
+2. Taxonomy & Tier (domain, category, tier, **card type toggle**)
+3. **Pedagogical contract** — demo-of-competency with controlled-verb soft hint + banned-verb warning, learning outcomes list, framework anchors multi-select with framework-specific datalist suggestions, applied-in contexts list
+4. Sizing (estimated min + age min/max)
+5. Body (existing block editor + preview toggle)
+6. Tags
+7. External links
+8. Prerequisites (fuzzy search preserved)
+
+Controlled-verb enforcement: typing a demo line triggers a soft amber warning if it doesn't start with one of show/demonstrate/produce/explain/argue/identify/compare/sketch/make/plan/deliver. Datalist suggestions per framework — ATL gets 5 categories, CASEL gets 5 competencies, WEF gets 10 Future of Jobs skills, StudioHabits gets 8 Project Zero habits.
+
+**Viewer updates** — both teacher + student viewers render a new **Pedagogical Contract panel** (indigo) at the top, above the body, showing demo-of-competency + learning outcomes + framework anchors. Digital Promise principle: rubric shown before attempt.
+
+**Teacher list page (`/teacher/skills`):** filters extended (domain + tier + category + card_type + ownership); cards display short_code + tier pill + category pill + age band + author byline.
+
+**Verification:**
+- `npx tsc --noEmit` → 0 errors on skills files
+- `npx eslint` → 0 errors
+- `npm test` → 1854 pass / 8 skip / 0 fail
+
+**Gating:** Migration 110 NOT yet applied to prod. Coordinated code+schema change — Matt applies 110 BEFORE push to main or app breaks (references `tier`, not `difficulty`). Push held in `skills-library` branch.
+
+**Next:**
+1. Matt authors 20 Gold cards using the new form
+2. Replace DM-B1 → "Reading a Safety Data Sheet" (catalogue edit)
+3. Safety module content migration (~3-day separate sprint)
+4. Teacher-ack button for `skill.demonstrated` (~half day)
+5. First pull-moment — activity block prereq embed (~2 days)
+6. Personal pilot with Matt's students
+
+**Systems affected:** `skills-library` (in_progress, schema v0→v1 layered), `schema-registry` (skill_cards entry rewritten + new skill_domains entry), `api-registry` (+1 domains endpoint).
+
+---
+
 ## 24 Apr 2026 PM — Preflight Phase 7 Checkpoint 7.1 PASSED 12/12 🎉
 
 **Context:** Closing saveme for Phase 7. Matt ran Phase 7 smoke against
@@ -1843,3 +1910,195 @@ Trying to handle both in one route produces silent failures — either "PKCE ver
 **Systems affected:** `preflight-scanner` (v1 — writeback column correctness fix; now truly end-to-end correct on both STL and SVG paths).
 
 **Session context:** Continued from previous day's Checkpoint 3.1 verification work where the NULL `thumbnail_path` was first observed. Root-caused inside the Python adapter, fixed, tested, deployed, verified, backfilled, documented, and filed as Lesson #53 — all in one session on main. Changelog drift note: entries between 13 Apr and today (22 Apr) are missing — Dimensions3 Phases 7+ and Preflight Phases 1A/1B-1/1B-2/2A/2B-1..6 all shipped in that window without changelog appends. Out of scope to backfill now; project state is captured in ALL-PROJECTS.md + WIRING.yaml + CLAUDE.md master header instead.
+
+---
+
+### 25 April 2026 — Access Model v2 project plan drafted (planning session, no code)
+
+**What changed:**
+- New project plan written: `docs/projects/access-model-v2.md` (~430 lines, 11 sections, 6 phases). Architecture spec for unifying StudioLoom's three parallel auth systems (student token + Supabase teacher Auth + Fabricator Argon2id), introducing schools as a first-class entity, audit log, per-student AI budgets, FERPA/GDPR/PIPL data export+delete, and OAuth (Google + Microsoft + email/PW; Apple deferred behind feature flag).
+- **8 architecture decisions locked** during the planning session: (1) every student is an `auth.users` row from day one — classcode+name becomes a custom Supabase auth flow rather than a parallel system; (2) flat school membership with no designated admin — any teacher edits school settings under a two-tier rule (low-stakes instant + 7-day revert; high-stakes need 2nd-teacher confirm in 48h); (3) immutable append-only audit_events; (4) `region` column on schools as forward-prep for residency splits; (5) `unit_version_id` on submission-shaped tables for assessment integrity; (6) per-student AI budget (default 100k tokens/day) enforced at route layer; (7) class-level roles via `class_members`, flat at school level — Matt's super-admin sits on a separate `is_platform_admin` flag on `auth.users`; (8) bootstrap grace window of 7 days for single-teacher schools.
+- **5 forward-compat schema seams** added to Phase 0 (schema only, no UX): `school_resources` polymorphic table + relations (first consumer = PYP/Service "people, places, things" library); `guardians` + `student_guardians`; SIS columns (`external_id`/`sis_source`/`last_synced_at`) on students+teachers+classes; `consents` table for FERPA/GDPR/PIPL; `schools.status` lifecycle enum.
+- **External community member auth (§8.7)** added as future appendix — `community_member` user_type extensibility, invite-only magic-link, time-bounded class-scoped access. First concrete consumer: Mentor Manager for PYP coordinators / G5 teachers / Service Learning leads (annual mentor recruitment + matching workflow).
+- **ALL-PROJECTS.md updates:** added "Access Model v2" entry in Planned section; added "Mentor Manager (PYP / G5 / Service Learning)" entry in Ideas Backlog → High Priority Ideas (4-6d, gated on Access Model v2 shipping); marked "Auth / ServiceContext Seam" as superseded by Access Model v2; reconciled Governance GOV-2 entry — components (1) audit log + (2) Access Model v2 + (4) DSR runbook are now subsumed by Access Model v2, GOV-2 reduces to just (3) impersonation/support-view (~1-2d).
+- **Governance + scope reconciliation:** Access Model v2 closes FU-O (no co-teacher/dept-head/admin) + FU-P (no school/org entity) + FU-R (auth model split) + FU-Q (dual student identity) + FU-W (no audit log) — five backlog items collapsed into one project. Unblocks `PH6-FU-MULTI-LAB-SCOPING` (Phase 6 Preflight follow-up). Provides the missing `access-model-v2-spec.md` referenced by GOV-2.
+- **Phase 0 trigger:** Preflight Phase 8 ships + merges to main, dashboard-v2 polish quiescent. Estimated wait ~1–2 weeks. Worktree (when work begins): `/Users/matt/CWORK/questerra-access-v2` on branch `access-model-v2`. Do not run parallel with Preflight or dashboard-v2 — surface area too large.
+
+**Files created:**
+- `docs/projects/access-model-v2.md` (~430 lines) — full project plan with §1 Why Now, §2 Architecture Decisions (7), §3 Scope (28 in-scope items + 9 explicitly deferred), §4 Phase Plan (6 phases, named Matt Checkpoints), §5 Migration Strategy, §6 Risks, §7 Resolved Decisions (8), §8 School Settings & Governance (8.1 inventory, 8.2 4-layer dedup, 8.3 governance model, 8.4 platform super-admin view, 8.5 migration of existing settings, 8.6 forward-compat seams, 8.7 external community member appendix), §9 Impact on Existing Systems (per WIRING.yaml), §10 Pre-Build Checklist, §11 References.
+
+**Files modified:**
+- `docs/projects/ALL-PROJECTS.md` — Access Model v2 project entry added; Mentor Manager idea added; Auth / ServiceContext Seam marked superseded; Governance GOV-2 reconciled.
+- `docs/doc-manifest.yaml` — new entry for `access-model-v2.md`; bumped `last_verified` on `ALL-PROJECTS.md`.
+- `docs/changelog.md` — this entry.
+
+**Test counts:** unchanged (no code changes). `npm test` baseline 1854 untouched. pytest 245 untouched.
+
+**Systems affected:** *None shipped.* Plan documents future work on `auth-system`, `class-management`, `student-progress`, `fabrication-pipeline`, `nm-assessment`, `student-content-moderation-log`, `ingestion-pipeline`, `school-calendar` and four new planned systems (`school-governance`, `school-registration`, `school-library`, `platform-admin-console`). No WIRING.yaml updates this session — planned tables/systems do not enter registries until they're built.
+
+**Registry sync results (saveme step 11):**
+- `api-registry.yaml` — drift from prior sessions captured (+182 lines, not from this session). Reviewed and committed.
+- `ai-call-sites.yaml` — drift from prior sessions captured (no diff this session). No-op.
+- `feature-flags.yaml` — `SENTRY_AUTH_TOKEN` orphan persists (FU-CC, P3 known).
+- `vendors.yaml` — status: ok, no drift.
+- `rls-coverage.json` — 7 tables with `rls_enabled_no_policy` (FU-FF, P3 known — `ai_model_config`, `ai_model_config_history`, `fabrication_scan_jobs`, `fabricator_sessions`, `student_sessions`, `teacher_access_requests`).
+
+**Session context:** 8-turn planning conversation initiated by Matt asking about adding OAuth (Google/Microsoft/Apple + email+PW) for students in regions outside China while preserving the classcode+name path for Chinese students (PIPL constraint). Conversation widened to "what else should we lock in now while there are zero students" and produced a world-class spec for the broader access model rather than just OAuth. Matt explicitly approved the elegant unified-auth approach over the simpler dual-auth shortcut: *"id rather do the more elegant approach that is better long term. make this world class. there still aren't any students using it."* Matt also locked in the flat-school-governance model (no designated admin, two-tier change rules) over the conventional school_admin role — *"have teachers be able to edit for all teachers for school-wide settings rather than have a single person who is designated admin of school (who would manage that?) or avoid having another separate school login"*. No code touched. Trigger to begin Phase 0 work: Preflight Phase 8 ships + dashboard-v2 polish quiescent.
+
+---
+
+### 24–26 April 2026 — Lesson Bold Sub-Phases 1–3 SHIPPED on branch + language-scaffolding-redesign spec written
+
+**Branch context:** All work on worktree `/Users/matt/CWORK/questerra-lesson-bold`, branch `lesson-bold-build` (new branch off main `6870eac`). Branch pushed to origin. `main` untouched.
+
+**What changed:**
+
+- **Sub-Phase 1: warm-paper Bold token scope + 3 stub components (24 Apr).** Extended `.sl-v2` scoped CSS in `BoldTopNav.tsx` with a nested `.lesson-bold` block carrying warm-paper tokens. Added `src/app/(student)/unit/[unitId]/template.tsx` (server component) loading Manrope + DM Sans + Instrument Serif via `next/font/google` — fixes pre-existing gap where lesson pages silently fell back to system-ui. Stub components `PhaseStrip`, `KeyConcept`, `AutonomyPicker`. Tests 1939 → 1943 (+4).
+- **Sub-Phase 2A: LessonHeader + LessonIntro + VideoBlock (24 Apr).** Extracted hero header + learning-goal block + intro media. `pageContent.learningGoal` becomes the italic-serif "Why this matters" line. `pageContent.success_criteria` becomes the 3-up numbered LO strip. Wiring-lock test in `render-path-fixtures.test.ts` rewritten (chip rendering moved into LessonHeader). Tests 1943 → 1944.
+- **Sub-Phase 2B: LessonFooter + LessonToolsRail (24 Apr).** Replaced legacy full-bleed Complete & Continue block + 4 floating FAB buttons. Modal panels + QuickCaptureFAB + MobileBottomNav + StudentFeedbackPulse preserved verbatim.
+- **Sub-Phase 2C: LessonSidebar warm-paper restyle (24 Apr).** Token-only refactor — sidebar `<aside>` got `lesson-bold` class so warm-paper tokens activate locally.
+- **Sub-Phase 3: AutonomyPicker + migration 121 + ActivityCard hint/example gating (24 Apr).** Migration 121 added `student_progress.autonomy_level TEXT CHECK IN ('scaffolded','balanced','independent')` — no DEFAULT, no NOT NULL, no backfill (Lesson #38). 5 helpers gating hints + examples. Lesson #17 retry-without-column on both upsert paths. Tests 1944 → 1952 (+8). NC: flipped `hintsAvailable` to always-true, confirmed test failed at expected line, reverted via Edit (Lesson #41). Migration 121 applied to local dev only — scheduled for rollback in language-scaffolding-redesign Phase 0 (migration 122 DROP COLUMN).
+- **5 mockup iterations on the StudioSetup drawer (24–26 Apr).** `docs/newlook/StudioSetupDrawer-mockup.html` v1 → v5. The drawer concept ultimately died in the language-scaffolding-redesign pivot (configuration → invocation).
+- **Cowork research session against ~10 platforms (Newsela, Duolingo, Immersive Reader, Read&Write, Lexia, Read Along, Khan, Seesaw, CommonLit, Medley) (26 Apr).** Established the configuration→invocation pattern. Closest reference: Medley Learning's Response Starters panel.
+- **Language scaffolding redesign pre-build spec written (26 Apr).** `docs/projects/language-scaffolding-redesign-brief.md` — 594-line spec covering audit findings (caught WIRING `student-learning-support` doc-vs-reality drift on translation / dyslexia / UDL / ADHD focus claims with no code), proposed architecture (Tap-a-word + Response Starters), 6-phase build plan, Q1–Q6 with proposed defaults, cost analysis ($0.0007/student/week, ~$0.25 per 30-student 12-week pilot), migration notes. Matt locked 7 decisions in §0.5: pivot (Q1=a), WIRING fix mid-build (Q2=i), single L1 (Q3), taps_per_100_words fade trigger (Q4), full Phase 1 mount surface, image source Wikimedia + Open Symbols, sandbox threaded from day 1.
+
+**Files created:**
+- `src/app/(student)/unit/[unitId]/template.tsx`
+- `src/components/student/lesson-bold/{PhaseStrip,KeyConcept,AutonomyPicker,LessonHeader,LessonIntro,VideoBlock,LessonFooter,LessonToolsRail,helpers,index}.tsx`
+- `src/components/student/lesson-bold/__tests__/shell.test.tsx`
+- `supabase/migrations/121_student_progress_autonomy_level.sql` — applied dev only, scheduled for rollback
+- `docs/newlook/StudioSetupDrawer-mockup.html` — 5 historical iterations
+- `docs/projects/lesson-bold-brief.md` — Lesson Bold master brief
+- `docs/projects/language-scaffolding-redesign-brief.md` — pre-build spec for the next build
+
+**Files modified:**
+- `src/components/student/BoldTopNav.tsx` — appended `.sl-v2 .lesson-bold` block
+- `src/components/student/LessonSidebar.tsx` — token-only restyle
+- `src/app/(student)/unit/[unitId]/[pageId]/page.tsx` — 661 → 565 lines
+- `src/components/student/ActivityCard.tsx` — `autonomyLevel` prop + warm-paper hint/example UI
+- `src/hooks/usePageResponses.ts` — exposes `autonomyLevel` + setter
+- `src/app/api/student/progress/route.ts` — accepts `autonomyLevel` + retry-without-column
+- `src/types/index.ts` — `StudentProgress.autonomy_level?` union
+- `src/lib/frameworks/__tests__/render-path-fixtures.test.ts` — wiring-lock rewrite
+
+**Test counts:** 1939 → **1952 passed · 8 skipped · 1960 total · 127 files**.
+
+**Commits (all pushed to `origin/lesson-bold-build`):** `e77a313` · `ba8594c` · `537fbdd` · `dbde598` · `6e64ad3` · `ba87542` · `7aa3421` · `a721dcf` · `fb7085d` · `31847bf` · `8e28195` · `6de8a1f` · `c8a194d` · `a8c0907`.
+
+**Systems affected:** `lesson-view` (v1 → v1.5, warm-paper Bold restyle on branch), `student-learning-support` (planned doc-vs-reality drift fix in Phase 0 of redesign), new tracked work `language-scaffolding-redesign`. AutonomyPicker flagged for rollback next session.
+
+**Follow-ups filed:**
+- `FU-LS-DRIFT` — WIRING `student-learning-support` entry was claiming complete features that didn't exist (translation, dyslexia fonts, UDL, ADHD focus). Update entry to `status: planned` + `currentVersion: 0` in Phase 0 of language-scaffolding-redesign.
+
+**Session context:** Hybrid build session — Sub-Phases 1–3 of Lesson Bold shipped methodically against a brief written at session start; mid-session pivot triggered by Matt observing that AutonomyPicker felt off; Cowork research session led to invocation-over-configuration thesis; spec for the redesign written + signed off; AutonomyPicker scheduled for rollback. Branch `lesson-bold-build` is push-clean but not yet merged to main — merge happens after language-scaffolding-redesign Phase 0 (rollback) lands cleanly. **Migration 121 in dev only — DROP via migration 122 will land in same Phase 0.** Pending-push count to main: 0 (work is on feature branch).
+
+---
+
+### 26 April 2026 — Session close: lesson-bold-build merged to main + Phase 0 closed + saveme
+
+**What changed:**
+- Merged `lesson-bold-build` → `main` (`3c1d626`) bringing 18 commits live: warm-paper Bold restyle (Sub-Phases 1, 2A–2C) + language-scaffolding-redesign Phase 0 (AutonomyPicker rollback, ELL-only ActivityCard gating restored, FU-LS-DRIFT filed, WIRING `student-learning-support` flipped to `status: planned`).
+- Migration collisions dodged twice mid-merge: branch's 116/117 collided with Phase 8's school_id_reserved 116/117 + Preflight 8.1d-13/14's 118/119. Final renumber to **121** (ADD `student_progress.autonomy_level`) + **122** (DROP), with 120 left as gap. Migration 122 applied to prod by Matt (no-op since 121 was dev-only — symbolic only). Push-discipline obligation cleared.
+- 2 follow-up commits on main: `886c7f7` (renumber fixup) + 2 origin merges absorbing parallel Preflight 8.1d-13/14 work landed during the merge sequence.
+- Cleanup: `lesson-bold-build` branch deleted (local + remote). Worktree registration removed. Directory survives at `/Users/matt/CWORK/questerra-lesson-bold/` (~675MB, optional `rm -rf`).
+- Significant parallel work landed on main during/after this session: Preflight Phase 8.1d-15..19 (queue filter/sort/bulk-approve, fab queue lifecycle timeline, scanner copy + filename collision fixes), dashboard PYPX Phase 13a-1..4 (exhibition setup CTA, mentor cadence free-text), skills-library Path A (AI assist for skill card authoring), build-discipline v2 (sessionhandover ritual + migration timestamp prefixes). All auto-merged cleanly.
+
+**Saveme sync results (steps 11):**
+- `api-registry.yaml` — drift captured: +100 lines (new Phase 8.1d + Path 13a + skills routes from parallel sessions). Committed.
+- `ai-call-sites.yaml` — drift captured: +62 lines (new AI calls from skills-library + others). Committed.
+- `feature-flags.json` — status: `drift`, 1 orphan = `SENTRY_AUTH_TOKEN` (FU-CC, P3 known build-time-only).
+- `vendors.json` — status: `ok`, no drift.
+- `rls-coverage.json` — status: `drift_detected`, 7 tables `rls_enabled_no_policy` (FU-FF, P3 known undocumented deny-all pattern). No new tables.
+- `schema-registry.yaml` — no edit needed: migrations 121/122 cancel out (column added + dropped before prod ever saw it).
+
+**Files modified:**
+- `docs/api-registry.yaml` — +100 lines via scanner
+- `docs/ai-call-sites.yaml` — +62 lines via scanner
+- `docs/scanner-reports/{feature-flags,rls-coverage,vendors}.json` — drift JSON refreshed
+- `docs/changelog.md` — this entry
+- `docs/handoff/main.md` — refreshed via step 12
+
+**Test counts:** 2144 passed · 8 skipped · 2152 total · 136 files at last full run (pre-parallel-work). Not re-run after origin/main merges; assume current main is green based on the merge-only nature of incoming commits.
+
+**Pending-push count:** 0 → will be 1 after this saveme commit lands.
+
+**Systems affected:** `lesson-view` (v1 → v1.5 warm-paper restyle SHIPPED), `student-learning-support` (status flipped complete→planned, redesign tracked at `language-scaffolding-redesign-brief.md`). All other systems untouched by this session.
+
+**Trigger for next session:** `go phase 1` or `tap-a-word` — Phase 1 of language-scaffolding-redesign (Tap-a-word v1, definition only, 8 mount surfaces). Spec: `docs/projects/language-scaffolding-redesign-brief.md` §3 Phase 1.
+
+## 26 Apr 2026 PM — Teacher Dashboard Phase 13a-5 + 13b first cut: PYPX cohort dashboard live
+
+**What changed:**
+- **Phase 13a polish landed (`56d9359`, `8122ffd`, `10ef1f4`):** mentor check-in cadence dropped from Exhibition setup (per-mentor not per-class — moved to Mentor Manager scope); phase column dropped from student-projects inline editor (output not input); system accounts (`@studioloom.internal`) filtered from mentor picker.
+- **Phase 13a-5 SHIPPED (`af4b0a5`):** student projects inline editor at `/teacher/classes/[classId]/exhibition`. ~370-line `StudentProjectsCard` with one row per enrolled student (title · central idea · theme · mentor), auto-save 600ms debounced per row, server-authoritative merge so id flips null→uuid + updated_at land. New endpoint `/api/teacher/teachers/list` seeds the mentor picker (same-school teachers, system accounts filtered).
+- **Phase 13b-1 SHIPPED (`05e9c2a`):** new endpoint `/api/teacher/pypx-cohort?classId=X&unitId=Y` returns single payload (cohort metrics + per-student card data). 409 lines. Joins class_units + class_students + students + student_projects + teachers + student_progress.
+- **Phase 13b-2 + 13b-3a SHIPPED (`28fc709`):** PypxView rebuilt to consume the cohort API. Hero with class badge, "Exhibition in N days." countdown, COHORT AVG / NEED ATTENTION / AHEAD metrics top-right, 5-segment phase distribution bar at the bottom. Student card grid below with avatar (deterministic colour from id hash) + project title + phase pill + per-student progress bar + mentor pill or red "Unassigned" + status pill (coral ring around needs-attention cards). 622 lines added, 237 removed.
+- **Mentor Manager spec drafted (`d441547`):** `docs/projects/mentor-manager.md` — coordinator-meeting draft for sibling project. 1-page coordinator brief on top + engineering appendix below + 3 open questions for the PYP coordinator meeting (~early May 2026).
+- **Hotfix during session:** mentor dropdown empty on prod smoke. Diagnostic SQL surfaced 4 teacher rows → 1 with school_id (Matt's loominary), 2 NULL Matt test accounts, 1 system account. Manual SQL backfill set school_id on the test accounts; endpoint patched to filter `@studioloom.internal` accounts.
+- **Migration 115 schema-cache fix:** `NOTIFY pgrst, 'reload schema';` after Matt manually applied 115 to prod. Then full migration body re-run via SQL editor when diagnostic confirmed `student_projects` table didn't exist on prod (column did but table didn't — partial apply).
+
+**Heuristics baked in (with sign-off):**
+- Progress % = completed pages / unit totalPages (mirrors existing dashboard route).
+- Phase = 5-bucket of progress % (0-20 Wonder, 20-40 Find out, 40-60 Make, 60-80 Share, 80+ Reflect). Read-time only — column not written.
+- Status = ±15% bands around cohort avg + hard rules (no project title → Needs attention; no activity 7+ days → Needs attention with "Stalled X days" reason).
+
+**Saveme sync results (steps 11):**
+- `api-registry.yaml` — drift captured: +44 lines (4 new routes — `pypx-cohort`, `teachers/list`, plus 2 from parallel preflight `fab/jobs/[jobId]/assign-machine` + `fab/machines`). Committed.
+- `ai-call-sites.yaml` — re-ran scanner; no diff (no new AI calls this session).
+- `feature-flags.json` — status: `drift`, 1 orphan = `SENTRY_AUTH_TOKEN` (FU-CC, P3 known build-time-only). Pre-existing, not from this session.
+- `vendors.json` — status: `ok`, no drift.
+- `rls-coverage.json` — status: `drift_detected`, 7 tables `rls_enabled_no_policy` (FU-FF, P3 known undocumented deny-all pattern). Pre-existing — student_projects has RLS policies.
+- `schema-registry.yaml` — no manual update this session (migration 115 was manually applied to prod earlier in the session via SQL editor; schema-registry should be updated to reflect `class_units.exhibition_config` + `student_projects` but this is a step-12 follow-up — registry uses live introspection mode).
+
+**Files modified (this saveme commit):**
+- `docs/api-registry.yaml` — 4 new routes
+- `docs/projects/teacher-dashboard-v1.md` — 13a + 13b rows flipped to ✅ Done with full scope summary
+- `docs/projects/ALL-PROJECTS.md` — Teacher Dashboard v1 (Bold) entry added under Active Projects
+- `docs/projects/WIRING.yaml` — `teacher-dashboard` system bumped to v2 + `pypx-exhibition` system added (+99 → 100 systems)
+- `docs/decisions-log.md` — 6 new decisions appended (cadence per-mentor, phase as output, cohort heuristics triple, hero year copy, mentor manager v0 auth, school_resources first consumer)
+- `docs/changelog.md` — this entry
+- `docs/handoff/dashboard-v2-build.md` — written via step 12
+
+**Test counts:** Not re-run this session (UI work). Branch tests assumed green based on TS-clean + targeted typechecks during build.
+
+**Pending-push count:** 0 → 1 after this saveme commit lands.
+
+**Systems affected:** `teacher-dashboard` (v1 → v2 in_progress, summary rewritten), `pypx-exhibition` (NEW, currentVersion 1 in_progress).
+
+**Trigger for next session:** `dashboard next` or `pypx 13b polish` — Phase 13b-3b (filter chips + view toggle [cards/table/by-phase] + per-student detail page) OR Phase 13c (student PYPX dashboard ~2 days, port `pypx_dashboard.jsx` to real students). Mentor Manager v0 stays parked until coordinator meeting confirms scope.
+
+---
+
+## 27 April 2026 — Tap-a-word Phase 1 SHIPPED end-to-end
+
+**Branch:** `tap-a-word-build` (24 commits) merged into `main` via `b915e02` + `000685c` (gate fix). Pushed to `origin/main` after Checkpoint 1.1 sign-off + prod migration applied.
+
+**What changed (Phase 1 of language-scaffolding-redesign):**
+- **Phase 1A (scaffold):** TappableText + WordPopover (createPortal) + useWordLookup hook + tokenize.ts + sandbox + `/api/student/word-lookup` route + migration `20260426140609_word_definitions_cache.sql` + 13 tokenizer tests + 9 route tests. Lesson #39 stop_reason guard + defensive destructure on every Haiku call. Migration: timestamp-prefix discipline (first feature branch to use it end-to-end).
+- **Phase 1B (mounts):** MarkdownPrompt `tappable` prop (markdown-aware leaf wrap) + ActivityCard prompts + ELL-1 hint card + LessonIntro + VocabWarmup definition+example + KitMentor speech bubble + DesignAssistantWidget assistant role + CheckInPanel mentor messages. Toolkit-prompt mounts deferred (28 bespoke tools — separate refinement).
+- **Phase 1C (seed + verify):** 575-word `scripts/seed-data/design-vocab-500.json` across 10 categories, expanded to 578 (added ergonomics + anthropometrics + biomechanics) + sandbox-aware seed script `scripts/preflight-tap-a-word-seed.mjs` with batched Haiku + cost tracking + gated live E2E test `tests/e2e/word-lookup-live.test.ts` + empirical cold-cache smoke `scripts/cold-cache-smoke.mjs`.
+- **Mid-build hotfix (`a6696a8`):** Route gate corrected from `RUN_E2E !== "1"` to `NODE_ENV === "test" && RUN_E2E !== "1"` — dev users now see real definitions instead of `[sandbox]` sentinel text. Lesson #56.
+- **Sandbox cache pollution discovered + cleaned:** 5 dev-test taps wrote sentinel rows to shared cache; manually purged. Filed FU-TAP-SANDBOX-POLLUTION (P2). Lesson #57.
+
+**Verification (Checkpoint 1.1):**
+- ✅ Sandbox seed pipeline: 10/10 ok end-to-end against prod Supabase, idempotent re-run
+- ✅ Live E2E: `RUN_E2E=1 vitest run tests/e2e/word-lookup-live.test.ts` returns real "ergonomics" definition in 1592ms
+- ✅ Live seed: 575/575 words processed, $0.5278 one-time, 0 failures
+- ✅ Visual smoke: real definitions in popovers across 5 mount surfaces (Matt confirmed)
+- ⚠️ Cold-cache empirical: 11.2% hit rate on real lessons → criterion #5 reframed as behavioural ("<20 uncached TAPS per student", measurable post-launch via Phase 4 signals). Lesson #58.
+
+**Migrations:** `20260426140609_word_definitions_cache.sql` applied to dev (26 Apr) + prod (27 Apr). Composite PK `(word, language, context_hash, l1_target)`, RLS read-anon, service-role write.
+
+**Tests:** 2159 → **2181 passed | 9 skipped | 139 files** (+22 tests, +3 files). tsc 0 errors. Build green with `NODE_OPTIONS=--max-old-space-size=4096`.
+
+**Decisions added (5):** route gate fix, cold-cache criterion #5 reframe, sandbox-pollution architectural lesson, migration discipline v2 vindicated, choke-point mount strategy.
+
+**Lessons added (3):** #56 (test-mode vs sandbox-mode conflation), #57 (sandbox writes pollute shared cache), #58 (empirical hit-rate smoke reframes spec criteria).
+
+**FUs added (3):** FU-TAP-SANDBOX-POLLUTION (P2), FU-BUILD-HEAP (P3), FU-AI-CALL-SCANNER-GUARD-DETECTION (P3).
+
+**Systems affected:** `tap-a-word` (NEW, status `planned`, currentVersion 0 — flips to complete/v1 when Phase 5 ships); `student-learning-support` (status stays `planned` until Phase 5).
+
+**Cost spent this session:** ~$0.53 live seed + ~$0.0005 live E2E + ~$0.003 ergonomics rerun = **~$0.535 total**.
+
+**Pending after this saveme:** Apply prod migration (DONE), push origin/main (DONE), Phase 2 (L1 translation + audio + image) awaits next session. Decide whether toolkit-prompt mounts land as a 1B refinement or fold into Phase 2.

@@ -18,6 +18,7 @@ import AITextField from "./AITextField";
 import ExtensionBlock from "./ExtensionBlock";
 import DimensionsSummaryBar from "./DimensionsSummaryBar";
 import UnitThumbnailEditor from "./UnitThumbnailEditor";
+import { LessonSkillsPanel } from "@/components/skills/LessonSkillsPanel";
 import { autoPopulateBloomLevels } from "@/lib/dimensions/infer-bloom";
 import type {
   UnitPage,
@@ -827,6 +828,17 @@ export default function LessonEditor({
                 page={selectedPage}
                 onUpdate={handleUpdatePageContent}
               />
+
+              {/* ─── Skills pinned to this lesson ─── */}
+              {/* Teacher-side of skill_card_refs. Pinning a card here makes
+                  it surface in the student's "Skills for this lesson" panel
+                  at the top of the unit page. */}
+              <div className="mt-3">
+                <LessonSkillsPanel
+                  pageId={selectedPage.id}
+                  subjectLabel={`${unitTitle ?? "Unit"} · ${selectedPage.title ?? "Lesson"}`}
+                />
+              </div>
 
               {/* ─── Opening Phase ─── */}
               {phases && (

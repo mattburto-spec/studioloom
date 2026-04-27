@@ -12,10 +12,18 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { SkillCardForm } from "@/components/skills/SkillCardForm";
+import { DemoAckPanel } from "@/components/skills/DemoAckPanel";
+import { useTeacher } from "@/app/teacher/teacher-context";
 import type { CreateSkillCardPayload, SkillCardHydrated } from "@/types/skills";
 
 interface Category {
   id: string;
+  label: string;
+  description: string;
+}
+interface Domain {
+  id: string;
+  short_code: string;
   label: string;
   description: string;
 }
@@ -24,11 +32,13 @@ export default function EditSkillCardPage() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
+  const { teacher } = useTeacher();
   const id = params.id as string;
 
   const [card, setCard] = useState<SkillCardHydrated | null>(null);
   const [editable, setEditable] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [domains, setDomains] = useState<Domain[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -58,6 +68,10 @@ export default function EditSkillCardPage() {
       .then((r) => (r.ok ? r.json() : { categories: [] }))
       .then((j) => setCategories(j.categories ?? []))
       .catch(() => setCategories([]));
+    fetch("/api/teacher/skills/domains", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : { domains: [] }))
+      .then((j) => setDomains(j.domains ?? []))
+      .catch(() => setDomains([]));
   }, []);
 
   useEffect(() => {
@@ -267,6 +281,7 @@ export default function EditSkillCardPage() {
         mode="edit"
         initial={card}
         categories={categories}
+        domains={domains}
         onSubmit={handleSubmit}
         submitting={submitting}
         submitError={submitError}
@@ -316,6 +331,18 @@ export default function EditSkillCardPage() {
           </button>
         }
       />
+
+      {/* Teacher-ack demo panel. Only meaningful once published — a draft
+          card can't be demonstrated until students can see it.
+          The "Used in" panel previously lived here (Item #7 first pass,
+          24 Apr 2026). Moved to the lesson editor per Matt's feedback —
+          teachers think "what skills does this lesson need?" when editing
+          a lesson, not when writing a skill card. */}
+      {card.is_published && (
+        <section className="mt-8">
+          <DemoAckPanel cardId={card.id} teacherId={teacher?.id} />
+        </section>
+      )}
     </main>
   );
 }

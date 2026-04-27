@@ -1109,3 +1109,75 @@ RLS-coverage scanner (`scan-rls-coverage.py`) added to prevent recurrence.
 **Resolution:** `extractDocument` relocated to `src/lib/ingestion/document-extract.ts` (canonical location). All 7 consumers updated to new import path. Original `src/lib/knowledge/extract.ts` first converted to re-export shim, then fully deleted when zero consumers remained. Shim lifecycle: created → all imports migrated → deleted in same session.
 
 **Commits:** `64d7df9` (relocate + shim), cleanup commit (shim deletion + final consumer updates).
+
+---
+
+## FU-LS-DRIFT — WIRING `student-learning-support` was claiming complete features that didn't exist (P2)
+**Surfaced:** Audit pass for language-scaffolding-redesign (26 Apr 2026, on `lesson-bold-build`)
+**Target phase:** Phase 0 of language-scaffolding-redesign — RESOLVED in this Phase 0 commit.
+
+**Issue:** Pre-26-Apr WIRING entry for `student-learning-support` had `status: complete`, `currentVersion: 1`, summary claiming "Tier 2/3 translation via Claude (ELL level configurable), UDL scaffolding (checkpoints 1-31), ADHD visual focus helpers, dyslexia-friendly fonts." Grep across `src/` confirmed zero references for any of the four claimed features:
+- 0 `dyslexic` / `OpenDyslexic` / `dyslexia.*font` references in any TSX/CSS
+- 0 `translateContent` / `tier2_translation` / `tier3_translation` references
+- `udl_checkpoints` exists only as a teacher-side authoring tag on `activity_blocks` (curriculum metadata), not a student-facing render-time accessibility feature
+- Teacher settings has an `enable_udl` toggle that affects lesson generation, not student render
+
+**The system was paper-only.** Same drift family as `FU-Y` (Groq + Gemini fallbacks never shipped). The drift would have stayed invisible if the language-scaffolding-redesign brief had trusted the existing entry's premise.
+
+**Captured in:**
+- Lesson #54 (`docs/lessons-learned.md`) — "WIRING.yaml entries can claim 'complete' features that don't exist; audit by grep before trusting any system summary." Adds the rule: marketing-shaped summaries are higher-risk than implementation-specific summaries.
+- §0.5 + §1.5 of `docs/projects/language-scaffolding-redesign-brief.md` (`a8c0907`).
+- Decision log entry (26 Apr 2026): "WIRING `student-learning-support` doc-vs-reality drift fix mid-build — option (i)."
+
+**Resolution (Phase 0 of language-scaffolding-redesign):** WIRING entry rewritten in this Phase 0 commit:
+- `status: complete` → `status: planned`
+- `currentVersion: 1` → `currentVersion: 0`
+- Summary rewritten to describe the redesign deliverable (Tap-a-word + Response Starters)
+- `affects:` extended to include all the consumers the redesign will reach: lesson-view, discovery-engine, student-open-studio, ai-mentor, toolkit
+- `docs:` updated to point at `language-scaffolding-redesign-brief.md`
+- `change_impacts:` documents the drift discovery + signals when the entry will flip back to `complete`
+
+**Definition of done:** WIRING entry honest about reality + scheduled work. Will flip back to `status: complete`, `currentVersion: 1` when Phase 5 (live E2E gate) of the language-scaffolding-redesign ships.
+
+**Wider audit:** Periodic drift scanners exist for api-registry, ai-call-sites, schema-registry, feature-flags, vendors. WIRING.yaml has no scanner — manual maintenance only. Most likely registry to drift. Adding a saveme spot-check rule per Lesson #54: when a WIRING entry has a marketing-shaped summary, grep for at least 2 of its claimed features before trusting `status: complete`.
+
+---
+
+## FU-TAP-SANDBOX-POLLUTION — Sandbox writes pollute shared word_definitions cache (P2) ✅ RESOLVED
+**Surfaced:** 27 Apr 2026, Tap-a-word Phase 1B/1C browser smoke (after Lesson #56 gate fix landed)
+**Resolved:** 27 Apr 2026 (same day, via Phase 1 closeout step 5 — defensive fix on main)
+**Captured in:** Lesson #57 (`docs/lessons-learned.md`), `docs/decisions-log.md` 27 Apr entry
+
+**Issue (historical):** `src/app/api/student/word-lookup/route.ts` called `await supabase.from("word_definitions").upsert(...)` in BOTH the sandbox and live branches. The sandbox upsert wrote `[sandbox] definition of "X"` sentinel rows to the shared cache. Pre-Lesson #56 fix, every dev tap polluted the cache. Manual cleanup via `DELETE FROM word_definitions WHERE definition LIKE '[sandbox]%'` was the reactive mitigation.
+
+**Resolution:** Option (a) applied — dropped the `upsert` from the sandbox branch in `src/app/api/student/word-lookup/route.ts:88-101`. Sandbox is now read-only. Route test (`__tests__/route.test.ts`) updated to assert `upsertSpy` is NOT called in the sandbox path (test renamed to flag the Lesson #57 contract). 9/9 route tests pass.
+
+**Why defensive even though the gate fix made it moot in practice:** With the new `NODE_ENV === "test"` gate, the sandbox branch is ONLY reachable from vitest (where `createAdminClient` is mocked), so the prior upsert was already a no-op against real Supabase. But removing the upsert locks in the contract structurally — any future gate refactor that accidentally re-routes dev/prod to the sandbox branch can no longer pollute the cache. Belt-and-braces. ~3 lines of code, 1 test update.
+
+---
+
+## FU-BUILD-HEAP — `next build` OOMs with default 2GB Node heap (P3)
+**Surfaced:** 27 Apr 2026, Tap-a-word Phase 1B verification step
+**Trigger:** `npm run build` from `/Users/matt/CWORK/questerra-tap-a-word` crashed at ~52s with `FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory` (process at 2027 MB). Workaround: `NODE_OPTIONS="--max-old-space-size=4096" npm run build` succeeds in ~90s.
+
+**Issue:** This codebase (~95K LOC, ~290 source files) needs more than Node's default 2 GB heap to compile. Vercel's CI has 8 GB by default so prod deploys work; local builds and CI on tighter machines fail with no useful error.
+
+**Fix:** Add to `package.json`:
+```json
+"build": "NODE_OPTIONS='--max-old-space-size=4096' next build"
+```
+Or pin via `.nvmrc` / engine hint that documents the requirement.
+
+**Definition of done:** `npm run build` succeeds without manual env-var setting on a default Node install.
+
+---
+
+## FU-AI-CALL-SCANNER-GUARD-DETECTION — `scan-ai-calls.py` can't see runtime stop_reason guards (P3)
+**Surfaced:** 27 Apr 2026, Tap-a-word Phase 1C registry sync step
+**Trigger:** Saveme step 11c re-ran `scan-ai-calls.py`. The new `/api/student/word-lookup` site shows `stop_reason_handled: unknown` even though the runtime guard is present at `src/app/api/student/word-lookup/route.ts:135-141`. The scanner does grep-based detection; it can't statically follow conditional throws.
+
+**Issue:** This affects the FU-5 family count — sites that LOOK unguarded in the registry may actually have guards the scanner missed. False positives in the audit make it impossible to know how many real violations exist.
+
+**Fix:** Either (a) extend `scan-ai-calls.py` to detect the `if (response.stop_reason === "max_tokens")` pattern with a few lines of AST-aware regex (the pattern is consistent enough), or (b) add a `stop_reason_handled_override` field to `ai-call-sites.yaml` that humans set manually for sites the scanner mis-flags. (a) is better for maintenance; (b) is a 5-minute hack.
+
+**Definition of done:** A site that has the canonical `if (response.stop_reason === "max_tokens") throw new Error(...)` block is recorded as `stop_reason_handled: true` automatically. False-positive count on FU-5 audit drops to actual violations only.

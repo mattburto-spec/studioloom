@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { TeacherContext } from "./teacher-context";
-import TeacherAIFAB from "@/components/teacher/TeacherAIFAB";
+import { TeacherShell } from "@/components/teacher-dashboard-v2/TeacherShell";
 import { BugReportButton } from "@/components/shared/BugReportButton";
 import type { Teacher } from "@/types";
 
@@ -33,63 +32,27 @@ function isPublicTeacherPath(pathname: string): boolean {
 }
 
 /**
- * Teacher top nav — slimmed 23 Apr 2026.
+ * Chromeless teacher paths render bare (no shell, no TopNav) but still
+ * pass through auth + teacher-context. Used by full-screen routes that
+ * manage their own chrome — the projector view is the canonical case.
  *
- * Shape: Dashboard | Classes | Units | Students | Skills | Resources | Preflight.
- * Toolkit, Badges and Library moved to the avatar dropdown (temporary parking
- * until the bigger teacher redesign). Alerts moved to a bell icon on the
- * right of the header with a red-dot count. Settings moved into the avatar
- * dropdown (no more standalone cog button).
- *
- * A NavItem is a discriminated union: a `route` entry is a real link, a
- * `disabled` entry renders as a greyed-out pill with a "Soon" badge (used
- * for Resources, which doesn't have a page yet).
+ * As of Phase 11 the Bold chrome is the default for all other teacher
+ * routes; pre-Phase-11 the dashboard itself was chromeless (it rendered
+ * its own TopNav) and this list handled that. Not any more — layout
+ * supplies the Bold chrome universally.
  */
-type NavItem =
-  | { label: string; route: string; icon: React.ReactNode }
-  | { label: string; disabled: true; icon: React.ReactNode };
+function isChromelessTeacherPath(pathname: string): boolean {
+  // /teacher/teach/[unitId]/projector — dark full-screen classroom
+  // projector, intentionally minimal UI.
+  if (pathname.endsWith("/projector")) return true;
+  return false;
+}
 
-const NAV_ITEMS: NavItem[] = [
-  { label: "Dashboard", route: "/teacher/dashboard", icon: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="7" height="9" rx="1" /><rect x="14" y="3" width="7" height="5" rx="1" /><rect x="14" y="12" width="7" height="9" rx="1" /><rect x="3" y="16" width="7" height="5" rx="1" />
-    </svg>
-  )},
-  { label: "Classes", route: "/teacher/classes", icon: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  )},
-  { label: "Units", route: "/teacher/units", icon: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
-    </svg>
-  )},
-  { label: "Students", route: "/teacher/students", icon: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  )},
-  { label: "Skills", route: "/teacher/skills", icon: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2l2.5 6 6.5.5-5 4.5 1.5 6.5L12 16l-5.5 3.5L8 13l-5-4.5 6.5-.5L12 2z" />
-    </svg>
-  )},
-  // Resources page doesn't exist yet — placeholder pill until Phase 18.
-  { label: "Resources", disabled: true, icon: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
-      <path d="M8 7h8M8 11h8M8 15h5" />
-    </svg>
-  )},
-  // Preflight link → /teacher/preflight redirects to /fabricators in Phase 1B-2.
-  // Phase 2 swaps the root to the submission queue; fabricators becomes a sub-nav.
-  { label: "Preflight", route: "/teacher/preflight", icon: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M12 11v6" /><path d="M9 14h6" />
-    </svg>
-  )},
-];
+/* NAV_ITEMS removed in Phase 11 — the Bold TopNav (rendered by
+ * TeacherShell) now owns the nav config at
+ * src/components/teacher-dashboard-v2/nav-config.ts. Everything the
+ * legacy inline-SVG nav used to render now flows through that module.
+ */
 
 export default function TeacherLayout({
   children,
@@ -100,28 +63,6 @@ export default function TeacherLayout({
   const pathname = usePathname();
   const [teacher, setTeacher] = useState<Teacher | null>(null);
   const [loading, setLoading] = useState(true);
-  const [criticalAlertCount, setCriticalAlertCount] = useState(0);
-
-  // Avatar dropdown state — hooks must live above the early returns below.
-  const [avatarOpen, setAvatarOpen] = useState(false);
-  const avatarRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!avatarOpen) return;
-    function onDocClick(e: MouseEvent) {
-      if (avatarRef.current && !avatarRef.current.contains(e.target as Node)) {
-        setAvatarOpen(false);
-      }
-    }
-    function onEsc(e: KeyboardEvent) {
-      if (e.key === "Escape") setAvatarOpen(false);
-    }
-    document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("keydown", onEsc);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onEsc);
-    };
-  }, [avatarOpen]);
 
   useEffect(() => {
     async function loadTeacher() {
@@ -169,13 +110,10 @@ export default function TeacherLayout({
           return;
         }
 
-        // Phase 6B: count unreviewed critical alerts for nav badge
-        const { count } = await supabase
-          .from("student_content_moderation_log")
-          .select("id", { count: "exact", head: true })
-          .eq("teacher_reviewed", false)
-          .eq("severity", "critical");
-        setCriticalAlertCount(count || 0);
+        // Phase 6B's critical-alert count query removed in Phase 11 —
+        // the Bold nav doesn't surface per-item nav badges; alerts land
+        // under the bell icon (a future iteration could re-add the
+        // count there).
       } catch (err) {
         console.error("[TeacherLayout] Unexpected error:", err);
       } finally {
@@ -206,347 +144,25 @@ export default function TeacherLayout({
     );
   }
 
-  const isSettingsActive = pathname.startsWith("/teacher/settings");
-
-  async function handleLogout() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    window.location.href = "/";
+  // Chromeless paths (Bold dashboard v2 preview) keep auth + context but
+  // drop the legacy header/nav so the v2's own TopNav is the only chrome.
+  if (isChromelessTeacherPath(pathname)) {
+    return (
+      <TeacherContext.Provider value={{ teacher }}>
+        {children}
+      </TeacherContext.Provider>
+    );
   }
 
+  // Everything else — wrap children in the shared Bold shell. The
+  // shell owns the Manrope/DM-Sans font vars, the `.tl-v2` scoped CSS,
+  // the TopNav with scope chip + avatar dropdown, and the classes
+  // fetch for the chip. Settings / log-out live in the avatar
+  // dropdown; Alerts land under the bell button.
   return (
     <TeacherContext.Provider value={{ teacher }}>
-      <div className="min-h-screen bg-surface-alt">
-        {/* Header */}
-        <header
-          className="sticky top-0 z-30 border-b"
-          style={{
-            background: "rgba(255,255,255,0.82)",
-            backdropFilter: "blur(12px)",
-            WebkitBackdropFilter: "blur(12px)",
-            borderColor: "rgba(0,0,0,0.06)",
-          }}
-        >
-          <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
-            {/* Left: brand + nav */}
-            <div className="flex items-center gap-8">
-              <Link href="/teacher/dashboard" className="flex items-center gap-2">
-                <div
-                  className="w-7 h-7 rounded-lg flex items-center justify-center"
-                  style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 32 32" fill="none">
-                    <rect x="2" y="8" width="28" height="5" rx="2.5" fill="white" />
-                    <rect x="2" y="19" width="28" height="5" rx="2.5" fill="white" />
-                    <rect x="8" y="2" width="5" height="28" rx="2.5" fill="white" />
-                    <rect x="19" y="2" width="5" height="28" rx="2.5" fill="white" />
-                  </svg>
-                </div>
-                <span className="font-bold text-text-primary text-sm tracking-tight">StudioLoom</span>
-              </Link>
-
-              <nav className="flex items-center gap-1">
-                {(() => {
-                  // Longest-prefix match so nested routes don't also activate
-                  // their parent (e.g. avoiding /teacher/skills/[id] lighting
-                  // up a sibling pill). Only `route` NavItems can be active.
-                  const routedItems = NAV_ITEMS.filter(
-                    (i): i is Extract<NavItem, { route: string }> => "route" in i
-                  );
-                  const activeRoute = routedItems
-                    .filter(
-                      (item) =>
-                        pathname === item.route ||
-                        pathname.startsWith(item.route + "/")
-                    )
-                    .sort((a, b) => b.route.length - a.route.length)[0]?.route;
-
-                  return NAV_ITEMS.map((item) => {
-                    if ("disabled" in item) {
-                      return (
-                        <span
-                          key={item.label}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium cursor-not-allowed"
-                          style={{ color: "#C4C7CE" }}
-                          title="Coming soon"
-                        >
-                          <span style={{ opacity: 0.5 }}>{item.icon}</span>
-                          {item.label}
-                          <span
-                            style={{
-                              fontSize: "10px",
-                              fontWeight: 700,
-                              letterSpacing: "0.05em",
-                              padding: "1px 5px",
-                              borderRadius: "999px",
-                              color: "#9CA3AF",
-                              background: "#F3F4F6",
-                              textTransform: "uppercase",
-                            }}
-                          >
-                            Soon
-                          </span>
-                        </span>
-                      );
-                    }
-
-                    const isActive = item.route === activeRoute;
-                    return (
-                      <Link
-                        key={item.route}
-                        href={item.route}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150"
-                        style={{
-                          color: isActive ? "#7B2FF2" : "#6B7280",
-                          background: isActive ? "rgba(123,47,242,0.08)" : "transparent",
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!isActive) {
-                            e.currentTarget.style.background = "rgba(0,0,0,0.04)";
-                            e.currentTarget.style.color = "#1A1A2E";
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!isActive) {
-                            e.currentTarget.style.background = "transparent";
-                            e.currentTarget.style.color = "#6B7280";
-                          }
-                        }}
-                      >
-                        <span style={{ opacity: isActive ? 1 : 0.6 }}>{item.icon}</span>
-                        {item.label}
-                      </Link>
-                    );
-                  });
-                })()}
-              </nav>
-            </div>
-
-            {/* Right: alerts bell + avatar dropdown */}
-            <div className="flex items-center gap-2">
-              {/* Bell — Alerts. Red dot only (no count) per Matt's spec; the
-                  exact count is visible inside the Alerts page itself. */}
-              <Link
-                href="/teacher/safety/alerts"
-                className="relative p-2 rounded-lg transition-colors duration-150 hover:bg-black/5"
-                style={{
-                  color: pathname.startsWith("/teacher/safety/alerts")
-                    ? "#7B2FF2"
-                    : "#6B7280",
-                  background: pathname.startsWith("/teacher/safety/alerts")
-                    ? "rgba(123,47,242,0.08)"
-                    : "transparent",
-                }}
-                title={
-                  criticalAlertCount > 0
-                    ? `${criticalAlertCount} critical alert${criticalAlertCount === 1 ? "" : "s"}`
-                    : "Alerts"
-                }
-                aria-label="Alerts"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                </svg>
-                {criticalAlertCount > 0 && (
-                  <span
-                    aria-hidden
-                    style={{
-                      position: "absolute",
-                      top: "6px",
-                      right: "6px",
-                      width: "8px",
-                      height: "8px",
-                      borderRadius: "50%",
-                      background: "#DC2626",
-                      border: "2px solid #fff",
-                    }}
-                  />
-                )}
-              </Link>
-
-              <div className="w-px h-5 bg-border mx-1" />
-
-              {/* Avatar dropdown — click name to open Settings / secondary links / Log out. */}
-              <div className="relative" ref={avatarRef}>
-                <button
-                  type="button"
-                  onClick={() => setAvatarOpen((v) => !v)}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-lg transition-colors hover:bg-black/5"
-                  aria-haspopup="menu"
-                  aria-expanded={avatarOpen}
-                >
-                  <span
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold text-white"
-                    style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
-                    aria-hidden
-                  >
-                    {(teacher?.name ?? "?").trim().charAt(0).toUpperCase() || "?"}
-                  </span>
-                  <span className="text-sm text-text-primary font-medium">
-                    {teacher?.name ?? "Account"}
-                  </span>
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    style={{
-                      color: "#9CA3AF",
-                      transform: avatarOpen ? "rotate(180deg)" : "rotate(0)",
-                      transition: "transform 150ms ease",
-                    }}
-                  >
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                </button>
-
-                {avatarOpen && (
-                  <div
-                    role="menu"
-                    className="absolute right-0 mt-2 w-56 rounded-xl border border-black/5 bg-white shadow-lg overflow-hidden z-40"
-                    style={{
-                      background: "rgba(255,255,255,0.98)",
-                      backdropFilter: "blur(8px)",
-                    }}
-                  >
-                    {teacher?.email && (
-                      <div className="px-4 py-3 border-b border-black/5">
-                        <div className="text-sm font-semibold text-text-primary truncate">
-                          {teacher.name}
-                        </div>
-                        <div className="text-xs text-text-secondary truncate">
-                          {teacher.email}
-                        </div>
-                      </div>
-                    )}
-
-                    <DropdownLink
-                      href="/teacher/settings"
-                      active={isSettingsActive}
-                      onClick={() => setAvatarOpen(false)}
-                      label="Settings"
-                      icon={
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <circle cx="12" cy="12" r="3" />
-                          <path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z" />
-                        </svg>
-                      }
-                    />
-
-                    {/* Secondary — parked here until the teacher-redesign reshuffles things. */}
-                    <div className="border-t border-black/5" />
-                    <DropdownLink
-                      href="/teacher/toolkit"
-                      active={pathname.startsWith("/teacher/toolkit")}
-                      onClick={() => setAvatarOpen(false)}
-                      label="Toolkit"
-                      icon={
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="2" y="4" width="20" height="16" rx="2" />
-                          <path d="M12 4v16M2 12h20" />
-                        </svg>
-                      }
-                    />
-                    <DropdownLink
-                      href="/teacher/safety"
-                      active={
-                        pathname.startsWith("/teacher/safety") &&
-                        !pathname.startsWith("/teacher/safety/alerts")
-                      }
-                      onClick={() => setAvatarOpen(false)}
-                      label="Badges"
-                      icon={
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                        </svg>
-                      }
-                    />
-                    <DropdownLink
-                      href="/teacher/library"
-                      active={pathname.startsWith("/teacher/library")}
-                      onClick={() => setAvatarOpen(false)}
-                      label="Library"
-                      icon={
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-                          <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-                        </svg>
-                      }
-                    />
-
-                    <div className="border-t border-black/5" />
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        setAvatarOpen(false);
-                        handleLogout();
-                      }}
-                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-text-secondary hover:bg-black/5 transition-colors"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                        <polyline points="16 17 21 12 16 7" />
-                        <line x1="21" y1="12" x2="9" y2="12" />
-                      </svg>
-                      Log out
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {children}
-        {/* <TeacherAIFAB /> — disabled for now */}
-        <BugReportButton role="teacher" />
-      </div>
+      <TeacherShell>{children}</TeacherShell>
+      <BugReportButton role="teacher" />
     </TeacherContext.Provider>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Dropdown menu item — single shared style for the avatar dropdown so Settings
-// and the parked Toolkit/Badges/Library entries render the same.
-// ---------------------------------------------------------------------------
-function DropdownLink({
-  href,
-  label,
-  icon,
-  active,
-  onClick,
-}: {
-  href: string;
-  label: string;
-  icon: React.ReactNode;
-  active?: boolean;
-  onClick?: () => void;
-}) {
-  return (
-    <Link
-      href={href}
-      role="menuitem"
-      onClick={onClick}
-      className="flex items-center gap-2 px-4 py-2.5 text-sm transition-colors"
-      style={{
-        color: active ? "#7B2FF2" : "#1A1A2E",
-        background: active ? "rgba(123,47,242,0.08)" : "transparent",
-      }}
-      onMouseEnter={(e) => {
-        if (!active) e.currentTarget.style.background = "rgba(0,0,0,0.04)";
-      }}
-      onMouseLeave={(e) => {
-        if (!active) e.currentTarget.style.background = "transparent";
-      }}
-    >
-      <span style={{ opacity: 0.7 }}>{icon}</span>
-      {label}
-    </Link>
   );
 }

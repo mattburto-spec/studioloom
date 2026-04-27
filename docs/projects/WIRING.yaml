@@ -394,6 +394,7 @@ systems:
       - path: supabase/migrations/107_student_skill_state_view.sql
       - path: supabase/migrations/108_skills_library_sample_seeds.sql
       - path: supabase/migrations/109_skills_library_authoring.sql
+      - path: supabase/migrations/110_skills_library_world_class_schema.sql
       - path: src/types/skills.ts
       - path: src/components/skills/BlockEditor.tsx
       - path: src/components/skills/BlockRenderer.tsx
@@ -402,12 +403,15 @@ systems:
       - path: src/app/api/teacher/skills/cards/[id]/route.ts
       - path: src/app/api/teacher/skills/cards/[id]/publish/route.ts
       - path: src/app/api/teacher/skills/categories/route.ts
+      - path: src/app/api/teacher/skills/domains/route.ts
       - path: src/app/api/student/skills/cards/[slug]/route.ts
       - path: src/app/teacher/skills/page.tsx
       - path: src/app/teacher/skills/new/page.tsx
       - path: src/app/teacher/skills/[id]/page.tsx
       - path: src/app/teacher/skills/[id]/edit/page.tsx
       - path: src/app/(student)/skills/cards/[slug]/page.tsx
+      - path: docs/projects/skills-library-research-brief.md
+      - path: docs/projects/skills-library-catalogue-v1.md
     future_needs: |
       Quiz types beyond MC/T/F (image identification, ordering, matching). Badge engine with teacher sign-off workflow. Forking/lineage UI. Cross-school visibility. Strength radar chart visualisation. Mastery derivation from Stone completions. Refresh mode quiz logic. Community contributor marketplace (phase 4).
     adrs: []
@@ -619,21 +623,56 @@ systems:
     os_seam: ready
     change_impacts: Changes to profile schema affect onboarding flow. Changes to preference options affect AI mentor prompts.
 
+  - id: tap-a-word
+    name: Tap-a-word (Inline Word Lookup)
+    category: Student Experience
+    status: planned
+    currentVersion: 0
+    summary: "Phase 1A + 1B + 1C SHIPPED 26-27 Apr 2026: TappableText shared component + /api/student/word-lookup endpoint + word_definitions cache + sandbox bypass + WordPopover via createPortal. Mounted on 5 educational text surfaces: ActivityCard prompts (via MarkdownPrompt tappable prop) + ELL-1 hint card, LessonIntro introduction.text, VocabWarmup definition+example, KitMentor speech bubble, DesignAssistantWidget assistant messages, CheckInPanel mentor messages. Pre-warm seed script with batched Haiku + cost tracking covers 575 unique design-vocab words across 10 categories. Gated live E2E test (RUN_E2E=1) verifies real Anthropic round-trip. Awaiting Checkpoint 1.1 sign-off (visual smoke + seed run + live E2E). Phase 2 adds L1 translation + audio + image."
+    depends_on: [student-profile, ai-mentor]
+    affects: [lesson-view, discovery-engine, student-open-studio, ai-mentor]
+    docs:
+      - path: docs/projects/language-scaffolding-redesign-phase-1-brief.md
+        purpose: "Phase 1 master brief — sub-phases 1A/1B/1C"
+      - path: docs/projects/language-scaffolding-redesign-brief.md
+        purpose: "Master spec — full 6-phase plan"
+    data_fields:
+      - table: word_definitions
+        columns: [word, language, context_hash, l1_target, definition, l1_translation, example_sentence, generated_at]
+        notes: "Class-shared cache. RLS read-anon, service-role write via createAdminClient bypass. Phase 1 always uses language='en', context_hash='', l1_target='en'. Composite PK supports Phase 2 expansion without schema change."
+    key_files:
+      - src/components/student/tap-a-word/TappableText.tsx
+      - src/components/student/tap-a-word/WordPopover.tsx
+      - src/components/student/tap-a-word/useWordLookup.ts
+      - src/components/student/tap-a-word/tokenize.ts
+      - src/lib/ai/sandbox/word-lookup-sandbox.ts
+      - src/app/api/student/word-lookup/route.ts
+      - src/components/student/MarkdownPrompt.tsx
+      - scripts/preflight-tap-a-word-seed.mjs
+      - scripts/seed-data/design-vocab-500.json
+      - tests/e2e/word-lookup-live.test.ts
+    future_needs: "Checkpoint 1.1 sign-off (Matt action: run seed script + RUN_E2E=1 live test + visual smoke 5 words across 5 surfaces). Phase 2: + L1 translation + audio + image. Phase 4: signal-driven scaffold-fading (taps_per_100_words rolling 5-lesson average). Toolkit tool prompts: deferred 1B refinement (28 bespoke tools, not yet wired)."
+    change_impacts: "First Anthropic call site in the student API surface to ship Lesson #39 stop_reason guard + defensive destructure as canonical pattern. FU-5 (6 existing student-api violations) remains out of scope. WordPopover portals to document.body via createPortal so it escapes any clipped-overflow ancestor on the 5 mount surfaces. Toolkit tool prompts deferred to a 1B refinement after Checkpoint 1.1 signs off on the core 5 surfaces."
+
   - id: student-learning-support
     name: Student Learning Support (Accessibility & Language)
     category: Student Experience
-    status: complete
-    currentVersion: 1
-    summary: Tier 2/3 translation via Claude (ELL level configurable), UDL scaffolding (checkpoints 1-31), ADHD visual focus helpers, dyslexia-friendly fonts.
-    depends_on: [student-profile, udl-layer, ai-provider]
-    affects: [lesson-view, student-data, ai-mentor]
+    status: planned
+    currentVersion: 0
+    summary: "PLANNED — replacing the doc-vs-reality drift caught 26 Apr 2026 (FU-LS-DRIFT). Two inline invocation affordances landing via the language-scaffolding-redesign build: Tap-a-word (shared TappableText component on 8 educational text surfaces, popover with definition + L1 translation + audio + image + contextual example) and Response Starters (magic-wand-pen → side panel with task-specific Word Bank + Sentence Starters on text response inputs). Class-shared cache tables (word_definitions, activity_response_starters). Signal-driven scaffold-fading (taps_per_100_words rolling 5-lesson average, teacher one-click override, invocation-floor that never hides the affordance)."
+    depends_on: [student-profile, lesson-view, ai-mentor]
+    affects: [lesson-view, discovery-engine, student-open-studio, ai-mentor, toolkit]
     docs:
+      - path: docs/projects/language-scaffolding-redesign-brief.md
+        purpose: Pre-build spec — pivot from configuration to invocation, 6-phase plan, locked decisions, cost analysis, migration notes
       - path: docs/research/student-influence-factors.md
         purpose: Cultural and linguistic influence factors
-    future_needs: Parent-configured accommodations, teacher UDL tagging.
+      - path: docs/education-ai-patterns.md
+        purpose: Effort-gating + soft-gating patterns this build applies inline
+    future_needs: "Phase 0: AutonomyPicker rollback (this commit). Phase 1: Tap-a-word v1 (definition only) on 8 surfaces. Phase 2: + L1 translation + audio + image. Phase 3: Response Starters panel. Phase 4: scaffold-fading + teacher-as-student preview. Phase 5: live E2E gate. Migrations: 117 DROP autonomy_level, 118 word_definitions cache, 119 activity_response_starters cache."
     adrs: ["008"]
-    os_seam: ready
-    change_impacts: Changes to UDL checkpoint definitions affect all activities. Changes to translation logic affect content delivery.
+    os_seam: planned
+    change_impacts: "Drift caught 26 Apr 2026 — previous summary claimed Tier 2/3 translation, UDL scaffolding (checkpoints 1-31), ADHD visual focus, dyslexia-friendly fonts, all status:complete. None existed in code (grep confirmed zero references). Same drift family as FU-Y. Entry rewritten to describe the planned redesign deliverable; will flip back to complete + currentVersion:1 when Phase 5 ships."
 
   - id: mentor-choice
     name: Mentor System (Studio Mentors)
@@ -1159,28 +1198,71 @@ systems:
   - id: teacher-dashboard
     name: Teacher Dashboard
     category: Teacher Experience
-    status: complete
-    currentVersion: 1
-    summary: Displays today's classes with student progress rings, units with 3-button layout (Teach / Manage / Edit), smart subject detection from class name/unit type, archived class filtering.
-    depends_on: [scheduling, unit-management]
-    affects: [teach-mode, unit-generation, unit-editor]
+    status: in_progress
+    currentVersion: 2
+    summary: Bold-restyled `/teacher/dashboard` (v2). NowHero + TodayRail + Insights (4 buckets) + UnitsGrid + Admin housekeeping. Per-program scope chip (All / Design / PYPX / Service / PP / Inquiry) drives a per-scope view registry. Default view shows the cross-program landing; PYPX scope swaps in PypxView (cohort-overview hero with countdown + COHORT AVG/NEED ATTENTION/AHEAD metrics + 5-segment phase distribution bar + per-student card grid). Phases 13a/13b live; 13c (student PYPX dashboard), 13d (framework registry cleanup), 13e (inline assign-unit modal), 14 (Service view), 15 (PP view), 16 (a11y), 17 (legacy delete) pending.
+    depends_on: [scheduling, unit-management, pypx-exhibition]
+    affects: [teach-mode, unit-generation, unit-editor, pypx-exhibition]
     docs:
+      - path: docs/projects/teacher-dashboard-v1.md
+        purpose: Build tracker for the Bold v2 rebuild
+      - path: docs/projects/teacher-dashboard-v1-phase-13a-brief.md
+        purpose: PYPX schema + setup UI brief
       - path: docs/roadmap.md
-        purpose: Dashboard design and feature roadmap
+        purpose: Long-form dashboard roadmap
     data_fields:
       - table: classes
         columns: [id, teacher_id, class_name, subject, framework]
-        notes: Class metadata for display
+        notes: Class metadata + program scope derivation
       - table: class_units
-        columns: [id, class_id, unit_id, is_archived, nm_config]
-        notes: Class-unit assignments
+        columns: [id, class_id, unit_id, is_archived, nm_config, exhibition_config]
+        notes: Class-unit assignments + per-class exhibition config (PYPX scope)
     key_files:
       - src/app/teacher/dashboard/page.tsx
-      - src/components/teacher/dashboard/DashboardCard.tsx
-    future_needs: Adaptive dashboard based on teacher style, priority scoring for at-risk students.
+      - src/components/teacher-dashboard-v2/TeacherShell.tsx
+      - src/components/teacher-dashboard-v2/views/PypxView.tsx
+      - src/components/teacher-dashboard-v2/views/DefaultView.tsx
+      - src/components/teacher-dashboard-v2/views/registry.ts
+      - src/app/api/teacher/dashboard/route.ts
+      - src/app/api/teacher/pypx-cohort/route.ts
+    future_needs: 13c student PYPX dashboard, 13b-3b polish (filter chips + view toggle + per-student detail page), 14 Service / 15 PP dashboard models.
     adrs: ["010"]
     os_seam: ready
-    change_impacts: Changes to unit display affect teacher workflow. Changes to subject detection affect card colors.
+    change_impacts: Changes to scope chip wiring affect every per-program view. Changes to /api/teacher/dashboard payload shape affect DashboardViewProps consumed by all views. PYPX-specific changes flow through pypx-exhibition system.
+
+  - id: pypx-exhibition
+    name: PYP Exhibition (PYPX)
+    category: Teacher Experience
+    status: in_progress
+    currentVersion: 1
+    summary: PYPX-scoped data model + teacher setup UI + cohort dashboard. `class_units.exhibition_config` JSONB stores per-class exhibition date + milestones. `student_projects` table holds per-student project rows (title · central idea · lines of inquiry · transdisciplinary theme · mentor_teacher_id · current_phase wonder|findout|make|share|reflect). `/teacher/classes/[classId]/exhibition` page = DatesCard (date + milestones) + StudentProjectsCard (inline editor, auto-save 600ms debounced, server-authoritative merge). PypxView consumes `/api/teacher/pypx-cohort` for the dashboard render. Phase = derived heuristically from progress % (5-bucket) for v1; AI-driven phase writes deferred. Status = ±15% bands around cohort avg + hard rules (no project title, stalled 7+ days). Mentor picker pulls same-school teachers via `/api/teacher/teachers/list`; will swap to Mentor Manager pool when that ships.
+    depends_on: [teacher-dashboard, scheduling, auth-system]
+    affects: [teacher-dashboard, mentor-manager]
+    docs:
+      - path: docs/projects/teacher-dashboard-v1-phase-13a-brief.md
+        purpose: Phase 13a brief covering schema + setup UI scope
+      - path: docs/projects/mentor-manager.md
+        purpose: Sibling project — coordinator-meeting draft for the upcoming mentor management surface
+    data_fields:
+      - table: class_units
+        columns: [exhibition_config]
+        notes: JSONB { exhibition_date, milestones[] }. Mentor cadence moved out (per-mentor not per-class — Mentor Manager scope).
+      - table: student_projects
+        columns: [id, student_id, class_id, unit_id, title, central_idea, lines_of_inquiry, transdisciplinary_theme, mentor_teacher_id, current_phase, created_at, updated_at]
+        notes: One row per (student × class × unit). RLS lets teachers manage class-owned + mentored rows; students read their own.
+    key_files:
+      - supabase/migrations/115_pypx_exhibition.sql
+      - src/app/teacher/classes/[classId]/exhibition/page.tsx
+      - src/app/teacher/classes/[classId]/exhibition/DatesCard.tsx
+      - src/app/teacher/classes/[classId]/exhibition/StudentProjectsCard.tsx
+      - src/app/api/teacher/exhibition/route.ts
+      - src/app/api/teacher/student-projects/route.ts
+      - src/app/api/teacher/teachers/list/route.ts
+      - src/app/api/teacher/pypx-cohort/route.ts
+      - src/components/teacher-dashboard-v2/views/PypxView.tsx
+    future_needs: 13b-3b filter chips + view toggle + per-student detail page; 13c student PYPX dashboard; AI-driven phase writer (Open Studio v2 territory); Mentor Manager pool integration once that ships.
+    os_seam: ready
+    change_impacts: Schema changes to exhibition_config or student_projects affect setup UI, cohort API, and the PypxView render path. Changes to phase derivation rule affect every card rendered. Changes to mentor picker source feed forward to Mentor Manager.
 
   - id: teach-mode
     name: Teaching Mode (Live Classroom Cockpit)

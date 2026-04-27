@@ -847,11 +847,11 @@ export default function ClassDetailPage({
             {classInfo?.framework && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
                 style={{
-                  background: ({ IB_MYP: "#EEF2FF", GCSE_DT: "#ECFDF5", IGCSE_DT: "#EFF6FF", A_LEVEL_DT: "#FFFBEB", ACARA_DT: "#FDF2F8", PLTW: "#F5F3FF", NESA_DT: "#F0F9FF", VIC_DT: "#F0FDFA" } as Record<string, string>)[classInfo.framework] || "#F3F4F6",
-                  color: ({ IB_MYP: "#3730A3", GCSE_DT: "#065F46", IGCSE_DT: "#1E40AF", A_LEVEL_DT: "#92400E", ACARA_DT: "#9D174D", PLTW: "#5B21B6", NESA_DT: "#0369A1", VIC_DT: "#0F766E" } as Record<string, string>)[classInfo.framework] || "#374151",
-                  borderColor: ({ IB_MYP: "#C7D2FE", GCSE_DT: "#A7F3D0", IGCSE_DT: "#BFDBFE", A_LEVEL_DT: "#FEF3C7", ACARA_DT: "#FBCFE8", PLTW: "#EDE9FE", NESA_DT: "#BAE6FD", VIC_DT: "#99F6E4" } as Record<string, string>)[classInfo.framework] || "#E5E7EB",
+                  background: ({ IB_MYP: "#EEF2FF", IB_PYP: "#FAF5FF", GCSE_DT: "#ECFDF5", IGCSE_DT: "#EFF6FF", A_LEVEL_DT: "#FFFBEB", ACARA_DT: "#FDF2F8", PLTW: "#F5F3FF", NESA_DT: "#F0F9FF", VIC_DT: "#F0FDFA" } as Record<string, string>)[classInfo.framework] || "#F3F4F6",
+                  color: ({ IB_MYP: "#3730A3", IB_PYP: "#6B21A8", GCSE_DT: "#065F46", IGCSE_DT: "#1E40AF", A_LEVEL_DT: "#92400E", ACARA_DT: "#9D174D", PLTW: "#5B21B6", NESA_DT: "#0369A1", VIC_DT: "#0F766E" } as Record<string, string>)[classInfo.framework] || "#374151",
+                  borderColor: ({ IB_MYP: "#C7D2FE", IB_PYP: "#E9D5FF", GCSE_DT: "#A7F3D0", IGCSE_DT: "#BFDBFE", A_LEVEL_DT: "#FEF3C7", ACARA_DT: "#FBCFE8", PLTW: "#EDE9FE", NESA_DT: "#BAE6FD", VIC_DT: "#99F6E4" } as Record<string, string>)[classInfo.framework] || "#E5E7EB",
                 }}>
-                {({ IB_MYP: "MYP", GCSE_DT: "GCSE", IGCSE_DT: "IGCSE", A_LEVEL_DT: "A-Level", ACARA_DT: "ACARA", PLTW: "PLTW", NESA_DT: "NESA", VIC_DT: "VIC" } as Record<string, string>)[classInfo.framework] || classInfo.framework}
+                {({ IB_MYP: "MYP", IB_PYP: "PYP", GCSE_DT: "GCSE", IGCSE_DT: "IGCSE", A_LEVEL_DT: "A-Level", ACARA_DT: "ACARA", PLTW: "PLTW", NESA_DT: "NESA", VIC_DT: "VIC" } as Record<string, string>)[classInfo.framework] || classInfo.framework}
               </span>
             )}
             {classInfo?.subject && classInfo.subject !== "design" && (
@@ -862,15 +862,35 @@ export default function ClassDetailPage({
             )}
           </div>
         </div>
-        <button
-          onClick={() => setShowClassSettings(!showClassSettings)}
-          className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"
-          title="Class Settings"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-          </svg>
-        </button>
+        <div className="flex items-center gap-2">
+          {/* PYP-only: Exhibition setup page for dates + student projects.
+           *  Hidden on non-IB_PYP classes so the teacher UI stays scoped. */}
+          {classInfo?.framework === "IB_PYP" && (
+            <Link
+              href={`/teacher/classes/${classId}/exhibition`}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition"
+              style={{
+                background: "linear-gradient(135deg, #9333EA 0%, #C026D3 100%)",
+                color: "#fff",
+              }}
+              title="Set up PYPX Exhibition"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2l2.5 6 6.5.5-5 4.5 1.5 6.5L12 16l-5.5 3.5L8 13l-5-4.5 6.5-.5L12 2z"/>
+              </svg>
+              Exhibition
+            </Link>
+          )}
+          <button
+            onClick={() => setShowClassSettings(!showClassSettings)}
+            className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"
+            title="Class Settings"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* ── Class Settings Panel ── */}
@@ -954,6 +974,7 @@ export default function ClassDetailPage({
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
                   { id: "IB_MYP", label: "IB MYP", desc: "Criteria A-D, 1-8", color: "#6366F1" },
+                  { id: "IB_PYP", label: "IB PYP", desc: "PYP Exhibition", color: "#9333EA" },
                   { id: "GCSE_DT", label: "GCSE D&T", desc: "AO1-AO5, %", color: "#10B981" },
                   { id: "IGCSE_DT", label: "IGCSE D&T", desc: "AO1-AO4, %", color: "#3B82F6" },
                   { id: "A_LEVEL_DT", label: "A-Level D&T", desc: "AO1-AO4, %", color: "#F59E0B" },

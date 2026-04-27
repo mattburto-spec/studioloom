@@ -12,12 +12,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { BLOCK_TYPES } from "@/types/skills";
+import { BLOCK_TYPES, SKILL_TIERS } from "@/types/skills";
+import {
+  validateQuizQuestions,
+  validatePassThreshold,
+  validateRetakeCooldown,
+  validateQuestionCount,
+} from "@/lib/skills/validate-quiz";
 import type {
   Block,
+  CardType,
+  FrameworkAnchor,
+  QuizQuestion,
   SkillCardHydrated,
   SkillCardRow,
-  SkillDifficulty,
   UpdateSkillCardPayload,
 } from "@/types/skills";
 
@@ -36,8 +44,14 @@ function createSupabaseServer(request: NextRequest) {
   );
 }
 
-const DIFFICULTIES: SkillDifficulty[] = ["foundational", "intermediate", "advanced"];
 const VALID_BLOCK_TYPES = new Set<string>(BLOCK_TYPES);
+const VALID_CARD_TYPES: readonly CardType[] = ["lesson", "routine"];
+const VALID_FRAMEWORKS = new Set<FrameworkAnchor["framework"]>([
+  "ATL",
+  "CASEL",
+  "WEF",
+  "StudioHabits",
+]);
 
 function validateBody(body: unknown): body is Block[] {
   if (!Array.isArray(body)) return false;
@@ -49,6 +63,25 @@ function validateBody(body: unknown): body is Block[] {
       typeof (b as { type: unknown }).type === "string" &&
       VALID_BLOCK_TYPES.has((b as { type: string }).type)
   );
+}
+
+function validateFrameworkAnchors(
+  anchors: unknown
+): anchors is FrameworkAnchor[] {
+  if (!Array.isArray(anchors)) return false;
+  return anchors.every(
+    (a) =>
+      a &&
+      typeof a === "object" &&
+      typeof (a as { framework: unknown }).framework === "string" &&
+      VALID_FRAMEWORKS.has((a as { framework: FrameworkAnchor["framework"] }).framework) &&
+      typeof (a as { label: unknown }).label === "string" &&
+      (a as { label: string }).label.trim().length > 0
+  );
+}
+
+function validateStringArray(a: unknown): a is string[] {
+  return Array.isArray(a) && a.every((x) => typeof x === "string");
 }
 
 async function loadHydrated(
@@ -85,7 +118,7 @@ async function loadHydrated(
   if (prereqIds.length > 0) {
     const { data: prereqCards } = await admin
       .from("skill_cards")
-      .select("id, slug, title, difficulty")
+      .select("id, slug, title, tier")
       .in("id", prereqIds);
     prereqs = (prereqCards ?? []) as SkillCardHydrated["prerequisites"];
   }
@@ -208,14 +241,28 @@ export async function PATCH(
       }
       update.category_id = payload.category_id;
     }
-    if (payload.difficulty !== undefined) {
-      if (!DIFFICULTIES.includes(payload.difficulty)) {
+    if (payload.domain_id !== undefined) {
+      const { data: dom } = await admin
+        .from("skill_domains")
+        .select("id")
+        .eq("id", payload.domain_id)
+        .maybeSingle();
+      if (!dom) {
         return NextResponse.json(
-          { error: "difficulty must be foundational|intermediate|advanced" },
+          { error: `Unknown domain: ${payload.domain_id}` },
           { status: 400 }
         );
       }
-      update.difficulty = payload.difficulty;
+      update.domain_id = payload.domain_id;
+    }
+    if (payload.tier !== undefined) {
+      if (!SKILL_TIERS.includes(payload.tier)) {
+        return NextResponse.json(
+          { error: "tier must be bronze|silver|gold" },
+          { status: 400 }
+        );
+      }
+      update.tier = payload.tier;
     }
     if (payload.body !== undefined) {
       if (!validateBody(payload.body)) {
@@ -228,6 +275,102 @@ export async function PATCH(
     }
     if (payload.estimated_min !== undefined) {
       update.estimated_min = payload.estimated_min;
+    }
+    if (payload.age_min !== undefined) {
+      if (
+        payload.age_min !== null &&
+        (!Number.isInteger(payload.age_min) ||
+          payload.age_min < 5 ||
+          payload.age_min > 25)
+      ) {
+        return NextResponse.json(
+          { error: "age_min must be an integer between 5 and 25 (or null)" },
+          { status: 400 }
+        );
+      }
+      update.age_min = payload.age_min;
+    }
+    if (payload.age_max !== undefined) {
+      if (
+        payload.age_max !== null &&
+        (!Number.isInteger(payload.age_max) ||
+          payload.age_max < 5 ||
+          payload.age_max > 25)
+      ) {
+        return NextResponse.json(
+          { error: "age_max must be an integer between 5 and 25 (or null)" },
+          { status: 400 }
+        );
+      }
+      update.age_max = payload.age_max;
+    }
+    if (payload.framework_anchors !== undefined) {
+      if (!validateFrameworkAnchors(payload.framework_anchors)) {
+        return NextResponse.json(
+          { error: "framework_anchors must be an array of {framework, label}" },
+          { status: 400 }
+        );
+      }
+      update.framework_anchors = payload.framework_anchors;
+    }
+    if (payload.demo_of_competency !== undefined) {
+      update.demo_of_competency =
+        payload.demo_of_competency?.toString().trim() || null;
+    }
+    if (payload.learning_outcomes !== undefined) {
+      if (!validateStringArray(payload.learning_outcomes)) {
+        return NextResponse.json(
+          { error: "learning_outcomes must be an array of strings" },
+          { status: 400 }
+        );
+      }
+      update.learning_outcomes = payload.learning_outcomes.map((s) => s.trim()).filter(Boolean);
+    }
+    if (payload.applied_in !== undefined) {
+      if (!validateStringArray(payload.applied_in)) {
+        return NextResponse.json(
+          { error: "applied_in must be an array of strings" },
+          { status: 400 }
+        );
+      }
+      update.applied_in = payload.applied_in.map((s) => s.trim()).filter(Boolean);
+    }
+    if (payload.card_type !== undefined) {
+      if (!VALID_CARD_TYPES.includes(payload.card_type)) {
+        return NextResponse.json(
+          { error: "card_type must be lesson|routine" },
+          { status: 400 }
+        );
+      }
+      update.card_type = payload.card_type;
+    }
+    if (payload.author_name !== undefined) {
+      update.author_name = payload.author_name?.toString().trim() || null;
+    }
+
+    // ---- Quiz fields (Phase A, migration 112) --------------------------------
+    if (payload.quiz_questions !== undefined) {
+      const err = validateQuizQuestions(payload.quiz_questions);
+      if (err) return NextResponse.json({ error: err }, { status: 400 });
+      update.quiz_questions = payload.quiz_questions as QuizQuestion[];
+    }
+    if (payload.pass_threshold !== undefined) {
+      const err = validatePassThreshold(payload.pass_threshold);
+      if (err) return NextResponse.json({ error: err }, { status: 400 });
+      update.pass_threshold = payload.pass_threshold;
+    }
+    if (payload.retake_cooldown_minutes !== undefined) {
+      const err = validateRetakeCooldown(payload.retake_cooldown_minutes);
+      if (err) return NextResponse.json({ error: err }, { status: 400 });
+      update.retake_cooldown_minutes = payload.retake_cooldown_minutes;
+    }
+    if (payload.question_count !== undefined) {
+      const poolSize = Array.isArray(payload.quiz_questions)
+        ? payload.quiz_questions.length
+        : Infinity; // not patching pool simultaneously — can't cap-check
+      const err = validateQuestionCount(payload.question_count, poolSize);
+      if (err) return NextResponse.json({ error: err }, { status: 400 });
+      update.question_count = payload.question_count;
     }
 
     if (Object.keys(update).length > 0) {

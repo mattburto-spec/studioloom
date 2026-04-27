@@ -21,23 +21,30 @@
 
 import { useState } from "react";
 import {
-  BLOCK_TYPES,
+  AUTHORABLE_BLOCK_TYPES,
   emptyBlock,
   isSafeEmbedUrl,
   type AccordionBlock,
+  type BeforeAfterBlock,
   type Block,
   type BlockType,
   type CalloutBlock,
   type ChecklistBlock,
   type CodeBlockBlock,
   type CompareImagesBlock,
+  type ComprehensionCheckBlock,
   type EmbedBlock,
   type GalleryBlock,
   type ImageBlock,
+  type KeyConceptBlock,
+  type MicroStoryBlock,
   type ProseBlock,
+  type ScenarioBlock,
   type SideBySideBlock,
+  type StepByStepBlock,
   type ThinkAloudBlock,
   type VideoBlock,
+  type VideoEmbedBlock,
   type WorkedExampleBlock,
 } from "@/types/skills";
 
@@ -47,19 +54,30 @@ interface Props {
 }
 
 const BLOCK_LABELS: Record<BlockType, string> = {
-  prose: "Text",
-  callout: "Callout",
-  checklist: "Checklist",
-  image: "Image",
-  video: "Video",
-  worked_example: "Worked example",
+  // Rich (primary authoring vocabulary)
+  key_concept: "Key concept",
+  micro_story: "Micro-story",
+  scenario: "Scenario",
+  before_after: "Before / After",
+  step_by_step: "Step by step",
+  comprehension_check: "Quick check",
+  video_embed: "Video",
+  spot_the_hazard: "Spot the hazard",
+  // Generic (kept)
   embed: "Embed",
   accordion: "Accordion",
-  think_aloud: "Think-aloud",
-  compare_images: "Before/After",
   gallery: "Gallery",
-  code: "Code",
-  side_by_side: "Side-by-side",
+  // Deprecated — never added via UI, labels only used for existing bodies
+  prose: "Text (legacy)",
+  callout: "Callout (legacy)",
+  checklist: "Checklist (legacy)",
+  image: "Image (legacy)",
+  video: "Video (legacy)",
+  worked_example: "Worked example (legacy)",
+  think_aloud: "Think-aloud (legacy)",
+  compare_images: "Before/After (legacy)",
+  code: "Code (legacy)",
+  side_by_side: "Side-by-side (legacy)",
 };
 
 export function BlockEditor({ blocks, onChange }: Props) {
@@ -153,7 +171,7 @@ export function BlockEditor({ blocks, onChange }: Props) {
         ) : (
           <div className="sl-skill-editor__add-menu">
             <span>Choose block type:</span>
-            {BLOCK_TYPES.map((t) => (
+            {AUTHORABLE_BLOCK_TYPES.map((t) => (
               <button
                 key={t}
                 type="button"
@@ -189,6 +207,23 @@ function BlockForm({
   onChange: (next: Block) => void;
 }) {
   switch (block.type) {
+    // Rich pedagogical blocks
+    case "key_concept":
+      return <KeyConceptForm block={block} onChange={onChange} />;
+    case "micro_story":
+      return <MicroStoryForm block={block} onChange={onChange} />;
+    case "scenario":
+      return <ScenarioForm block={block} onChange={onChange} />;
+    case "before_after":
+      return <BeforeAfterForm block={block} onChange={onChange} />;
+    case "step_by_step":
+      return <StepByStepForm block={block} onChange={onChange} />;
+    case "comprehension_check":
+      return <ComprehensionCheckForm block={block} onChange={onChange} />;
+    case "video_embed":
+      return <VideoEmbedForm block={block} onChange={onChange} />;
+    // Deprecated — can be edited if authored in a previous version, but
+    // never added fresh via the add-block menu.
     case "prose":
       return <ProseForm block={block} onChange={onChange} />;
     case "callout":
@@ -868,6 +903,934 @@ function SideBySideForm({
           />
         </div>
       </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// ============================================================================
+// RICH BLOCK FORMS — the primary authoring vocabulary (from the safety system).
+// ============================================================================
+// ============================================================================
+
+// ----- KeyConcept -----
+function KeyConceptForm({
+  block,
+  onChange,
+}: {
+  block: KeyConceptBlock;
+  onChange: (next: Block) => void;
+}) {
+  function updateStringAt(
+    field: "tips" | "examples",
+    idx: number,
+    value: string
+  ) {
+    const arr = (block[field] ?? []).slice();
+    arr[idx] = value;
+    onChange({ ...block, [field]: arr });
+  }
+  function removeStringAt(field: "tips" | "examples", idx: number) {
+    const arr = (block[field] ?? []).slice();
+    arr.splice(idx, 1);
+    onChange({ ...block, [field]: arr.length ? arr : undefined });
+  }
+  function addString(field: "tips" | "examples") {
+    const arr = (block[field] ?? []).slice();
+    arr.push("");
+    onChange({ ...block, [field]: arr });
+  }
+  return (
+    <div className="sl-skill-form">
+      <div className="grid grid-cols-1 md:grid-cols-[4rem_1fr] gap-3">
+        <label className="sl-skill-label">
+          Icon
+          <input
+            type="text"
+            maxLength={4}
+            className="sl-skill-input"
+            placeholder="🔥"
+            value={block.icon ?? ""}
+            onChange={(e) => onChange({ ...block, icon: e.target.value })}
+          />
+        </label>
+        <label className="sl-skill-label">
+          Title
+          <input
+            type="text"
+            className="sl-skill-input"
+            placeholder="e.g. Soldering iron: handling &amp; storage"
+            value={block.title}
+            onChange={(e) => onChange({ ...block, title: e.target.value })}
+          />
+        </label>
+      </div>
+      <label className="sl-skill-label">
+        Content (markdown-lite: **bold** / *italic* / paragraphs)
+        <textarea
+          className="sl-skill-input sl-skill-textarea"
+          rows={6}
+          value={block.content}
+          onChange={(e) => onChange({ ...block, content: e.target.value })}
+        />
+      </label>
+      <label className="sl-skill-label">
+        Image URL (optional)
+        <input
+          type="url"
+          className="sl-skill-input"
+          placeholder="https://..."
+          value={block.image ?? ""}
+          onChange={(e) =>
+            onChange({ ...block, image: e.target.value || undefined })
+          }
+        />
+      </label>
+      <div>
+        <div className="flex items-center justify-between">
+          <span className="sl-skill-sublabel">Tips</span>
+          <button
+            type="button"
+            className="sl-skill-btn sl-skill-btn--ghost sl-skill-btn--tiny"
+            onClick={() => addString("tips")}
+          >
+            + Tip
+          </button>
+        </div>
+        {(block.tips ?? []).map((tip, i) => (
+          <div key={i} className="sl-skill-row">
+            <input
+              type="text"
+              className="sl-skill-input"
+              value={tip}
+              onChange={(e) => updateStringAt("tips", i, e.target.value)}
+            />
+            <button
+              type="button"
+              className="sl-skill-btn sl-skill-btn--tiny sl-skill-btn--danger"
+              onClick={() => removeStringAt("tips", i)}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+      </div>
+      <div>
+        <div className="flex items-center justify-between">
+          <span className="sl-skill-sublabel">Examples</span>
+          <button
+            type="button"
+            className="sl-skill-btn sl-skill-btn--ghost sl-skill-btn--tiny"
+            onClick={() => addString("examples")}
+          >
+            + Example
+          </button>
+        </div>
+        {(block.examples ?? []).map((ex, i) => (
+          <div key={i} className="sl-skill-row">
+            <input
+              type="text"
+              className="sl-skill-input"
+              value={ex}
+              onChange={(e) => updateStringAt("examples", i, e.target.value)}
+            />
+            <button
+              type="button"
+              className="sl-skill-btn sl-skill-btn--tiny sl-skill-btn--danger"
+              onClick={() => removeStringAt("examples", i)}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+      </div>
+      <label className="sl-skill-label">
+        Warning (optional — shown as a highlighted callout)
+        <textarea
+          className="sl-skill-input sl-skill-textarea"
+          rows={2}
+          placeholder="e.g. Never leave the iron out of the stand, even for a second."
+          value={block.warning ?? ""}
+          onChange={(e) =>
+            onChange({ ...block, warning: e.target.value || undefined })
+          }
+        />
+      </label>
+    </div>
+  );
+}
+
+// ----- MicroStory -----
+function MicroStoryForm({
+  block,
+  onChange,
+}: {
+  block: MicroStoryBlock;
+  onChange: (next: Block) => void;
+}) {
+  function updatePrompt(
+    idx: number,
+    patch: Partial<MicroStoryBlock["analysis_prompts"][number]>
+  ) {
+    const next = block.analysis_prompts.slice();
+    next[idx] = { ...next[idx], ...patch };
+    onChange({ ...block, analysis_prompts: next });
+  }
+  function removePrompt(idx: number) {
+    const next = block.analysis_prompts.slice();
+    next.splice(idx, 1);
+    onChange({
+      ...block,
+      analysis_prompts: next.length
+        ? next
+        : [{ question: "", reveal_answer: "" }],
+    });
+  }
+  function addPrompt() {
+    onChange({
+      ...block,
+      analysis_prompts: [
+        ...block.analysis_prompts,
+        { question: "", reveal_answer: "" },
+      ],
+    });
+  }
+  return (
+    <div className="sl-skill-form">
+      <label className="sl-skill-label">
+        Title
+        <input
+          type="text"
+          className="sl-skill-input"
+          placeholder="e.g. The Lithium Battery Incident"
+          value={block.title}
+          onChange={(e) => onChange({ ...block, title: e.target.value })}
+        />
+      </label>
+      <label className="sl-skill-label">
+        <input
+          type="checkbox"
+          checked={block.is_real_incident}
+          onChange={(e) =>
+            onChange({ ...block, is_real_incident: e.target.checked })
+          }
+        />{" "}
+        Mark as a real incident (adds &ldquo;Real incident&rdquo; badge)
+      </label>
+      <label className="sl-skill-label">
+        Narrative — the story itself
+        <textarea
+          className="sl-skill-input sl-skill-textarea"
+          rows={6}
+          value={block.narrative}
+          onChange={(e) => onChange({ ...block, narrative: e.target.value })}
+        />
+      </label>
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <span className="sl-skill-sublabel">
+            Analysis prompts (question → click to reveal answer)
+          </span>
+          <button
+            type="button"
+            className="sl-skill-btn sl-skill-btn--ghost sl-skill-btn--tiny"
+            onClick={addPrompt}
+          >
+            + Prompt
+          </button>
+        </div>
+        {block.analysis_prompts.map((p, i) => (
+          <div
+            key={i}
+            className="sl-skill-form"
+            style={{
+              padding: "0.75rem",
+              border: "1px solid #e5e7eb",
+              borderRadius: "10px",
+            }}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <span className="sl-skill-sublabel">Prompt {i + 1}</span>
+              <button
+                type="button"
+                className="sl-skill-btn sl-skill-btn--tiny sl-skill-btn--danger"
+                onClick={() => removePrompt(i)}
+              >
+                ×
+              </button>
+            </div>
+            <input
+              type="text"
+              className="sl-skill-input"
+              placeholder="Question"
+              value={p.question}
+              onChange={(e) => updatePrompt(i, { question: e.target.value })}
+            />
+            <textarea
+              className="sl-skill-input sl-skill-textarea"
+              rows={2}
+              placeholder="Answer (hidden until revealed)"
+              value={p.reveal_answer}
+              onChange={(e) =>
+                updatePrompt(i, { reveal_answer: e.target.value })
+              }
+            />
+          </div>
+        ))}
+      </div>
+      <label className="sl-skill-label">
+        Key lesson
+        <textarea
+          className="sl-skill-input sl-skill-textarea"
+          rows={2}
+          placeholder="The headline takeaway from this story."
+          value={block.key_lesson}
+          onChange={(e) => onChange({ ...block, key_lesson: e.target.value })}
+        />
+      </label>
+      <label className="sl-skill-label">
+        Related rule (optional)
+        <input
+          type="text"
+          className="sl-skill-input"
+          placeholder="e.g. Workshop rule #3: never charge unfamiliar batteries"
+          value={block.related_rule ?? ""}
+          onChange={(e) =>
+            onChange({ ...block, related_rule: e.target.value || undefined })
+          }
+        />
+      </label>
+    </div>
+  );
+}
+
+// ----- Scenario -----
+function ScenarioForm({
+  block,
+  onChange,
+}: {
+  block: ScenarioBlock;
+  onChange: (next: Block) => void;
+}) {
+  function updateBranch(
+    idx: number,
+    patch: Partial<ScenarioBlock["branches"][number]>
+  ) {
+    const next = block.branches.slice();
+    next[idx] = { ...next[idx], ...patch };
+    onChange({ ...block, branches: next });
+  }
+  function removeBranch(idx: number) {
+    const next = block.branches.slice();
+    next.splice(idx, 1);
+    onChange({ ...block, branches: next });
+  }
+  function addBranch() {
+    const id = `b${block.branches.length + 1}`;
+    onChange({
+      ...block,
+      branches: [
+        ...block.branches,
+        { id, choice_text: "", is_correct: false, feedback: "" },
+      ],
+    });
+  }
+  return (
+    <div className="sl-skill-form">
+      <label className="sl-skill-label">
+        Title
+        <input
+          type="text"
+          className="sl-skill-input"
+          placeholder="e.g. Your partner leaves the saw running"
+          value={block.title}
+          onChange={(e) => onChange({ ...block, title: e.target.value })}
+        />
+      </label>
+      <label className="sl-skill-label">
+        Setup — describe the situation
+        <textarea
+          className="sl-skill-input sl-skill-textarea"
+          rows={4}
+          value={block.setup}
+          onChange={(e) => onChange({ ...block, setup: e.target.value })}
+        />
+      </label>
+      <label className="sl-skill-label">
+        Illustration URL (optional)
+        <input
+          type="url"
+          className="sl-skill-input"
+          placeholder="https://..."
+          value={block.illustration ?? ""}
+          onChange={(e) =>
+            onChange({ ...block, illustration: e.target.value || undefined })
+          }
+        />
+      </label>
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <span className="sl-skill-sublabel">Choices / branches</span>
+          <button
+            type="button"
+            className="sl-skill-btn sl-skill-btn--ghost sl-skill-btn--tiny"
+            onClick={addBranch}
+          >
+            + Branch
+          </button>
+        </div>
+        {block.branches.map((b, i) => (
+          <div
+            key={b.id}
+            className="sl-skill-form"
+            style={{
+              padding: "0.75rem",
+              border: "1px solid #e5e7eb",
+              borderRadius: "10px",
+            }}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <span className="sl-skill-sublabel">Branch {i + 1} · id: {b.id}</span>
+              <button
+                type="button"
+                className="sl-skill-btn sl-skill-btn--tiny sl-skill-btn--danger"
+                onClick={() => removeBranch(i)}
+                disabled={block.branches.length <= 2}
+                title={
+                  block.branches.length <= 2
+                    ? "A scenario needs at least 2 branches"
+                    : undefined
+                }
+              >
+                ×
+              </button>
+            </div>
+            <input
+              type="text"
+              className="sl-skill-input"
+              placeholder="Choice text (what the student picks)"
+              value={b.choice_text}
+              onChange={(e) =>
+                updateBranch(i, { choice_text: e.target.value })
+              }
+            />
+            <label className="sl-skill-label">
+              <input
+                type="checkbox"
+                checked={b.is_correct}
+                onChange={(e) =>
+                  updateBranch(i, { is_correct: e.target.checked })
+                }
+              />{" "}
+              This is a correct choice
+            </label>
+            <textarea
+              className="sl-skill-input sl-skill-textarea"
+              rows={2}
+              placeholder="Feedback shown after they pick this"
+              value={b.feedback}
+              onChange={(e) => updateBranch(i, { feedback: e.target.value })}
+            />
+            <input
+              type="text"
+              className="sl-skill-input"
+              placeholder="Consequence (optional — what happens next)"
+              value={b.consequence ?? ""}
+              onChange={(e) =>
+                updateBranch(i, { consequence: e.target.value || undefined })
+              }
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ----- BeforeAfter -----
+function BeforeAfterForm({
+  block,
+  onChange,
+}: {
+  block: BeforeAfterBlock;
+  onChange: (next: Block) => void;
+}) {
+  // Split per side so TS narrowing holds — the two sides have different
+  // child-list fields (hazards vs principles).
+  function patchBefore(patch: Partial<BeforeAfterBlock["before"]>) {
+    onChange({ ...block, before: { ...block.before, ...patch } });
+  }
+  function patchAfter(patch: Partial<BeforeAfterBlock["after"]>) {
+    onChange({ ...block, after: { ...block.after, ...patch } });
+  }
+  function updateHazard(idx: number, value: string) {
+    const next = block.before.hazards.slice();
+    next[idx] = value;
+    patchBefore({ hazards: next });
+  }
+  function removeHazard(idx: number) {
+    const next = block.before.hazards.slice();
+    next.splice(idx, 1);
+    patchBefore({ hazards: next.length ? next : [""] });
+  }
+  function addHazard() {
+    patchBefore({ hazards: [...block.before.hazards, ""] });
+  }
+  function updatePrinciple(idx: number, value: string) {
+    const next = block.after.principles.slice();
+    next[idx] = value;
+    patchAfter({ principles: next });
+  }
+  function removePrinciple(idx: number) {
+    const next = block.after.principles.slice();
+    next.splice(idx, 1);
+    patchAfter({ principles: next.length ? next : [""] });
+  }
+  function addPrinciple() {
+    patchAfter({ principles: [...block.after.principles, ""] });
+  }
+  return (
+    <div className="sl-skill-form">
+      <label className="sl-skill-label">
+        Title
+        <input
+          type="text"
+          className="sl-skill-input"
+          placeholder="e.g. Good bench setup vs messy bench setup"
+          value={block.title}
+          onChange={(e) => onChange({ ...block, title: e.target.value })}
+        />
+      </label>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* BEFORE side */}
+        <div
+          className="sl-skill-form"
+          style={{
+            padding: "0.75rem",
+            border: "1px solid #e5e7eb",
+            borderRadius: "10px",
+          }}
+        >
+          <div className="sl-skill-sublabel">Before</div>
+          <input
+            type="url"
+            className="sl-skill-input"
+            placeholder="Image URL (optional)"
+            value={block.before.image ?? ""}
+            onChange={(e) =>
+              patchBefore({ image: e.target.value || undefined })
+            }
+          />
+          <input
+            type="text"
+            className="sl-skill-input"
+            placeholder="Caption"
+            value={block.before.caption}
+            onChange={(e) => patchBefore({ caption: e.target.value })}
+          />
+          <div className="flex items-center justify-between">
+            <span className="sl-skill-sublabel">Hazards</span>
+            <button
+              type="button"
+              className="sl-skill-btn sl-skill-btn--ghost sl-skill-btn--tiny"
+              onClick={addHazard}
+            >
+              + Hazard
+            </button>
+          </div>
+          {block.before.hazards.map((item, i) => (
+            <div key={i} className="sl-skill-row">
+              <input
+                type="text"
+                className="sl-skill-input"
+                value={item}
+                onChange={(e) => updateHazard(i, e.target.value)}
+              />
+              <button
+                type="button"
+                className="sl-skill-btn sl-skill-btn--tiny sl-skill-btn--danger"
+                onClick={() => removeHazard(i)}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* AFTER side */}
+        <div
+          className="sl-skill-form"
+          style={{
+            padding: "0.75rem",
+            border: "1px solid #e5e7eb",
+            borderRadius: "10px",
+          }}
+        >
+          <div className="sl-skill-sublabel">After</div>
+          <input
+            type="url"
+            className="sl-skill-input"
+            placeholder="Image URL (optional)"
+            value={block.after.image ?? ""}
+            onChange={(e) =>
+              patchAfter({ image: e.target.value || undefined })
+            }
+          />
+          <input
+            type="text"
+            className="sl-skill-input"
+            placeholder="Caption"
+            value={block.after.caption}
+            onChange={(e) => patchAfter({ caption: e.target.value })}
+          />
+          <div className="flex items-center justify-between">
+            <span className="sl-skill-sublabel">Principles</span>
+            <button
+              type="button"
+              className="sl-skill-btn sl-skill-btn--ghost sl-skill-btn--tiny"
+              onClick={addPrinciple}
+            >
+              + Principle
+            </button>
+          </div>
+          {block.after.principles.map((item, i) => (
+            <div key={i} className="sl-skill-row">
+              <input
+                type="text"
+                className="sl-skill-input"
+                value={item}
+                onChange={(e) => updatePrinciple(i, e.target.value)}
+              />
+              <button
+                type="button"
+                className="sl-skill-btn sl-skill-btn--tiny sl-skill-btn--danger"
+                onClick={() => removePrinciple(i)}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+      <label className="sl-skill-label">
+        Key difference (the headline takeaway)
+        <textarea
+          className="sl-skill-input sl-skill-textarea"
+          rows={2}
+          value={block.key_difference}
+          onChange={(e) =>
+            onChange({ ...block, key_difference: e.target.value })
+          }
+        />
+      </label>
+    </div>
+  );
+}
+
+// ----- StepByStep -----
+function StepByStepForm({
+  block,
+  onChange,
+}: {
+  block: StepByStepBlock;
+  onChange: (next: Block) => void;
+}) {
+  function updateStep(
+    idx: number,
+    patch: Partial<StepByStepBlock["steps"][number]>
+  ) {
+    const next = block.steps.slice();
+    next[idx] = { ...next[idx], ...patch };
+    onChange({ ...block, steps: next });
+  }
+  function removeStep(idx: number) {
+    const next = block.steps.slice();
+    next.splice(idx, 1);
+    onChange({
+      ...block,
+      steps: next.length
+        ? next.map((s, i) => ({ ...s, number: i + 1 }))
+        : [{ number: 1, instruction: "" }],
+    });
+  }
+  function addStep() {
+    onChange({
+      ...block,
+      steps: [
+        ...block.steps,
+        { number: block.steps.length + 1, instruction: "" },
+      ],
+    });
+  }
+  return (
+    <div className="sl-skill-form">
+      <label className="sl-skill-label">
+        Title
+        <input
+          type="text"
+          className="sl-skill-input"
+          placeholder="e.g. Setting up the 3D printer"
+          value={block.title}
+          onChange={(e) => onChange({ ...block, title: e.target.value })}
+        />
+      </label>
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <span className="sl-skill-sublabel">Steps</span>
+          <button
+            type="button"
+            className="sl-skill-btn sl-skill-btn--ghost sl-skill-btn--tiny"
+            onClick={addStep}
+          >
+            + Step
+          </button>
+        </div>
+        {block.steps.map((s, i) => (
+          <div
+            key={i}
+            className="sl-skill-form"
+            style={{
+              padding: "0.75rem",
+              border: "1px solid #e5e7eb",
+              borderRadius: "10px",
+            }}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <span className="sl-skill-sublabel">Step {s.number}</span>
+              <button
+                type="button"
+                className="sl-skill-btn sl-skill-btn--tiny sl-skill-btn--danger"
+                onClick={() => removeStep(i)}
+                disabled={block.steps.length === 1}
+              >
+                ×
+              </button>
+            </div>
+            <textarea
+              className="sl-skill-input sl-skill-textarea"
+              rows={2}
+              placeholder="Instruction"
+              value={s.instruction}
+              onChange={(e) => updateStep(i, { instruction: e.target.value })}
+            />
+            <input
+              type="url"
+              className="sl-skill-input"
+              placeholder="Image URL (optional)"
+              value={s.image ?? ""}
+              onChange={(e) =>
+                updateStep(i, { image: e.target.value || undefined })
+              }
+            />
+            <input
+              type="text"
+              className="sl-skill-input"
+              placeholder="Warning (optional)"
+              value={s.warning ?? ""}
+              onChange={(e) =>
+                updateStep(i, { warning: e.target.value || undefined })
+              }
+            />
+            <input
+              type="text"
+              className="sl-skill-input"
+              placeholder="Checkpoint — thing to verify before moving on (optional)"
+              value={s.checkpoint ?? ""}
+              onChange={(e) =>
+                updateStep(i, { checkpoint: e.target.value || undefined })
+              }
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ----- ComprehensionCheck -----
+function ComprehensionCheckForm({
+  block,
+  onChange,
+}: {
+  block: ComprehensionCheckBlock;
+  onChange: (next: Block) => void;
+}) {
+  function updateOption(idx: number, value: string) {
+    const next = block.options.slice();
+    next[idx] = value;
+    onChange({ ...block, options: next });
+  }
+  function removeOption(idx: number) {
+    const next = block.options.slice();
+    next.splice(idx, 1);
+    let correctIndex = block.correct_index;
+    if (correctIndex >= next.length) correctIndex = 0;
+    onChange({ ...block, options: next.length >= 2 ? next : block.options, correct_index: correctIndex });
+  }
+  function addOption() {
+    onChange({ ...block, options: [...block.options, ""] });
+  }
+  return (
+    <div className="sl-skill-form">
+      <label className="sl-skill-label">
+        Question
+        <textarea
+          className="sl-skill-input sl-skill-textarea"
+          rows={2}
+          value={block.question}
+          onChange={(e) => onChange({ ...block, question: e.target.value })}
+        />
+      </label>
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <span className="sl-skill-sublabel">
+            Options (select the radio for the correct one)
+          </span>
+          <button
+            type="button"
+            className="sl-skill-btn sl-skill-btn--ghost sl-skill-btn--tiny"
+            onClick={addOption}
+          >
+            + Option
+          </button>
+        </div>
+        {block.options.map((opt, i) => (
+          <div key={i} className="sl-skill-row">
+            <input
+              type="radio"
+              name={`cc-correct-${block.question.slice(0, 8)}`}
+              checked={block.correct_index === i}
+              onChange={() => onChange({ ...block, correct_index: i })}
+              aria-label={`Mark option ${i + 1} as correct`}
+            />
+            <input
+              type="text"
+              className="sl-skill-input"
+              value={opt}
+              onChange={(e) => updateOption(i, e.target.value)}
+            />
+            <button
+              type="button"
+              className="sl-skill-btn sl-skill-btn--tiny sl-skill-btn--danger"
+              onClick={() => removeOption(i)}
+              disabled={block.options.length <= 2}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+      </div>
+      <label className="sl-skill-label">
+        Feedback on correct pick
+        <textarea
+          className="sl-skill-input sl-skill-textarea"
+          rows={2}
+          value={block.feedback_correct}
+          onChange={(e) =>
+            onChange({ ...block, feedback_correct: e.target.value })
+          }
+        />
+      </label>
+      <label className="sl-skill-label">
+        Feedback on wrong pick
+        <textarea
+          className="sl-skill-input sl-skill-textarea"
+          rows={2}
+          value={block.feedback_wrong}
+          onChange={(e) =>
+            onChange({ ...block, feedback_wrong: e.target.value })
+          }
+        />
+      </label>
+      <label className="sl-skill-label">
+        Hint (shown on 2nd attempt, optional)
+        <input
+          type="text"
+          className="sl-skill-input"
+          value={block.hint ?? ""}
+          onChange={(e) =>
+            onChange({ ...block, hint: e.target.value || undefined })
+          }
+        />
+      </label>
+    </div>
+  );
+}
+
+// ----- VideoEmbed (with trim) -----
+function VideoEmbedForm({
+  block,
+  onChange,
+}: {
+  block: VideoEmbedBlock;
+  onChange: (next: Block) => void;
+}) {
+  return (
+    <div className="sl-skill-form">
+      <label className="sl-skill-label">
+        Video URL (YouTube / Vimeo / direct MP4)
+        <input
+          type="url"
+          className="sl-skill-input"
+          placeholder="https://..."
+          value={block.url}
+          onChange={(e) => onChange({ ...block, url: e.target.value })}
+        />
+      </label>
+      <label className="sl-skill-label">
+        Title (for accessibility)
+        <input
+          type="text"
+          className="sl-skill-input"
+          value={block.title ?? ""}
+          onChange={(e) =>
+            onChange({ ...block, title: e.target.value || undefined })
+          }
+        />
+      </label>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <label className="sl-skill-label">
+          Trim: start time (seconds, optional)
+          <input
+            type="number"
+            min={0}
+            className="sl-skill-input"
+            value={block.start_time ?? ""}
+            onChange={(e) =>
+              onChange({
+                ...block,
+                start_time: e.target.value ? Number(e.target.value) : undefined,
+              })
+            }
+          />
+        </label>
+        <label className="sl-skill-label">
+          Trim: end time (seconds, optional)
+          <input
+            type="number"
+            min={0}
+            className="sl-skill-input"
+            value={block.end_time ?? ""}
+            onChange={(e) =>
+              onChange({
+                ...block,
+                end_time: e.target.value ? Number(e.target.value) : undefined,
+              })
+            }
+          />
+        </label>
+      </div>
+      <label className="sl-skill-label">
+        Caption (optional)
+        <input
+          type="text"
+          className="sl-skill-input"
+          value={block.caption ?? ""}
+          onChange={(e) =>
+            onChange({ ...block, caption: e.target.value || undefined })
+          }
+        />
+      </label>
     </div>
   );
 }

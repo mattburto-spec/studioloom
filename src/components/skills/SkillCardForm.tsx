@@ -3,22 +3,34 @@
 /**
  * SkillCardForm — shared authoring form for /teacher/skills/new and /edit.
  *
- * Controlled component that owns the card metadata + tags + external links +
- * prereqs state locally, then calls onSubmit(payload) with the final shape.
+ * Catalogue-v1 schema (migration 110): each card has tier, domain, age band,
+ * framework anchors, demo of competency, learning outcomes, applied_in, and
+ * card_type on top of the earlier title/category/body/tags/prereqs/links.
  *
- * Read-only mode renders a preview (e.g. for built-in cards): no inputs, just
- * the rendered blocks.
+ * Section order is deliberate — starts with the "identity" fields (what is
+ * this card?), then the pedagogical contract (what does earned mean?), then
+ * the body, then the extras (tags / links / prereqs). This mirrors how a
+ * Scouts-style pamphlet is structured.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BlockEditor } from "./BlockEditor";
 import { BlockRenderer } from "./BlockRenderer";
+import { AISuggestBox } from "./AISuggestBox";
 import "./skills.css";
-import type {
-  Block,
-  CreateSkillCardPayload,
-  SkillCardHydrated,
-  SkillDifficulty,
+import { nanoid } from "nanoid";
+import {
+  CONTROLLED_VERBS,
+  SKILL_TIER_LABELS,
+  SKILL_TIERS,
+  type Block,
+  type CardType,
+  type CreateSkillCardPayload,
+  type FrameworkAnchor,
+  type QuizQuestion,
+  type QuizQuestionType,
+  type SkillCardHydrated,
+  type SkillTier,
 } from "@/types/skills";
 
 interface Category {
@@ -27,35 +39,32 @@ interface Category {
   description: string;
 }
 
+interface Domain {
+  id: string;
+  short_code: string;
+  label: string;
+  description: string;
+}
+
 interface PrereqOption {
   id: string;
   slug: string;
   title: string;
-  difficulty: string | null;
+  tier: string | null;
 }
 
 interface Props {
   mode: "create" | "edit";
   initial?: SkillCardHydrated;
   categories: Category[];
-  /**
-   * Called with the validated payload + submit intent.
-   * - In "create" mode, `publishImmediately` is true when the teacher
-   *   clicked "Create & publish" (chain a publish call after create).
-   * - In "edit" mode, always false.
-   */
+  domains: Domain[];
   onSubmit: (
     payload: CreateSkillCardPayload,
     opts: { publishImmediately: boolean }
   ) => Promise<void>;
   submitting: boolean;
   submitError: string | null;
-  /** Status line shown to the left of the submit button. Used by /edit
-   *  for "Saved at 3:45 PM" and similar. */
   statusSlot?: React.ReactNode;
-  /** Extra buttons injected into the sticky bottom action bar, to the
-   *  left of the submit button. Used by /edit to mirror the Publish
-   *  action so it sits next to Save. */
   extraActions?: React.ReactNode;
 }
 
@@ -68,10 +77,70 @@ function slugify(title: string): string {
     .slice(0, 80);
 }
 
+const FRAMEWORK_CHOICES: ReadonlyArray<{
+  value: FrameworkAnchor["framework"];
+  label: string;
+  suggestions: string[];
+}> = [
+  {
+    value: "ATL",
+    label: "IB MYP ATL",
+    suggestions: [
+      "Thinking",
+      "Research",
+      "Social",
+      "Communication",
+      "Self-Management",
+    ],
+  },
+  {
+    value: "CASEL",
+    label: "CASEL 5",
+    suggestions: [
+      "Self-Awareness",
+      "Self-Management",
+      "Social Awareness",
+      "Relationship Skills",
+      "Responsible Decision-Making",
+    ],
+  },
+  {
+    value: "WEF",
+    label: "WEF Future of Jobs 2025",
+    suggestions: [
+      "Analytical Thinking",
+      "Creative Thinking",
+      "Resilience",
+      "Leadership and Social Influence",
+      "Motivation and Self-Awareness",
+      "Curiosity",
+      "Technological Literacy",
+      "Empathy",
+      "Talent Management",
+      "Service Orientation",
+    ],
+  },
+  {
+    value: "StudioHabits",
+    label: "Studio Habits of Mind",
+    suggestions: [
+      "Develop Craft",
+      "Engage & Persist",
+      "Envision",
+      "Express",
+      "Observe",
+      "Reflect",
+      "Stretch & Explore",
+      "Understand Art Worlds",
+    ],
+  },
+];
+
 export function SkillCardForm({
   mode,
   initial,
   categories,
+  domains,
   onSubmit,
   submitting,
   submitError,
@@ -81,18 +150,66 @@ export function SkillCardForm({
   // Which button was clicked? Set by each button's onClick just before
   // the native submit fires, read inside handleSubmit.
   const publishIntentRef = useRef<boolean>(false);
+
+  // ---------- Identity ----------
   const [title, setTitle] = useState(initial?.title ?? "");
   const [slug, setSlug] = useState(initial?.slug ?? "");
   const [slugTouched, setSlugTouched] = useState(Boolean(initial?.slug));
   const [summary, setSummary] = useState(initial?.summary ?? "");
+  const [authorName, setAuthorName] = useState(initial?.author_name ?? "");
+
+  // ---------- Taxonomy ----------
   const [categoryId, setCategoryId] = useState(initial?.category_id ?? "");
-  const [difficulty, setDifficulty] = useState<SkillDifficulty | "">(
-    initial?.difficulty ?? ""
+  const [domainId, setDomainId] = useState(initial?.domain_id ?? "");
+  const [tier, setTier] = useState<SkillTier | "">(initial?.tier ?? "");
+  const [cardType, setCardType] = useState<CardType>(
+    initial?.card_type ?? "lesson"
   );
+
+  // ---------- Sizing ----------
   const [estimatedMin, setEstimatedMin] = useState<string>(
     initial?.estimated_min?.toString() ?? ""
   );
+  const [ageMin, setAgeMin] = useState<string>(
+    initial?.age_min?.toString() ?? ""
+  );
+  const [ageMax, setAgeMax] = useState<string>(
+    initial?.age_max?.toString() ?? ""
+  );
+
+  // ---------- Pedagogical contract ----------
+  const [demoOfCompetency, setDemoOfCompetency] = useState(
+    initial?.demo_of_competency ?? ""
+  );
+  const [learningOutcomes, setLearningOutcomes] = useState<string[]>(
+    initial?.learning_outcomes?.length ? initial.learning_outcomes : [""]
+  );
+  const [frameworkAnchors, setFrameworkAnchors] = useState<FrameworkAnchor[]>(
+    initial?.framework_anchors ?? []
+  );
+  const [appliedIn, setAppliedIn] = useState<string[]>(
+    initial?.applied_in?.length ? initial.applied_in : [""]
+  );
+
+  // ---------- Body ----------
   const [body, setBody] = useState<Block[]>(initial?.body ?? []);
+  const [showPreview, setShowPreview] = useState(false);
+
+  // ---------- Quiz (Phase A, migration 112) ----------
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>(
+    initial?.quiz_questions ?? []
+  );
+  const [passThreshold, setPassThreshold] = useState<string>(
+    (initial?.pass_threshold ?? 80).toString()
+  );
+  const [retakeCooldown, setRetakeCooldown] = useState<string>(
+    (initial?.retake_cooldown_minutes ?? 0).toString()
+  );
+  const [questionCount, setQuestionCount] = useState<string>(
+    initial?.question_count != null ? String(initial.question_count) : ""
+  );
+
+  // ---------- Extras ----------
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [tagInput, setTagInput] = useState("");
   const [links, setLinks] = useState<
@@ -109,7 +226,6 @@ export function SkillCardForm({
   );
   const [prereqSearch, setPrereqSearch] = useState("");
   const [prereqOptions, setPrereqOptions] = useState<PrereqOption[]>([]);
-  const [showPreview, setShowPreview] = useState(false);
 
   // Auto-slug from title until the user edits slug manually.
   useEffect(() => {
@@ -126,15 +242,17 @@ export function SkillCardForm({
       return;
     }
     const id = window.setTimeout(async () => {
-      const res = await fetch(
-        `/api/teacher/skills/cards?ownership=all`,
-        { credentials: "include" }
-      );
+      const res = await fetch(`/api/teacher/skills/cards?ownership=all`, {
+        credentials: "include",
+      });
       if (!res.ok) return;
       const json = await res.json();
       const matches = (json.cards ?? [])
         .filter(
-          (c: PrereqOption & { is_published?: boolean; is_built_in?: boolean }) =>
+          (c: PrereqOption & {
+            is_published?: boolean;
+            is_built_in?: boolean;
+          }) =>
             (c.is_published || c.is_built_in) &&
             c.id !== initial?.id &&
             !prereqIds.includes(c.id) &&
@@ -149,11 +267,68 @@ export function SkillCardForm({
   const prereqById = useMemo(() => {
     const map = new Map<string, PrereqOption>();
     (initial?.prerequisites ?? []).forEach((p) =>
-      map.set(p.id, { ...p, difficulty: p.difficulty ?? null })
+      map.set(p.id, { ...p, tier: p.tier ?? null })
     );
     prereqOptions.forEach((o) => map.set(o.id, o));
     return map;
   }, [initial?.prerequisites, prereqOptions]);
+
+  // Does the current demo line start with a controlled verb? Soft hint.
+  const demoStartsWithControlledVerb = useMemo(() => {
+    const first = demoOfCompetency.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+    return (CONTROLLED_VERBS as readonly string[]).includes(first);
+  }, [demoOfCompetency]);
+
+  // ---------- AI assist — builds the draft snapshot sent to /api/teacher
+  // /skills/ai/* endpoints. Read inside a callback so each click captures
+  // the latest form state (controlled inputs).
+  const buildAIDraft = useCallback(() => {
+    return {
+      title: title.trim(),
+      summary: summary.trim() || null,
+      tier: tier || null,
+      age_min: ageMin ? Number(ageMin) : null,
+      age_max: ageMax ? Number(ageMax) : null,
+      body,
+      demo_of_competency: demoOfCompetency.trim() || null,
+      learning_outcomes: learningOutcomes.map((o) => o.trim()).filter(Boolean),
+      framework_anchors: frameworkAnchors.filter(
+        (a) => a.framework && a.label?.trim()
+      ),
+    };
+  }, [
+    title,
+    summary,
+    tier,
+    ageMin,
+    ageMax,
+    body,
+    demoOfCompetency,
+    learningOutcomes,
+    frameworkAnchors,
+  ]);
+
+  // ---------- Dynamic list helpers ----------
+  function updateListAt<T>(
+    arr: T[],
+    setter: React.Dispatch<React.SetStateAction<T[]>>,
+    idx: number,
+    value: T
+  ) {
+    const next = arr.slice();
+    next[idx] = value;
+    setter(next);
+  }
+  function removeListAt<T>(
+    arr: T[],
+    setter: React.Dispatch<React.SetStateAction<T[]>>,
+    idx: number,
+    empty: T
+  ) {
+    const next = arr.slice();
+    next.splice(idx, 1);
+    setter(next.length ? next : [empty]);
+  }
 
   function addTag() {
     const t = tagInput.trim().toLowerCase();
@@ -180,9 +355,7 @@ export function SkillCardForm({
   }
 
   function addPrereq(id: string) {
-    if (!prereqIds.includes(id)) {
-      setPrereqIds([...prereqIds, id]);
-    }
+    if (!prereqIds.includes(id)) setPrereqIds([...prereqIds, id]);
     setPrereqSearch("");
     setPrereqOptions([]);
   }
@@ -190,42 +363,96 @@ export function SkillCardForm({
     setPrereqIds(prereqIds.filter((x) => x !== id));
   }
 
+  function addAnchor() {
+    setFrameworkAnchors([...frameworkAnchors, { framework: "ATL", label: "" }]);
+  }
+  function updateAnchor(i: number, patch: Partial<FrameworkAnchor>) {
+    const next = frameworkAnchors.slice();
+    next[i] = { ...next[i], ...patch };
+    setFrameworkAnchors(next);
+  }
+  function removeAnchor(i: number) {
+    const next = frameworkAnchors.slice();
+    next.splice(i, 1);
+    setFrameworkAnchors(next);
+  }
+
+  // ---------- Submit ----------
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submitting) return;
-    if (!title.trim() || !slug || !categoryId || !difficulty) {
-      return;
-    }
+    if (!title.trim() || !slug || !categoryId || !domainId || !tier) return;
+
     const publishImmediately = publishIntentRef.current;
-    publishIntentRef.current = false; // reset for next click
+    publishIntentRef.current = false;
+
+    const cleanedOutcomes = learningOutcomes.map((s) => s.trim()).filter(Boolean);
+    const cleanedApplied = appliedIn.map((s) => s.trim()).filter(Boolean);
+    const cleanedAnchors = frameworkAnchors.filter(
+      (a) => a.framework && a.label.trim()
+    );
+
     await onSubmit(
       {
         slug,
         title: title.trim(),
         summary: summary.trim() || undefined,
         category_id: categoryId,
-        difficulty,
+        domain_id: domainId,
+        tier,
         body,
         estimated_min: estimatedMin ? parseInt(estimatedMin, 10) : null,
+        age_min: ageMin ? parseInt(ageMin, 10) : null,
+        age_max: ageMax ? parseInt(ageMax, 10) : null,
+        framework_anchors: cleanedAnchors,
+        demo_of_competency: demoOfCompetency.trim() || null,
+        learning_outcomes: cleanedOutcomes,
+        applied_in: cleanedApplied,
+        card_type: cardType,
+        author_name: authorName.trim() || null,
         tags,
         external_links: links
           .filter((l) => l.url.trim())
           .map((l) => ({
             url: l.url.trim(),
             title: l.title.trim() || undefined,
-            kind: (l.kind as "video" | "pdf" | "doc" | "website" | "other") || undefined,
+            kind:
+              (l.kind as "video" | "pdf" | "doc" | "website" | "other") ||
+              undefined,
           })),
         prerequisite_ids: prereqIds,
+        // Quiz (Phase A) — only send if the teacher has configured at least
+        // one question. Empty array is valid server-side (signals "no quiz").
+        quiz_questions: quizQuestions,
+        pass_threshold: passThreshold
+          ? Math.min(100, Math.max(0, parseInt(passThreshold, 10) || 80))
+          : 80,
+        retake_cooldown_minutes: retakeCooldown
+          ? Math.max(0, parseInt(retakeCooldown, 10) || 0)
+          : 0,
+        question_count: questionCount
+          ? Math.max(1, parseInt(questionCount, 10)) || null
+          : null,
       },
       { publishImmediately }
     );
   }
 
+  // ========================================================================
+  // Render
+  // ========================================================================
   return (
     <form onSubmit={handleSubmit} className="sl-skill-scope space-y-6">
-      {/* ---------- Metadata ---------- */}
+      {/* =============== 1 · Identity =============== */}
       <section className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-gray-900">Card details</h2>
+        <header>
+          <h2 className="text-lg font-semibold text-gray-900">
+            1 · Identity
+          </h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Name the card, give it a slug, and stand behind it with your byline.
+          </p>
+        </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <label className="flex flex-col gap-1 text-sm">
@@ -238,7 +465,7 @@ export function SkillCardForm({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="border border-gray-200 rounded-lg px-3 py-2"
-              placeholder="e.g. Ideation sketching"
+              placeholder="e.g. Hand Sketching for Ideation"
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
@@ -253,7 +480,7 @@ export function SkillCardForm({
                 setSlugTouched(true);
               }}
               className="border border-gray-200 rounded-lg px-3 py-2 font-mono"
-              placeholder="ideation-sketching"
+              placeholder="hand-sketching-for-ideation"
               disabled={mode === "edit"}
             />
             {mode === "edit" && (
@@ -272,13 +499,64 @@ export function SkillCardForm({
             value={summary}
             onChange={(e) => setSummary(e.target.value)}
             className="border border-gray-200 rounded-lg px-3 py-2"
-            placeholder="One-sentence overview shown on the card list."
+            placeholder="One sentence — what this card is about. Shown on list views."
           />
         </label>
 
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-gray-700 font-medium">
+            Author byline
+          </span>
+          <input
+            type="text"
+            maxLength={120}
+            value={authorName}
+            onChange={(e) => setAuthorName(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2"
+            placeholder="e.g. Matt Burton — the human responsible for this content"
+          />
+          <span className="text-xs text-gray-400">
+            Scouts pamphlet model — every card has a named author standing
+            behind it. Defaults to your name; override for co-authored work.
+          </span>
+        </label>
+      </section>
+
+      {/* =============== 2 · Taxonomy & Tier =============== */}
+      <section className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
+        <header>
+          <h2 className="text-lg font-semibold text-gray-900">
+            2 · Taxonomy &amp; Tier
+          </h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Where does this card live (domain + category) and how advanced is
+            it (tier)?
+          </p>
+        </header>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-gray-700 font-medium">Category *</span>
+            <span className="text-gray-700 font-medium">
+              Domain (subject area) *
+            </span>
+            <select
+              required
+              value={domainId}
+              onChange={(e) => setDomainId(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-2 bg-white"
+            >
+              <option value="">Choose…</option>
+              {domains.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.short_code} · {d.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-gray-700 font-medium">
+              Category (cognitive action) *
+            </span>
             <select
               required
               value={categoryId}
@@ -294,23 +572,367 @@ export function SkillCardForm({
             </select>
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-gray-700 font-medium">Difficulty *</span>
+            <span className="text-gray-700 font-medium">Tier *</span>
             <select
               required
-              value={difficulty}
-              onChange={(e) =>
-                setDifficulty(e.target.value as SkillDifficulty | "")
-              }
+              value={tier}
+              onChange={(e) => setTier(e.target.value as SkillTier | "")}
               className="border border-gray-200 rounded-lg px-3 py-2 bg-white"
             >
               <option value="">Choose…</option>
-              <option value="foundational">Foundational</option>
-              <option value="intermediate">Intermediate</option>
-              <option value="advanced">Advanced</option>
+              {SKILL_TIERS.map((t) => (
+                <option key={t} value={t}>
+                  {SKILL_TIER_LABELS[t]}
+                </option>
+              ))}
             </select>
           </label>
+        </div>
+
+        <div className="flex flex-col gap-2 text-sm">
+          <span className="text-gray-700 font-medium">Card type</span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setCardType("lesson")}
+              className={`px-4 py-2 rounded-lg border text-sm ${
+                cardType === "lesson"
+                  ? "bg-indigo-600 text-white border-indigo-600"
+                  : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              Lesson
+            </button>
+            <button
+              type="button"
+              onClick={() => setCardType("routine")}
+              className={`px-4 py-2 rounded-lg border text-sm ${
+                cardType === "routine"
+                  ? "bg-indigo-600 text-white border-indigo-600"
+                  : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              Thinking Routine
+            </button>
+          </div>
+          <span className="text-xs text-gray-400">
+            Lesson = standard content + optional quiz. Thinking routine =
+            Project Zero-style 3–6 step prompt the student runs on their own
+            work, repeatable per artefact.
+          </span>
+        </div>
+      </section>
+
+      {/* =============== 3 · Pedagogical contract =============== */}
+      <section className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
+        <header>
+          <h2 className="text-lg font-semibold text-gray-900">
+            3 · Pedagogical contract
+          </h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            What does <em>earned</em> mean? These fields are the rubric —
+            shown to the student <strong>before</strong> they start (Digital
+            Promise: the evidence criterion is the skill definition).
+          </p>
+        </header>
+
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-gray-700 font-medium">
+            Demo of competency *
+          </span>
+          <textarea
+            rows={2}
+            value={demoOfCompetency}
+            onChange={(e) => setDemoOfCompetency(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2"
+            placeholder="One sentence. Start with a controlled verb (show / demonstrate / produce / explain / argue / identify / compare / sketch / make / plan / deliver)."
+          />
+          {demoOfCompetency.trim().length > 0 &&
+            !demoStartsWithControlledVerb && (
+              <span className="text-xs text-amber-600">
+                ⚠ Start with a controlled verb —{" "}
+                <code>{CONTROLLED_VERBS.join(" / ")}</code>. Banned:
+                understand, know about, appreciate (unverifiable).
+              </span>
+            )}
+        </label>
+        <AISuggestBox<string>
+          endpoint="/api/teacher/skills/ai/suggest-demo"
+          buildDraft={buildAIDraft}
+          responseKey="suggestions"
+          mode="single"
+          buttonLabel="✨ Suggest demo lines"
+          hint="Generates 3-5 candidates starting with a controlled verb."
+          precheck={(d) =>
+            (d.title as string)?.trim()
+              ? null
+              : "Add a card title first."
+          }
+          onPick={(s) => setDemoOfCompetency(s)}
+          renderSuggestion={(s, i, onPick) => (
+            <button
+              type="button"
+              onClick={() => onPick(s)}
+              className="w-full text-left text-sm px-3 py-1.5 rounded-md bg-white border border-indigo-100 hover:border-indigo-300 hover:bg-indigo-50"
+            >
+              {s}
+            </button>
+          )}
+        />
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-gray-700 font-medium text-sm">
+              Learning outcomes (&ldquo;Student can&hellip;&rdquo;)
+            </span>
+            <button
+              type="button"
+              onClick={() => setLearningOutcomes([...learningOutcomes, ""])}
+              className="text-xs text-indigo-600 hover:text-indigo-700"
+            >
+              + Add outcome
+            </button>
+          </div>
+          <ul className="space-y-2">
+            {learningOutcomes.map((o, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="text-gray-400 text-sm pt-2">•</span>
+                <input
+                  type="text"
+                  value={o}
+                  onChange={(e) =>
+                    updateListAt(
+                      learningOutcomes,
+                      setLearningOutcomes,
+                      i,
+                      e.target.value
+                    )
+                  }
+                  placeholder="Student can identify … / produce … / argue …"
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    removeListAt(learningOutcomes, setLearningOutcomes, i, "")
+                  }
+                  disabled={learningOutcomes.length === 1}
+                  className="text-rose-600 hover:text-rose-700 text-sm px-2 disabled:opacity-30"
+                  aria-label={`Remove outcome ${i + 1}`}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+          <AISuggestBox<string>
+            endpoint="/api/teacher/skills/ai/suggest-outcomes"
+            buildDraft={buildAIDraft}
+            responseKey="suggestions"
+            mode="multi"
+            buttonLabel="✨ Suggest outcomes"
+            hint="Adds 'Student can…' outcomes drawn from your card body."
+            precheck={(d) =>
+              (d.title as string)?.trim()
+                ? null
+                : "Add a card title first."
+            }
+            onPick={(s) => {
+              setLearningOutcomes((prev) => {
+                // Drop any leading empty input then append
+                const cleaned = prev.filter((o) => o.trim().length > 0);
+                if (cleaned.includes(s)) return prev;
+                return [...cleaned, s];
+              });
+            }}
+            renderSuggestion={(s, i, onPick) => (
+              <button
+                type="button"
+                onClick={() => onPick(s)}
+                className="w-full text-left text-sm px-3 py-1.5 rounded-md bg-white border border-indigo-100 hover:border-indigo-300 hover:bg-indigo-50"
+              >
+                + {s}
+              </button>
+            )}
+          />
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-gray-700 font-medium text-sm">
+              Framework anchors
+            </span>
+            <button
+              type="button"
+              onClick={addAnchor}
+              className="text-xs text-indigo-600 hover:text-indigo-700"
+            >
+              + Add anchor
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mb-2">
+            Map this card to ATL / CASEL / WEF / Studio Habits categories.
+            Defensibility for parents and admin.
+          </p>
+          {frameworkAnchors.length === 0 ? (
+            <p className="text-xs text-gray-400 italic">
+              No anchors yet. Recommended: 1–3 per card.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {frameworkAnchors.map((a, i) => {
+                const choice = FRAMEWORK_CHOICES.find(
+                  (c) => c.value === a.framework
+                );
+                return (
+                  <li
+                    key={i}
+                    className="grid grid-cols-1 md:grid-cols-[10rem_1fr_auto] gap-2 items-center"
+                  >
+                    <select
+                      value={a.framework}
+                      onChange={(e) =>
+                        updateAnchor(i, {
+                          framework: e.target
+                            .value as FrameworkAnchor["framework"],
+                        })
+                      }
+                      className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                    >
+                      {FRAMEWORK_CHOICES.map((c) => (
+                        <option key={c.value} value={c.value}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      list={`fa-suggestions-${i}`}
+                      value={a.label}
+                      onChange={(e) =>
+                        updateAnchor(i, { label: e.target.value })
+                      }
+                      placeholder={`e.g. ${choice?.suggestions[0] ?? "Analytical Thinking"}`}
+                      className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                    />
+                    {choice && (
+                      <datalist id={`fa-suggestions-${i}`}>
+                        {choice.suggestions.map((s) => (
+                          <option key={s} value={s} />
+                        ))}
+                      </datalist>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeAnchor(i)}
+                      className="text-rose-600 hover:text-rose-700 text-sm px-2"
+                      aria-label="Remove anchor"
+                    >
+                      Remove
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <AISuggestBox<FrameworkAnchor>
+            endpoint="/api/teacher/skills/ai/suggest-anchors"
+            buildDraft={buildAIDraft}
+            responseKey="anchors"
+            mode="multi"
+            buttonLabel="✨ Suggest anchors"
+            hint="Maps this card to 1-3 framework labels."
+            precheck={(d) =>
+              (d.title as string)?.trim()
+                ? null
+                : "Add a card title first."
+            }
+            onPick={(a) => {
+              setFrameworkAnchors((prev) => {
+                const dupe = prev.some(
+                  (x) =>
+                    x.framework === a.framework &&
+                    x.label.trim().toLowerCase() === a.label.trim().toLowerCase()
+                );
+                if (dupe) return prev;
+                return [...prev, a];
+              });
+            }}
+            renderSuggestion={(a, i, onPick) => (
+              <button
+                type="button"
+                onClick={() => onPick(a)}
+                className="w-full text-left text-sm px-3 py-1.5 rounded-md bg-white border border-indigo-100 hover:border-indigo-300 hover:bg-indigo-50 flex items-center gap-2"
+              >
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded">
+                  {a.framework}
+                </span>
+                <span>+ {a.label}</span>
+              </button>
+            )}
+          />
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-gray-700 font-medium text-sm">
+              Applied in
+            </span>
+            <button
+              type="button"
+              onClick={() => setAppliedIn([...appliedIn, ""])}
+              className="text-xs text-indigo-600 hover:text-indigo-700"
+            >
+              + Add context
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mb-2">
+            Where does this card get pulled into student work? (activity block
+            prereqs, fabrication pipeline, Open Studio capability-gap, class
+            gallery, safety badges, etc.)
+          </p>
+          <ul className="space-y-2">
+            {appliedIn.map((a, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="text-gray-400 text-sm pt-2">•</span>
+                <input
+                  type="text"
+                  value={a}
+                  onChange={(e) =>
+                    updateListAt(appliedIn, setAppliedIn, i, e.target.value)
+                  }
+                  placeholder="e.g. Activity block prereq — prototyping phase · Fabrication Pipeline preflight"
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeListAt(appliedIn, setAppliedIn, i, "")}
+                  disabled={appliedIn.length === 1}
+                  className="text-rose-600 hover:text-rose-700 text-sm px-2 disabled:opacity-30"
+                  aria-label={`Remove context ${i + 1}`}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      {/* =============== 4 · Sizing =============== */}
+      <section className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
+        <header>
+          <h2 className="text-lg font-semibold text-gray-900">4 · Sizing</h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Age band and time estimate. Soft hints — UI will not block
+            off-band students.
+          </p>
+        </header>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-gray-700 font-medium">Estimated time (min)</span>
+            <span className="text-gray-700 font-medium">
+              Estimated time (min)
+            </span>
             <input
               type="number"
               min={1}
@@ -318,16 +940,46 @@ export function SkillCardForm({
               value={estimatedMin}
               onChange={(e) => setEstimatedMin(e.target.value)}
               className="border border-gray-200 rounded-lg px-3 py-2"
-              placeholder="e.g. 15"
+              placeholder="e.g. 60"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-gray-700 font-medium">Age — min</span>
+            <input
+              type="number"
+              min={5}
+              max={25}
+              value={ageMin}
+              onChange={(e) => setAgeMin(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-2"
+              placeholder="e.g. 11"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-gray-700 font-medium">Age — max</span>
+            <input
+              type="number"
+              min={5}
+              max={25}
+              value={ageMax}
+              onChange={(e) => setAgeMax(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-2"
+              placeholder="e.g. 13"
             />
           </label>
         </div>
       </section>
 
-      {/* ---------- Body blocks ---------- */}
+      {/* =============== 5 · Body =============== */}
       <section className="bg-white border border-gray-200 rounded-2xl p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Body</h2>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">5 · Body</h2>
+            <p className="text-sm text-gray-500 mt-0.5">
+              The actual lesson content. Pick blocks from the menu; reorder
+              with the arrows.
+            </p>
+          </div>
           <button
             type="button"
             onClick={() => setShowPreview((v) => !v)}
@@ -345,13 +997,15 @@ export function SkillCardForm({
         )}
       </section>
 
-      {/* ---------- Tags ---------- */}
+      {/* =============== 6 · Tags =============== */}
       <section className="bg-white border border-gray-200 rounded-2xl p-6 space-y-3">
-        <h2 className="text-lg font-semibold text-gray-900">Tags</h2>
-        <p className="text-sm text-gray-500">
-          Short lowercase labels for filtering (e.g. <code>3d-printing</code>,{" "}
-          <code>safety</code>).
-        </p>
+        <header>
+          <h2 className="text-lg font-semibold text-gray-900">6 · Tags</h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Short lowercase labels for filtering. Use existing tags if they
+            fit.
+          </p>
+        </header>
         <div className="flex flex-wrap gap-2">
           {tags.map((t) => (
             <span
@@ -394,10 +1048,18 @@ export function SkillCardForm({
         </div>
       </section>
 
-      {/* ---------- External links ---------- */}
+      {/* =============== 7 · External links =============== */}
       <section className="bg-white border border-gray-200 rounded-2xl p-6 space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">External links</h2>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">
+              7 · External links
+            </h2>
+            <p className="text-sm text-gray-500 mt-0.5">
+              Supplementary videos, PDFs, reference pages. Link-checked
+              periodically.
+            </p>
+          </div>
           <button
             type="button"
             onClick={addLink}
@@ -406,10 +1068,6 @@ export function SkillCardForm({
             + Add link
           </button>
         </div>
-        <p className="text-sm text-gray-500">
-          Supplementary videos, PDFs, or reference pages. We&apos;ll check them
-          periodically for dead links.
-        </p>
         {links.length === 0 ? (
           <p className="text-sm text-gray-400 italic">No links attached.</p>
         ) : (
@@ -459,13 +1117,17 @@ export function SkillCardForm({
         )}
       </section>
 
-      {/* ---------- Prereqs ---------- */}
+      {/* =============== 8 · Prerequisites =============== */}
       <section className="bg-white border border-gray-200 rounded-2xl p-6 space-y-3">
-        <h2 className="text-lg font-semibold text-gray-900">Prerequisites</h2>
-        <p className="text-sm text-gray-500">
-          Cards students should master before attempting this one. Shown as
-          prompts in the library, not hard locks.
-        </p>
+        <header>
+          <h2 className="text-lg font-semibold text-gray-900">
+            8 · Prerequisites
+          </h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Cards students should master before attempting this one. Soft
+            prompts — not hard locks.
+          </p>
+        </header>
 
         {prereqIds.length > 0 && (
           <ul className="flex flex-wrap gap-2">
@@ -509,9 +1171,9 @@ export function SkillCardForm({
                     className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm"
                   >
                     <span className="font-medium">{o.title}</span>
-                    {o.difficulty && (
-                      <span className="ml-2 text-xs text-gray-500">
-                        {o.difficulty}
+                    {o.tier && (
+                      <span className="ml-2 text-xs text-gray-500 capitalize">
+                        {o.tier}
                       </span>
                     )}
                   </button>
@@ -522,7 +1184,20 @@ export function SkillCardForm({
         </div>
       </section>
 
-      {/* ---------- Submit ---------- */}
+      {/* =============== 9 · Quiz (optional) =============== */}
+      <QuizSection
+        questions={quizQuestions}
+        setQuestions={setQuizQuestions}
+        passThreshold={passThreshold}
+        setPassThreshold={setPassThreshold}
+        retakeCooldown={retakeCooldown}
+        setRetakeCooldown={setRetakeCooldown}
+        questionCount={questionCount}
+        setQuestionCount={setQuestionCount}
+        buildAIDraft={buildAIDraft}
+      />
+
+      {/* =============== Submit =============== */}
       {submitError && (
         <div className="bg-rose-50 border border-rose-200 rounded-lg p-3 text-sm text-rose-700">
           {submitError}
@@ -530,12 +1205,9 @@ export function SkillCardForm({
       )}
 
       <div className="flex items-center gap-3 sticky bottom-0 bg-white border-t border-gray-100 -mx-6 px-6 py-3">
-        {/* Left: status (e.g. "Saved at 3:45 PM") */}
         <div className="flex-1 text-sm text-gray-500 min-w-0 truncate">
           {statusSlot}
         </div>
-
-        {/* Right: extra actions (e.g. mirrored Publish on /edit) + submit(s) */}
         <div className="flex items-center gap-2">
           {extraActions}
           {mode === "create" && (
@@ -548,7 +1220,8 @@ export function SkillCardForm({
                 submitting ||
                 !title.trim() ||
                 !categoryId ||
-                !difficulty ||
+                !domainId ||
+                !tier ||
                 body.length === 0
               }
               title={
@@ -566,7 +1239,9 @@ export function SkillCardForm({
             onClick={() => {
               publishIntentRef.current = false;
             }}
-            disabled={submitting || !title.trim() || !categoryId || !difficulty}
+            disabled={
+              submitting || !title.trim() || !categoryId || !domainId || !tier
+            }
             className="px-5 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting
@@ -578,5 +1253,451 @@ export function SkillCardForm({
         </div>
       </div>
     </form>
+  );
+}
+
+// ============================================================================
+// QuizSection — renders the "9 · Quiz" authoring UI.
+// ============================================================================
+// Split out of the main form body because it has its own helpers for
+// managing questions array mutations (add/remove/update + set correct).
+
+const QUIZ_QUESTION_TYPES: Array<{ value: QuizQuestionType; label: string }> = [
+  { value: "multiple_choice", label: "Multiple choice" },
+  { value: "true_false", label: "True / False" },
+  { value: "scenario", label: "Scenario (MC)" },
+];
+
+function QuizSection({
+  questions,
+  setQuestions,
+  passThreshold,
+  setPassThreshold,
+  retakeCooldown,
+  setRetakeCooldown,
+  questionCount,
+  setQuestionCount,
+  buildAIDraft,
+}: {
+  questions: QuizQuestion[];
+  setQuestions: React.Dispatch<React.SetStateAction<QuizQuestion[]>>;
+  passThreshold: string;
+  setPassThreshold: React.Dispatch<React.SetStateAction<string>>;
+  retakeCooldown: string;
+  setRetakeCooldown: React.Dispatch<React.SetStateAction<string>>;
+  questionCount: string;
+  setQuestionCount: React.Dispatch<React.SetStateAction<string>>;
+  buildAIDraft: () => Record<string, unknown>;
+}) {
+  // ---------- AI quiz generator state ----------
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiCount, setAiCount] = useState<number>(6);
+  const [aiMix, setAiMix] = useState<"mostly_mc" | "mostly_tf" | "balanced">(
+    "mostly_mc"
+  );
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  async function generateQuiz(replace: boolean) {
+    setAiError(null);
+    const draft = buildAIDraft();
+    const body = (draft as { body?: unknown[] }).body;
+    if (!body || !Array.isArray(body) || body.length === 0) {
+      setAiError(
+        "Quiz generation needs body content. Add at least one Key concept / Step / Scenario block first."
+      );
+      return;
+    }
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/teacher/skills/ai/generate-quiz", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draft, count: aiCount, mix: aiMix }),
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(`Quiz generator failed (${res.status}): ${txt || res.statusText}`);
+      }
+      const json = await res.json();
+      const generated = (json?.questions ?? []) as QuizQuestion[];
+      if (!Array.isArray(generated) || generated.length === 0) {
+        setAiError("AI returned no questions. Try again with a richer body.");
+        return;
+      }
+      // The helper stores correct_answer as the option STRING. The form
+      // editor uses the option INDEX (as a string) — convert here so the
+      // questions slot into the existing UI.
+      const normalised = generated.map((q) => {
+        const opts = q.options ?? [];
+        const idx =
+          typeof q.correct_answer === "string"
+            ? Math.max(0, opts.findIndex((o) => o === q.correct_answer))
+            : 0;
+        return {
+          ...q,
+          correct_answer: String(idx >= 0 ? idx : 0),
+        };
+      });
+      setQuestions((prev) => (replace ? normalised : [...prev, ...normalised]));
+      setAiOpen(false);
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  function addQuestion() {
+    const q: QuizQuestion = {
+      id: nanoid(8),
+      type: "multiple_choice",
+      prompt: "",
+      options: ["", ""],
+      correct_answer: "0",
+      explanation: "",
+    };
+    setQuestions((prev) => [...prev, q]);
+  }
+  function removeQuestion(idx: number) {
+    setQuestions((prev) => prev.filter((_, i) => i !== idx));
+  }
+  function updateQuestion(idx: number, patch: Partial<QuizQuestion>) {
+    setQuestions((prev) => prev.map((q, i) => (i === idx ? { ...q, ...patch } : q)));
+  }
+  function setOption(idx: number, optIdx: number, value: string) {
+    setQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== idx) return q;
+        const options = [...(q.options ?? [])];
+        options[optIdx] = value;
+        return { ...q, options };
+      })
+    );
+  }
+  function addOption(idx: number) {
+    setQuestions((prev) =>
+      prev.map((q, i) =>
+        i === idx
+          ? { ...q, options: [...(q.options ?? []), ""] }
+          : q
+      )
+    );
+  }
+  function removeOption(idx: number, optIdx: number) {
+    setQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== idx) return q;
+        const options = (q.options ?? []).filter((_, j) => j !== optIdx);
+        // If the removed option was the correct one, reset to index 0.
+        let correct_answer = q.correct_answer;
+        if (typeof correct_answer === "string") {
+          const correctIdx = parseInt(correct_answer, 10);
+          if (correctIdx === optIdx) correct_answer = "0";
+          else if (correctIdx > optIdx) correct_answer = String(correctIdx - 1);
+        }
+        return { ...q, options, correct_answer };
+      })
+    );
+  }
+  function setCorrectOption(idx: number, optIdx: number) {
+    updateQuestion(idx, { correct_answer: String(optIdx) });
+  }
+  function changeType(idx: number, type: QuizQuestionType) {
+    setQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== idx) return q;
+        if (type === "true_false") {
+          return {
+            ...q,
+            type,
+            options: ["True", "False"],
+            correct_answer: "0",
+          };
+        }
+        // mc / scenario — preserve existing options if any; ensure at least 2
+        const options = q.options && q.options.length >= 2 ? q.options : ["", ""];
+        return { ...q, type, options };
+      })
+    );
+  }
+
+  return (
+    <section className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">9 · Quiz</h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Optional. When a card has one or more questions here, students see
+            a &ldquo;Take the quiz&rdquo; section at the bottom of the card.
+            Passing writes <code>skill.quiz_passed</code> and advances the
+            student&apos;s skill state.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setAiOpen((v) => !v)}
+          className="flex-shrink-0 inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200"
+        >
+          ✨ {aiOpen ? "Hide AI panel" : "Generate with AI"}
+        </button>
+      </header>
+
+      {aiOpen && (
+        <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <label className="text-sm text-gray-700 flex flex-col gap-1">
+              How many questions?
+              <input
+                type="number"
+                min={1}
+                max={10}
+                value={aiCount}
+                onChange={(e) =>
+                  setAiCount(Math.max(1, Math.min(10, Number(e.target.value) || 1)))
+                }
+                className="border border-gray-200 rounded-lg px-3 py-2 bg-white"
+              />
+            </label>
+            <label className="text-sm text-gray-700 flex flex-col gap-1">
+              Mix
+              <select
+                value={aiMix}
+                onChange={(e) =>
+                  setAiMix(
+                    e.target.value as "mostly_mc" | "mostly_tf" | "balanced"
+                  )
+                }
+                className="border border-gray-200 rounded-lg px-3 py-2 bg-white"
+              >
+                <option value="mostly_mc">Mostly multiple choice</option>
+                <option value="balanced">Balanced</option>
+                <option value="mostly_tf">Mostly true/false</option>
+              </select>
+            </label>
+            <div className="text-xs text-gray-500 self-end">
+              The AI reads your card body + demo + outcomes, then writes
+              questions answerable from the card.
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => generateQuiz(false)}
+              disabled={aiLoading}
+              className="px-3 py-1.5 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {aiLoading ? "Generating…" : "Generate + append"}
+            </button>
+            {questions.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (
+                    !confirm(
+                      `Replace all ${questions.length} existing questions with AI-generated ones?`
+                    )
+                  )
+                    return;
+                  generateQuiz(true);
+                }}
+                disabled={aiLoading}
+                className="px-3 py-1.5 rounded-md bg-white text-rose-700 text-sm font-medium border border-rose-200 hover:bg-rose-50 disabled:opacity-50"
+              >
+                Replace existing
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setAiOpen(false)}
+              className="px-3 py-1.5 rounded-md text-gray-600 text-sm hover:bg-gray-100"
+            >
+              Cancel
+            </button>
+          </div>
+          {aiError && (
+            <p className="text-xs text-rose-600">⚠ {aiError}</p>
+          )}
+        </div>
+      )}
+
+      {/* Quiz-level settings */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <label className="text-sm text-gray-700 flex flex-col gap-1">
+          Pass threshold (%)
+          <input
+            type="number"
+            min={0}
+            max={100}
+            value={passThreshold}
+            onChange={(e) => setPassThreshold(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2"
+          />
+        </label>
+        <label className="text-sm text-gray-700 flex flex-col gap-1">
+          Retake cooldown (minutes)
+          <input
+            type="number"
+            min={0}
+            value={retakeCooldown}
+            onChange={(e) => setRetakeCooldown(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2"
+          />
+          <span className="text-xs text-gray-400">
+            0 = no cooldown. Only applies after a failed attempt.
+          </span>
+        </label>
+        <label className="text-sm text-gray-700 flex flex-col gap-1">
+          Questions per attempt
+          <input
+            type="number"
+            min={1}
+            max={questions.length || undefined}
+            value={questionCount}
+            onChange={(e) => setQuestionCount(e.target.value)}
+            placeholder={`All ${questions.length}`}
+            className="border border-gray-200 rounded-lg px-3 py-2"
+          />
+          <span className="text-xs text-gray-400">
+            Blank = use all. If set, a random subset is drawn per attempt.
+          </span>
+        </label>
+      </div>
+
+      {/* Questions list */}
+      <div className="space-y-3">
+        {questions.length === 0 && (
+          <p className="text-sm text-gray-500 italic">
+            No quiz questions yet. Add one to enable the quiz on this card.
+          </p>
+        )}
+        {questions.map((q, idx) => (
+          <div
+            key={q.id}
+            className="border border-gray-200 rounded-xl p-4 space-y-3 bg-gray-50"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                  Question {idx + 1}
+                </span>
+                <select
+                  value={q.type}
+                  onChange={(e) =>
+                    changeType(idx, e.target.value as QuizQuestionType)
+                  }
+                  className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white"
+                >
+                  {QUIZ_QUESTION_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={() => removeQuestion(idx)}
+                className="text-xs text-rose-600 hover:text-rose-700"
+              >
+                Remove
+              </button>
+            </div>
+
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-gray-700 font-medium">Prompt</span>
+              <textarea
+                rows={2}
+                value={q.prompt}
+                onChange={(e) => updateQuestion(idx, { prompt: e.target.value })}
+                className="border border-gray-200 rounded-lg px-3 py-2"
+                placeholder="e.g. Which PPE is required when soldering?"
+              />
+            </label>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">
+                  Options (select the correct one)
+                </span>
+                {q.type !== "true_false" && (
+                  <button
+                    type="button"
+                    onClick={() => addOption(idx)}
+                    className="text-xs text-indigo-600 hover:text-indigo-700"
+                  >
+                    + Option
+                  </button>
+                )}
+              </div>
+              <ul className="space-y-1.5">
+                {(q.options ?? []).map((opt, optIdx) => (
+                  <li key={optIdx} className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name={`correct-${q.id}`}
+                      checked={
+                        typeof q.correct_answer === "string" &&
+                        parseInt(q.correct_answer, 10) === optIdx
+                      }
+                      onChange={() => setCorrectOption(idx, optIdx)}
+                      className="flex-shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={opt}
+                      onChange={(e) => setOption(idx, optIdx, e.target.value)}
+                      className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm"
+                      placeholder={
+                        q.type === "true_false"
+                          ? optIdx === 0
+                            ? "True"
+                            : "False"
+                          : `Option ${String.fromCharCode(65 + optIdx)}`
+                      }
+                      disabled={q.type === "true_false"}
+                    />
+                    {q.type !== "true_false" && (q.options ?? []).length > 2 && (
+                      <button
+                        type="button"
+                        onClick={() => removeOption(idx, optIdx)}
+                        className="text-gray-400 hover:text-rose-600 text-sm"
+                        aria-label="Remove option"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-gray-700 font-medium">
+                Explanation (shown after answering)
+              </span>
+              <textarea
+                rows={2}
+                value={q.explanation}
+                onChange={(e) =>
+                  updateQuestion(idx, { explanation: e.target.value })
+                }
+                className="border border-gray-200 rounded-lg px-3 py-2"
+                placeholder="Why this is right — or why the other options aren't."
+              />
+            </label>
+          </div>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={addQuestion}
+        className="px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700"
+      >
+        + Add question
+      </button>
+    </section>
   );
 }

@@ -52,7 +52,7 @@ export async function POST(
     const { data: card } = await admin
       .from("skill_cards")
       .select(
-        "id, title, body, category_id, difficulty, is_built_in, created_by_teacher_id, is_published"
+        "id, title, body, category_id, domain_id, tier, demo_of_competency, is_built_in, created_by_teacher_id, is_published"
       )
       .eq("id", id)
       .maybeSingle();
@@ -70,7 +70,11 @@ export async function POST(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Minimum publishable content: title + category + difficulty + ≥1 block.
+    // Minimum publishable content. World-class skills library —
+    // every published card carries the full competency definition:
+    // title + category + domain + tier + demo_of_competency + ≥1 block.
+    // learning_outcomes + framework_anchors are strongly encouraged
+    // but not hard-gated (teachers can refine over time).
     if (action === "publish") {
       if (!card.title?.trim()) {
         return NextResponse.json(
@@ -78,9 +82,27 @@ export async function POST(
           { status: 400 }
         );
       }
-      if (!card.category_id || !card.difficulty) {
+      if (!card.category_id || !card.domain_id) {
         return NextResponse.json(
-          { error: "Card needs a category and difficulty before publishing." },
+          {
+            error:
+              "Card needs both a category (cognitive action) and a domain (subject area) before publishing.",
+          },
+          { status: 400 }
+        );
+      }
+      if (!card.tier) {
+        return NextResponse.json(
+          { error: "Card needs a tier (bronze / silver / gold) before publishing." },
+          { status: 400 }
+        );
+      }
+      if (!card.demo_of_competency?.toString().trim()) {
+        return NextResponse.json(
+          {
+            error:
+              "Card needs a demo-of-competency line before publishing — one sentence using a controlled verb (show / demonstrate / produce / explain / argue / identify / compare / sketch / make / plan / deliver).",
+          },
           { status: 400 }
         );
       }

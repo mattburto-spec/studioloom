@@ -477,3 +477,109 @@ It wasn't. The UI and admin queries read `r.thumbnail_path` (the column) — not
 **Why this was invisible in review:** The existing JSONB assertion in tests reads as if it covers both paths (JSONB has the value → column will too). Python → Postgres has no such guarantee. The deploy succeeded, the scan status was `done`, the storage upload succeeded, the bucket had the files — every signal said "working" except the one column the UI actually reads.
 
 ---
+
+### Lesson #54 — WIRING.yaml entries can claim "complete" features that don't exist; audit by grep before trusting any system summary
+
+**Caught during the language-scaffolding-redesign audit (26 Apr 2026, on `lesson-bold-build`).** The WIRING entry for `student-learning-support` had:
+```yaml
+- id: student-learning-support
+  status: complete
+  currentVersion: 1
+  summary: Tier 2/3 translation via Claude (ELL level configurable),
+           UDL scaffolding (checkpoints 1-31), ADHD visual focus helpers,
+           dyslexia-friendly fonts.
+```
+
+Grep across `src/` confirmed:
+- 0 `dyslexic` / `OpenDyslexic` / `dyslexia.*font` references in any TSX/CSS.
+- 0 `translateContent` / `tier2_translation` / `tier3_translation` references.
+- `udl_checkpoints` exists only as a teacher-side authoring tag on `activity_blocks` (curriculum metadata), not a student-facing render-time accessibility feature.
+- Teacher settings has an `enable_udl` toggle that affects lesson generation, not student render.
+
+**The system was paper-only.** None of the four claimed features were implemented. Same drift family as `FU-Y` (Groq + Gemini fallbacks never shipped — `ai-call-sites.yaml` records say "has_fallback: false" for everything despite the WIRING entry claiming a fallback chain). The drift would have stayed invisible if I'd trusted the brief's premise that Studio Setup needed expanding to include translation / dyslexia / UDL toggles. Audit caught it before the redesign tried to "extend" features that didn't exist.
+
+**Rules:**
+- **Before treating any WIRING entry as ground truth, grep for at least 2 of its claimed features in `src/`.** If both grep zero, flag drift. Don't trust the summary text or `status: complete` field.
+- **For accessibility / scaffolding / language features specifically, grep is mandatory** because these features tend to be paper-specified during product planning before code lands. The WIRING entry can be a year ahead of the code.
+- **When you find drift, the cheapest fix is option (i):** flip the entry to `status: planned`, `currentVersion: 0`, rewrite summary to describe what the upcoming build delivers. File a follow-up (`FU-LS-DRIFT` shape). Cleaner than treating the redesign as a brand-new system + leaving the misleading entry intact.
+- **Pattern signal for "look closer":** WIRING entries with summaries that read like a marketing description ("Tier 2/3 translation, UDL scaffolding (checkpoints 1-31)...") are higher-risk than entries with implementation-specific summaries ("React component at `<path>` that wraps text and tokenises words via..."). Marketing-shaped summaries should trigger a code grep.
+
+**Why this matters for governance:** The drift-detection scanners (api-registry, ai-call-sites, schema-registry, feature-flags, vendors) catch drift in their respective domains by scanning code. WIRING.yaml has no scanner — it's manually maintained from system descriptions. So WIRING is the most likely registry to drift, and the only one where the audit-by-grep is the only check. Worth surfacing in saveme as a periodic spot-check.
+
+---
+
+### Lesson #55 — Configuration models lose to invocation models for student-facing scaffolding; pivot before shipping when research says so
+
+**Sub-Phase 3 of Lesson Bold (24 Apr 2026)** shipped `AutonomyPicker` — a 3-up card picker (Scaffolded / Balanced / Independent) where students picked a "support level" up front, which then drove hint visibility + example expansion via 5 helper functions (`hintsAvailable`, `hintsOpenByDefault`, etc.). Migration 116 persisted the choice as `student_progress.autonomy_level`. Tests passed, NC fired correctly, code shipped.
+
+**Two days later, mid-iteration on a related drawer mockup, Matt observed: students wouldn't get it.** "How do you want to work today?" is asking a 13-year-old to model their own learning style — that's a teacher's job, not a student's. The mockup designer was thinking pedagogical theory; we were building what should be built on Tuesday morning Period 3.
+
+A Cowork research session against ~10 comparable platforms (Newsela, Duolingo, Microsoft Immersive Reader, Read&Write by TextHelp, Lexia Core5, Google Read Along, Khan Academy, Seesaw/Flip, CommonLit, Medley Learning) confirmed: **the platforms that work in this space bet on INVOCATION, not configuration.** Students don't reliably model their own learning style. They DO tap a word they don't know.
+
+The closest reference platform — Medley Learning — uses a "Response Starters" panel that appears next to any text-answer field. Tap a small icon → side panel with a task-specific Word Bank (10 chips generated from the prompt + source text) and 2–3 Sentence Starters with multi-blank causal/evaluative/descriptive frames. **No toggle, no setup. Invocation only.**
+
+The whole AutonomyPicker concept got pivoted. Migration 116 scheduled for rollback (migration 117 DROP COLUMN). Component deleted in upcoming Phase 0. Helpers deleted. ActivityCard hint/example gating reverts to ELL-only. Replaced by two inline affordances: Tap-a-word (input scaffold) and Response Starters (output scaffold).
+
+**Rules:**
+- **For student-facing scaffolding controls, default to invocation patterns over configuration patterns.** Don't ship a "support level" picker without first checking that ~3 reference platforms in the same problem space ship one. They typically don't.
+- **Self-report (student picks support level) skews toward over-picking.** Research on this in `docs/research/student-influence-factors.md` + WIDA / multilingual-learner literature. Students systematically over-select scaffolding because the meta-cognitive choice is hard. Passive signal-driven scaffolding (e.g. fade tier from tap-translate frequency) avoids this trap.
+- **Invocation = available always, never required.** Student summons help on the artefact in front of them. Configuration = student commits to a setting before they know what they need. The first respects autonomy; the second forces a wrong-time decision.
+- **When a research session contradicts a freshly-shipped feature, the cost of pivoting is real but bounded.** Lesson Bold Sub-Phase 3 took half a day to ship + half a day to plan a clean rollback. The cost of leaving AutonomyPicker live as the wrong model would have been every student session it ran for, plus eventually a more painful re-shipped replacement when the gap got obvious.
+- **5 mockup iterations is a signal, not a virtue.** The drawer concept went through v1–v5 before the configuration→invocation insight landed. Each version was internally consistent, none of them was right. **The signal: when the third iteration is still rearranging the same components, stop and check the model, not the layout.**
+
+**Why this matters for build-methodology:** The `build-phase-prep` skill's pre-flight ritual catches BAD CODE. It doesn't catch BAD MODEL. For systems where research literature has a strong opinion (anything cognitive / pedagogical / accessibility), add a "competitive-pattern check" step to the brief — list 3-5 platforms that have solved a similar problem, document what they actually do, before locking the spec. This is a Karpathy #43 ("surface assumptions") at the model level, not just at the code level.
+
+---
+
+### Lesson #56 — Conflating "test mode" with "sandbox mode" produces broken dev UX
+**Date:** 27 Apr 2026
+**Phase:** Tap-a-word Phase 1B/1C (browser smoke surfaced the bug)
+**Trigger:** Matt opened a real lesson and tapped "isolation"; popover showed `[sandbox] definition of "isolation"` instead of a real Anthropic definition.
+
+**What happened:** Phase 1A shipped `/api/student/word-lookup` with `if (process.env.RUN_E2E !== "1") { sandbox path }` to keep `npm test` from burning the API key. The implicit assumption was "tests are the only context where we want sandbox". Reality: `npm run dev` ALSO has `RUN_E2E` unset by default → dev users hit the sandbox path → every uncached word returned the marker `[sandbox] definition of "X"`. Felt broken even though the route was returning 200 with valid JSON.
+
+**Why this was invisible in code review:** The condition `process.env.RUN_E2E !== "1"` reads as "if this isn't the gated E2E case" — naturally maps to "default behaviour". The default behaviour SHOULD be live. The trap is using a single env var to express two orthogonal concerns: (1) "are we in a test runner right now?" and (2) "do we want to use the live API or the sandbox?".
+
+**Rule:** Separate "test mode" detection from "behaviour mode" selection. Detect tests via `NODE_ENV === "test"` (vitest/jest set this automatically). Use an explicit override env var (e.g. `RUN_E2E=1`) only for the case where you want to escape the test-mode default. The default in dev/prod stays live. Concretely:
+
+```ts
+// Wrong — conflates test-mode with sandbox-mode
+if (process.env.RUN_E2E !== "1") { sandbox path }
+
+// Right — sandbox only when (in tests) AND (not explicitly overridden)
+if (process.env.NODE_ENV === "test" && process.env.RUN_E2E !== "1") { sandbox path }
+```
+
+**Wider applicability:** Audit any future "dev-mode bypass" patterns the same way. If a switch silently disables real behaviour in dev, it WILL bite. Phase 5's `tests/e2e/response-starters-live.test.ts` will inherit the same gate shape — apply this rule to it on day 1, not as a follow-up fix.
+
+---
+
+### Lesson #57 — Sandbox writes that share a real cache table corrupt downstream cache hits
+**Date:** 27 Apr 2026
+**Phase:** Tap-a-word Phase 1B/1C
+**Trigger:** After Lesson #56 fix landed, 5 specific words ("aerodynamic", "distribution", "success", "investigated", "isolation") still returned `[sandbox]` text. Cause: Matt had tapped them earlier under the broken gate; the sandbox path had upserted `[sandbox]` rows into `word_definitions`. After the gate fix, those rows became cache HITS — the new gate only protects the cache-MISS path.
+
+**What happened:** The Phase 1A route did `await supabase.from("word_definitions").upsert(...)` in BOTH the sandbox and live branches. The sandbox upsert wrote sentinel rows to the shared cache. With the v1 gate broken, every dev tap polluted the cache. Even after the gate fix, the polluted rows persisted because the cache-hit path returns whatever is in the row, regardless of whether the gate would have routed differently on a miss.
+
+**Rules:**
+- **Sandbox results MUST NOT touch the real shared cache.** Either (a) skip the upsert entirely in the sandbox path (the route's own in-memory cache is enough for tests), or (b) stamp rows with a `source: 'sandbox' | 'live'` column + auto-purge sandbox rows on dev startup. Option (a) is simpler.
+- **When fixing a gate that controls cache writes, audit + clean the rows the broken gate wrote.** A gate fix doesn't undo prior writes. Either delete the stale rows or invalidate them via versioning.
+- **Distinguish "sandbox" (deterministic test fixture) from "stub" (placeholder for unimplemented logic).** Sandbox should be self-contained — no I/O outside the function call. Stub can write to dev DB. Don't accidentally make a sandbox into a stub by including a side-effect.
+
+**Filed as `FU-TAP-SANDBOX-POLLUTION` P2.** Phase 2 fixes via option (a) — drop the upsert from the sandbox path.
+
+---
+
+### Lesson #58 — Empirical hit-rate measurement against real lessons reframes spec criteria
+**Date:** 27 Apr 2026
+**Phase:** Tap-a-word Phase 1C cold-cache analysis
+**Trigger:** Phase 1C built `scripts/cold-cache-smoke.mjs` to measure cache coverage against real published units. Sampled 3 units → 4759 unique tappable words → only 533 cache hits with the 578-word design-vocab seed (11.2% hit rate). Spec criterion #5 said "<20 uncached words per first-time student per lesson" — at first read, FAILING. Re-reading the spec's §5.2 cost projection ("5 first-encounter words / lesson") clarified the criterion was always a BEHAVIOURAL one (uncached words a student TAPS), not an INVENTORY one (uncached words present on the page).
+
+**What happened:** Without the empirical smoke, we would have either (a) shipped declaring the criterion met (wrong — based on projection), or (b) burned ~$0.50 expanding the seed to common-English coverage (wrong — students don't tap "the" or "what"). The smoke surfaced that the criterion needed reframing, not the seed needing expansion.
+
+**Rules:**
+- **For coverage / hit-rate / signal criteria, write a one-shot empirical smoke against real production data BEFORE accepting a pre-launch projection.** Projections sound reasonable until you see the real distribution.
+- **When a spec criterion has two reasonable readings (inventory vs. behavioural), make the empirical smoke the tiebreaker.** Whichever reading the empirical data supports is the one the spec actually intended.
+- **The empirical smoke script is itself a deliverable.** `cold-cache-smoke.mjs` stays in repo as a checkable baseline — Phase 4 signal data will validate the reframed criterion against real student tap behaviour.
+
+**Wider applicability:** Any system with a hit-rate / signal-driven threshold (Lesson Pulse, recommendations, scaffold-fading, drift detection) should ship with an empirical smoke. The smoke is the spec's lie-detector.

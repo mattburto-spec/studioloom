@@ -165,7 +165,10 @@ export function LessonSidebar({ data, unitId, sidebarOpen, onClose }: LessonSide
   const sidebarContent = (
     <div className="flex flex-col h-full">
       {/* Unit header */}
-      <div className="p-4 border-b border-white/10">
+      <div
+        className="p-4"
+        style={{ borderBottom: "1px solid var(--sl-hair)" }}
+      >
         {data.unit.thumbnail_url && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -174,18 +177,27 @@ export function LessonSidebar({ data, unitId, sidebarOpen, onClose }: LessonSide
             className="w-full aspect-video rounded-lg object-cover mb-3"
           />
         )}
-        <h2 className="text-sm font-bold text-white leading-snug line-clamp-2">
+        <h2
+          className="text-sm font-bold leading-snug line-clamp-2"
+          style={{ color: "var(--sl-ink)" }}
+        >
           {data.unit.title}
         </h2>
         {/* Progress bar */}
         <div className="mt-3">
-          <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
+          <div
+            className="w-full h-1.5 rounded-full overflow-hidden"
+            style={{ background: "var(--sl-hair)" }}
+          >
             <div
-              className="h-full rounded-full bg-accent-green transition-all duration-500"
-              style={{ width: `${pct}%` }}
+              className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${pct}%`, background: "var(--sl-ink)" }}
             />
           </div>
-          <p className="text-[10px] font-bold text-white/50 uppercase tracking-wider mt-1.5">
+          <p
+            className="text-[10px] font-bold uppercase tracking-wider mt-1.5"
+            style={{ color: "var(--sl-ink-3)" }}
+          >
             {pct}% Complete
           </p>
         </div>
@@ -202,7 +214,7 @@ export function LessonSidebar({ data, unitId, sidebarOpen, onClose }: LessonSide
               {hasMultipleGroups && (
                 <button
                   onClick={() => toggleGroup(group.key)}
-                  className="w-full flex items-center gap-2 px-4 py-2 text-left hover:bg-white/5 transition-colors"
+                  className="w-full flex items-center gap-2 px-4 py-2 text-left transition-colors hover:bg-[var(--sl-bg)]"
                 >
                   <svg
                     width="10"
@@ -213,11 +225,15 @@ export function LessonSidebar({ data, unitId, sidebarOpen, onClose }: LessonSide
                     strokeWidth="2.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    className={`text-white/40 transition-transform duration-150 ${isCollapsed ? "" : "rotate-90"}`}
+                    className={`transition-transform duration-150 ${isCollapsed ? "" : "rotate-90"}`}
+                    style={{ color: "var(--sl-ink-3)" }}
                   >
                     <polyline points="9 18 15 12 9 6" />
                   </svg>
-                  <span className="text-[11px] font-bold text-white/60 uppercase tracking-wider truncate">
+                  <span
+                    className="text-[11px] font-bold uppercase tracking-wider truncate"
+                    style={{ color: group.color }}
+                  >
                     {group.label}
                   </span>
                 </button>
@@ -238,18 +254,24 @@ export function LessonSidebar({ data, unitId, sidebarOpen, onClose }: LessonSide
                     key={page.id}
                     onClick={() => status !== "locked" && navigateToPage(page.id)}
                     disabled={status === "locked"}
-                    className={`w-full flex items-center gap-2.5 px-4 py-2 text-left transition-all duration-150 border-l-3 ${
+                    className={`w-full flex items-center gap-2.5 px-4 py-2 text-left transition-all duration-150 ${
                       isActive
-                        ? "bg-white/10 border-l-[3px]"
-                        : "border-l-[3px] border-transparent hover:bg-white/5"
+                        ? "bg-[var(--sl-bg)]"
+                        : "hover:bg-[var(--sl-bg)]"
                     } ${status === "locked" ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
-                    style={isActive ? { borderLeftColor: group.color } : undefined}
+                    style={{
+                      borderLeft: `3px solid ${isActive ? group.color : "transparent"}`,
+                    }}
                   >
                     <ProgressCircle status={status} size={18} color={group.color} />
                     <div className="min-w-0 flex-1">
-                      <p className={`text-xs leading-snug truncate ${
-                        isActive ? "text-white font-semibold" : "text-white/70"
-                      }`}>
+                      <p
+                        className="text-xs leading-snug truncate"
+                        style={{
+                          color: isActive ? "var(--sl-ink)" : "var(--sl-ink-2)",
+                          fontWeight: isActive ? 700 : 500,
+                        }}
+                      >
                         {globalIndex >= 0 ? `${globalIndex + 1}. ` : ""}{displayTitle}
                       </p>
                     </div>
@@ -262,10 +284,14 @@ export function LessonSidebar({ data, unitId, sidebarOpen, onClose }: LessonSide
       </nav>
 
       {/* Back to dashboard */}
-      <div className="p-3 border-t border-white/10">
+      <div
+        className="p-3"
+        style={{ borderTop: "1px solid var(--sl-hair)" }}
+      >
         <button
           onClick={() => router.push("/dashboard")}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-white/50 hover:text-white hover:bg-white/5 transition-colors text-xs"
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors hover:bg-[var(--sl-bg)]"
+          style={{ color: "var(--sl-ink-3)" }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6" />
@@ -279,7 +305,13 @@ export function LessonSidebar({ data, unitId, sidebarOpen, onClose }: LessonSide
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex flex-col w-64 flex-shrink-0 gradient-hero border-r border-white/10 h-screen sticky top-0 overflow-hidden">
+      <aside
+        className="lesson-bold hidden md:flex flex-col w-64 flex-shrink-0 h-screen sticky top-0 overflow-hidden"
+        style={{
+          background: "var(--sl-paper)",
+          borderRight: "1px solid var(--sl-hair)",
+        }}
+      >
         {sidebarContent}
       </aside>
 
@@ -287,10 +319,13 @@ export function LessonSidebar({ data, unitId, sidebarOpen, onClose }: LessonSide
       {sidebarOpen && (
         <>
           <div
-            className="fixed inset-0 bg-black/50 z-40 md:hidden"
+            className="fixed inset-0 bg-black/40 z-40 md:hidden"
             onClick={onClose}
           />
-          <aside className="fixed inset-y-0 left-0 w-72 gradient-hero z-50 md:hidden animate-slide-in-left shadow-2xl overflow-hidden flex flex-col">
+          <aside
+            className="lesson-bold fixed inset-y-0 left-0 w-72 z-50 md:hidden animate-slide-in-left shadow-2xl overflow-hidden flex flex-col"
+            style={{ background: "var(--sl-paper)" }}
+          >
             {sidebarContent}
           </aside>
         </>

@@ -3,6 +3,7 @@
 import { ResponseInput } from "@/components/student/ResponseInput";
 import { TextToSpeech } from "@/components/student/TextToSpeech";
 import { MarkdownPrompt, stripMarkdown } from "@/components/student/MarkdownPrompt";
+import { TappableText } from "@/components/student/tap-a-word";
 import { toEmbedUrl } from "@/lib/video-embed";
 import type { ActivitySection } from "@/types";
 
@@ -142,7 +143,7 @@ export function ActivityCard({
             </div>
           )}
           <div className="text-sm text-gray-700 leading-relaxed">
-            <MarkdownPrompt text={section.prompt} />
+            <MarkdownPrompt text={section.prompt} tappable />
           </div>
 
           {/* Media in content block */}
@@ -159,7 +160,7 @@ export function ActivityCard({
           <div className="mb-4">
             <div className="flex items-start justify-between gap-3">
               <h2 className="text-lg md:text-xl font-semibold text-gray-900 leading-snug flex-1">
-                <MarkdownPrompt text={section.prompt} />
+                <MarkdownPrompt text={section.prompt} tappable />
               </h2>
               <div className="flex items-center gap-1.5 flex-shrink-0 mt-1">
                 {section.portfolioCapture && (
@@ -203,7 +204,10 @@ export function ActivityCard({
             </div>
           )}
 
-          {/* Hints for ELL 1 */}
+          {/* Hints for ELL 1 — restored to pre-Sub-Phase-3 ELL-only gating
+              after Phase 0 of language-scaffolding-redesign rolled back the
+              autonomy-driven gating. Will be replaced by signal-driven
+              Tap-a-word + Response Starters affordances in upcoming phases. */}
           {ellLevel === 1 &&
             (scaffolding as { hints?: string[] })?.hints && (
               <div className="bg-amber-50 rounded-xl p-4 mb-4">
@@ -213,7 +217,7 @@ export function ActivityCard({
                 {((scaffolding as { hints?: string[] }).hints || []).map(
                   (hint, j) => (
                     <p key={j} className="text-sm text-gray-600">
-                      {hint}
+                      <TappableText text={hint} />
                     </p>
                   )
                 )}
@@ -241,7 +245,8 @@ export function ActivityCard({
             />
           )}
 
-          {/* Example response (collapsible) */}
+          {/* Example response (collapsible) — restored to pre-Sub-Phase-3
+              default-collapsed behaviour after Phase 0 rollback. */}
           {section.exampleResponse && (
             <details className="mt-3">
               <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600">
