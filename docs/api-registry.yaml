@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 381
+# Total routes: 385
 
 routes:
 - path: /api/admin/ai-model
@@ -969,6 +969,15 @@ routes:
   - students
   tables_written:
   - students
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/student/me/support-settings
+  method: GET
+  file: src/app/api/student/me/support-settings/route.ts
+  auth: student
+  tables_read: []
+  tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
@@ -2153,6 +2162,39 @@ routes:
   tables_written:
   - class_units
   - units
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/classes/[classId]/students/[studentId]/support-settings
+  method: PATCH
+  file: src/app/api/teacher/classes/[classId]/students/[studentId]/support-settings/route.ts
+  auth: teacher
+  tables_read:
+  - class_students
+  tables_written:
+  - class_students
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/classes/[classId]/students/support-settings
+  method: GET
+  file: src/app/api/teacher/classes/[classId]/students/support-settings/route.ts
+  auth: teacher
+  tables_read:
+  - class_students
+  tables_written:
+  - class_students
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/classes/[classId]/students/support-settings
+  method: PATCH
+  file: src/app/api/teacher/classes/[classId]/students/support-settings/route.ts
+  auth: teacher
+  tables_read:
+  - class_students
+  tables_written:
+  - class_students
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null

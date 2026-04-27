@@ -583,3 +583,22 @@ if (process.env.NODE_ENV === "test" && process.env.RUN_E2E !== "1") { sandbox pa
 - **The empirical smoke script is itself a deliverable.** `cold-cache-smoke.mjs` stays in repo as a checkable baseline — Phase 4 signal data will validate the reframed criterion against real student tap behaviour.
 
 **Wider applicability:** Any system with a hit-rate / signal-driven threshold (Lesson Pulse, recommendations, scaffold-fading, drift detection) should ship with an empirical smoke. The smoke is the spec's lie-detector.
+
+### Lesson #59 — Brief estimates can lie when the audit hasn't happened yet
+**Date:** 27 Apr 2026
+**Phase:** Phase 2D toolkit-mount audit
+**Trigger:** Brief estimated "~½–1 day for 28 toolkit tools" — reality showed only 3 of 27 had wrap-able JSX patterns; the other 24 had hardcoded literals requiring per-tool content-aware refactors.
+
+**What happened:** The Phase 2 brief casually said "Phase 2D — toolkit prompt mounts (~½–1 day, ~28 toolkit tools, folded in from deferred 1B refinement)". Day-of, the audit revealed:
+- 3 tools render prompts as JSX variables (`{prompt}`, `{stepInfo.prompt}`, `{roundInfo.prompt}`) — easy 1-line wraps
+- 22 tools hardcode prompts as inline JSX literals (`<p>What are ALL the ideas...</p>`)
+- Wrapping the 22 isn't a "wrap" — it's "extract literal to const, decide what's educational text vs UI chrome, wrap, verify visually" per tool. Each is ~5-15 min of focused content work.
+
+**Why the estimate missed:** The 1B refinement note was written assuming the 28 tools followed the same pattern (or close enough). Nobody opened any of the 22 inline-literal tools to confirm. The pattern audit happened only when 2D actually started.
+
+**Rules:**
+- **For any "N similar items" estimate, audit a representative sample (say, ~3 randomly-picked items) BEFORE locking the time estimate.** A 30-second look at one item from each tool category would have surfaced the inline-literal pattern AND revealed that 22 of 27 needed real content work.
+- **When the audit reveals scope is materially bigger than estimated, ship a minimum-viable canonical pattern + file a follow-up.** Don't power through 22 surgical edits without a strong reason. The 3-tool sample + `FU-TAP-TOOLKIT-FULL-COVERAGE` P3 is the right shape.
+- **Phase 4 signal data is the better prioritisation signal than "do all 22 because the brief said so".** Wait for `taps_per_100_words` rolling avg to tell us which tools students actually use; THEN wrap those tools. Speculative breadth-first wrapping wastes effort.
+
+**Wider applicability:** Any phase brief that says "wrap X across N components" or "audit Y across N files" should include a representative-sample audit step in pre-flight. The audit OUTPUT (which N items have which patterns) belongs in the brief BEFORE the implementation estimate is locked.

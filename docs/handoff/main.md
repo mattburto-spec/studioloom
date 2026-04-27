@@ -1,39 +1,46 @@
 # Handoff — main
 
-**Last session ended:** 2026-04-27T08:55Z
+**Last session ended:** 2026-04-27T14:10Z
 **Worktree:** `/Users/matt/CWORK/questerra`
-**HEAD:** `000685c` "Merge tap-a-word-build a6696a8: fix sandbox-bypass gate"
+**HEAD:** `2f08fb6` "Merge tap-a-word-phase-2-5-build: Phase 2.5 + 2C + 2D-sample (12 commits)"
 
 ## What just happened
 
-- **Tap-a-word Phase 1 SHIPPED end-to-end + Checkpoint 1.1 PASSED.** 24-commit `tap-a-word-build` branch merged into `main` via `b915e02` (1A+1B+1C) + `000685c` (gate fix). Pushed to `origin/main` after prod migration applied. Phase 1 master brief: [`docs/projects/language-scaffolding-redesign-phase-1-brief.md`](docs/projects/language-scaffolding-redesign-phase-1-brief.md). Master spec: [`docs/projects/language-scaffolding-redesign-brief.md`](docs/projects/language-scaffolding-redesign-brief.md).
-- **End-to-end verification:** Sandbox seed against prod Supabase ✅, live E2E (1592ms real "ergonomics" definition) ✅, full live seed (575 words / $0.53 / 0 failures) ✅, browser visual smoke across 5 mount surfaces ✅. Cold-cache empirical (11.2% hit rate) → criterion #5 reframed as behavioural per Lesson #58.
-- **Mid-build hotfix:** Route gate corrected `RUN_E2E !== "1"` → `NODE_ENV === "test" && RUN_E2E !== "1"` (commit `a6696a8`) so dev users see real definitions instead of `[sandbox]` sentinel text. Lesson #56.
-- **Sandbox-cache pollution caught + cleaned:** 5 dev-test taps had written sentinel rows to shared `word_definitions` cache; manually purged. Filed `FU-TAP-SANDBOX-POLLUTION` P2 + Lesson #57.
-- **saveme step done:** ALL-PROJECTS.md flipped Phase 1 → SHIPPED, decisions-log +5, lessons-learned +3 (#56–#58), dimensions3-followups.md +3 FUs (TAP-SANDBOX-POLLUTION, BUILD-HEAP, AI-CALL-SCANNER-GUARD-DETECTION), changelog appended, registries scanned + clean, WIRING `tap-a-word` entry already current from feature-branch updates.
+- **Phase 2 + Phase 2.5 SHIPPED end-to-end.** 12-commit `tap-a-word-phase-2-5-build` branch merged into `main` via `2f08fb6`. Pushed to `origin/main`. Sub-phases delivered in order: 2A (L1 translation slot, server-side l1_target derivation, supports en/zh/ko/ja/es/fr) → 2B (browser SpeechSynthesis audio buttons, two-button layout) → **2.5** (teacher control panel inserted mid-flight after Matt revealed real students about to use a test class — per-student + per-class JSONB overrides, server-side resolveStudentSettings, `/teacher/classes/[classId]/students/support` page with bulk multi-select + confirmation modal, new migration `20260427115409_student_support_settings`) → 2C (curated image dictionary, 6-entry v0 seed, lazy-load + onError graceful hide) → 2D-sample (3 of 27 toolkit tools wrapped — ScamperTool / MindMapTool / BrainstormWebTool; remaining 24 deferred as `FU-TAP-TOOLKIT-FULL-COVERAGE` P3).
+- **Saveme done in this session:** ALL-PROJECTS.md flipped to "Phase 2 SHIPPED", decisions-log +8 (authority model A, per-student+per-class scope, Phase 2.5 inserted ahead of 2C/2D, bulk ops with confirmation only, Phase 2D scope deferred to 3-of-27, image dictionary v0, sandbox-pollution defensive fix, migration discipline vindicated again), lessons-learned +1 (#59 — brief estimates can lie when audit hasn't happened yet), FUs +1 (`FU-TAP-TOOLKIT-FULL-COVERAGE`), changelog session entry appended, registries scanned (api-registry +4 routes, ai-call-sites no change), WIRING `tap-a-word` summary refreshed for full Phase 2 + affects:[+toolkit].
+- **Tests baseline this session:** 2215 → **2259** (+44 across all sub-phases). tsc clean throughout. Build green with `NODE_OPTIONS=--max-old-space-size=4096` (Phase 1 closeout fix).
+- **Migration `20260427115409_student_support_settings.sql` is on `main` but NOT YET APPLIED to prod.** The teacher control panel at `/teacher/classes/[classId]/students/support` will show "Failed to load" until the migration applies. Tap-a-word definitions/popovers/audio/image continue working from existing infrastructure; only L1 translations and teacher overrides fall through to defaults. Apply SQL is at the bottom of the chat that triggered this saveme.
+- **2 worktrees pending cleanup:** `/Users/matt/CWORK/questerra-tap-a-word-2` (Phase 2A/2B branch — fully merged via `b9b556a`'s ancestors) + `/Users/matt/CWORK/questerra-tap-a-word-2-5` (Phase 2.5+2C+2D branch — fully merged via `2f08fb6`). Both safe to remove. Branches still exist on origin.
 
 ## State of working tree
 
-- **Clean** after this saveme commits land + push.
-- 1 untracked file: `docs/landing-copy-story-b.md` (Matt's 25 Apr landing copy draft, predates session — left alone).
-- Migration sequence: latest 3-digit = 122 (frozen), latest timestamp = `20260426140609_word_definitions_cache.sql` (applied to dev + prod).
-- Drift status: api-registry + ai-call-sites in sync, RLS coverage shows 7 tables `rls_enabled_no_policy` (FU-FF, P3 known undocumented deny-all pattern; pre-existing), feature-flags + vendors clean.
-- Tests: **2181 passed | 9 skipped | 139 files**. tsc 0 errors. Build green with `NODE_OPTIONS=--max-old-space-size=4096`.
+- **Clean** after this saveme commit lands.
+- 2 untracked files in main: `docs/landing-copy-story-b.md` + `docs/landing-redesign-prompt.md` (Matt's landing-copy drafts, predate this work — leave alone).
+- Migration sequence: latest 3-digit = 122 (frozen). Latest timestamp prefixes:
+  - `20260426140609_word_definitions_cache.sql` (Phase 1A — applied to prod, 588 cached words)
+  - `20260427115409_student_support_settings.sql` (Phase 2.5 — **NOT YET applied to prod**)
+- Drift status: api-registry +4 new student/teacher routes (synced this saveme). ai-call-sites no new sites (Phase 2 used existing word-lookup site). RLS coverage stable. feature-flags + vendors clean.
+- Tests: **2259 passed | 9 skipped | 146 files**. tsc 0 errors.
 
 ## Next steps
 
-- [ ] **Decide on `tap-a-word-build` worktree + branch cleanup.**
-  - Worktree at `/Users/matt/CWORK/questerra-tap-a-word` (~1.6GB after `.next` removal) is safe to remove now: `git worktree remove /Users/matt/CWORK/questerra-tap-a-word && git branch -d tap-a-word-build`. Branch is fully merged to main.
-- [ ] **Decide on Phase 1B refinement (toolkit-prompt mounts).** 28 bespoke toolkit tools have prompt rendering that doesn't go through MarkdownPrompt — left out of Phase 1B intentionally. Either:
-  - (a) ship as a focused refinement (~1 day) before Phase 2
-  - (b) fold into Phase 2's mount expansion (translation + audio + image already touch the same components)
-- [ ] **Open Phase 2 instruction block.** Trigger phrase: `phase 2` or `tap-a-word phase 2`. Spec: master brief §3 Phase 2. Adds L1 translation slot (single L1 from `learning_profile.languages_at_home[0]`) + audio button (browser SpeechSynthesis) + image slot (Wikimedia Commons + Open Symbols static dictionary). Estimated ~3-4 days.
-- [ ] **Address `FU-BUILD-HEAP` P3 quickly** — 1-line `package.json` change adds `NODE_OPTIONS='--max-old-space-size=4096'` to the build script. Low risk, high QoL win for everyone running `next build` locally.
-- [ ] **Optional: `FU-TAP-SANDBOX-POLLUTION` P2 cleanup** — drop the upsert from the sandbox path in route.ts. ~5-min change. Could land as part of Phase 2 or as a standalone fix.
+- [ ] **Apply `20260427115409_student_support_settings.sql` to PROD Supabase.** SQL ready in chat. Two `ALTER TABLE ADD COLUMN ... JSONB DEFAULT '{}'`, idempotent, instant. After applying, run the verify queries in the migration's trailing comments. **Until applied:** teacher UI at `/teacher/classes/[classId]/students/support` shows "Failed to load"; Mandarin/Korean/etc. students see English-only definitions in popovers (resolver SELECT errors → falls to defaults). Tap-a-word otherwise works.
+- [ ] **Browser-test the teacher control panel** — open the URL above for a real class, set per-student L1 overrides + per-class kill-switch, verify the student session reflects changes after page refresh.
+- [ ] **Worktree cleanup (optional):**
+  ```bash
+  git worktree remove /Users/matt/CWORK/questerra-tap-a-word-2
+  git worktree remove /Users/matt/CWORK/questerra-tap-a-word-2-5
+  git branch -d tap-a-word-build tap-a-word-phase-2-build tap-a-word-phase-2-5-build
+  git push origin --delete tap-a-word-build tap-a-word-phase-2-build tap-a-word-phase-2-5-build
+  ```
+- [ ] **Decide next major phase:**
+  - **Phase 3 — Response Starters** (~3-4 days): Magic-wand-pen affordance on `ResponseInput`, side panel with Word Bank + Sentence Starters, AI-generated per-activity, class-shared cache. Mirrors the tap-a-word architecture (server-side resolver, sandbox bypass, etc.).
+  - **Phase 4 — Signal infrastructure + unified settings** (~5-7 days): `taps_per_100_words` rolling 5-lesson average, scaffold-fading tier signal, `/teacher/students/[studentId]` unified settings page (folds in mentor/theme/etc. from Phase 2.5's narrower scope), teacher preview-as-student route.
+  - Recommendation: **Phase 4 first** — gives Matt empirical data on what students actually engage with before building more output scaffolds in Phase 3.
+- [ ] **`FU-TAP-TOOLKIT-FULL-COVERAGE` P3** — wait for Phase 4 signal data, then prioritise top-used tools.
 
 ## Open questions / blockers
 
-- **Toolkit-prompt mount strategy** — see "Next steps" item 2 above. Matt-decision pending.
-- **Cold-cache criterion #5 reframing accepted** — per Lesson #58, the spec reading is now behavioural ("<20 uncached TAPS per student per lesson"). Phase 4's signal infrastructure validates this against real student tap data once it ships. No further action this phase.
-- **Lesson Bold worktree (`/Users/matt/CWORK/questerra-lesson-bold`) was deleted** — recovered ~675MB. Was already marked safe to remove in the predecessor handoff. Branch was already gone from local + remote per prior session notes.
-- **Disk recovered ~4.2GB this session** by removing `questerra-tap-a-word/.next` (3.6GB cached build artifacts) + the lesson-bold dir (~675MB). Disk state: 8.1GB free out of 228GB. After `next build` runs, expect `questerra/.next` to repopulate to ~2-3GB. Comfortable headroom.
+- **None blocking.** Migration apply is the only critical-path Matt-action. Everything else is "test + decide next direction".
+- **Test class timeline** — Matt mentioned students "about to come in" — unclear if that's hours, days, or weeks. If hours, prioritise migration apply + visual smoke. If weeks, can do Phase 4 first to give pilot data infrastructure.
+- **Multi-class students** — `useStudentSupportSettings` currently passes the FIRST `classInfo.id` from StudentContext. If a student is enrolled in multiple classes simultaneously, the per-class override applies to whichever class their context resolves to. Acceptable for v0 pilot; Phase 4 may need explicit class-context-switching.

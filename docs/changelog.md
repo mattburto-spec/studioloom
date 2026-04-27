@@ -2102,3 +2102,43 @@ Trying to handle both in one route produces silent failures — either "PKCE ver
 **Cost spent this session:** ~$0.53 live seed + ~$0.0005 live E2E + ~$0.003 ergonomics rerun = **~$0.535 total**.
 
 **Pending after this saveme:** Apply prod migration (DONE), push origin/main (DONE), Phase 2 (L1 translation + audio + image) awaits next session. Decide whether toolkit-prompt mounts land as a 1B refinement or fold into Phase 2.
+
+---
+
+## 27 April 2026 (PM) — Phase 2 + Phase 2.5 SHIPPED end-to-end
+
+**Branch:** `tap-a-word-phase-2-5-build` (12 commits) merged into `main` via `2f08fb6`. Pushed to `origin/main`. **`student_support_settings` migration apply pending** (Matt-action; SQL given in chat).
+
+**Sub-phases shipped (in order):**
+- **Phase 2A — L1 translation slot** (`56b25b1` → `52a3cbe`): Server-side `l1_target` derivation from `learning_profile.languages_at_home[0]`. Dynamic Anthropic prompt + tool schema (max_tokens 250→400). Supports en/zh/ko/ja/es/fr. WIRING `tap-a-word.currentVersion` 0→1.
+- **Phase 2B — Audio buttons** (`94fdfee` → `53c6b7c`): Browser SpeechSynthesis. Two micro-buttons (English voice next to word, L1 voice next to translation). `useTextToSpeech` hook + `pickVoice` pure helper. Hidden gracefully when L1 voice missing on device.
+- **Phase 2.5 — Teacher control panel** (inserted mid-flight, `e90bb01` → `f758f11`): Per-student + per-class JSONB overrides for `l1_target_override` + `tap_a_word_enabled`. New migration `20260427115409_student_support_settings`. `resolveStudentSettings` server-side precedence chain (class > student > intake > default). Teacher UI page at `/teacher/classes/[classId]/students/support` with inline edit + bulk multi-select + confirmation modal. New `useStudentSupportSettings` page-session-cached client hook. Route returns `{disabled:true}` when teacher gates the student. **Inserted ahead of original Phase 2 sequence after Matt's "real students arriving" trigger.**
+- **Phase 2C — Image dictionary** (`4a91f93` → `a48bb7e`): Static curated dictionary (`src/lib/tap-a-word/image-dictionary.json`). `imageForWord(word)` synchronous loader. v0 ships 6-entry seed using Wikimedia Commons `Special:FilePath` URLs (auto-resolves to current CDN). Lazy-load + onError graceful hide.
+- **Phase 2D-sample — Toolkit mounts** (`ccd7940` → `25e0095`): TappableText on 3 of 27 toolkit tools (ScamperTool / MindMapTool / BrainstormWebTool — the 3 that render prompt as JSX variable). 24 remaining tools deferred as `FU-TAP-TOOLKIT-FULL-COVERAGE` P3 — they hardcode prompts inline, requiring content-aware refactors. Wait for Phase 4 signal data to prioritise.
+
+**Verification (pre-merge):**
+- ✅ Phase 2A — Tests 2181 → 2207 (+26 incl. 12 lang-mapping + 14 route)
+- ✅ Phase 2B — Tests 2207 → 2215 (+8 pickVoice)
+- ✅ Phase 2.5 — Tests 2215 → 2252 (+37 incl. 18 resolver + 18 API + 1 disabled-path)
+- ✅ Phase 2C — Tests 2252 → 2259 (+7 image-dictionary)
+- ✅ Phase 2D-sample — Tests unchanged (pure JSX wraps)
+- ✅ tsc clean throughout
+- ✅ Build green with `NODE_OPTIONS=--max-old-space-size=4096`
+- ⚠️ `student_support_settings` migration NOT YET applied to prod — SQL ready for Matt to paste
+
+**Migrations this session:**
+- `20260427115409_student_support_settings.sql` — 2 ALTER TABLE ADD COLUMN JSONB DEFAULT '{}'. Idempotent (IF NOT EXISTS). Applied to local dev only at the moment.
+
+**Decisions added (8):** authority model A (student-as-source + teacher-overrides), per-student + per-class scope, Phase 2.5 inserted ahead of 2C/2D, bulk ops with confirmation only (no undo/history for v0), Phase 2D scope deferred to 3-of-27, image dictionary 6-entry v0 seed, sandbox-pollution defensive fix even though gate change made it moot, migration discipline v2 vindicated again.
+
+**Lessons added (1):** #59 (brief estimates can lie when audit hasn't happened yet — for any "N similar items" estimate, sample-audit before locking time).
+
+**FUs added (1):** `FU-TAP-TOOLKIT-FULL-COVERAGE` P3 — wrap remaining 24 toolkit tools after Phase 4 signal data shows priorities.
+
+**FUs resolved (1):** `FU-TAP-SANDBOX-POLLUTION` P2 — defensive fix in Phase 1 closeout.
+
+**Systems affected:** `tap-a-word` (currentVersion 0→1, status stays planned until Phase 5; affects:[+toolkit] for 2D-sample); `student-learning-support` unchanged (still planned until Phase 5 ships full coverage).
+
+**Cost spent this session (Phase 2 work):** $0.0 (all changes are infrastructure + UI; no Anthropic calls fired beyond Phase 1 baseline).
+
+**Pending after this saveme:** (1) Matt applies `student_support_settings` migration to prod; (2) browser-test the teacher control panel; (3) decide Phase 3 (Response Starters) vs Phase 4 (signal infrastructure + unified settings) as next major chunk.
