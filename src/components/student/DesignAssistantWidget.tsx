@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getToolMetadata } from "@/lib/tools/toolkit-metadata";
 import { checkClientSide, MODERATION_MESSAGES, detectLanguage } from "@/lib/content-safety/client-filter";
+import { TappableText } from "@/components/student/tap-a-word";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -287,7 +288,7 @@ export default function DesignAssistantWidget({
                         <p key={idx}>
                           {parts.map((part, i) => {
                             if (typeof part === 'string') {
-                              return part;
+                              return <TappableText key={i} text={part} />;
                             }
                             // Render tool link as a styled chip/button with metadata color
                             const toolMeta = getToolMetadata(part.slug);

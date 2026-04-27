@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { TappableText } from "@/components/student/tap-a-word";
 import type { DiscoveryStation, KitExpression } from "@/lib/discovery/types";
 import { KIT_EXPRESSIONS, checkImageExists } from "@/lib/discovery/assets";
 
@@ -112,7 +113,7 @@ export function KitMentor({ expression, station, message }: KitMentorProps) {
             className="relative bg-white/10 backdrop-blur-md rounded-2xl rounded-bl-sm px-4 py-3 text-base text-white/90 leading-relaxed"
             style={{ border: `1px solid ${accent}33` }}
           >
-            {message}
+            <TappableText text={message} />
             {/* Tail pointing to Kit */}
             <div
               className="absolute -bottom-1 left-0 w-3 h-3"
