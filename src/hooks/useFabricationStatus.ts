@@ -96,12 +96,27 @@ export function useFabricationStatus(
         if (cancelled) return;
         if (!res.ok) {
           const body = await res.json().catch(() => ({ error: "" }));
+          // Phase 8.1d-35: a 404 means the job no longer exists —
+          // typical cause is the student deleted it (8.1d-32) and
+          // back-button'd into the cached detail page. Without this
+          // flag the loop kept polling every 2s and flooded the
+          // console with 404s. Now we dispatch a friendlier message
+          // AND set cancelled=true so schedulePoll bails.
+          // Other non-OK responses (500, 503, network blip) stay
+          // retry-eligible — those are usually transient.
+          const isNotFound = res.status === 404;
+          const friendlyMessage = isNotFound
+            ? "This submission no longer exists. It may have been deleted."
+            : body.error || `Status check failed (HTTP ${res.status})`;
           dispatch({
             type: "POLL_ERROR",
-            message: body.error || `Status check failed (HTTP ${res.status})`,
+            message: friendlyMessage,
             elapsedMs: elapsed(),
           });
-          return; // terminal — schedulePoll won't run after dispatch above
+          if (isNotFound) {
+            cancelled = true; // stop the polling loop
+          }
+          return;
         }
         const data = await res.json();
         dispatch({ type: "POLL_SUCCESS", status: data, elapsedMs: elapsed() });

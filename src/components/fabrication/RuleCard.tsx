@@ -153,11 +153,20 @@ export function RuleCard({
           </fieldset>
         )}
 
-        {/* Skills Library deep-link stub */}
+        {/* Skills Library deep-link stub.
+              Phase 8.1d-35: prefetch={false}. Phase 5 ships these as
+              stubs (PH5-FU-PER-RULE-ACKS for the real content), and
+              Next.js's default RSC prefetcher was hitting every
+              /skills/fab-R-XXX URL on render — flooding the student
+              console with 404s on a page that displays 6+ rule cards.
+              Disabling prefetch silences the noise; the link still
+              works on click (currently 404s by design until Skills
+              Library lands). */}
         {skillsUrl && (
           <div className="mt-3">
             <Link
               href={skillsUrl}
+              prefetch={false}
               className="text-xs text-brand-purple underline hover:no-underline"
             >
               Learn more in Skills Library →
