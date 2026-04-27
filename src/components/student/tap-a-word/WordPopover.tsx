@@ -35,6 +35,8 @@ export interface WordPopoverProps {
   exampleSentence: string | null;
   l1Translation: string | null;
   l1Target: string | null;
+  /** Phase 2C: optional curated image URL. Slot hidden when null OR if the image fails to load. */
+  imageUrl: string | null;
   errorMessage: string | null;
   anchorRect: DOMRect;
   onClose: () => void;
@@ -47,18 +49,25 @@ export function WordPopover({
   exampleSentence,
   l1Translation,
   l1Target,
+  imageUrl,
   errorMessage,
   anchorRect,
   onClose,
 }: WordPopoverProps) {
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
   const tts = useTextToSpeech();
 
   // SSR safety: createPortal needs document — only render after mount.
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Reset image-failed flag when the image URL changes (new word tapped).
+  useEffect(() => {
+    setImageFailed(false);
+  }, [imageUrl]);
 
   // Cancel any in-flight audio when the popover closes (caller invokes onClose,
   // OR Esc/click-outside triggers it indirectly).
@@ -170,6 +179,15 @@ export function WordPopover({
           )}
           {exampleSentence && (
             <div className="text-gray-500 italic mt-1.5 text-xs">{exampleSentence}</div>
+          )}
+          {imageUrl && !imageFailed && (
+            <img
+              src={imageUrl}
+              alt={`Illustration of ${word}`}
+              loading="lazy"
+              className="mt-2 max-h-32 w-auto rounded border border-gray-200"
+              onError={() => setImageFailed(true)}
+            />
           )}
         </>
       )}

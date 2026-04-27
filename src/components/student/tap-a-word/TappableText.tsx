@@ -4,18 +4,25 @@ import { useMemo, useRef, useState } from "react";
 import { tokenize } from "./tokenize";
 import { useWordLookup } from "./useWordLookup";
 import { WordPopover } from "./WordPopover";
+import { useStudentSupportSettings } from "./useStudentSupportSettings";
+import { useStudent } from "@/app/(student)/student-context";
 
 /**
  * TappableText — wraps an educational text string and renders each
  * tappable word as a <button> that opens a definition popover.
  *
- * Phase 1A: plain strings only. Markdown surfaces (MarkdownPrompt)
- * get a `tappable` prop that swaps leaf renderers — that integration
- * lands in Phase 1B.
+ * Phase 1A: plain strings, single popover, basic tokenization.
+ * Phase 2A: + L1 translation slot in the popover.
+ * Phase 2B: + audio buttons (English + L1 voice).
+ * Phase 2.5: + teacher-controlled per-class disable. Reads
+ * `tapAWordEnabled` from the support-settings hook on mount; if false,
+ * renders ALL tokens as plain spans (no buttons, no hover) — students
+ * see plain text, no signal that the feature exists.
  *
- * Single popover at a time per TappableText instance. The popover
- * anchors to the clicked button's bounding rect; if the user taps a
- * different word, the popover repositions and re-fetches.
+ * classId resolution: read from StudentContext (the student layout
+ * provides classInfo). For mounts outside the student layout (e.g.
+ * teacher preview, standalone tools), classInfo is null → resolver
+ * runs per-student-only.
  *
  * Untappable tokens (whitespace, punctuation, URLs, 1-char tokens,
  * pure numbers) render as plain spans preserving the original text.
@@ -32,14 +39,30 @@ export interface TappableTextProps {
   contextSentence?: string;
   /** Optional className applied to the wrapping span. */
   className?: string;
+  /**
+   * Optional explicit classId override — for mounts that have classId
+   * available but aren't inside the student layout (rare). Most mounts
+   * should rely on the StudentContext fallback.
+   */
+  classId?: string;
 }
 
-export function TappableText({ text, contextSentence, className }: TappableTextProps) {
+export function TappableText({ text, contextSentence, className, classId: classIdProp }: TappableTextProps) {
   const tokens = useMemo(() => tokenize(text), [text]);
-  const lookup = useWordLookup();
+  const studentCtx = useStudent();
+  const classId = classIdProp ?? studentCtx.classInfo?.id;
+  const support = useStudentSupportSettings(classId);
+  const lookup = useWordLookup({ classId });
   const [openWord, setOpenWord] = useState<string | null>(null);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const containerRef = useRef<HTMLSpanElement | null>(null);
+
+  // Phase 2.5 gate: while support settings are loading, render plain spans
+  // (avoid flicker of buttons that might disappear). Once loaded, gate on
+  // the resolved tapAWordEnabled flag. If disabled OR loading-failed, no
+  // buttons — just plain text. Server enforces too.
+  const tapEnabled =
+    support.loaded && support.data ? support.data.tapAWordEnabled : false;
 
   function handleClick(e: React.MouseEvent<HTMLButtonElement>, word: string) {
     e.stopPropagation();
@@ -58,7 +81,9 @@ export function TappableText({ text, contextSentence, className }: TappableTextP
   return (
     <span ref={containerRef} className={className}>
       {tokens.map((tok, i) => {
-        if (!tok.tappable) {
+        // When tap-a-word is disabled (or still loading on mount), render
+        // ALL tokens as plain spans — no visual signal that the feature exists.
+        if (!tok.tappable || !tapEnabled) {
           return <span key={i}>{tok.text}</span>;
         }
         const isOpen = openWord !== null && openWord === tok.text.toLowerCase();
@@ -86,6 +111,7 @@ export function TappableText({ text, contextSentence, className }: TappableTextP
           exampleSentence={lookup.exampleSentence}
           l1Translation={lookup.l1Translation}
           l1Target={lookup.l1Target}
+          imageUrl={lookup.imageUrl}
           errorMessage={lookup.errorMessage}
           anchorRect={anchorRect}
           onClose={handleClose}
