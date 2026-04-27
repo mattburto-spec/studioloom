@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { LookupState } from "./useWordLookup";
 
 /**
@@ -10,9 +11,14 @@ import type { LookupState } from "./useWordLookup";
  * audio button, and image slot. Keep the structure flat so additional
  * slots can be inserted without restructuring.
  *
- * Positioning: absolute below the anchor rect. Caller passes anchorRect
- * (in viewport coordinates). The popover positions itself in document
- * coordinates with a small offset.
+ * Rendering: portaled to document.body so the popover escapes any
+ * clipped-overflow ancestor (chat scroll containers, collapsed panels,
+ * sidebar drawers — all common on the 5 mount surfaces). Without the
+ * portal, `position: absolute` is constrained by the nearest positioned
+ * ancestor, which clips the popover inside chat surfaces.
+ *
+ * Positioning: absolute below the anchor rect in document coordinates
+ * (anchorRect is in viewport coords; we add window.scrollY/X to convert).
  *
  * Closes on:
  *  - Esc key
@@ -40,6 +46,12 @@ export function WordPopover({
   onClose,
 }: WordPopoverProps) {
   const popoverRef = useRef<HTMLDivElement | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  // SSR safety: createPortal needs document — only render after mount.
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Close on Esc.
   useEffect(() => {
@@ -67,12 +79,14 @@ export function WordPopover({
     };
   }, [onClose]);
 
+  if (!mounted || typeof document === "undefined") return null;
+
   // Position: below anchor, document coordinates.
   const top = anchorRect.bottom + window.scrollY + 6;
   const left = anchorRect.left + window.scrollX;
   const maxWidth = 320;
 
-  return (
+  return createPortal(
     <div
       ref={popoverRef}
       role="dialog"
@@ -99,6 +113,7 @@ export function WordPopover({
           {errorMessage || "Couldn't load definition. Tap to try again."}
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }
