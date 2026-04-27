@@ -78,24 +78,35 @@ class SupabaseClient(Protocol):
     def load_surrogate_machine_profile(
         self, lab_id: str, machine_category: str
     ) -> dict[str, Any] | None:
-        """Phase 8.1d-24: pick any active machine in (lab_id, category)
-        as a stand-in for category-only jobs (machine_profile_id IS
-        NULL on fabrication_jobs).
+        """Phase 8.1d-24 + 8.1d-33: pick a stand-in machine for
+        category-only jobs (machine_profile_id IS NULL on
+        fabrication_jobs — student picked "Any cutter" / "Any
+        printer").
 
-        Returns the first active machine ordered by name (stable across
-        polls) or None if the lab has no active machines of that
-        category. Caller treats None as a hard fail with a clear
-        message — student should re-upload after the teacher adds a
-        machine to the lab.
+        Returns the LARGEST-bed active machine in (lab_id, category),
+        with name as deterministic tiebreak. None if the lab has
+        no active machines — caller hard-fails the scan with a
+        clear message asking the teacher to add a machine.
 
         Surrogate semantics: scan rules run against this profile's
-        bed/nozzle/kerf/etc. The result is "fits *some* machine in
-        this lab", not "fits the smallest". For homogeneous fleets
-        (typical NIS case: 2x P1P + 1x P1S, very similar specs) the
-        difference is immaterial. PH9-FU-FAB-SURROGATE-CONSERVATIVE
-        files the upgrade to scan against the most-restrictive
-        constraints across the lab if heterogeneous fleets surface a
-        false-pass.
+        bed/kerf/colour-map/etc. The result is "fits *some* machine
+        in this lab" — bed-fit rules pass when the file fits the
+        largest bed (definitionally a home exists) and BLOCK when
+        even the biggest can't take it (no machine can). Other
+        rules (kerf, colour map, min feature) read the same
+        surrogate; for homogeneous fleets (typical school case:
+        same brand, same operating standard) the result is
+        meaningful. The proper fix — evaluate every rule against
+        every machine and BLOCK only when ALL fail — is filed as
+        PH9-FU-FAB-SURROGATE-MULTIPLE-EVAL.
+
+        Why "largest" replaced "alphabetical-first" (the original
+        8.1d-24 design): caught 27 Apr in Phase 8.1 smoke — an SVG
+        was BLOCKed against "xTool F1 Ultra" (220×220mm) when the
+        same lab had an "xTool P3" (600×308mm) that would fit fine.
+        Alphabetical sort surfaced the smaller bed → false-positive
+        BLOCK. Largest-bed surrogate matches the user-intent of
+        "Any cutter" submissions.
         """
         ...
 
