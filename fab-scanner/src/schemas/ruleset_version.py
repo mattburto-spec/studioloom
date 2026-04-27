@@ -22,18 +22,22 @@ History:
                           and names the auto-orient button per slicer
                           (Bambu Studio / OrcaSlicer / PrusaSlicer / Cura).
                           PATCH bump per the policy above.
-
-Pending audit:
-  Phase 8.1d-12 changed R-SVG-01 from artboard-based to content-bbox-
-  based — a behaviour change that should have triggered an SVG MINOR
-  bump (svg-v1.1.0). Shipped without one. File `FU-RULESET-VERSION-
-  AUDIT` to back-fill the bump on the next clean cut so prod scan
-  results tagged `svg-v1.0.0` after 8.1d-12 are explicitly logged as
-  historical.
+  2026-04-27  stl-v1.1.0  Phase 8.1d-34 — R-STL-06 now checks both
+                          XY orientations. A file that fits when
+                          rotated 90° around Z is no longer BLOCKed.
+                          Loosens the rule (fewer files fail) → MINOR.
+                          Z axis still checked the same way (gravity).
+  2026-04-27  svg-v1.1.0  Phase 8.1d-34 — R-SVG-01 now checks both
+                          orientations (loosens; same MINOR rationale
+                          as stl-v1.1.0). This bump also retroactively
+                          captures the Phase 8.1d-12 content-bbox
+                          change (which should have been svg-v1.1.0
+                          but shipped untagged). Closes
+                          FU-RULESET-VERSION-AUDIT for SVG.
 """
 
-STL_RULESET_VERSION = "stl-v1.0.1"
-SVG_RULESET_VERSION = "svg-v1.0.0"
+STL_RULESET_VERSION = "stl-v1.1.0"
+SVG_RULESET_VERSION = "svg-v1.1.0"
 
 # Combined version label stored on fabrication_jobs.scan_ruleset_version.
 # Teachers can answer "what ruleset saw this file?" with one string.

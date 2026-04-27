@@ -33,8 +33,14 @@ Design notes:
     1.00 — viewBox dimensions == stated mm (newer Inkscape, modern workflow)
     3.78 — viewBox in 96dpi pixels, stated in mm (older Inkscape, browsers)
   Ratios outside ±10% of either are flagged.
-- Rotation/orientation fit is NOT checked — that's a slicer or operator
-  decision. Students submit what they submit.
+- Phase 8.1d-34: rotation IS now checked. R-SVG-01 passes if the
+  drawing fits in EITHER orientation (as-is OR 90° rotated). Reason:
+  every laser slicer (xTool Creative Space, LightBurn, RDWorks)
+  rotates trivially, and lab techs rotate parts routinely for
+  material economy. BLOCKing a 250×384mm drawing on a 600×308mm
+  bed when 384×250 fits perfectly is overzealous — the original
+  comment's "students submit what they submit" stance was
+  reverted after Matt's smoke 27 Apr.
 """
 
 from __future__ import annotations
@@ -143,47 +149,66 @@ def _rule_01_exceeds_bed(
         check_w_mm, check_h_mm = artboard_w_mm, artboard_h_mm
         bbox_source = "artboard"
 
-    violations: list[str] = []
-    if check_w_mm > profile.bed_size_x_mm:
-        violations.append(
-            f"width: {check_w_mm:.0f} > {profile.bed_size_x_mm:.0f} mm"
-        )
-    if check_h_mm > profile.bed_size_y_mm:
-        violations.append(
-            f"height: {check_h_mm:.0f} > {profile.bed_size_y_mm:.0f} mm"
-        )
-
-    if not violations:
+    # Phase 8.1d-34: check both orientations. The drawing fits if
+    # EITHER as-is OR rotated 90° clears the bed. Slicers handle the
+    # rotation trivially and lab techs rotate parts routinely; only
+    # BLOCK when neither orientation is viable (the design genuinely
+    # exceeds the machine's reach).
+    bed_x = profile.bed_size_x_mm
+    bed_y = profile.bed_size_y_mm
+    fits_unrotated = check_w_mm <= bed_x and check_h_mm <= bed_y
+    fits_rotated = check_h_mm <= bed_x and check_w_mm <= bed_y
+    if fits_unrotated or fits_rotated:
         return None
+
+    # Neither orientation fits. Build the violation string against
+    # the BEST-CASE orientation so the student sees the smallest gap
+    # they need to close (e.g. "384 > 308 mm" not "384 > 308 AND 250 > 600").
+    # Best case = whichever orientation has the smaller overshoot.
+    overshoot_unrotated = max(0, check_w_mm - bed_x) + max(0, check_h_mm - bed_y)
+    overshoot_rotated = max(0, check_h_mm - bed_x) + max(0, check_w_mm - bed_y)
+    if overshoot_rotated < overshoot_unrotated:
+        eff_w, eff_h = check_h_mm, check_w_mm
+        orientation_note = " (rotated)"
+    else:
+        eff_w, eff_h = check_w_mm, check_h_mm
+        orientation_note = ""
+
+    violations: list[str] = []
+    if eff_w > bed_x:
+        violations.append(f"width{orientation_note}: {eff_w:.0f} > {bed_x:.0f} mm")
+    if eff_h > bed_y:
+        violations.append(
+            f"height{orientation_note}: {eff_h:.0f} > {bed_y:.0f} mm"
+        )
 
     # Word the message slightly differently when the bbox came from
     # the artboard fallback so the student knows what we measured. The
     # primary case (content bbox) is the friendlier framing.
     if bbox_source == "content":
         explanation = (
-            f"Your drawing measures {check_w_mm:.0f} × {check_h_mm:.0f} mm but "
-            f"the {profile.name} bed is {profile.bed_size_x_mm:.0f} × "
-            f"{profile.bed_size_y_mm:.0f} mm. The laser cannot reach past its "
-            "bed — scale the drawing down, rotate it to the narrow dimension, "
-            "or split it into pieces that each fit on the bed."
+            f"Your drawing measures {check_w_mm:.0f} × {check_h_mm:.0f} mm. "
+            f"The {profile.name} bed is {bed_x:.0f} × {bed_y:.0f} mm, and "
+            "neither orientation fits — even rotated 90° the design exceeds "
+            "the bed. Scale it down or split it into pieces that each fit."
         )
         fix_hint = (
-            "Scale your design so the cut/etch geometry fits the bed. The "
-            "artboard size doesn't matter — the laser only cares about the "
-            "geometry's bounding box."
+            "Scale your design so the cut/etch geometry fits the bed in at "
+            "least one orientation. The slicer can rotate it for you, but "
+            "it can't shrink it."
         )
     else:
         explanation = (
             f"Your artboard measures {check_w_mm:.0f} × {check_h_mm:.0f} mm "
-            f"but the {profile.name} bed is {profile.bed_size_x_mm:.0f} × "
-            f"{profile.bed_size_y_mm:.0f} mm. (We couldn't measure the "
-            "actual geometry on this file, so we're checking the artboard.) "
-            "Scale the design down or split it into pieces that fit the bed."
+            f"but the {profile.name} bed is {bed_x:.0f} × {bed_y:.0f} mm "
+            "and neither orientation fits. (We couldn't measure the actual "
+            "geometry on this file, so we're checking the artboard.) "
+            "Scale down or split into pieces that each fit the bed."
         )
         fix_hint = (
             "In Inkscape: File > Document Properties, set Width/Height to a "
-            "size that fits the bed. In Illustrator: File > Document Setup > "
-            "Edit Artboards."
+            "size that fits the bed in at least one orientation. In "
+            "Illustrator: File > Document Setup > Edit Artboards."
         )
 
     return RuleResult(
