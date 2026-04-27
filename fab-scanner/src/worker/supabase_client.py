@@ -21,14 +21,22 @@ from typing import Any, Protocol
 class ClaimedJob:
     """One row from fabrication_scan_jobs with all the fields the worker
     needs to run a scan. Assembled by the Supabase client so the worker
-    doesn't have to know the multi-table join shape."""
+    doesn't have to know the multi-table join shape.
+
+    Phase 8.1d-22 made machine_profile_id nullable on fabrication_jobs
+    (category-only "Any 3D printer" submissions). 8.1d-24 surfaces
+    lab_id + machine_category so the worker can pick a surrogate
+    machine profile when machine_profile_id is None.
+    """
 
     scan_job_id: str
     job_id: str  # fabrication_jobs.id
     job_revision_id: str  # fabrication_job_revisions.id
     storage_path: str  # path in the fabrication-uploads bucket
     file_type: str  # 'stl' | 'svg'
-    machine_profile_id: str
+    machine_profile_id: str | None  # 8.1d-22: now nullable
+    lab_id: str  # 8.1d-24: required — every job belongs to a lab
+    machine_category: str  # 8.1d-24: '3d_printer' | 'laser_cutter'
     student_id: str  # fabrication_jobs.student_id — used for email dispatch
 
 
@@ -65,6 +73,30 @@ class SupabaseClient(Protocol):
 
     def load_machine_profile(self, profile_id: str) -> dict[str, Any]:
         """Fetch a machine_profiles row as a plain dict keyed by column name."""
+        ...
+
+    def load_surrogate_machine_profile(
+        self, lab_id: str, machine_category: str
+    ) -> dict[str, Any] | None:
+        """Phase 8.1d-24: pick any active machine in (lab_id, category)
+        as a stand-in for category-only jobs (machine_profile_id IS
+        NULL on fabrication_jobs).
+
+        Returns the first active machine ordered by name (stable across
+        polls) or None if the lab has no active machines of that
+        category. Caller treats None as a hard fail with a clear
+        message — student should re-upload after the teacher adds a
+        machine to the lab.
+
+        Surrogate semantics: scan rules run against this profile's
+        bed/nozzle/kerf/etc. The result is "fits *some* machine in
+        this lab", not "fits the smallest". For homogeneous fleets
+        (typical NIS case: 2x P1P + 1x P1S, very similar specs) the
+        difference is immaterial. PH9-FU-FAB-SURROGATE-CONSERVATIVE
+        files the upgrade to scan against the most-restrictive
+        constraints across the lab if heterogeneous fleets surface a
+        false-pass.
+        """
         ...
 
     def write_scan_results(

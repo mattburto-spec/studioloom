@@ -92,7 +92,12 @@ class SupabaseServiceClient(SupabaseClient):
             job_revision_id=row["job_revision_id"],
             storage_path=row["storage_path"],
             file_type=row["file_type"],
-            machine_profile_id=row["machine_profile_id"],
+            # Phase 8.1d-22: machine_profile_id can now be NULL.
+            # Pass it through unchanged — the scan_runner branches
+            # on None to call load_surrogate_machine_profile instead.
+            machine_profile_id=row.get("machine_profile_id"),
+            lab_id=row["lab_id"],
+            machine_category=row["machine_category"],
             student_id=row["student_id"],
         )
 
@@ -107,6 +112,28 @@ class SupabaseServiceClient(SupabaseClient):
         if not result.data:
             raise KeyError(f"machine profile not found: {profile_id}")
         return result.data
+
+    def load_surrogate_machine_profile(
+        self, lab_id: str, machine_category: str
+    ) -> dict[str, Any] | None:
+        """Phase 8.1d-24: surrogate lookup for category-only jobs.
+
+        Picks the first active machine in (lab_id, machine_category)
+        ordered by name. Returns None if no active machines exist —
+        caller hard-fails the scan in that case.
+        """
+        result = (
+            self._client.table("machine_profiles")
+            .select("*")
+            .eq("lab_id", lab_id)
+            .eq("machine_category", machine_category)
+            .eq("is_active", True)
+            .order("name", desc=False)
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+        return rows[0] if rows else None
 
     def write_scan_results(
         self,
