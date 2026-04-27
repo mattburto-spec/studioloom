@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { StudentContext } from "./student-context";
 // QuickToolFAB import removed 23 Apr 2026 — Matt's call, was floating on
 // every student route including /fabrication/* where it didn't belong.
@@ -21,8 +21,15 @@ export default function StudentLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [student, setStudent] = useState<Student | null>(null);
   const [classInfo, setClassInfo] = useState<Class | null>(null);
+  // Bug 1.5: per-route classInfo override. When the URL contains a
+  // /unit/[unitId]/... segment, we ask the server which class the
+  // student is doing this unit IN and display that class in the topnav
+  // — even when it differs from the session-default class. Cached by
+  // unitId so navigating between pages of the same unit doesn't re-fetch.
+  const [unitClassByUnitId, setUnitClassByUnitId] = useState<Record<string, Class | null>>({});
   const [loading, setLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -61,6 +68,52 @@ export default function StudentLayout({
     }
     loadSession();
   }, [router]);
+
+  // Bug 1.5: when the URL is /unit/[unitId]/..., resolve the class that
+  // owns this unit (server-verified via class_units × class_students). One
+  // fetch per unitId; cached locally so revisiting the same unit is free.
+  // The Class displayed in the topnav follows the URL — fixes multi-class
+  // students seeing the wrong class label.
+  const UNIT_RE = /^\/unit\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
+  const urlUnitId = useMemo(() => {
+    const m = pathname?.match(UNIT_RE);
+    return m?.[1] ?? null;
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!urlUnitId) return;
+    if (urlUnitId in unitClassByUnitId) return; // cached (incl. resolved-to-null)
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/student/me/unit-context?unitId=${encodeURIComponent(urlUnitId)}`,
+          { credentials: "include" }
+        );
+        if (!res.ok) return;
+        const body = (await res.json()) as { class: Class | null };
+        if (!cancelled) {
+          setUnitClassByUnitId((prev) => ({ ...prev, [urlUnitId]: body.class }));
+        }
+      } catch {
+        // Silent fail — topnav falls back to session classInfo.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [urlUnitId, unitClassByUnitId]);
+
+  // The class the topnav + StudentContext expose: unit-derived when on a
+  // unit route AND we've resolved it; session-default otherwise. Keeps a
+  // safe fallback (null derives → session) so the UI never goes blank
+  // mid-fetch.
+  const effectiveClassInfo: Class | null = useMemo(() => {
+    if (urlUnitId && unitClassByUnitId[urlUnitId]) {
+      return unitClassByUnitId[urlUnitId];
+    }
+    return classInfo;
+  }, [urlUnitId, unitClassByUnitId, classInfo]);
 
   // Theme styles retained for the Studio Settings modal which still paints
   // against the legacy --st-* vars. All non-modal content in the student
@@ -136,13 +189,13 @@ export default function StudentLayout({
   }
 
   return (
-    <StudentContext.Provider value={{ student, classInfo }}>
+    <StudentContext.Provider value={{ student, classInfo: effectiveClassInfo }}>
       <BellCountContext.Provider value={{ count: bellCount, setCount: setBellCount }}>
         <SidebarSlotContext.Provider value={{ handler: sidebarHandler, setHandler: setSidebarHandler }}>
         <div className="sl-v2">
           <BoldTopNav
             student={student}
-            classInfo={classInfo}
+            classInfo={effectiveClassInfo}
             loading={false}
             bellCount={bellCount}
             onOpenSettings={() => setShowSettings(true)}
@@ -156,7 +209,7 @@ export default function StudentLayout({
               route or a future unified tools surface. */}
 
           {/* Bug report button — always available for students */}
-          <BugReportButton role="student" classId={classInfo?.id} />
+          <BugReportButton role="student" classId={effectiveClassInfo?.id} />
 
           {/* Settings modal — quick mentor/theme switcher.
               Intentionally keeps the legacy --st-* themed surfaces since it

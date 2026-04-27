@@ -66,10 +66,15 @@ export function TappableText({ text, contextSentence, className, classId: classI
   const params = useParams();
   const rawParamUnitId = typeof params?.unitId === "string" ? params.unitId : undefined;
   const unitId = rawParamUnitId && UUID_RE.test(rawParamUnitId) ? rawParamUnitId : undefined;
-  // classId prop wins (explicit caller); else fall back to the session
-  // default. unitId, when present, lets the server cross-check + derive
-  // the right class even if the session default points elsewhere.
-  const classId = classIdProp ?? studentCtx.classInfo?.id;
+  // Resolution priority:
+  //   1. classIdProp — explicit caller override, trust it.
+  //   2. unitId from URL — let the server derive the verified classId;
+  //      we deliberately skip context.classInfo here because the layout's
+  //      unit-context fetch may not have settled yet, so context could
+  //      briefly hold the (wrong) session-default classId for a different
+  //      class. Server resolves correctly via the unitId path.
+  //   3. context.classInfo — non-unit routes fall back to session default.
+  const classId = classIdProp ?? (unitId ? undefined : studentCtx.classInfo?.id);
   const support = useStudentSupportSettings(classId, unitId);
   const lookup = useWordLookup({ classId, unitId });
   const [openWord, setOpenWord] = useState<string | null>(null);
