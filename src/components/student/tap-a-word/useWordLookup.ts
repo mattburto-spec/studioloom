@@ -39,7 +39,17 @@ interface CachedEntry {
 
 const DEBOUNCE_MS = 250;
 
-export function useWordLookup(): LookupResult {
+export interface UseWordLookupOpts {
+  /**
+   * Phase 2.5: optional class context. When provided, the route's resolver
+   * applies per-class overrides (l1_target_override, tap_a_word_enabled).
+   * When omitted, only per-student overrides apply.
+   */
+  classId?: string;
+}
+
+export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
+  const { classId } = opts;
   const [state, setState] = useState<LookupState>("idle");
   const [word, setWord] = useState<string | null>(null);
   const [definition, setDefinition] = useState<string | null>(null);
@@ -71,6 +81,8 @@ export function useWordLookup(): LookupResult {
   }, []);
 
   const lookup = useCallback((rawWord: string, contextSentence?: string) => {
+    // Note: classId is captured from the closure (re-renders create a new
+    // lookup callback when classId changes — useCallback dep below).
     const normalized = rawWord.trim().toLowerCase();
     if (!normalized || normalized.length < 2) {
       return;
@@ -106,6 +118,9 @@ export function useWordLookup(): LookupResult {
     setL1Target(null);
     setErrorMessage(null);
 
+    // Capture classId at lookup() invocation time so the value used in the
+    // debounced fetch matches the value the user saw when they tapped.
+    const currentClassId = classId;
     debounceRef.current = setTimeout(async () => {
       const controller = new AbortController();
       inFlightRef.current = controller;
@@ -113,7 +128,7 @@ export function useWordLookup(): LookupResult {
         const res = await fetch("/api/student/word-lookup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ word: normalized, contextSentence }),
+          body: JSON.stringify({ word: normalized, contextSentence, classId: currentClassId }),
           signal: controller.signal,
         });
         if (!res.ok) {
@@ -158,7 +173,7 @@ export function useWordLookup(): LookupResult {
         }
       }
     }, DEBOUNCE_MS);
-  }, []);
+  }, [classId]);
 
   // Clean up on unmount.
   useEffect(() => {

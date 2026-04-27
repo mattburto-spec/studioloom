@@ -28,6 +28,19 @@ let cachedRow:
     }
   | null = null;
 let mockLearningProfile: { languages_at_home?: string[] } | null = null;
+// Phase 2.5: control the resolved settings the mocked resolver returns.
+// l1Source/tapASource left as 'default' since route doesn't read them.
+let mockResolved: {
+  l1Target: "en" | "zh" | "ko" | "ja" | "es" | "fr";
+  tapAWordEnabled: boolean;
+  l1Source: "intake" | "student-override" | "class-override" | "default";
+  tapASource: "default" | "student-override" | "class-override";
+} = {
+  l1Target: "en",
+  tapAWordEnabled: true,
+  l1Source: "default",
+  tapASource: "default",
+};
 let upsertSpy: ReturnType<typeof vi.fn<(payload: Record<string, unknown>) => void>>;
 let sandboxSpy: ReturnType<typeof vi.fn<(word: string, l1Target?: string) => void>>;
 // Captures every cache-lookup eq() call so tests can assert l1_target was used as key.
@@ -47,21 +60,6 @@ vi.mock("@/lib/auth/student", () => ({
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     from: (table: string) => {
-      if (table === "students") {
-        // SELECT learning_profile chain: select(...).eq().maybeSingle()
-        return {
-          select: (_cols: string) => {
-            const chain = {
-              eq: (_col: string, _val: unknown) => chain,
-              maybeSingle: async () => ({
-                data: { learning_profile: mockLearningProfile },
-                error: null,
-              }),
-            };
-            return chain;
-          },
-        };
-      }
       if (table === "word_definitions") {
         return {
           select: (_cols: string) => {
@@ -87,6 +85,13 @@ vi.mock("@/lib/supabase/admin", () => ({
       throw new Error(`Unexpected table: ${table}`);
     },
   }),
+}));
+
+// Phase 2.5: route now delegates l1Target + tapAWordEnabled resolution to
+// resolveStudentSettings. Mock it so tests control the resolved values
+// without going through learning_profile / support_settings JSONB fixtures.
+vi.mock("@/lib/student-support/resolve-settings", () => ({
+  resolveStudentSettings: async () => mockResolved,
 }));
 
 vi.mock("@/lib/ai/sandbox/word-lookup-sandbox", () => ({
@@ -123,11 +128,17 @@ function makeRequest(body: unknown): NextRequest {
   });
 }
 
-describe("POST /api/student/word-lookup — Phase 1A + 2A sandbox path", () => {
+describe("POST /api/student/word-lookup — Phase 1A + 2A + 2.5 sandbox path", () => {
   beforeEach(() => {
     mockStudentId = "student-1";
     cachedRow = null;
-    mockLearningProfile = null; // Default: no L1 set → resolves to 'en'
+    mockLearningProfile = null;
+    mockResolved = {
+      l1Target: "en",
+      tapAWordEnabled: true,
+      l1Source: "default",
+      tapASource: "default",
+    };
     upsertSpy = vi.fn();
     sandboxSpy = vi.fn();
     cacheLookupCalls = [];
@@ -213,9 +224,9 @@ describe("POST /api/student/word-lookup — Phase 1A + 2A sandbox path", () => {
   // Phase 2A — L1 translation path
   // ────────────────────────────────────────────────────────────────────────
 
-  it("derives l1Target='zh' from learning_profile.languages_at_home=['Mandarin']", async () => {
+  it("uses resolver's l1Target='zh' (Mandarin student)", async () => {
     cachedRow = null;
-    mockLearningProfile = { languages_at_home: ["Mandarin", "English"] };
+    mockResolved = { l1Target: "zh", tapAWordEnabled: true, l1Source: "intake", tapASource: "default" };
     const res = await POST(makeRequest({ word: "design" }));
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -224,9 +235,9 @@ describe("POST /api/student/word-lookup — Phase 1A + 2A sandbox path", () => {
     expect(sandboxSpy).toHaveBeenCalledWith("design", "zh");
   });
 
-  it("derives l1Target='ko' from learning_profile.languages_at_home=['Korean']", async () => {
+  it("uses resolver's l1Target='ko' (Korean student)", async () => {
     cachedRow = null;
-    mockLearningProfile = { languages_at_home: ["Korean"] };
+    mockResolved = { l1Target: "ko", tapAWordEnabled: true, l1Source: "intake", tapASource: "default" };
     const res = await POST(makeRequest({ word: "design" }));
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -234,9 +245,8 @@ describe("POST /api/student/word-lookup — Phase 1A + 2A sandbox path", () => {
     expect(body.l1Translation).toBe("디자인");
   });
 
-  it("falls back to l1Target='en' for unmapped languages (e.g. Tagalog)", async () => {
+  it("uses resolver's l1Target='en' default (no L1 set)", async () => {
     cachedRow = null;
-    mockLearningProfile = { languages_at_home: ["Tagalog", "Mandarin"] };
     const res = await POST(makeRequest({ word: "design" }));
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -244,21 +254,10 @@ describe("POST /api/student/word-lookup — Phase 1A + 2A sandbox path", () => {
     expect(body.l1Translation).toBeNull();
   });
 
-  it("falls back to l1Target='en' when learning_profile is null", async () => {
+  it("cache key uses the resolved l1_target", async () => {
     cachedRow = null;
-    mockLearningProfile = null;
-    const res = await POST(makeRequest({ word: "design" }));
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.l1Target).toBe("en");
-    expect(body.l1Translation).toBeNull();
-  });
-
-  it("cache key uses the RESOLVED l1_target (different students get different rows)", async () => {
-    cachedRow = null;
-    mockLearningProfile = { languages_at_home: ["Japanese"] };
+    mockResolved = { l1Target: "ja", tapAWordEnabled: true, l1Source: "intake", tapASource: "default" };
     await POST(makeRequest({ word: "design" }));
-    // Cache lookup chain: word, language, context_hash, l1_target
     expect(cacheLookupCalls.length).toBe(1);
     const eqs = cacheLookupCalls[0].eqs;
     expect(eqs).toContainEqual(["word", "design"]);
@@ -268,7 +267,7 @@ describe("POST /api/student/word-lookup — Phase 1A + 2A sandbox path", () => {
   });
 
   it("L1 cache hit returns the row's l1_translation (not null)", async () => {
-    mockLearningProfile = { languages_at_home: ["Spanish"] };
+    mockResolved = { l1Target: "es", tapAWordEnabled: true, l1Source: "intake", tapASource: "default" };
     cachedRow = {
       definition: "A plan for making something.",
       example_sentence: "Sketch a design.",
@@ -280,5 +279,40 @@ describe("POST /api/student/word-lookup — Phase 1A + 2A sandbox path", () => {
     expect(body.l1Translation).toBe("diseño");
     expect(body.l1Target).toBe("es");
     expect(sandboxSpy).not.toHaveBeenCalled();
+  });
+
+  // ────────────────────────────────────────────────────────────────────────
+  // Phase 2.5 — disabled path (server-side gate)
+  // ────────────────────────────────────────────────────────────────────────
+
+  it("returns { disabled: true } when resolver says tapAWordEnabled=false (server gate)", async () => {
+    mockResolved = {
+      l1Target: "en",
+      tapAWordEnabled: false,
+      l1Source: "default",
+      tapASource: "class-override",
+    };
+    const res = await POST(makeRequest({ word: "design" }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.disabled).toBe(true);
+    expect(body.reason).toBe("class-override");
+    // Disabled short-circuits BEFORE sandbox + cache lookup
+    expect(sandboxSpy).not.toHaveBeenCalled();
+    expect(upsertSpy).not.toHaveBeenCalled();
+    expect(cacheLookupCalls.length).toBe(0);
+  });
+
+  it("disabled response carries Cache-Control: private", async () => {
+    mockResolved = {
+      l1Target: "en",
+      tapAWordEnabled: false,
+      l1Source: "default",
+      tapASource: "student-override",
+    };
+    const res = await POST(makeRequest({ word: "design" }));
+    expect(res.headers.get("cache-control")).toBe(
+      "private, no-cache, no-store, must-revalidate"
+    );
   });
 });

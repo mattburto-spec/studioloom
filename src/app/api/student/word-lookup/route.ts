@@ -4,11 +4,8 @@ import { requireStudentAuth } from "@/lib/auth/student";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { lookupSandbox } from "@/lib/ai/sandbox/word-lookup-sandbox";
 import { MODELS } from "@/lib/ai/models";
-import {
-  resolveL1Target,
-  l1DisplayLabel,
-  type L1Target,
-} from "@/lib/tap-a-word/language-mapping";
+import { l1DisplayLabel, type L1Target } from "@/lib/tap-a-word/language-mapping";
+import { resolveStudentSettings } from "@/lib/student-support/resolve-settings";
 
 /**
  * POST /api/student/word-lookup
@@ -49,7 +46,11 @@ const TOOL_NAME = "word_definition";
 interface WordLookupBody {
   word?: unknown;
   contextSentence?: unknown;
+  /** Phase 2.5: optional class context for per-class override resolution. */
+  classId?: unknown;
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function POST(request: NextRequest) {
   const auth = await requireStudentAuth(request);
@@ -65,6 +66,8 @@ export async function POST(request: NextRequest) {
   const rawWord = typeof body?.word === "string" ? body.word.trim().toLowerCase() : "";
   const contextSentence =
     typeof body?.contextSentence === "string" ? body.contextSentence.trim().slice(0, 500) : "";
+  const classId =
+    typeof body?.classId === "string" && UUID_RE.test(body.classId) ? body.classId : undefined;
 
   if (!rawWord || rawWord.length < 2 || rawWord.length > 50) {
     return NextResponse.json(
@@ -73,21 +76,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Phase 2.5: resolver walks the override precedence chain
+  // (class > student > intake > default) and returns both l1Target +
+  // tapAWordEnabled. Replaces the direct learning_profile read.
+  const settings = await resolveStudentSettings(auth.studentId, classId);
+  const l1Target: L1Target = settings.l1Target;
+
+  // Phase 2.5 server-side gate (defensive — UI gates first via
+  // useStudentSupportSettings, but server is source of truth in case the
+  // client check is bypassed).
+  if (!settings.tapAWordEnabled) {
+    return NextResponse.json(
+      { disabled: true, l1Target, reason: settings.tapASource },
+      { status: 200, headers: CACHE_HEADERS }
+    );
+  }
+
   const supabase = createAdminClient();
-
-  // Phase 2A: resolve student's L1 target SERVER-SIDE from learning_profile.
-  // languages_at_home[0] is the spec-locked primary L1 per Q3.
-  const { data: studentRow } = await supabase
-    .from("students")
-    .select("learning_profile")
-    .eq("id", auth.studentId)
-    .maybeSingle();
-
-  const lp = (studentRow?.learning_profile ?? {}) as { languages_at_home?: unknown };
-  const languagesAtHome = Array.isArray(lp.languages_at_home)
-    ? (lp.languages_at_home as unknown[]).filter((x): x is string => typeof x === "string")
-    : null;
-  const l1Target: L1Target = resolveL1Target(languagesAtHome);
 
   // Cache lookup keyed on the resolved l1_target.
   // Phase 1 rows are l1_target='en' / l1_translation=NULL — those serve English-only students.
