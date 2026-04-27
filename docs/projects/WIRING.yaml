@@ -628,7 +628,7 @@ systems:
     category: Student Experience
     status: planned
     currentVersion: 0
-    summary: "Phase 1A + 1B SHIPPED 26-27 Apr 2026: TappableText shared component + /api/student/word-lookup endpoint + word_definitions cache + sandbox bypass + WordPopover via createPortal. Mounted on 5 educational text surfaces: ActivityCard prompts (via MarkdownPrompt tappable prop) + ELL-1 hint card, LessonIntro introduction.text, VocabWarmup definition+example, KitMentor speech bubble, DesignAssistantWidget assistant messages, CheckInPanel mentor messages. Phase 1C adds top-500 design-vocab pre-warm seed + Checkpoint 1.1. Phase 2 adds L1 translation + audio + image."
+    summary: "Phase 1A + 1B + 1C SHIPPED 26-27 Apr 2026: TappableText shared component + /api/student/word-lookup endpoint + word_definitions cache + sandbox bypass + WordPopover via createPortal. Mounted on 5 educational text surfaces: ActivityCard prompts (via MarkdownPrompt tappable prop) + ELL-1 hint card, LessonIntro introduction.text, VocabWarmup definition+example, KitMentor speech bubble, DesignAssistantWidget assistant messages, CheckInPanel mentor messages. Pre-warm seed script with batched Haiku + cost tracking covers 575 unique design-vocab words across 10 categories. Gated live E2E test (RUN_E2E=1) verifies real Anthropic round-trip. Awaiting Checkpoint 1.1 sign-off (visual smoke + seed run + live E2E). Phase 2 adds L1 translation + audio + image."
     depends_on: [student-profile, ai-mentor]
     affects: [lesson-view, discovery-engine, student-open-studio, ai-mentor]
     docs:
@@ -648,7 +648,10 @@ systems:
       - src/lib/ai/sandbox/word-lookup-sandbox.ts
       - src/app/api/student/word-lookup/route.ts
       - src/components/student/MarkdownPrompt.tsx
-    future_needs: "Phase 1C: pre-warm seed top 500 design-vocab + Checkpoint 1.1 visual smoke + cost report. Phase 2: + L1 translation + audio + image. Phase 4: signal-driven scaffold-fading (taps_per_100_words rolling 5-lesson average). Toolkit tool prompts: deferred 1B refinement (28 bespoke tools, not yet wired)."
+      - scripts/preflight-tap-a-word-seed.mjs
+      - scripts/seed-data/design-vocab-500.json
+      - tests/e2e/word-lookup-live.test.ts
+    future_needs: "Checkpoint 1.1 sign-off (Matt action: run seed script + RUN_E2E=1 live test + visual smoke 5 words across 5 surfaces). Phase 2: + L1 translation + audio + image. Phase 4: signal-driven scaffold-fading (taps_per_100_words rolling 5-lesson average). Toolkit tool prompts: deferred 1B refinement (28 bespoke tools, not yet wired)."
     change_impacts: "First Anthropic call site in the student API surface to ship Lesson #39 stop_reason guard + defensive destructure as canonical pattern. FU-5 (6 existing student-api violations) remains out of scope. WordPopover portals to document.body via createPortal so it escapes any clipped-overflow ancestor on the 5 mount surfaces. Toolkit tool prompts deferred to a 1B refinement after Checkpoint 1.1 signs off on the core 5 surfaces."
 
   - id: student-learning-support
