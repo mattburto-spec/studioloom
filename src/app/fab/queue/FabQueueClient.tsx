@@ -405,22 +405,27 @@ export default function CategoryDashboard({
         // pulse-on-attention indicator. Filter against unfiltered
         // data (not the lab-filtered visibleX) — the nav is global,
         // not lab-scoped.
-        printerCounts={{
-          waiting: data.ready.filter((j) => j.machineCategory === "3d_printer").length,
-          incoming: data.ready.filter(
-            (j) => j.machineCategory === "3d_printer" && j.machineProfileId === null
-          ).length,
-          running: data.inProgress.filter((j) => j.machineCategory === "3d_printer").length,
-          done: data.doneToday.filter((j) => j.machineCategory === "3d_printer").length,
-        }}
-        laserCounts={{
-          waiting: data.ready.filter((j) => j.machineCategory === "laser_cutter").length,
-          incoming: data.ready.filter(
-            (j) => j.machineCategory === "laser_cutter" && j.machineProfileId === null
-          ).length,
-          running: data.inProgress.filter((j) => j.machineCategory === "laser_cutter").length,
-          done: data.doneToday.filter((j) => j.machineCategory === "laser_cutter").length,
-        }}
+        //
+        // Phase 8.1d-30: count only RENDERABLE jobs. Ghost jobs
+        // whose machine_profile_id points to a since-deleted /
+        // soft-deleted machine still exist in the DB but the
+        // dashboard can't show them (no column to render into).
+        // Counting them inflates the nav badge above what the body
+        // actually displays — caught by Matt's smoke 27 Apr ("nav
+        // says 6 in laser, only 1 visible"). Use the same predicate
+        // the body uses to decide what to render: unassigned (will
+        // show in incoming row) OR assigned to a machine we know
+        // about (will show in that column).
+        printerCounts={categoryCountsFor(
+          "3d_printer",
+          data,
+          machines
+        )}
+        laserCounts={categoryCountsFor(
+          "laser_cutter",
+          data,
+          machines
+        )}
       />
 
       <main className="px-6 py-6 space-y-5 max-w-[1600px] mx-auto">
@@ -810,11 +815,28 @@ function DashboardHeader({
   const headline =
     category === "3d_printer" ? "3D printing." : "Laser cutting.";
   const accent = categoryAccentVar(category);
+
+  // Phase 8.1d-30: defer the date string until after mount so
+  // SSR + client-hydration agree on initial markup. Server renders
+  // empty; client fills + ticks every minute. Fixes React #418
+  // hydration error caused by `new Date()` differing between SSR
+  // and the first client render.
+  const [now, setNow] = React.useState<string>("");
+  React.useEffect(() => {
+    setNow(formatHeaderDate());
+    const id = window.setInterval(() => setNow(formatHeaderDate()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+
   return (
     <header className="flex items-end justify-between gap-3 flex-wrap">
       <div>
-        <div className={`${styles.cap} mb-1.5`} style={{ color: "var(--ink-3)" }}>
-          {formatHeaderDate()}
+        <div
+          className={`${styles.cap} mb-1.5`}
+          style={{ color: "var(--ink-3)", minHeight: 14 }}
+          suppressHydrationWarning
+        >
+          {now}
         </div>
         <h1
           className={`${styles.displayXl} text-[36px] sm:text-[44px] leading-[0.95]`}
@@ -1806,6 +1828,54 @@ async function fetchMachines(): Promise<
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Network error" };
   }
+}
+
+/**
+ * Phase 8.1d-30: count jobs the dashboard can actually render.
+ *
+ * A "ghost job" is approved + has a machine_profile_id that no
+ * longer matches any active machine in the inviting teacher's
+ * machines list (machine got soft-deleted post-assignment, or
+ * the row is stale from old smoke runs). The body filters these
+ * out implicitly because there's no column to render them into,
+ * but the nav was counting them via the unfiltered data.ready,
+ * leading to "6 waiting in laser cutting · only 1 visible" drift.
+ *
+ * Match the body's render predicate: a job counts as "waiting" iff
+ * either:
+ *   - machine_profile_id is null (will render in the Incoming row), OR
+ *   - its machine_profile_id is in the active machines list
+ *     (will render as a Queue card in that column)
+ *
+ * Ghost jobs are excluded from the count entirely. PH9-FU-FAB-
+ * GHOST-JOB-CLEANUP files the data-side fix (auto-unassign on
+ * machine soft-delete + a backfill of existing ghosts).
+ */
+function categoryCountsFor(
+  category: Category,
+  data: DashboardData,
+  machines: FabMachineOption[]
+): CategoryCounts {
+  const validMachineIds = new Set(
+    machines
+      .filter((m) => m.machine_category === category)
+      .map((m) => m.id)
+  );
+
+  const renderable = (j: FabJobRow) => {
+    if (j.machineCategory !== category) return false;
+    if (j.machineProfileId === null) return true;
+    return validMachineIds.has(j.machineProfileId);
+  };
+
+  const waitingJobs = data.ready.filter(renderable);
+  return {
+    waiting: waitingJobs.length,
+    incoming: waitingJobs.filter((j) => j.machineProfileId === null).length,
+    running: data.inProgress.filter((j) => j.machineCategory === category)
+      .length,
+    done: data.doneToday.filter((j) => j.machineCategory === category).length,
+  };
 }
 
 function categoryAccentVar(c: Category | null): string {
