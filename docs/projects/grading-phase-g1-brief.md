@@ -338,10 +338,43 @@ Code-write is blocked. The right path forward:
 - **Legacy fallback** (`section_${idx}`) exists in two read-only views: [src/components/student/ExportPagePdf.tsx:49](../../src/components/student/ExportPagePdf.tsx) and [src/components/portfolio/NarrativeView.tsx:104](../../src/components/portfolio/NarrativeView.tsx). These don't write — they read whatever shape exists. So legacy tiles persist with positional keys; new tiles persist with activityId keys. Both shapes coexist in prod today.
 - **`ActivitySection.criterionTags?: string[]`** ([src/types/index.ts:375](../../src/types/index.ts)) already carries criterion mapping per tile. Comment: *"Assessment criteria this activity addresses — e.g. ['A','B'] or ['AO1','AO3']. Framework-agnostic."* This means **per-criterion rollup at Synthesize time = JOIN against `class_units.content_data` reading `criterionTags` per tile**. Zero new metadata required.
 
-**Open data-question for next session (not blocking the migration mint, but blocks the migration body):**
-> What fraction of `class_units.content_data.sections[]` rows in prod lack `activityId`? Quick probe: `SELECT COUNT(*) WITH section AS (SELECT jsonb_array_elements(content_data->'sections') s FROM class_units) SELECT count(*) FILTER (WHERE NOT (s ? 'activityId')) AS legacy, count(*) AS total FROM section`. If legacy > 5% of total, the migration includes a backfill step that mints `nanoid(8)` for each legacy section. If <5%, accept positional fallback in `tile_id` until first edit naturally backfills.
+**Live-data probe (run 27 Apr 2026 against prod via [`scripts/grading/probe-tile-id-coverage.ts`](../../scripts/grading/probe-tile-id-coverage.ts)):**
 
-**Acceptance:** the design's per-tile model is implementable on the existing tile structure with stable IDs. The migration body in §13.C stands. Authoring + application is next session's first task.
+```
+Total tiles:              635 (across 11 units)
+With stable ID:           571 (89.9%)
+Legacy (no stable ID):    64  (10.1%)
+
+By content version: v2 = 1 unit, v3 = 2 units, v4 = 7 units, v? = 1 unit
+By tile shape:      pages-with-content-sections = 3 units, timeline-flat = 7 units, other = 1 unit
+
+Criterion-tag coverage: 163 tiles tagged (25.7%) — see §13.H below
+```
+
+**Stable-ID conclusion:** V4 `TimelineActivity.id` and V2/V3 `ActivitySection.activityId` are equivalent nanoid(8) strings — both flow through to the rendered `responseKey` via the converter at [`src/lib/timeline.ts:142`](../../src/lib/timeline.ts) (`activityId: a.id`). Counting both: 89.9% of prod tiles already carry stable IDs. **Backfill is required** for the 10.1% legacy (64 tiles across the 4 v2/v3/v? units), but the volume is small enough that the migration body handles it inline.
+
+### H. Second probe finding — criterion-tag coverage (NEW design constraint)
+
+**74.3% of prod tiles have NO `criterionTags` field.** This means the design's per-criterion rollup-by-JOIN ("AVG of all tile scores tagged criterion A") only works for ~26% of existing tiles. The other 74.3% need a different criterion source.
+
+Two candidate sources to fall back to:
+1. **`UnitPage.criterion: CriterionKey`** — V2/V3 only. Pages are tagged per criterion (e.g. "this whole page is for Criterion B"). Every tile on the page inherits.
+2. **Teacher-assigned at marking time** — Calibrate's row already shows criterion in the question header (the design hardcodes Q's criterion in the tile strip). The teacher knows which criterion this tile assesses; they could pin it during the first scoring pass.
+
+**Schema implication for `student_tile_grades`:** add a `criterion_key TEXT` column. Set on first write from (in priority order): `ActivitySection.criterionTags[0]` → `UnitPage.criterion` → teacher-set in Calibrate. Stored on the grade record so per-criterion rollup at Synthesize time is `SELECT criterion_key, AVG(score) FROM student_tile_grades GROUP BY criterion_key` — no JOIN to content_data needed at all. Simpler, faster, and works even when content_data evolves.
+
+Updated migration body shape (additive to §13.C):
+```sql
+CREATE TABLE student_tile_grades (
+  -- ... fields from §13.C ...
+  criterion_key TEXT,                   -- inherits from criterionTags / page.criterion / teacher
+  -- ... rest of §13.C ...
+);
+CREATE INDEX idx_student_tile_grades_criterion
+  ON student_tile_grades(class_id, unit_id, criterion_key);
+```
+
+**Acceptance:** the design's per-tile model is implementable on existing prod tiles with (a) inline backfill for 10% legacy IDs and (b) `criterion_key` denormalization to handle 74% missing criterionTags. The migration body now needs a small backfill block + one extra column from §13.C. Authoring + application is next session's first task.
 
 ---
 
