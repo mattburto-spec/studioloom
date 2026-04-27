@@ -1167,28 +1167,71 @@ systems:
   - id: teacher-dashboard
     name: Teacher Dashboard
     category: Teacher Experience
-    status: complete
-    currentVersion: 1
-    summary: Displays today's classes with student progress rings, units with 3-button layout (Teach / Manage / Edit), smart subject detection from class name/unit type, archived class filtering.
-    depends_on: [scheduling, unit-management]
-    affects: [teach-mode, unit-generation, unit-editor]
+    status: in_progress
+    currentVersion: 2
+    summary: Bold-restyled `/teacher/dashboard` (v2). NowHero + TodayRail + Insights (4 buckets) + UnitsGrid + Admin housekeeping. Per-program scope chip (All / Design / PYPX / Service / PP / Inquiry) drives a per-scope view registry. Default view shows the cross-program landing; PYPX scope swaps in PypxView (cohort-overview hero with countdown + COHORT AVG/NEED ATTENTION/AHEAD metrics + 5-segment phase distribution bar + per-student card grid). Phases 13a/13b live; 13c (student PYPX dashboard), 13d (framework registry cleanup), 13e (inline assign-unit modal), 14 (Service view), 15 (PP view), 16 (a11y), 17 (legacy delete) pending.
+    depends_on: [scheduling, unit-management, pypx-exhibition]
+    affects: [teach-mode, unit-generation, unit-editor, pypx-exhibition]
     docs:
+      - path: docs/projects/teacher-dashboard-v1.md
+        purpose: Build tracker for the Bold v2 rebuild
+      - path: docs/projects/teacher-dashboard-v1-phase-13a-brief.md
+        purpose: PYPX schema + setup UI brief
       - path: docs/roadmap.md
-        purpose: Dashboard design and feature roadmap
+        purpose: Long-form dashboard roadmap
     data_fields:
       - table: classes
         columns: [id, teacher_id, class_name, subject, framework]
-        notes: Class metadata for display
+        notes: Class metadata + program scope derivation
       - table: class_units
-        columns: [id, class_id, unit_id, is_archived, nm_config]
-        notes: Class-unit assignments
+        columns: [id, class_id, unit_id, is_archived, nm_config, exhibition_config]
+        notes: Class-unit assignments + per-class exhibition config (PYPX scope)
     key_files:
       - src/app/teacher/dashboard/page.tsx
-      - src/components/teacher/dashboard/DashboardCard.tsx
-    future_needs: Adaptive dashboard based on teacher style, priority scoring for at-risk students.
+      - src/components/teacher-dashboard-v2/TeacherShell.tsx
+      - src/components/teacher-dashboard-v2/views/PypxView.tsx
+      - src/components/teacher-dashboard-v2/views/DefaultView.tsx
+      - src/components/teacher-dashboard-v2/views/registry.ts
+      - src/app/api/teacher/dashboard/route.ts
+      - src/app/api/teacher/pypx-cohort/route.ts
+    future_needs: 13c student PYPX dashboard, 13b-3b polish (filter chips + view toggle + per-student detail page), 14 Service / 15 PP dashboard models.
     adrs: ["010"]
     os_seam: ready
-    change_impacts: Changes to unit display affect teacher workflow. Changes to subject detection affect card colors.
+    change_impacts: Changes to scope chip wiring affect every per-program view. Changes to /api/teacher/dashboard payload shape affect DashboardViewProps consumed by all views. PYPX-specific changes flow through pypx-exhibition system.
+
+  - id: pypx-exhibition
+    name: PYP Exhibition (PYPX)
+    category: Teacher Experience
+    status: in_progress
+    currentVersion: 1
+    summary: PYPX-scoped data model + teacher setup UI + cohort dashboard. `class_units.exhibition_config` JSONB stores per-class exhibition date + milestones. `student_projects` table holds per-student project rows (title · central idea · lines of inquiry · transdisciplinary theme · mentor_teacher_id · current_phase wonder|findout|make|share|reflect). `/teacher/classes/[classId]/exhibition` page = DatesCard (date + milestones) + StudentProjectsCard (inline editor, auto-save 600ms debounced, server-authoritative merge). PypxView consumes `/api/teacher/pypx-cohort` for the dashboard render. Phase = derived heuristically from progress % (5-bucket) for v1; AI-driven phase writes deferred. Status = ±15% bands around cohort avg + hard rules (no project title, stalled 7+ days). Mentor picker pulls same-school teachers via `/api/teacher/teachers/list`; will swap to Mentor Manager pool when that ships.
+    depends_on: [teacher-dashboard, scheduling, auth-system]
+    affects: [teacher-dashboard, mentor-manager]
+    docs:
+      - path: docs/projects/teacher-dashboard-v1-phase-13a-brief.md
+        purpose: Phase 13a brief covering schema + setup UI scope
+      - path: docs/projects/mentor-manager.md
+        purpose: Sibling project — coordinator-meeting draft for the upcoming mentor management surface
+    data_fields:
+      - table: class_units
+        columns: [exhibition_config]
+        notes: JSONB { exhibition_date, milestones[] }. Mentor cadence moved out (per-mentor not per-class — Mentor Manager scope).
+      - table: student_projects
+        columns: [id, student_id, class_id, unit_id, title, central_idea, lines_of_inquiry, transdisciplinary_theme, mentor_teacher_id, current_phase, created_at, updated_at]
+        notes: One row per (student × class × unit). RLS lets teachers manage class-owned + mentored rows; students read their own.
+    key_files:
+      - supabase/migrations/115_pypx_exhibition.sql
+      - src/app/teacher/classes/[classId]/exhibition/page.tsx
+      - src/app/teacher/classes/[classId]/exhibition/DatesCard.tsx
+      - src/app/teacher/classes/[classId]/exhibition/StudentProjectsCard.tsx
+      - src/app/api/teacher/exhibition/route.ts
+      - src/app/api/teacher/student-projects/route.ts
+      - src/app/api/teacher/teachers/list/route.ts
+      - src/app/api/teacher/pypx-cohort/route.ts
+      - src/components/teacher-dashboard-v2/views/PypxView.tsx
+    future_needs: 13b-3b filter chips + view toggle + per-student detail page; 13c student PYPX dashboard; AI-driven phase writer (Open Studio v2 territory); Mentor Manager pool integration once that ships.
+    os_seam: ready
+    change_impacts: Schema changes to exhibition_config or student_projects affect setup UI, cohort API, and the PypxView render path. Changes to phase derivation rule affect every card rendered. Changes to mentor picker source feed forward to Mentor Manager.
 
   - id: teach-mode
     name: Teaching Mode (Live Classroom Cockpit)

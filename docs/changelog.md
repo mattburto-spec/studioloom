@@ -1892,3 +1892,44 @@ Trying to handle both in one route produces silent failures — either "PKCE ver
 **Systems affected:** `lesson-view` (v1 → v1.5 warm-paper restyle SHIPPED), `student-learning-support` (status flipped complete→planned, redesign tracked at `language-scaffolding-redesign-brief.md`). All other systems untouched by this session.
 
 **Trigger for next session:** `go phase 1` or `tap-a-word` — Phase 1 of language-scaffolding-redesign (Tap-a-word v1, definition only, 8 mount surfaces). Spec: `docs/projects/language-scaffolding-redesign-brief.md` §3 Phase 1.
+
+## 26 Apr 2026 PM — Teacher Dashboard Phase 13a-5 + 13b first cut: PYPX cohort dashboard live
+
+**What changed:**
+- **Phase 13a polish landed (`56d9359`, `8122ffd`, `10ef1f4`):** mentor check-in cadence dropped from Exhibition setup (per-mentor not per-class — moved to Mentor Manager scope); phase column dropped from student-projects inline editor (output not input); system accounts (`@studioloom.internal`) filtered from mentor picker.
+- **Phase 13a-5 SHIPPED (`af4b0a5`):** student projects inline editor at `/teacher/classes/[classId]/exhibition`. ~370-line `StudentProjectsCard` with one row per enrolled student (title · central idea · theme · mentor), auto-save 600ms debounced per row, server-authoritative merge so id flips null→uuid + updated_at land. New endpoint `/api/teacher/teachers/list` seeds the mentor picker (same-school teachers, system accounts filtered).
+- **Phase 13b-1 SHIPPED (`05e9c2a`):** new endpoint `/api/teacher/pypx-cohort?classId=X&unitId=Y` returns single payload (cohort metrics + per-student card data). 409 lines. Joins class_units + class_students + students + student_projects + teachers + student_progress.
+- **Phase 13b-2 + 13b-3a SHIPPED (`28fc709`):** PypxView rebuilt to consume the cohort API. Hero with class badge, "Exhibition in N days." countdown, COHORT AVG / NEED ATTENTION / AHEAD metrics top-right, 5-segment phase distribution bar at the bottom. Student card grid below with avatar (deterministic colour from id hash) + project title + phase pill + per-student progress bar + mentor pill or red "Unassigned" + status pill (coral ring around needs-attention cards). 622 lines added, 237 removed.
+- **Mentor Manager spec drafted (`d441547`):** `docs/projects/mentor-manager.md` — coordinator-meeting draft for sibling project. 1-page coordinator brief on top + engineering appendix below + 3 open questions for the PYP coordinator meeting (~early May 2026).
+- **Hotfix during session:** mentor dropdown empty on prod smoke. Diagnostic SQL surfaced 4 teacher rows → 1 with school_id (Matt's loominary), 2 NULL Matt test accounts, 1 system account. Manual SQL backfill set school_id on the test accounts; endpoint patched to filter `@studioloom.internal` accounts.
+- **Migration 115 schema-cache fix:** `NOTIFY pgrst, 'reload schema';` after Matt manually applied 115 to prod. Then full migration body re-run via SQL editor when diagnostic confirmed `student_projects` table didn't exist on prod (column did but table didn't — partial apply).
+
+**Heuristics baked in (with sign-off):**
+- Progress % = completed pages / unit totalPages (mirrors existing dashboard route).
+- Phase = 5-bucket of progress % (0-20 Wonder, 20-40 Find out, 40-60 Make, 60-80 Share, 80+ Reflect). Read-time only — column not written.
+- Status = ±15% bands around cohort avg + hard rules (no project title → Needs attention; no activity 7+ days → Needs attention with "Stalled X days" reason).
+
+**Saveme sync results (steps 11):**
+- `api-registry.yaml` — drift captured: +44 lines (4 new routes — `pypx-cohort`, `teachers/list`, plus 2 from parallel preflight `fab/jobs/[jobId]/assign-machine` + `fab/machines`). Committed.
+- `ai-call-sites.yaml` — re-ran scanner; no diff (no new AI calls this session).
+- `feature-flags.json` — status: `drift`, 1 orphan = `SENTRY_AUTH_TOKEN` (FU-CC, P3 known build-time-only). Pre-existing, not from this session.
+- `vendors.json` — status: `ok`, no drift.
+- `rls-coverage.json` — status: `drift_detected`, 7 tables `rls_enabled_no_policy` (FU-FF, P3 known undocumented deny-all pattern). Pre-existing — student_projects has RLS policies.
+- `schema-registry.yaml` — no manual update this session (migration 115 was manually applied to prod earlier in the session via SQL editor; schema-registry should be updated to reflect `class_units.exhibition_config` + `student_projects` but this is a step-12 follow-up — registry uses live introspection mode).
+
+**Files modified (this saveme commit):**
+- `docs/api-registry.yaml` — 4 new routes
+- `docs/projects/teacher-dashboard-v1.md` — 13a + 13b rows flipped to ✅ Done with full scope summary
+- `docs/projects/ALL-PROJECTS.md` — Teacher Dashboard v1 (Bold) entry added under Active Projects
+- `docs/projects/WIRING.yaml` — `teacher-dashboard` system bumped to v2 + `pypx-exhibition` system added (+99 → 100 systems)
+- `docs/decisions-log.md` — 6 new decisions appended (cadence per-mentor, phase as output, cohort heuristics triple, hero year copy, mentor manager v0 auth, school_resources first consumer)
+- `docs/changelog.md` — this entry
+- `docs/handoff/dashboard-v2-build.md` — written via step 12
+
+**Test counts:** Not re-run this session (UI work). Branch tests assumed green based on TS-clean + targeted typechecks during build.
+
+**Pending-push count:** 0 → 1 after this saveme commit lands.
+
+**Systems affected:** `teacher-dashboard` (v1 → v2 in_progress, summary rewritten), `pypx-exhibition` (NEW, currentVersion 1 in_progress).
+
+**Trigger for next session:** `dashboard next` or `pypx 13b polish` — Phase 13b-3b (filter chips + view toggle [cards/table/by-phase] + per-student detail page) OR Phase 13c (student PYPX dashboard ~2 days, port `pypx_dashboard.jsx` to real students). Mentor Manager v0 stays parked until coordinator meeting confirms scope.
