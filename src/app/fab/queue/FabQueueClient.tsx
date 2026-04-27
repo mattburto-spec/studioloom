@@ -81,9 +81,13 @@ type LoadState =
 interface DashboardData {
   ready: FabJobRow[];
   inProgress: FabJobRow[];
+  // Phase 8.1d-29: re-added for the per-tab "done today" count in
+  // the top nav. The full Done Today strip stays removed from the
+  // dashboard body (8.1d-23 decision); this is JUST the count.
+  doneToday: FabJobRow[];
 }
 
-const EMPTY_DATA: DashboardData = { ready: [], inProgress: [] };
+const EMPTY_DATA: DashboardData = { ready: [], inProgress: [], doneToday: [] };
 
 // Phase 8.1d-28: canned reasons for the Mark Failed modal. Picked
 // from the most common modes Matt's flagged in smoke + standard
@@ -168,17 +172,23 @@ export default function CategoryDashboard({
     fetchInFlight.current = true;
     if (!silent) setState({ kind: "loading" });
     try {
-      const [r, ip, m] = await Promise.all([
+      const [r, ip, dt, m] = await Promise.all([
         fetchTab("ready"),
         fetchTab("in_progress"),
+        fetchTab("done_today"),
         fetchMachines(),
       ]);
+      // Done-today errors are non-fatal — it's just for the count
+      // chip in the nav, the dashboard still works without it. Strip
+      // its error from the firstError surface so a flaky done-today
+      // poll doesn't blank a working dashboard.
       const firstError = [r, ip, m].find((x) => "error" in x) as
         | { error: string }
         | undefined;
       setData({
         ready: "jobs" in r ? r.jobs : [],
         inProgress: "jobs" in ip ? ip.jobs : [],
+        doneToday: "jobs" in dt ? dt.jobs : [],
       });
       if ("machines" in m) setMachines(m.machines);
       setState(firstError ? { kind: "error", message: firstError.error } : { kind: "ready" });
@@ -391,6 +401,26 @@ export default function CategoryDashboard({
         category={category}
         fabricatorName={fabricatorName}
         initials={fabricatorInitials}
+        // Phase 8.1d-29: per-category counts for the tab summary +
+        // pulse-on-attention indicator. Filter against unfiltered
+        // data (not the lab-filtered visibleX) — the nav is global,
+        // not lab-scoped.
+        printerCounts={{
+          waiting: data.ready.filter((j) => j.machineCategory === "3d_printer").length,
+          incoming: data.ready.filter(
+            (j) => j.machineCategory === "3d_printer" && j.machineProfileId === null
+          ).length,
+          running: data.inProgress.filter((j) => j.machineCategory === "3d_printer").length,
+          done: data.doneToday.filter((j) => j.machineCategory === "3d_printer").length,
+        }}
+        laserCounts={{
+          waiting: data.ready.filter((j) => j.machineCategory === "laser_cutter").length,
+          incoming: data.ready.filter(
+            (j) => j.machineCategory === "laser_cutter" && j.machineProfileId === null
+          ).length,
+          running: data.inProgress.filter((j) => j.machineCategory === "laser_cutter").length,
+          done: data.doneToday.filter((j) => j.machineCategory === "laser_cutter").length,
+        }}
       />
 
       <main className="px-6 py-6 space-y-5 max-w-[1600px] mx-auto">
@@ -819,24 +849,40 @@ function DashboardHeader({
 // Top nav with category switcher
 // ============================================================
 
+interface CategoryCounts {
+  /** Total approved jobs awaiting pickup (incoming + queued). */
+  waiting: number;
+  /** Subset of waiting that are unassigned to a specific machine —
+   *  drives the pulsing red dot on the inactive tab. */
+  incoming: number;
+  /** Currently picked-up jobs running on machines. */
+  running: number;
+  /** Completed today (UTC midnight cutoff). */
+  done: number;
+}
+
 function FabTopNav({
   category,
   fabricatorName,
   initials,
+  printerCounts,
+  laserCounts,
 }: {
   category: Category;
   fabricatorName: string;
   initials: string;
+  printerCounts: CategoryCounts;
+  laserCounts: CategoryCounts;
 }) {
-  const otherCategoryHref =
-    category === "3d_printer" ? "/fab/queue/laser" : "/fab/queue/printer";
-  const otherCategoryLabel =
-    category === "3d_printer" ? "Laser cutting" : "3D printing";
   return (
     <header
       style={{ background: "var(--surface)", borderBottom: "1px solid var(--hair)" }}
     >
-      <div className="px-6 h-14 flex items-center gap-6">
+      {/* Phase 8.1d-29: nav grew taller to fit the per-tab summary
+           rows. h-14 → h-auto + min-h-14 keeps single-line content
+           (brand, user, signout) vertically centred while the tabs
+           expand to two lines. */}
+      <div className="px-6 py-2 flex items-center gap-6 min-h-14">
         <div className="flex items-center gap-2.5">
           <div
             className={`${styles.display} w-8 h-8 rounded-xl flex items-center justify-center text-[14px]`}
@@ -849,28 +895,26 @@ function FabTopNav({
             / Fab
           </div>
         </div>
-        <nav className="flex items-center gap-1">
+        <nav className="flex items-center gap-1.5">
           {/* Phase 8.1d-23: explicit category tabs in the nav.
               Active route = current category, inactive = the other.
-              One click switches. Future categories add more tabs. */}
+              8.1d-29: tabs now show per-category counts + a
+              pulsing red dot when the inactive tab has incoming
+              (unassigned) jobs needing attention. */}
           <CategoryTab
             href="/fab/queue/printer"
             label="3D Printing"
             isActive={category === "3d_printer"}
+            counts={printerCounts}
           />
           <CategoryTab
             href="/fab/queue/laser"
             label="Laser cutting"
             isActive={category === "laser_cutter"}
+            counts={laserCounts}
           />
         </nav>
         <div className="flex-1" />
-        <Link
-          href={otherCategoryHref}
-          className={`${styles.btnSecondary} rounded-full px-3 py-1.5 text-[11.5px] hidden md:inline-flex items-center gap-1`}
-        >
-          ← Switch to {otherCategoryLabel.toLowerCase()}
-        </Link>
         <div className="hidden sm:flex items-center gap-2">
           <span className="text-[11.5px]" style={{ color: "var(--ink-2)" }}>
             {fabricatorName}
@@ -899,23 +943,99 @@ function CategoryTab({
   href,
   label,
   isActive,
+  counts,
 }: {
   href: string;
   label: string;
   isActive: boolean;
+  counts: CategoryCounts;
 }) {
+  // Phase 8.1d-29: pulse the inactive tab when there are
+  // unassigned jobs in that category — peripheral-vision signal
+  // that the OTHER category needs attention. Pulse stops the
+  // moment the user is on that tab (they're already looking).
+  const shouldPulse = !isActive && counts.incoming > 0;
+
+  // Per-section text colour shifts between active + inactive so
+  // the count chips don't disappear into the background. Active
+  // tab uses inverted ink; inactive tab uses muted secondary.
+  const labelColor = isActive ? "var(--bg)" : "var(--ink)";
+  const summaryColor = isActive ? "rgba(14,15,18,0.65)" : "var(--ink-3)";
+
   return (
     <Link
       href={href}
-      className="px-3 py-1.5 rounded-full text-[12px] font-extrabold transition"
+      className="relative inline-flex flex-col rounded-2xl transition"
+      style={{
+        padding: "6px 14px",
+        background: isActive ? "var(--ink)" : "var(--surface-2)",
+        border: isActive ? "1px solid var(--ink)" : "1px solid var(--hair)",
+        minWidth: 184,
+      }}
+      title={
+        shouldPulse
+          ? `${counts.incoming} new job${counts.incoming === 1 ? "" : "s"} waiting to be assigned`
+          : undefined
+      }
+    >
+      {/* Pulsing red dot — top-right corner, small + understated.
+           Uses the existing .pulse keyframe (currentColor box-shadow)
+           applied to a danger-coloured node. */}
+      {shouldPulse && (
+        <span
+          className={styles.pulse}
+          aria-label="New jobs waiting"
+          style={{
+            position: "absolute",
+            top: 6,
+            right: 8,
+            color: "var(--bad)",
+          }}
+        />
+      )}
+      <span
+        className="text-[13px] leading-tight font-extrabold"
+        style={{ color: labelColor }}
+      >
+        {label}
+      </span>
+      <span
+        className={`${styles.mono} text-[10px] leading-tight mt-0.5 flex items-center gap-1.5`}
+        style={{ color: summaryColor }}
+      >
+        <CountChip
+          label={`${counts.waiting} waiting`}
+          highlight={shouldPulse}
+        />
+        <span aria-hidden="true">·</span>
+        <span>{counts.running} running</span>
+        <span aria-hidden="true">·</span>
+        <span>{counts.done} done</span>
+      </span>
+    </Link>
+  );
+}
+
+function CountChip({
+  label,
+  highlight,
+}: {
+  label: string;
+  highlight: boolean;
+}) {
+  // The leading "waiting" count goes red when there are
+  // unassigned jobs (matches the pulse-dot signal). Keeps the
+  // attention path consistent: dot + count both turn red.
+  return (
+    <span
       style={
-        isActive
-          ? { background: "var(--ink)", color: "var(--bg)" }
-          : { color: "var(--ink-2)" }
+        highlight
+          ? { color: "#FCA5A5", fontWeight: 800 }
+          : undefined
       }
     >
       {label}
-    </Link>
+    </span>
   );
 }
 
@@ -1655,7 +1775,7 @@ interface FetchTabError {
 }
 
 async function fetchTab(
-  tab: "ready" | "in_progress"
+  tab: "ready" | "in_progress" | "done_today"
 ): Promise<FetchTabSuccess | FetchTabError> {
   try {
     const res = await fetch(`/api/fab/queue?tab=${tab}`, {
