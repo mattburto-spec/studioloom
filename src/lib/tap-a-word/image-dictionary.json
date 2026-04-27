@@ -1,0 +1,19 @@
+{
+  "_meta": {
+    "phase": "language-scaffolding-redesign Phase 2C",
+    "purpose": "Curated word → image-URL mapping for the WordPopover image slot. The popover renders the image (lazy-loaded) only when imageForWord(word) returns non-null; missing entries simply hide the slot — no broken-image icon ever shown.",
+    "license_policy": "Only CC-BY, CC-BY-SA, CC0, or public-domain images. Wikimedia Commons + Open Symbols are the two canonical sources per spec. Wikimedia URLs use Special:FilePath for stable hotlinking (auto-resolves to current CDN URL).",
+    "expansion_path": "Add lowercase word keys mapping to image URL strings. The loader is case-insensitive. To bulk-import from a CSV: see scripts/build-image-dictionary.mjs (TODO).",
+    "v0_scope": "Ships with a minimal seed (the spec targets ~2000 entries from manual curation — that's a content task, not a code task; the infrastructure is complete and the JSON expands without code changes).",
+    "key_format": "lowercased word → URL string (no spaces, no escapes). The loader trims + lowercases the input before lookup.",
+    "fallback_behaviour": "If imageForWord returns null, WordPopover omits the image slot. If imageForWord returns a URL but the image fails to load (404, network error, CORS), the <img> onError handler hides the slot — popover still renders cleanly."
+  },
+  "entries": {
+    "ergonomics": "https://commons.wikimedia.org/wiki/Special:FilePath/Da_Vinci_Vitruve_Luc_Viatour.jpg?width=240",
+    "prototype": "https://commons.wikimedia.org/wiki/Special:FilePath/Wright_Flyer.jpg?width=240",
+    "sketch": "https://commons.wikimedia.org/wiki/Special:FilePath/Charcoal_drawing_by_Lev_Lvovich_Kamenev.jpg?width=240",
+    "extrude": "https://commons.wikimedia.org/wiki/Special:FilePath/Extrusion_die_for_aluminium.jpg?width=240",
+    "scaffold": "https://commons.wikimedia.org/wiki/Special:FilePath/Scaffolding_-_Building_construction_in_Hong_Kong.jpg?width=240",
+    "iterate": "https://commons.wikimedia.org/wiki/Special:FilePath/PDCA_Cycle.svg?width=240"
+  }
+}
