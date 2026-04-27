@@ -881,6 +881,23 @@ export default function ClassDetailPage({
               Exhibition
             </Link>
           )}
+          {/* Phase 2.5 — Per-class teacher overrides for tap-a-word features
+           *  (L1 target + tap-a-word kill-switch). Shown on every class. */}
+          <Link
+            href={`/teacher/classes/${classId}/students/support`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition hover:opacity-90"
+            style={{
+              background: "linear-gradient(135deg, #2563EB 0%, #06B6D4 100%)",
+              color: "#fff",
+            }}
+            title="Per-class student support settings (tap-a-word L1 + on/off)"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 8h14M5 12h14M5 16h10"/>
+              <circle cx="19" cy="16" r="2"/>
+            </svg>
+            Support
+          </Link>
           <button
             onClick={() => setShowClassSettings(!showClassSettings)}
             className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"
