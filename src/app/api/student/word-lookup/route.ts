@@ -85,16 +85,13 @@ export async function POST(request: NextRequest) {
   // always hit live Anthropic so students see real definitions in the browser.
   // The Phase 5 live E2E test sets RUN_E2E=1 to override the test-mode gate
   // and exercise the real API path even from inside vitest.
+  //
+  // Lesson #57 (FU-TAP-SANDBOX-POLLUTION): the sandbox path MUST NOT upsert to
+  // word_definitions — sentinel rows would pollute the shared cache and become
+  // stale cache hits if the gate were ever (re)broken. Tests assert this branch
+  // returns sandbox values WITHOUT touching the DB.
   if (process.env.NODE_ENV === "test" && process.env.RUN_E2E !== "1") {
     const sandbox = lookupSandbox(rawWord);
-    await supabase.from("word_definitions").upsert({
-      word: rawWord,
-      language: "en",
-      context_hash: "",
-      l1_target: "en",
-      definition: sandbox.definition,
-      example_sentence: sandbox.example,
-    });
     return NextResponse.json(
       { definition: sandbox.definition, exampleSentence: sandbox.example },
       { headers: CACHE_HEADERS }

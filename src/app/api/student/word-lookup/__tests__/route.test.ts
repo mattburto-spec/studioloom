@@ -121,7 +121,10 @@ describe("POST /api/student/word-lookup — Phase 1A sandbox path", () => {
     expect(sandboxSpy).not.toHaveBeenCalled();
   });
 
-  it("on cache miss: routes through sandbox, upserts cache, returns sandbox values", async () => {
+  it("on cache miss: routes through sandbox, returns sandbox values, does NOT upsert (Lesson #57)", async () => {
+    // FU-TAP-SANDBOX-POLLUTION resolved: sandbox path no longer writes to the
+    // shared word_definitions cache. Sentinel rows would become stale cache hits
+    // if the gate were ever (re)broken. Sandbox is read-only.
     cachedRow = null;
     const res = await POST(makeRequest({ word: "design" }));
     expect(res.status).toBe(200);
@@ -130,15 +133,7 @@ describe("POST /api/student/word-lookup — Phase 1A sandbox path", () => {
     expect(body.exampleSentence).toBe("The chair started as a design on a piece of paper.");
     expect(sandboxSpy).toHaveBeenCalledTimes(1);
     expect(sandboxSpy).toHaveBeenCalledWith("design");
-    expect(upsertSpy).toHaveBeenCalledTimes(1);
-    expect(upsertSpy.mock.calls[0][0]).toEqual({
-      word: "design",
-      language: "en",
-      context_hash: "",
-      l1_target: "en",
-      definition: "A plan or drawing for making something on purpose.",
-      example_sentence: "The chair started as a design on a piece of paper.",
-    });
+    expect(upsertSpy).not.toHaveBeenCalled();
   });
 
   it("on cache hit: returns cached row, does NOT call sandbox, does NOT upsert", async () => {
@@ -160,7 +155,8 @@ describe("POST /api/student/word-lookup — Phase 1A sandbox path", () => {
     const res = await POST(makeRequest({ word: "  DESIGN  " }));
     expect(res.status).toBe(200);
     expect(sandboxSpy).toHaveBeenCalledWith("design");
-    expect(upsertSpy.mock.calls[0][0].word).toBe("design");
+    // Sandbox path doesn't upsert — verify only the lookup normalisation worked
+    expect(upsertSpy).not.toHaveBeenCalled();
   });
 
   it("response carries Cache-Control: private header (Lesson #4 family)", async () => {

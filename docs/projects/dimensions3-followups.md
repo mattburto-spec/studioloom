@@ -1143,15 +1143,16 @@ RLS-coverage scanner (`scan-rls-coverage.py`) added to prevent recurrence.
 
 ---
 
-## FU-TAP-SANDBOX-POLLUTION — Sandbox writes pollute shared word_definitions cache (P2)
+## FU-TAP-SANDBOX-POLLUTION — Sandbox writes pollute shared word_definitions cache (P2) ✅ RESOLVED
 **Surfaced:** 27 Apr 2026, Tap-a-word Phase 1B/1C browser smoke (after Lesson #56 gate fix landed)
+**Resolved:** 27 Apr 2026 (same day, via Phase 1 closeout step 5 — defensive fix on main)
 **Captured in:** Lesson #57 (`docs/lessons-learned.md`), `docs/decisions-log.md` 27 Apr entry
 
-**Issue:** `src/app/api/student/word-lookup/route.ts` calls `await supabase.from("word_definitions").upsert(...)` in BOTH the sandbox and live branches. The sandbox upsert writes `[sandbox] definition of "X"` sentinel rows to the shared cache. Pre-Lesson #56 fix, every dev tap polluted the cache. Manual cleanup via `DELETE FROM word_definitions WHERE definition LIKE '[sandbox]%'` worked but is reactive.
+**Issue (historical):** `src/app/api/student/word-lookup/route.ts` called `await supabase.from("word_definitions").upsert(...)` in BOTH the sandbox and live branches. The sandbox upsert wrote `[sandbox] definition of "X"` sentinel rows to the shared cache. Pre-Lesson #56 fix, every dev tap polluted the cache. Manual cleanup via `DELETE FROM word_definitions WHERE definition LIKE '[sandbox]%'` was the reactive mitigation.
 
-**Fix (Phase 2 scope):** Either (a) skip the upsert entirely in the sandbox path — the route's own in-memory cache is enough for tests + dev; or (b) stamp rows with a `source: 'sandbox' | 'live'` column + auto-purge sandbox rows on dev startup. Option (a) is simpler, cheaper, and matches Lesson #44 simplicity. Recommended.
+**Resolution:** Option (a) applied — dropped the `upsert` from the sandbox branch in `src/app/api/student/word-lookup/route.ts:88-101`. Sandbox is now read-only. Route test (`__tests__/route.test.ts`) updated to assert `upsertSpy` is NOT called in the sandbox path (test renamed to flag the Lesson #57 contract). 9/9 route tests pass.
 
-**Definition of done:** Tapping a sandbox-mode word (vitest test runs with `RUN_E2E !== "1"`) does NOT write a row to `word_definitions`. Existing dev-DB sandbox rows cleaned up via the same purge.
+**Why defensive even though the gate fix made it moot in practice:** With the new `NODE_ENV === "test"` gate, the sandbox branch is ONLY reachable from vitest (where `createAdminClient` is mocked), so the prior upsert was already a no-op against real Supabase. But removing the upsert locks in the contract structurally — any future gate refactor that accidentally re-routes dev/prod to the sandbox branch can no longer pollute the cache. Belt-and-braces. ~3 lines of code, 1 test update.
 
 ---
 
