@@ -3,6 +3,7 @@
 import React from "react";
 import { VocabWarmup } from "@/components/student/VocabWarmup";
 import { TextToSpeech } from "@/components/student/TextToSpeech";
+import { TappableText } from "@/components/student/tap-a-word";
 import { toEmbedUrl } from "@/lib/video-embed";
 import { VideoBlock } from "./VideoBlock";
 import type { VocabWarmup as VocabWarmupType, ActivityLink } from "@/types";
@@ -60,7 +61,7 @@ export function LessonIntro({
                 className="flex-1 leading-relaxed"
                 style={{ fontSize: "15px", color: "var(--sl-ink-2)" }}
               >
-                {introduction.text}
+                <TappableText text={introduction.text} />
               </p>
               <TextToSpeech text={introduction.text} />
             </div>
