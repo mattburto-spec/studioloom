@@ -17,9 +17,22 @@ primary_region = 'syd'
 # One always-on machine, no autoscaling, no autostop. A polling worker
 # with queue-empty sleeps consumes almost nothing idle — no benefit to
 # scaling this to zero, and autostop would add latency when a scan lands.
+#
+# Memory history:
+#   256MB (initial)         → OOMs on Phase 2A first smoke (FU-SCANNER-OOM)
+#   512MB (Phase 2A bump)   → fine on small/medium fixtures
+#   1024MB (Phase 8.1 smoke) → mount-bracket-130mm.stl (1.1MB binary, ~23k
+#                              triangles) crashed at 512MB during the
+#                              trimesh repair + watertight pipeline.
+#                              Verified live OOM via Fly support email
+#                              (27 Apr). 1GB clears it with headroom.
+# Proper fix tracked as FU-SCANNER-OOM round 2: lazy STL parsing +
+# explicit GC between rules + sub-process isolation so a misbehaving
+# rule can't poison the worker's memory for the next job. ~1-2d work,
+# not pre-pilot-blocking.
 [[vm]]
   size = 'shared-cpu-1x'
-  memory = '256mb'
+  memory = '1024mb'
   cpus = 1
   cpu_kind = 'shared'
 
