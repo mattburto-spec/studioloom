@@ -163,15 +163,18 @@ describe("PATCH /api/teacher/classes/[classId]/students/[studentId]/support-sett
     expect(updateSpy).not.toHaveBeenCalled();
   });
 
-  it("accepts explicit null values (intent: reset override)", async () => {
+  it("explicit null DELETES the key from JSONB (Bug 3, 28 Apr 2026)", async () => {
     existingEnrollment = {
       support_settings: { l1_target_override: "ko", tap_a_word_enabled: false },
     };
     const res = await PATCH(makeReq({ l1_target_override: null }), CTX);
     expect(res.status).toBe(200);
-    // null preserved in merged → resolver will fall through to next level
+    // Pre-Bug-3 this stored {l1_target_override: null, tap_a_word_enabled: false}.
+    // Now mergeSupportSettingsForWrite deletes the reset key entirely so the
+    // JSONB stays clean. Resolver behaviour is identical (null and missing-key
+    // both fall through), but stored shape matches teacher intent.
     expect(updateSpy).toHaveBeenCalledWith({
-      support_settings: { l1_target_override: null, tap_a_word_enabled: false },
+      support_settings: { tap_a_word_enabled: false },
     });
   });
 });
