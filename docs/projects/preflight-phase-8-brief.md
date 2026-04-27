@@ -69,6 +69,7 @@ Why:
   2. Auto-create a stub "Personal" school per orphan teacher (ugly fallback if the prompt is too disruptive — discuss with Matt before shipping).
   3. Block lab access until the teacher picks a school (similar to #1 but more punitive).
   Migration report logs every orphan teacher so we can pick the right path before deploy.
+- **System-account exclusion (verified 27 Apr):** teachers with email matching `%@studioloom.internal` are sentinel/system accounts (used by ingestion pipeline + AI provenance — see existing FU-GG and FU-KK). They legitimately have `school_id IS NULL` and never log in. Backfill logic must explicitly skip them: `WHERE email NOT LIKE '%@studioloom.internal'` in every pass that touches teacher rows. The blocking school-pick modal (path 1 above) will never fire for them because they have no session — but the migration log should still report them as "intentionally excluded" so they don't appear as warnings.
 - RLS on `fabrication_labs`: SELECT/UPDATE/INSERT/DELETE all gated by `school_id IN (SELECT school_id FROM teachers WHERE id = auth.uid())`. Hint: use a SECURITY DEFINER function that joins `teachers` once, otherwise RLS recursion + perf concerns surface.
 - Tests: migration tests + backfill tests (including the orphan-teacher flag path) + RLS audit on the new table covering: same-school visibility (positive), cross-school invisibility (negative), orphan-teacher denial (negative).
 
@@ -187,7 +188,8 @@ Q2 was also re-thought: the 24 Apr "Default lab per teacher" auto-create is wron
 - [x] Matt has re-resolved the 6 open questions (revised 27 Apr — Q2 + Q3 flipped, see §5 + §5b)
 - [x] `schools` table verified present (migration 085, applied) — Phase 8's school-scoped model has its data foundation.
 - [x] No outstanding Phase 7 production bugs (4 open follow-ups all P2/P3, Phase 9 scope — not blocking)
-- [ ] **Pre-flight to-do**: query prod for `SELECT COUNT(*) FROM teachers WHERE school_id IS NULL` to size the orphan-teacher migration cohort. Drives whether the blocking school-pick modal is the right call or whether a softer migration UX is needed. Run before opening 8-1.
+- [x] **Pre-flight to-do (DONE 27 Apr):** orphan-teacher count = 1, but it's the `system@studioloom.internal` sentinel (excluded from migration logic). Real-teacher orphan count = 0. All 3 real-teacher rows are Matt's personas, all at Nanjing International School (`636ff4fc-4413-4a8e-a3cd-c6f1e17bd5a1`). Migration in prod is essentially zero-risk on day one.
+- [ ] **Pre-flight to-do (BEFORE 8-5):** create 2 dedicated test teacher accounts to exercise the cross-teacher visibility predicate properly. Matt's 3 personas all share teacher_id behaviour (same human, just different sessions) — they don't prove a `teacher_id != $self` query works. Suggested: (a) Test Teacher A at Nanjing (`school_id = 636ff4fc-...`) to prove same-school visibility, (b) Test Teacher B at a different verified school (e.g. NIST Bangkok `ac7b575b-...`) to prove cross-school 404. Both via `/teacher/onboarding` welcome flow + manual `school_id` set if needed. Doesn't block 8-1..8-4; only needed when smoke runs.
 
 ## 7. Known deviations from original spec
 
