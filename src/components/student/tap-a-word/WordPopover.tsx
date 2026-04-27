@@ -7,23 +7,18 @@ import type { LookupState } from "./useWordLookup";
 /**
  * WordPopover — presentational. State is owned by the parent (TappableText).
  *
- * Phase 1A: definition + example only. Phase 2 will add L1 translation,
- * audio button, and image slot. Keep the structure flat so additional
- * slots can be inserted without restructuring.
+ * Phase 1A: definition + example.
+ * Phase 2A: + L1 translation slot (rendered only when l1Translation is non-null
+ * and l1Target is a non-'en' supported code).
+ * Phase 2B/2C will add audio button + image slot.
  *
  * Rendering: portaled to document.body so the popover escapes any
  * clipped-overflow ancestor (chat scroll containers, collapsed panels,
- * sidebar drawers — all common on the 5 mount surfaces). Without the
- * portal, `position: absolute` is constrained by the nearest positioned
- * ancestor, which clips the popover inside chat surfaces.
+ * sidebar drawers — all common on the 5 mount surfaces).
  *
- * Positioning: absolute below the anchor rect in document coordinates
- * (anchorRect is in viewport coords; we add window.scrollY/X to convert).
+ * Positioning: absolute below the anchor rect in document coordinates.
  *
- * Closes on:
- *  - Esc key
- *  - Click outside
- *  - Caller calls onClose for any other reason
+ * Closes on Esc, click outside, or caller's onClose.
  */
 
 export interface WordPopoverProps {
@@ -31,6 +26,8 @@ export interface WordPopoverProps {
   state: LookupState;
   definition: string | null;
   exampleSentence: string | null;
+  l1Translation: string | null;
+  l1Target: string | null;
   errorMessage: string | null;
   anchorRect: DOMRect;
   onClose: () => void;
@@ -41,6 +38,8 @@ export function WordPopover({
   state,
   definition,
   exampleSentence,
+  l1Translation,
+  l1Target,
   errorMessage,
   anchorRect,
   onClose,
@@ -103,6 +102,15 @@ export function WordPopover({
       {state === "loaded" && definition && (
         <>
           <div className="text-gray-800">{definition}</div>
+          {l1Translation && l1Target && l1Target !== "en" && (
+            <div
+              className="mt-1.5 text-base font-medium text-blue-700"
+              lang={l1Target}
+              aria-label={`Translation in ${l1Target}`}
+            >
+              {l1Translation}
+            </div>
+          )}
           {exampleSentence && (
             <div className="text-gray-500 italic mt-1.5 text-xs">{exampleSentence}</div>
           )}
