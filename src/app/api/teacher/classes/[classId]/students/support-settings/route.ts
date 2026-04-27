@@ -53,11 +53,13 @@ export async function GET(
 
   const supabase = createAdminClient();
 
-  // Fetch all students enrolled in this class (junction + student row + per-class override)
+  // Fetch all students enrolled in this class (junction + student row + per-class override).
+  // Note: students table uses `display_name` (nullable), not `name`. We map to `name` in the
+  // response so the client doesn't need to know about this naming quirk.
   const { data: enrollments, error } = await supabase
     .from("class_students")
     .select(
-      "student_id, support_settings, ell_level_override, students!inner(id, name, ell_level, learning_profile, support_settings)"
+      "student_id, support_settings, ell_level_override, students!inner(id, display_name, ell_level, learning_profile, support_settings)"
     )
     .eq("class_id", classId)
     .eq("is_active", true);
@@ -76,14 +78,14 @@ export async function GET(
     students:
       | {
           id: string;
-          name: string;
+          display_name: string | null;
           ell_level: number;
           learning_profile: unknown;
           support_settings: unknown;
         }
       | Array<{
           id: string;
-          name: string;
+          display_name: string | null;
           ell_level: number;
           learning_profile: unknown;
           support_settings: unknown;
@@ -110,7 +112,9 @@ export async function GET(
 
       return {
         studentId: student.id,
-        name: student.name,
+        // display_name is nullable — fall back to a friendly placeholder so the table
+        // never shows "undefined" or empty cells. Real onboarding sets display_name.
+        name: student.display_name || "(no name set)",
         ellLevel: row.ell_level_override ?? student.ell_level,
         ellLevelOverride: row.ell_level_override,
         intakeFirstLanguage: intakeFirst,
