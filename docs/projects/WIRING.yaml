@@ -628,7 +628,7 @@ systems:
     category: Student Experience
     status: planned
     currentVersion: 1
-    summary: "Phase 1 SHIPPED + signed off 27 Apr 2026 (1A+1B+1C, merged + pushed to main). Phase 2A SHIPPED 27 Apr (L1 translation slot). TappableText shared component + /api/student/word-lookup endpoint + word_definitions cache + sandbox bypass (Lesson #57: read-only) + WordPopover via createPortal. Mounted on 5 educational text surfaces. 578-word pre-warm seed for English. Phase 2A: L1 translation slot in popover (rendered when l1Translation non-null + l1Target ≠ 'en'); server-side l1_target derivation from learning_profile.languages_at_home[0]; supports en/zh/ko/ja/es/fr; dynamic Anthropic prompt + tool schema (max_tokens 250→400 with translation); composite PK (word, language, context_hash, l1_target) supports the expansion without migration. Phase 2B (audio button via SpeechSynthesis) + Phase 2C (image dictionary) + Phase 2D (toolkit prompt mounts) next. currentVersion bumped 0→1 at Phase 2A ship; status stays planned until Phase 5 (live E2E gate full coverage)."
+    summary: "Phase 1 + 2A + 2B SHIPPED 27 Apr 2026. Phase 1 (1A+1B+1C): TappableText shared component + /api/student/word-lookup endpoint + word_definitions cache + sandbox bypass (Lesson #57: read-only) + WordPopover via createPortal. Mounted on 5 educational text surfaces. 578-word pre-warm seed for English. Phase 2A: L1 translation slot in popover; server-side l1_target derivation from learning_profile.languages_at_home[0]; supports en/zh/ko/ja/es/fr; dynamic Anthropic prompt + tool schema (max_tokens 250→400 with translation); composite PK supports the expansion without migration. Phase 2B: audio buttons via browser SpeechSynthesis (no API spend, no network) — two micro-buttons render only when matching voice exists: English voice next to the word, L1 voice next to the translation. useTextToSpeech hook + pickVoice helper (BCP-47 prefix matching). Phase 2C (image dictionary) + Phase 2D (toolkit prompt mounts) next. currentVersion bumped 0→1 at Phase 2A ship; status stays planned until Phase 5 (live E2E gate full coverage)."
     depends_on: [student-profile, ai-mentor]
     affects: [lesson-view, discovery-engine, student-open-studio, ai-mentor]
     docs:
@@ -644,6 +644,7 @@ systems:
       - src/components/student/tap-a-word/TappableText.tsx
       - src/components/student/tap-a-word/WordPopover.tsx
       - src/components/student/tap-a-word/useWordLookup.ts
+      - src/components/student/tap-a-word/useTextToSpeech.ts
       - src/components/student/tap-a-word/tokenize.ts
       - src/lib/tap-a-word/language-mapping.ts
       - src/lib/ai/sandbox/word-lookup-sandbox.ts
@@ -652,7 +653,7 @@ systems:
       - scripts/preflight-tap-a-word-seed.mjs
       - scripts/seed-data/design-vocab-500.json
       - tests/e2e/word-lookup-live.test.ts
-    future_needs: "Phase 2B: audio button via browser SpeechSynthesis. Phase 2C: curated image dictionary (Wikimedia Commons + Open Symbols, ~2000 entries). Phase 2D: toolkit prompt mounts on the 28 bespoke toolkit tools (folded in from deferred 1B refinement). Phase 4: signal-driven scaffold-fading (taps_per_100_words rolling 5-lesson average)."
+    future_needs: "Phase 2C: curated image dictionary (Wikimedia Commons + Open Symbols, ~2000 entries). Phase 2D: toolkit prompt mounts on the 28 bespoke toolkit tools (folded in from deferred 1B refinement). Phase 4: signal-driven scaffold-fading (taps_per_100_words rolling 5-lesson average). Chromebook-fleet TTS voice verification (per spec stop-trigger): if any of the 6 supported L1 voices is missing on school Chromebooks, popover degrades gracefully (button hidden) — no popover break."
     change_impacts: "First Anthropic call site in the student API surface to ship Lesson #39 stop_reason guard + defensive destructure as canonical pattern. FU-5 (6 existing student-api violations) remains out of scope. WordPopover portals to document.body via createPortal so it escapes any clipped-overflow ancestor on the 5 mount surfaces. Toolkit tool prompts deferred to a 1B refinement after Checkpoint 1.1 signs off on the core 5 surfaces."
 
   - id: student-learning-support
