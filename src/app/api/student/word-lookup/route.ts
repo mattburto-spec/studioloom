@@ -16,9 +16,10 @@ import { MODELS } from "@/lib/ai/models";
  *   2. Validate word (2–50 chars, lowercased + trimmed)
  *   3. Cache lookup in word_definitions (Phase 1: language='en',
  *      context_hash='', l1_target='en')
- *   4. On cache miss + RUN_E2E !== "1": sandbox lookup, upsert, return
- *   5. On cache miss + RUN_E2E === "1": live Anthropic Haiku 4.5 call
- *      with Lesson #39 stop_reason guard + defensive destructure
+ *   4. On cache miss in dev/prod (NODE_ENV !== 'test'): live Anthropic Haiku 4.5
+ *      call with Lesson #39 stop_reason guard + defensive destructure
+ *   5. On cache miss in tests (NODE_ENV === 'test' AND RUN_E2E !== '1'): sandbox
+ *      lookup; live E2E test sets RUN_E2E=1 to override and hit real Anthropic
  *
  * The cache is shared across all students (no PII in definitions).
  *
@@ -80,8 +81,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Sandbox bypass: unit tests + dev runs do NOT consume the API key.
-  if (process.env.RUN_E2E !== "1") {
+  // Sandbox bypass: ONLY in vitest unit tests (NODE_ENV='test'). Dev + prod
+  // always hit live Anthropic so students see real definitions in the browser.
+  // The Phase 5 live E2E test sets RUN_E2E=1 to override the test-mode gate
+  // and exercise the real API path even from inside vitest.
+  if (process.env.NODE_ENV === "test" && process.env.RUN_E2E !== "1") {
     const sandbox = lookupSandbox(rawWord);
     await supabase.from("word_definitions").upsert({
       word: rawWord,
@@ -97,7 +101,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Live Anthropic path (RUN_E2E=1 only — Phase 5 E2E gate exercises this).
+  // Live Anthropic path (default in dev + prod; gated to RUN_E2E=1 in tests).
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
