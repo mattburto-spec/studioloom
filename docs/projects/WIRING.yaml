@@ -627,8 +627,8 @@ systems:
     name: Tap-a-word (Inline Word Lookup)
     category: Student Experience
     status: planned
-    currentVersion: 0
-    summary: "Phase 1A + 1B + 1C SHIPPED 26-27 Apr 2026: TappableText shared component + /api/student/word-lookup endpoint + word_definitions cache + sandbox bypass + WordPopover via createPortal. Mounted on 5 educational text surfaces: ActivityCard prompts (via MarkdownPrompt tappable prop) + ELL-1 hint card, LessonIntro introduction.text, VocabWarmup definition+example, KitMentor speech bubble, DesignAssistantWidget assistant messages, CheckInPanel mentor messages. Pre-warm seed script with batched Haiku + cost tracking covers 575 unique design-vocab words across 10 categories. Gated live E2E test (RUN_E2E=1) verifies real Anthropic round-trip. Awaiting Checkpoint 1.1 sign-off (visual smoke + seed run + live E2E). Phase 2 adds L1 translation + audio + image."
+    currentVersion: 1
+    summary: "Phase 1 SHIPPED + signed off 27 Apr 2026 (1A+1B+1C, merged + pushed to main). Phase 2A SHIPPED 27 Apr (L1 translation slot). TappableText shared component + /api/student/word-lookup endpoint + word_definitions cache + sandbox bypass (Lesson #57: read-only) + WordPopover via createPortal. Mounted on 5 educational text surfaces. 578-word pre-warm seed for English. Phase 2A: L1 translation slot in popover (rendered when l1Translation non-null + l1Target ≠ 'en'); server-side l1_target derivation from learning_profile.languages_at_home[0]; supports en/zh/ko/ja/es/fr; dynamic Anthropic prompt + tool schema (max_tokens 250→400 with translation); composite PK (word, language, context_hash, l1_target) supports the expansion without migration. Phase 2B (audio button via SpeechSynthesis) + Phase 2C (image dictionary) + Phase 2D (toolkit prompt mounts) next. currentVersion bumped 0→1 at Phase 2A ship; status stays planned until Phase 5 (live E2E gate full coverage)."
     depends_on: [student-profile, ai-mentor]
     affects: [lesson-view, discovery-engine, student-open-studio, ai-mentor]
     docs:
@@ -645,13 +645,14 @@ systems:
       - src/components/student/tap-a-word/WordPopover.tsx
       - src/components/student/tap-a-word/useWordLookup.ts
       - src/components/student/tap-a-word/tokenize.ts
+      - src/lib/tap-a-word/language-mapping.ts
       - src/lib/ai/sandbox/word-lookup-sandbox.ts
       - src/app/api/student/word-lookup/route.ts
       - src/components/student/MarkdownPrompt.tsx
       - scripts/preflight-tap-a-word-seed.mjs
       - scripts/seed-data/design-vocab-500.json
       - tests/e2e/word-lookup-live.test.ts
-    future_needs: "Checkpoint 1.1 sign-off (Matt action: run seed script + RUN_E2E=1 live test + visual smoke 5 words across 5 surfaces). Phase 2: + L1 translation + audio + image. Phase 4: signal-driven scaffold-fading (taps_per_100_words rolling 5-lesson average). Toolkit tool prompts: deferred 1B refinement (28 bespoke tools, not yet wired)."
+    future_needs: "Phase 2B: audio button via browser SpeechSynthesis. Phase 2C: curated image dictionary (Wikimedia Commons + Open Symbols, ~2000 entries). Phase 2D: toolkit prompt mounts on the 28 bespoke toolkit tools (folded in from deferred 1B refinement). Phase 4: signal-driven scaffold-fading (taps_per_100_words rolling 5-lesson average)."
     change_impacts: "First Anthropic call site in the student API surface to ship Lesson #39 stop_reason guard + defensive destructure as canonical pattern. FU-5 (6 existing student-api violations) remains out of scope. WordPopover portals to document.body via createPortal so it escapes any clipped-overflow ancestor on the 5 mount surfaces. Toolkit tool prompts deferred to a 1B refinement after Checkpoint 1.1 signs off on the core 5 surfaces."
 
   - id: student-learning-support
