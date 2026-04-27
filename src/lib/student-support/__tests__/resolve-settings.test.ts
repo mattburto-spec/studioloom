@@ -42,7 +42,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 
 import { resolveStudentSettings } from "../resolve-settings";
-import { parseSupportSettings } from "../types";
+import { parseSupportSettings, mergeSupportSettingsForWrite } from "../types";
 
 describe("parseSupportSettings", () => {
   it("returns empty object for null/undefined/non-object input", () => {
@@ -89,6 +89,68 @@ describe("parseSupportSettings", () => {
     expect(
       parseSupportSettings({ random_key: "x", l1_target_override: "ko" })
     ).toEqual({ l1_target_override: "ko" });
+  });
+});
+
+describe("mergeSupportSettingsForWrite", () => {
+  it("returns existing as-is when incoming is empty", () => {
+    expect(
+      mergeSupportSettingsForWrite({ l1_target_override: "zh" }, {})
+    ).toEqual({ l1_target_override: "zh" });
+  });
+
+  it("overlays incoming values onto existing (basic merge)", () => {
+    expect(
+      mergeSupportSettingsForWrite(
+        { l1_target_override: "zh", tap_a_word_enabled: true },
+        { l1_target_override: "ko" }
+      )
+    ).toEqual({ l1_target_override: "ko", tap_a_word_enabled: true });
+  });
+
+  it("explicit null DELETES the key (Bug 3 — not persisted as null)", () => {
+    const out = mergeSupportSettingsForWrite(
+      { l1_target_override: "zh", tap_a_word_enabled: true },
+      { l1_target_override: null }
+    );
+    expect(out).toEqual({ tap_a_word_enabled: true });
+    expect("l1_target_override" in out).toBe(false);
+  });
+
+  it("null on a key that doesn't exist is a no-op (deletion is idempotent)", () => {
+    expect(
+      mergeSupportSettingsForWrite(
+        { tap_a_word_enabled: true },
+        { l1_target_override: null }
+      )
+    ).toEqual({ tap_a_word_enabled: true });
+  });
+
+  it("simultaneous reset of both keys clears the JSONB to {}", () => {
+    expect(
+      mergeSupportSettingsForWrite(
+        { l1_target_override: "zh", tap_a_word_enabled: false },
+        { l1_target_override: null, tap_a_word_enabled: null }
+      )
+    ).toEqual({});
+  });
+
+  it("strips junk from existing on round-trip (defensive)", () => {
+    expect(
+      mergeSupportSettingsForWrite(
+        { l1_target_override: "zh", random_key: "junk", another: 42 },
+        { tap_a_word_enabled: true }
+      )
+    ).toEqual({ l1_target_override: "zh", tap_a_word_enabled: true });
+  });
+
+  it("handles null/undefined existing", () => {
+    expect(mergeSupportSettingsForWrite(null, { l1_target_override: "ja" })).toEqual({
+      l1_target_override: "ja",
+    });
+    expect(mergeSupportSettingsForWrite(undefined, { tap_a_word_enabled: false })).toEqual({
+      tap_a_word_enabled: false,
+    });
   });
 });
 

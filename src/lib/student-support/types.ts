@@ -58,3 +58,36 @@ export function parseSupportSettings(raw: unknown): SupportSettingsRaw {
   }
   return out;
 }
+
+/**
+ * Bug 3 — merge an incoming partial-settings patch onto existing settings,
+ * treating an explicit `null` as a "delete this key" signal rather than a
+ * "save null override" signal.
+ *
+ * Why: the resolver uses falsy/non-boolean checks to skip null values, so
+ * functionally null and missing keys produce the same runtime behaviour.
+ * But persisting nulls means JSONB grows orphan keys forever and the UI
+ * teacher-reset action looks like a no-op (the row still has the key,
+ * just set to null). Deleting on reset keeps the JSONB clean and matches
+ * what the teacher intended.
+ *
+ * `existing` is parsed defensively before merge so unknown keys never
+ * survive a write — even if a previous version of this code (or a manual
+ * SQL edit) wrote junk into the column, this round-trip cleans it.
+ */
+export function mergeSupportSettingsForWrite(
+  existing: unknown,
+  incoming: SupportSettingsRaw
+): SupportSettingsRaw {
+  const merged: SupportSettingsRaw = { ...parseSupportSettings(existing) };
+  for (const [k, v] of Object.entries(incoming) as [keyof SupportSettingsRaw, unknown][]) {
+    if (v === null) {
+      delete merged[k];
+    } else {
+      // Type assertion safe because incoming has already been parsed by
+      // the caller; this only runs for valid SupportSettingsRaw values.
+      (merged as Record<string, unknown>)[k] = v;
+    }
+  }
+  return merged;
+}

@@ -4,7 +4,7 @@ import {
   verifyTeacherOwnsClass,
 } from "@/lib/auth/verify-teacher-unit";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { parseSupportSettings } from "@/lib/student-support/types";
+import { parseSupportSettings, mergeSupportSettingsForWrite } from "@/lib/student-support/types";
 import { resolveStudentSettings } from "@/lib/student-support/resolve-settings";
 import { mapLanguageToCode } from "@/lib/tap-a-word/language-mapping";
 
@@ -213,7 +213,9 @@ export async function PATCH(
       results.push({ studentId: sid, ok: false, error: "not enrolled in class" });
       continue;
     }
-    const merged = { ...parseSupportSettings(existingMap.get(sid)), ...incoming };
+    // Bug 3: explicit null in `incoming` deletes the key rather than persisting
+    // it as null. Same merge semantics as the single-student PATCH.
+    const merged = mergeSupportSettingsForWrite(existingMap.get(sid), incoming);
     const { error } = await supabase
       .from("class_students")
       .update({ support_settings: merged })

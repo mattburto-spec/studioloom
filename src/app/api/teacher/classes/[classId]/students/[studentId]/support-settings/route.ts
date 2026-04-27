@@ -4,7 +4,7 @@ import {
   verifyTeacherOwnsClass,
 } from "@/lib/auth/verify-teacher-unit";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { parseSupportSettings } from "@/lib/student-support/types";
+import { parseSupportSettings, mergeSupportSettingsForWrite } from "@/lib/student-support/types";
 import { resolveStudentSettings } from "@/lib/student-support/resolve-settings";
 
 /**
@@ -78,7 +78,9 @@ export async function PATCH(
     );
   }
 
-  const merged = { ...parseSupportSettings(existing.support_settings), ...incoming };
+  // Bug 3: explicit null in `incoming` deletes the key rather than persisting
+  // it as null. Keeps JSONB clean after teacher resets.
+  const merged = mergeSupportSettingsForWrite(existing.support_settings, incoming);
 
   const { error: updateErr } = await supabase
     .from("class_students")
