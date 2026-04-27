@@ -139,9 +139,29 @@ def scan_one_revision(
     Caller is responsible for writeback — see process_one_job().
     """
     started = time.monotonic()
-    profile = _machine_profile_from_dict(
-        supabase.load_machine_profile(job.machine_profile_id)
-    )
+    # Phase 8.1d-24: if the job didn't bind a specific machine
+    # (category-only "Any 3D printer in [lab]" submission, post-
+    # 8.1d-22), pick a surrogate from the same lab + category.
+    # The scan rules need *some* concrete machine spec to evaluate
+    # against; the surrogate stands in for "any of the available
+    # machines in this lab will print this." For homogeneous fleets
+    # (typical NIS case: 2x P1P + 1x P1S) the result is meaningful.
+    if job.machine_profile_id is None:
+        surrogate_dict = supabase.load_surrogate_machine_profile(
+            lab_id=job.lab_id,
+            machine_category=job.machine_category,
+        )
+        if surrogate_dict is None:
+            raise ValueError(
+                f"No active machines in lab {job.lab_id} of category "
+                f"{job.machine_category}. Ask the teacher to add one before "
+                f"resubmitting."
+            )
+        profile = _machine_profile_from_dict(surrogate_dict)
+    else:
+        profile = _machine_profile_from_dict(
+            supabase.load_machine_profile(job.machine_profile_id)
+        )
     data = storage.download_fixture(job.storage_path)
 
     thumbnail_path: str | None = None

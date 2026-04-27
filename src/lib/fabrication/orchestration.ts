@@ -898,10 +898,14 @@ export async function submitJob(
 ): Promise<SubmitJobResult> {
   // 1. Load job (student ownership + machine profile id + current revision +
   //    acknowledged warnings + status).
+  // Phase 8.1d-25: also pull lab_id + machine_category so we can
+  // resolve approval routing when machine_profile_id is NULL
+  // (category-only "Any 3D printer" jobs from 8.1d-22). The
+  // surrogate-machine logic mirrors the scanner's 8.1d-24 fix.
   const jobResult = await db
     .from("fabrication_jobs")
     .select(
-      "id, student_id, machine_profile_id, current_revision, acknowledged_warnings, status"
+      "id, student_id, machine_profile_id, lab_id, machine_category, current_revision, acknowledged_warnings, status"
     )
     .eq("id", req.jobId)
     .maybeSingle();
@@ -968,24 +972,62 @@ export async function submitJob(
     };
   }
 
-  // 5. Look up machine profile for approval routing.
-  const profileResult = await db
-    .from("machine_profiles")
-    .select("requires_teacher_approval")
-    .eq("id", job.machine_profile_id)
-    .maybeSingle();
-  if (profileResult.error) {
-    return {
-      error: {
-        status: 500,
-        message: `Machine profile lookup failed: ${profileResult.error.message}`,
-      },
-    };
+  // 5. Look up requires_teacher_approval. Two paths per Phase 8.1d-25:
+  //    - Specific machine bound: read its requires_teacher_approval
+  //      directly (existing behaviour).
+  //    - Category-only (machine_profile_id IS NULL): pick a surrogate
+  //      machine in (lab_id, machine_category) and use its setting.
+  //      Same surrogate logic as the Python scanner's 8.1d-24 fix.
+  //      Lab-level bulk-approval toggle (8.1d-7) keeps these uniform
+  //      within a lab+category bucket, so any active machine works.
+  //
+  //    Conservative fallback: when the bucket has zero active
+  //    machines (data-integrity edge — student submitted to a lab
+  //    whose machines were all deactivated mid-flow), require
+  //    teacher approval so the teacher catches it. Better to over-
+  //    route than skip the gate.
+  let requiresTeacherApproval: boolean;
+  if (job.machine_profile_id) {
+    const profileResult = await db
+      .from("machine_profiles")
+      .select("requires_teacher_approval")
+      .eq("id", job.machine_profile_id)
+      .maybeSingle();
+    if (profileResult.error) {
+      return {
+        error: {
+          status: 500,
+          message: `Machine profile lookup failed: ${profileResult.error.message}`,
+        },
+      };
+    }
+    if (!profileResult.data) {
+      return { error: { status: 500, message: "Machine profile not found" } };
+    }
+    requiresTeacherApproval = !!profileResult.data.requires_teacher_approval;
+  } else {
+    // Category-only job — surrogate lookup.
+    const surrogateResult = await db
+      .from("machine_profiles")
+      .select("requires_teacher_approval")
+      .eq("lab_id", job.lab_id)
+      .eq("machine_category", job.machine_category)
+      .eq("is_active", true)
+      .order("name", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (surrogateResult.error) {
+      return {
+        error: {
+          status: 500,
+          message: `Surrogate machine lookup failed: ${surrogateResult.error.message}`,
+        },
+      };
+    }
+    requiresTeacherApproval = surrogateResult.data
+      ? !!surrogateResult.data.requires_teacher_approval
+      : true; // conservative fallback
   }
-  if (!profileResult.data) {
-    return { error: { status: 500, message: "Machine profile not found" } };
-  }
-  const requiresTeacherApproval: boolean = !!profileResult.data.requires_teacher_approval;
   const newStatus: "pending_approval" | "approved" = requiresTeacherApproval
     ? "pending_approval"
     : "approved";

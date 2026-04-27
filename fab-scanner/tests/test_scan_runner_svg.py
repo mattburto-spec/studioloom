@@ -34,6 +34,13 @@ def _make_svg_job(fixture_relpath: str) -> ClaimedJob:
         storage_path=fixture_relpath,
         file_type="svg",
         machine_profile_id="generic_large_laser",
+        # Phase 8.1d-24: lab_id + machine_category required on
+        # ClaimedJob so the surrogate-machine fallback has somewhere
+        # to look. Test stays on the path-A flow (specific machine
+        # bound) so these are inert — but they have to be valid
+        # strings.
+        lab_id="lab-test-svg-1",
+        machine_category="laser_cutter",
         student_id="student-svg-test-1",
     )
 

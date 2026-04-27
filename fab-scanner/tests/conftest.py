@@ -94,6 +94,23 @@ class MockSupabase:
             raise KeyError(f"machine profile not seeded in test: {profile_id}")
         return self.machine_profiles[profile_id]
 
+    def load_surrogate_machine_profile(
+        self, lab_id: str, machine_category: str
+    ) -> dict[str, Any] | None:
+        """Phase 8.1d-24: pick the first machine in the seeded set
+        whose lab_id + machine_category match. Tests that exercise
+        the surrogate path seed a profile with explicit lab_id +
+        machine_category fields. Returns None if nothing matches —
+        scan_runner treats that as a hard fail."""
+        for profile in self.machine_profiles.values():
+            if (
+                profile.get("lab_id") == lab_id
+                and profile.get("machine_category") == machine_category
+                and profile.get("is_active", True)
+            ):
+                return profile
+        return None
+
     def write_scan_results(
         self,
         *,
@@ -237,13 +254,21 @@ def _default_generic_large_laser_profile() -> dict[str, Any]:
 
 def make_stl_job(
     fixture_relpath: str,
-    machine_profile_id: str = "bambu_x1c",
+    machine_profile_id: str | None = "bambu_x1c",
     scan_job_id: str = "scan-job-test-1",
     job_id: str = "job-test-1",
     job_revision_id: str = "rev-test-1",
     student_id: str = "student-test-1",
+    lab_id: str = "lab-test-1",
+    machine_category: str = "3d_printer",
 ) -> ClaimedJob:
-    """Build a ClaimedJob pointing at a fixture under fixtures/."""
+    """Build a ClaimedJob pointing at a fixture under fixtures/.
+
+    Phase 8.1d-24: machine_profile_id is now nullable (pass None to
+    exercise the surrogate-machine fallback path). lab_id +
+    machine_category required either way — they came along on the
+    RPC return shape from migration 123.
+    """
     return ClaimedJob(
         scan_job_id=scan_job_id,
         job_id=job_id,
@@ -251,5 +276,7 @@ def make_stl_job(
         storage_path=fixture_relpath,
         file_type="stl",
         machine_profile_id=machine_profile_id,
+        lab_id=lab_id,
+        machine_category=machine_category,
         student_id=student_id,
     )
