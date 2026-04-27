@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from 'framer-motion';
 import { useToolSession } from '@/hooks/useToolSession';
+import { TappableText } from '@/components/student/tap-a-word';
 import { assessEffort as sharedAssessEffort, getRandomMicroFeedback, type ELLTier } from '@/lib/toolkit';
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -1055,7 +1056,7 @@ export function ScamperTool({
                             lineHeight: '1.5',
                           }}
                         >
-                          {prompt}
+                          <TappableText text={prompt} />
                         </motion.div>
                       ))}
                     </AnimatePresence>

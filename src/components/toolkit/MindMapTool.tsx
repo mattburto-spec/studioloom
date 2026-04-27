@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useToolSession } from '@/hooks/useToolSession';
+import { TappableText } from '@/components/student/tap-a-word';
 
 type EffortLevel = 'low' | 'medium' | 'high';
 
@@ -336,7 +337,7 @@ export function MindMapTool(props: { mode: 'public' | 'embedded' | 'standalone';
           {/* Input Area */}
           <div style={{ background: 'rgba(129, 140, 248, 0.08)', border: '1px solid rgba(129, 140, 248, 0.3)', borderRadius: '0.75rem', padding: '1.5rem', marginBottom: '2rem' }}>
             <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', color: '#818cf8', marginBottom: '0.5rem' }}>
-              {stepInfo.prompt}
+              <TappableText text={stepInfo.prompt} />
             </label>
             <textarea
               value={currentIdea}
