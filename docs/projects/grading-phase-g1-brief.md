@@ -4,7 +4,7 @@
 >
 > Drafted: 27 April 2026
 > Updated: 27 April 2026 (design landed via Claude Design — Calibrate/Synthesize/Studio-Floor model)
-> Status: **AWAITING MATT SIGN-OFF + 1 OPEN QUESTION RESOLVED** — do not start any code until this brief is approved. (Down from 4 OQs — Q3 closed by design, Q1 refined, Q2/Q4 unchanged.)
+> Status: **G1 PLAN SIGNED OFF 27 Apr 2026** — worktree scaffolded at `/Users/matt/CWORK/questerra-grading` on `grading-v1`. Pre-flight ritual RUN. Audit findings in §13. **Code-write BLOCKED on Q1 (data-model decision) — see §13 recommendation.**
 >
 > Canonical design: [`docs/prototypes/grading-v2/`](../prototypes/grading-v2/) — open `Grading v2.html` in a browser. Three views, ~937 lines of JSX, framework-agnostic React + Framer Motion. **Locked-in mode model:** horizontal-first calibration → vertical synthesis. Studio Floor as power-user third tab.
 > Canonical spec: [`docs/projects/grading.md`](grading.md) (412 lines, full 7-phase plan).
@@ -218,10 +218,118 @@ Don't start G2+ planning until G1 ships. Premature scope expansion is the failur
 
 ---
 
+## 13. Pre-flight audit findings (27 Apr 2026, in worktree)
+
+Pre-flight ritual run in `/Users/matt/CWORK/questerra-grading` on branch `grading-v1` (forked from main `b53649c`). Reporting before any migration or code write per §6.
+
+### A. Baseline test count
+**`npm test` → 2215 passed | 9 skipped (2224 total) | 141 test files | 6.00s.** This is the new baseline. Lock at end of G1; deltas reported per sub-task gate.
+
+### B. Existing grading data model — the load-bearing finding
+
+**The brief's working assumption was wrong.** The previous grading work doesn't write to a `student_grades` table — it writes to **`assessment_records`** (migration [`019_assessments.sql`](../../supabase/migrations/019_assessments.sql)). Schema:
+
+```sql
+CREATE TABLE assessment_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  unit_id UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE,
+  class_id UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+  teacher_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  data JSONB NOT NULL,         -- AssessmentRecord blob (criterion_scores, comments, targets, tags)
+  overall_grade SMALLINT,      -- denormalized, framework-agnostic (no CHECK)
+  is_draft BOOLEAN NOT NULL DEFAULT true,
+  assessed_at TIMESTAMPTZ DEFAULT now(),
+  ...
+  UNIQUE(student_id, unit_id, class_id)
+);
+```
+
+**Critical implication:** existing grading is **unit-level**, ONE row per (student × unit × class). The Grading v2 design's per-tile granularity is **NOT a sidestep of the original Q1** — it's a fundamentally new data layer on top of `assessment_records`. The grading.md spec's `assessment_tasks` proposal was the architecturally correct prediction; the design's per-tile model is its concrete instantiation.
+
+API write site: [`src/app/api/teacher/assessments/route.ts`](../../src/app/api/teacher/assessments/route.ts) (lines 50, 61, 113, 136 — `from("assessment_records")`).
+Existing grading page: [`src/app/teacher/classes/[classId]/grading/[unitId]/page.tsx`](../../src/app/teacher/classes/[classId]/grading/[unitId]/page.tsx) (1,311 lines) — reads `student_progress` for responses + presumably `assessment_records` for grades.
+
+Supporting infrastructure already in place:
+- `src/types/assessment.ts` — canonical `CriterionScore` interface (criterion_key, level, strand_scores, comment, evidence_page_ids, tags). Already includes `evidence_page_ids` — useful for G1's per-criterion rollup pointers.
+- `src/lib/criterion-scores/normalize.ts` — Phase 2 absorber for 4 historical shapes (Lesson #42, FU-K). Whatever G1 ships must round-trip through this.
+
+### C. Data-model decision required (Q1 — recommendation)
+
+Three viable paths:
+
+| Option | Shape | Pro | Con |
+|---|---|---|---|
+| **A** Extend `assessment_records.data` JSONB | Add `tile_grades: TileGrade[]` inside the JSONB blob | Zero migration. Backward compat trivial. | Marking queue cross-class scan = JSONB scan. Won't scale past ~50-100 records. Loses the speed Calibrate is designed for. |
+| **B** New `student_tile_grades` table (RECOMMENDED) | `(student_id, unit_id, page_id, tile_id, class_id)` UNIQUE + per-tile fields | Indexable + queryable. Marking queue + per-criterion rollup are real SQL queries. RLS pattern reuses `assessment_records`. | Real migration. Per-criterion rollup needs join to `class_units.content_data` for tile→criterion mapping. |
+| **C** Hybrid (B + write rollups to A) | New table for live state, sync overall to `assessment_records.data.tile_grades` on release | Backward compat with student-snapshot route + existing teacher unit-grade UI. | Two writers to keep in sync. More moving parts. |
+
+**Recommendation: Option B.** Calibrate's marking-queue performance demands an indexed table; the design's "8 tiles × 24 students = 192 micro-judgements per lesson" workload makes JSONB-scan performance unacceptable. Migration is small and well-shaped:
+
+```sql
+CREATE TABLE student_tile_grades (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  unit_id UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE,
+  page_id UUID NOT NULL,                                         -- references the lesson page
+  tile_id TEXT NOT NULL,                                         -- string ID inside content_data
+  class_id UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+  teacher_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+
+  score SMALLINT,                                                -- 1-8 (or 0-100 for percentage frameworks)
+  confirmed BOOLEAN NOT NULL DEFAULT false,                      -- teacher confirmed AI suggestion or override
+  ai_pre_score SMALLINT,
+  ai_quote TEXT,                                                 -- 8-15 word evidence quote
+  ai_confidence TEXT CHECK (ai_confidence IN ('high','med','low')),
+  ai_reasoning TEXT,
+  override_note TEXT,                                            -- private teacher note
+
+  graded_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+
+  UNIQUE(student_id, unit_id, page_id, tile_id, class_id)
+);
+```
+
+Per-criterion rollup at Synthesize time: `SELECT score FROM student_tile_grades WHERE (student_id,unit_id,class_id)=$1 JOIN tile→criterion mapping FROM content_data → group by criterion → AVG or best-fit`. Computed at query time, not stored. **`assessment_records.data.criterion_scores[]` continues to be the canonical "released grade" record**; G1 writes to it on Synthesize "Release to <student>" with the rolled-up criterion scores + overall comment. Backward compat preserved without dual-writer hazard.
+
+**Open sub-question for Q1:** Does `class_units.content_data` already give tiles stable string IDs (likely from the lesson editor's nanoid pattern), or do tiles get re-IDed on each edit? **This is the #1 thing G1.0 must verify** before authoring the migration. If tile IDs are unstable, we need a tile registry or per-tile slug normalization first. Initial signal: the Phase 0.5 lesson editor doc (`docs/specs/lesson-layer-architecture.md`) and `src/types/activity-blocks.ts` line 72 show ActivityBlocks DO carry stable string IDs, but Activity Blocks (library entities) ≠ tiles in `content_data`. **Verification step before migration: read 3 real production class_units rows and inspect content_data tile IDs across an edit.**
+
+### D. Open questions — final state before code write
+
+- **Q1.** ⛔ **Code-write BLOCKED.** Need Matt sign-off on Option B + verification that lesson tiles have stable IDs in production `content_data`. Without this, the migration is unsafe.
+- **Q2.** Per-class AI opt-in default = OFF. Matt to flip ON for his own classes during smoke. *Default applied in code unless overridden.*
+- **Q3.** ✅ Closed — new dedicated `/teacher/marking` route.
+- **Q4.** ✅ Closed — worktree + push discipline confirmed by sign-off action.
+
+### E. Lessons re-read confirmation
+
+Verified the following lessons exist in [`docs/lessons-learned.md`](../lessons-learned.md) (re-read at G1.0 start of next session):
+- #22 — Junction-first-fallback for student lookup (relevant to marking queue cross-class scan)
+- #29 — UNION-pattern RLS for dual-visibility (relevant if G1 needs school-admin visibility, deferred)
+- #34 — Test baseline drift (just captured: 2215)
+- #38 — Verify = assert exact values, not non-null
+- #39 — Audit-then-fix-all for pattern bugs (relevant to the criterion_scores 4-shape absorber sites)
+- #42 — Dual-shape persistence (the existing absorber pattern — G1 writes must round-trip cleanly)
+
+### F. WHAT HAPPENS NEXT (the actual STOP)
+
+Code-write is blocked. The right path forward:
+
+1. **Matt confirms Option B** (or selects A or C with reasoning).
+2. **Next session opens in this worktree** (`/Users/matt/CWORK/questerra-grading`), reads the [docs/handoff/grading-v1.md](../handoff/grading-v1.md) (will be written via `sessionhandover` if needed — for now the brief is the pickup), runs the Q1.E verification (read 3 prod class_units rows, inspect tile ID stability), then mints the migration via `bash scripts/migrations/new-migration.sh grading_v1_student_tile_grades` and commits the empty stub immediately.
+3. After migration applied to prod Supabase + verified via probe, code writes begin with G1.1 (Calibrate view).
+
+---
+
 ## Pickup snippet (for the next session that builds G1)
 
 ```
-Read /Users/matt/CWORK/questerra/docs/projects/grading-phase-g1-brief.md
-and continue from the pre-flight ritual. Do not write code until the
-4 open questions are resolved and Matt has signed off on G1.0.
+Read /Users/matt/CWORK/questerra-grading/docs/projects/grading-phase-g1-brief.md
+§13 (audit findings). G1 plan signed off 27 Apr 2026. Code-write blocked
+on Q1 (data-model decision — recommendation: Option B, new student_tile_grades
+table). Worktree: /Users/matt/CWORK/questerra-grading on grading-v1, baseline
+2215 tests passing. Do NOT write code until Q1 confirmed AND tile-ID stability
+verified in prod content_data.
 ```
