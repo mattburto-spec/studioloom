@@ -353,28 +353,90 @@ Criterion-tag coverage: 163 tiles tagged (25.7%) — see §13.H below
 
 **Stable-ID conclusion:** V4 `TimelineActivity.id` and V2/V3 `ActivitySection.activityId` are equivalent nanoid(8) strings — both flow through to the rendered `responseKey` via the converter at [`src/lib/timeline.ts:142`](../../src/lib/timeline.ts) (`activityId: a.id`). Counting both: 89.9% of prod tiles already carry stable IDs. **Backfill is required** for the 10.1% legacy (64 tiles across the 4 v2/v3/v? units), but the volume is small enough that the migration body handles it inline.
 
-### H. Second probe finding — criterion-tag coverage (NEW design constraint)
+### H. Second probe finding — criterion-tag coverage + framework-neutral schema (NEW design constraint)
 
-**74.3% of prod tiles have NO `criterionTags` field.** This means the design's per-criterion rollup-by-JOIN ("AVG of all tile scores tagged criterion A") only works for ~26% of existing tiles. The other 74.3% need a different criterion source.
+**74.3% of prod tiles have NO `criterionTags` field.** The design's per-criterion rollup only works for ~26% of existing tiles via JOIN. The other 74.3% need a different criterion source.
 
 Two candidate sources to fall back to:
-1. **`UnitPage.criterion: CriterionKey`** — V2/V3 only. Pages are tagged per criterion (e.g. "this whole page is for Criterion B"). Every tile on the page inherits.
-2. **Teacher-assigned at marking time** — Calibrate's row already shows criterion in the question header (the design hardcodes Q's criterion in the tile strip). The teacher knows which criterion this tile assesses; they could pin it during the first scoring pass.
+1. **`UnitPage.criterion: CriterionKey`** — V2/V3 only. Pages are tagged per criterion. Every tile on the page inherits.
+2. **Teacher-assigned at marking time** — Calibrate's row already shows criterion in the question header. Teacher pins during the first scoring pass.
 
-**Schema implication for `student_tile_grades`:** add a `criterion_key TEXT` column. Set on first write from (in priority order): `ActivitySection.criterionTags[0]` → `UnitPage.criterion` → teacher-set in Calibrate. Stored on the grade record so per-criterion rollup at Synthesize time is `SELECT criterion_key, AVG(score) FROM student_tile_grades GROUP BY criterion_key` — no JOIN to content_data needed at all. Simpler, faster, and works even when content_data evolves.
+**Schema implication: denormalize criterion identifiers onto `student_tile_grades`.** Don't re-resolve from `content_data` at every read.
 
-Updated migration body shape (additive to §13.C):
+#### Framework-neutral key choice (Path A — locked in 27 Apr 2026)
+
+The values stored MUST be **neutral keys**, not framework-specific labels. Otherwise this same migration would need to re-run when an NSW or GCSE teacher onboards. StudioLoom already has the architecture:
+
+- **8 universal neutral keys** ([docs/specs/neutral-criterion-taxonomy.md](../specs/neutral-criterion-taxonomy.md)): `researching`, `analysing`, `designing`, `creating`, `evaluating`, `reflecting`, `communicating`, `planning`.
+- **`FrameworkAdapter`** ([src/lib/frameworks/adapter.ts](../../src/lib/frameworks/adapter.ts)) — `fromLabel(label, framework)` maps framework code (e.g. `"A"`, `"AO2"`, `"DT5-2"`) → neutral keys; `toLabel(neutralKey, framework, opts)` maps the other direction for render.
+
+**Critical nuance from the API:** `fromLabel()` returns `readonly NeutralCriterionKey[]` — **plural**. MYP "Criterion A" maps to BOTH `researching` AND `analysing` (the criterion is a unified whole — best-fit semantics). So the column must be an **array**, not a scalar. A single tile graded at 6 on a "Criterion A" task contributes 6 to BOTH neutral keys.
+
+#### Updated migration body shape (REVISED §13.C — superseded)
+
 ```sql
 CREATE TABLE student_tile_grades (
-  -- ... fields from §13.C ...
-  criterion_key TEXT,                   -- inherits from criterionTags / page.criterion / teacher
-  -- ... rest of §13.C ...
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  unit_id UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE,
+  page_id UUID NOT NULL,
+  tile_id TEXT NOT NULL,                                 -- "activity_<nanoid>" or "section_<idx>"
+  class_id UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+  teacher_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+
+  score SMALLINT,                                        -- framework-neutral; rendered scale per class.framework
+  confirmed BOOLEAN NOT NULL DEFAULT false,
+  ai_pre_score SMALLINT,
+  ai_quote TEXT,
+  ai_confidence TEXT CHECK (ai_confidence IN ('high','med','low')),
+  ai_reasoning TEXT,
+  override_note TEXT,
+
+  -- Framework-neutral criterion identifiers. ALWAYS neutral keys from the
+  -- 8-key taxonomy (researching/analysing/designing/creating/evaluating/
+  -- reflecting/communicating/planning). Render via FrameworkAdapter.toLabel().
+  criterion_keys TEXT[] NOT NULL DEFAULT '{}',
+
+  graded_at TIMESTAMPTZ,
+  released_at TIMESTAMPTZ,                               -- when "Release to <student>" rolled this up to assessment_records
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+
+  UNIQUE(student_id, unit_id, page_id, tile_id, class_id)
 );
-CREATE INDEX idx_student_tile_grades_criterion
-  ON student_tile_grades(class_id, unit_id, criterion_key);
+
+-- GIN index on the array — supports `WHERE 'designing' = ANY(criterion_keys)`
+CREATE INDEX idx_student_tile_grades_crit_keys
+  ON student_tile_grades USING GIN(criterion_keys);
+
+-- Standard indexes
+CREATE INDEX idx_student_tile_grades_class_unit ON student_tile_grades(class_id, unit_id);
+CREATE INDEX idx_student_tile_grades_teacher ON student_tile_grades(teacher_id);
+CREATE INDEX idx_student_tile_grades_unconfirmed ON student_tile_grades(class_id, confirmed) WHERE NOT confirmed;
 ```
 
-**Acceptance:** the design's per-tile model is implementable on existing prod tiles with (a) inline backfill for 10% legacy IDs and (b) `criterion_key` denormalization to handle 74% missing criterionTags. The migration body now needs a small backfill block + one extra column from §13.C. Authoring + application is next session's first task.
+#### Write-time normalization path
+
+When a teacher confirms a score in Calibrate, the writer (next session's task — likely `src/lib/grading/save-tile-grade.ts`) does:
+
+1. Resolve raw criterion source: `tile.criterionTags[0]` → fallback `page.criterion` → fallback teacher's pinned value.
+2. If raw is a framework code, normalize: `FrameworkAdapter.fromLabel(rawLabel, class.framework)` → `NeutralCriterionKey[]`.
+3. If raw is already neutral (rare today, common in newer Dimensions3-generated content), pass through.
+4. Persist `criterion_keys` as the array result.
+
+Per-criterion rollup at Synthesize time:
+```sql
+SELECT k AS neutral_key, AVG(score) AS avg_score
+FROM student_tile_grades, UNNEST(criterion_keys) AS k
+WHERE class_id = $1 AND unit_id = $2 AND student_id = $3
+GROUP BY k;
+```
+
+#### Dual-shape with `assessment_records` (Lesson #42 territory)
+
+`assessment_records.data.criterion_scores[]` (the canonical "released grade" record) currently stores **framework-specific** values (`"A"`, `"AO2"`). When Synthesize "Release to <student>" rolls up neutral scores into assessment_records, the rollup writer maps neutral → framework via `FrameworkAdapter.toLabel(neutralKey, class.framework, { format: "short" })`. Existing assessment_records data stays as-is. **`src/lib/criterion-scores/normalize.ts` gains a 5th shape**: when reading a `student_tile_grades` row, the criterion identifier is neutral; when reading `assessment_records.data.criterion_scores[]`, it's framework-specific. The absorber documents the boundary.
+
+**Acceptance:** the design's per-tile model is implementable on existing prod tiles with (a) inline backfill for 10% legacy stable IDs, (b) `criterion_keys TEXT[]` denormalization handling 74% missing tile-level tags via fallback chain, and (c) framework-neutral storage future-proofing for NSW/GCSE/A-Level/IGCSE/ACARA/PLTW/NESA/Victorian. Authoring + application is next session's first task.
 
 ---
 
