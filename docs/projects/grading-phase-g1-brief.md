@@ -1,0 +1,227 @@
+# Grading Phase G1 — Phase Brief
+
+> "Best grading experience in the world" — v1 (3-day cut).
+>
+> Drafted: 27 April 2026
+> Updated: 27 April 2026 (design landed via Claude Design — Calibrate/Synthesize/Studio-Floor model)
+> Status: **AWAITING MATT SIGN-OFF + 1 OPEN QUESTION RESOLVED** — do not start any code until this brief is approved. (Down from 4 OQs — Q3 closed by design, Q1 refined, Q2/Q4 unchanged.)
+>
+> Canonical design: [`docs/prototypes/grading-v2/`](../prototypes/grading-v2/) — open `Grading v2.html` in a browser. Three views, ~937 lines of JSX, framework-agnostic React + Framer Motion. **Locked-in mode model:** horizontal-first calibration → vertical synthesis. Studio Floor as power-user third tab.
+> Canonical spec: [`docs/projects/grading.md`](grading.md) (412 lines, full 7-phase plan).
+> Build methodology: [`docs/build-methodology.md`](../build-methodology.md).
+
+---
+
+## 0. Design landed (27 Apr 2026) — what this changes
+
+Matt fed the UX prompt into Claude Design and the result is the canonical mental model for G1. Three artboards: **A · Calibrate** (horizontal, the default), **B · Synthesize** (vertical, per-student), **C · Studio Floor** (clustered, deferred to G2). Files at [`docs/prototypes/grading-v2/`](../prototypes/grading-v2/) with full README.
+
+**Locked-in decisions (these answer questions the brief originally left open):**
+
+1. **Mode = horizontal-first → vertical synthesis.** Days 1–2 of marking is calibration (AI pre-scores per tile, teacher confirms/overrides per-question across class). Day 3 is synthesis (per-student rubric assembled from calibrated tile scores, AI drafts feedback comments from the same evidence quotes). This sequencing replaces the abstract "marking queue + split view" framing in §2 below.
+2. **The pivotal UI move = tight 8–15-word evidence quotes** pulled from the student's response. That is what makes horizontal viable — enough to trust the AI score, not so much that horizontal becomes vertical.
+3. **Studio Floor (clustered bulk-score) = G2 deferred.** "Teachers who pattern-match UX will bounce off a zoomable canvas. They won't bounce off a list."
+4. **The unconventional feature = past-feedback memory** in Synthesize view. Amber callout: *"You said 3 weeks ago: …"* — the system surfaces the teacher's own prior feedback to that student.
+
+**G1 sub-tasks reframe accordingly:**
+- **G1.1 was "Marking Queue" → now "Calibrate view + tile-strip queue."** The tile strip across the top IS the queue. Each tile button shows criterion, title, and confirmed/24 progress bar.
+- **G1.2 was "Split-view marking" → now "Calibrate row + expandable override panel."** The row IS the split view (student avatar + AI quote + AI score + Confirm). Override expands inline with full work + 1–8 grid + override note.
+- **G1.3 was "AI pre-score + draft" → now "AI pipeline: pre-score + evidence quote + per-criterion draft."** Same model, but the evidence quote is the load-bearing artifact — without it the row reads as blind authority.
+- **NEW: G1.4 (~0.5d, optional) Synthesize view.** Per-student vertical with auto-assembled rubric and past-feedback callout. If the deadline is tight, ship Calibrate alone in G1 and push Synthesize to G1.5 — but the design is meaningfully weaker without Synthesize, because per-criterion rubric assembly + feedback comment writing don't happen in Calibrate.
+
+**Visual language to match:** cream/parchment `#F5F1EA` background, paper `#FBF8F2` cards, Manrope (sans) + Instrument Serif italic accents + JetBrains Mono tabular numbers, extrabold (800) display, 0.14em-tracked caps, **dashed-border-when-unconfirmed/solid-when-confirmed score pills** (the `ScorePill` component is the most reusable atom — extract first).
+
+See the prototype's [README](../prototypes/grading-v2/README.md) for the full implied data shape, component extraction order, and notes on what NOT to copy from the prototype's React structure.
+
+---
+
+## 1. Goal
+
+Ship the three ergonomics that make grading *feel* world-class — **find work, no context switch, less typing** — in a 3-day window. AI assist is part of "less typing" via pre-scored ghost values + draft feedback comments.
+
+A teacher with 5 classes and 3 active units can:
+1. Open a single page that shows everything needing their attention, sorted by urgency.
+2. Click one item → see the student's actual work and the rubric in the same screen.
+3. Score in 1-2 clicks per criterion (accept AI ghost or override) and edit a pre-drafted comment instead of writing from scratch.
+4. Move to the next student with one keystroke; the rubric stays put.
+
+**Estimated effort:** 3 days (G1.1 ≈ 1d, G1.2 ≈ 1d, G1.3 ≈ 1d).
+**Constraint:** Real deadline — Matt needs this usable in 3 days. Scope is non-negotiable; if a sub-task threatens the deadline, cut polish, not features.
+
+---
+
+## 2. What's IN scope
+
+### G1.1 — Marking Queue (~1 day)
+- New page at `/teacher/marking` aggregating work needing grading across **all** the teacher's classes.
+- Per-row: student name + avatar, unit + class context, "submitted X ago" or "overdue", AI confidence badge (if pre-scored).
+- Filters: class, due date, criterion, "since last session". Default sort: low AI confidence + overdue first.
+- Card on the existing teacher dashboard linking to `/teacher/marking` with unread count.
+
+### G1.2 — Split-View Marking (~1 day)
+- Click "Mark" on a queue item → split-pane page.
+  - **Left:** student's actual work, read-only, rendered as the student saw it (text responses, toolkit outputs, MonitoredTextarea content with integrity indicators).
+  - **Right:** rubric + scoring controls. Per-criterion score selector + comment field. Persistent — does not scroll with the work.
+- Prev/Next navigation across the same task scope (e.g. all unmarked students in this unit's grading queue). Keyboard shortcuts (`j`/`k` or `←`/`→`).
+- Uses the existing grading data model — **no new `assessment_tasks` table in G1**. See Open Question Q1.
+
+### G1.3 — AI Pre-Score + Feedback Draft (~1 day)
+- When a teacher opens a submission, fire a Haiku 4.5 call (background or on-demand) producing:
+  - Suggested per-criterion scores
+  - Confidence (0-1)
+  - Reasoning per criterion
+  - Draft student-facing feedback comment (single string, ~80 words, references specific work)
+- Store in new `student_grades.ai_pre_score` JSONB + `ai_feedback_draft TEXT` (or equivalent — depends on G1.1 schema audit).
+- UI: ghost numbers in the score selectors (faded). 1-click "Accept AI" per criterion. Feedback draft pre-fills the comment textarea — teacher edits and saves.
+- Per-class opt-in toggle (default OFF in G1; opt-in by Matt for his own classes).
+- Cost track via existing Dimensions3 cost infrastructure. Estimated $0.002/student/criterion-set.
+
+---
+
+## 3. What's OUT of scope (deferred to G2+)
+
+Hard list — Code must NOT silently expand into these:
+
+- **`assessment_tasks` data model rewrite** (multi-task per unit). Original spec Phase 1. G1 reuses the existing single-grade-per-unit model. See Q1.
+- **Lesson editor "assessable" toggle.** Original spec Phase 2.
+- **Criteria coverage heatmap** on Class Hub. Original spec Phase 3.
+- **AI consistency checker** ("review my marking"). Original spec Phase 4.
+- **Inline anchored feedback** on student lesson pages. Original spec Phase 5.
+- **Notifications + badges** when grades returned. Original spec Phase 5.
+- **Growth trajectory charts** for students. Original spec Phase 5.
+- **Report writing** (term/semester reports from grade data). Original spec Phase 6.
+- **Cross-teacher moderation.** Original spec Phase 7.
+- **Class-level insights** ("14/24 below 4 on Criterion B"). Original spec Phase 7.
+- **AI "what to do next" student nudge.** Original spec Phase 5.
+- **Per-rubric / per-task rubric attachment.** Pairs with Q1.
+
+If a sub-task surfaces "this would be much cleaner with X from G2", the answer is: file as `GRADING-FU-<n>` and continue.
+
+---
+
+## 4. Spec sections to re-read (Code must read before any code)
+
+| Section | Path | Why |
+|---|---|---|
+| Full spec | [grading.md](grading.md) (lines 1-412) | Master plan; G1 cherry-picks Phases 1+3+4 essentials |
+| §"Teacher Marking Experience" | grading.md ~line 106 | Marking queue + split view requirements |
+| §"AI Role in Grading" | grading.md ~line 156 | Pre-scoring pipeline, model choice (Haiku 4.5), confidence model |
+| §"Key Decisions to Make" | grading.md ~line 374 | All 10 open questions — Q1, Q3, Q6, Q9, Q10 are most relevant to G1 |
+| Existing grading page | [src/app/teacher/classes/\[classId\]/grading/\[unitId\]/page.tsx](../../src/app/teacher/classes/[classId]/grading/[unitId]/page.tsx) (1,311 lines) | What "current grading" actually does; G1 sits next to / extends this |
+| MYPflex helpers | [src/lib/constants.ts](../../src/lib/constants.ts) → `getGradingScale()`, `getFrameworkCriteria()` | Framework-aware scale rendering; G1 must respect this |
+| MonitoredTextarea | [src/components/teacher/IntegrityReport.tsx](../../src/components/teacher/IntegrityReport.tsx) | Already wired to grading; G1 split-view must surface integrity indicators |
+| Build methodology | [docs/build-methodology.md](../build-methodology.md) | Pre-flight ritual + stop triggers + Lessons re-read list |
+
+---
+
+## 5. Lessons re-read list
+
+- **Lesson #34** — Test assumptions drift silently. Capture baseline `npm test` BEFORE touching code.
+- **Lesson #38** — Verify = assert expected values, not just non-null. Every G1 test asserts captured-from-real-run values.
+- **Lesson #39** — Silent `max_tokens` truncation in Anthropic `tool_use` calls. The G1.3 AI pre-score call MUST land with `stop_reason === 'max_tokens'` throw guard + defensive destructure.
+- **Lesson #29** — UNION-pattern RLS for dual-visibility (if RLS is touched in G1.1 schema migration).
+- **Lesson #22** — Junction-first-fallback for student lookup. G1.1 marking queue spans classes — query via `class_students` junction first.
+
+---
+
+## 6. Pre-flight ritual (mandatory — STOP and report after)
+
+Before writing any code:
+
+1. `git status` clean on a fresh `grading-v1` branch in a fresh worktree at `/Users/matt/CWORK/questerra-grading`.
+2. `npm test` baseline captured. Record the count — it becomes the new baseline at end of G1.
+3. Re-read lessons #22, #29, #34, #38, #39.
+4. **Audit the existing grading data model** before designing the G1.1 migration:
+   - Where do per-criterion scores actually persist today? (`student_grades` table? `class_units.content_data` JSON? `student_progress`?)
+   - What's the existing primary key shape — `(student_id, unit_id, class_id)`?
+   - Are there existing `submitted_at`-equivalent fields we can reuse?
+   - What RLS policies cover the existing surface?
+5. Read `/Users/matt/CWORK/.active-sessions.txt` to confirm no parallel session is mid-migration.
+6. **STOP and report the audit findings before writing any migration or code.** This is a Matt Checkpoint gate.
+
+The pre-flight has caught more problems than any test suite. Skipping it is the most common failure mode.
+
+---
+
+## 7. Migration discipline
+
+If G1.1 needs new columns (`submitted_at`, `viewed_by_teacher`, `ai_pre_score`, `ai_feedback_draft`) or a new index for the marking queue:
+
+- Mint with `bash scripts/migrations/new-migration.sh grading_g1_marking_queue`.
+- Commit + push the empty stub to `grading-v1` IMMEDIATELY after minting. Don't write SQL body until the timestamp is reserved on origin.
+- Before merging G1 to main: `bash scripts/migrations/verify-no-collision.sh` exits clean.
+- Don't apply to prod Supabase until Checkpoint G1.1 signs off.
+- Migration .down.sql pair (per GOV-3 standards even though GOV-3 hasn't shipped — set the precedent).
+
+---
+
+## 8. Stop triggers
+
+Code stops and reports if:
+
+- Audit finds the existing grading data model is **not** `student_grades`-shaped (e.g. lives in JSON on `class_units.content_data`). G1.1 migration shape changes radically — needs re-spec.
+- Existing grading page state-management is so coupled it can't be re-used for the split view without a rewrite. G1.2 may need to ship as a parallel page rather than an extension.
+- AI pre-score Haiku call returns confidence < 0.3 across the test fixture (signal that prompt or rubric injection is wrong).
+- Test count drops below baseline at any sub-task gate.
+- New code requires changes to MonitoredTextarea internals (out of scope).
+- An obvious second bug surfaces while fixing a first one — file as FU-N and stop.
+
+## 9. Don't stop for
+
+- Existing ESLint warnings (FU-6 already filed).
+- Cosmetic alignment of comment box widths (polish at end if time).
+- Score-selector micro-animations (polish at end).
+- Pre-existing TypeScript `any` in adjacent files.
+- "This component would be cleaner with G2's X" thoughts — file as `GRADING-FU-<n>` and continue.
+
+---
+
+## 10. Sub-task → Checkpoint gates
+
+| Sub-task | Definition of done | Gate |
+|---|---|---|
+| **G1.0 Pre-flight + audit** | Audit findings reported. Baseline test count captured. Existing data model documented. Migration shape pre-decided with Matt. | Matt sign-off before any code |
+| **G1.1 Marking queue** | `/teacher/marking` lists pending work across all classes. Filters work. Dashboard card lands. Migration applied to local supabase. Tests for query + filter logic. | Checkpoint G1.1: smoke + report |
+| **G1.2 Split-view marking** | Click queue → split pane. Prev/Next works. Save round-trips per criterion. Integrity indicator visible inline. Tests for save + nav. | Checkpoint G1.2: smoke + report |
+| **G1.3 AI pre-score + draft** | Haiku call wired with `stop_reason` guard. Ghost values render. 1-click accept works. Draft pre-fills comment. Per-class toggle works. Cost tracked. Tests with mocked AI + 1 live integration test. | Checkpoint G1.3 + final G1 sign-off |
+
+Each checkpoint = code pauses, full report, wait for explicit sign-off before next sub-task.
+
+---
+
+## 11. Open questions — status after design landed
+
+**Q1. Multi-task per unit — REFINED, needs confirmation.**
+The Grading v2 design sidesteps the original "one-grade-per-unit vs assessment_tasks per unit" question by going **per-tile**: each lesson tile is a gradeable item with its own AI score + confidence + evidence quote. Per-criterion rubric scores are computed at synthesis time from the tiles tagged to that criterion, NOT stored. This is more granular than the spec's `assessment_tasks` model and arguably better — assessment criteria already attach to tiles in `class_units.content_data`. **Likely answer:** add `student_tile_grades` table keyed `(student_id, page_id, tile_id)` with score, confirmed flag, AI metadata. Per-criterion rollup is a query, not a column. **Confirm during G1.0 audit** — needs to be checked against the actual current tile schema in `content_data` to see if tiles already carry stable IDs and criterion mappings, or if a tile registry is needed. Original "deferred multi-task" answer is now obsolete — the design assumes per-tile granularity from day 1.
+
+**Q2. Per-class AI opt-in default.** *Unchanged.*
+G1.3 ships with the AI off by default to avoid surprise costs. That means even your own classes won't have the AI ghost values until you flip the toggle. Default: off; you flip on for your classes during smoke. Confirm.
+
+**Q3. Existing grading page — extend or parallel.** ✅ **CLOSED by design.**
+Calibrate + Synthesize are fundamentally different UX from the current `/teacher/classes/[classId]/grading/[unitId]` page (1,311-line form). The design implies a new dedicated route — recommended landing: **`/teacher/marking`** (no params) opens Calibrate scoped to the teacher's most-recently-active lesson. Drill-down route: `/teacher/marking?lesson=<lessonId>` for direct entry. The existing grading page stays as-is for now and we redirect from it once G1 is signed off, OR keep it as the deep "bulk class grading" view if Matt prefers (low priority — Calibrate covers that workflow better). The Class Hub Grade tab continues to point at the existing page until cutover.
+
+**Q4. Worktree + push discipline.** *Unchanged.*
+Per CLAUDE.md, parallel work happens in dedicated worktrees. Recommend: `/Users/matt/CWORK/questerra-grading` worktree, branch `grading-v1`. Push to `grading-v1-wip` for backups. Don't push to `origin/main` until G1 final checkpoint signs off and migration applied to prod. Confirm.
+
+---
+
+## 12. After G1 ships — the path to "world-class"
+
+The G1 cut intentionally shipswithout: multi-task per unit, criteria coverage heatmap, consistency checker, anchored inline feedback, report writing, moderation. The full vision in [grading.md](grading.md) is a ~14-18 day build. G1 is the minimum-viable "best ergonomics" + AI assist; G2 onwards is the depth that makes it actually defensible vs Toddle / ManageBac / Curipod over the long term.
+
+After G1 sign-off, expected next-phase priorities (informed by smoke):
+1. **G2 — Multi-task data model** (if Q1 returns "needed") — 2-3 days.
+2. **G3 — Inline anchored feedback** (student-facing, closes the feedback loop) — 2-3 days.
+3. **G4 — Class-level insights + consistency checker** (the "patterns AI sees that you can't" features) — 2 days.
+
+Don't start G2+ planning until G1 ships. Premature scope expansion is the failure mode.
+
+---
+
+## Pickup snippet (for the next session that builds G1)
+
+```
+Read /Users/matt/CWORK/questerra/docs/projects/grading-phase-g1-brief.md
+and continue from the pre-flight ritual. Do not write code until the
+4 open questions are resolved and Matt has signed off on G1.0.
+```

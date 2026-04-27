@@ -90,6 +90,20 @@
 - **Priority:** P0 | **Est:** 2 days remaining | **Doc:** [mypflex.md](mypflex.md)
 - Phases 1-3 COMPLETE. Migration 055 APPLIED. Framework selector on classes, adaptive grading UI (buttons for discrete, sliders for %). Phase 4 (future-proofing) pending. **Unblocks non-MYP teacher adoption.**
 
+### Grading System — v1 (G1)
+- **Status:** 🔴 ACTIVE — G1 brief drafted 27 Apr 2026, **design landed same day** (Claude Design — horizontal-first → vertical synthesis), awaiting sign-off + 1 remaining OQ
+- **Priority:** P0 (Matt deadline: 3 days from 27 Apr) | **Est:** G1 = 3d Calibrate-only / 3.5d incl. Synthesize / full vision = 14-18d, 7 phases | **Docs:** [grading.md](grading.md) (master spec, 412 lines), [grading-phase-g1-brief.md](grading-phase-g1-brief.md) (v1 brief), **[docs/prototypes/grading-v2/](../prototypes/grading-v2/) (canonical design — open `Grading v2.html`)**
+- **Worktree (when work starts):** `/Users/matt/CWORK/questerra-grading` on branch `grading-v1`. Backup pushes to `grading-v1-wip`.
+- **Design v2 (27 Apr) — three views, locked in:**
+  - **A · Calibrate (default)** — horizontal, per-question across the class. Tile strip across the top is the queue (8 questions × confirmed/24 progress bars). Each row = one student's response with avatar + mini-preview + 8–15-word AI evidence quote + AI score pill (dashed = unconfirmed, solid = confirmed) + Confirm/Override. Override expands inline with full work + 1–8 grid + private override note.
+  - **B · Synthesize** — vertical, per-student. Compiled tile grid (4 columns × 8 tiles), auto-assembled rubric panel computing per-criterion scores from calibrated tile scores, AI feedback drafts built from the same evidence quotes used to score. **Past-feedback callout** (amber, the unconventional move): "You said 3 weeks ago: …".
+  - **C · Studio Floor** — clustered. AI groups all 24 students per question into Emerging/Developing/Achieving/Mastering. Bulk-score whole clusters in one click. **DEFERRED to G2** — power-user mode, not the default.
+- **Pivotal design decision:** 8–15-word AI evidence quotes are what makes horizontal viable. Transparent reasoning, not hidden authority. Without them, Confirm becomes blind nodding and the rubric is meaningless.
+- **Per-tile granularity** — design works at lesson-tile level. Implies new `student_tile_grades` table `(student_id, page_id, tile_id, score, confirmed, ai_pre_score, ai_quote, ai_confidence)` and per-criterion rollup at query time, not stored. Sidesteps original "single-grade vs `assessment_tasks`" question. Confirm against actual `content_data` tile schema during G1.0 audit.
+- **Visual language:** cream/parchment `#F5F1EA`, paper `#FBF8F2`, Manrope sans + Instrument Serif italic + JetBrains Mono numbers, extrabold 800 display, 0.14em-tracked caps, **dashed border = unconfirmed, solid = confirmed** ScorePill. Matches Lesson Bold / Teacher Editorial / Student Bold designs already in flight.
+- **Deferred to G2+:** Studio Floor clustered view, criteria coverage heatmap, AI consistency checker, inline anchored feedback on student lesson pages, notifications + badges, growth trajectory, report writing, cross-teacher moderation, class-level insights, AI "what to do next" student nudge.
+- **1 open question remaining (down from 4):** (Q1-refined) confirm per-tile data model maps cleanly to existing `class_units.content_data` tile structure during G1.0 audit. Q2 unchanged (AI off-by-default per class), **Q3 closed (new dedicated `/teacher/marking` route — design implies it)**, Q4 unchanged (worktree + push discipline).
+
 ### MonitoredTextarea Pipeline
 - **Priority:** P0 | **Est:** <1 day | **Doc:** [monitored-textarea.md](monitored-textarea.md)
 - Pipeline COMPLETE + UI WIRED. Migrations 054+059 APPLIED. Save timing + RLS fixed. Integrity indicators on Class Hub. IntegrityReport on grading page. **Needs:** fresh student session verification.
