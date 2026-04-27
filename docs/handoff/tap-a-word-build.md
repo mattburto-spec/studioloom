@@ -82,6 +82,10 @@
 
 ## Open questions / blockers
 
+- **Cold-cache rate finding (criterion #5 — needs decision).** Empirical smoke (`scripts/cold-cache-smoke.mjs`) against 3 real published units shows **11.2% cache hit rate** (533 hits / 4759 unique words), avg 1408 cold misses per unit. The 578-word design-vocab seed catches DT-specific terms but not common English (the/what/when/can) which dominates real lesson text. The Checkpoint 1.1 spec criterion "<20 cold misses per student per lesson" was likely INTENDED as "<20 uncached words a student actually TAPS" (behavioural metric), not "<20 unique uncached words present on the page" (inventory metric). **Two paths:**
+  - **A. Ship + instrument** — accept current state; add tap-event logging in Phase 4; expand seed empirically from actual tap data. Truer to Lesson #44 simplicity. $0 now.
+  - **B. Expand seed now** — add top ~1500 common English words to the seed list. Hit rate should climb to ~70-85%. ~$0.50 additional API spend. Front-loads the work but may seed words students never tap.
+  - **Cowork recommendation:** A (ship + instrument). The "5 first-encounter words/lesson" projection in spec §5.2 was a behavioural assumption about taps, not a page-inventory count. Soft-signal infrastructure (taps_per_100_words rolling avg) lands in Phase 4 regardless.
 - **Toolkit-prompt mounts deferred.** Per planning sign-off, the 28 bespoke toolkit tools were excluded from Phase 1B. Decide post-1.1 whether to land them as a 1B refinement before Phase 2 OR fold into Phase 2's mount expansion.
 - **OOM on default 2GB Node heap during `next build`** is an environmental ceiling on this codebase (~95K LOC). Not introduced by Phase 1 — confirmed on multiple branches. Worth a small FU: bake `NODE_OPTIONS="--max-old-space-size=4096"` into `package.json` `build` script for consistency with Vercel's default 8GB.
 - **Scanner can't see runtime stop_reason guards.** `ai-call-sites.yaml` records the new word-lookup site as `stop_reason_handled: unknown` despite the guard being present. Same FU-5 family as the existing 6 student-api violations.
