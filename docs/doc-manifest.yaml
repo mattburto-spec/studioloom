@@ -24,9 +24,9 @@ docs:
     title: "Session Changelog"
     purpose: "Rolling log of changes across sessions for cross-session context"
     category: root
-    last_verified: "2026-04-22"
+    last_verified: "2026-04-27"
     max_age_days: 90
-    last_scanned: "2026-04-22"
+    last_scanned: "2026-04-27"
 
   - path: docs/decisions-log.md
     title: "Key Decisions Log"
@@ -313,10 +313,10 @@ docs:
     title: "StudioLoom — Master Project Index"
     purpose: "CANONICAL project tracker. ALL project status, new projects, completions. Single source of truth."
     category: projects
-    last_verified: "2026-04-22"
+    last_verified: "2026-04-27"
     referenced_from: ["CLAUDE.md project tracking section"]
     max_age_days: 90
-    last_scanned: "2026-04-22"
+    last_scanned: "2026-04-27"
 
   - path: docs/projects/discovery-engine-cognitive-layer.md
     title: "Discovery Engine — Cognitive Layer (MindPrint-Informed)"
