@@ -1,28 +1,43 @@
 /**
- * Tap-a-word sandbox: deterministic in-memory definitions for unit tests
- * and dev runs.
+ * Tap-a-word sandbox: deterministic in-memory definitions for unit tests.
  *
- * The route /api/student/word-lookup checks `process.env.RUN_E2E !== "1"`
- * and routes through this sandbox instead of calling Anthropic. Unit tests
- * therefore exercise the full route shape (auth, cache lookup, upsert,
- * response shape) without consuming the API key.
+ * The route /api/student/word-lookup uses this when NODE_ENV === "test"
+ * (unless RUN_E2E=1 overrides — the Phase 5 live E2E gate). Unit tests
+ * therefore exercise the full route shape (auth, cache lookup, response
+ * shape) without consuming the API key. Per Lesson #57 the sandbox is
+ * READ-ONLY — the route does not upsert sandbox results to the shared
+ * cache.
  *
  * Phase 1 ships ~30 design-vocab words with student-friendly definitions.
- * Unknown words return a marked sentinel so tests can distinguish "real
- * cached entry" from "sandbox fallback".
+ * Phase 2A extends the shape to include optional L1 translations for the
+ * 6 supported target languages (en/zh/ko/ja/es/fr) — only a handful of
+ * words have translations populated; tests pick from those when asserting
+ * the L1 path. Unknown words return a marked sentinel so tests can
+ * distinguish "real cached entry" from "sandbox fallback".
  *
  * Pure synchronous function. No imports, no I/O.
  */
 
+import type { L1Target } from "@/lib/tap-a-word/language-mapping";
+
 export interface SandboxDefinition {
   definition: string;
   example: string;
+  /** Phase 2A: optional translations keyed by BCP-47 code. */
+  translations?: Partial<Record<L1Target, string>>;
+}
+
+export interface SandboxLookupResult {
+  definition: string;
+  example: string;
+  l1Translation: string | null;
 }
 
 const SANDBOX_DEFINITIONS: Record<string, SandboxDefinition> = {
   design: {
     definition: "A plan or drawing for making something on purpose.",
     example: "The chair started as a design on a piece of paper.",
+    translations: { zh: "设计", ko: "디자인", ja: "デザイン", es: "diseño", fr: "conception" },
   },
   sort: {
     definition: "To put things in order or into groups.",
@@ -31,10 +46,12 @@ const SANDBOX_DEFINITIONS: Record<string, SandboxDefinition> = {
   prototype: {
     definition: "An early test version of an idea, often made quickly.",
     example: "She glued cardboard together to make a prototype of the box.",
+    translations: { zh: "原型", ko: "프로토타입", ja: "プロトタイプ", es: "prototipo", fr: "prototype" },
   },
   iterate: {
     definition: "To try, learn, change, and try again.",
     example: "Designers iterate by testing each version with real people.",
+    translations: { zh: "迭代", ko: "반복하다", ja: "反復する", es: "iterar", fr: "itérer" },
   },
   sketch: {
     definition: "A quick rough drawing showing the main idea.",
@@ -144,14 +161,36 @@ const SANDBOX_DEFINITIONS: Record<string, SandboxDefinition> = {
 
 /**
  * Look up a word in the sandbox dictionary.
+ *
+ * Phase 2A: optionally returns an L1 translation when:
+ *   - l1Target is a non-'en' supported code AND
+ *   - the dictionary entry has a translation for that code
+ *
+ * Otherwise l1Translation is null. Callers MUST treat null as "no
+ * translation available" (don't render the slot).
+ *
  * Unknown words return a marked sentinel that tests can detect.
  */
-export function lookupSandbox(word: string): SandboxDefinition {
+export function lookupSandbox(
+  word: string,
+  l1Target?: L1Target | null
+): SandboxLookupResult {
   const key = word.toLowerCase();
   const known = SANDBOX_DEFINITIONS[key];
-  if (known) return known;
+  if (known) {
+    const l1Translation =
+      l1Target && l1Target !== "en" && known.translations
+        ? known.translations[l1Target] ?? null
+        : null;
+    return {
+      definition: known.definition,
+      example: known.example,
+      l1Translation,
+    };
+  }
   return {
     definition: `[sandbox] definition of "${word}"`,
     example: `[sandbox] example using "${word}".`,
+    l1Translation: null,
   };
 }
