@@ -623,6 +623,37 @@ systems:
     os_seam: ready
     change_impacts: Changes to profile schema affect onboarding flow. Changes to preference options affect AI mentor prompts.
 
+  - id: tap-a-word
+    name: Tap-a-word (Inline Word Lookup)
+    category: Student Experience
+    status: planned
+    currentVersion: 0
+    summary: "Phase 1A + 1B + 1C SHIPPED 26-27 Apr 2026: TappableText shared component + /api/student/word-lookup endpoint + word_definitions cache + sandbox bypass + WordPopover via createPortal. Mounted on 5 educational text surfaces: ActivityCard prompts (via MarkdownPrompt tappable prop) + ELL-1 hint card, LessonIntro introduction.text, VocabWarmup definition+example, KitMentor speech bubble, DesignAssistantWidget assistant messages, CheckInPanel mentor messages. Pre-warm seed script with batched Haiku + cost tracking covers 575 unique design-vocab words across 10 categories. Gated live E2E test (RUN_E2E=1) verifies real Anthropic round-trip. Awaiting Checkpoint 1.1 sign-off (visual smoke + seed run + live E2E). Phase 2 adds L1 translation + audio + image."
+    depends_on: [student-profile, ai-mentor]
+    affects: [lesson-view, discovery-engine, student-open-studio, ai-mentor]
+    docs:
+      - path: docs/projects/language-scaffolding-redesign-phase-1-brief.md
+        purpose: "Phase 1 master brief — sub-phases 1A/1B/1C"
+      - path: docs/projects/language-scaffolding-redesign-brief.md
+        purpose: "Master spec — full 6-phase plan"
+    data_fields:
+      - table: word_definitions
+        columns: [word, language, context_hash, l1_target, definition, l1_translation, example_sentence, generated_at]
+        notes: "Class-shared cache. RLS read-anon, service-role write via createAdminClient bypass. Phase 1 always uses language='en', context_hash='', l1_target='en'. Composite PK supports Phase 2 expansion without schema change."
+    key_files:
+      - src/components/student/tap-a-word/TappableText.tsx
+      - src/components/student/tap-a-word/WordPopover.tsx
+      - src/components/student/tap-a-word/useWordLookup.ts
+      - src/components/student/tap-a-word/tokenize.ts
+      - src/lib/ai/sandbox/word-lookup-sandbox.ts
+      - src/app/api/student/word-lookup/route.ts
+      - src/components/student/MarkdownPrompt.tsx
+      - scripts/preflight-tap-a-word-seed.mjs
+      - scripts/seed-data/design-vocab-500.json
+      - tests/e2e/word-lookup-live.test.ts
+    future_needs: "Checkpoint 1.1 sign-off (Matt action: run seed script + RUN_E2E=1 live test + visual smoke 5 words across 5 surfaces). Phase 2: + L1 translation + audio + image. Phase 4: signal-driven scaffold-fading (taps_per_100_words rolling 5-lesson average). Toolkit tool prompts: deferred 1B refinement (28 bespoke tools, not yet wired)."
+    change_impacts: "First Anthropic call site in the student API surface to ship Lesson #39 stop_reason guard + defensive destructure as canonical pattern. FU-5 (6 existing student-api violations) remains out of scope. WordPopover portals to document.body via createPortal so it escapes any clipped-overflow ancestor on the 5 mount surfaces. Toolkit tool prompts deferred to a 1B refinement after Checkpoint 1.1 signs off on the core 5 surfaces."
+
   - id: student-learning-support
     name: Student Learning Support (Accessibility & Language)
     category: Student Experience

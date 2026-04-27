@@ -6,6 +6,7 @@ import type { HealthScore, MentorId } from '@/lib/quest/types';
 import { getHealthColor, getHealthSummary } from '@/lib/quest/health';
 import { getMentor } from '@/lib/quest/mentors';
 import MentorAvatar from './MentorAvatar';
+import { TappableText } from '@/components/student/tap-a-word';
 
 interface ChatMessage {
   type: 'student' | 'mentor';
@@ -478,7 +479,7 @@ export function CheckInPanel({
                           msg.type === 'student' ? displayColor : 'transparent',
                       }}
                     >
-                      {msg.content}
+                      {msg.type === 'student' ? msg.content : <TappableText text={msg.content} />}
                     </div>
                   </motion.div>
                 ))}

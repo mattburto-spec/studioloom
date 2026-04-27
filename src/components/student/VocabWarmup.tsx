@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { TappableText } from "@/components/student/tap-a-word";
 import type { VocabWarmup as VocabWarmupType } from "@/types";
 
 interface VocabWarmupProps {
@@ -39,10 +40,10 @@ export function VocabWarmup({ warmup, ellLevel }: VocabWarmupProps) {
             </button>
             {expandedTerm === i && (
               <div className="px-4 pb-3 text-sm">
-                <p className="text-text-secondary">{term.definition}</p>
+                <p className="text-text-secondary"><TappableText text={term.definition} /></p>
                 {term.example && (
                   <p className="text-text-secondary/70 mt-1 italic text-xs">
-                    Example: {term.example}
+                    Example: <TappableText text={term.example} />
                   </p>
                 )}
               </div>
