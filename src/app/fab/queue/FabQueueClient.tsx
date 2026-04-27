@@ -93,6 +93,13 @@ interface FabMachineOption {
   machine_category: Category | null;
 }
 
+// Phase 8.1d-26b: portal anchor lives inside .fabRoot so the
+// portalled Send-to menu inherits the dark-theme CSS variables
+// (--surface, --ink, etc). Without this, document.body doesn't
+// cascade fabRoot's vars and the menu renders as a near-invisible
+// faint outline (caught by Matt's screenshot 27 Apr).
+const PortalAnchorContext = React.createContext<HTMLElement | null>(null);
+
 export default function CategoryDashboard({
   category,
   fabricatorName,
@@ -100,6 +107,12 @@ export default function CategoryDashboard({
 }: Props) {
   const [state, setState] = React.useState<LoadState>({ kind: "loading" });
   const [data, setData] = React.useState<DashboardData>(EMPTY_DATA);
+  // The portal anchor element is set after mount; this state
+  // tracks its current value so children re-render once it's
+  // available (refs alone don't trigger re-renders).
+  const [portalAnchor, setPortalAnchor] = React.useState<HTMLElement | null>(
+    null
+  );
   const [machines, setMachines] = React.useState<FabMachineOption[]>([]);
 
   const [inFlight, setInFlight] = React.useState<
@@ -308,7 +321,13 @@ export default function CategoryDashboard({
   );
 
   return (
+    <PortalAnchorContext.Provider value={portalAnchor}>
     <div className={styles.fabRoot}>
+      {/* Phase 8.1d-26b: portal target for popovers (Send-to menu).
+           Lives inside .fabRoot so CSS vars cascade. position:fixed
+           on the menu itself escapes any overflow clip — this div's
+           position is irrelevant. */}
+      <div ref={setPortalAnchor} aria-hidden="true" />
       <FabTopNav
         category={category}
         fabricatorName={fabricatorName}
@@ -398,6 +417,7 @@ export default function CategoryDashboard({
         )}
       </main>
     </div>
+    </PortalAnchorContext.Provider>
   );
 }
 
@@ -730,12 +750,16 @@ function IncomingCard({
   onAssign: (jobId: string, machineProfileId: string) => void;
 }) {
   const [menuOpen, setMenuOpen] = React.useState(false);
-  // Phase 8.1d-26: menu portal'd to <body> so it escapes the
-  // incoming-row's overflow-x-auto clip (CSS quirk: setting
-  // overflow-x:auto implicitly computes overflow-y:auto on the
-  // same element, which clips the dropdown vertically too). The
-  // button keeps a ref so we can compute viewport coords for the
-  // portal.
+  // Phase 8.1d-26: menu portal'd into a target div inside .fabRoot
+  // so it escapes the incoming-row's overflow-x-auto clip (CSS
+  // quirk: setting overflow-x:auto implicitly computes
+  // overflow-y:auto on the same element, which clips the dropdown
+  // vertically too) AND inherits the dark-theme CSS variables
+  // (--surface, --ink, etc). 8.1d-26b: portalling to document.body
+  // broke CSS-var inheritance — the menu rendered as an invisible
+  // faint outline. Now portalled to a context-provided anchor inside
+  // .fabRoot so vars cascade.
+  const portalAnchor = React.useContext(PortalAnchorContext);
   const buttonRef = React.useRef<HTMLButtonElement | null>(null);
   const [menuPos, setMenuPos] = React.useState<{
     top: number;
@@ -876,9 +900,14 @@ function IncomingCard({
               : "Send to →"}
         </button>
 
-        {/* Phase 8.1d-26: portalled to <body> so the dropdown
-            escapes the incoming-row's overflow-x-auto clip. Coords
-            computed from the button's bounding rect each open. */}
+        {/* Phase 8.1d-26 + 26b: portal target lives INSIDE .fabRoot
+            (set on the wrapping div via setPortalAnchor) so the
+            menu inherits --surface / --ink / --hair-2 etc. The
+            menu's position:fixed escapes the overflow clip
+            independently of where in the DOM it lives. Falls back
+            to document.body in the unlikely race where the anchor
+            isn't mounted yet — preserves the menu over silent
+            no-show, even if theming is briefly muted. */}
         {menuOpen && candidates.length > 0 && menuPos && typeof document !== "undefined" &&
           createPortal(
             <div
@@ -921,7 +950,7 @@ function IncomingCard({
                 </button>
               ))}
             </div>,
-            document.body
+            portalAnchor ?? document.body
           )}
       </div>
     </div>
