@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 372
+# Total routes: 373
 
 routes:
 - path: /api/admin/ai-model
@@ -1618,6 +1618,17 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/student/word-lookup
+  method: POST
+  file: src/app/api/student/word-lookup/route.ts
+  auth: student
+  tables_read:
+  - word_definitions
+  tables_written:
+  - word_definitions
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'word_definitions' — not in schema-registry
 - path: /api/teacher/activity-blocks
   method: GET
   file: src/app/api/teacher/activity-blocks/route.ts

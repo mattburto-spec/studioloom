@@ -5,7 +5,7 @@
 # docs/projects/dimensions3-followups.md FU-5 (stop_reason_handled seeding).
 #
 # Last synced: 2026-04-14
-# Total call sites: 52
+# Total call sites: 53
 
 call_sites:
 - id: ai_app_api_admin_ai_model_test_lesson_route_buildUnitTypeSystemPrompt
@@ -78,6 +78,17 @@ call_sites:
   - /api/student/open-studio/discovery
   cost_category: student_api
   notes: HTTP-based call (no SDK import)
+- id: ai_app_api_student_word_lookup_route_short
+  file: src/app/api/student/word-lookup/route.ts
+  function: short
+  provider: anthropic
+  model: dynamic
+  max_tokens: 250
+  stop_reason_handled: unknown
+  has_fallback: false
+  called_from_routes: []
+  cost_category: student_api
+  notes: null
 - id: ai_app_api_teacher_activity_cards_manage_route_embedText
   file: src/app/api/teacher/activity-cards/manage/route.ts
   function: embedText
