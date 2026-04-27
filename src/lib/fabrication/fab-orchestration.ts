@@ -984,6 +984,110 @@ export async function assignMachine(
 }
 
 // ============================================================
+// unassignMachine — Phase 8.1d-27
+// ============================================================
+//
+// Inverse of assignMachine. Clears machine_profile_id back to NULL
+// on a job that's still in 'approved' state — sends it back to the
+// "Any [category]" incoming row so a different machine can be
+// picked. Allowed only when:
+//   - status='approved' (can't unassign a running/completed job)
+//   - the job is owned by the fab's inviting teacher
+//
+// Race-safe via conditional UPDATE on status. If a parallel pickup
+// wins, the unassign 0-rows and we return 409.
+
+export interface UnassignMachineRequest {
+  fabricatorId: string;
+  jobId: string;
+}
+
+export interface UnassignMachineSuccess {
+  jobId: string;
+}
+export type UnassignMachineResult =
+  | UnassignMachineSuccess
+  | OrchestrationError;
+
+export async function unassignMachine(
+  db: SupabaseLike,
+  params: UnassignMachineRequest
+): Promise<UnassignMachineResult> {
+  const { fabricatorId, jobId } = params;
+
+  const teacherId = await fabricatorInvitingTeacherId(db, fabricatorId);
+  if (teacherId !== null && typeof teacherId === "object") return teacherId;
+  if (!teacherId) {
+    return { error: { status: 401, message: "Fabricator not active" } };
+  }
+
+  const jobLookup = await db
+    .from("fabrication_jobs")
+    .select("id, status, teacher_id, machine_profile_id")
+    .eq("id", jobId)
+    .maybeSingle();
+  const jobRow = jobLookup.data as
+    | {
+        id: string;
+        status: string;
+        teacher_id: string;
+        machine_profile_id: string | null;
+      }
+    | null;
+  if (jobLookup.error) {
+    return {
+      error: { status: 500, message: `Job lookup failed: ${jobLookup.error.message}` },
+    };
+  }
+  if (!jobRow || jobRow.teacher_id !== teacherId) {
+    return { error: { status: 404, message: "Job not found" } };
+  }
+  if (jobRow.status !== "approved") {
+    return {
+      error: {
+        status: 409,
+        message: `Can only unassign approved jobs (current status: ${jobRow.status}).`,
+      },
+    };
+  }
+  if (!jobRow.machine_profile_id) {
+    // Already unassigned — idempotent success rather than 409 noise.
+    return { jobId };
+  }
+
+  // Conditional UPDATE — race-safe vs a parallel pickup.
+  const update = await db
+    .from("fabrication_jobs")
+    .update({ machine_profile_id: null })
+    .eq("id", jobId)
+    .eq("status", "approved")
+    .select("id");
+  const { data: updateData, error: updateError } = update as {
+    data: Array<{ id: string }> | null;
+    error: { message: string } | null;
+  };
+  if (updateError) {
+    return {
+      error: {
+        status: 500,
+        message: `Unassign update failed: ${updateError.message}`,
+      },
+    };
+  }
+  if (!updateData || updateData.length === 0) {
+    return {
+      error: {
+        status: 409,
+        message:
+          "Job moved out of 'approved' state before the unassign landed — refresh and try again.",
+      },
+    };
+  }
+
+  return { jobId };
+}
+
+// ============================================================
 // pickupJob — approved → picked_up (atomic, race-safe)
 // ============================================================
 

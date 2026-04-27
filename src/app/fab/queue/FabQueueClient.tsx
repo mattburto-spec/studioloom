@@ -93,6 +93,13 @@ interface FabMachineOption {
   machine_category: Category | null;
 }
 
+// Phase 8.1d-26b: portal anchor lives inside .fabRoot so the
+// portalled Send-to menu inherits the dark-theme CSS variables
+// (--surface, --ink, etc). Without this, document.body doesn't
+// cascade fabRoot's vars and the menu renders as a near-invisible
+// faint outline (caught by Matt's screenshot 27 Apr).
+const PortalAnchorContext = React.createContext<HTMLElement | null>(null);
+
 export default function CategoryDashboard({
   category,
   fabricatorName,
@@ -100,10 +107,16 @@ export default function CategoryDashboard({
 }: Props) {
   const [state, setState] = React.useState<LoadState>({ kind: "loading" });
   const [data, setData] = React.useState<DashboardData>(EMPTY_DATA);
+  // The portal anchor element is set after mount; this state
+  // tracks its current value so children re-render once it's
+  // available (refs alone don't trigger re-renders).
+  const [portalAnchor, setPortalAnchor] = React.useState<HTMLElement | null>(
+    null
+  );
   const [machines, setMachines] = React.useState<FabMachineOption[]>([]);
 
   const [inFlight, setInFlight] = React.useState<
-    Record<string, "complete" | "fail" | "start" | "assign" | undefined>
+    Record<string, "complete" | "fail" | "start" | "assign" | "unassign" | undefined>
   >({});
 
   // Phase 8.1d-26: lab filter. "all" = no filter (default — single-
@@ -219,6 +232,29 @@ export default function CategoryDashboard({
     }
   }
 
+  async function unassignFromMachine(jobId: string) {
+    setInFlight((p) => ({ ...p, [jobId]: "unassign" }));
+    mutatingCount.current += 1;
+    try {
+      const res = await fetch(`/api/fab/jobs/${jobId}/unassign`, {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "" }));
+        alertUser(
+          body.error || `Couldn't remove the job (HTTP ${res.status})`
+        );
+      }
+    } catch (e) {
+      alertUser(e instanceof Error ? e.message : "Network error");
+    } finally {
+      setInFlight((p) => ({ ...p, [jobId]: undefined }));
+      mutatingCount.current = Math.max(0, mutatingCount.current - 1);
+      await fetchAll();
+    }
+  }
+
   async function markFailed(jobId: string) {
     const note =
       typeof window !== "undefined"
@@ -308,7 +344,13 @@ export default function CategoryDashboard({
   );
 
   return (
+    <PortalAnchorContext.Provider value={portalAnchor}>
     <div className={styles.fabRoot}>
+      {/* Phase 8.1d-26b: portal target for popovers (Send-to menu).
+           Lives inside .fabRoot so CSS vars cascade. position:fixed
+           on the menu itself escapes any overflow clip — this div's
+           position is irrelevant. */}
+      <div ref={setPortalAnchor} aria-hidden="true" />
       <FabTopNav
         category={category}
         fabricatorName={fabricatorName}
@@ -390,6 +432,7 @@ export default function CategoryDashboard({
                     inFlight={inFlight}
                     onComplete={markComplete}
                     onFailed={markFailed}
+                    onUnassign={unassignFromMachine}
                   />
                 </motion.div>
               ))}
@@ -398,6 +441,7 @@ export default function CategoryDashboard({
         )}
       </main>
     </div>
+    </PortalAnchorContext.Provider>
   );
 }
 
@@ -641,7 +685,7 @@ function IncomingRow({
 }: {
   jobs: FabJobRow[];
   machines: FabMachineOption[];
-  inFlight: Record<string, "complete" | "fail" | "start" | "assign" | undefined>;
+  inFlight: Record<string, "complete" | "fail" | "start" | "assign" | "unassign" | undefined>;
   onAssign: (jobId: string, machineProfileId: string) => void;
 }) {
   if (jobs.length === 0) {
@@ -726,16 +770,20 @@ function IncomingCard({
 }: {
   job: FabJobRow;
   machines: FabMachineOption[];
-  busy: "complete" | "fail" | "start" | "assign" | undefined;
+  busy: "complete" | "fail" | "start" | "assign" | "unassign" | undefined;
   onAssign: (jobId: string, machineProfileId: string) => void;
 }) {
   const [menuOpen, setMenuOpen] = React.useState(false);
-  // Phase 8.1d-26: menu portal'd to <body> so it escapes the
-  // incoming-row's overflow-x-auto clip (CSS quirk: setting
-  // overflow-x:auto implicitly computes overflow-y:auto on the
-  // same element, which clips the dropdown vertically too). The
-  // button keeps a ref so we can compute viewport coords for the
-  // portal.
+  // Phase 8.1d-26: menu portal'd into a target div inside .fabRoot
+  // so it escapes the incoming-row's overflow-x-auto clip (CSS
+  // quirk: setting overflow-x:auto implicitly computes
+  // overflow-y:auto on the same element, which clips the dropdown
+  // vertically too) AND inherits the dark-theme CSS variables
+  // (--surface, --ink, etc). 8.1d-26b: portalling to document.body
+  // broke CSS-var inheritance — the menu rendered as an invisible
+  // faint outline. Now portalled to a context-provided anchor inside
+  // .fabRoot so vars cascade.
+  const portalAnchor = React.useContext(PortalAnchorContext);
   const buttonRef = React.useRef<HTMLButtonElement | null>(null);
   const [menuPos, setMenuPos] = React.useState<{
     top: number;
@@ -876,9 +924,14 @@ function IncomingCard({
               : "Send to →"}
         </button>
 
-        {/* Phase 8.1d-26: portalled to <body> so the dropdown
-            escapes the incoming-row's overflow-x-auto clip. Coords
-            computed from the button's bounding rect each open. */}
+        {/* Phase 8.1d-26 + 26b: portal target lives INSIDE .fabRoot
+            (set on the wrapping div via setPortalAnchor) so the
+            menu inherits --surface / --ink / --hair-2 etc. The
+            menu's position:fixed escapes the overflow clip
+            independently of where in the DOM it lives. Falls back
+            to document.body in the unlikely race where the anchor
+            isn't mounted yet — preserves the menu over silent
+            no-show, even if theming is briefly muted. */}
         {menuOpen && candidates.length > 0 && menuPos && typeof document !== "undefined" &&
           createPortal(
             <div
@@ -921,7 +974,7 @@ function IncomingCard({
                 </button>
               ))}
             </div>,
-            document.body
+            portalAnchor ?? document.body
           )}
       </div>
     </div>
@@ -939,13 +992,15 @@ function MachineColumn({
   inFlight,
   onComplete,
   onFailed,
+  onUnassign,
 }: {
   machine: FabMachineOption;
   runningJob: FabJobRow | null;
   queuedJobs: FabJobRow[];
-  inFlight: Record<string, "complete" | "fail" | "start" | "assign" | undefined>;
+  inFlight: Record<string, "complete" | "fail" | "start" | "assign" | "unassign" | undefined>;
   onComplete: (jobId: string) => void;
   onFailed: (jobId: string) => void;
+  onUnassign: (jobId: string) => void;
 }) {
   const accent = categoryAccentVar(machine.machine_category);
   return (
@@ -1048,6 +1103,7 @@ function MachineColumn({
                   job={j}
                   accent={accent}
                   busy={inFlight[j.jobId]}
+                  onUnassign={onUnassign}
                 />
               </motion.div>
             ))}
@@ -1067,7 +1123,7 @@ function RunningBlock({
 }: {
   job: FabJobRow;
   accent: string;
-  busy: "complete" | "fail" | "start" | "assign" | undefined;
+  busy: "complete" | "fail" | "start" | "assign" | "unassign" | undefined;
   onComplete: (jobId: string) => void;
   onFailed: (jobId: string) => void;
 }) {
@@ -1148,16 +1204,31 @@ function QueuedJobCard({
   job,
   accent,
   busy,
+  onUnassign,
 }: {
   job: FabJobRow;
   accent: string;
-  busy: "complete" | "fail" | "start" | "assign" | undefined;
+  busy: "complete" | "fail" | "start" | "assign" | "unassign" | undefined;
+  onUnassign: (jobId: string) => void;
 }) {
+  // Phase 8.1d-27: Remove uses window.confirm to guard against
+  // accidental unassign — it's reversible (job goes back to
+  // incoming, fab can re-route) but still surprising if mis-clicked.
+  const handleUnassign = React.useCallback(() => {
+    if (typeof window === "undefined") return;
+    if (
+      window.confirm(
+        `Remove ${job.studentName}'s job from this machine? It'll go back to the incoming row.`
+      )
+    ) {
+      onUnassign(job.jobId);
+    }
+  }, [job.jobId, job.studentName, onUnassign]);
+
+  const isBusy = busy !== undefined;
+
   return (
-    <div
-      className={`${styles.card2}`}
-      style={{ overflow: "hidden" }}
-    >
+    <div className={`${styles.card2}`} style={{ overflow: "hidden" }}>
       <div className="p-2.5">
         <div className="flex gap-2">
           <div
@@ -1199,15 +1270,67 @@ function QueuedJobCard({
             </div>
           </div>
         </div>
-        <a
-          href={`/api/fab/jobs/${job.jobId}/download`}
-          aria-disabled={busy !== undefined}
-          className={`${styles.btnPrimary} mt-2 rounded-md w-full px-2.5 py-1.5 text-[11px] inline-flex items-center justify-center gap-1.5 ${
-            busy !== undefined ? "opacity-50 pointer-events-none" : ""
-          }`}
-        >
-          <PlayIcon size={9} /> Start
-        </a>
+
+        {/* Phase 8.1d-27: 4-button action row.
+              Info     → /fab/jobs/[jobId] detail page (existing)
+              Download → /download-preview (read-only, no status flip)
+              Start    → /download (= pickup; status → picked_up)
+              Remove   → /unassign (returns job to Incoming row)
+            Start gets the wide primary slot; the rest are icon-only
+            secondary buttons with title attrs for the tooltip. */}
+        <div className="mt-2 flex items-stretch gap-1">
+          <Link
+            href={`/fab/jobs/${job.jobId}`}
+            title="View details"
+            aria-label="View details"
+            className={`${styles.btnSecondary} rounded-md inline-flex items-center justify-center px-2`}
+            style={{ minWidth: 30 }}
+          >
+            <EyeIcon size={12} />
+          </Link>
+          <a
+            href={`/api/fab/jobs/${job.jobId}/download-preview`}
+            title="Download for preview (no pickup)"
+            aria-label="Download preview"
+            className={`${styles.btnSecondary} rounded-md inline-flex items-center justify-center px-2 ${
+              isBusy ? "opacity-50 pointer-events-none" : ""
+            }`}
+            style={{ minWidth: 30 }}
+          >
+            <DownloadIcon size={12} />
+          </a>
+          <a
+            href={`/api/fab/jobs/${job.jobId}/download`}
+            title="Start: download + pick up the job"
+            aria-disabled={isBusy}
+            className={`${styles.btnPrimary} rounded-md flex-1 px-2.5 py-1.5 text-[11px] inline-flex items-center justify-center gap-1.5 ${
+              isBusy ? "opacity-50 pointer-events-none" : ""
+            }`}
+          >
+            <PlayIcon size={9} /> Start
+          </a>
+          <button
+            type="button"
+            onClick={handleUnassign}
+            disabled={isBusy}
+            title="Remove from this machine (back to incoming)"
+            aria-label="Remove from queue"
+            className={`${styles.btnSecondary} rounded-md inline-flex items-center justify-center px-2 disabled:opacity-50`}
+            style={{ minWidth: 30 }}
+          >
+            {busy === "unassign" ? (
+              <span
+                className="block w-2.5 h-2.5 border-[1.5px] rounded-full animate-spin"
+                style={{
+                  borderColor: "var(--ink-2)",
+                  borderTopColor: "transparent",
+                }}
+              />
+            ) : (
+              <XIcon size={11} />
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1443,6 +1566,40 @@ function CheckIcon({ size = 12 }: IconProps) {
       strokeLinejoin="round"
     >
       <path d="M20 6L9 17l-5-5" />
+    </svg>
+  );
+}
+function DownloadIcon({ size = 12 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <path d="M7 10l5 5 5-5M12 15V3" />
+    </svg>
+  );
+}
+function EyeIcon({ size = 12 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
     </svg>
   );
 }
