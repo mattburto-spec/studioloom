@@ -1,34 +1,52 @@
 "use client";
 
 /**
- * FabQueueClient — Phase 8.1d-20 redesign.
+ * CategoryDashboard — Phase 8.1d-23 layout rebuild.
  *
- * Replaces the pre-20 tab-based "Ready / In progress" list with a
- * three-surface dashboard:
+ * Per-category fabricator page (3D printing OR laser cutting).
+ * Mounted by /fab/queue/printer and /fab/queue/laser. Renamed
+ * conceptually from FabQueueClient — kept the filename for git
+ * history continuity.
  *
- *   1. Top header — display headline ("Queue. N ready, M running.")
- *      + action buttons (refresh, manual job).
- *   2. Now Running strip — one cell per machine the teacher owns.
- *      Shows current pickup + Mark Printed / Mark Failed buttons,
- *      or "Idle · Start next" if nothing's running on it.
- *   3. Machine lanes — 4-up grid (responsive), ready jobs grouped
- *      by their actual machine. Per-machine accent colour (laser
- *      orange / printer teal / vinyl pink / cnc purple) lights up
- *      the lane top-border.
- *   4. Done Today strip — completed jobs since UTC midnight, with
- *      Notify-student affordance for collection.
+ * Layout (matches Matt's spatial spec, not the design canvas's
+ * artboard A which we built in 8.1d-20 + had to rebuild):
  *
- * Filter + sort UI from 8.1d-15 carries over, scoped to the lanes.
- * Bulk actions deferred to the per-cell Mark buttons (no checkbox
- * column on the dashboard — the design's signature was 1-click
- * actions on the running cell). PH9-FU-FAB-SMART-BATCH for the
- * suggested-batch banner from the design's artboard B.
+ *   ┌─ Top nav: brand + category switcher + sign-out ────────────┐
+ *   │                                                              │
+ *   ├─ Header: display headline ("3D Printing. N incoming, M run") │
+ *   │                                                              │
+ *   ├─ Incoming row (horizontal scroll) ─────────────────────────┐ │
+ *   │   approved + machine_profile_id IS NULL jobs in this        │ │
+ *   │   category. Cards: thumbnail + student + class + filename   │ │
+ *   │   + Send-to → menu of compatible machines.                  │ │
+ *   ├─────────────────────────────────────────────────────────────┘ │
+ *   │                                                                │
+ *   └─ Machine columns (grid, one per machine in this category) ──┐ │
+ *       Per column:                                                 │ │
+ *         - Header (machine name + status + queue count)            │ │
+ *         - NOW RUNNING block (picked_up by anyone) — Mark P/F here │ │
+ *         - QUEUE list (approved + assigned to this machine, not    │ │
+ *                       yet started) — each card has Start button   │ │
+ *                       (= download + flip to picked_up)            │ │
+ *         - Drop zone (visual hint; drag-and-drop = future polish)  │ │
+ *       ─────────────────────────────────────────────────────────────┘
+ *
+ * "Done today" deliberately removed from this view — it conflicts
+ * with the active-triage mental model. Filed
+ * PH9-FU-FAB-COLLECTION-VIEW for a separate page when teachers /
+ * students want a collection-readiness surface.
+ *
+ * Job lifecycle from fab's POV:
+ *   approved + machine null    → INCOMING ROW
+ *   approved + machine bound   → COLUMN QUEUE for that machine
+ *   picked_up                  → COLUMN NOW RUNNING for that machine
+ *   completed                  → leaves the dashboard (logged elsewhere)
  *
  * Data flow: 3 parallel fetches on mount (ready / in_progress /
- * done_today via the new 8.1d-20 tab). Each refresh re-fires all
- * three; pickup / complete / fail mutations re-fetch the affected
- * surfaces only. Optimistic UI on Mark Printed / Failed so the
- * "running" cell flips to the done strip without a full spinner.
+ * machines). No done_today fetch on this surface. Each mutation
+ * (assign / start / mark printed / mark failed) re-fetches all
+ * three. PH9-FU-FAB-DRAG-ASSIGN will replace the Send-to menu UI
+ * with framer-motion drag but call the same API.
  */
 
 import * as React from "react";
@@ -38,17 +56,17 @@ import {
   formatRelativeTime,
   formatDateTime,
 } from "@/components/fabrication/revision-history-helpers";
-import {
-  formatFileSize,
-  machineCategoryLabel,
-} from "@/components/fabrication/fab-queue-helpers";
+import { formatFileSize } from "@/components/fabrication/fab-queue-helpers";
 import {
   colorForClassName,
   colorTintForClassName,
 } from "@/components/fabrication/class-color";
 import styles from "./fab-queue.module.css";
 
+type Category = "3d_printer" | "laser_cutter";
+
 interface Props {
+  category: Category;
   fabricatorName: string;
   fabricatorInitials: string;
 }
@@ -61,62 +79,48 @@ type LoadState =
 interface DashboardData {
   ready: FabJobRow[];
   inProgress: FabJobRow[];
-  doneToday: FabJobRow[];
 }
 
-const EMPTY_DATA: DashboardData = {
-  ready: [],
-  inProgress: [],
-  doneToday: [],
-};
+const EMPTY_DATA: DashboardData = { ready: [], inProgress: [] };
 
-export default function FabQueueClient({
+interface FabMachineOption {
+  id: string;
+  name: string;
+  lab_id: string | null;
+  lab_name: string | null;
+  machine_category: Category | null;
+}
+
+export default function CategoryDashboard({
+  category,
   fabricatorName,
   fabricatorInitials,
 }: Props) {
   const [state, setState] = React.useState<LoadState>({ kind: "loading" });
   const [data, setData] = React.useState<DashboardData>(EMPTY_DATA);
-
-  // Per-action in-flight tracking. Keyed by jobId so we can disable
-  // the right buttons + show per-row spinners without a global lock
-  // (lab tech can mark machine A printed AND machine B failed in
-  // parallel; one action shouldn't freeze the other).
-  const [inFlight, setInFlight] = React.useState<
-    Record<string, "complete" | "fail" | "pickup" | "assign" | undefined>
-  >({});
-
-  // Phase 8.1d-22: machines list for the Send-to menu. Fetched
-  // alongside the queue tabs on every refresh so freshly-added
-  // machines show up without a page reload.
   const [machines, setMachines] = React.useState<FabMachineOption[]>([]);
+
+  const [inFlight, setInFlight] = React.useState<
+    Record<string, "complete" | "fail" | "start" | "assign" | undefined>
+  >({});
 
   const fetchAll = React.useCallback(async () => {
     setState({ kind: "loading" });
     try {
-      const [r, ip, dt, machinesResult] = await Promise.all([
+      const [r, ip, m] = await Promise.all([
         fetchTab("ready"),
         fetchTab("in_progress"),
-        fetchTab("done_today"),
         fetchMachines(),
       ]);
-      // If any one tab errored, surface the first message but keep
-      // the others' data — the lab tech still wants what we have.
-      const firstError = [r, ip, dt].find((x) => "error" in x) as
+      const firstError = [r, ip, m].find((x) => "error" in x) as
         | { error: string }
         | undefined;
       setData({
         ready: "jobs" in r ? r.jobs : [],
         inProgress: "jobs" in ip ? ip.jobs : [],
-        doneToday: "jobs" in dt ? dt.jobs : [],
       });
-      if ("machines" in machinesResult) {
-        setMachines(machinesResult.machines);
-      }
-      if (firstError) {
-        setState({ kind: "error", message: firstError.error });
-      } else {
-        setState({ kind: "ready" });
-      }
+      if ("machines" in m) setMachines(m.machines);
+      setState(firstError ? { kind: "error", message: firstError.error } : { kind: "ready" });
     } catch (e) {
       setState({
         kind: "error",
@@ -129,14 +133,29 @@ export default function FabQueueClient({
     void fetchAll();
   }, [fetchAll]);
 
-  // === Mutations ===
-  // Pickup is the existing /api/fab/jobs/:id/download endpoint
-  // (used by the green "Pick up" button — downloads the file +
-  // transitions to picked_up). Linking to it triggers the browser's
-  // native download which is the same shape the LabTechActionBar
-  // already uses.
+  // Mutations =============================================
+  async function assignToMachine(jobId: string, machineProfileId: string) {
+    setInFlight((p) => ({ ...p, [jobId]: "assign" }));
+    try {
+      const res = await fetch(`/api/fab/jobs/${jobId}/assign-machine`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ machineProfileId }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "" }));
+        alertUser(body.error || `Couldn't assign machine (HTTP ${res.status})`);
+      }
+    } catch (e) {
+      alertUser(e instanceof Error ? e.message : "Network error");
+    } finally {
+      setInFlight((p) => ({ ...p, [jobId]: undefined }));
+      await fetchAll();
+    }
+  }
 
-  async function markComplete(jobId: string, machineCategory: FabJobRow["machineCategory"]) {
+  async function markComplete(jobId: string) {
     setInFlight((p) => ({ ...p, [jobId]: "complete" }));
     try {
       const res = await fetch(`/api/fab/jobs/${jobId}/complete`, {
@@ -152,43 +171,12 @@ export default function FabQueueClient({
     } catch (e) {
       alertUser(e instanceof Error ? e.message : "Network error");
     } finally {
-      // Suppress unused-var lint — accepted but not used yet (the
-      // action bar's bigger sheet uses category to derive printed/
-      // cut copy; here we're trusting the orchestration to derive).
-      void machineCategory;
-      setInFlight((p) => ({ ...p, [jobId]: undefined }));
-      await fetchAll();
-    }
-  }
-
-  async function assignToMachine(jobId: string, machineProfileId: string) {
-    setInFlight((p) => ({ ...p, [jobId]: "assign" }));
-    try {
-      const res = await fetch(`/api/fab/jobs/${jobId}/assign-machine`, {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ machineProfileId }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({ error: "" }));
-        alertUser(
-          body.error || `Couldn't assign machine (HTTP ${res.status})`
-        );
-      }
-    } catch (e) {
-      alertUser(e instanceof Error ? e.message : "Network error");
-    } finally {
       setInFlight((p) => ({ ...p, [jobId]: undefined }));
       await fetchAll();
     }
   }
 
   async function markFailed(jobId: string) {
-    // Phase 8.1d-20 keeps it simple — the design's failure-reason
-    // sheet is filed as PH9-FU-FAB-FAILURE-SHEET. For now a minimal
-    // window.prompt covers the v1 case and the orchestration
-    // already requires a non-empty note.
     const note =
       typeof window !== "undefined"
         ? window.prompt(
@@ -216,124 +204,44 @@ export default function FabQueueClient({
     }
   }
 
-  // Phase 8.1d-22: lane derivation now produces TWO kinds of lanes:
-  //   1. Per-specific-machine lanes (existing) — built from jobs
-  //      whose machineLabel is set.
-  //   2. "Any [category] in [lab]" pseudo-lanes (new) — built from
-  //      jobs with machineLabel === null AND machineProfileId === null,
-  //      one pseudo-lane per (labId, category) pair.
-  // Both render through MachineLane; the unassigned variant surfaces
-  // a Send-to menu instead of the usual Pick up button.
-  //
-  // Specific-machine lanes ALSO derived from the machines list so
-  // a freshly-added machine with no jobs yet still shows up as an
-  // empty queue — lab tech can already see "I have a P1S" without
-  // waiting for the first submission.
-  const lanes = React.useMemo<MachineSummary[]>(() => {
-    const seen = new Map<string, MachineSummary>();
+  // Filter to this category =============================
+  const categoryMachines = React.useMemo(
+    () => machines.filter((m) => m.machine_category === category),
+    [machines, category]
+  );
+  const categoryReady = React.useMemo(
+    () => data.ready.filter((j) => j.machineCategory === category),
+    [data.ready, category]
+  );
+  const categoryInProgress = React.useMemo(
+    () => data.inProgress.filter((j) => j.machineCategory === category),
+    [data.inProgress, category]
+  );
 
-    // From the machines endpoint: every active machine the teacher
-    // owns gets a lane (even if currently empty).
-    for (const m of machines) {
-      const key = `M:${m.id}`;
-      if (!seen.has(key)) {
-        seen.set(key, {
-          key,
-          label: m.name,
-          category: m.machine_category,
-          labId: m.lab_id,
-          labName: m.lab_name,
-          isUnassigned: false,
-        });
-      }
-    }
-
-    // From the jobs: also surface any machine that appears in jobs
-    // but isn't in the machines list (defensive — soft-deleted but
-    // still has running jobs, etc.). And derive the unassigned
-    // pseudo-lanes from category-only jobs.
-    for (const j of [...data.ready, ...data.inProgress, ...data.doneToday]) {
-      if (j.machineProfileId && j.machineLabel) {
-        const key = `M:${j.machineProfileId}`;
-        if (!seen.has(key)) {
-          seen.set(key, {
-            key,
-            label: j.machineLabel,
-            category: j.machineCategory,
-            labId: j.labId,
-            labName: j.labName,
-            isUnassigned: false,
-          });
-        }
-      } else if (!j.machineProfileId && j.machineCategory && j.labId) {
-        // Unassigned: bucket by (labId, category).
-        const key = `U:${j.labId}|${j.machineCategory}`;
-        if (!seen.has(key)) {
-          const labLabel = j.labName ?? "this lab";
-          const catLabel =
-            j.machineCategory === "3d_printer" ? "3D printer" : "Laser cutter";
-          seen.set(key, {
-            key,
-            label: `Any ${catLabel.toLowerCase()} in ${labLabel}`,
-            category: j.machineCategory,
-            labId: j.labId,
-            labName: j.labName,
-            isUnassigned: true,
-          });
-        }
-      }
-    }
-    return Array.from(seen.values()).sort((a, b) => {
-      // Group by category first, then unassigned-first within each
-      // category (those need attention), then alphabetical by label.
-      const ra = categoryRank(a.category);
-      const rb = categoryRank(b.category);
-      if (ra !== rb) return ra - rb;
-      if (a.isUnassigned !== b.isUnassigned) {
-        return a.isUnassigned ? -1 : 1;
-      }
-      return a.label.localeCompare(b.label);
-    });
-  }, [data, machines]);
+  // Incoming = approved + unassigned in this category.
+  const incomingJobs = React.useMemo(
+    () => categoryReady.filter((j) => j.machineProfileId === null),
+    [categoryReady]
+  );
 
   return (
     <div className={styles.fabRoot}>
-      <FabTopNav fabricatorName={fabricatorName} initials={fabricatorInitials} />
+      <FabTopNav
+        category={category}
+        fabricatorName={fabricatorName}
+        initials={fabricatorInitials}
+      />
 
       <main className="px-6 py-6 space-y-5 max-w-[1600px] mx-auto">
-        {/* Header — display headline + actions */}
-        <header className="flex items-end justify-between gap-3 flex-wrap">
-          <div>
-            <div className={`${styles.cap} mb-1.5`} style={{ color: "var(--ink-3)" }}>
-              {formatHeaderDate()}
-            </div>
-            <h1
-              className={`${styles.displayXl} text-[36px] sm:text-[44px] leading-[0.95]`}
-            >
-              Queue.{" "}
-              <span className={styles.serifEm} style={{ color: "var(--accent)" }}>
-                {data.ready.length}
-              </span>{" "}
-              ready,
-              <br />
-              <span style={{ color: "var(--ink-2)" }}>
-                {data.inProgress.length} currently running.
-              </span>
-            </h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={fetchAll}
-              disabled={state.kind === "loading"}
-              className={`${styles.btnSecondary} rounded-full px-4 py-2 text-[12px] inline-flex items-center gap-1.5`}
-            >
-              <RefreshIcon size={12} /> {state.kind === "loading" ? "Refreshing…" : "Refresh"}
-            </button>
-          </div>
-        </header>
+        <DashboardHeader
+          category={category}
+          incomingCount={incomingJobs.length}
+          runningCount={categoryInProgress.length}
+          machineCount={categoryMachines.length}
+          state={state}
+          onRefresh={fetchAll}
+        />
 
-        {/* Surface error inline — don't block the dashboard. */}
         {state.kind === "error" && (
           <div
             className="rounded-xl px-4 py-3 text-[12px]"
@@ -347,77 +255,746 @@ export default function FabQueueClient({
           </div>
         )}
 
-        {/* Now Running strip — only specific-machine lanes can have a
-            "running" job (unassigned jobs by definition aren't on a
-            machine yet). */}
-        <NowRunningStrip
-          lanes={lanes.filter((l) => !l.isUnassigned)}
-          inProgress={data.inProgress}
+        <IncomingRow
+          jobs={incomingJobs}
+          machines={categoryMachines}
           inFlight={inFlight}
-          onComplete={markComplete}
-          onFailed={markFailed}
+          onAssign={assignToMachine}
         />
 
-        {/* Machine lanes — includes "Any [category] in [lab]"
-            pseudo-lanes for unassigned jobs. */}
-        {lanes.length === 0 ? (
-          <EmptyDashboard loading={state.kind === "loading"} />
+        {categoryMachines.length === 0 ? (
+          <EmptyMachinesState
+            category={category}
+            loading={state.kind === "loading"}
+          />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-            {lanes.map((lane) => (
-              <MachineLane
-                key={lane.key}
-                lane={lane}
-                readyJobs={filterJobsForLane(data.ready, lane)}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            {categoryMachines.map((m) => (
+              <MachineColumn
+                key={m.id}
+                machine={m}
                 runningJob={
-                  lane.isUnassigned
-                    ? null
-                    : filterJobsForLane(data.inProgress, lane)[0] ?? null
+                  categoryInProgress.find(
+                    (j) => j.machineProfileId === m.id
+                  ) ?? null
                 }
-                machines={machines}
+                queuedJobs={categoryReady.filter(
+                  (j) => j.machineProfileId === m.id
+                )}
                 inFlight={inFlight}
-                onAssign={assignToMachine}
+                onComplete={markComplete}
+                onFailed={markFailed}
               />
             ))}
           </div>
         )}
-
-        {/* Done today */}
-        {data.doneToday.length > 0 && <DoneTodayStrip jobs={data.doneToday} />}
       </main>
     </div>
   );
 }
 
 // ============================================================
-// Helpers
+// Header
 // ============================================================
 
-/** Phase 8.1d-22: a lane in the dashboard is either:
- *   - a specific machine (machineProfileId set on its jobs), OR
- *   - a "Any [category] in [lab]" pseudo-machine for unassigned jobs
- * The two render with the same shell but different headers + card
- * actions (Send-to menu vs Pick up). MachineSummary is the union. */
-interface MachineSummary {
-  /** Stable key for React keys + machine bucket. */
-  key: string;
-  /** Display name — machine label OR "Any 3D printer in Lab Name". */
-  label: string;
-  category: FabJobRow["machineCategory"];
-  labId: string | null;
-  labName: string | null;
-  /** When set, this lane is for category-only jobs in this lab —
-   *  cards show Send-to instead of Pick up. */
-  isUnassigned: boolean;
+function DashboardHeader({
+  category,
+  incomingCount,
+  runningCount,
+  machineCount,
+  state,
+  onRefresh,
+}: {
+  category: Category;
+  incomingCount: number;
+  runningCount: number;
+  machineCount: number;
+  state: LoadState;
+  onRefresh: () => void;
+}) {
+  const headline =
+    category === "3d_printer" ? "3D printing." : "Laser cutting.";
+  const accent = categoryAccentVar(category);
+  return (
+    <header className="flex items-end justify-between gap-3 flex-wrap">
+      <div>
+        <div className={`${styles.cap} mb-1.5`} style={{ color: "var(--ink-3)" }}>
+          {formatHeaderDate()}
+        </div>
+        <h1
+          className={`${styles.displayXl} text-[36px] sm:text-[44px] leading-[0.95]`}
+        >
+          {headline}{" "}
+          <span className={styles.serifEm} style={{ color: accent }}>
+            {incomingCount}
+          </span>{" "}
+          incoming,
+          <br />
+          <span style={{ color: "var(--ink-2)" }}>
+            {runningCount} running on {machineCount} machine
+            {machineCount === 1 ? "" : "s"}.
+          </span>
+        </h1>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={state.kind === "loading"}
+          className={`${styles.btnSecondary} rounded-full px-4 py-2 text-[12px] inline-flex items-center gap-1.5`}
+        >
+          <RefreshIcon size={12} /> {state.kind === "loading" ? "Refreshing…" : "Refresh"}
+        </button>
+      </div>
+    </header>
+  );
 }
 
-interface FabMachineOption {
-  id: string;
-  name: string;
-  lab_id: string | null;
-  lab_name: string | null;
-  machine_category: "3d_printer" | "laser_cutter" | null;
+// ============================================================
+// Top nav with category switcher
+// ============================================================
+
+function FabTopNav({
+  category,
+  fabricatorName,
+  initials,
+}: {
+  category: Category;
+  fabricatorName: string;
+  initials: string;
+}) {
+  const otherCategoryHref =
+    category === "3d_printer" ? "/fab/queue/laser" : "/fab/queue/printer";
+  const otherCategoryLabel =
+    category === "3d_printer" ? "Laser cutting" : "3D printing";
+  return (
+    <header
+      style={{ background: "var(--surface)", borderBottom: "1px solid var(--hair)" }}
+    >
+      <div className="px-6 h-14 flex items-center gap-6">
+        <div className="flex items-center gap-2.5">
+          <div
+            className={`${styles.display} w-8 h-8 rounded-xl flex items-center justify-center text-[14px]`}
+            style={{ background: "var(--accent)", color: "var(--bg)" }}
+          >
+            #
+          </div>
+          <div className={`${styles.display} text-[15px] leading-none`}>StudioLoom</div>
+          <div className="text-[11.5px] font-bold" style={{ color: "var(--ink-3)" }}>
+            / Fab
+          </div>
+        </div>
+        <nav className="flex items-center gap-1">
+          {/* Phase 8.1d-23: explicit category tabs in the nav.
+              Active route = current category, inactive = the other.
+              One click switches. Future categories add more tabs. */}
+          <CategoryTab
+            href="/fab/queue/printer"
+            label="3D Printing"
+            isActive={category === "3d_printer"}
+          />
+          <CategoryTab
+            href="/fab/queue/laser"
+            label="Laser cutting"
+            isActive={category === "laser_cutter"}
+          />
+        </nav>
+        <div className="flex-1" />
+        <Link
+          href={otherCategoryHref}
+          className={`${styles.btnSecondary} rounded-full px-3 py-1.5 text-[11.5px] hidden md:inline-flex items-center gap-1`}
+        >
+          ← Switch to {otherCategoryLabel.toLowerCase()}
+        </Link>
+        <div className="hidden sm:flex items-center gap-2">
+          <span className="text-[11.5px]" style={{ color: "var(--ink-2)" }}>
+            {fabricatorName}
+          </span>
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center font-extrabold text-[10.5px]"
+            style={{ background: "var(--accent)", color: "var(--bg)" }}
+          >
+            {initials}
+          </div>
+        </div>
+        <form action="/api/fab/logout" method="post">
+          <button
+            type="submit"
+            className={`${styles.btnSecondary} rounded-lg px-3 py-1.5 text-[11.5px]`}
+          >
+            Sign out
+          </button>
+        </form>
+      </div>
+    </header>
+  );
 }
+
+function CategoryTab({
+  href,
+  label,
+  isActive,
+}: {
+  href: string;
+  label: string;
+  isActive: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className="px-3 py-1.5 rounded-full text-[12px] font-extrabold transition"
+      style={
+        isActive
+          ? { background: "var(--ink)", color: "var(--bg)" }
+          : { color: "var(--ink-2)" }
+      }
+    >
+      {label}
+    </Link>
+  );
+}
+
+// ============================================================
+// Incoming row
+// ============================================================
+
+function IncomingRow({
+  jobs,
+  machines,
+  inFlight,
+  onAssign,
+}: {
+  jobs: FabJobRow[];
+  machines: FabMachineOption[];
+  inFlight: Record<string, "complete" | "fail" | "start" | "assign" | undefined>;
+  onAssign: (jobId: string, machineProfileId: string) => void;
+}) {
+  if (jobs.length === 0) {
+    return (
+      <div
+        className="rounded-2xl px-5 py-6 text-center"
+        style={{
+          border: "1px dashed var(--hair-2)",
+          background: "var(--surface-2)",
+        }}
+      >
+        <div className={`${styles.cap}`} style={{ color: "var(--ink-3)" }}>
+          Incoming
+        </div>
+        <div className="mt-2 text-[13px]" style={{ color: "var(--ink-2)" }}>
+          Nothing waiting to be assigned. New approvals show up here.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.card}>
+      <div
+        className="px-5 py-3 flex items-center justify-between"
+        style={{ borderBottom: "1px solid var(--hair)" }}
+      >
+        <div className="flex items-center gap-3">
+          <div className={styles.cap} style={{ color: "var(--ink-3)" }}>
+            Incoming
+          </div>
+          <div className="text-[12px] font-semibold" style={{ color: "var(--ink-2)" }}>
+            {jobs.length} job{jobs.length === 1 ? "" : "s"} waiting to be assigned
+          </div>
+        </div>
+        <div className="text-[10.5px]" style={{ color: "var(--ink-3)" }}>
+          Click <strong>Send to →</strong> to route a job to a machine.
+        </div>
+      </div>
+      {/* Horizontal scrolling row. overflow-x-auto + flex children keep
+           the cards in line; lab tech wheel-scrolls or shift-scrolls. */}
+      <div
+        className="px-3 py-3 overflow-x-auto"
+        style={{ scrollbarWidth: "thin" }}
+      >
+        <div className="flex gap-3 min-w-min">
+          {jobs.map((job) => (
+            <IncomingCard
+              key={job.jobId}
+              job={job}
+              machines={machines}
+              busy={inFlight[job.jobId]}
+              onAssign={onAssign}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function IncomingCard({
+  job,
+  machines,
+  busy,
+  onAssign,
+}: {
+  job: FabJobRow;
+  machines: FabMachineOption[];
+  busy: "complete" | "fail" | "start" | "assign" | undefined;
+  onAssign: (jobId: string, machineProfileId: string) => void;
+}) {
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const menuRef = React.useRef<HTMLDivElement | null>(null);
+  React.useEffect(() => {
+    if (!menuOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [menuOpen]);
+
+  // Send-to menu only lists machines in the same lab as the job.
+  const candidates = React.useMemo(
+    () =>
+      machines.filter(
+        (m) => m.lab_id === job.labId && m.machine_category === job.machineCategory
+      ),
+    [machines, job.labId, job.machineCategory]
+  );
+
+  const accent = categoryAccentVar(job.machineCategory);
+
+  return (
+    <div
+      ref={menuRef}
+      className={`${styles.card2} relative shrink-0`}
+      style={{ width: 240 }}
+    >
+      <div className="p-3">
+        <div className="flex gap-2.5">
+          <div
+            className="w-12 h-12 rounded shrink-0 p-1"
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--hair)",
+            }}
+          >
+            {job.thumbnailUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={job.thumbnailUrl}
+                alt=""
+                className="w-full h-full object-contain"
+              />
+            ) : (
+              <div className="w-full h-full" style={{ background: "var(--surface-3)" }} />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <div className="text-[12px] font-extrabold truncate">
+                {job.studentName}
+              </div>
+              <ClassChip name={job.className} small />
+            </div>
+            <div
+              className={`${styles.mono} text-[10px] truncate`}
+              style={{ color: "var(--ink-2)" }}
+            >
+              {job.originalFilename}
+            </div>
+            <div
+              className="flex items-center gap-1 mt-1.5 text-[10px]"
+              style={{ color: "var(--ink-3)" }}
+            >
+              <FileTypeChip fileType={job.fileType} />
+              <span>·</span>
+              <span className={styles.mono}>{formatFileSize(job.fileSizeBytes)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-2 text-[10px]" style={{ color: "var(--ink-3)" }}>
+          {job.labName ?? "—"} ·{" "}
+          <span title={formatDateTime(job.createdAt)}>
+            {formatRelativeTime(job.createdAt)}
+          </span>
+        </div>
+
+        {job.teacherReviewNote && (
+          <div
+            className="mt-2 rounded p-1.5 text-[10px]"
+            style={{
+              background: "rgba(245,158,11,0.08)",
+              border: "1px solid rgba(245,158,11,0.2)",
+              color: "var(--ink-2)",
+              lineHeight: 1.35,
+            }}
+          >
+            <span className="font-extrabold" style={{ color: "var(--warn)" }}>
+              Note:{" "}
+            </span>
+            {job.teacherReviewNote}
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setMenuOpen((v) => !v)}
+          disabled={busy !== undefined || candidates.length === 0}
+          className={`${styles.btnPrimary} mt-2.5 rounded-md w-full px-3 py-1.5 text-[11px] inline-flex items-center justify-center gap-1.5 disabled:opacity-50`}
+          style={{ background: accent, color: "#0B0C0E" }}
+        >
+          {busy === "assign"
+            ? "Assigning…"
+            : candidates.length === 0
+              ? "No machines available"
+              : "Send to →"}
+        </button>
+
+        {menuOpen && candidates.length > 0 && (
+          <div
+            role="menu"
+            className="absolute top-full left-0 right-0 mt-1 z-30 rounded-lg overflow-hidden"
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--hair-2)",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+            }}
+          >
+            {candidates.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onAssign(job.jobId, m.id);
+                }}
+                className="block w-full text-left px-3 py-2 text-[12px] font-semibold hover:bg-[var(--surface-2)] transition"
+                style={{ color: "var(--ink)" }}
+              >
+                {m.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Machine column
+// ============================================================
+
+function MachineColumn({
+  machine,
+  runningJob,
+  queuedJobs,
+  inFlight,
+  onComplete,
+  onFailed,
+}: {
+  machine: FabMachineOption;
+  runningJob: FabJobRow | null;
+  queuedJobs: FabJobRow[];
+  inFlight: Record<string, "complete" | "fail" | "start" | "assign" | undefined>;
+  onComplete: (jobId: string) => void;
+  onFailed: (jobId: string) => void;
+}) {
+  const accent = categoryAccentVar(machine.machine_category);
+  return (
+    <div
+      className={`${styles.card} flex flex-col`}
+      style={{ minHeight: 540 }}
+    >
+      {/* Header */}
+      <div
+        className="px-4 py-4 flex items-center gap-3"
+        style={{
+          borderTop: `3px solid ${accent}`,
+          borderTopLeftRadius: 16,
+          borderTopRightRadius: 16,
+          borderBottom: "1px solid var(--hair)",
+        }}
+      >
+        <div
+          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+          style={{
+            background: `color-mix(in srgb, ${accent} 13%, transparent)`,
+            color: accent,
+          }}
+        >
+          <CategoryIcon category={machine.machine_category} size={20} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[17px] font-extrabold leading-tight truncate">
+            {machine.name}
+          </div>
+          <div
+            className="text-[11px] font-semibold mt-0.5"
+            style={{ color: "var(--ink-3)" }}
+          >
+            {runningJob ? "Running" : "Idle"}
+            {machine.lab_name ? ` · ${machine.lab_name}` : ""}
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          <div
+            className={`${styles.display} ${styles.tnum} text-[24px] leading-none`}
+            style={{ color: accent }}
+          >
+            {queuedJobs.length}
+          </div>
+          <div
+            className={styles.cap}
+            style={{ color: "var(--ink-3)", fontSize: 9, marginTop: 2 }}
+          >
+            queued
+          </div>
+        </div>
+      </div>
+
+      {/* Now Running block */}
+      {runningJob && (
+        <RunningBlock
+          job={runningJob}
+          accent={accent}
+          busy={inFlight[runningJob.jobId]}
+          onComplete={onComplete}
+          onFailed={onFailed}
+        />
+      )}
+
+      {/* Queue */}
+      <div className="p-3 space-y-2 flex-1">
+        {queuedJobs.length === 0 ? (
+          <div
+            className="rounded-lg p-6 text-center text-[11px]"
+            style={{
+              border: "1px dashed var(--hair)",
+              color: "var(--ink-3)",
+              background: "var(--surface-2)",
+            }}
+          >
+            Drop a job here
+            <div className="mt-1 text-[10px]" style={{ color: "var(--ink-3)" }}>
+              (or use Send to → on an incoming card)
+            </div>
+          </div>
+        ) : (
+          queuedJobs.map((j) => (
+            <QueuedJobCard
+              key={j.jobId}
+              job={j}
+              accent={accent}
+              busy={inFlight[j.jobId]}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RunningBlock({
+  job,
+  accent,
+  busy,
+  onComplete,
+  onFailed,
+}: {
+  job: FabJobRow;
+  accent: string;
+  busy: "complete" | "fail" | "start" | "assign" | undefined;
+  onComplete: (jobId: string) => void;
+  onFailed: (jobId: string) => void;
+}) {
+  const elapsed = job.pickedUpAt ? formatRelativeTime(job.pickedUpAt) : null;
+  return (
+    <div
+      className="px-3 py-3"
+      style={{
+        background: `color-mix(in srgb, ${accent} 6%, transparent)`,
+        borderBottom: "1px solid var(--hair)",
+      }}
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <div className={styles.pulse} style={{ color: accent }} />
+        <div
+          className={styles.cap}
+          style={{ color: accent, letterSpacing: "0.1em", fontSize: 9.5 }}
+        >
+          Now running
+        </div>
+        <span className="text-[10px] ml-auto" style={{ color: "var(--ink-3)" }}>
+          {elapsed ? `${elapsed}` : ""}
+        </span>
+      </div>
+      <div className="flex items-center gap-2 mb-2">
+        <div
+          className="w-9 h-9 rounded shrink-0 p-0.5"
+          style={{
+            background: "var(--surface-2)",
+            border: "1px solid var(--hair)",
+          }}
+        >
+          {job.thumbnailUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={job.thumbnailUrl} alt="" className="w-full h-full object-contain" />
+          ) : (
+            <div className="w-full h-full" style={{ background: "var(--surface-3)" }} />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <div className="text-[12px] font-extrabold truncate">
+              {job.studentName}
+            </div>
+            <ClassChip name={job.className} small />
+          </div>
+          <div
+            className={`${styles.mono} text-[10px] truncate`}
+            style={{ color: "var(--ink-3)" }}
+          >
+            {job.originalFilename}
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        <button
+          type="button"
+          disabled={busy !== undefined}
+          onClick={() => onComplete(job.jobId)}
+          className={`${styles.btnOk} rounded-md py-1.5 text-[11px] inline-flex items-center justify-center gap-1.5`}
+        >
+          <CheckIcon size={11} /> {busy === "complete" ? "Saving…" : "Printed"}
+        </button>
+        <button
+          type="button"
+          disabled={busy !== undefined}
+          onClick={() => onFailed(job.jobId)}
+          className={`${styles.btnBad} rounded-md py-1.5 text-[11px] inline-flex items-center justify-center gap-1.5`}
+        >
+          <XIcon size={11} /> {busy === "fail" ? "Saving…" : "Failed"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function QueuedJobCard({
+  job,
+  accent,
+  busy,
+}: {
+  job: FabJobRow;
+  accent: string;
+  busy: "complete" | "fail" | "start" | "assign" | undefined;
+}) {
+  return (
+    <div
+      className={`${styles.card2}`}
+      style={{ overflow: "hidden" }}
+    >
+      <div className="p-2.5">
+        <div className="flex gap-2">
+          <div
+            className="w-10 h-10 rounded shrink-0 p-0.5 relative"
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--hair)",
+            }}
+          >
+            {job.thumbnailUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={job.thumbnailUrl}
+                alt=""
+                className="w-full h-full object-contain"
+              />
+            ) : (
+              <div className="w-full h-full" style={{ background: "var(--surface-3)" }} />
+            )}
+            <div
+              className={`${styles.mono} absolute -bottom-1 -right-1 px-0.5 rounded text-[8.5px] font-extrabold`}
+              style={{ background: accent, color: "#0B0C0E" }}
+            >
+              r{job.currentRevision}
+            </div>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1 mb-0.5">
+              <div className="text-[11.5px] font-extrabold truncate">
+                {job.studentName}
+              </div>
+              <ClassChip name={job.className} small />
+            </div>
+            <div
+              className={`${styles.mono} text-[10px] truncate`}
+              style={{ color: "var(--ink-3)" }}
+            >
+              {job.originalFilename}
+            </div>
+          </div>
+        </div>
+        <a
+          href={`/api/fab/jobs/${job.jobId}/download`}
+          aria-disabled={busy !== undefined}
+          className={`${styles.btnPrimary} mt-2 rounded-md w-full px-2.5 py-1.5 text-[11px] inline-flex items-center justify-center gap-1.5 ${
+            busy !== undefined ? "opacity-50 pointer-events-none" : ""
+          }`}
+        >
+          <PlayIcon size={9} /> Start
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Empty state
+// ============================================================
+
+function EmptyMachinesState({
+  category,
+  loading,
+}: {
+  category: Category;
+  loading: boolean;
+}) {
+  const label =
+    category === "3d_printer" ? "3D printers" : "laser cutters";
+  return (
+    <div
+      className="rounded-2xl p-12 text-center"
+      style={{
+        border: "1px dashed var(--hair-2)",
+        background: "var(--surface-2)",
+      }}
+    >
+      <div
+        className="text-[14px] font-extrabold mb-1"
+        style={{ color: "var(--ink-2)" }}
+      >
+        {loading
+          ? "Loading machines…"
+          : `No ${label} in your inviting teacher's labs.`}
+      </div>
+      <div className="text-[12px]" style={{ color: "var(--ink-3)" }}>
+        {loading
+          ? "Fetching from your inviting teacher's lab setup."
+          : `Ask the teacher to add a ${
+              category === "3d_printer" ? "3D printer" : "laser cutter"
+            } via the Lab Setup page.`}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Helpers + atoms
+// ============================================================
 
 interface FetchTabSuccess {
   jobs: FabJobRow[];
@@ -427,7 +1004,7 @@ interface FetchTabError {
 }
 
 async function fetchTab(
-  tab: "ready" | "in_progress" | "done_today"
+  tab: "ready" | "in_progress"
 ): Promise<FetchTabSuccess | FetchTabError> {
   try {
     const res = await fetch(`/api/fab/queue?tab=${tab}`, {
@@ -460,42 +1037,7 @@ async function fetchMachines(): Promise<
   }
 }
 
-/** Phase 8.1d-22: pick the jobs that belong in a given lane.
- *  - Specific-machine lane: jobs whose machineProfileId matches the
- *    machine label + category combo. We key on machineLabel because
- *    legacy rows that pre-date the machineProfileId-on-row exposure
- *    still carry the label correctly via the orchestration build.
- *  - Unassigned lane: jobs in this lab + category with no
- *    machineProfileId set. */
-function filterJobsForLane(
-  jobs: FabJobRow[],
-  lane: MachineSummary
-): FabJobRow[] {
-  if (lane.isUnassigned) {
-    return jobs.filter(
-      (j) =>
-        !j.machineProfileId &&
-        j.labId === lane.labId &&
-        j.machineCategory === lane.category
-    );
-  }
-  return jobs.filter(
-    (j) =>
-      j.machineLabel === lane.label && j.machineCategory === lane.category
-  );
-}
-
-/** Order machines by category for stable lane layout. Lower wins. */
-function categoryRank(c: FabJobRow["machineCategory"]): number {
-  if (c === "3d_printer") return 0;
-  if (c === "laser_cutter") return 1;
-  return 2;
-}
-
-/** Map machineCategory → CSS variable in the design tokens. Returns
- *  the printer accent for unknown/null so an unmapped lane still
- *  renders a tasteful colour. */
-function categoryAccentVar(c: FabJobRow["machineCategory"]): string {
+function categoryAccentVar(c: Category | null): string {
   if (c === "laser_cutter") return "var(--laser)";
   if (c === "3d_printer") return "var(--printer)";
   return "var(--ink-2)";
@@ -505,18 +1047,8 @@ function formatHeaderDate(): string {
   const d = new Date();
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const months = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
   ];
   const hh = String(d.getHours()).padStart(2, "0");
   const mm = String(d.getMinutes()).padStart(2, "0");
@@ -528,737 +1060,7 @@ function alertUser(msg: string) {
 }
 
 // ============================================================
-// Top nav
-// ============================================================
-
-function FabTopNav({
-  fabricatorName,
-  initials,
-}: {
-  fabricatorName: string;
-  initials: string;
-}) {
-  return (
-    <header style={{ background: "var(--surface)", borderBottom: "1px solid var(--hair)" }}>
-      <div className="px-6 h-14 flex items-center gap-6">
-        <div className="flex items-center gap-2.5">
-          <div
-            className={`${styles.display} w-8 h-8 rounded-xl flex items-center justify-center text-[14px]`}
-            style={{ background: "var(--accent)", color: "var(--bg)" }}
-          >
-            #
-          </div>
-          <div className={`${styles.display} text-[15px] leading-none`}>StudioLoom</div>
-          <div className="text-[11.5px] font-bold" style={{ color: "var(--ink-3)" }}>
-            / Fab
-          </div>
-        </div>
-        <nav className="flex items-center gap-1">
-          <span
-            className="px-3 py-1.5 rounded-full text-[12px] font-extrabold"
-            style={{ background: "var(--ink)", color: "var(--bg)" }}
-          >
-            Queue
-          </span>
-        </nav>
-        <div className="flex-1" />
-        <div className="hidden sm:flex items-center gap-2">
-          <span className="text-[11.5px]" style={{ color: "var(--ink-2)" }}>
-            {fabricatorName}
-          </span>
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center font-extrabold text-[10.5px]"
-            style={{ background: "var(--accent)", color: "var(--bg)" }}
-          >
-            {initials}
-          </div>
-        </div>
-        <form action="/api/fab/logout" method="post">
-          <button
-            type="submit"
-            className={`${styles.btnSecondary} rounded-lg px-3 py-1.5 text-[11.5px]`}
-          >
-            Sign out
-          </button>
-        </form>
-      </div>
-    </header>
-  );
-}
-
-// ============================================================
-// Now Running strip
-// ============================================================
-
-function NowRunningStrip({
-  lanes,
-  inProgress,
-  inFlight,
-  onComplete,
-  onFailed,
-}: {
-  lanes: MachineSummary[];
-  inProgress: FabJobRow[];
-  inFlight: Record<string, "complete" | "fail" | "pickup" | "assign" | undefined>;
-  onComplete: (jobId: string, category: FabJobRow["machineCategory"]) => void;
-  onFailed: (jobId: string) => void;
-}) {
-  if (lanes.length === 0) return null;
-  return (
-    <div className={styles.card} style={{ overflow: "hidden" }}>
-      <div
-        className="px-5 py-3 flex items-center justify-between"
-        style={{ borderBottom: "1px solid var(--hair)" }}
-      >
-        <div className="flex items-center gap-3">
-          <div className={styles.pulse} style={{ color: "var(--ok)" }} />
-          <div className={styles.cap} style={{ color: "var(--ink-3)" }}>
-            Now running
-          </div>
-          <div className="text-[12px] font-semibold" style={{ color: "var(--ink-2)" }}>
-            {inProgress.length} of {lanes.length} machine
-            {lanes.length === 1 ? "" : "s"} active ·{" "}
-            {Math.max(0, lanes.length - inProgress.length)} idle
-          </div>
-        </div>
-      </div>
-      <div
-        className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-px"
-        style={{ background: "var(--hair)" }}
-      >
-        {lanes.map((lane) => {
-          const running =
-            inProgress.find(
-              (j) =>
-                j.machineLabel === lane.label && j.machineCategory === lane.category
-            ) ?? null;
-          return (
-            <NowRunningCell
-              key={lane.key}
-              lane={lane}
-              running={running}
-              busy={running ? inFlight[running.jobId] : undefined}
-              onComplete={onComplete}
-              onFailed={onFailed}
-            />
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function NowRunningCell({
-  lane,
-  running,
-  busy,
-  onComplete,
-  onFailed,
-}: {
-  lane: MachineSummary;
-  running: FabJobRow | null;
-  busy: "complete" | "fail" | "pickup" | "assign" | undefined;
-  onComplete: (jobId: string, category: FabJobRow["machineCategory"]) => void;
-  onFailed: (jobId: string) => void;
-}) {
-  const accent = categoryAccentVar(lane.category);
-  return (
-    <div className="p-4" style={{ background: "var(--surface)" }}>
-      {/* Phase 8.1d-21: heading scale bumped from 12px to 16px so
-           the machine name reads from a standing-desk distance.
-           Icon also up from 6/12 to 8/16. The category label
-           moves to a second line — was a right-side eyebrow but
-           it competed with the name on narrow lanes. */}
-      <div className="flex items-center gap-2.5 mb-3">
-        <div
-          className="w-8 h-8 rounded-md flex items-center justify-center shrink-0"
-          style={{
-            background: `color-mix(in srgb, ${accent} 13%, transparent)`,
-            color: accent,
-          }}
-        >
-          <CategoryIcon category={lane.category} size={16} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-[15px] font-extrabold leading-tight truncate">
-            {lane.label}
-          </div>
-          <div
-            className="text-[10px] font-semibold leading-tight mt-0.5"
-            style={{ color: "var(--ink-3)" }}
-          >
-            {machineCategoryLabel(lane.category)}
-          </div>
-        </div>
-      </div>
-      {running ? (
-        <RunningBlock
-          job={running}
-          accent={accent}
-          busy={busy}
-          onComplete={onComplete}
-          onFailed={onFailed}
-        />
-      ) : (
-        <IdleBlock />
-      )}
-    </div>
-  );
-}
-
-function RunningBlock({
-  job,
-  accent,
-  busy,
-  onComplete,
-  onFailed,
-}: {
-  job: FabJobRow;
-  accent: string;
-  busy: "complete" | "fail" | "pickup" | "assign" | undefined;
-  onComplete: (jobId: string, category: FabJobRow["machineCategory"]) => void;
-  onFailed: (jobId: string) => void;
-}) {
-  const elapsedLabel = job.pickedUpAt
-    ? formatRelativeTime(job.pickedUpAt)
-    : null;
-  return (
-    <div>
-      <div className="flex items-center gap-2.5 mb-2.5">
-        <div
-          className="w-9 h-9 rounded flex-shrink-0 overflow-hidden p-0.5 relative"
-          style={{
-            background: "var(--surface-2)",
-            border: "1px solid var(--hair)",
-          }}
-        >
-          {job.thumbnailUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={job.thumbnailUrl}
-              alt=""
-              className="w-full h-full object-contain"
-            />
-          ) : (
-            <div className="w-full h-full" style={{ background: "var(--surface-3)" }} />
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <div className="text-[11px] font-extrabold truncate">
-              {job.studentName}
-            </div>
-            <ClassChip name={job.className} small />
-          </div>
-          <div
-            className={`${styles.mono} text-[10px] truncate`}
-            style={{ color: "var(--ink-3)" }}
-          >
-            {job.originalFilename}
-          </div>
-        </div>
-      </div>
-      <div className="flex items-center justify-between text-[10.5px] mb-2.5">
-        <span
-          className={`${styles.mono} font-bold`}
-          style={{ color: accent }}
-        >
-          {elapsedLabel ? `Picked up ${elapsedLabel}` : "Picked up"}
-        </span>
-        <span className={styles.mono} style={{ color: "var(--ink-3)" }}>
-          {job.fileType.toUpperCase()}
-        </span>
-      </div>
-      <div className="grid grid-cols-2 gap-1.5">
-        <button
-          type="button"
-          disabled={busy !== undefined}
-          onClick={() => onComplete(job.jobId, job.machineCategory)}
-          className={`${styles.btnOk} rounded-lg py-1.5 text-[11px] inline-flex items-center justify-center gap-1.5`}
-        >
-          <CheckIcon size={11} /> {busy === "complete" ? "Saving…" : "Printed"}
-        </button>
-        <button
-          type="button"
-          disabled={busy !== undefined}
-          onClick={() => onFailed(job.jobId)}
-          className={`${styles.btnBad} rounded-lg py-1.5 text-[11px] inline-flex items-center justify-center gap-1.5`}
-        >
-          <XIcon size={11} /> {busy === "fail" ? "Saving…" : "Failed"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function IdleBlock() {
-  return (
-    <div className="text-center py-4">
-      <div className="text-[11px] font-extrabold" style={{ color: "var(--ink-2)" }}>
-        Idle
-      </div>
-      <div className="text-[10.5px] mt-0.5" style={{ color: "var(--ink-3)" }}>
-        Pick up a job below to start
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// Machine lane
-// ============================================================
-
-function MachineLane({
-  lane,
-  readyJobs,
-  runningJob,
-  machines,
-  inFlight,
-  onAssign,
-}: {
-  lane: MachineSummary;
-  readyJobs: FabJobRow[];
-  runningJob: FabJobRow | null;
-  machines: FabMachineOption[];
-  inFlight: Record<string, "complete" | "fail" | "pickup" | "assign" | undefined>;
-  onAssign: (jobId: string, machineProfileId: string) => void;
-}) {
-  const accent = categoryAccentVar(lane.category);
-
-  // Phase 8.1d-22: candidate machines for the Send-to menu —
-  // active machines in this lab + category. Only used by
-  // unassigned lanes; specific-machine lanes don't render the menu.
-  const sendToCandidates = React.useMemo(() => {
-    if (!lane.isUnassigned) return [];
-    return machines.filter(
-      (m) =>
-        m.lab_id === lane.labId && m.machine_category === lane.category
-    );
-  }, [machines, lane.isUnassigned, lane.labId, lane.category]);
-
-  return (
-    <div
-      className={`${styles.card} flex flex-col`}
-      style={{
-        minHeight: 540,
-        // Unassigned lanes get a dashed top-border instead of solid
-        // so the eye reads "this is a virtual lane" at a glance.
-        ...(lane.isUnassigned
-          ? {
-              borderStyle: "dashed",
-              borderColor: "color-mix(in srgb, var(--ink-2) 40%, transparent)",
-            }
-          : {}),
-      }}
-    >
-      <div
-        className="px-4 py-4 flex items-center gap-3"
-        style={{
-          borderTop: lane.isUnassigned
-            ? `3px dashed ${accent}`
-            : `3px solid ${accent}`,
-          borderTopLeftRadius: 16,
-          borderTopRightRadius: 16,
-          borderBottom: "1px solid var(--hair)",
-        }}
-      >
-        <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-          style={{
-            background: `color-mix(in srgb, ${accent} 13%, transparent)`,
-            color: accent,
-          }}
-        >
-          <CategoryIcon category={lane.category} size={20} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-[17px] font-extrabold leading-tight truncate">
-            {lane.label}
-          </div>
-          <div
-            className="text-[11px] font-semibold mt-0.5"
-            style={{ color: "var(--ink-3)" }}
-          >
-            {lane.isUnassigned
-              ? `Awaiting machine · ${lane.labName ?? "this lab"}`
-              : machineCategoryLabel(lane.category)}
-          </div>
-        </div>
-        <div className="text-right shrink-0">
-          <div
-            className={`${styles.display} ${styles.tnum} text-[24px] leading-none`}
-            style={{ color: accent }}
-          >
-            {readyJobs.length}
-          </div>
-          <div
-            className={styles.cap}
-            style={{
-              color: "var(--ink-3)",
-              fontSize: 9,
-              marginTop: 2,
-            }}
-          >
-            queue
-          </div>
-        </div>
-      </div>
-
-      {runningJob && (
-        <div
-          className="px-3 py-2.5"
-          style={{
-            background: `color-mix(in srgb, ${accent} 5%, transparent)`,
-            borderBottom: "1px solid var(--hair)",
-          }}
-        >
-          <div className="flex items-center gap-2 mb-1.5">
-            <div className={styles.pulse} style={{ color: accent }} />
-            <div
-              className={styles.cap}
-              style={{ color: accent, letterSpacing: "0.1em", fontSize: 9.5 }}
-            >
-              Running
-            </div>
-          </div>
-          <div className="text-[11.5px] font-extrabold truncate">
-            {runningJob.studentName}
-          </div>
-          <div
-            className={`${styles.mono} text-[10px] truncate`}
-            style={{ color: "var(--ink-3)" }}
-          >
-            {runningJob.originalFilename}
-          </div>
-        </div>
-      )}
-
-      <div className="p-3 space-y-2 flex-1">
-        {readyJobs.length === 0 ? (
-          <div
-            className="text-center py-6 text-[11px]"
-            style={{ color: "var(--ink-3)" }}
-          >
-            {lane.isUnassigned
-              ? "No unassigned jobs — students who picked specific machines show up under their own lane."
-              : "No jobs in queue"}
-          </div>
-        ) : (
-          readyJobs.map((j) => (
-            <LaneJobCard
-              key={j.jobId}
-              job={j}
-              accent={accent}
-              isUnassignedLane={lane.isUnassigned}
-              sendToCandidates={sendToCandidates}
-              busy={inFlight[j.jobId]}
-              onAssign={onAssign}
-            />
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// Lane job card
-// ============================================================
-
-function LaneJobCard({
-  job,
-  accent,
-  isUnassignedLane,
-  sendToCandidates,
-  busy,
-  onAssign,
-}: {
-  job: FabJobRow;
-  accent: string;
-  isUnassignedLane: boolean;
-  sendToCandidates: FabMachineOption[];
-  busy: "complete" | "fail" | "pickup" | "assign" | undefined;
-  onAssign: (jobId: string, machineProfileId: string) => void;
-}) {
-  const [sendToOpen, setSendToOpen] = React.useState(false);
-  // Close the menu on outside click — keeps the keyboard-only flow
-  // explicit (Tab to button + Enter, no surprise focus traps).
-  const menuRef = React.useRef<HTMLDivElement | null>(null);
-  React.useEffect(() => {
-    if (!sendToOpen) return;
-    const onDocClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setSendToOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [sendToOpen]);
-
-
-  return (
-    <div
-      className={`${styles.card2} group transition relative`}
-      style={{ overflow: "hidden" }}
-    >
-      <div className="p-3">
-        <div className="flex gap-3">
-          <div
-            className="w-14 h-14 rounded-lg flex-shrink-0 p-1 relative"
-            style={{
-              background: "var(--surface)",
-              border: "1px solid var(--hair)",
-            }}
-          >
-            {job.thumbnailUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={job.thumbnailUrl}
-                alt=""
-                className="w-full h-full object-contain"
-              />
-            ) : (
-              <div className="w-full h-full" style={{ background: "var(--surface-3)" }} />
-            )}
-            <div
-              className={`${styles.mono} absolute -bottom-1 -right-1 px-1 py-0.5 rounded text-[8.5px] font-extrabold`}
-              style={{ background: accent, color: "#0B0C0E" }}
-            >
-              r{job.currentRevision}
-            </div>
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 mb-0.5">
-              <div className="text-[12.5px] font-extrabold truncate">
-                {job.studentName}
-              </div>
-              <ClassChip name={job.className} small />
-            </div>
-            <div
-              className={`${styles.mono} text-[10.5px] truncate`}
-              style={{ color: "var(--ink-2)" }}
-            >
-              {job.originalFilename}
-            </div>
-            <div
-              className="flex items-center gap-1.5 mt-2 text-[10.5px]"
-              style={{ color: "var(--ink-3)" }}
-            >
-              <FileTypeChip fileType={job.fileType} />
-              <span>·</span>
-              <span className={styles.mono}>{formatFileSize(job.fileSizeBytes)}</span>
-              <span>·</span>
-              <span title={formatDateTime(job.createdAt)}>
-                {formatRelativeTime(job.createdAt)}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {job.teacherReviewNote && (
-          <div
-            className="mt-2.5 rounded-md p-2 text-[10.5px] flex items-start gap-1.5"
-            style={{
-              background: "rgba(245,158,11,0.08)",
-              border: "1px solid rgba(245,158,11,0.2)",
-            }}
-          >
-            <NoteIcon size={10} style={{ color: "var(--warn)", marginTop: 2 }} />
-            <div style={{ color: "var(--ink-2)", lineHeight: 1.4 }}>
-              <span
-                className="font-extrabold"
-                style={{ color: "var(--warn)" }}
-              >
-                Teacher note:{" "}
-              </span>
-              {job.teacherReviewNote}
-            </div>
-          </div>
-        )}
-
-        <div className="mt-2.5 flex items-center gap-1.5 relative" ref={menuRef}>
-          {isUnassignedLane ? (
-            // Phase 8.1d-22: unassigned-lane cards show Send-to →
-            // menu instead of Pick up. Picking a machine binds the
-            // job to it; the next refresh moves the card into that
-            // machine's lane where it gets the normal Pick up flow.
-            <>
-              <button
-                type="button"
-                onClick={() => setSendToOpen((v) => !v)}
-                disabled={busy !== undefined || sendToCandidates.length === 0}
-                className={`${styles.btnPrimary} rounded-md px-3 py-1.5 text-[11px] inline-flex items-center gap-1.5 flex-1 justify-center disabled:opacity-50`}
-              >
-                {busy === "assign" ? "Assigning…" : "Send to →"}
-              </button>
-              {sendToOpen && sendToCandidates.length > 0 && (
-                <div
-                  role="menu"
-                  className="absolute bottom-full left-0 mb-1 z-20 rounded-lg overflow-hidden min-w-[180px]"
-                  style={{
-                    background: "var(--surface)",
-                    border: "1px solid var(--hair-2)",
-                    boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-                  }}
-                >
-                  {sendToCandidates.map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        setSendToOpen(false);
-                        onAssign(job.jobId, m.id);
-                      }}
-                      className="block w-full text-left px-3 py-2 text-[12px] font-semibold hover:bg-[var(--surface-2)] transition"
-                      style={{ color: "var(--ink)" }}
-                    >
-                      {m.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {sendToCandidates.length === 0 && (
-                <span
-                  className="text-[10px] flex-1 text-center"
-                  style={{ color: "var(--ink-3)" }}
-                >
-                  No machines in this lab yet
-                </span>
-              )}
-            </>
-          ) : (
-            // Pick up = download. The download endpoint flips status
-            // to picked_up + streams the file in one request. Native
-            // <a download> works the same way the existing
-            // LabTechActionBar does.
-            <a
-              href={`/api/fab/jobs/${job.jobId}/download`}
-              className={`${styles.btnPrimary} rounded-md px-3 py-1.5 text-[11px] inline-flex items-center gap-1.5 flex-1 justify-center`}
-            >
-              <PlayIcon size={9} /> Pick up
-            </a>
-          )}
-          <Link
-            href={`/fab/jobs/${job.jobId}`}
-            title="View details"
-            className={`${styles.btnSecondary} rounded-md px-2.5 py-1.5 inline-flex items-center justify-center`}
-          >
-            <EyeIcon size={12} />
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// Done today strip
-// ============================================================
-
-function DoneTodayStrip({ jobs }: { jobs: FabJobRow[] }) {
-  return (
-    <div className={styles.card}>
-      <div
-        className="px-5 py-3 flex items-center justify-between"
-        style={{ borderBottom: "1px solid var(--hair)" }}
-      >
-        <div className="flex items-center gap-3">
-          <div className={styles.cap} style={{ color: "var(--ink-3)" }}>
-            Done today
-          </div>
-          <div className="text-[12px] font-semibold" style={{ color: "var(--ink-2)" }}>
-            {jobs.length} job{jobs.length === 1 ? "" : "s"}
-          </div>
-        </div>
-      </div>
-      <div
-        className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-px"
-        style={{ background: "var(--hair)" }}
-      >
-        {jobs.map((j) => (
-          <DoneCell key={j.jobId} job={j} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function DoneCell({ job }: { job: FabJobRow }) {
-  const isFailed = job.completionStatus === "failed";
-  const finishedAt = job.completedAt ? formatDateTime(job.completedAt) : "—";
-  return (
-    <div className="p-3.5" style={{ background: "var(--surface)" }}>
-      <div className="flex items-center gap-2 mb-1.5">
-        <div
-          className="w-2 h-2 rounded-full flex-shrink-0"
-          style={{ background: isFailed ? "var(--bad)" : "var(--ok)" }}
-        />
-        <div className="text-[12px] font-extrabold flex-1 truncate">
-          {job.studentName}
-        </div>
-        <ClassChip name={job.className} small />
-      </div>
-      <div
-        className={`${styles.mono} text-[10.5px] truncate mb-2`}
-        style={{ color: "var(--ink-3)" }}
-      >
-        {job.originalFilename}
-      </div>
-      <div className="flex items-center justify-between text-[10.5px]">
-        <span style={{ color: "var(--ink-3)" }}>{finishedAt}</span>
-        {isFailed ? (
-          <span className="font-extrabold" style={{ color: "var(--bad)" }}>
-            Failed
-          </span>
-        ) : (
-          <span className="font-extrabold" style={{ color: "var(--ok)" }}>
-            {job.completionStatus === "cut" ? "Cut" : "Printed"}
-          </span>
-        )}
-      </div>
-      {isFailed && job.completionNote && (
-        <div
-          className="mt-1.5 text-[10px] italic"
-          style={{ color: "var(--ink-3)" }}
-        >
-          {job.completionNote}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ============================================================
-// Empty / loading
-// ============================================================
-
-function EmptyDashboard({ loading }: { loading: boolean }) {
-  return (
-    <div
-      className="rounded-2xl p-12 text-center"
-      style={{
-        border: "1px dashed var(--hair-2)",
-        background: "var(--surface-2)",
-      }}
-    >
-      <div
-        className="text-[14px] font-extrabold mb-1"
-        style={{ color: "var(--ink-2)" }}
-      >
-        {loading ? "Loading queue…" : "Nothing in the queue right now"}
-      </div>
-      <div className="text-[12px]" style={{ color: "var(--ink-3)" }}>
-        {loading
-          ? "Fetching jobs from your inviting teacher's classes."
-          : "Approved student jobs from your inviting teacher's classes will show up here."}
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// Small chips + icons
+// Class + file-type chips
 // ============================================================
 
 function ClassChip({ name, small }: { name: string | null; small?: boolean }) {
@@ -1299,16 +1101,17 @@ function FileTypeChip({ fileType }: { fileType: "stl" | "svg" }) {
   );
 }
 
+// ============================================================
+// Inline icons
+// ============================================================
+
 function CategoryIcon({
   category,
   size = 14,
 }: {
-  category: FabJobRow["machineCategory"];
+  category: Category | null;
   size?: number;
 }) {
-  // Inline SVGs — the design uses different icons per category.
-  // Laser = beam diagonal, Printer = isometric cube, Unknown = box.
-  const stroke = "currentColor";
   if (category === "laser_cutter") {
     return (
       <svg
@@ -1316,7 +1119,7 @@ function CategoryIcon({
         height={size}
         viewBox="0 0 24 24"
         fill="none"
-        stroke={stroke}
+        stroke="currentColor"
         strokeWidth={2.5}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -1332,7 +1135,7 @@ function CategoryIcon({
       height={size}
       viewBox="0 0 24 24"
       fill="none"
-      stroke={stroke}
+      stroke="currentColor"
       strokeWidth={2.5}
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -1344,9 +1147,7 @@ function CategoryIcon({
 
 interface IconProps {
   size?: number;
-  style?: React.CSSProperties;
 }
-
 function CheckIcon({ size = 12 }: IconProps) {
   return (
     <svg
@@ -1381,30 +1182,8 @@ function XIcon({ size = 12 }: IconProps) {
 }
 function PlayIcon({ size = 10 }: IconProps) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-    >
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
       <path d="M6 4l14 8-14 8z" />
-    </svg>
-  );
-}
-function EyeIcon({ size = 12 }: IconProps) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-      <circle cx="12" cy="12" r="3" />
     </svg>
   );
 }
@@ -1424,23 +1203,6 @@ function RefreshIcon({ size = 12 }: IconProps) {
       <path d="M21 3v5h-5" />
       <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
       <path d="M3 21v-5h5" />
-    </svg>
-  );
-}
-function NoteIcon({ size = 10, style }: IconProps) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={style}
-    >
-      <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9 8.5 8.5 0 0 1 7.6 4.7 8.4 8.4 0 0 1 .9 3.8z" />
     </svg>
   );
 }
