@@ -1,19 +1,17 @@
 {
   "registry": "feature-flags.yaml",
-  "timestamp": "2026-04-27T08:53:22.351681+00:00",
+  "timestamp": "2026-04-27T10:16:20.202955+00:00",
   "version": 1,
   "drift": {
     "orphaned": [
       "SENTRY_AUTH_TOKEN"
     ],
-    "missing": [
-      "RUN_E2E"
-    ]
+    "missing": []
   },
   "stats": {
     "registered_flags": 15,
     "registered_secrets": 12,
-    "code_env_vars": 22
+    "code_env_vars": 21
   },
   "status": "drift"
 }

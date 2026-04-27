@@ -4,6 +4,139 @@
 
 ---
 
+## 27 Apr 2026 — Preflight Phase 8.1d-31..35 SHIPPED + smoke 16/16 ✅
+
+**Context:** Continuation of Phase 8.1 fab-dashboard polish. Five
+hotfixes across one session, all driven by smoke-test feedback against
+prod (studioloom.org). Plus a scanner OOM bump and 5-tier OOM longevity
+plan filed to backstop the pre-pilot risk.
+
+**Sub-phases shipped (in order):**
+
+- **8.1d-31** — Fab can permanently delete jobs + styled
+  `ConfirmActionModal` (replaces `window.confirm`) + Incoming-row
+  filters (search + class chips + conditional file-type chips). New
+  `deleteJob()` orchestration helper, `DELETE /api/fab/jobs/[jobId]`
+  route, trash button on every card type (Incoming corner / Queued
+  5-button row / Now Running header). Two modal intents: `warn`
+  (amber, unassign — reversible) and `danger` (red, delete —
+  permanent).
+- **8.1d-32** — Students can permanently delete their own jobs.
+  Mirror of 8.1d-31 but scoped via `student_id` and gated by
+  `STUDENT_DELETABLE_STATUSES` (excludes `approved` + `picked_up`).
+  New `deleteStudentJob()` + `DELETE /api/student/fabrication/jobs/[jobId]`.
+  UI surfaces both on the detail page (next to Withdraw) and as a
+  row-level trash icon on `/fabrication` overview. Row layout
+  refactored from Link-wraps-everything to overlay-Link + sibling
+  content because `<button>` inside `<a>` is invalid HTML.
+- **8.1d-33** — Surrogate machine for "Any cutter" jobs picks largest
+  bed area (was alphabetical-first). Caught by Matt's smoke: an SVG
+  was BLOCKed against an "xTool F1 Ultra" 220×220mm when the same
+  lab had an "xTool P3" 600×308mm with plenty of room. PostgREST's
+  `.order()` doesn't accept multiplication, so fetch-then-rank in
+  Python (lab fleets are small).
+- **8.1d-34** — Bed-fit rules (R-SVG-01 + R-STL-06) now check both
+  XY orientations. A drawing fits if EITHER as-is OR rotated 90°
+  clears the bed — slicers rotate trivially, lab techs rotate parts
+  routinely for material economy. STL rotates around Z only (gravity
+  stays gravity). Ruleset versions bumped: stl-v1.0.1 → stl-v1.1.0,
+  svg-v1.0.0 → svg-v1.1.0 (the SVG bump retroactively closes the
+  FU-RULESET-VERSION-AUDIT note from 8.1d-12 content-bbox change).
+- **8.1d-35** — Two console-noise sources caught by smoke S3:
+  (a) RuleCard's "Learn more in Skills Library" Link gets
+  `prefetch={false}` — Next.js's RSC prefetcher was hitting every
+  `/skills/fab-R-XXX` stub URL on render and 404-flooding the console
+  on a page with 6+ rule cards;
+  (b) `useFabricationStatus` polling now stops on 404 (sets
+  `cancelled = true` + dispatches a friendlier *"This submission no
+  longer exists"* message) so back-button'ing into a deleted job
+  doesn't flood every 2s indefinitely. Other 4xx/5xx responses stay
+  retry-eligible (transient).
+
+**Ops change — scanner OOM (mid-session):**
+
+- `mount-bracket-130mm.stl` (1.1MB binary, ~23k tris) OOM'd on the
+  scanner at 512MB during Matt's smoke. Bumped Fly machine to 1024MB
+  via `fly scale memory 1024`, persisted in `fab-scanner/fly.toml`
+  (was still saying 256mb — latent footgun for next deploy). 1GB only
+  buys ~5× the previous ceiling — proper fix is the 5-tier longevity
+  plan filed below.
+
+**New follow-ups filed:**
+
+- `PH9-FU-SCANNER-OOM-T1..T5` (P1–P3) — 5-tier roadmap to retire
+  ad-hoc RAM bumps. T1 reject oversized at upload, T2 trimesh
+  `process=False` + GC, T3 subprocess isolation per scan (all
+  pre-pilot ~2–3 days). T4 numpy-stl for cheap rules, T5 Fly
+  Machines size-aware (post-pilot ~4 days). Also escalates the
+  original FU-SCANNER-OOM from "resolved at discovery" to
+  "partially-resolved → escalated."
+- `PH9-FU-FAB-SURROGATE-MULTIPLE-EVAL` (P2) — proper architectural
+  fix for category-only scanning: every rule evaluated against
+  every machine in the lab+category, BLOCK only when policy says so
+  against the full set. Subsumes the originally-filed
+  PH9-FU-FAB-SURROGATE-CONSERVATIVE since the same redesign solves
+  both false-pass and false-fail directions. ~2 days post-pilot.
+
+**Smoke S0–S15 all PASSED 16/16:**
+
+| | Test | |
+|---|---|---|
+| S0 | Student deletes stuck file | ✅ |
+| S1 | Mount-bracket scans clean on 1GB | ✅ |
+| S2 | Detail-page delete mid-flight | ✅ |
+| S3 | Detail-page delete terminal state | ✅ |
+| S4 | Status gate blocks active-fab delete | ✅ |
+| S5 | Fab delete on Incoming card | ✅ |
+| S6 | Fab delete on Queued card | ✅ |
+| S7 | Fab delete on Now Running | ✅ |
+| S8 | Unassign amber modal ≠ Delete red | ✅ |
+| S9 | Mark Failed canned chips | ✅ |
+| S10 | Incoming search filter | ✅ |
+| S11 | File-type chips conditional render | ✅ |
+| S12 | Class chips | ✅ |
+| S13 | Filters don't affect machine columns | ✅ |
+| S14 | Hydration + tab counts + pulse | ✅ |
+| S15 | Ghost-job count sanity | ✅ |
+
+**Systems affected:**
+
+- `preflight-pipeline` — 6 new API routes (4 backfilled into
+  api-registry from earlier 8.1d-22/24/27 phases that hadn't been
+  scanned), 2 orchestration helpers (`deleteJob` fab-side +
+  `deleteStudentJob` student-side)
+- `preflight-scanner` — surrogate machine semantics changed,
+  rotation-aware bed-fit, ruleset versions bumped to 1.1.0,
+  Fly memory 512→1024MB
+
+**Commits / merges (origin/main):**
+
+- `cdfdf8b` 8.1d-31 fab delete + filters + modals
+- `494e4fd` 8.1d-32 student delete
+- `6d8342f` 8.1d-33 + scanner OOM bump + 5-tier plan
+- `072d261` 8.1d-34 rotation-aware bed-fit
+- `c7c5e0d` 8.1d-35 console noise cleanup
+
+**Fly deploys:** 3 (8.1d-33 surrogate carried the OOM bump,
+8.1d-34 rotation, plus implicit redeploys verifying both).
+
+**Tests:** existing 1939 fab tests still green on touched JS surface;
+`tsc --noEmit` clean. 24 pytest tests in fab-scanner unaffected by
+surrogate ordering or rotation logic (sandbox didn't run; no test
+surface changes).
+
+**Registries synced:** api-registry +6 routes (349 → 355).
+ai-call-sites no diff (no AI changes). Feature-flags + RLS drift
+status unchanged from prior session — both pre-existing
+(FU-CC + FU-FF respectively).
+
+**Next:** Phase 8 brief (`preflight-phase-8-brief.md`) still DRAFT
+pending Matt sign-off on 6 open questions. Phase 8.1d is a clean
+close-out point — full smoke list passed, no open regressions, all
+follow-ups filed and prioritized.
+
+---
+
 ## 24 Apr 2026 — Skills Library world-class schema upgrade (migration 110) + authoring UI rebuild
 
 **Context:** Matt's goal after reading the research brief + catalogue v1: make the skills library world-class per Digital Promise / Scouts / DofE / IB ATL / CASEL / XQ / Project Zero principles. Decisions locked via Q1–Q10:
