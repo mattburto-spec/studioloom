@@ -136,7 +136,7 @@ export default function CategoryDashboard({
   const [machines, setMachines] = React.useState<FabMachineOption[]>([]);
 
   const [inFlight, setInFlight] = React.useState<
-    Record<string, "complete" | "fail" | "start" | "assign" | "unassign" | undefined>
+    Record<string, "complete" | "fail" | "start" | "assign" | "unassign" | "delete" | undefined>
   >({});
 
   // Phase 8.1d-26: lab filter. "all" = no filter (default — single-
@@ -156,6 +156,25 @@ export default function CategoryDashboard({
   // = closed; { jobId } = open for that job. Confirm/cancel come
   // from inside the modal.
   const [failModalJobId, setFailModalJobId] = React.useState<string | null>(
+    null
+  );
+
+  // Phase 8.1d-31: confirm modals for the two destructive
+  // fabricator-side actions. Both replace native window.confirm —
+  // the browser's chrome looked terrible against the dark theme
+  // (caught by Matt's screenshot 27 Apr) AND scope was needed for
+  // a permanent-delete action that didn't exist yet.
+  //
+  //   unassign — reversible (job goes back to incoming)
+  //   delete   — permanent (DB cascade + Storage wipe)
+  //
+  // Each holds the resolved job row so the modal can show student
+  // name + class without a re-query, and so the message can adapt
+  // to the job's current lane.
+  const [unassignConfirm, setUnassignConfirm] = React.useState<FabJobRow | null>(
+    null
+  );
+  const [deleteConfirm, setDeleteConfirm] = React.useState<FabJobRow | null>(
     null
   );
 
@@ -282,6 +301,33 @@ export default function CategoryDashboard({
         const body = await res.json().catch(() => ({ error: "" }));
         alertUser(
           body.error || `Couldn't remove the job (HTTP ${res.status})`
+        );
+      }
+    } catch (e) {
+      alertUser(e instanceof Error ? e.message : "Network error");
+    } finally {
+      setInFlight((p) => ({ ...p, [jobId]: undefined }));
+      mutatingCount.current = Math.max(0, mutatingCount.current - 1);
+      await fetchAll();
+    }
+  }
+
+  // Phase 8.1d-31: permanent purge. Cascades to revisions +
+  // scan_jobs + Storage bytes server-side. The card animates out
+  // via AnimatePresence on the next refetch — same as unassign,
+  // but the row never comes back.
+  async function deleteJobAsync(jobId: string) {
+    setInFlight((p) => ({ ...p, [jobId]: "delete" }));
+    mutatingCount.current += 1;
+    try {
+      const res = await fetch(`/api/fab/jobs/${jobId}`, {
+        method: "DELETE",
+        credentials: "same-origin",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "" }));
+        alertUser(
+          body.error || `Couldn't delete the job (HTTP ${res.status})`
         );
       }
     } catch (e) {
@@ -466,6 +512,7 @@ export default function CategoryDashboard({
           machines={visibleMachines}
           inFlight={inFlight}
           onAssign={assignToMachine}
+          onDelete={(j) => setDeleteConfirm(j)}
         />
 
         {visibleMachines.length === 0 ? (
@@ -503,7 +550,8 @@ export default function CategoryDashboard({
                     inFlight={inFlight}
                     onComplete={markComplete}
                     onFailed={openFailModal}
-                    onUnassign={unassignFromMachine}
+                    onUnassign={(j) => setUnassignConfirm(j)}
+                    onDelete={(j) => setDeleteConfirm(j)}
                   />
                 </motion.div>
               ))}
@@ -524,6 +572,67 @@ export default function CategoryDashboard({
               const j = failModalJobId;
               setFailModalJobId(null);
               await submitFailed(j, note);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Phase 8.1d-31: confirm modals for unassign + delete.
+           Both use the shared ConfirmActionModal component — only
+           the copy + intent (warn vs danger) differs. Renders
+           inside .fabRoot so theme vars cascade. */}
+      <AnimatePresence>
+        {unassignConfirm && (
+          <ConfirmActionModal
+            key={`unassign-${unassignConfirm.jobId}`}
+            intent="warn"
+            title="Remove from this machine?"
+            description={
+              <>
+                <strong>{unassignConfirm.studentName}</strong>
+                {unassignConfirm.className ? ` (${unassignConfirm.className})` : ""} —{" "}
+                <span className="font-mono text-[11px]">
+                  {unassignConfirm.originalFilename}
+                </span>
+                <br />
+                Goes back to the Incoming row so a different machine can
+                pick it up. Reversible.
+              </>
+            }
+            confirmLabel="Remove"
+            onCancel={() => setUnassignConfirm(null)}
+            onConfirm={async () => {
+              const j = unassignConfirm;
+              setUnassignConfirm(null);
+              await unassignFromMachine(j.jobId);
+            }}
+          />
+        )}
+        {deleteConfirm && (
+          <ConfirmActionModal
+            key={`delete-${deleteConfirm.jobId}`}
+            intent="danger"
+            title="Delete this job permanently?"
+            description={
+              <>
+                <strong>{deleteConfirm.studentName}</strong>
+                {deleteConfirm.className ? ` (${deleteConfirm.className})` : ""} —{" "}
+                <span className="font-mono text-[11px]">
+                  {deleteConfirm.originalFilename}
+                </span>
+                <br />
+                Removes the job, all revisions, and the uploaded file.
+                The student won&apos;t be able to see it on their
+                submission page anymore. <strong>This can&apos;t be
+                undone.</strong>
+              </>
+            }
+            confirmLabel="Delete forever"
+            onCancel={() => setDeleteConfirm(null)}
+            onConfirm={async () => {
+              const j = deleteConfirm;
+              setDeleteConfirm(null);
+              await deleteJobAsync(j.jobId);
             }}
           />
         )}
@@ -786,6 +895,150 @@ function FailureReasonModal({
           >
             <XIcon size={11} />
             {submitting ? "Marking failed…" : "Mark failed"}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ============================================================
+// Confirm action modal — Phase 8.1d-31
+// ============================================================
+//
+// Generic confirm-or-cancel overlay used for unassign + delete.
+// Replaces window.confirm — same purpose, but theme-aware and
+// supports two intents:
+//
+//   intent="warn"   → amber primary button (reversible action)
+//   intent="danger" → red   primary button (destructive action)
+//
+// `description` is ReactNode so callers can format the job
+// identity (student / class / filename) inline. Esc cancels;
+// clicking the dimmer cancels; Cmd/Ctrl+Enter confirms.
+
+function ConfirmActionModal({
+  intent,
+  title,
+  description,
+  confirmLabel,
+  onCancel,
+  onConfirm,
+}: {
+  intent: "warn" | "danger";
+  title: string;
+  description: React.ReactNode;
+  confirmLabel: string;
+  onCancel: () => void;
+  onConfirm: () => void | Promise<void>;
+}) {
+  const [submitting, setSubmitting] = React.useState(false);
+
+  // Esc to cancel; Cmd/Ctrl+Enter to confirm.
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onCancel();
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        void handleConfirm();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleConfirm() {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      await onConfirm();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // Danger uses the same red as Mark Failed for visual consistency
+  // (styles.btnBad). Warn uses an amber tone — different enough
+  // from danger that a fab can tell unassign from delete at a
+  // glance even when both modals are queued back-to-back.
+  const confirmClass =
+    intent === "danger" ? styles.btnBad : styles.btnPrimary;
+  const confirmStyle =
+    intent === "warn"
+      ? { background: "var(--warn)", color: "#0B0C0E" }
+      : undefined;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}
+      className="fixed inset-0 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.6)", zIndex: 200 }}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onCancel();
+      }}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 8 }}
+        transition={{ duration: 0.18, ease: "easeOut" }}
+        className={`${styles.card} w-full max-w-md`}
+        style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.6)" }}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div
+          className="px-5 py-4"
+          style={{ borderBottom: "1px solid var(--hair)" }}
+        >
+          <h2
+            className={`${styles.display} text-[18px] leading-tight`}
+            style={{ color: "var(--ink)" }}
+          >
+            {title}
+          </h2>
+        </div>
+
+        <div
+          className="px-5 py-4 text-[12.5px] leading-snug"
+          style={{ color: "var(--ink-2)" }}
+        >
+          {description}
+        </div>
+
+        <div
+          className="px-5 py-3 flex items-center justify-end gap-2"
+          style={{ borderTop: "1px solid var(--hair)" }}
+        >
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={submitting}
+            className={`${styles.btnSecondary} rounded-lg px-4 py-2 text-[12px]`}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={submitting}
+            className={`${confirmClass} rounded-lg px-4 py-2 text-[12px] inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed`}
+            style={confirmStyle}
+          >
+            {intent === "danger" ? (
+              <TrashIcon size={11} />
+            ) : (
+              <XIcon size={11} />
+            )}
+            {submitting ? "Working…" : confirmLabel}
           </button>
         </div>
       </motion.div>
@@ -1070,12 +1323,85 @@ function IncomingRow({
   machines,
   inFlight,
   onAssign,
+  onDelete,
 }: {
   jobs: FabJobRow[];
   machines: FabMachineOption[];
-  inFlight: Record<string, "complete" | "fail" | "start" | "assign" | "unassign" | undefined>;
+  inFlight: Record<string, "complete" | "fail" | "start" | "assign" | "unassign" | "delete" | undefined>;
   onAssign: (jobId: string, machineProfileId: string) => void;
+  onDelete: (job: FabJobRow) => void;
 }) {
+  // Phase 8.1d-31: filters scoped to the Incoming row only.
+  // Machine columns intentionally don't filter — once a job is on a
+  // machine the order is the lab tech's print queue and shuffling
+  // it would lose context. Filters here narrow what's *waiting to
+  // be assigned* so a fab can triage by class or file type without
+  // hiding the running queues.
+  //
+  // Three filter controls, left → right:
+  //   1. Free-text search   — matches student name OR filename
+  //   2. File type chips    — STL / SVG (rendered only when both present)
+  //   3. Class chips        — one per class with incoming jobs
+  //                           (rendered only when 2+ classes present)
+  //
+  // The chip bar disappears entirely on tiny job lists (single
+  // class, single file type) — keeps the chrome out of the way
+  // when filtering would be redundant.
+  const [search, setSearch] = React.useState("");
+  const [fileTypeFilter, setFileTypeFilter] = React.useState<
+    "all" | "stl" | "svg"
+  >("all");
+  const [classFilter, setClassFilter] = React.useState<string | null>(null);
+
+  // Distinct values across the unfiltered job set — drives which
+  // chip rows render. Sorted so the chip ordering doesn't shuffle
+  // between renders even when the underlying data does.
+  const fileTypes = React.useMemo(() => {
+    const set = new Set<"stl" | "svg">();
+    for (const j of jobs) set.add(j.fileType);
+    return Array.from(set).sort();
+  }, [jobs]);
+  const classNames = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const j of jobs) {
+      if (j.className) set.add(j.className);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [jobs]);
+
+  // Apply filters. Search is case-insensitive substring on student
+  // OR filename. File-type + class are exact match. Combined with
+  // AND so each filter narrows the previous.
+  const filteredJobs = React.useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return jobs.filter((j) => {
+      if (fileTypeFilter !== "all" && j.fileType !== fileTypeFilter) {
+        return false;
+      }
+      if (classFilter !== null && j.className !== classFilter) {
+        return false;
+      }
+      if (q.length > 0) {
+        const haystack = `${j.studentName} ${j.originalFilename}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [jobs, search, fileTypeFilter, classFilter]);
+
+  const hasActiveFilter =
+    search.trim().length > 0 ||
+    fileTypeFilter !== "all" ||
+    classFilter !== null;
+
+  function clearFilters() {
+    setSearch("");
+    setFileTypeFilter("all");
+    setClassFilter(null);
+  }
+
+  // Empty incoming pool — same chrome-free state as before. No
+  // filter UI rendered (nothing to filter against).
   if (jobs.length === 0) {
     return (
       <div
@@ -1095,10 +1421,14 @@ function IncomingRow({
     );
   }
 
+  // Show the chip row only when there's something to filter by —
+  // single-class single-filetype incoming pools are visually quieter.
+  const showChipRow = fileTypes.length > 1 || classNames.length > 1;
+
   return (
     <div className={styles.card}>
       <div
-        className="px-5 py-3 flex items-center justify-between"
+        className="px-5 py-3 flex items-center justify-between flex-wrap gap-3"
         style={{ borderBottom: "1px solid var(--hair)" }}
       >
         <div className="flex items-center gap-3">
@@ -1106,47 +1436,180 @@ function IncomingRow({
             Incoming
           </div>
           <div className="text-[12px] font-semibold" style={{ color: "var(--ink-2)" }}>
-            {jobs.length} job{jobs.length === 1 ? "" : "s"} waiting to be assigned
+            {hasActiveFilter
+              ? `${filteredJobs.length} of ${jobs.length}`
+              : `${jobs.length} job${jobs.length === 1 ? "" : "s"} waiting to be assigned`}
           </div>
         </div>
-        <div className="text-[10.5px]" style={{ color: "var(--ink-3)" }}>
-          Click <strong>Send to →</strong> to route a job to a machine.
+        <div className="flex items-center gap-2">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search student or filename…"
+            aria-label="Search incoming jobs"
+            className="rounded-md px-2.5 py-1.5 text-[11.5px] focus:outline-none transition"
+            style={{
+              background: "var(--surface-2)",
+              color: "var(--ink)",
+              border: "1px solid var(--hair-2)",
+              minWidth: 200,
+              fontFamily: "var(--font-manrope), system-ui, sans-serif",
+            }}
+          />
+          {hasActiveFilter && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="text-[10.5px] font-semibold px-2 py-1 rounded transition hover:bg-[var(--surface-2)]"
+              style={{ color: "var(--ink-3)" }}
+            >
+              Clear
+            </button>
+          )}
         </div>
       </div>
+
+      {showChipRow && (
+        <div
+          className="px-5 py-2 flex items-center gap-2 flex-wrap"
+          style={{ borderBottom: "1px solid var(--hair)" }}
+        >
+          {fileTypes.length > 1 && (
+            <>
+              <FilterChip
+                label="All types"
+                active={fileTypeFilter === "all"}
+                onClick={() => setFileTypeFilter("all")}
+              />
+              {fileTypes.map((t) => (
+                <FilterChip
+                  key={t}
+                  label={t.toUpperCase()}
+                  active={fileTypeFilter === t}
+                  onClick={() => setFileTypeFilter(t)}
+                />
+              ))}
+              {classNames.length > 1 && (
+                <span
+                  className="mx-1"
+                  style={{ color: "var(--hair-2)" }}
+                  aria-hidden
+                >
+                  ·
+                </span>
+              )}
+            </>
+          )}
+          {classNames.length > 1 && (
+            <>
+              <FilterChip
+                label="All classes"
+                active={classFilter === null}
+                onClick={() => setClassFilter(null)}
+              />
+              {classNames.map((c) => (
+                <FilterChip
+                  key={c}
+                  label={c}
+                  active={classFilter === c}
+                  onClick={() =>
+                    setClassFilter(classFilter === c ? null : c)
+                  }
+                />
+              ))}
+            </>
+          )}
+        </div>
+      )}
+
       {/* Horizontal scrolling row. overflow-x-auto + flex children keep
            the cards in line; lab tech wheel-scrolls or shift-scrolls.
            Phase 8.1d-26: cards wrapped in <motion.div layout> so a
            card disappearing (e.g. after Send-to assignment) animates
-           out instead of jumping. The Send-to dropdown menu is
-           portalled to document.body to escape this container's
-           overflow clip — see IncomingCard. */}
+           out instead of jumping. */}
       <div
         className="px-3 py-3 overflow-x-auto"
         style={{ scrollbarWidth: "thin" }}
       >
-        <motion.div layout className="flex gap-3 min-w-min">
-          <AnimatePresence mode="popLayout">
-            {jobs.map((job) => (
-              <motion.div
-                key={job.jobId}
-                layout
-                initial={{ opacity: 0, scale: 0.96 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.92 }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
-              >
-                <IncomingCard
-                  job={job}
-                  machines={machines}
-                  busy={inFlight[job.jobId]}
-                  onAssign={onAssign}
-                />
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </motion.div>
+        {filteredJobs.length === 0 ? (
+          <div
+            className="px-4 py-6 text-center text-[12px]"
+            style={{ color: "var(--ink-3)" }}
+          >
+            No jobs match the current filter.{" "}
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="underline font-semibold"
+              style={{ color: "var(--ink-2)" }}
+            >
+              Clear filters
+            </button>
+          </div>
+        ) : (
+          <motion.div layout className="flex gap-3 min-w-min">
+            <AnimatePresence mode="popLayout">
+              {filteredJobs.map((job) => (
+                <motion.div
+                  key={job.jobId}
+                  layout
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.92 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                >
+                  <IncomingCard
+                    job={job}
+                    machines={machines}
+                    busy={inFlight[job.jobId]}
+                    onAssign={onAssign}
+                    onDelete={onDelete}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </motion.div>
+        )}
       </div>
     </div>
+  );
+}
+
+// Phase 8.1d-31: shared chip used by the Incoming filter bar.
+// Mirrors LabPill's visual style (solid-active / outline-inactive)
+// for consistency between the two filter chrome strips.
+function FilterChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className="text-[10.5px] font-semibold px-2.5 py-1 rounded-full transition"
+      style={
+        active
+          ? {
+              background: "var(--ink)",
+              color: "var(--surface)",
+              border: "1px solid var(--ink)",
+            }
+          : {
+              background: "transparent",
+              color: "var(--ink-2)",
+              border: "1px solid var(--hair-2)",
+            }
+      }
+    >
+      {label}
+    </button>
   );
 }
 
@@ -1155,11 +1618,16 @@ function IncomingCard({
   machines,
   busy,
   onAssign,
+  onDelete,
 }: {
   job: FabJobRow;
   machines: FabMachineOption[];
-  busy: "complete" | "fail" | "start" | "assign" | "unassign" | undefined;
+  busy: "complete" | "fail" | "start" | "assign" | "unassign" | "delete" | undefined;
   onAssign: (jobId: string, machineProfileId: string) => void;
+  /** Phase 8.1d-31: corner trash button on the card opens the
+   *  parent's ConfirmActionModal (danger intent). Used when a fab
+   *  spots a duplicate or test-data submission before assigning. */
+  onDelete: (job: FabJobRow) => void;
 }) {
   const [menuOpen, setMenuOpen] = React.useState(false);
   // Phase 8.1d-26: menu portal'd into a target div inside .fabRoot
@@ -1229,6 +1697,31 @@ function IncomingCard({
       className={`${styles.card2} relative shrink-0`}
       style={{ width: 240 }}
     >
+      {/* Phase 8.1d-31: corner trash. Tucked top-right so it
+           doesn't compete with Send-to but is still reachable
+           with one click. Only enabled when no other mutation is
+           in flight on this card. */}
+      <button
+        type="button"
+        onClick={() => onDelete(job)}
+        disabled={busy !== undefined}
+        title="Delete job permanently"
+        aria-label="Delete job permanently"
+        className="absolute top-1.5 right-1.5 p-1 rounded transition disabled:opacity-50 hover:bg-[var(--surface-2)]"
+        style={{ color: "var(--ink-3)", zIndex: 2 }}
+      >
+        {busy === "delete" ? (
+          <span
+            className="block w-2.5 h-2.5 border-[1.5px] rounded-full animate-spin"
+            style={{
+              borderColor: "var(--ink-2)",
+              borderTopColor: "transparent",
+            }}
+          />
+        ) : (
+          <TrashIcon size={11} />
+        )}
+      </button>
       <div className="p-3">
         <div className="flex gap-2.5">
           <div
@@ -1381,14 +1874,19 @@ function MachineColumn({
   onComplete,
   onFailed,
   onUnassign,
+  onDelete,
 }: {
   machine: FabMachineOption;
   runningJob: FabJobRow | null;
   queuedJobs: FabJobRow[];
-  inFlight: Record<string, "complete" | "fail" | "start" | "assign" | "unassign" | undefined>;
+  inFlight: Record<string, "complete" | "fail" | "start" | "assign" | "unassign" | "delete" | undefined>;
   onComplete: (jobId: string) => void;
   onFailed: (jobId: string) => void;
-  onUnassign: (jobId: string) => void;
+  /** Phase 8.1d-31: callbacks now take the full FabJobRow so the
+   *  parent can show "remove [student]'s [filename]" in the
+   *  confirm modal without a re-query. */
+  onUnassign: (job: FabJobRow) => void;
+  onDelete: (job: FabJobRow) => void;
 }) {
   const accent = categoryAccentVar(machine.machine_category);
   return (
@@ -1451,6 +1949,7 @@ function MachineColumn({
           busy={inFlight[runningJob.jobId]}
           onComplete={onComplete}
           onFailed={onFailed}
+          onDelete={onDelete}
         />
       )}
 
@@ -1492,6 +1991,7 @@ function MachineColumn({
                   accent={accent}
                   busy={inFlight[j.jobId]}
                   onUnassign={onUnassign}
+                  onDelete={onDelete}
                 />
               </motion.div>
             ))}
@@ -1508,14 +2008,19 @@ function RunningBlock({
   busy,
   onComplete,
   onFailed,
+  onDelete,
 }: {
   job: FabJobRow;
   accent: string;
-  busy: "complete" | "fail" | "start" | "assign" | "unassign" | undefined;
+  busy: "complete" | "fail" | "start" | "assign" | "unassign" | "delete" | undefined;
   onComplete: (jobId: string) => void;
   onFailed: (jobId: string) => void;
+  /** Phase 8.1d-31: also exposed on Now Running so a fab can purge
+   *  a stuck/duplicate after marking it failed (or instead of). */
+  onDelete: (job: FabJobRow) => void;
 }) {
   const elapsed = job.pickedUpAt ? formatRelativeTime(job.pickedUpAt) : null;
+  const isBusy = busy !== undefined;
   return (
     <div
       className="px-3 py-3"
@@ -1535,6 +2040,28 @@ function RunningBlock({
         <span className="text-[10px] ml-auto" style={{ color: "var(--ink-3)" }}>
           {elapsed ? `${elapsed}` : ""}
         </span>
+        {/* Phase 8.1d-31: ghost-icon delete on the Now-Running row. */}
+        <button
+          type="button"
+          onClick={() => onDelete(job)}
+          disabled={isBusy}
+          title="Delete job permanently"
+          aria-label="Delete job permanently"
+          className="p-1 rounded transition disabled:opacity-50 hover:bg-[var(--surface-2)]"
+          style={{ color: "var(--ink-3)" }}
+        >
+          {busy === "delete" ? (
+            <span
+              className="block w-2.5 h-2.5 border-[1.5px] rounded-full animate-spin"
+              style={{
+                borderColor: "var(--ink-2)",
+                borderTopColor: "transparent",
+              }}
+            />
+          ) : (
+            <TrashIcon size={11} />
+          )}
+        </button>
       </div>
       <div className="flex items-center gap-2 mb-2">
         <div
@@ -1593,26 +2120,18 @@ function QueuedJobCard({
   accent,
   busy,
   onUnassign,
+  onDelete,
 }: {
   job: FabJobRow;
   accent: string;
-  busy: "complete" | "fail" | "start" | "assign" | "unassign" | undefined;
-  onUnassign: (jobId: string) => void;
+  busy: "complete" | "fail" | "start" | "assign" | "unassign" | "delete" | undefined;
+  /** Phase 8.1d-31: callbacks now receive the row so the parent's
+   *  ConfirmActionModal can show student + class + filename
+   *  without a re-query. Replaces 8.1d-27's window.confirm
+   *  (browser chrome looked terrible against the dark theme). */
+  onUnassign: (job: FabJobRow) => void;
+  onDelete: (job: FabJobRow) => void;
 }) {
-  // Phase 8.1d-27: Remove uses window.confirm to guard against
-  // accidental unassign — it's reversible (job goes back to
-  // incoming, fab can re-route) but still surprising if mis-clicked.
-  const handleUnassign = React.useCallback(() => {
-    if (typeof window === "undefined") return;
-    if (
-      window.confirm(
-        `Remove ${job.studentName}'s job from this machine? It'll go back to the incoming row.`
-      )
-    ) {
-      onUnassign(job.jobId);
-    }
-  }, [job.jobId, job.studentName, onUnassign]);
-
   const isBusy = busy !== undefined;
 
   return (
@@ -1659,20 +2178,23 @@ function QueuedJobCard({
           </div>
         </div>
 
-        {/* Phase 8.1d-27: 4-button action row.
+        {/* Phase 8.1d-31: 5-button action row.
               Info     → /fab/jobs/[jobId] detail page (existing)
               Download → /download-preview (read-only, no status flip)
               Start    → /download (= pickup; status → picked_up)
-              Remove   → /unassign (returns job to Incoming row)
+              Remove   → /unassign (returns job to Incoming row, ConfirmActionModal warn)
+              Delete   → DELETE /api/fab/jobs/[jobId] (permanent, ConfirmActionModal danger)
             Start gets the wide primary slot; the rest are icon-only
-            secondary buttons with title attrs for the tooltip. */}
+            secondary buttons with title attrs for the tooltip.
+            Both Remove + Delete go through the parent-owned modal
+            instead of window.confirm. */}
         <div className="mt-2 flex items-stretch gap-1">
           <Link
             href={`/fab/jobs/${job.jobId}`}
             title="View details"
             aria-label="View details"
             className={`${styles.btnSecondary} rounded-md inline-flex items-center justify-center px-2`}
-            style={{ minWidth: 30 }}
+            style={{ minWidth: 28 }}
           >
             <EyeIcon size={12} />
           </Link>
@@ -1683,7 +2205,7 @@ function QueuedJobCard({
             className={`${styles.btnSecondary} rounded-md inline-flex items-center justify-center px-2 ${
               isBusy ? "opacity-50 pointer-events-none" : ""
             }`}
-            style={{ minWidth: 30 }}
+            style={{ minWidth: 28 }}
           >
             <DownloadIcon size={12} />
           </a>
@@ -1691,7 +2213,7 @@ function QueuedJobCard({
             href={`/api/fab/jobs/${job.jobId}/download`}
             title="Start: download + pick up the job"
             aria-disabled={isBusy}
-            className={`${styles.btnPrimary} rounded-md flex-1 px-2.5 py-1.5 text-[11px] inline-flex items-center justify-center gap-1.5 ${
+            className={`${styles.btnPrimary} rounded-md flex-1 px-2 py-1.5 text-[11px] inline-flex items-center justify-center gap-1.5 ${
               isBusy ? "opacity-50 pointer-events-none" : ""
             }`}
           >
@@ -1699,12 +2221,12 @@ function QueuedJobCard({
           </a>
           <button
             type="button"
-            onClick={handleUnassign}
+            onClick={() => onUnassign(job)}
             disabled={isBusy}
             title="Remove from this machine (back to incoming)"
             aria-label="Remove from queue"
             className={`${styles.btnSecondary} rounded-md inline-flex items-center justify-center px-2 disabled:opacity-50`}
-            style={{ minWidth: 30 }}
+            style={{ minWidth: 28 }}
           >
             {busy === "unassign" ? (
               <span
@@ -1716,6 +2238,27 @@ function QueuedJobCard({
               />
             ) : (
               <XIcon size={11} />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete(job)}
+            disabled={isBusy}
+            title="Delete job permanently"
+            aria-label="Delete job permanently"
+            className={`${styles.btnSecondary} rounded-md inline-flex items-center justify-center px-2 disabled:opacity-50`}
+            style={{ minWidth: 28, color: "var(--ink-3)" }}
+          >
+            {busy === "delete" ? (
+              <span
+                className="block w-2.5 h-2.5 border-[1.5px] rounded-full animate-spin"
+                style={{
+                  borderColor: "var(--ink-2)",
+                  borderTopColor: "transparent",
+                }}
+              />
+            ) : (
+              <TrashIcon size={11} />
             )}
           </button>
         </div>
@@ -2052,6 +2595,26 @@ function XIcon({ size = 12 }: IconProps) {
       strokeLinejoin="round"
     >
       <path d="M18 6L6 18M6 6l12 12" />
+    </svg>
+  );
+}
+// Phase 8.1d-31: trash icon for permanent-delete actions.
+function TrashIcon({ size = 12 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 6h18" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6M14 11v6" />
     </svg>
   );
 }

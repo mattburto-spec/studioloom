@@ -32,6 +32,7 @@
 
 import {
   FABRICATION_THUMBNAIL_BUCKET,
+  FABRICATION_UPLOAD_BUCKET,
   THUMBNAIL_URL_TTL_SECONDS,
 } from "./orchestration";
 import type { OrchestrationError } from "./orchestration";
@@ -57,6 +58,14 @@ interface SupabaseLike {
         expiresIn: number
       ) => Promise<{
         data: { signedUrl: string } | null;
+        error: { message: string } | null;
+      }>;
+      // Phase 8.1d-31: deleteJob removes files from storage when
+      // the fab fully purges a job. Tolerates partial failure —
+      // orphaned bytes can be reaped later, but the DB row leaving
+      // is what matters for the UI.
+      remove: (paths: string[]) => Promise<{
+        data: unknown;
         error: { message: string } | null;
       }>;
     };
@@ -1085,6 +1094,167 @@ export async function unassignMachine(
   }
 
   return { jobId };
+}
+
+// ============================================================
+// deleteJob — Phase 8.1d-31
+// ============================================================
+//
+// Permanently purge a job: removes the DB row (which cascades to
+// fabrication_job_revisions and fabrication_scan_jobs via ON
+// DELETE CASCADE — see migration 095) AND best-effort wipes the
+// uploaded file + thumbnail bytes from Storage.
+//
+// Distinct from unassign / mark-failed:
+//   - unassign      — reversible, job goes back to incoming
+//   - mark-failed   — keeps row, marks completion_status='failed'
+//   - delete        — gone. No undo. Used when the fab needs to
+//                     drop a duplicate, accidental upload, or
+//                     test-data junk a teacher won't curate.
+//
+// Auth: same scope as unassign — must belong to the fab's inviting
+// teacher. No status gate (teachers can purge at any lifecycle
+// stage; pre-pilot Matt explicitly asked for "fully delete jobs"
+// regardless of state). If a parallel student or teacher action is
+// mid-flight (e.g. a re-upload), the cascade still completes — the
+// other side will see "job not found" on its next call which is
+// the correct outcome.
+//
+// Storage cleanup is best-effort (per-bucket try/catch swallowed)
+// so a Storage outage doesn't block the DB delete. Orphaned bytes
+// are reaped by the daily retention cron (Phase 2 D-04). The
+// returned `storageWarnings` field surfaces partial failure to the
+// API route in case it wants to log.
+
+export interface DeleteJobRequest {
+  fabricatorId: string;
+  jobId: string;
+}
+
+export interface DeleteJobSuccess {
+  jobId: string;
+  /** Non-empty when storage cleanup partially failed. UI doesn't
+   *  surface this — DB row is gone so the job has effectively
+   *  disappeared. Logged for observability only. */
+  storageWarnings: string[];
+}
+export type DeleteJobResult = DeleteJobSuccess | OrchestrationError;
+
+export async function deleteJob(
+  db: SupabaseLike,
+  params: DeleteJobRequest
+): Promise<DeleteJobResult> {
+  const { fabricatorId, jobId } = params;
+
+  const teacherId = await fabricatorInvitingTeacherId(db, fabricatorId);
+  if (teacherId !== null && typeof teacherId === "object") return teacherId;
+  if (!teacherId) {
+    return { error: { status: 401, message: "Fabricator not active" } };
+  }
+
+  // Existence + ownership check. We need the teacher_id match
+  // before any destructive op so a fab can't delete a job they
+  // can't see (which would be a privilege-escalation bug).
+  const jobLookup = await db
+    .from("fabrication_jobs")
+    .select("id, teacher_id")
+    .eq("id", jobId)
+    .maybeSingle();
+  if (jobLookup.error) {
+    return {
+      error: { status: 500, message: `Job lookup failed: ${jobLookup.error.message}` },
+    };
+  }
+  const jobRow = jobLookup.data as { id: string; teacher_id: string } | null;
+  if (!jobRow || jobRow.teacher_id !== teacherId) {
+    return { error: { status: 404, message: "Job not found" } };
+  }
+
+  // Collect storage paths from all revisions BEFORE the delete —
+  // post-delete the rows are gone (cascade).
+  const revisionsResult = await db
+    .from("fabrication_job_revisions")
+    .select("storage_path, thumbnail_path")
+    .eq("job_id", jobId);
+  if (revisionsResult.error) {
+    return {
+      error: {
+        status: 500,
+        message: `Revision lookup failed: ${revisionsResult.error.message}`,
+      },
+    };
+  }
+  const revisions =
+    (revisionsResult.data as Array<{
+      storage_path: string | null;
+      thumbnail_path: string | null;
+    }> | null) ?? [];
+  const uploadPaths = revisions
+    .map((r) => r.storage_path)
+    .filter((p): p is string => typeof p === "string" && p.length > 0);
+  const thumbPaths = revisions
+    .map((r) => r.thumbnail_path)
+    .filter((p): p is string => typeof p === "string" && p.length > 0);
+
+  // Delete the parent row — cascade clears revisions + scan_jobs
+  // via ON DELETE CASCADE (migration 095/096).
+  const deleteResult = await db
+    .from("fabrication_jobs")
+    .delete()
+    .eq("id", jobId)
+    .eq("teacher_id", teacherId)
+    .select("id");
+  const { data: deleteData, error: deleteError } = deleteResult as {
+    data: Array<{ id: string }> | null;
+    error: { message: string } | null;
+  };
+  if (deleteError) {
+    return {
+      error: {
+        status: 500,
+        message: `Delete failed: ${deleteError.message}`,
+      },
+    };
+  }
+  if (!deleteData || deleteData.length === 0) {
+    // Vanished mid-flight (concurrent delete, or teacher_id mismatch
+    // that wasn't caught by the lookup above due to a race). Treat
+    // as already-deleted — idempotent success.
+    return { jobId, storageWarnings: [] };
+  }
+
+  // Best-effort storage cleanup. Errors collected but not fatal.
+  const storageWarnings: string[] = [];
+  if (uploadPaths.length > 0) {
+    try {
+      const r = await db.storage
+        .from(FABRICATION_UPLOAD_BUCKET)
+        .remove(uploadPaths);
+      if (r.error) {
+        storageWarnings.push(`uploads: ${r.error.message}`);
+      }
+    } catch (e) {
+      storageWarnings.push(
+        `uploads: ${e instanceof Error ? e.message : "unknown"}`
+      );
+    }
+  }
+  if (thumbPaths.length > 0) {
+    try {
+      const r = await db.storage
+        .from(FABRICATION_THUMBNAIL_BUCKET)
+        .remove(thumbPaths);
+      if (r.error) {
+        storageWarnings.push(`thumbnails: ${r.error.message}`);
+      }
+    } catch (e) {
+      storageWarnings.push(
+        `thumbnails: ${e instanceof Error ? e.message : "unknown"}`
+      );
+    }
+  }
+
+  return { jobId, storageWarnings };
 }
 
 // ============================================================
