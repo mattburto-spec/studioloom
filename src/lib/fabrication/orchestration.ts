@@ -106,6 +106,14 @@ interface SupabaseLike {
         data: { signedUrl: string } | null;
         error: { message: string } | null;
       }>;
+      // Phase 8.1d-32: deleteStudentJob removes uploaded + thumbnail
+      // bytes from Storage when a student fully purges their own
+      // job. Best-effort — partial failure is logged but the DB
+      // delete still completes.
+      remove: (paths: string[]) => Promise<{
+        data: unknown;
+        error: { message: string } | null;
+      }>;
     };
   };
 }
@@ -1589,6 +1597,172 @@ export async function cancelJob(
   }
 
   return { jobId: params.jobId, newStatus: "cancelled" };
+}
+
+// ============================================================
+// Phase 8.1d-32 — deleteStudentJob (student permanent delete)
+// ============================================================
+
+/** Statuses a student is allowed to permanently delete from. The
+ *  exclusions are exactly the statuses where the fab/teacher is
+ *  actively working with the file:
+ *
+ *    approved   — teacher approved, in fab queue / about to print
+ *    picked_up  — actively being fabricated right now
+ *
+ *  Everything else is fair game — students should be able to clean
+ *  up uploads that got stuck, cancelled jobs, or post-collection
+ *  rows they don't want cluttering their overview. Mirrors the
+ *  fab-side `deleteJob` (no status gate there) but more
+ *  conservative on the student side because students don't see the
+ *  full lab state and shouldn't yank work-in-progress.
+ *
+ *  Distinct from `cancelJob`:
+ *    cancel — soft transition status → 'cancelled', row preserved
+ *             for audit trail
+ *    delete — permanent: DB cascade (revisions + scan_jobs via
+ *             FK ON DELETE CASCADE) + Storage wipe of the uploaded
+ *             file + thumbnail bytes. No undo.
+ */
+const STUDENT_DELETABLE_STATUSES: ReadonlySet<string> = new Set([
+  "uploaded",
+  "scanning",
+  "pending_approval",
+  "needs_revision",
+  "cancelled",
+  "rejected",
+  "completed",
+]);
+
+export interface DeleteStudentJobRequest {
+  studentId: string;
+  jobId: string;
+}
+
+export interface DeleteStudentJobSuccess {
+  jobId: string;
+  /** Non-empty when storage cleanup partially failed. UI doesn't
+   *  surface this — DB row is gone so the job has effectively
+   *  disappeared. Logged for observability only. */
+  storageWarnings: string[];
+}
+
+export type DeleteStudentJobResult =
+  | DeleteStudentJobSuccess
+  | OrchestrationError;
+
+export async function deleteStudentJob(
+  db: SupabaseLike,
+  params: DeleteStudentJobRequest
+): Promise<DeleteStudentJobResult> {
+  const ownership = await loadOwnedJob(db, params.studentId, params.jobId);
+  if (isOrchestrationError(ownership)) return ownership;
+
+  if (!STUDENT_DELETABLE_STATUSES.has(ownership.job.status)) {
+    return {
+      error: {
+        status: 409,
+        message:
+          ownership.job.status === "approved"
+            ? "Can't delete — your teacher has approved this job and the fabricator may be about to start it. Ask them to remove it instead."
+            : ownership.job.status === "picked_up"
+              ? "Can't delete — the fabricator is currently working on this job."
+              : `Can't delete a job in status '${ownership.job.status}'.`,
+      },
+    };
+  }
+
+  // Collect storage paths from all revisions BEFORE the cascade
+  // delete — post-cascade the rows are gone.
+  const revisionsResult = await db
+    .from("fabrication_job_revisions")
+    .select("storage_path, thumbnail_path")
+    .eq("job_id", params.jobId);
+  if (revisionsResult.error) {
+    return {
+      error: {
+        status: 500,
+        message: `Revision lookup failed: ${revisionsResult.error.message}`,
+      },
+    };
+  }
+  const revisions =
+    (revisionsResult.data as Array<{
+      storage_path: string | null;
+      thumbnail_path: string | null;
+    }> | null) ?? [];
+  const uploadPaths = revisions
+    .map((r) => r.storage_path)
+    .filter((p): p is string => typeof p === "string" && p.length > 0);
+  const thumbPaths = revisions
+    .map((r) => r.thumbnail_path)
+    .filter((p): p is string => typeof p === "string" && p.length > 0);
+
+  // Delete the parent row — cascade clears revisions + scan_jobs
+  // via ON DELETE CASCADE (migration 095/096). Re-confirm
+  // student_id ownership in the WHERE clause as a defence in
+  // depth (loadOwnedJob already verified, but a stacked guard
+  // costs nothing and protects against logic bugs in callers).
+  const deleteResult = await db
+    .from("fabrication_jobs")
+    .delete()
+    .eq("id", params.jobId)
+    .eq("student_id", params.studentId)
+    .select("id");
+  const { data: deleteData, error: deleteError } = deleteResult as {
+    data: Array<{ id: string }> | null;
+    error: { message: string } | null;
+  };
+  if (deleteError) {
+    return {
+      error: {
+        status: 500,
+        message: `Delete failed: ${deleteError.message}`,
+      },
+    };
+  }
+  if (!deleteData || deleteData.length === 0) {
+    // Vanished mid-flight (concurrent delete, or status changed
+    // out of deletable range between the load and the delete).
+    // Treat as already-deleted — idempotent success.
+    return { jobId: params.jobId, storageWarnings: [] };
+  }
+
+  // Best-effort storage cleanup. Errors collected but not fatal.
+  // Mirrors the fab-side deleteJob exactly — orphaned bytes get
+  // reaped by the daily retention cron (Phase 2 D-04) if cleanup
+  // here misses anything.
+  const storageWarnings: string[] = [];
+  if (uploadPaths.length > 0) {
+    try {
+      const r = await db.storage
+        .from(FABRICATION_UPLOAD_BUCKET)
+        .remove(uploadPaths);
+      if (r.error) {
+        storageWarnings.push(`uploads: ${r.error.message}`);
+      }
+    } catch (e) {
+      storageWarnings.push(
+        `uploads: ${e instanceof Error ? e.message : "unknown"}`
+      );
+    }
+  }
+  if (thumbPaths.length > 0) {
+    try {
+      const r = await db.storage
+        .from(FABRICATION_THUMBNAIL_BUCKET)
+        .remove(thumbPaths);
+      if (r.error) {
+        storageWarnings.push(`thumbnails: ${r.error.message}`);
+      }
+    } catch (e) {
+      storageWarnings.push(
+        `thumbnails: ${e instanceof Error ? e.message : "unknown"}`
+      );
+    }
+  }
+
+  return { jobId: params.jobId, storageWarnings };
 }
 
 // ============================================================
