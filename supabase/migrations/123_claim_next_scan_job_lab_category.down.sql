@@ -2,8 +2,12 @@
 -- return shape (no lab_id / machine_category). Only useful if you
 -- ALSO roll back 120 + the scanner code that consumes the new
 -- columns; otherwise the worker will crash on category-only jobs.
+--
+-- Same DROP-then-CREATE pattern as the up-migration — Postgres
+-- 42P13 won't let CREATE OR REPLACE change the return shape.
+DROP FUNCTION IF EXISTS claim_next_scan_job(TEXT);
 
-CREATE OR REPLACE FUNCTION claim_next_scan_job(p_worker_id TEXT)
+CREATE FUNCTION claim_next_scan_job(p_worker_id TEXT)
 RETURNS TABLE (
   scan_job_id          UUID,
   job_id               UUID,

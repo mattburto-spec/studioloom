@@ -15,9 +15,14 @@
 -- profile for category-only jobs (any active machine in that lab +
 -- category) without an extra round-trip.
 --
--- Idempotent — uses CREATE OR REPLACE.
+-- Idempotent re-application: DROP then CREATE. PostgreSQL refuses
+-- to CREATE OR REPLACE a function when the return-type signature
+-- changes (42P13: "cannot change return type of existing function")
+-- even though the body + parameters are otherwise identical. Drop
+-- first, recreate with the new TABLE shape.
+DROP FUNCTION IF EXISTS claim_next_scan_job(TEXT);
 
-CREATE OR REPLACE FUNCTION claim_next_scan_job(p_worker_id TEXT)
+CREATE FUNCTION claim_next_scan_job(p_worker_id TEXT)
 RETURNS TABLE (
   scan_job_id          UUID,
   job_id               UUID,
