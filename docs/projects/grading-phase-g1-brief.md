@@ -4,7 +4,7 @@
 >
 > Drafted: 27 April 2026
 > Updated: 27 April 2026 (design landed via Claude Design — Calibrate/Synthesize/Studio-Floor model)
-> Status: **G1 PLAN SIGNED OFF 27 Apr 2026** — worktree scaffolded at `/Users/matt/CWORK/questerra-grading` on `grading-v1`. Pre-flight ritual RUN. Audit findings in §13. **Code-write BLOCKED on Q1 (data-model decision) — see §13 recommendation.**
+> Status: **G1 PLAN SIGNED OFF + Q1 RESOLVED 27 Apr 2026.** Option B (new `student_tile_grades` table) confirmed by Matt. Tile-ID stability verified at source level (see §13.G). Worktree scaffolded at `/Users/matt/CWORK/questerra-grading` on `grading-v1`. Pre-flight complete. **Next action: mint the migration stub via `new-migration.sh grading_v1_student_tile_grades` and commit-claim. Body authoring + application to prod is the next session's first task.**
 >
 > Canonical design: [`docs/prototypes/grading-v2/`](../prototypes/grading-v2/) — open `Grading v2.html` in a browser. Three views, ~937 lines of JSX, framework-agnostic React + Framer Motion. **Locked-in mode model:** horizontal-first calibration → vertical synthesis. Studio Floor as power-user third tab.
 > Canonical spec: [`docs/projects/grading.md`](grading.md) (412 lines, full 7-phase plan).
@@ -317,9 +317,31 @@ Verified the following lessons exist in [`docs/lessons-learned.md`](../lessons-l
 
 Code-write is blocked. The right path forward:
 
-1. **Matt confirms Option B** (or selects A or C with reasoning).
-2. **Next session opens in this worktree** (`/Users/matt/CWORK/questerra-grading`), reads the [docs/handoff/grading-v1.md](../handoff/grading-v1.md) (will be written via `sessionhandover` if needed — for now the brief is the pickup), runs the Q1.E verification (read 3 prod class_units rows, inspect tile ID stability), then mints the migration via `bash scripts/migrations/new-migration.sh grading_v1_student_tile_grades` and commits the empty stub immediately.
-3. After migration applied to prod Supabase + verified via probe, code writes begin with G1.1 (Calibrate view).
+1. ✅ **Matt confirms Option B.** Locked in 27 Apr 2026.
+2. ✅ **Tile-ID stability verified at source level** (see §13.G below). Live-data verification (count of legacy tiles lacking `activityId` in prod `class_units.content_data`) deferred to next session — informs whether migration includes a backfill step.
+3. **Next session opens in this worktree** (`/Users/matt/CWORK/questerra-grading`), runs `bash scripts/migrations/new-migration.sh grading_v1_student_tile_grades` to mint the empty timestamp-prefixed stub, commits to claim, then authors the migration body using the schema in §13.C. Apply to local Supabase, verify via probe, then apply to prod.
+4. After migration applied to prod + verified, code writes begin with G1.1 (Calibrate view) — first extracted component is `ScorePill`.
+
+### G. Tile-ID stability verification (source-level — completed this session)
+
+**Result: GREEN with one open data-question.**
+
+- **`ActivitySection.activityId`** ([src/types/index.ts:368](../../src/types/index.ts)) is documented as: *"Stable activity ID from v4 timeline — used for response keys that survive rebalancing."* That's exactly G1's requirement.
+- **Lesson editor preserves activityId on save round-trip.** [src/components/teacher/lesson-editor/LessonEditor.tsx:275](../../src/components/teacher/lesson-editor/LessonEditor.tsx) — `handleAddActivity` does `activityId: activity.activityId || nanoid(8)` (preserves existing). [Line 297](../../src/components/teacher/lesson-editor/LessonEditor.tsx) — `handleDuplicateActivity` mints a fresh nanoid (correct: a duplicate is a new tile). Reorder ([line 285](../../src/components/teacher/lesson-editor/LessonEditor.tsx)) just spreads sections — preserves activityId.
+- **Production canonical response key format** ([src/app/(student)/unit/[unitId]/[pageId]/page.tsx:277](../../src/app/(student)/unit/[unitId]/[pageId]/page.tsx)):
+  ```js
+  const responseKey = section.activityId
+    ? `activity_${section.activityId}`
+    : `section_${i}`;
+  ```
+  This same key drives `responses` map, `integrityMetadataRef`, engagement tracking (`registerActivity`, `recordInteraction`), and React `key` prop. **G1's `student_tile_grades.tile_id` should use the SAME format** — that way join paths line up: `student_tile_grades.tile_id ↔ student_progress.responses[<that key>]`. No translation layer.
+- **Legacy fallback** (`section_${idx}`) exists in two read-only views: [src/components/student/ExportPagePdf.tsx:49](../../src/components/student/ExportPagePdf.tsx) and [src/components/portfolio/NarrativeView.tsx:104](../../src/components/portfolio/NarrativeView.tsx). These don't write — they read whatever shape exists. So legacy tiles persist with positional keys; new tiles persist with activityId keys. Both shapes coexist in prod today.
+- **`ActivitySection.criterionTags?: string[]`** ([src/types/index.ts:375](../../src/types/index.ts)) already carries criterion mapping per tile. Comment: *"Assessment criteria this activity addresses — e.g. ['A','B'] or ['AO1','AO3']. Framework-agnostic."* This means **per-criterion rollup at Synthesize time = JOIN against `class_units.content_data` reading `criterionTags` per tile**. Zero new metadata required.
+
+**Open data-question for next session (not blocking the migration mint, but blocks the migration body):**
+> What fraction of `class_units.content_data.sections[]` rows in prod lack `activityId`? Quick probe: `SELECT COUNT(*) WITH section AS (SELECT jsonb_array_elements(content_data->'sections') s FROM class_units) SELECT count(*) FILTER (WHERE NOT (s ? 'activityId')) AS legacy, count(*) AS total FROM section`. If legacy > 5% of total, the migration includes a backfill step that mints `nanoid(8)` for each legacy section. If <5%, accept positional fallback in `tile_id` until first edit naturally backfills.
+
+**Acceptance:** the design's per-tile model is implementable on the existing tile structure with stable IDs. The migration body in §13.C stands. Authoring + application is next session's first task.
 
 ---
 
