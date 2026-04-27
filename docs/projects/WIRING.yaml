@@ -628,7 +628,7 @@ systems:
     category: Student Experience
     status: planned
     currentVersion: 0
-    summary: "Phase 1A SHIPPED 26 Apr 2026: TappableText shared component + /api/student/word-lookup endpoint + word_definitions cache table + sandbox bypass. Phase 1B mounts on 5 educational text surfaces (lesson prompts, intro, vocab, AI mentor messages on KitMentor / CheckInPanel / DesignAssistantWidget). Phase 1C adds top-500 design-vocab pre-warm seed. Phase 2 adds L1 translation + audio + image."
+    summary: "Phase 1A + 1B SHIPPED 26-27 Apr 2026: TappableText shared component + /api/student/word-lookup endpoint + word_definitions cache + sandbox bypass + WordPopover via createPortal. Mounted on 5 educational text surfaces: ActivityCard prompts (via MarkdownPrompt tappable prop) + ELL-1 hint card, LessonIntro introduction.text, VocabWarmup definition+example, KitMentor speech bubble, DesignAssistantWidget assistant messages, CheckInPanel mentor messages. Phase 1C adds top-500 design-vocab pre-warm seed + Checkpoint 1.1. Phase 2 adds L1 translation + audio + image."
     depends_on: [student-profile, ai-mentor]
     affects: [lesson-view, discovery-engine, student-open-studio, ai-mentor]
     docs:
@@ -647,8 +647,9 @@ systems:
       - src/components/student/tap-a-word/tokenize.ts
       - src/lib/ai/sandbox/word-lookup-sandbox.ts
       - src/app/api/student/word-lookup/route.ts
-    future_needs: "Phase 1B: mount on 5 surfaces (MarkdownPrompt tappable prop, LessonIntro, VocabWarmup, KitMentor, CheckInPanel, DesignAssistantWidget). Phase 1C: pre-warm seed top 500 design-vocab. Phase 2: + L1 translation + audio + image. Phase 4: signal-driven scaffold-fading (taps_per_100_words rolling 5-lesson average)."
-    change_impacts: "First Anthropic call site in the student API surface to ship Lesson #39 stop_reason guard + defensive destructure as canonical pattern. FU-5 (6 existing student-api violations) remains out of scope. Toolkit tool prompts deferred to Phase 1B refinement after core 5 surfaces verify."
+      - src/components/student/MarkdownPrompt.tsx
+    future_needs: "Phase 1C: pre-warm seed top 500 design-vocab + Checkpoint 1.1 visual smoke + cost report. Phase 2: + L1 translation + audio + image. Phase 4: signal-driven scaffold-fading (taps_per_100_words rolling 5-lesson average). Toolkit tool prompts: deferred 1B refinement (28 bespoke tools, not yet wired)."
+    change_impacts: "First Anthropic call site in the student API surface to ship Lesson #39 stop_reason guard + defensive destructure as canonical pattern. FU-5 (6 existing student-api violations) remains out of scope. WordPopover portals to document.body via createPortal so it escapes any clipped-overflow ancestor on the 5 mount surfaces. Toolkit tool prompts deferred to a 1B refinement after Checkpoint 1.1 signs off on the core 5 surfaces."
 
   - id: student-learning-support
     name: Student Learning Support (Accessibility & Language)
