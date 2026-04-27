@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { imageForWord } from "@/lib/tap-a-word/image-dictionary";
 
 /**
  * Hook for tap-a-word: fetches definitions from /api/student/word-lookup.
@@ -13,7 +14,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * Phase 1A: { definition, exampleSentence }.
  * Phase 2A: + { l1Translation, l1Target } — server resolves l1Target from
  * the student's learning_profile, so the client just renders what comes back.
- * Phase 2B/2C will add audio (browser SpeechSynthesis) + image (static dict).
+ * Phase 2B: audio handled by browser SpeechSynthesis directly in WordPopover (no hook state needed).
+ * Phase 2C: + { imageUrl } — pure client-side lookup via static dictionary,
+ * no extra network roundtrip; populated alongside the API response.
  */
 
 export type LookupState = "idle" | "loading" | "loaded" | "error";
@@ -25,6 +28,7 @@ export interface LookupResult {
   exampleSentence: string | null;
   l1Translation: string | null;
   l1Target: string | null;
+  imageUrl: string | null;
   errorMessage: string | null;
   lookup: (word: string, contextSentence?: string) => void;
   reset: () => void;
@@ -35,6 +39,7 @@ interface CachedEntry {
   exampleSentence: string | null;
   l1Translation: string | null;
   l1Target: string | null;
+  imageUrl: string | null;
 }
 
 const DEBOUNCE_MS = 250;
@@ -56,6 +61,7 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
   const [exampleSentence, setExampleSentence] = useState<string | null>(null);
   const [l1Translation, setL1Translation] = useState<string | null>(null);
   const [l1Target, setL1Target] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const cacheRef = useRef<Map<string, CachedEntry>>(new Map());
@@ -77,6 +83,7 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
     setExampleSentence(null);
     setL1Translation(null);
     setL1Target(null);
+    setImageUrl(null);
     setErrorMessage(null);
   }, []);
 
@@ -107,6 +114,7 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
       setExampleSentence(cached.exampleSentence);
       setL1Translation(cached.l1Translation);
       setL1Target(cached.l1Target);
+      setImageUrl(cached.imageUrl);
       setErrorMessage(null);
       return;
     }
@@ -116,6 +124,7 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
     setExampleSentence(null);
     setL1Translation(null);
     setL1Target(null);
+    setImageUrl(null);
     setErrorMessage(null);
 
     // Capture classId at lookup() invocation time so the value used in the
@@ -152,17 +161,22 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
           setErrorMessage("no definition returned");
           return;
         }
+        // Phase 2C: synchronous image lookup against the static dictionary.
+        // No extra network call — populated alongside the API response.
+        const img = imageForWord(normalized);
         cacheRef.current.set(normalized, {
           definition: def,
           exampleSentence: ex,
           l1Translation: l1t,
           l1Target: l1tgt,
+          imageUrl: img,
         });
         setState("loaded");
         setDefinition(def);
         setExampleSentence(ex);
         setL1Translation(l1t);
         setL1Target(l1tgt);
+        setImageUrl(img);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setState("error");
@@ -190,6 +204,7 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
     exampleSentence,
     l1Translation,
     l1Target,
+    imageUrl,
     errorMessage,
     lookup,
     reset,

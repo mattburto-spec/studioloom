@@ -111,6 +111,7 @@ export function TappableText({ text, contextSentence, className, classId: classI
           exampleSentence={lookup.exampleSentence}
           l1Translation={lookup.l1Translation}
           l1Target={lookup.l1Target}
+          imageUrl={lookup.imageUrl}
           errorMessage={lookup.errorMessage}
           anchorRect={anchorRect}
           onClose={handleClose}
