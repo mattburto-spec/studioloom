@@ -4,7 +4,7 @@
 >
 > Drafted: 27 April 2026
 > Updated: 27 April 2026 (design landed via Claude Design — Calibrate/Synthesize/Studio-Floor model)
-> Status: **AWAITING MATT SIGN-OFF + 1 OPEN QUESTION RESOLVED** — do not start any code until this brief is approved. (Down from 4 OQs — Q3 closed by design, Q1 refined, Q2/Q4 unchanged.)
+> Status: **G1 PLAN SIGNED OFF + Q1 RESOLVED 27 Apr 2026.** Option B (new `student_tile_grades` table) confirmed by Matt. Tile-ID stability verified at source level (see §13.G). Worktree scaffolded at `/Users/matt/CWORK/questerra-grading` on `grading-v1`. Pre-flight complete. **Next action: mint the migration stub via `new-migration.sh grading_v1_student_tile_grades` and commit-claim. Body authoring + application to prod is the next session's first task.**
 >
 > Canonical design: [`docs/prototypes/grading-v2/`](../prototypes/grading-v2/) — open `Grading v2.html` in a browser. Three views, ~937 lines of JSX, framework-agnostic React + Framer Motion. **Locked-in mode model:** horizontal-first calibration → vertical synthesis. Studio Floor as power-user third tab.
 > Canonical spec: [`docs/projects/grading.md`](grading.md) (412 lines, full 7-phase plan).
@@ -218,10 +218,235 @@ Don't start G2+ planning until G1 ships. Premature scope expansion is the failur
 
 ---
 
+## 13. Pre-flight audit findings (27 Apr 2026, in worktree)
+
+Pre-flight ritual run in `/Users/matt/CWORK/questerra-grading` on branch `grading-v1` (forked from main `b53649c`). Reporting before any migration or code write per §6.
+
+### A. Baseline test count
+**`npm test` → 2215 passed | 9 skipped (2224 total) | 141 test files | 6.00s.** This is the new baseline. Lock at end of G1; deltas reported per sub-task gate.
+
+### B. Existing grading data model — the load-bearing finding
+
+**The brief's working assumption was wrong.** The previous grading work doesn't write to a `student_grades` table — it writes to **`assessment_records`** (migration [`019_assessments.sql`](../../supabase/migrations/019_assessments.sql)). Schema:
+
+```sql
+CREATE TABLE assessment_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  unit_id UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE,
+  class_id UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+  teacher_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  data JSONB NOT NULL,         -- AssessmentRecord blob (criterion_scores, comments, targets, tags)
+  overall_grade SMALLINT,      -- denormalized, framework-agnostic (no CHECK)
+  is_draft BOOLEAN NOT NULL DEFAULT true,
+  assessed_at TIMESTAMPTZ DEFAULT now(),
+  ...
+  UNIQUE(student_id, unit_id, class_id)
+);
+```
+
+**Critical implication:** existing grading is **unit-level**, ONE row per (student × unit × class). The Grading v2 design's per-tile granularity is **NOT a sidestep of the original Q1** — it's a fundamentally new data layer on top of `assessment_records`. The grading.md spec's `assessment_tasks` proposal was the architecturally correct prediction; the design's per-tile model is its concrete instantiation.
+
+API write site: [`src/app/api/teacher/assessments/route.ts`](../../src/app/api/teacher/assessments/route.ts) (lines 50, 61, 113, 136 — `from("assessment_records")`).
+Existing grading page: [`src/app/teacher/classes/[classId]/grading/[unitId]/page.tsx`](../../src/app/teacher/classes/[classId]/grading/[unitId]/page.tsx) (1,311 lines) — reads `student_progress` for responses + presumably `assessment_records` for grades.
+
+Supporting infrastructure already in place:
+- `src/types/assessment.ts` — canonical `CriterionScore` interface (criterion_key, level, strand_scores, comment, evidence_page_ids, tags). Already includes `evidence_page_ids` — useful for G1's per-criterion rollup pointers.
+- `src/lib/criterion-scores/normalize.ts` — Phase 2 absorber for 4 historical shapes (Lesson #42, FU-K). Whatever G1 ships must round-trip through this.
+
+### C. Data-model decision required (Q1 — recommendation)
+
+Three viable paths:
+
+| Option | Shape | Pro | Con |
+|---|---|---|---|
+| **A** Extend `assessment_records.data` JSONB | Add `tile_grades: TileGrade[]` inside the JSONB blob | Zero migration. Backward compat trivial. | Marking queue cross-class scan = JSONB scan. Won't scale past ~50-100 records. Loses the speed Calibrate is designed for. |
+| **B** New `student_tile_grades` table (RECOMMENDED) | `(student_id, unit_id, page_id, tile_id, class_id)` UNIQUE + per-tile fields | Indexable + queryable. Marking queue + per-criterion rollup are real SQL queries. RLS pattern reuses `assessment_records`. | Real migration. Per-criterion rollup needs join to `class_units.content_data` for tile→criterion mapping. |
+| **C** Hybrid (B + write rollups to A) | New table for live state, sync overall to `assessment_records.data.tile_grades` on release | Backward compat with student-snapshot route + existing teacher unit-grade UI. | Two writers to keep in sync. More moving parts. |
+
+**Recommendation: Option B.** Calibrate's marking-queue performance demands an indexed table; the design's "8 tiles × 24 students = 192 micro-judgements per lesson" workload makes JSONB-scan performance unacceptable. Migration is small and well-shaped:
+
+```sql
+CREATE TABLE student_tile_grades (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  unit_id UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE,
+  page_id UUID NOT NULL,                                         -- references the lesson page
+  tile_id TEXT NOT NULL,                                         -- string ID inside content_data
+  class_id UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+  teacher_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+
+  score SMALLINT,                                                -- 1-8 (or 0-100 for percentage frameworks)
+  confirmed BOOLEAN NOT NULL DEFAULT false,                      -- teacher confirmed AI suggestion or override
+  ai_pre_score SMALLINT,
+  ai_quote TEXT,                                                 -- 8-15 word evidence quote
+  ai_confidence TEXT CHECK (ai_confidence IN ('high','med','low')),
+  ai_reasoning TEXT,
+  override_note TEXT,                                            -- private teacher note
+
+  graded_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+
+  UNIQUE(student_id, unit_id, page_id, tile_id, class_id)
+);
+```
+
+Per-criterion rollup at Synthesize time: `SELECT score FROM student_tile_grades WHERE (student_id,unit_id,class_id)=$1 JOIN tile→criterion mapping FROM content_data → group by criterion → AVG or best-fit`. Computed at query time, not stored. **`assessment_records.data.criterion_scores[]` continues to be the canonical "released grade" record**; G1 writes to it on Synthesize "Release to <student>" with the rolled-up criterion scores + overall comment. Backward compat preserved without dual-writer hazard.
+
+**Open sub-question for Q1:** Does `class_units.content_data` already give tiles stable string IDs (likely from the lesson editor's nanoid pattern), or do tiles get re-IDed on each edit? **This is the #1 thing G1.0 must verify** before authoring the migration. If tile IDs are unstable, we need a tile registry or per-tile slug normalization first. Initial signal: the Phase 0.5 lesson editor doc (`docs/specs/lesson-layer-architecture.md`) and `src/types/activity-blocks.ts` line 72 show ActivityBlocks DO carry stable string IDs, but Activity Blocks (library entities) ≠ tiles in `content_data`. **Verification step before migration: read 3 real production class_units rows and inspect content_data tile IDs across an edit.**
+
+### D. Open questions — final state before code write
+
+- **Q1.** ⛔ **Code-write BLOCKED.** Need Matt sign-off on Option B + verification that lesson tiles have stable IDs in production `content_data`. Without this, the migration is unsafe.
+- **Q2.** Per-class AI opt-in default = OFF. Matt to flip ON for his own classes during smoke. *Default applied in code unless overridden.*
+- **Q3.** ✅ Closed — new dedicated `/teacher/marking` route.
+- **Q4.** ✅ Closed — worktree + push discipline confirmed by sign-off action.
+
+### E. Lessons re-read confirmation
+
+Verified the following lessons exist in [`docs/lessons-learned.md`](../lessons-learned.md) (re-read at G1.0 start of next session):
+- #22 — Junction-first-fallback for student lookup (relevant to marking queue cross-class scan)
+- #29 — UNION-pattern RLS for dual-visibility (relevant if G1 needs school-admin visibility, deferred)
+- #34 — Test baseline drift (just captured: 2215)
+- #38 — Verify = assert exact values, not non-null
+- #39 — Audit-then-fix-all for pattern bugs (relevant to the criterion_scores 4-shape absorber sites)
+- #42 — Dual-shape persistence (the existing absorber pattern — G1 writes must round-trip cleanly)
+
+### F. WHAT HAPPENS NEXT (the actual STOP)
+
+Code-write is blocked. The right path forward:
+
+1. ✅ **Matt confirms Option B.** Locked in 27 Apr 2026.
+2. ✅ **Tile-ID stability verified at source level** (see §13.G below). Live-data verification (count of legacy tiles lacking `activityId` in prod `class_units.content_data`) deferred to next session — informs whether migration includes a backfill step.
+3. **Next session opens in this worktree** (`/Users/matt/CWORK/questerra-grading`), runs `bash scripts/migrations/new-migration.sh grading_v1_student_tile_grades` to mint the empty timestamp-prefixed stub, commits to claim, then authors the migration body using the schema in §13.C. Apply to local Supabase, verify via probe, then apply to prod.
+4. After migration applied to prod + verified, code writes begin with G1.1 (Calibrate view) — first extracted component is `ScorePill`.
+
+### G. Tile-ID stability verification (source-level — completed this session)
+
+**Result: GREEN with one open data-question.**
+
+- **`ActivitySection.activityId`** ([src/types/index.ts:368](../../src/types/index.ts)) is documented as: *"Stable activity ID from v4 timeline — used for response keys that survive rebalancing."* That's exactly G1's requirement.
+- **Lesson editor preserves activityId on save round-trip.** [src/components/teacher/lesson-editor/LessonEditor.tsx:275](../../src/components/teacher/lesson-editor/LessonEditor.tsx) — `handleAddActivity` does `activityId: activity.activityId || nanoid(8)` (preserves existing). [Line 297](../../src/components/teacher/lesson-editor/LessonEditor.tsx) — `handleDuplicateActivity` mints a fresh nanoid (correct: a duplicate is a new tile). Reorder ([line 285](../../src/components/teacher/lesson-editor/LessonEditor.tsx)) just spreads sections — preserves activityId.
+- **Production canonical response key format** ([src/app/(student)/unit/[unitId]/[pageId]/page.tsx:277](../../src/app/(student)/unit/[unitId]/[pageId]/page.tsx)):
+  ```js
+  const responseKey = section.activityId
+    ? `activity_${section.activityId}`
+    : `section_${i}`;
+  ```
+  This same key drives `responses` map, `integrityMetadataRef`, engagement tracking (`registerActivity`, `recordInteraction`), and React `key` prop. **G1's `student_tile_grades.tile_id` should use the SAME format** — that way join paths line up: `student_tile_grades.tile_id ↔ student_progress.responses[<that key>]`. No translation layer.
+- **Legacy fallback** (`section_${idx}`) exists in two read-only views: [src/components/student/ExportPagePdf.tsx:49](../../src/components/student/ExportPagePdf.tsx) and [src/components/portfolio/NarrativeView.tsx:104](../../src/components/portfolio/NarrativeView.tsx). These don't write — they read whatever shape exists. So legacy tiles persist with positional keys; new tiles persist with activityId keys. Both shapes coexist in prod today.
+- **`ActivitySection.criterionTags?: string[]`** ([src/types/index.ts:375](../../src/types/index.ts)) already carries criterion mapping per tile. Comment: *"Assessment criteria this activity addresses — e.g. ['A','B'] or ['AO1','AO3']. Framework-agnostic."* This means **per-criterion rollup at Synthesize time = JOIN against `class_units.content_data` reading `criterionTags` per tile**. Zero new metadata required.
+
+**Live-data probe (run 27 Apr 2026 against prod via [`scripts/grading/probe-tile-id-coverage.ts`](../../scripts/grading/probe-tile-id-coverage.ts)):**
+
+```
+Total tiles:              635 (across 11 units)
+With stable ID:           571 (89.9%)
+Legacy (no stable ID):    64  (10.1%)
+
+By content version: v2 = 1 unit, v3 = 2 units, v4 = 7 units, v? = 1 unit
+By tile shape:      pages-with-content-sections = 3 units, timeline-flat = 7 units, other = 1 unit
+
+Criterion-tag coverage: 163 tiles tagged (25.7%) — see §13.H below
+```
+
+**Stable-ID conclusion:** V4 `TimelineActivity.id` and V2/V3 `ActivitySection.activityId` are equivalent nanoid(8) strings — both flow through to the rendered `responseKey` via the converter at [`src/lib/timeline.ts:142`](../../src/lib/timeline.ts) (`activityId: a.id`). Counting both: 89.9% of prod tiles already carry stable IDs. **Backfill is required** for the 10.1% legacy (64 tiles across the 4 v2/v3/v? units), but the volume is small enough that the migration body handles it inline.
+
+### H. Second probe finding — criterion-tag coverage + framework-neutral schema (NEW design constraint)
+
+**74.3% of prod tiles have NO `criterionTags` field.** The design's per-criterion rollup only works for ~26% of existing tiles via JOIN. The other 74.3% need a different criterion source.
+
+Two candidate sources to fall back to:
+1. **`UnitPage.criterion: CriterionKey`** — V2/V3 only. Pages are tagged per criterion. Every tile on the page inherits.
+2. **Teacher-assigned at marking time** — Calibrate's row already shows criterion in the question header. Teacher pins during the first scoring pass.
+
+**Schema implication: denormalize criterion identifiers onto `student_tile_grades`.** Don't re-resolve from `content_data` at every read.
+
+#### Framework-neutral key choice (Path A — locked in 27 Apr 2026)
+
+The values stored MUST be **neutral keys**, not framework-specific labels. Otherwise this same migration would need to re-run when an NSW or GCSE teacher onboards. StudioLoom already has the architecture:
+
+- **8 universal neutral keys** ([docs/specs/neutral-criterion-taxonomy.md](../specs/neutral-criterion-taxonomy.md)): `researching`, `analysing`, `designing`, `creating`, `evaluating`, `reflecting`, `communicating`, `planning`.
+- **`FrameworkAdapter`** ([src/lib/frameworks/adapter.ts](../../src/lib/frameworks/adapter.ts)) — `fromLabel(label, framework)` maps framework code (e.g. `"A"`, `"AO2"`, `"DT5-2"`) → neutral keys; `toLabel(neutralKey, framework, opts)` maps the other direction for render.
+
+**Critical nuance from the API:** `fromLabel()` returns `readonly NeutralCriterionKey[]` — **plural**. MYP "Criterion A" maps to BOTH `researching` AND `analysing` (the criterion is a unified whole — best-fit semantics). So the column must be an **array**, not a scalar. A single tile graded at 6 on a "Criterion A" task contributes 6 to BOTH neutral keys.
+
+#### Updated migration body shape (REVISED §13.C — superseded)
+
+```sql
+CREATE TABLE student_tile_grades (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  unit_id UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE,
+  page_id UUID NOT NULL,
+  tile_id TEXT NOT NULL,                                 -- "activity_<nanoid>" or "section_<idx>"
+  class_id UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+  teacher_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+
+  score SMALLINT,                                        -- framework-neutral; rendered scale per class.framework
+  confirmed BOOLEAN NOT NULL DEFAULT false,
+  ai_pre_score SMALLINT,
+  ai_quote TEXT,
+  ai_confidence TEXT CHECK (ai_confidence IN ('high','med','low')),
+  ai_reasoning TEXT,
+  override_note TEXT,
+
+  -- Framework-neutral criterion identifiers. ALWAYS neutral keys from the
+  -- 8-key taxonomy (researching/analysing/designing/creating/evaluating/
+  -- reflecting/communicating/planning). Render via FrameworkAdapter.toLabel().
+  criterion_keys TEXT[] NOT NULL DEFAULT '{}',
+
+  graded_at TIMESTAMPTZ,
+  released_at TIMESTAMPTZ,                               -- when "Release to <student>" rolled this up to assessment_records
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+
+  UNIQUE(student_id, unit_id, page_id, tile_id, class_id)
+);
+
+-- GIN index on the array — supports `WHERE 'designing' = ANY(criterion_keys)`
+CREATE INDEX idx_student_tile_grades_crit_keys
+  ON student_tile_grades USING GIN(criterion_keys);
+
+-- Standard indexes
+CREATE INDEX idx_student_tile_grades_class_unit ON student_tile_grades(class_id, unit_id);
+CREATE INDEX idx_student_tile_grades_teacher ON student_tile_grades(teacher_id);
+CREATE INDEX idx_student_tile_grades_unconfirmed ON student_tile_grades(class_id, confirmed) WHERE NOT confirmed;
+```
+
+#### Write-time normalization path
+
+When a teacher confirms a score in Calibrate, the writer (next session's task — likely `src/lib/grading/save-tile-grade.ts`) does:
+
+1. Resolve raw criterion source: `tile.criterionTags[0]` → fallback `page.criterion` → fallback teacher's pinned value.
+2. If raw is a framework code, normalize: `FrameworkAdapter.fromLabel(rawLabel, class.framework)` → `NeutralCriterionKey[]`.
+3. If raw is already neutral (rare today, common in newer Dimensions3-generated content), pass through.
+4. Persist `criterion_keys` as the array result.
+
+Per-criterion rollup at Synthesize time:
+```sql
+SELECT k AS neutral_key, AVG(score) AS avg_score
+FROM student_tile_grades, UNNEST(criterion_keys) AS k
+WHERE class_id = $1 AND unit_id = $2 AND student_id = $3
+GROUP BY k;
+```
+
+#### Dual-shape with `assessment_records` (Lesson #42 territory)
+
+`assessment_records.data.criterion_scores[]` (the canonical "released grade" record) currently stores **framework-specific** values (`"A"`, `"AO2"`). When Synthesize "Release to <student>" rolls up neutral scores into assessment_records, the rollup writer maps neutral → framework via `FrameworkAdapter.toLabel(neutralKey, class.framework, { format: "short" })`. Existing assessment_records data stays as-is. **`src/lib/criterion-scores/normalize.ts` gains a 5th shape**: when reading a `student_tile_grades` row, the criterion identifier is neutral; when reading `assessment_records.data.criterion_scores[]`, it's framework-specific. The absorber documents the boundary.
+
+**Acceptance:** the design's per-tile model is implementable on existing prod tiles with (a) inline backfill for 10% legacy stable IDs, (b) `criterion_keys TEXT[]` denormalization handling 74% missing tile-level tags via fallback chain, and (c) framework-neutral storage future-proofing for NSW/GCSE/A-Level/IGCSE/ACARA/PLTW/NESA/Victorian. Authoring + application is next session's first task.
+
+---
+
 ## Pickup snippet (for the next session that builds G1)
 
 ```
-Read /Users/matt/CWORK/questerra/docs/projects/grading-phase-g1-brief.md
-and continue from the pre-flight ritual. Do not write code until the
-4 open questions are resolved and Matt has signed off on G1.0.
+Read /Users/matt/CWORK/questerra-grading/docs/projects/grading-phase-g1-brief.md
+§13 (audit findings). G1 plan signed off 27 Apr 2026. Code-write blocked
+on Q1 (data-model decision — recommendation: Option B, new student_tile_grades
+table). Worktree: /Users/matt/CWORK/questerra-grading on grading-v1, baseline
+2215 tests passing. Do NOT write code until Q1 confirmed AND tile-ID stability
+verified in prod content_data.
 ```
