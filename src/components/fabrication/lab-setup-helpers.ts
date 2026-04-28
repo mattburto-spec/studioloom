@@ -69,11 +69,10 @@ export function groupMachinesByLab(
     result.push({
       lab: {
         id: "__unassigned__",
-        teacherId: "",
-        schoolId: null,
+        schoolId: "",
+        createdByTeacherId: null,
         name: "Unassigned machines",
         description: "These machines don't belong to any lab. Move them to a lab below.",
-        isDefault: false,
         createdAt: "",
         updatedAt: "",
         machineCount: unassigned.length,

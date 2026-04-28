@@ -22,14 +22,15 @@ import type { MachineProfileRow } from "@/lib/fabrication/machine-orchestration"
 // Fixture helpers
 // ============================================================
 
-function lab(id: string, name: string, isDefault = false): LabListRow {
+function lab(id: string, name: string): LabListRow {
+  // Phase 8-2 (revised 28 Apr): school-scoped LabRow shape
+  // (no teacher_id, no is_default — defaults live per-class).
   return {
     id,
-    teacherId: "t1",
-    schoolId: null,
+    schoolId: "s1",
+    createdByTeacherId: "t1",
     name,
     description: null,
-    isDefault,
     createdAt: "2026-04-25T00:00:00Z",
     updatedAt: "2026-04-25T00:00:00Z",
     machineCount: 0,
@@ -74,7 +75,7 @@ function machine(
 describe("groupMachinesByLab", () => {
   it("returns labs in incoming order with machines bucketed + sorted alpha", () => {
     const labs = [
-      lab("l1", "Default lab", true),
+      lab("l1", "Default lab"),
       lab("l2", "2nd floor"),
     ];
     const machines = [
