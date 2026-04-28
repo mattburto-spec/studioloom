@@ -301,9 +301,11 @@ export function MachineEditModal({ mode, availableLabs, onClose, onSaved }: Prop
                   accidental "unassign" via the dropdown. */}
               {!labId && <option value="">— Unassigned —</option>}
               {availableLabs.map((l) => (
+                // Phase 8-2 (revised 28 Apr): " (default)" suffix
+                // removed — per-lab default flag dropped. Defaults
+                // are per-class now.
                 <option key={l.id} value={l.id}>
                   {l.name}
-                  {l.isDefault ? " (default)" : ""}
                 </option>
               ))}
             </select>

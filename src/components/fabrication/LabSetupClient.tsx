@@ -179,45 +179,11 @@ export function LabSetupClient() {
     fetchAll(true);
   }
 
-  async function makeDefaultLab(lab: LabListRow) {
-    // Phase 8.1d-3 (PH8-FU-SET-DEFAULT-LAB): two-step swap.
-    // The DB has a unique partial index `WHERE is_default = true` so
-    // we can't just set is_default=true on this lab while another
-    // lab also has it — that returns 23505 → 409. Instead: PATCH the
-    // current default to false first, then this one to true.
-    if (lab.isDefault) return;
-    if (state.kind !== "ready") return;
-    const currentDefault = state.data.labs.find((l) => l.isDefault);
-    try {
-      if (currentDefault) {
-        const res = await fetch(`/api/teacher/labs/${currentDefault.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify({ isDefault: false }),
-        });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({ error: "" }));
-          alert(body.error || `Couldn't unset current default (HTTP ${res.status})`);
-          return;
-        }
-      }
-      const promote = await fetch(`/api/teacher/labs/${lab.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ isDefault: true }),
-      });
-      if (!promote.ok) {
-        const body = await promote.json().catch(() => ({ error: "" }));
-        alert(body.error || `Promotion failed (HTTP ${promote.status})`);
-        return;
-      }
-      fetchAll(true);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Network error");
-    }
-  }
+  // Phase 8-2 (revised 28 Apr): per-lab `is_default` flag dropped.
+  // Defaults now live per-class (`classes.default_lab_id`) and
+  // per-teacher (`teachers.default_lab_id`). The `makeDefaultLab`
+  // helper + UI affordances are removed; class settings page is the
+  // canonical place to pick a default lab for a given class.
 
   async function toggleBulkApproval(
     labId: string,
@@ -392,11 +358,10 @@ export function LabSetupClient() {
                       ✏️
                     </button>
                   )}
-                  {lab.isDefault && (
-                    <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-brand-purple/10 text-brand-purple font-bold shrink-0">
-                      Default
-                    </span>
-                  )}
+                  {/* Phase 8-2 (revised 28 Apr): per-lab "Default"
+                      badge removed. Defaults now live per-class
+                      (`classes.default_lab_id`) — set on the class
+                      settings page. Labs themselves are uniform. */}
                   <span className="text-xs text-gray-500 shrink-0">
                     {machines.length} machine{machines.length === 1 ? "" : "s"}
                   </span>
@@ -408,19 +373,11 @@ export function LabSetupClient() {
                          (ApprovalWorkflowCard). The action-verb button
                          that used to live here was confusing — toggle
                          + workflow diagram makes the consequence visceral. */}
-                    {!lab.isDefault && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          makeDefaultLab(lab);
-                        }}
-                        className="text-xs px-2 py-1 rounded border border-brand-purple/40 bg-white text-brand-purple hover:bg-brand-purple/5"
-                        title="Make this the default lab"
-                      >
-                        Make default
-                      </button>
-                    )}
+                    {/* Phase 8-2 (revised 28 Apr): "Make default"
+                        button removed. Per-lab default flag dropped;
+                        per-class defaults live on
+                        `classes.default_lab_id` (class settings
+                        page), per-teacher on `teachers.default_lab_id`. */}
                     {/* Phase 8.1d-5: "Assign classes" button removed —
                          class-to-lab filtering deprecated in favour of
                          group-by-lab picker (matches Matt's UX call:
