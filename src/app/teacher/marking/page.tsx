@@ -11,6 +11,7 @@ import type { UnitContentData } from "@/types";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
 import { extractTilesFromPage, tileProgress, type LessonTile } from "@/lib/grading/lesson-tiles";
 import { computeStudentRollup, type CriterionRollup } from "@/lib/grading/rollup";
+import { computeCriterionCoverage, coverageStatus } from "@/lib/grading/criterion-coverage";
 import { ScorePill } from "@/components/grading/ScorePill";
 import { ScoreSelector } from "@/components/grading/ScoreSelector";
 
@@ -402,6 +403,7 @@ interface TileGradeRow {
   ai_reasoning?: string | null;
   criterion_keys: string[];
   override_note?: string | null;
+  student_facing_comment?: string | null;
 }
 
 function CalibrateView({ classId, unitId }: { classId: string; unitId: string }) {
@@ -415,6 +417,7 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
   const [activePageId, setActivePageId] = useState<string | null>(null);
   const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
   const [overrideNoteDraft, setOverrideNoteDraft] = useState<Record<string, string>>({});
+  const [studentCommentDraft, setStudentCommentDraft] = useState<Record<string, string>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
@@ -527,20 +530,23 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
       const { data: gradeRows } = await supabase
         .from("student_tile_grades")
         .select(
-          "id, student_id, page_id, tile_id, score, confirmed, ai_pre_score, ai_quote, ai_confidence, ai_reasoning, criterion_keys, override_note",
+          "id, student_id, page_id, tile_id, score, confirmed, ai_pre_score, ai_quote, ai_confidence, ai_reasoning, criterion_keys, override_note, student_facing_comment",
         )
         .eq("class_id", classId)
         .eq("unit_id", unitDetail.id);
 
       const map: Record<string, TileGradeRow> = {};
       const noteDraftMap: Record<string, string> = {};
-      for (const g of (gradeRows ?? []) as (TileGradeRow & { override_note?: string | null })[]) {
+      const commentDraftMap: Record<string, string> = {};
+      for (const g of (gradeRows ?? []) as TileGradeRow[]) {
         const k = gradeKey(g.student_id, g.tile_id, g.page_id);
         map[k] = g;
         if (g.override_note) noteDraftMap[k] = g.override_note;
+        if (g.student_facing_comment) commentDraftMap[k] = g.student_facing_comment;
       }
       setGrades(map);
       setOverrideNoteDraft(noteDraftMap);
+      setStudentCommentDraft(commentDraftMap);
 
       // Student responses for the active page (drives the override panel's
       // "see the actual work" view). Keyed by tile_id matching response keys
@@ -643,7 +649,7 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
     studentId: string,
     score: number | null,
     confirmed: boolean,
-    extras: { override_note?: string | null } = {},
+    extras: { override_note?: string | null; student_facing_comment?: string | null } = {},
   ) {
     if (!klass || !unit || !activePageId || !activeTile) return;
     const key = gradeKey(studentId, activeTile.tileId, activePageId);
@@ -661,6 +667,9 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
         criterion_keys: criterionKeys,
       };
       if (extras.override_note !== undefined) payload.override_note = extras.override_note;
+      if (extras.student_facing_comment !== undefined) {
+        payload.student_facing_comment = extras.student_facing_comment;
+      }
       const res = await fetch("/api/teacher/grading/tile-grades", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -679,6 +688,12 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
         setOverrideNoteDraft((prev) => ({
           ...prev,
           [key]: newRow.override_note ?? "",
+        }));
+      }
+      if (extras.student_facing_comment !== undefined) {
+        setStudentCommentDraft((prev) => ({
+          ...prev,
+          [key]: newRow.student_facing_comment ?? "",
         }));
       }
     } catch (err) {
@@ -844,6 +859,11 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
           aiBatchRunning={aiBatchRunning}
           aiBatchSummary={aiBatchSummary}
           runAiPrescoreBatch={runAiPrescoreBatch}
+          unitContentData={unit?.contentData ?? null}
+          framework={klass?.framework ?? undefined}
+          unitType={klass?.subject ?? undefined}
+          studentCommentDraft={studentCommentDraft}
+          setStudentCommentDraft={setStudentCommentDraft}
         />
       )}
     </div>
@@ -868,14 +888,20 @@ interface CalibrateInnerProps {
   gradeKey: (s: string, t: string, p: string) => string;
   scale: ReturnType<typeof getGradingScale>;
   savingKey: string | null;
-  saveTile: (s: string, score: number | null, confirmed: boolean, extras?: { override_note?: string | null }) => Promise<void>;
+  saveTile: (s: string, score: number | null, confirmed: boolean, extras?: { override_note?: string | null; student_facing_comment?: string | null }) => Promise<void>;
   expandedStudentId: string | null;
   setExpandedStudentId: (s: string | null) => void;
   overrideNoteDraft: Record<string, string>;
   setOverrideNoteDraft: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  studentCommentDraft: Record<string, string>;
+  setStudentCommentDraft: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   aiBatchRunning: boolean;
   aiBatchSummary: string | null;
   runAiPrescoreBatch: () => Promise<void>;
+  // G2.2 — heatmap inputs (unit-level coverage across all tiles).
+  unitContentData: UnitContentData | null;
+  framework: string | undefined;
+  unitType: string | undefined;
 }
 
 function CalibrateInner({
@@ -899,9 +925,80 @@ function CalibrateInner({
   aiBatchRunning,
   aiBatchSummary,
   runAiPrescoreBatch,
+  unitContentData,
+  framework,
+  unitType,
+  studentCommentDraft,
+  setStudentCommentDraft,
 }: CalibrateInnerProps) {
+  // G2.2 — criterion coverage heatmap (unit-level, across all pages).
+  const coverage = useMemo(
+    () =>
+      computeCriterionCoverage(
+        unitContentData,
+        Object.values(grades).map((g) => ({
+          student_id: g.student_id,
+          page_id: g.page_id,
+          tile_id: g.tile_id,
+          confirmed: g.confirmed,
+          criterion_keys: g.criterion_keys,
+          score: g.score,
+        })),
+        students.map((s) => s.id),
+        { framework, unitType },
+      ),
+    [unitContentData, grades, students, framework, unitType],
+  );
+
   return (
     <>
+      {/* G2.2 — Criterion coverage heatmap */}
+      {coverage.length > 0 && (
+        <div className="mb-4 px-4 py-3 bg-white border border-gray-200 rounded-2xl">
+          <div className="flex items-center justify-between mb-2.5">
+            <div className="text-[10px] font-bold tracking-wider uppercase text-gray-400">
+              Coverage
+            </div>
+            <div className="text-[10px] text-gray-400">
+              students with ≥1 confirmed score on this criterion
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {coverage.map((c) => {
+              const status = coverageStatus(c.percent);
+              const styles = {
+                covered: { bg: "#10B98115", text: "#047857", bar: "#10B981" },
+                partial: { bg: "#F59E0B15", text: "#B45309", bar: "#F59E0B" },
+                thin:    { bg: "#EF444415", text: "#B91C1C", bar: "#EF4444" },
+              }[status];
+              return (
+                <div
+                  key={c.criterionKey}
+                  className="inline-flex flex-col gap-1 px-2.5 py-1.5 rounded-lg border"
+                  style={{ background: styles.bg, borderColor: `${styles.bar}33` }}
+                  title={`${c.tilesTargeting} tile${c.tilesTargeting === 1 ? "" : "s"} target this criterion`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: styles.text }}>
+                      {c.label.split(" ")[0]}
+                    </span>
+                    <span className="text-[10px] font-mono tabular-nums" style={{ color: styles.text }}>
+                      {c.confirmedStudents}/{c.totalStudents}
+                    </span>
+                  </div>
+                  <div className="h-1 w-16 rounded-full bg-white/60 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${c.percent}%`, background: styles.bar }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Tile strip */}
       <div className="mb-6 -mx-1 overflow-x-auto">
         <div className="flex gap-2 px-1 pb-2">
@@ -1008,6 +1105,9 @@ function CalibrateInner({
               ((grade as TileGradeRow & { override_note?: string | null })
                 ?.override_note ?? "") || "";
             const noteDirty = noteDraft !== persistedNote;
+            const studentComment = studentCommentDraft[key] ?? "";
+            const persistedStudentComment = grade?.student_facing_comment ?? "";
+            const studentCommentDirty = studentComment !== persistedStudentComment;
             const displayName = s.display_name?.trim() || s.username?.trim() || "(unnamed)";
             const initials = displayName
               .split(/\s+/)
@@ -1188,6 +1288,48 @@ function CalibrateInner({
                         </div>
 
                         <div>
+                          <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase text-emerald-700 mb-2">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                            </svg>
+                            Feedback to {displayName.split(" ")[0] || "student"}
+                            <span className="font-normal lowercase tracking-normal text-emerald-600/80">(student sees this)</span>
+                          </div>
+                          <textarea
+                            value={studentComment}
+                            onChange={(e) =>
+                              setStudentCommentDraft((prev) => ({ ...prev, [key]: e.target.value }))
+                            }
+                            placeholder="What landed well, what to work on. Specific is better than encouraging."
+                            rows={3}
+                            className="w-full px-3 py-2 text-sm border border-emerald-200 bg-emerald-50/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
+                          />
+                          <div className="flex items-center justify-end gap-2 mt-2">
+                            {studentCommentDirty && (
+                              <span className="text-[11px] text-amber-600 font-semibold">Unsaved</span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void saveTile(s.id, score, confirmed, {
+                                  student_facing_comment:
+                                    studentComment.trim() === "" ? null : studentComment,
+                                })
+                              }
+                              disabled={isSaving || !studentCommentDirty}
+                              className={[
+                                "px-3 py-1.5 text-xs font-bold rounded-lg transition",
+                                studentCommentDirty
+                                  ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                                  : "bg-gray-100 text-gray-400 cursor-not-allowed",
+                              ].join(" ")}
+                            >
+                              {isSaving ? "Saving…" : "Send to student"}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
                           <div className="text-[10px] font-bold tracking-wider uppercase text-gray-400 mb-2">
                             Override note <span className="font-normal lowercase tracking-normal text-gray-400">(private to you)</span>
                           </div>
@@ -1266,6 +1408,31 @@ interface SynthesizeViewProps {
   loadAll: () => Promise<void>;
 }
 
+interface PastFeedbackRecord {
+  id: string;
+  unit_id: string;
+  class_id: string;
+  data: {
+    overall_comment?: string | null;
+    criterion_scores?: Array<{ criterion_key: string; level: number }>;
+  };
+  overall_grade: number | null;
+  assessed_at: string;
+  units: { title: string } | null;
+}
+
+function relativeAgo(iso: string): string {
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const days = Math.floor((now - then) / 86400000);
+  if (days < 1) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days} days ago`;
+  if (days < 30) return `${Math.round(days / 7)} weeks ago`;
+  if (days < 365) return `${Math.round(days / 30)} months ago`;
+  return `${Math.round(days / 365)} years ago`;
+}
+
 function SynthesizeView({
   klass,
   unit,
@@ -1280,6 +1447,32 @@ function SynthesizeView({
   setReleasedAtByStudent,
   loadAll,
 }: SynthesizeViewProps) {
+  // Past-feedback memory — fetched per-student on mount, cached in state.
+  const [pastFeedback, setPastFeedback] = useState<Record<string, PastFeedbackRecord[]>>({});
+
+  useEffect(() => {
+    if (!unit) return;
+    let cancelled = false;
+    void (async () => {
+      const fetches = students.map(async (s) => {
+        const res = await fetch(
+          `/api/teacher/grading/past-feedback?student_id=${s.id}&exclude_unit_id=${unit.id}`,
+        );
+        if (!res.ok) return [s.id, [] as PastFeedbackRecord[]] as const;
+        const json = (await res.json()) as { records: PastFeedbackRecord[] };
+        return [s.id, json.records ?? []] as const;
+      });
+      const settled = await Promise.all(fetches);
+      if (cancelled) return;
+      const map: Record<string, PastFeedbackRecord[]> = {};
+      for (const [id, recs] of settled) map[id] = recs;
+      setPastFeedback(map);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [unit, students]);
+
   if (!klass || !unit) return null;
   if (students.length === 0) {
     return (
@@ -1375,6 +1568,30 @@ function SynthesizeView({
                     ))}
                   </div>
                 )}
+
+                {/* Past-feedback memory — amber callout, surfaced just
+                    above the comment so it's in eyeline while writing. */}
+                {(() => {
+                  const prior = pastFeedback[s.id]?.[0];
+                  if (!prior) return null;
+                  const comment = prior.data?.overall_comment;
+                  if (!comment || !comment.trim()) return null;
+                  const ago = relativeAgo(prior.assessed_at);
+                  const unitLabel = prior.units?.title ? ` on “${prior.units.title}”` : "";
+                  return (
+                    <div className="mt-4 mb-3 px-3 py-2.5 rounded-lg border border-amber-200 bg-amber-50/70">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase text-amber-700 mb-1">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 5v6m0 4v.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+                        </svg>
+                        You said {ago}{unitLabel}
+                      </div>
+                      <p className="text-xs text-amber-900 leading-relaxed italic">
+                        &ldquo;{comment.length > 240 ? `${comment.slice(0, 240)}…` : comment}&rdquo;
+                      </p>
+                    </div>
+                  );
+                })()}
 
                 {/* Comment textarea + release */}
                 <div className="mt-4">

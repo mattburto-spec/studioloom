@@ -36,6 +36,7 @@ import { CompetencyPulse } from "@/components/nm";
 import { ErrorBoundary } from "@/components/student/ErrorBoundary";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { SkillRefsForPage } from "@/components/skills/SkillRefsForPage";
+import { TeacherFeedbackPanel } from "@/components/grading/TeacherFeedbackPanel";
 import type { PageContent } from "@/types";
 import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
 
@@ -369,6 +370,22 @@ function UnitPageViewInner({
         )}
 
       </>)}
+
+      {/* ── Teacher feedback (G2.3) — anchored comments from grading ── */}
+      {currentPage && pageContent?.sections && (
+        <TeacherFeedbackPanel
+          unitId={unitId}
+          pageId={pageId}
+          tileLabels={Object.fromEntries(
+            pageContent.sections.map((s, i) => {
+              const tileId = s.activityId ? `activity_${s.activityId}` : `section_${i}`;
+              const promptShort =
+                (s.prompt ?? "").trim().slice(0, 80) || `Section ${i + 1}`;
+              return [tileId, promptShort] as const;
+            }),
+          )}
+        />
+      )}
       </main>
 
       {/* ── Lesson footer — Previous / Next preview / Complete & continue ── */}
