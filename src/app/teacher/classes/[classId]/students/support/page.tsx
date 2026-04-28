@@ -198,10 +198,14 @@ export default function SupportSettingsPage({
         </Link>
       </div>
       <h1 className="text-2xl font-bold text-gray-900 mb-1">Student support settings</h1>
-      <p className="text-sm text-gray-600 mb-6">
+      <p className="text-sm text-gray-600 mb-2">
         Per-class overrides for tap-a-word features. Edits here only apply within this class —
         students keep their global settings elsewhere. {students.length} student
         {students.length === 1 ? "" : "s"} enrolled.
+      </p>
+      <p className="text-xs text-gray-500 mb-6">
+        Click a student name to manage <span className="font-semibold">all their settings</span>{" "}
+        in one place — global + per-class + intake-derived defaults.
       </p>
 
       {/* Bulk action toolbar */}
@@ -391,7 +395,15 @@ function StudentRowView({
           aria-label={`Select ${row.name}`}
         />
       </td>
-      <td className="px-3 py-2 font-medium text-gray-900">{row.name}</td>
+      <td className="px-3 py-2 font-medium text-gray-900">
+        <Link
+          href={`/teacher/students/${row.studentId}?tab=support`}
+          className="text-gray-900 hover:text-purple-700 hover:underline"
+          title="Open unified support settings for this student"
+        >
+          {row.name}
+        </Link>
+      </td>
       <td className="px-3 py-2 text-gray-700">
         {row.ellLevel}
         {row.ellLevelOverride !== null && (
