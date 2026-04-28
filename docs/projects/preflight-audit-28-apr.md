@@ -1,5 +1,20 @@
 # Preflight Audit — 28 Apr 2026 (post Phase 8-1 schema flip)
 
+> **Status update — 28 Apr 2026 PM (end of session):** Round 1 + Phase 8-2
+> + 1 hotfix shipped end-to-end, full Preflight smoke (upload → scan →
+> teacher queue → fab pickup → complete) PASSED in prod. Closed:
+> HIGH-1, HIGH-2, HIGH-3, HIGH-4, MED-1, MED-4 (root cause — UI rebuild
+> deferred to Phase 8-4), MED-6, LOW-1. Open: **MED-2** (next session,
+> Phase 8-3 scoped + audited), **MED-3** (dormant — UI trigger removed
+> in Phase 8.1d-5, but route still queries removed `fabrication_labs.teacher_id`;
+> fold into Phase 8-3 sweep), **MED-5** (design call — Option 2 audit-only
+> recommended; Phase 8-3), **LOW-2** (sweep alongside Phase 8-3).
+> One late hotfix surfaced + fixed during Matt's smoke: HIGH-1's
+> two-query split appended `fabrication_labs!inner(...)` to a baseSelect
+> that already had `fabrication_labs(name)` → PostgREST collided on
+> `machine_profiles_fabrication_labs_1`. Each query now has exactly
+> one embed.
+
 **Scope:** every code path under `src/lib/fabrication/`,
 `src/app/api/{student,teacher,fab}/**`, `src/app/(student)/fabrication/`,
 `src/app/teacher/preflight/`, `src/app/fab/`, `src/components/fabrication/`,
@@ -307,20 +322,20 @@ they mislead future readers.
 
 ## Summary
 
-| ID | Severity | Surface | Phase |
-|---|---|---|---|
-| HIGH-1 | 🔴 | Student picker cross-school leak | Pre-pilot fix or Phase 8-2 |
-| HIGH-2 | 🔴 | Fab queue teacher-scoped | Pre-pilot fix |
-| HIGH-3 | 🔴 | Fab assignMachine teacher_id check | Pre-pilot fix |
-| HIGH-4 | 🔴 | Fab job-ownership pattern | Pre-pilot fix |
-| MED-1 | 🟠 | lab-orchestration.ts | Phase 8-2 rebuild |
-| MED-2 | 🟠 | machine-orchestration.ts | Phase 8-3 rebuild |
-| MED-3 | 🟠 | default-lab route | Phase 8-2 rebuild |
-| MED-4 | 🟠 | LabSetupClient + components | Phase 8-4 rebuild |
-| MED-5 | 🟠 | machine_profiles teacher_id semantics | Phase 8-3 design |
-| MED-6 | 🟠 | Migration 120 fresh-install ordering | Pre-multi-instance |
-| LOW-1 | 🟡 | TS types drift | Phase 8-2 |
-| LOW-2 | 🟡 | Comment drift | Phase 8-2/8-3 |
+| ID | Severity | Surface | Phase | Status |
+|---|---|---|---|---|
+| HIGH-1 | 🔴 | Student picker cross-school leak | Pre-pilot fix or Phase 8-2 | ✅ FIXED — server-side school filter via two-query split + late embed-collision hotfix |
+| HIGH-2 | 🔴 | Fab queue teacher-scoped | Pre-pilot fix | ✅ FIXED — `fabricatorSchoolContext` helper, swept 6 callsites |
+| HIGH-3 | 🔴 | Fab assignMachine teacher_id check | Pre-pilot fix | ✅ FIXED — same sweep as HIGH-2 |
+| HIGH-4 | 🔴 | Fab job-ownership pattern | Pre-pilot fix | ✅ FIXED — same sweep as HIGH-2 |
+| MED-1 | 🟠 | lab-orchestration.ts | Phase 8-2 rebuild | ✅ FIXED — Phase 8-2 rewrite + 4 route sweeps + 26-test rewrite |
+| MED-2 | 🟠 | machine-orchestration.ts | Phase 8-3 rebuild | 🟠 OPEN — Phase 8-3 (audited, ~8 stale `teacher_id` sites + lab `teacher_id` join at line 374) |
+| MED-3 | 🟠 | default-lab route | Phase 8-2 rebuild | 🟠 OPEN — UI trigger removed in 8.1d-5 (dormant), route still 500s if reached. Fold into Phase 8-3 sweep. |
+| MED-4 | 🟠 | LabSetupClient + components | Phase 8-4 rebuild | 🟡 PARTIAL — root API errors fixed (page renders, basic CRUD works), full visual rebuild deferred to Phase 8-4 |
+| MED-5 | 🟠 | machine_profiles teacher_id semantics | Phase 8-3 design | 🟠 OPEN — recommend Option 2 (audit-only) decision in Phase 8-3 kickoff |
+| MED-6 | 🟠 | Migration 120 fresh-install ordering | Pre-multi-instance | ✅ FIXED — Phase 8.1d-39 idempotency guards |
+| LOW-1 | 🟡 | TS types drift | Phase 8-2 | ✅ FIXED — `LabRow` type rewritten, `isDefault` removed everywhere |
+| LOW-2 | 🟡 | Comment drift | Phase 8-2/8-3 | 🟡 PARTIAL — lab-orchestration swept; machine-orchestration + fab-orchestration still have `teacher_id`-era comments |
 
 ---
 
