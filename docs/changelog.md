@@ -4,6 +4,34 @@
 
 ---
 
+## 28 Apr 2026 PM — Smart tap-a-word defaults + speaker removal + Bug 3 prod verification
+
+**Context:** Late-day polish on the language-scaffolding-redesign work after the morning's Option A unified Support tab landed. Three commits + a prod verification step that closes out today's work on student lesson support.
+
+**Commits (4 today PM, all pushed to origin/main):**
+- `ebeb1a1` feat(support): smart default for tap-a-word — ON for ELL≤2 OR L1≠English. Replaces the previous hard-coded `true` default that applied tap-a-word to every student including advanced native English speakers. New `defaultTapAWordEnabled(ell, l1)` helper. Resolver now reads `students.ell_level` + `class_students.ell_level_override`. Resolution table: ELL 1-2 → ON; ELL 3 + L1=en → OFF (clean reading); ELL 3 + L1≠en → ON (translation safety for advanced bilinguals). Defensive: invalid ELL coerces to 1 to err on side of scaffolding. 8 new tests across all ELL × L1 combinations + override-beats-default both directions + per-class ELL flip + null defaults. Support tab UI: explainer panel adds policy footnote; "inherit" option shows actual resolved value not hardcoded "(default: on)" lie.
+- `9a126f7` feat(tap-a-word): remove word-level speaker buttons from popover. Per Matt: block-level read-aloud already handles English; single-word L1 audio audience too narrow to justify visual noise. Net -75 lines (popover JSX + inline SpeakerIcon SVG + useTextToSpeech subscription). Hook + tests preserved (exported from barrel) for future re-introduction if learning support specialists want heritage-learner workflows. Cleaner popover: word / definition / translation / example / image only.
+- `e30d372` chore(scripts/dev): bank list-class-units.mjs as a reusable DB inspector. Generalised header, moved to scripts/dev/ alongside other one-off diagnostic tools. Sibling check-test-student.mjs deleted (hardcoded UUID, won't be useful again).
+
+**Bug 3 verified in prod (no commit, manual workflow):** Set + reset overrides on 10 Design + Service LEEDers via the new Support tab. SQL inspection confirmed:
+  - `class_students.support_settings = '{}'::jsonb` after reset (no orphan nulls)
+  - **Service LEEDers self-heal worked** — pre-existing stale `{l1_target_override: null}` row from yesterday's testing flipped to `{}` when the new mergeSupportSettingsForWrite ran on touch. This is the strongest possible proof of Bug 3: the new code doesn't just avoid creating null orphans, it cleans up legacy ones.
+  - One remaining test override on 6 Design (archived class) — left in place; harmless because Bug 4 filters archived classes from resolution. Will be cleared automatically when class-architecture-cleanup §1 (auto-unenroll trigger) ships.
+
+**Decisions added (3):** Smart default policy for tap-a-word (ELL≤2 OR L1≠en); word-level speaker buttons removed (block read-aloud already covers English, single-word L1 audience too narrow); per-feature granular split deferred (Matt to consult learning support before locking the matrix design).
+
+**Followup explicitly NOT filed:** the per-feature granular split (definitions / translations / audio / images as separate flags + admin matrix). Matt's call: "seems too much for this site at this point. what we've just built is more than most sites already." Accepted — pulling back scope when something is already strong is good discipline.
+
+**Tests after PM:** 2279 → 2287 (+8 from smart-default tests). 0 failures, 9 skipped, 146 files. tsc clean. No new migrations.
+
+**API surface:** No route changes (smart default + speaker removal are pure logic/UI changes inside existing routes). Registry scan clean.
+
+**Today total tally (AM + PM):** 11 commits (8 AM + 3 PM); +28 tests (2259 → 2287); 1 new project doc filed (deferred); 9 decisions added; 1 lesson learned (#60); Supabase Free → Pro Small. All Bugs 1/1.5/2/3/4 verified end-to-end in prod via SQL.
+
+**Wrap state:** Matt explicitly said "I feel like this wraps up things for now for language support." Treat as a done milestone; next pickup is whatever surfaces from tomorrow's class OR Phase 3 Response Starters when ready.
+
+---
+
 ## 28 Apr 2026 — Multi-class context fix + Option A unified Support tab + Class architecture cleanup filed
 
 **Context:** Continuation of the language-scaffolding-redesign Phase 2.5 work. Matt's first prod smoke test of the teacher control panel surfaced 4 bugs around multi-class context resolution. Fixed tactically (5 commits), then surfaced a deeper UX concern ("teachers will find this confusing if settings are in different places") which triggered an Option A unification: per-student Support tab as the single source of truth, with per-class as collapsed accordion. ELL editing also consolidated. Filed remaining architectural work as deferred. Saveme + handoff for the next session (Access Model v2 starting in parallel).
