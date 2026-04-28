@@ -18,6 +18,63 @@ interface BugReportButtonProps {
   enabled?: boolean;
 }
 
+type CapturedEvent = {
+  kind: "console.error" | "console.warn" | "window.error" | "unhandledrejection";
+  message: string;
+  source?: string | null;
+  ts: number;
+};
+
+const MAX_EVENTS = 10;
+const MAX_EVENT_LEN = 500;
+
+function clip(s: string, max = MAX_EVENT_LEN): string {
+  return s.length > max ? s.slice(0, max) + "…" : s;
+}
+
+function buildClientContext(role: "teacher" | "student") {
+  if (typeof window === "undefined") return { role };
+
+  const nav = window.navigator;
+  const conn = (nav as Navigator & { connection?: { effectiveType?: string; downlink?: number; rtt?: number; saveData?: boolean } }).connection;
+
+  return {
+    role,
+    release: process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA || null,
+    deployEnv: process.env.NEXT_PUBLIC_VERCEL_ENV || null,
+    userAgent: nav.userAgent,
+    platform: nav.platform,
+    language: nav.language,
+    languages: Array.isArray(nav.languages) ? nav.languages.slice(0, 5) : [],
+    viewport: {
+      width: window.innerWidth,
+      height: window.innerHeight,
+      dpr: window.devicePixelRatio,
+    },
+    screen: {
+      width: window.screen?.width ?? null,
+      height: window.screen?.height ?? null,
+    },
+    connection: conn
+      ? {
+          effectiveType: conn.effectiveType ?? null,
+          downlink: conn.downlink ?? null,
+          rtt: conn.rtt ?? null,
+          saveData: conn.saveData ?? null,
+        }
+      : null,
+    hardware: {
+      cores: nav.hardwareConcurrency ?? null,
+      memoryGb: (nav as Navigator & { deviceMemory?: number }).deviceMemory ?? null,
+      touchPoints: nav.maxTouchPoints ?? null,
+    },
+    referrer: document.referrer || null,
+    timeOnPageMs: Math.round(performance.now()),
+    submittedAt: new Date().toISOString(),
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
+  };
+}
+
 export function BugReportButton({ role, classId, enabled = true }: BugReportButtonProps) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<"pick" | "form">("pick");
@@ -27,19 +84,54 @@ export function BugReportButton({ role, classId, enabled = true }: BugReportButt
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const consoleErrorsRef = useRef<string[]>([]);
+  const eventsRef = useRef<CapturedEvent[]>([]);
 
-  // Capture console errors
+  // Capture console errors/warns + uncaught errors + unhandled promise rejections.
+  // The Sentry-style screenshot Matt sent was an `onunhandledrejection` —
+  // the old console.error-only hook would have missed it.
   useEffect(() => {
+    const push = (ev: CapturedEvent) => {
+      eventsRef.current = [...eventsRef.current.slice(-(MAX_EVENTS - 1)), ev];
+    };
+
     const origError = console.error;
+    const origWarn = console.warn;
+
     console.error = (...args: unknown[]) => {
-      consoleErrorsRef.current = [
-        ...consoleErrorsRef.current.slice(-4),
-        args.map(String).join(" ").slice(0, 500),
-      ];
+      push({ kind: "console.error", message: clip(args.map(String).join(" ")), ts: Date.now() });
       origError.apply(console, args);
     };
-    return () => { console.error = origError; };
+    console.warn = (...args: unknown[]) => {
+      push({ kind: "console.warn", message: clip(args.map(String).join(" ")), ts: Date.now() });
+      origWarn.apply(console, args);
+    };
+
+    const onErr = (e: ErrorEvent) => {
+      push({
+        kind: "window.error",
+        message: clip(e.message || "Unknown error"),
+        source: e.filename ? `${e.filename}:${e.lineno}:${e.colno}` : null,
+        ts: Date.now(),
+      });
+    };
+    const onRej = (e: PromiseRejectionEvent) => {
+      const reason = e.reason;
+      const msg =
+        reason instanceof Error
+          ? `${reason.name}: ${reason.message}\n${(reason.stack || "").slice(0, 300)}`
+          : String(reason);
+      push({ kind: "unhandledrejection", message: clip(msg), ts: Date.now() });
+    };
+
+    window.addEventListener("error", onErr);
+    window.addEventListener("unhandledrejection", onRej);
+
+    return () => {
+      console.error = origError;
+      console.warn = origWarn;
+      window.removeEventListener("error", onErr);
+      window.removeEventListener("unhandledrejection", onRej);
+    };
   }, []);
 
   // Close on click outside
@@ -84,8 +176,17 @@ export function BugReportButton({ role, classId, enabled = true }: BugReportButt
           category,
           description: description.trim(),
           page_url: window.location.href,
-          console_errors: consoleErrorsRef.current,
+          // Legacy field — still accepted by the API; mirror the error events.
+          console_errors: eventsRef.current
+            .filter((e) => e.kind === "console.error")
+            .slice(-5)
+            .map((e) => e.message),
           class_id: classId || null,
+          role_hint: role,
+          client_context: {
+            ...buildClientContext(role),
+            events: eventsRef.current,
+          },
         }),
       });
 
@@ -182,7 +283,7 @@ export function BugReportButton({ role, classId, enabled = true }: BugReportButt
               />
 
               <p className="text-[10px] text-gray-400 mt-1">
-                Auto-captures: page URL, browser info{consoleErrorsRef.current.length > 0 ? `, ${consoleErrorsRef.current.length} console errors` : ""}
+                Auto-captures: page URL, browser, viewport, release{eventsRef.current.length > 0 ? `, ${eventsRef.current.length} recent error${eventsRef.current.length === 1 ? "" : "s"}` : ""}
               </p>
 
               {error && (
