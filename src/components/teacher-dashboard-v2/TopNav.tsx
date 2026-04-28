@@ -6,6 +6,7 @@ import type { DashboardClass } from "@/types/dashboard";
 import type { Teacher } from "@/types";
 import { createClient } from "@/lib/supabase/client";
 import { I } from "./icons";
+import { CommandPalette } from "./CommandPalette";
 import {
   DROPDOWN_ITEMS,
   NAV_ITEMS,
@@ -47,7 +48,28 @@ export function TopNav({
 }: TopNavProps) {
   const [open, setOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+
+  // ⌘K / Ctrl+K toggles the command palette globally. Ignored while typing
+  // in inputs/textareas/contentEditable so it doesn't hijack normal typing.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+        const t = e.target as HTMLElement | null;
+        const tag = t?.tagName;
+        const inField =
+          tag === "INPUT" ||
+          tag === "TEXTAREA" ||
+          (t?.isContentEditable ?? false);
+        if (inField && !paletteOpen) return;
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [paletteOpen]);
 
   // Close account menu on outside click. Same pattern as the student
   // BoldTopNav avatar dropdown (~line 316).
@@ -192,8 +214,10 @@ export function TopNav({
 
         {/* Right */}
         <button
+          onClick={() => setPaletteOpen(true)}
           className="hidden sm:flex w-9 h-9 rounded-full hover:bg-white items-center justify-center text-[var(--ink-2)] shrink-0"
           aria-label="Search"
+          title="Search (⌘K)"
         >
           <I name="search" size={16} />
         </button>
@@ -281,6 +305,7 @@ export function TopNav({
           )}
         </div>
       </div>
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </header>
   );
 }
