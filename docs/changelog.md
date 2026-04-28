@@ -4,6 +4,46 @@
 
 ---
 
+## 28 Apr 2026 — Multi-class context fix + Option A unified Support tab + Class architecture cleanup filed
+
+**Context:** Continuation of the language-scaffolding-redesign Phase 2.5 work. Matt's first prod smoke test of the teacher control panel surfaced 4 bugs around multi-class context resolution. Fixed tactically (5 commits), then surfaced a deeper UX concern ("teachers will find this confusing if settings are in different places") which triggered an Option A unification: per-student Support tab as the single source of truth, with per-class as collapsed accordion. ELL editing also consolidated. Filed remaining architectural work as deferred. Saveme + handoff for the next session (Access Model v2 starting in parallel).
+
+**Commits (8 today, all pushed to origin/main):**
+- `79df0aa` fix(auth): student-session — deterministic class selection via ORDER BY enrolled_at DESC (Bug 1)
+- `6bdc403` fix(tap-a-word): server-derive classId from unitId via class_units JOIN (Bug 2 — new `resolveStudentClassId` helper, 10 tests, TappableText auto-detects unitId from URL)
+- `a6fcfc2` fix(student-nav): topnav class label follows the URL on /unit/[unitId]/... (Bug 1.5 — new `/api/student/me/unit-context` endpoint, layout watches pathname)
+- `aa0f113` fix(support-settings): teacher reset deletes JSONB key (not persists null) — Bug 3, new `mergeSupportSettingsForWrite` helper, 7 tests
+- `45249d3` test(support-settings): update PATCH null-reset assertion for Bug 3 semantics
+- `a1dc37e` fix(student-context): exclude archived classes from session-default + unit-derived class — Bug 4 (new `filterOutArchivedClasses` helper, 3 new tests, regression test for the exact prod scenario)
+- `11c2df0` docs(lessons): #60 — side-findings inside touched code belong in the same commit
+- `e52105a` feat(teacher): unified per-student Support tab — single source of truth (Option A) — new `/api/teacher/students/[studentId]/support-settings` GET+PATCH, `<StudentSupportSettings />` component (resolution explainer + per-student global form + collapsed per-class accordion), new "Support" tab on `/teacher/students/[studentId]`, `?tab=` URL param honoured, cross-link from per-class teacher page
+- `1406e6c` feat(teacher): consolidate ELL editing into the unified Support tab — per-student API accepts `ell_level`, per-class API accepts `ell_level_override`, ELL row added to Support tab UI, inline ELL pills REMOVED from class page (they were silently writing global while reading per-class — broken by coincidence)
+- `184dc55` docs(projects): file class-architecture-cleanup as 🟢 READY (deferred behind Access v2)
+- (saveme commit pending)
+
+**Test baseline:** 2259 → 2279 (+20 across the day). 0 failures, 9 skipped, 146 files. tsc clean.
+
+**Migrations this session:** None. All changes are pure app code.
+
+**Decisions added (6):** Multi-class context fix shipped tactically (not deferred behind Option B); archived classes filtered at resolve-time not enrollment-time; Option A chosen for support settings unification; inline ELL pills removed (silently inconsistent); class architecture cleanup filed as deferred.
+
+**Lessons added (1):** #60 — side-findings inside touched code belong in the same commit, not "follow-up later." Bit me today: I audited the Bug 1 fix, noted the archived-class gap, deferred it, then Matt hit it 30 minutes later and required commit `a1dc37e` to the same files.
+
+**Projects filed (1):** `docs/projects/class-architecture-cleanup.md` — 4 gaps (archived auto-unenroll P1, student_progress scope decision P2, cohort labels P2, Option B URL-scoped classId P2 ~10-11d). Deferred behind Access Model v2. Trigger phrase: "continue class architecture".
+
+**API surface changes:** +3 routes (per-student support-settings GET/PATCH, unit-context GET); modified word-lookup + me/support-settings to accept unitId; modified per-class single-student PATCH to accept ell_level_override; modified student-session select shape (added is_archived to nested classes select).
+
+**Followups:**
+- 🐛 Stale `{l1_target_override: null}` row on Service LEEDers from pre-Bug-3 testing — will self-heal on next teacher edit via new `mergeSupportSettingsForWrite`. Cosmetic.
+- 🧪 No dedicated tests for the per-student support-settings endpoint shape — existing tests still pass but new behavior (ELL handling, partial UPDATE, `verifyTeacherCanManageStudent` auth) isn't locked. ~30 min if pulled forward.
+- ⚠️ `docs/handoff/main.md` was stale (27 Apr) all session — Access v2 parallel session was given a manual briefing in chat instead. Refreshed as part of this saveme.
+
+**Ops:** Supabase project auto-paused early in the day (Cloudflare 522). Matt upgraded free → Pro Small compute mid-session — restored access + permanent paused-state immunity going forward. Resolved before any user impact.
+
+**Side-finding worth banking but not actioned:** Matt has 3 different teacher accounts in prod with the same display name "Matt" (`mattburto@gmail.com`, `hello@loominary.org`, `mattburton@nanjing-school.com`). Access Model v2 unification will need to handle this — already noted in the parallel-session briefing.
+
+---
+
 ## 27 Apr 2026 — Preflight Phase 8.1d-31..35 SHIPPED + smoke 16/16 ✅
 
 **Context:** Continuation of Phase 8.1 fab-dashboard polish. Five

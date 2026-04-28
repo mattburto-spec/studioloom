@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 385
+# Total routes: 388
 
 routes:
 - path: /api/admin/ai-model
@@ -977,6 +977,16 @@ routes:
   file: src/app/api/student/me/support-settings/route.ts
   auth: student
   tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/student/me/unit-context
+  method: GET
+  file: src/app/api/student/me/unit-context/route.ts
+  auth: student
+  tables_read:
+  - classes
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
@@ -3667,6 +3677,30 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: Reference to unknown table 'assessments' — not in schema-registry
+- path: /api/teacher/students/[studentId]/support-settings
+  method: GET
+  file: src/app/api/teacher/students/[studentId]/support-settings/route.ts
+  auth: teacher
+  tables_read:
+  - class_students
+  - students
+  tables_written:
+  - students
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/students/[studentId]/support-settings
+  method: PATCH
+  file: src/app/api/teacher/students/[studentId]/support-settings/route.ts
+  auth: teacher
+  tables_read:
+  - class_students
+  - students
+  tables_written:
+  - students
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/teacher/teach/live-status
   method: GET
   file: src/app/api/teacher/teach/live-status/route.ts
