@@ -40,14 +40,17 @@ function lab(id: string, name: string): LabListRow {
 function machine(
   overrides: Partial<MachineProfileRow> & { id: string; labId: string | null }
 ): MachineProfileRow {
+  // Phase 8-3: machine row drops `teacherId`, adds
+  // `createdByTeacherId` (audit-only) + `machineBrand`.
   return {
     id: overrides.id,
-    teacherId: "t1",
-    schoolId: null,
+    schoolId: "s1",
+    createdByTeacherId: "t1",
     labId: overrides.labId,
     isSystemTemplate: false,
     name: overrides.name ?? "Machine " + overrides.id,
     machineCategory: overrides.machineCategory ?? "3d_printer",
+    machineBrand: null,
     machineModel: null,
     isActive: true,
     requiresTeacherApproval: overrides.requiresTeacherApproval ?? false,

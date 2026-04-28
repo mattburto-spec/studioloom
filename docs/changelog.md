@@ -4,6 +4,115 @@
 
 ---
 
+## 28 Apr 2026 — Preflight Phase 8-1 schema flip + Round 1 audit + Phase 8-2 SHIPPED + E2E smoke PASS ✅
+
+**Context:** Full day driven by Matt's smoke test of yesterday's
+school-scoped lab ownership migration. Started with three prod hotfixes
+(student upload Path B `teacher_id` chain, PostgREST schema-cache lost
+FK, STL/laser file-type hard-gate), pivoted into a comprehensive
+12-finding audit (`docs/projects/preflight-audit-28-apr.md`) after Matt
+flagged "im a bit worried after those probs we just had where you had
+missed things", landed Round 1 (HIGH-1/2/3/4 + MED-6) before lunch,
+discovered Lab Setup page broken (audit MED-4) → built Phase 8-2
+properly under the school-scoped contract instead of patching, hit
+2 follow-up bugs during smoke (CI strict-typecheck UI debt + PostgREST
+duplicate embed), fixed both, ended with full Preflight E2E smoke PASS.
+
+**What changed:**
+
+- **8.1d-37** Student upload Path B validates lab via `school_id` join,
+  not removed `teacher_id` (`orchestration.ts:376-391`).
+- **8.1d-37 follow-up** Codified `fabrication_jobs.lab_id` FK restoration
+  as migration `20260428041707_restore_fabrication_jobs_lab_fk.sql`
+  (the previous `DROP TABLE fabrication_labs CASCADE` killed the FK
+  constraint; PostgREST schema cache emitted "Could not find a
+  relationship" until restored + `NOTIFY pgrst, 'reload schema'`).
+- **8.1d-38** Reject incompatible fileType / machine_category at upload
+  (stl→3d_printer, svg→laser_cutter; STL on laser cutter previously
+  passed).
+- **Audit Round 1:**
+  - **HIGH-1** server-side school filter on student picker via
+    two-query split (templates + school-scoped).
+  - **HIGH-2/3/4** `fabricatorSchoolContext` helper + 6 fab-orchestration
+    callsite swap (school-scoped instead of single-teacher).
+  - **MED-6** Migration 120 fresh-install ordering — IF EXISTS guards.
+- **Phase 8-2 lab orchestration + API school-scoped rebuild (3 commits):**
+  - `lab-orchestration.ts` full rewrite. New shape:
+    `LabRow { id, schoolId, createdByTeacherId, name, description,
+    createdAt, updatedAt }`. `is_default` dropped (per-class default
+    lives on `classes.default_lab_id`, per-teacher on
+    `teachers.default_lab_id`). New helpers `loadTeacherSchoolId`,
+    `loadSchoolOwnedLab`. Cross-school → 404 (no existence leak).
+  - 4 routes swept: `POST /api/teacher/labs`, `GET .../labs`,
+    `PATCH .../labs/[id]`, `DELETE .../labs/[id]`,
+    `PATCH .../labs/[id]/machines`. Renamed
+    `sourceLabId`/`targetLabId` → `fromLabId`/`toLabId`. DELETE
+    response: `{ deletedId, reassigned: { machines, classes, teachers } }`.
+  - 26-test orchestration rewrite + route test updates. Mock
+    query-builder extended for `.eq()` vs `.in()` distinguishing,
+    `teachers.maybeSingle()`, thenable list queries.
+- **Phase 8-2 hotfix** UI tsc errors after orchestration rewrite —
+  ripped 6 `isDefault` references across `LabSetupClient.tsx` +
+  `MachineEditModal.tsx` + `lab-setup-helpers.ts` + 1 test fixture.
+  CI strict-typecheck (`tsc --noEmit --project tsconfig.check.json`)
+  caught what `npx tsc --noEmit` filtered output didn't surface.
+- **Picker-data hotfix (post-Phase-8-2)** Eliminated duplicate
+  `fabrication_labs` embed in school-scoped query. The previous
+  `${baseSelect}, fabrication_labs!inner(...)` produced two embeds
+  via the same `lab_id` FK; PostgREST collided on
+  `machine_profiles_fabrication_labs_1`. Each query now has exactly
+  one embed.
+
+**Verification:**
+
+- ✅ Tests: 2208 pass / 9 skipped (no regression from baseline).
+- ✅ TS strict: `tsc --noEmit --project tsconfig.check.json` clean.
+- ✅ CI green on `8e04aef` + `dafa25d` (the two Phase 8-2 + hotfix
+  merge commits on main).
+- ✅ **Full Preflight E2E smoke PASS** in prod (Matt): student upload
+  → scanner → teacher queue → fab pickup → complete.
+
+**Migrations:** No new migrations this session beyond yesterday's
+`20260428041707_restore_fabrication_jobs_lab_fk.sql` already shipped.
+RLS coverage 89→94 tables / 82→87 with policies (tracks Phase 8-1
+schema flip).
+
+**Audit doc state:** 9 ✅ FIXED + 3 OPEN (MED-2 machine-orchestration
+~8 stale `teacher_id` sites + MED-3 default-lab route dormant but
+broken + MED-5 design call: recommend Option 2 audit-only) + 2 PARTIAL
+(MED-4 UI rebuild deferred → Phase 8-4 + LOW-2 comment drift in
+machine/fab-orchestration).
+
+**Pending after this saveme:** Push origin/main DONE. Vercel deploy
+DONE. **Phase 8-3 next session** — machine-orchestration rebuild,
+pre-audited with full call-site list. Then Phase 8-4 (full
+LabSetupClient visual rebuild).
+
+**Lessons surfaced:**
+- (additive to existing) When running `tsc --noEmit` ahead of pushing,
+  use the project's strict CI config (`tsconfig.check.json`) — full
+  `tsc --noEmit` includes test files with their own pre-existing Mock
+  type errors that drown out new errors in production code.
+- PostgREST embed disambiguation: appending an embed onto a baseSelect
+  that already includes the same target table via the same FK results
+  in alias collision. Rule: each query gets exactly one embed per
+  (target, FK) pair.
+- Audit-before-touch saved this session. The morning-time audit doc
+  (12 findings) directly informed which work was Round 1 / Phase 8-2 /
+  Phase 8-3 / Phase 8-4. Without it I would have rebuilt
+  lab-orchestration without realising machine-orchestration had the
+  same kind of debt.
+
+**Systems affected:** `fabrication-lab-orchestration` (rewrite),
+`fabrication-fab-orchestration` (school-scoped sweep),
+`fabrication-student-picker` (server-side school filter + embed
+hotfix), `fabrication-jobs` (FK restored, fileType/category gate).
+
+**Worktree state at session end:** `/Users/matt/CWORK/questerra-preflight`
+on `preflight-active` (in sync with origin). Top-of-main: `dafa25d`.
+
+---
+
 ## 28 Apr 2026 PM — Smart tap-a-word defaults + speaker removal + Bug 3 prod verification
 
 **Context:** Late-day polish on the language-scaffolding-redesign work after the morning's Option A unified Support tab landed. Three commits + a prod verification step that closes out today's work on student lesson support.

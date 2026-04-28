@@ -2381,11 +2381,19 @@ docs:
 
   - path: docs/projects/preflight-phase-8-brief.md
     title: "Preflight Phase 8 Brief — Lab + Machine + Fabricator Admin (DRAFT)"
-    purpose: "Phase 8 build brief DRAFT (pre-sign-off — blocked on Checkpoint 7.1). Unified visual lab+machine+fab admin replacing Phase 1B-2 flat list. Ships: `fabrication_labs` table, `machine_profiles.lab_id` FK, `classes.default_lab_id` FK, `/teacher/preflight/lab-setup` page, machine CRUD from template or scratch, laser operation colour map editor, fabricator reassignment, student picker filter by `class.default_lab_id`. 5 sub-phases (8-1 migration → 8-2 lab CRUD → 8-3 machine CRUD → 8-4 visual page → 8-5 student filter+smoke). ~2–3 days. Recommends Option B click-based over drag-drop. 6 open questions pending Matt sign-off. Absorbs originally-Phase-9 PH6-FU-MULTI-LAB-SCOPING + closes FU-CLASS-MACHINE-LINK P3."
+    purpose: "Phase 8 build brief DRAFT. Unified visual lab+machine+fab admin replacing Phase 1B-2 flat list. Ships: `fabrication_labs` table, `machine_profiles.lab_id` FK, `classes.default_lab_id` FK, `/teacher/preflight/lab-setup` page, machine CRUD from template or scratch, laser operation colour map editor, fabricator reassignment, student picker filter by `class.default_lab_id`. 5 sub-phases (8-1 migration → 8-2 lab CRUD → 8-3 machine CRUD → 8-4 visual page → 8-5 student filter+smoke). 8-1 + 8-2 SHIPPED 27-28 Apr; 8-3 next; 8-4 deferred."
     category: projects
-    last_verified: "2026-04-24"
+    last_verified: "2026-04-28"
     max_age_days: 90
-    last_scanned: "2026-04-24"
+    last_scanned: "2026-04-28"
+
+  - path: docs/projects/preflight-audit-28-apr.md
+    title: "Preflight Audit — 28 Apr 2026 (post Phase 8-1 schema flip)"
+    purpose: "Comprehensive audit-after-touch of every Preflight code path post-Phase-8-1 schema flip (school-scoped lab ownership). 12 findings: HIGH-1 student picker cross-school leak (FIXED — server-side school filter via two-query split + late embed-collision hotfix); HIGH-2/3/4 fab orchestration teacher_id pattern (FIXED — fabricatorSchoolContext helper sweep across 6 callsites); MED-1 lab-orchestration.ts (FIXED — Phase 8-2 rewrite); MED-2 machine-orchestration.ts (OPEN — Phase 8-3, ~8 stale teacher_id sites); MED-3 default-lab route (OPEN — UI trigger removed in 8.1d-5, route dormant but still 500s if reached, fold into Phase 8-3); MED-4 LabSetupClient + components (PARTIAL — root API errors fixed, page works, full visual rebuild deferred to Phase 8-4); MED-5 machine_profiles.teacher_id semantics (OPEN — design call, recommend Option 2 audit-only); MED-6 migration 120 fresh-install ordering (FIXED — IF EXISTS guards); LOW-1 TS types drift (FIXED); LOW-2 comment drift (PARTIAL — lab-orchestration swept, machine/fab-orchestration outstanding). Trigger: three runtime bugs surfaced in prod after schema migration shipped — student upload Path B, PostgREST schema-cache lost FK, file-type/category compat absent. This pass is the audit-before-build that should have been done at Phase 8-1 kickoff."
+    category: projects
+    last_verified: "2026-04-28"
+    max_age_days: 90
+    last_scanned: "2026-04-28"
 
   # --- LESSON BOLD + LANGUAGE SCAFFOLDING REDESIGN (merged from lesson-bold-build 26 Apr) ---
   - path: docs/projects/lesson-bold-brief.md
