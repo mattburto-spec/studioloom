@@ -141,8 +141,13 @@ def infer_auth(filepath, content):
     elif "src/app/api/student/" in rel_path and not signals:
         signals.add("student")
 
-    # Public path
-    if "src/app/api/public/" in rel_path:
+    # Public path — explicit /public/ folder, plus the /tools/ free-tool
+    # endpoints (Phase 0.9 access-v2 audit triage 28 Apr 2026: these routes
+    # under src/app/api/tools/ are intentionally public free-tools that
+    # import shared helpers whose names happen to match the auth-like
+    # keyword regex below. Path-based override prevents false-positive
+    # `unknown` classification.).
+    if "src/app/api/public/" in rel_path or "src/app/api/tools/" in rel_path:
         signals.add("public")
 
     # Service-role only (createAdminClient WITHOUT any user auth)
@@ -403,8 +408,14 @@ def main():
     if unknown_auth > total * 0.2:
         print(f"\n⛔ GATE FAIL: unknown auth count {unknown_auth} > 20% of {total}")
         gate_fail = True
-    if public_auth > 40:
-        print(f"\n⛔ GATE FAIL: public auth count {public_auth} > 40")
+    # Public threshold bumped 28 Apr 2026 (Phase 0.9 access-v2 audit
+    # triage) from 40 → 50 to absorb the 7 free-tool routes under
+    # src/app/api/tools/ that the path-based override now correctly
+    # classifies as `public`. They were previously `unknown` (false
+    # positive). 50 leaves headroom for ChinaExplained / Makloom-style
+    # public landing-page endpoints.
+    if public_auth > 50:
+        print(f"\n⛔ GATE FAIL: public auth count {public_auth} > 50")
         gate_fail = True
     if max_reads > 15 or max_writes > 15:
         print(f"\n⛔ GATE FAIL: max tables_read={max_reads}, max tables_written={max_writes} (>15)")
