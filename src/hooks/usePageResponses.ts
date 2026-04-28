@@ -150,6 +150,40 @@ export function usePageResponses(
         if (integrityMetadataRef?.current && Object.keys(integrityMetadataRef.current).length > 0) {
           payload.integrityMetadata = integrityMetadataRef.current;
         }
+
+        // Phase 2 instrumentation — diagnoses the debounce/autosave race.
+        // Gated behind localStorage so normal users never see it.
+        // Enable in browser console: localStorage.setItem("SL_INTEGRITY_DEBUG", "1")
+        if (
+          typeof window !== "undefined" &&
+          window.localStorage?.getItem("SL_INTEGRITY_DEBUG") === "1"
+        ) {
+          const ref = integrityMetadataRef?.current;
+          const keys = ref ? Object.keys(ref) : [];
+          const sample =
+            keys.length > 0 && ref
+              ? (ref as Record<string, Record<string, unknown>>)[keys[0]]
+              : null;
+          console.log("[integrity-debug] autosave fired", {
+            pageId: currentPage.id,
+            hasRef: !!ref,
+            keyCount: keys.length,
+            keys,
+            firstKeySample: sample
+              ? {
+                  characterCount: sample.characterCount,
+                  keystrokeCount: sample.keystrokeCount,
+                  totalTimeActive: sample.totalTimeActive,
+                  pasteCount: Array.isArray(sample.pasteEvents)
+                    ? sample.pasteEvents.length
+                    : 0,
+                  snapshotCount: Array.isArray(sample.snapshots)
+                    ? sample.snapshots.length
+                    : 0,
+                }
+              : null,
+          });
+        }
         const res = await fetch("/api/student/progress", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
