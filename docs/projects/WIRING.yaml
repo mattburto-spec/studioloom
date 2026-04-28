@@ -2406,7 +2406,7 @@ systems:
     category: Submission
     status: in-progress
     currentVersion: 1
-    summary: "Upload, scan, gate, route, pickup, complete pipeline for student fabrication submissions (3D print, laser). User-facing brand Preflight. Schema tables prefixed fabrication_*. Phases 0, 1A, 1B-1, 1B-2, 2 (STL scanner — Checkpoint 2.1 PASSED), 3 (SVG scanner — Checkpoint 3.1 PASSED), 4 (student upload UI — Checkpoint 4.1 PASSED), 5 (soft-gate results UI — Checkpoint 5.1 PASSED 14/14), 6 (Teacher Queue + Approval — Checkpoint 6.1 PASSED 4/4), 7 (Lab Tech Pickup + Completion — Checkpoint 7.1 PASSED 12/12 24 Apr PM), **8-1 (fabrication_labs migration + backfill — code complete 25 Apr, mini-checkpoint pending prod apply)** all SHIPPED. Fab-facing routes live: GET /api/fab/queue, GET /api/fab/jobs/[jobId], GET .../download (Content-Disposition rewrite via buildFabricationDownloadFilename), POST .../complete, POST .../fail. fab-orchestration.ts (~560 lines, race-safe conditional UPDATE + post-write confirm read + idempotent re-download). /fab/queue + /fab/jobs/[jobId] pages with LabTechActionBar + canned-note chips (4 complete / 6 fail presets). Student sees LabTechCompletionCard (green printed/cut, red failed) on terminal states. Inclusive-wording sweep (7-5b/5c) after Matt pushback — user-facing copy 'lab tech' → 'fabricator'. Next: Phase 7 smoke → Phase 8 (unified visual lab+machine+fab admin, brief drafted at docs/projects/preflight-phase-8-brief.md, blocked on 7.1 + 6 open questions)."
+    summary: "Upload, scan, gate, route, pickup, complete pipeline for student fabrication submissions (3D print, laser). User-facing brand Preflight. Schema tables prefixed fabrication_*. Phases 0, 1A, 1B-1, 1B-2, 2 (STL scanner — Checkpoint 2.1 PASSED), 3 (SVG scanner — Checkpoint 3.1 PASSED), 4 (student upload UI — Checkpoint 4.1 PASSED), 5 (soft-gate results UI — Checkpoint 5.1 PASSED 14/14), 6 (Teacher Queue + Approval — Checkpoint 6.1 PASSED 4/4), 7 (Lab Tech Pickup + Completion — Checkpoint 7.1 PASSED 12/12 24 Apr PM), **8-1 (fabrication_labs migration + backfill — REVISED 27 Apr to school-scoped ownership, code complete + tests passing 28 Apr, mini-checkpoint pending prod apply per docs/projects/preflight-phase-8-1-prod-smoke.md)** all SHIPPED. Fab-facing routes live: GET /api/fab/queue, GET /api/fab/jobs/[jobId], GET .../download (Content-Disposition rewrite via buildFabricationDownloadFilename), POST .../complete, POST .../fail. fab-orchestration.ts (~560 lines, race-safe conditional UPDATE + post-write confirm read + idempotent re-download). /fab/queue + /fab/jobs/[jobId] pages with LabTechActionBar + canned-note chips (4 complete / 6 fail presets). Student sees LabTechCompletionCard (green printed/cut, red failed) on terminal states. Inclusive-wording sweep (7-5b/5c) after Matt pushback — user-facing copy 'lab tech' → 'fabricator'. Next: Phase 7 smoke → Phase 8 (unified visual lab+machine+fab admin, brief drafted at docs/projects/preflight-phase-8-brief.md, blocked on 7.1 + 6 open questions)."
     depends_on: [storage, preflight-scanner, auth-system, machine-profiles]
     affects: [teacher-dashboard, student-dashboard, audit-log, students]
     docs:
@@ -2432,21 +2432,25 @@ systems:
         columns: [key, value]
         notes: "Preflight AI-guardrail keys seeded in migration 103: preflight.ai_enrichment_enabled (bool), preflight.ai_enrichment_daily_cap_usd (5.00), preflight.ai_enrichment_tiers_enabled ([tier1]). Scanner worker reads each before dispatching Haiku enrichment."
       - table: fabrication_labs
-        columns: [id, teacher_id, school_id, name, description, is_default]
-        notes: "Phase 8-1 new table (mig 112). Per-teacher Lab entity — groups machine_profiles + gives classes a default_lab_id for silent machine-picker filtering. One default lab per teacher enforced via unique partial index. school_id reserved nullable for FU-P access-model-v2. Cross-teacher visibility OUT OF SCOPE v1."
+        columns: [id, school_id, created_by_teacher_id, name, description]
+        notes: "Phase 8-1 new table (mig 20260427134953_fabrication_labs.sql, revised 27 Apr from 24 Apr teacher-scoped draft). SCHOOL-OWNED — every teacher with the same school_id sees + edits the same labs (flat membership). created_by_teacher_id is audit-only and does NOT gate access. Unique-name-per-school index (case-insensitive, whitespace-collapsed). school_id NOT NULL ON DELETE RESTRICT — schools can't be removed while labs reference them. RLS predicate: school_id = current_teacher_school_id() (SECURITY DEFINER helper to avoid teachers-table recursion). Cross-school invisible (silent filter, not 403); orphan teachers + system sentinels denied."
       - table: machine_profiles
         columns: [lab_id]
-        notes: "Phase 8-1 (mig 112) — new nullable FK to fabrication_labs. Teacher-owned non-templates backfilled in mig 113 to their Default lab; system templates stay NULL. ON DELETE SET NULL — deleting a lab unassigns machines rather than cascading."
+        notes: "Phase 8-1 (20260427134953_fabrication_labs.sql) — new nullable FK to fabrication_labs. Real-teacher non-templates backfilled in 20260427135108_backfill_fabrication_labs.sql PASS 2 to their school's Default lab; system templates + system-sentinel-owned rows stay NULL. ON DELETE SET NULL — deleting a lab unassigns machines rather than cascading."
       - table: classes
         columns: [default_lab_id]
-        notes: "Phase 8-1 (mig 112) — nullable FK to fabrication_labs. Drives the student machine-picker filter (wired in 8-5). Null-lab fallback: picker shows all teacher-owned machines (legacy behaviour)."
+        notes: "Phase 8-1 (20260427134953_fabrication_labs.sql) — nullable FK to fabrication_labs. Drives the student machine-picker filter (wired in 8-5). Backfilled by PASS 4 cascading from owning teacher's default_lab_id. Null-lab fallback: picker shows all school-owned machines (legacy behaviour)."
+      - table: teachers
+        columns: [default_lab_id]
+        notes: "Phase 8-1 (20260427134953_fabrication_labs.sql) — NEW nullable FK in 27 Apr revision. Per-teacher preference; seeds the dropdown when creating a new class. Per-class default_lab_id is the binding ground truth — teacher default just suggests. Backfilled by PASS 3 (set to school's default lab); excluded for system sentinels (@studioloom.internal)."
     key_files:
       - supabase/migrations/095_fabrication_jobs.sql
       - supabase/migrations/098_fabrication_jobs_extensions.sql
       - supabase/migrations/100_students_fabrication_notify_email.sql
       - supabase/migrations/101_fabrication_job_revisions_extensions.sql
-      - supabase/migrations/113_fabrication_labs.sql
-      - supabase/migrations/114_backfill_fabrication_labs.sql
+      - supabase/migrations/20260427134953_fabrication_labs.sql
+      - supabase/migrations/20260427134953_fabrication_labs.down.sql
+      - supabase/migrations/20260427135108_backfill_fabrication_labs.sql
       - supabase/migrations/103_preflight_ai_guardrails_seed.sql
       - src/app/teacher/preflight/page.tsx
       - src/app/teacher/preflight/fabricators/page.tsx
@@ -2483,7 +2487,7 @@ systems:
       - src/components/fabrication/fab-queue-helpers.ts
       - src/lib/preflight/email.ts
       - src/lib/preflight/email-templates.ts
-    future_needs: "Multi-lab scoping (Phase 8 brief drafted — fabrication_labs entity, class.default_lab_id, unified visual admin page). Pipeline 2 coupling (auto-attach completion photos to work_items). Slicer integration. Pickup tokens for walk-up tablets (Phase 8+)."
+    future_needs: "Phase 8-2 onwards (lab/machine CRUD APIs + visual admin page + class-disambiguation on fab queue). Phase 8-1 schema + backfill code-complete 27 Apr (school-scoped revision); pending prod apply via mini-checkpoint. Pipeline 2 coupling (auto-attach completion photos to work_items). Slicer integration. Pickup tokens for walk-up tablets (Phase 8+)."
     adrs: []
     os_seam: ready
     change_impacts: "Changes to status transitions affect fabricator queue plus teacher dashboard. Changes to scan result shape require scanner worker redeploy in lockstep."

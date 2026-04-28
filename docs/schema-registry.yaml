@@ -2169,7 +2169,7 @@ tables:
     framework: TEXT DEFAULT 'IB_MYP'
     instruction_language: TEXT DEFAULT 'en'
     additional_languages: TEXT[] DEFAULT NULL
-    default_lab_id: UUID REFERENCES fabrication_labs(id) ON DELETE SET NULL   # added Phase 8-1 migration 114 — drives student machine-picker filter (8-5)
+    default_lab_id: UUID REFERENCES fabrication_labs(id) ON DELETE SET NULL   # added Phase 8-1 migration 20260427134953_fabrication_labs.sql; populated by backfill 20260427135108_backfill_fabrication_labs.sql PASS 4 (cascades from owning teacher's default_lab_id) — drives student machine-picker filter (8-5)
     school_id: UUID REFERENCES schools(id) ON DELETE SET NULL                 # added Phase 8.1d migration 117 — reserved for FU-P access-model-v2; nullable in v1
   classification:
     id:
@@ -8375,6 +8375,7 @@ tables:
     style_profile: JSONB DEFAULT NULL
     onboarded_at: TIMESTAMPTZ DEFAULT NULL  # added by 083_teacher_onboarded_at.sql (applied 15 Apr 2026); NULL = redirect to /teacher/welcome
     school_id: UUID REFERENCES schools(id) ON DELETE SET NULL  # added by 085_schools.sql (NOT YET APPLIED); NULL = not yet picked / existing teacher backfill via settings
+    default_lab_id: UUID REFERENCES fabrication_labs(id) ON DELETE SET NULL  # added Phase 8-1 migration 20260427134953_fabrication_labs.sql; per-teacher preference seeds the dropdown when creating a new class. Class default_lab_id is the binding ground truth — teacher default just suggests. Backfilled by 20260427135108_backfill_fabrication_labs.sql PASS 3 (set to school's default lab); excluded for system sentinels (@studioloom.internal).
   classification:
     id:
       pii: false
@@ -9141,7 +9142,7 @@ tables:
     min_feature_mm: NUMERIC
     rule_overrides: JSONB
     notes: TEXT
-    lab_id: UUID REFERENCES fabrication_labs(id) ON DELETE SET NULL   # added Phase 8-1 migration 113
+    lab_id: UUID REFERENCES fabrication_labs(id) ON DELETE SET NULL   # added Phase 8-1 migration 20260427134953_fabrication_labs.sql; backfilled by 20260427135108_backfill_fabrication_labs.sql PASS 2 (assigned to school's earliest-created lab). System templates stay NULL; orphan teachers + system sentinels excluded.
     created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
     updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
   indexes:
@@ -9156,36 +9157,44 @@ tables:
   rls:
     read: "Teachers read own profiles + all system templates; service_role full access"
     write: "Teachers INSERT/UPDATE/DELETE own non-template rows; is_system_template flag is append-only (seed + admin via service_role)"
-  writers: ["teacher settings page (TBD Phase 1B)", "094_machine_profile_seed.sql", "114_backfill_fabrication_labs.sql (lab_id)"]
+  writers: ["teacher settings page (TBD Phase 1B)", "094_machine_profile_seed.sql", "20260427135108_backfill_fabrication_labs.sql (lab_id PASS 2)"]
   readers: ["teacher machine-profile UI", "preflight scanner worker", "preflight job submission API"]
   spec_drift:
     - date: 2026-04-25
       migration: 113_fabrication_labs.sql
-      note: "Phase 8-1 added lab_id FK column (nullable). Backfilled by migration 114 for teacher-owned non-template rows only — system templates stay NULL."
+      note: "Original Phase 8-1 draft (teacher-scoped). SUPERSEDED 27 Apr by 20260427134953_fabrication_labs.sql (school-scoped). Old migration files deleted from the branch in commit 6d8f60e — never applied to prod."
+    - date: 2026-04-27
+      migration: 20260427134953_fabrication_labs.sql
+      note: "Phase 8-1 (revised) — adds lab_id FK column (nullable). Backfilled by 20260427135108_backfill_fabrication_labs.sql PASS 2 for real-teacher (non-system, non-orphan) non-template rows only — system templates and `@studioloom.internal` accounts stay NULL."
 
 - name: fabrication_labs
-  source_migration: 113_fabrication_labs.sql
+  source_migration: 20260427134953_fabrication_labs.sql
   status: applied_repo_pending_prod
-  applied_date: 2026-04-25
-  purpose: "Phase 8 Lab entity — per-teacher grouping of machine_profiles (e.g. '2nd floor design lab', 'Makerspace A'). Each class has a default_lab_id pointing at one of the teacher's labs; student machine-picker filters by that (student filter UI lands in 8-5). Cross-teacher sharing explicitly OUT OF SCOPE v1 per parent brief §5 Q3 — gated on FU-P access-model-v2."
+  applied_date: null  # pending Matt's prod apply per Phase 8-1 mini-checkpoint
+  purpose: "Phase 8 Lab entity — physical-space ownership of fabrication infrastructure. SCHOOL-OWNED, not teacher-owned (revised 27 Apr from 24 Apr teacher-scoped draft). Every teacher with the same school_id sees + edits the same labs without setup, matching real-world workplace semantics (a lab is a room, multiple teachers teach there). Each class has a default_lab_id pointing at one of the school's labs; student machine-picker filters by that (8-5). Different classes at the same school can use different labs (G4→PYP Lab, G8→MYP Lab)."
   columns:
     id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
-    teacher_id: UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE
-    school_id: UUID REFERENCES schools(id) ON DELETE SET NULL   # reserved for FU-P access-model-v2; NULL in v1
+    school_id: UUID NOT NULL REFERENCES schools(id) ON DELETE RESTRICT   # ownership / visibility scope. RESTRICT: schools can't be removed while labs reference them.
+    created_by_teacher_id: UUID REFERENCES teachers(id) ON DELETE SET NULL   # AUDIT ONLY — does NOT gate access. SET NULL: if creator's row is deleted, lab stays (school owns it).
     name: TEXT NOT NULL CHECK (length(trim(name)) > 0)
     description: TEXT
-    is_default: BOOLEAN NOT NULL DEFAULT false   # true on the auto-created default per teacher; enforced unique via uq_fabrication_labs_one_default_per_teacher
-    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
-    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
   indexes:
-    - idx_fabrication_labs_teacher_id ON (teacher_id)
-    - idx_fabrication_labs_school_id ON (school_id) WHERE school_id IS NOT NULL
-    - uq_fabrication_labs_one_default_per_teacher ON (teacher_id) WHERE is_default = true   # one-default-per-teacher safety rail
+    - idx_fabrication_labs_school ON (school_id)
+    - idx_fabrication_labs_created_by ON (created_by_teacher_id)
+    - idx_fabrication_labs_unique_name_per_school ON (school_id, lower(regexp_replace(trim(name), '\s+', ' ', 'g')))   # case-insensitive, whitespace-collapsed lab-name dedup within a school
   rls:
-    read: "Teachers read their own labs only (teacher_id = auth.uid()); service_role bypasses for server-side orchestration joins through machine_profiles"
-    write: "Teachers INSERT/UPDATE/DELETE their own labs only"
-  writers: ["114_backfill_fabrication_labs.sql", "/api/teacher/labs (Phase 8-2)"]
-  readers: ["/api/teacher/labs (Phase 8-2)", "lab-setup admin page (Phase 8-4)", "student picker-data endpoint (Phase 8-5)"]
+    read: "School-scoped — `school_id = current_teacher_school_id()`. Same-school teachers all see the same labs (flat membership). Cross-school teachers get empty result (silent filter, not 403). Service role bypasses for server-side joins."
+    write: "School-scoped INSERT/UPDATE/DELETE — every policy uses school_id = current_teacher_school_id() (UPDATE has both USING and WITH CHECK; INSERT has WITH CHECK). Cross-school writes are RLS-rejected. Orphan teachers (school_id IS NULL) and system sentinels (@studioloom.internal) cannot read/write any lab."
+  helpers:
+    - name: current_teacher_school_id()
+      kind: function
+      attrs: [SECURITY DEFINER, STABLE]
+      grant: authenticated
+      purpose: "Returns the calling teacher's school_id. SECURITY DEFINER avoids per-row teachers-table RLS recursion. STABLE caches within a transaction. NULL for non-teacher callers (orphan denial behaviour)."
+  writers: ["20260427135108_backfill_fabrication_labs.sql (PASS 1 — school's auto-created Default lab)", "/api/teacher/labs (Phase 8-2, school-scoped CRUD)"]
+  readers: ["/api/teacher/labs (Phase 8-2)", "lab-setup admin page (Phase 8-4, all teachers at school see same view)", "student picker-data endpoint (Phase 8-5)"]
 
 - name: fabrication_jobs
   source_migration: 095_fabrication_jobs.sql
