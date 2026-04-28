@@ -1266,6 +1266,31 @@ interface SynthesizeViewProps {
   loadAll: () => Promise<void>;
 }
 
+interface PastFeedbackRecord {
+  id: string;
+  unit_id: string;
+  class_id: string;
+  data: {
+    overall_comment?: string | null;
+    criterion_scores?: Array<{ criterion_key: string; level: number }>;
+  };
+  overall_grade: number | null;
+  assessed_at: string;
+  units: { title: string } | null;
+}
+
+function relativeAgo(iso: string): string {
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const days = Math.floor((now - then) / 86400000);
+  if (days < 1) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days} days ago`;
+  if (days < 30) return `${Math.round(days / 7)} weeks ago`;
+  if (days < 365) return `${Math.round(days / 30)} months ago`;
+  return `${Math.round(days / 365)} years ago`;
+}
+
 function SynthesizeView({
   klass,
   unit,
@@ -1280,6 +1305,32 @@ function SynthesizeView({
   setReleasedAtByStudent,
   loadAll,
 }: SynthesizeViewProps) {
+  // Past-feedback memory — fetched per-student on mount, cached in state.
+  const [pastFeedback, setPastFeedback] = useState<Record<string, PastFeedbackRecord[]>>({});
+
+  useEffect(() => {
+    if (!unit) return;
+    let cancelled = false;
+    void (async () => {
+      const fetches = students.map(async (s) => {
+        const res = await fetch(
+          `/api/teacher/grading/past-feedback?student_id=${s.id}&exclude_unit_id=${unit.id}`,
+        );
+        if (!res.ok) return [s.id, [] as PastFeedbackRecord[]] as const;
+        const json = (await res.json()) as { records: PastFeedbackRecord[] };
+        return [s.id, json.records ?? []] as const;
+      });
+      const settled = await Promise.all(fetches);
+      if (cancelled) return;
+      const map: Record<string, PastFeedbackRecord[]> = {};
+      for (const [id, recs] of settled) map[id] = recs;
+      setPastFeedback(map);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [unit, students]);
+
   if (!klass || !unit) return null;
   if (students.length === 0) {
     return (
@@ -1375,6 +1426,30 @@ function SynthesizeView({
                     ))}
                   </div>
                 )}
+
+                {/* Past-feedback memory — amber callout, surfaced just
+                    above the comment so it's in eyeline while writing. */}
+                {(() => {
+                  const prior = pastFeedback[s.id]?.[0];
+                  if (!prior) return null;
+                  const comment = prior.data?.overall_comment;
+                  if (!comment || !comment.trim()) return null;
+                  const ago = relativeAgo(prior.assessed_at);
+                  const unitLabel = prior.units?.title ? ` on “${prior.units.title}”` : "";
+                  return (
+                    <div className="mt-4 mb-3 px-3 py-2.5 rounded-lg border border-amber-200 bg-amber-50/70">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase text-amber-700 mb-1">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 5v6m0 4v.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+                        </svg>
+                        You said {ago}{unitLabel}
+                      </div>
+                      <p className="text-xs text-amber-900 leading-relaxed italic">
+                        &ldquo;{comment.length > 240 ? `${comment.slice(0, 240)}…` : comment}&rdquo;
+                      </p>
+                    </div>
+                  );
+                })()}
 
                 {/* Comment textarea + release */}
                 <div className="mt-4">
