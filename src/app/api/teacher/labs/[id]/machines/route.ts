@@ -2,11 +2,12 @@
  * PATCH /api/teacher/labs/[id]/machines
  *
  * Reassign a machine from this lab (URL-scoped for namespace clarity)
- * to a target lab (body). Per parent brief §3.2.
+ * to a target lab (body). Both labs must be at the calling teacher's
+ * school; cross-school reassignment → 404 (revised 28 Apr).
  *
- * Body: { machineProfileId: string, targetLabId: string }
+ * Body: { machineProfileId: string, toLabId: string }
  *
- * Preflight Phase 8-2.
+ * Preflight Phase 8-2 (revised 28 Apr).
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -43,7 +44,10 @@ function privateJson(body: unknown, status = 200) {
 
 interface ReassignBody {
   machineProfileId?: unknown;
-  targetLabId?: unknown;
+  // Renamed from `targetLabId` to `toLabId` 28 Apr to match the
+  // orchestration's `fromLabId`/`toLabId` semantics. No external
+  // callers existed, so renaming is non-breaking.
+  toLabId?: unknown;
 }
 
 export async function PATCH(
@@ -53,7 +57,7 @@ export async function PATCH(
   const user = await getTeacherUser(request);
   if (!user) return privateJson({ error: "Unauthorized" }, 401);
 
-  const { id: sourceLabId } = await params;
+  const { id: fromLabId } = await params;
 
   let body: ReassignBody;
   try {
@@ -68,9 +72,9 @@ export async function PATCH(
       400
     );
   }
-  if (typeof body.targetLabId !== "string" || !body.targetLabId) {
+  if (typeof body.toLabId !== "string" || !body.toLabId) {
     return privateJson(
-      { error: "`targetLabId` is required (string)." },
+      { error: "`toLabId` is required (string)." },
       400
     );
   }
@@ -78,9 +82,9 @@ export async function PATCH(
   const admin = createAdminClient();
   const result = await reassignMachineToLab(admin, {
     teacherId: user.id,
-    sourceLabId,
+    fromLabId,
     machineProfileId: body.machineProfileId,
-    targetLabId: body.targetLabId,
+    toLabId: body.toLabId,
   });
 
   if (isOrchestrationError(result)) {
