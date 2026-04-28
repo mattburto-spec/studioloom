@@ -122,12 +122,19 @@ export async function GET(request: NextRequest) {
   // student regardless of school (they're seed data with no owner);
   // teacher-owned machines must be in a lab at one of the student's
   // schools.
-  const baseSelect =
-    "id, name, machine_category, machine_brand, machine_model, bed_size_x_mm, bed_size_y_mm, nozzle_diameter_mm, kerf_mm, is_system_template, lab_id, fabrication_labs(name)";
+  //
+  // Phase 8.1d-39 hotfix (28 Apr PM): each query gets its own select
+  // with EXACTLY ONE `fabrication_labs(...)` embed. Previous version
+  // appended `fabrication_labs!inner(...)` on top of a baseSelect
+  // that already had `fabrication_labs(name)` — PostgREST aliased
+  // both as `machine_profiles_fabrication_labs_1` and errored with
+  // "table name specified more than once".
+  const flatColumns =
+    "id, name, machine_category, machine_brand, machine_model, bed_size_x_mm, bed_size_y_mm, nozzle_diameter_mm, kerf_mm, is_system_template, lab_id";
 
   const templatesResult = await db
     .from("machine_profiles")
-    .select(baseSelect)
+    .select(`${flatColumns}, fabrication_labs(name)`)
     .eq("is_active", true)
     .eq("is_system_template", true)
     .order("name", { ascending: true });
@@ -141,11 +148,13 @@ export async function GET(request: NextRequest) {
   // School-scoped non-templates: only fetch if the student has at
   // least one school. Orphan students (no school via any class)
   // see only templates — no leakage of any school's machines.
+  // The single inner-join embed serves double-duty: filter by
+  // school_id AND fetch the lab name for the picker UI.
   let schoolProfilesData: unknown[] = [];
   if (schoolIds.length > 0) {
     const schoolResult = await db
       .from("machine_profiles")
-      .select(`${baseSelect}, fabrication_labs!inner(school_id, name)`)
+      .select(`${flatColumns}, fabrication_labs!inner(name, school_id)`)
       .eq("is_active", true)
       .eq("is_system_template", false)
       .in("fabrication_labs.school_id", schoolIds)
