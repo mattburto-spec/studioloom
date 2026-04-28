@@ -36,6 +36,7 @@ import {
   THUMBNAIL_URL_TTL_SECONDS,
 } from "./orchestration";
 import type { OrchestrationError } from "./orchestration";
+import { formatTeacherInitials } from "@/components/fabrication/class-color";
 
 // Re-export for route callers that only touch this module.
 export type { OrchestrationError } from "./orchestration";
@@ -85,6 +86,13 @@ export interface FabJobRow {
   jobId: string;
   studentName: string;
   className: string | null;
+  /** Phase 8-4 path 2: chip-ready initials of the class's owning
+   *  teacher (e.g. "M.B." for Matt Burton). Null when the class has
+   *  no teacher row or the name resolves to whitespace. UI uses this
+   *  both as a chip color disambiguator (passed to colorForClassName
+   *  as teacherKey) and as a sub-line under the class name on the
+   *  fab queue chip — so Cynthia can tell two NIS "Grade 10"s apart. */
+  teacherInitials: string | null;
   unitTitle: string | null;
   originalFilename: string;
   /** Phase 8.1d-17: file type so the queue UI can render a chip
@@ -495,7 +503,16 @@ interface RawFabQueueJob {
   completed_at: string | null;
   notifications_sent: Record<string, unknown> | null;
   students: { display_name: string | null; username: string | null } | null;
-  classes: { name: string | null } | null;
+  // Phase 8-4 path 2: pull the class's teacher (display_name → name
+  // fallback) so the queue chip can disambiguate same-named classes
+  // across teachers (e.g. two "Grade 10"s from two NIS teachers).
+  classes: {
+    name: string | null;
+    teachers:
+      | { display_name: string | null; name: string | null }
+      | { display_name: string | null; name: string | null }[]
+      | null;
+  } | null;
   units: { title: string | null } | null;
   machine_profiles: { name: string | null; machine_category: string | null } | null;
   fabrication_labs: { name: string | null } | null;
@@ -549,7 +566,7 @@ export async function listFabricatorQueue(
       created_at, updated_at,
       completion_status, completion_note, completed_at, notifications_sent,
       students(display_name, username),
-      classes(name),
+      classes(name, teachers(display_name, name)),
       units(title),
       machine_profiles(name, machine_category),
       fabrication_labs(name),
@@ -635,6 +652,17 @@ export async function listFabricatorQueue(
       const machineRow = pickFirst(raw.machine_profiles);
       const labRow = pickFirst(raw.fabrication_labs);
 
+      // Phase 8-4 path 2: derive teacher initials from the class's
+      // owning teacher for chip disambiguation. PostgREST returns
+      // `classes.teachers` as an object or array depending on FK
+      // direction; pickFirst already normalises. Display name wins
+      // over `name` (display_name is the per-teacher friendly form,
+      // name is the legacy auth.users column).
+      const classTeacherRow = pickFirst(classRow?.teachers ?? null);
+      const teacherDisplayName =
+        classTeacherRow?.display_name ?? classTeacherRow?.name ?? null;
+      const teacherInitials = formatTeacherInitials(teacherDisplayName);
+
       // `approvedAt` lives on notifications_sent.approved_at per
       // migration 098 design — the column stores a JSONB map of
       // lifecycle timestamps. If missing (older jobs pre-phase-6),
@@ -677,6 +705,7 @@ export async function listFabricatorQueue(
           studentRow?.username ||
           "Unknown student",
         className: classRow?.name ?? null,
+        teacherInitials,
         unitTitle: unitRow?.title ?? null,
         originalFilename: raw.original_filename,
         fileType: (raw.file_type === "svg" ? "svg" : "stl") as "stl" | "svg",
