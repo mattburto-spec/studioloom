@@ -424,6 +424,42 @@ export async function createUploadJob(
     resolvedMachineId = null;
   }
 
+  // 3b. fileType ↔ machine_category compatibility gate.
+  //
+  // Phase 8.1d-38 (28 Apr): caught when Matt uploaded an STL to a
+  // laser cutter ("any cutter") and the upload sailed through with
+  // no error — scanner would have started running an STL ruleset
+  // against a laser job, producing nonsense results.
+  //
+  // Hard rules:
+  //   stl → 3d_printer  (FDM print volume + nozzle path)
+  //   svg → laser_cutter (vector cut/score/engrave path)
+  //
+  // No "or maybe" — STLs are useless on lasers and SVGs are useless
+  // on printers. Reject at upload with a 400 so the student fixes
+  // their submission rather than getting a confusing scan failure
+  // downstream.
+  const isCompatible =
+    (req.fileType === "stl" && resolvedCategory === "3d_printer") ||
+    (req.fileType === "svg" && resolvedCategory === "laser_cutter");
+  if (!isCompatible) {
+    const expectedCategory =
+      req.fileType === "stl" ? "3D printer" : "laser cutter";
+    const actualCategory =
+      resolvedCategory === "3d_printer" ? "3D printer" : "laser cutter";
+    return {
+      error: {
+        status: 400,
+        message:
+          `${req.fileType.toUpperCase()} files run on a ${expectedCategory}, ` +
+          `but you picked a ${actualCategory}. ` +
+          (req.fileType === "stl"
+            ? "Pick a 3D printer (or 'Any 3D printer in [lab]'), or convert your design to an SVG for laser cutting."
+            : "Pick a laser cutter (or 'Any laser cutter in [lab]'), or export your design as an STL for 3D printing."),
+      },
+    };
+  }
+
   // 4. INSERT fabrication_jobs. status='uploaded' + current_revision=1 are
   //    defaulted by the schema but we set explicitly for readability.
   const jobInsert = await db
