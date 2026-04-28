@@ -602,3 +602,20 @@ if (process.env.NODE_ENV === "test" && process.env.RUN_E2E !== "1") { sandbox pa
 - **Phase 4 signal data is the better prioritisation signal than "do all 22 because the brief said so".** Wait for `taps_per_100_words` rolling avg to tell us which tools students actually use; THEN wrap those tools. Speculative breadth-first wrapping wastes effort.
 
 **Wider applicability:** Any phase brief that says "wrap X across N components" or "audit Y across N files" should include a representative-sample audit step in pre-flight. The audit OUTPUT (which N items have which patterns) belongs in the brief BEFORE the implementation estimate is locked.
+
+### Lesson #60 — Side-findings discovered inside the code you're already touching belong in the same commit, not "follow-up later"
+**Date:** 28 Apr 2026
+**Phase:** Multi-class context fix (Bugs 1, 1.5, 2, 3)
+**Trigger:** During smoke-test prep for the four-bug push, I explicitly noted: *"`test` has 2 active enrollments in archived classes. Bug 1's `ORDER BY enrolled_at DESC` happens to skip them because 7 Design is more recent — but the underlying gap is real: archived classes still surface in session-default rotation because the query doesn't join `classes.is_archived`. Worth a 1-line follow-up later (filter `is_archived = false`), but not blocking the current smoke test."* I shipped without the fix. Within 30 minutes, Matt's first real smoke test hit it: clicking "Continue" on a 10 Design unit landed him in an archived 6 Design class because both classes shared the unit and the archived class had a 1-day-newer enrollment.
+
+**What happened:** Bug 1 added `ORDER BY enrolled_at DESC` to the session-default class lookup but didn't filter `classes.is_archived`. Bug 2's new `resolveStudentClassId` helper inherited the same gap. The smoke-test prep audit produced this exact finding (literally noted "doesn't filter archived classes"), I judged it as "not blocking the current smoke test," and Matt then proceeded to do the smoke test where it immediately blocked him. Required a follow-up commit (`a1dc37e`) touching the same two files I'd just modified, with a corresponding test-source-static guard that also needed updating because I'd already changed its assertion shape in the previous commit.
+
+**Why I deferred:** The audit happened just before push. The fix would have added ~30 minutes (helper function + tests + updating the source-static guard). I anchored on "ship the four-bug atomic commit" rather than "ship the four-bug commit + this one obviously-related fix." Classic sunk-cost trap — the four bugs were already verified, adding a fifth felt like scope creep when in fact it was inside the scope of "multi-class context fix."
+
+**Rules:**
+- **Audit findings inside the code you're already touching are NOT follow-ups — they're part of the current task.** Follow-ups are for findings outside the touched code. The line is "did my edit's diff just walk past this?" If yes, fix it now.
+- **When pre-push audit surfaces a known-failure scenario in scope, fix it before push regardless of "blocking the current test plan or not."** The next person to run the smoke test will hit it (in this case, the same person, within minutes).
+- **Tests that lock query-string shapes (source-static guards) compound the cost of deferred fixes.** Each new edit to the same query forces another test update — better to combine the edits.
+
+**Wider applicability:** Pre-push audit / code-review checklists should explicitly ask "did the audit surface anything in the code I'm touching that I'm planning to defer? If yes, why not fix it now?" The default answer should be "fix now"; the burden is on "defer" to justify itself. Especially true for fixes that share a helper function or test fixture with the in-flight change.
+
