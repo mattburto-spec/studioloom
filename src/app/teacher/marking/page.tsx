@@ -179,6 +179,9 @@ interface TileGradeRow {
   score: number | null;
   confirmed: boolean;
   ai_pre_score: number | null;
+  ai_quote?: string | null;
+  ai_confidence?: number | null;
+  ai_reasoning?: string | null;
   criterion_keys: string[];
   override_note?: string | null;
 }
@@ -197,6 +200,8 @@ function CalibrateView({ classId }: { classId: string }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [aiBatchRunning, setAiBatchRunning] = useState(false);
+  const [aiBatchSummary, setAiBatchSummary] = useState<string | null>(null);
 
   // Compose a stable key for the grade map.
   const gradeKey = (studentId: string, tileId: string, pageId: string) =>
@@ -317,7 +322,9 @@ function CalibrateView({ classId }: { classId: string }) {
       // Existing grades for this class+unit.
       const { data: gradeRows } = await supabase
         .from("student_tile_grades")
-        .select("id, student_id, page_id, tile_id, score, confirmed, ai_pre_score, criterion_keys, override_note")
+        .select(
+          "id, student_id, page_id, tile_id, score, confirmed, ai_pre_score, ai_quote, ai_confidence, ai_reasoning, criterion_keys, override_note",
+        )
         .eq("class_id", classId)
         .eq("unit_id", unitDetail.id);
 
@@ -477,6 +484,57 @@ function CalibrateView({ classId }: { classId: string }) {
     }
   }
 
+  async function runAiPrescoreBatch() {
+    if (!klass || !unit || !activePageId || !activeTile) return;
+    if (students.length === 0) return;
+    setAiBatchRunning(true);
+    setAiBatchSummary(null);
+    try {
+      const res = await fetch("/api/teacher/grading/tile-grades/ai-prescore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          class_id: klass.id,
+          unit_id: unit.id,
+          page_id: activePageId,
+          tile_id: activeTile.tileId,
+          student_ids: students.map((s) => s.id),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error ?? `AI batch failed (${res.status})`);
+      }
+      type Result = {
+        student_id: string;
+        ok: boolean;
+        error?: string;
+      };
+      const results = (json.results as Result[]) ?? [];
+      const okCount = results.filter((r) => r.ok).length;
+      const errCount = results.length - okCount;
+      setAiBatchSummary(
+        errCount === 0
+          ? `AI suggested ${okCount} score${okCount === 1 ? "" : "s"}.`
+          : `AI suggested ${okCount}; ${errCount} failed (see console).`,
+      );
+      if (errCount > 0) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[ai-prescore] failures:",
+          results.filter((r) => !r.ok),
+        );
+      }
+      // Reload grades from DB so ai_pre_score / ai_quote / ai_confidence
+      // populate via the same shape the loader uses.
+      await loadAll();
+    } catch (err) {
+      setAiBatchSummary(err instanceof Error ? err.message : "AI batch failed");
+    } finally {
+      setAiBatchRunning(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="max-w-5xl mx-auto px-6 py-12 text-sm text-gray-500">
@@ -561,13 +619,38 @@ function CalibrateView({ classId }: { classId: string }) {
         </div>
       </div>
 
-      {/* Active tile prompt */}
+      {/* Active tile prompt + AI batch trigger */}
       {activeTile && (
         <div className="mb-4 p-4 bg-white border border-gray-200 rounded-2xl">
-          <div className="text-[10px] font-bold tracking-wider uppercase text-gray-400">
-            {activeTile.criterionLabel}
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold tracking-wider uppercase text-gray-400">
+                {activeTile.criterionLabel}
+              </div>
+              <p className="text-sm text-gray-800 mt-1 leading-relaxed">{activeTile.title}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void runAiPrescoreBatch()}
+              disabled={aiBatchRunning || students.length === 0}
+              className={[
+                "flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border transition",
+                aiBatchRunning
+                  ? "bg-purple-50 text-purple-400 border-purple-200 cursor-wait"
+                  : "bg-gradient-to-br from-purple-600 to-violet-600 text-white border-purple-700 hover:from-purple-700 hover:to-violet-700 shadow-sm",
+                students.length === 0 ? "opacity-50 cursor-not-allowed" : "",
+              ].join(" ")}
+              title="Run Haiku 4.5 across the cohort. Suggestions are unconfirmed until you Confirm each row."
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+              </svg>
+              {aiBatchRunning ? "Suggesting…" : `AI suggest (${students.length})`}
+            </button>
           </div>
-          <p className="text-sm text-gray-800 mt-1 leading-relaxed">{activeTile.title}</p>
+          {aiBatchSummary && (
+            <p className="mt-2 text-[11px] text-gray-500 italic">{aiBatchSummary}</p>
+          )}
         </div>
       )}
 
@@ -627,11 +710,20 @@ function CalibrateView({ classId }: { classId: string }) {
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-gray-900 truncate">{displayName}</p>
-                    <p className="text-[11px] text-gray-400 italic line-clamp-1">
-                      {responseText
-                        ? `"${responseText.slice(0, 90)}${responseText.length > 90 ? "…" : ""}"`
-                        : "No submission yet"}
-                    </p>
+                    {grade?.ai_quote ? (
+                      <p
+                        className="text-[11px] text-purple-700 italic line-clamp-1"
+                        title={grade.ai_reasoning ?? undefined}
+                      >
+                        <span aria-hidden="true">✦ </span>&ldquo;{grade.ai_quote}&rdquo;
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-gray-400 italic line-clamp-1">
+                        {responseText
+                          ? `"${responseText.slice(0, 90)}${responseText.length > 90 ? "…" : ""}"`
+                          : "No submission yet"}
+                      </p>
+                    )}
                   </div>
 
                   <ScoreSelector
@@ -715,6 +807,42 @@ function CalibrateView({ classId }: { classId: string }) {
 
                       {/* Score + note column */}
                       <div className="space-y-4">
+                        {grade?.ai_pre_score !== null && grade?.ai_pre_score !== undefined && (
+                          <div className="rounded-xl border border-purple-200 bg-purple-50/60 p-3">
+                            <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase text-purple-700 mb-1">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+                              </svg>
+                              AI suggestion
+                              {typeof grade.ai_confidence === "number" && (
+                                <span className="ml-auto text-[10px] font-mono text-purple-500">
+                                  conf {Math.round(grade.ai_confidence * 100)}%
+                                </span>
+                              )}
+                            </div>
+                            {grade.ai_quote && (
+                              <p className="text-xs italic text-gray-800 leading-relaxed">
+                                &ldquo;{grade.ai_quote}&rdquo;
+                              </p>
+                            )}
+                            {grade.ai_reasoning && (
+                              <p className="text-[11px] text-gray-600 mt-1.5 leading-relaxed">
+                                {grade.ai_reasoning}
+                              </p>
+                            )}
+                            {typeof grade.ai_pre_score === "number" && score !== grade.ai_pre_score && (
+                              <button
+                                type="button"
+                                onClick={() => void saveTile(s.id, grade.ai_pre_score!, true)}
+                                disabled={isSaving}
+                                className="mt-2 inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold rounded-md bg-white border border-purple-300 text-purple-700 hover:bg-purple-50 transition disabled:opacity-50"
+                              >
+                                Accept AI ({grade.ai_pre_score})
+                              </button>
+                            )}
+                          </div>
+                        )}
+
                         <div>
                           <div className="text-[10px] font-bold tracking-wider uppercase text-gray-400 mb-2">
                             Score
