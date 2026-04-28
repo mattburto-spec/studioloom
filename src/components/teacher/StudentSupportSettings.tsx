@@ -90,6 +90,15 @@ export function StudentSupportSettings({ studentId }: { studentId: string }) {
   const [saving, setSaving] = useState(false);
   const [showClassSection, setShowClassSection] = useState(false);
   const [classBusy, setClassBusy] = useState<Set<string>>(new Set());
+  // Tiny "Saved" indicator — fades out after a moment. Polish-pass addition;
+  // teachers were getting no feedback that a successful save had landed
+  // because every PATCH triggers a silent re-render. aria-live region below.
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  useEffect(() => {
+    if (savedAt === null) return;
+    const t = setTimeout(() => setSavedAt(null), 2400);
+    return () => clearTimeout(t);
+  }, [savedAt]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -137,6 +146,7 @@ export function StudentSupportSettings({ studentId }: { studentId: string }) {
         }
         const body = (await res.json()) as ApiResponse;
         setData(body);
+        setSavedAt(Date.now());
       } catch (e) {
         alert(e instanceof Error ? e.message : "Update failed");
       } finally {
@@ -176,6 +186,7 @@ export function StudentSupportSettings({ studentId }: { studentId: string }) {
         // change if class-level changes propagate — they don't right now, but
         // future-proof). Re-fetch the full payload.
         await load();
+        setSavedAt(Date.now());
       } catch (e) {
         alert(e instanceof Error ? e.message : "Class update failed");
       } finally {
@@ -192,7 +203,11 @@ export function StudentSupportSettings({ studentId }: { studentId: string }) {
   // ─── Render ──────────────────────────────────────────────────────
 
   if (loading) {
-    return <div className="p-4 text-sm text-gray-500">Loading support settings…</div>;
+    return (
+      <div className="p-4 text-sm text-gray-500" role="status" aria-busy="true">
+        Loading support settings…
+      </div>
+    );
   }
   if (error) {
     return (
@@ -220,7 +235,31 @@ export function StudentSupportSettings({ studentId }: { studentId: string }) {
   );
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6 max-w-4xl relative">
+      {/* ─── Saved indicator ─────────────────────────────────────────
+          Polite live region so screen readers announce save success
+          without being interrupted. Visual chip floats top-right of the
+          panel + fades after ~2.4s. */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {savedAt ? "Saved" : ""}
+      </div>
+      {savedAt && (
+        <div
+          className="absolute top-0 right-0 -mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-medium text-emerald-800 shadow-sm animate-in fade-in slide-in-from-top-1 pointer-events-none"
+          aria-hidden="true"
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3 8 7 12 13 4" />
+          </svg>
+          Saved
+        </div>
+      )}
+
       {/* ─── Resolution chain explainer ──────────────────────────── */}
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm">
         <div className="font-semibold text-amber-900 mb-2">
@@ -396,7 +435,9 @@ export function StudentSupportSettings({ studentId }: { studentId: string }) {
       <div className="rounded-lg border border-gray-200 bg-white">
         <button
           onClick={() => setShowClassSection((s) => !s)}
-          className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50"
+          className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/50 focus-visible:ring-offset-1 rounded-lg"
+          aria-expanded={showClassSection}
+          aria-controls="support-per-class-section"
         >
           <div>
             <h3 className="text-base font-semibold text-gray-900">
@@ -404,15 +445,15 @@ export function StudentSupportSettings({ studentId }: { studentId: string }) {
             </h3>
             <p className="text-xs text-gray-500 mt-0.5">
               {hasAnyClassOverride
-                ? `${classes.filter((c) => c.classOverrides.l1_target_override !== undefined || c.classOverrides.tap_a_word_enabled !== undefined).length} of ${classes.length} active classes have overrides.`
+                ? `${classes.filter((c) => c.classOverrides.l1_target_override !== undefined || c.classOverrides.tap_a_word_enabled !== undefined || c.ellLevelOverride !== null).length} of ${classes.length} active classes have overrides.`
                 : `${classes.length} active class${classes.length === 1 ? "" : "es"}, no overrides set.`}
             </p>
           </div>
-          <span className="text-gray-400 text-lg">{showClassSection ? "−" : "+"}</span>
+          <span className="text-gray-400 text-lg" aria-hidden="true">{showClassSection ? "−" : "+"}</span>
         </button>
 
         {showClassSection && (
-          <div className="border-t border-gray-100">
+          <div id="support-per-class-section" className="border-t border-gray-100">
             {classes.length === 0 ? (
               <div className="p-4 text-sm text-gray-500">
                 No active enrollments in non-archived classes.
