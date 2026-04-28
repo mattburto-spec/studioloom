@@ -4,6 +4,107 @@
 
 ---
 
+## 29 Apr 2026 — TopNav search palettes wired (teacher + student) + lesson body-content scan ✅
+
+**Context:** The search icon in the dashboard-v2 TopNav had been an inert
+visual placeholder since Phase 1 scaffold (24 Apr). Wired it end-to-end —
+first for teachers, then mirrored for students once Matt confirmed it
+worked, then iterated on student-side scope (added lessons, then widened
+lesson search to scan body content after Matt reported missing words he
+knew were in his lessons).
+
+**What changed:**
+
+- **Teacher palette** (commit `d9045bf`): new `/api/teacher/search` route
+  (3-bucket parallel ilike across `classes` / `class_units → units` /
+  `class_students → students`, scoped via `classes.teacher_id`, 6 hits per
+  bucket, 2-char min, escaped pattern). New `CommandPalette` component
+  with debounced fetch (180 ms), `AbortController` cancellation, grouped
+  results, keyboard nav (↑/↓/Enter/Esc), backdrop click. TopNav button +
+  global ⌘K/Ctrl+K shortcut with in-input guard.
+- **Student palette** (commit `3b6e748`): refactored to share —
+  `src/types/search.ts` carries `SearchHit`/`SearchResponse` types, and
+  `CommandPalette` moved to `src/components/search/` with a `searchUrl`
+  prop (defaults to teacher endpoint). New `/api/student/search` —
+  `requireStudentAuth` + service-role client (mirrors `/api/student/units`).
+  Resolves student class IDs via `class_students` junction + legacy
+  `students.class_id` fallback. v1 returned units only.
+- **Lessons bucket** (commit `f84a13a`): added `LessonHit` type +
+  `lessons[]` on `SearchResponse`. Student route now loads master units
+  in one query, walks each assignment using `resolveClassUnitContent` +
+  `getPageList` so lesson hits reflect the forked content the student
+  actually sees. Teacher search returns `lessons: []` (not implemented).
+  CommandPalette renders the new bucket with an emerald `Lesson` badge.
+- **Body-content fix** (commit `9c472c3`): Matt reported lessons not
+  finding words he knew existed. Root cause — for v4 (timeline) units
+  `v4ToPageList` derives lesson title from just the first core activity's
+  title. New `pageSearchText()` helper concatenates every student-visible
+  string field (page.title, content.title, learningGoal,
+  introduction.text, sections[].prompt + exampleResponse + ELL
+  scaffolding, success_criteria, reflection.items, vocabWarmup
+  terms/definitions/examples). Excludes `teacher_notes` (private) and AI
+  rules (internal). Title hits and body hits collected separately so
+  title matches sort first. Bucket cap stays 8.
+
+**Validation:**
+- ✅ tsc strict (`tsconfig.check.json`) clean throughout
+- ✅ Both endpoints compile + return 401 unauthenticated in dev
+- ✅ Teacher + student both working in prod after Vercel deploy (Matt
+  confirmed: "ok works")
+- ❌ Couldn't visually exercise the modal as a logged-in user in dev
+  preview (no creds) — verification was endpoint-level + tsc
+
+**Migrations this session:** None.
+
+**Decisions added (logged inline, not in decisions-log):**
+- Class-bucket excluded from student search (students don't have
+  per-class pages — everything funnels to `/dashboard`).
+- All page types searched (lesson, skill, reflection, context, custom,
+  strand) — they're all navigable in the student flow.
+- Title-vs-body hit ranking via two arrays + concat at the end (no score
+  function) — simpler than a single ranked list.
+- Lesson search excludes `teacher_notes` (privacy) and AI rules
+  (irrelevant) but includes ELL scaffolding text (vocab a student might
+  remember).
+- Component placed at `src/components/search/CommandPalette.tsx` (shared
+  location); types at `src/types/search.ts`.
+
+**FUs added (informal — not filed in followups doc):**
+- **Search perf — content_data refetch per keystroke** P3. Each lesson
+  search keystroke (post-debounce) re-fetches `content_data` for every
+  assigned unit. Tolerable for typical 3–10 active units; if a power
+  user complains of lag, add a client-side cache of unit content per
+  palette-open lifecycle.
+- **Teacher lesson search** P3. Type system already supports `lessons[]`
+  for teachers; `/api/teacher/search` just returns empty. Wire if useful.
+- **Search ranking beyond title vs body** P3. Currently title-hit-first
+  is the only signal. If body-hit results get noisy (e.g. common words
+  matching across many pages), add scoring (term frequency, position).
+
+**FUs resolved this session:** None.
+
+**Systems affected:** New endpoints surface in `api-registry.yaml`
+(2 routes added: `/api/teacher/search`, `/api/student/search`). No new
+DB writes, no new AI calls, no new vendors, no migrations.
+
+**Drift surfaced (pre-existing, not from this session):**
+- `feature-flags.yaml` — orphaned `SENTRY_AUTH_TOKEN` (FU-CC,
+  build-time-only), missing `RUN_E2E` (used in `student/word-lookup`
+  test gate, not added to registry).
+- `rls-coverage` — 7 tables RLS-enabled-no-policies (FU-FF,
+  pre-existing pattern likely intentional for several).
+
+**Tests:** Unchanged (search routes have no tests yet — small enough
+that endpoint-level smoke + tsc was the bar).
+
+**Cost spent this session:** $0 (no AI calls made or added).
+
+**Pending after this saveme:** None blocking. Next normal work resumes
+on whatever queue Matt picks (Access Model v2 Phase 0, dashboard-v2
+polish, or new request).
+
+---
+
 ## 28 Apr 2026 — Preflight Phase 8-1 schema flip + Round 1 audit + Phase 8-2 SHIPPED + E2E smoke PASS ✅
 
 **Context:** Full day driven by Matt's smoke test of yesterday's
