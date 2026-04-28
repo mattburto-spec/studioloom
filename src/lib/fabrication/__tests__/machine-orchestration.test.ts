@@ -9,29 +9,54 @@ import {
 } from "../machine-orchestration";
 
 /**
- * Phase 8-3 machine-orchestration unit tests. Pure logic — Supabase
- * client faked as a query-builder chain matching lab-orchestration.test.ts.
+ * Phase 8-3 machine-orchestration unit tests (revised 28 Apr —
+ * school-scoped). Pure logic — Supabase client faked as a query-builder
+ * chain matching lab-orchestration.test.ts.
  *
- * Coverage goals per Phase 8-3 brief:
- *   - createMachineProfile: from-scratch (validation + happy), from-template
- *     (inherits spec + overrides), lab ownership 404, 23505 duplicate name 409
- *   - listMyMachines: teacher-owned + system templates returned separately
- *   - updateMachineProfile: happy patch, cross-teacher 404, template 404,
- *     empty-patch 400, invalid color-map 400, 23505 dup name 409
+ * Phase 8-3 contract changes (vs Phase 1A original):
+ *   - All ownership checks scoped by school_id, not teacher_id
+ *   - Cross-school → 404 (no existence leak)
+ *   - 401 when teacher row missing OR teacher.school_id IS NULL
+ *     (orphan teacher pre-school-pick)
+ *   - Lab + machine fixtures use new shapes (school_id +
+ *     created_by_teacher_id; no teacher_id on labs)
+ *
+ * Coverage goals:
+ *   - createMachineProfile: from-scratch (validation + happy),
+ *     from-template (inherits spec + overrides), cross-school lab
+ *     404, 23505 duplicate name 409, 401 orphan teacher
+ *   - listMyMachines: school-owned + system templates returned
+ *     separately
+ *   - updateMachineProfile: happy patch, cross-school 404, template
+ *     404, empty-patch 400, invalid color-map 400, 23505 dup name 409,
+ *     orphan→lab transition, cross-school target-lab reassignment 404
  *   - softDeleteMachineProfile: happy (no active jobs), 409 when active
- *     jobs exist, 404 cross-teacher + template
- *   - bulkSetApprovalForLab: happy bulk-on + bulk-off, empty-lab zero count,
- *     404 for not-owned lab, 400 for non-boolean requireApproval
+ *     jobs exist, 404 cross-school + template
+ *   - bulkSetApprovalForLab: happy bulk-on + bulk-off, empty-lab zero
+ *     count, 404 for cross-school lab, 400 for non-boolean requireApproval
  */
 
 // ============================================================
-// Shared fake
+// Shared fake — mirrors the lab-orchestration.test.ts mock with
+// added handlers for `machine_profiles` ops + active-job lookups.
 // ============================================================
 
 interface FakeOpts {
-  /** Responses from `fabrication_labs.maybeSingle()` (ownership check). */
-  labRows?: Array<{ id: string; teacher_id: string } | null>;
-  /** Response from `machine_profiles.maybeSingle()` (ownership or template). */
+  /** Teacher's school_id (returned by loadTeacherSchoolId). Default: "school-1" */
+  teacherSchoolId?: string | null;
+  /** Pretend the teacher row doesn't exist (401). */
+  noTeacher?: boolean;
+  /** Responses from `fabrication_labs.maybeSingle()` — ordered queue. */
+  labRows?: Array<{
+    id: string;
+    school_id: string;
+    created_by_teacher_id: string | null;
+    name: string;
+    description: string | null;
+    created_at: string;
+    updated_at: string;
+  } | null>;
+  /** Responses from `machine_profiles.maybeSingle()` — ordered queue. */
   machineLookupRows?: Array<Record<string, unknown> | null>;
   /** INSERT into machine_profiles → select().single() returns this. */
   insertRow?: Record<string, unknown> | null;
@@ -46,21 +71,42 @@ interface FakeOpts {
   machinesInLab?: Array<{ id: string }>;
   machinesInLabError?: { message: string };
   /** For listMyMachines. */
-  teacherMachines?: Array<Record<string, unknown>>;
+  schoolMachines?: Array<Record<string, unknown>>;
   systemTemplates?: Array<Record<string, unknown>>;
-  listTeacherError?: { message: string };
+  listSchoolError?: { message: string };
   listTemplatesError?: { message: string };
+}
+
+function lab(
+  overrides: Partial<{
+    id: string;
+    school_id: string;
+    created_by_teacher_id: string | null;
+    name: string;
+    description: string | null;
+  }> = {}
+) {
+  return {
+    id: overrides.id ?? "lab-1",
+    school_id: overrides.school_id ?? "school-1",
+    created_by_teacher_id: overrides.created_by_teacher_id ?? "teacher-1",
+    name: overrides.name ?? "Default Lab",
+    description: overrides.description ?? null,
+    created_at: "2026-04-25T00:00:00Z",
+    updated_at: "2026-04-25T00:00:00Z",
+  };
 }
 
 function fullRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id: "m-1",
-    teacher_id: "teacher-1",
-    school_id: null,
+    school_id: "school-1",
+    created_by_teacher_id: "teacher-1",
     lab_id: "lab-1",
     is_system_template: false,
     name: "Bambu X1C",
     machine_category: "3d_printer",
+    machine_brand: "Bambu Lab",
     machine_model: "X1 Carbon",
     is_active: true,
     requires_teacher_approval: false,
@@ -91,7 +137,6 @@ function makeFakeClient(opts: FakeOpts = {}) {
   }> = [];
   let labMaybeSingleCalls = 0;
   let machineMaybeSingleCalls = 0;
-  let teacherListCalls = 0; // 0 = teacher list, 1 = template list
 
   const tableHandler = (table: string) => {
     const entry: {
@@ -119,6 +164,18 @@ function makeFakeClient(opts: FakeOpts = {}) {
     chain.order = () => chain;
     chain.maybeSingle = async () => {
       log.push({ ...entry });
+      if (table === "teachers") {
+        if (opts.noTeacher) return { data: null, error: null };
+        // Distinguish "explicitly null" from "not provided" — `??`
+        // would coalesce null to the default, breaking the orphan-
+        // teacher test. Use `in opts` check instead.
+        const schoolId =
+          "teacherSchoolId" in opts ? opts.teacherSchoolId : "school-1";
+        return {
+          data: { school_id: schoolId },
+          error: null,
+        };
+      }
       if (table === "fabrication_labs") {
         const idx = labMaybeSingleCalls++;
         return { data: opts.labRows?.[idx] ?? null, error: null };
@@ -135,14 +192,23 @@ function makeFakeClient(opts: FakeOpts = {}) {
         return Promise.resolve(resolve({ data: null, error: null }));
       }
       if (table === "machine_profiles") {
-        // Disambiguate: is this the listMyMachines-teacher query,
-        // list-templates query, machines-in-lab count, or active-jobs lookup?
-        const hasTeacherEq = entry.eq.some(([c]) => c === "teacher_id");
+        // Disambiguate: listMyMachines-school query, list-templates
+        // query, machines-in-lab count, soft-delete inactive probe,
+        // or active-jobs lookup.
+        const hasSchoolEq = entry.eq.some(([c]) => c === "school_id");
         const hasTemplateTrueEq = entry.eq.some(
           ([c, v]) => c === "is_system_template" && v === true
         );
         const hasLabEq = entry.eq.some(([c]) => c === "lab_id");
+        const hasInactiveEq = entry.eq.some(
+          ([c, v]) => c === "is_active" && v === false
+        );
 
+        if (hasInactiveEq) {
+          // Inactive duplicate probe (createMachineProfile error path)
+          // — handled via maybeSingle, not here. Defensive fall-through.
+          return Promise.resolve(resolve({ data: null, error: null }));
+        }
         if (hasLabEq && !hasTemplateTrueEq) {
           if (opts.machinesInLabError) {
             return Promise.resolve(
@@ -163,15 +229,14 @@ function makeFakeClient(opts: FakeOpts = {}) {
             resolve({ data: opts.systemTemplates ?? [], error: null })
           );
         }
-        if (hasTeacherEq) {
-          teacherListCalls++;
-          if (opts.listTeacherError) {
+        if (hasSchoolEq) {
+          if (opts.listSchoolError) {
             return Promise.resolve(
-              resolve({ data: null, error: opts.listTeacherError })
+              resolve({ data: null, error: opts.listSchoolError })
             );
           }
           return Promise.resolve(
-            resolve({ data: opts.teacherMachines ?? [], error: null })
+            resolve({ data: opts.schoolMachines ?? [], error: null })
           );
         }
       }
@@ -223,7 +288,6 @@ function makeFakeClient(opts: FakeOpts = {}) {
       return updChain;
     };
 
-    void teacherListCalls;
     return chain;
   };
 
@@ -234,7 +298,8 @@ function makeFakeClient(opts: FakeOpts = {}) {
 }
 
 const T1 = "teacher-1";
-const T2 = "teacher-2";
+const S1 = "school-1";
+const S2 = "school-2";
 const LAB1 = "lab-1";
 const LAB2 = "lab-2";
 const M1 = "machine-1";
@@ -247,7 +312,7 @@ const TPL1 = "template-1";
 describe("createMachineProfile", () => {
   it("rejects empty name with 400", async () => {
     const fake = makeFakeClient({
-      labRows: [{ id: LAB1, teacher_id: T1 }],
+      labRows: [lab({ id: LAB1, school_id: S1 })],
     });
     const result = await createMachineProfile(fake as never, {
       teacherId: T1,
@@ -262,9 +327,25 @@ describe("createMachineProfile", () => {
     expect(result.error.status).toBe(400);
   });
 
-  it("404s when labId does not belong to teacher", async () => {
+  it("401s when teacher has no school", async () => {
+    const fake = makeFakeClient({ teacherSchoolId: null });
+    const result = await createMachineProfile(fake as never, {
+      teacherId: T1,
+      labId: LAB1,
+      name: "x",
+      machineCategory: "3d_printer",
+      bedSizeXMm: 200,
+      bedSizeYMm: 200,
+    });
+    expect(isOrchestrationError(result)).toBe(true);
+    if (!isOrchestrationError(result)) return;
+    expect(result.error.status).toBe(401);
+  });
+
+  it("404s when labId is at a different school (cross-school)", async () => {
     const fake = makeFakeClient({
-      labRows: [{ id: LAB1, teacher_id: T2 }],
+      // teacher's school = S1; lab's school = S2 → cross-school
+      labRows: [lab({ id: LAB1, school_id: S2 })],
     });
     const result = await createMachineProfile(fake as never, {
       teacherId: T1,
@@ -281,7 +362,7 @@ describe("createMachineProfile", () => {
 
   it("creates from scratch with a valid payload", async () => {
     const fake = makeFakeClient({
-      labRows: [{ id: LAB1, teacher_id: T1 }],
+      labRows: [lab({ id: LAB1, school_id: S1 })],
       insertRow: fullRow({ id: "new-m", name: "Prusa MK3", lab_id: LAB1 }),
     });
     const result = await createMachineProfile(fake as never, {
@@ -298,11 +379,13 @@ describe("createMachineProfile", () => {
     expect(result.machine.id).toBe("new-m");
     expect(result.machine.name).toBe("Prusa MK3");
     expect(result.machine.labId).toBe(LAB1);
+    expect(result.machine.schoolId).toBe(S1);
+    expect(result.machine.createdByTeacherId).toBe(T1);
   });
 
   it("rejects invalid machineCategory with 400 (from-scratch)", async () => {
     const fake = makeFakeClient({
-      labRows: [{ id: LAB1, teacher_id: T1 }],
+      labRows: [lab({ id: LAB1, school_id: S1 })],
     });
     const result = await createMachineProfile(fake as never, {
       teacherId: T1,
@@ -319,7 +402,7 @@ describe("createMachineProfile", () => {
 
   it("rejects non-positive bedSize with 400", async () => {
     const fake = makeFakeClient({
-      labRows: [{ id: LAB1, teacher_id: T1 }],
+      labRows: [lab({ id: LAB1, school_id: S1 })],
     });
     const result = await createMachineProfile(fake as never, {
       teacherId: T1,
@@ -336,7 +419,7 @@ describe("createMachineProfile", () => {
 
   it("rejects invalid operationColorMap keys with 400", async () => {
     const fake = makeFakeClient({
-      labRows: [{ id: LAB1, teacher_id: T1 }],
+      labRows: [lab({ id: LAB1, school_id: S1 })],
     });
     const result = await createMachineProfile(fake as never, {
       teacherId: T1,
@@ -355,7 +438,7 @@ describe("createMachineProfile", () => {
 
   it("rejects invalid operationColorMap values with 400", async () => {
     const fake = makeFakeClient({
-      labRows: [{ id: LAB1, teacher_id: T1 }],
+      labRows: [lab({ id: LAB1, school_id: S1 })],
     });
     const result = await createMachineProfile(fake as never, {
       teacherId: T1,
@@ -373,11 +456,12 @@ describe("createMachineProfile", () => {
 
   it("copies spec from template when fromTemplateId is provided", async () => {
     const fake = makeFakeClient({
-      labRows: [{ id: LAB1, teacher_id: T1 }],
+      labRows: [lab({ id: LAB1, school_id: S1 })],
       machineLookupRows: [
         fullRow({
           id: TPL1,
-          teacher_id: null,
+          school_id: null,
+          created_by_teacher_id: null,
           is_system_template: true,
           name: "Bambu X1C",
           bed_size_x_mm: 256,
@@ -396,14 +480,15 @@ describe("createMachineProfile", () => {
     expect(isOrchestrationError(result)).toBe(false);
     if (isOrchestrationError(result)) return;
     expect(result.machine.name).toBe("My X1C");
+    expect(result.machine.schoolId).toBe(S1);
   });
 
   it("404s when fromTemplateId points to a non-template or missing row", async () => {
     const fake = makeFakeClient({
-      labRows: [{ id: LAB1, teacher_id: T1 }],
+      labRows: [lab({ id: LAB1, school_id: S1 })],
       machineLookupRows: [
         // NOT a template
-        fullRow({ id: TPL1, teacher_id: T1, is_system_template: false }),
+        fullRow({ id: TPL1, is_system_template: false }),
       ],
     });
     const result = await createMachineProfile(fake as never, {
@@ -419,7 +504,7 @@ describe("createMachineProfile", () => {
 
   it("maps 23505 duplicate name to 409", async () => {
     const fake = makeFakeClient({
-      labRows: [{ id: LAB1, teacher_id: T1 }],
+      labRows: [lab({ id: LAB1, school_id: S1 })],
       insertError: { message: "dup", code: "23505" },
     });
     const result = await createMachineProfile(fake as never, {
@@ -435,14 +520,13 @@ describe("createMachineProfile", () => {
     expect(result.error.status).toBe(409);
   });
 
-  // Phase 8.1d-13: when 23505 fires AND there's a soft-deleted
-  // machine with the same name, surface the "you have a deactivated
-  // one" framing so the teacher knows to either rename the new one
-  // or restore the old one — instead of being told "you already
-  // have one" with no obvious next step.
-  it("23505 + inactive duplicate surfaces 'deactivated machine' message", async () => {
+  // Phase 8.1d-13 + 8-3: when 23505 fires AND there's a soft-deleted
+  // machine with the same name in the same lab, surface the
+  // "deactivated machine" framing. Phase 8-3 narrowed the probe scope
+  // from teacher-wide to lab-scoped (matches the new unique index).
+  it("23505 + inactive duplicate in same lab surfaces 'deactivated machine' message", async () => {
     const fake = makeFakeClient({
-      labRows: [{ id: LAB1, teacher_id: T1 }],
+      labRows: [lab({ id: LAB1, school_id: S1 })],
       insertError: { message: "dup", code: "23505" },
       machineLookupRows: [{ id: "soft-deleted-id" }],
     });
@@ -462,9 +546,9 @@ describe("createMachineProfile", () => {
     expect(result.error.message).toMatch(/reactivate|restore|bin/i);
   });
 
-  it("23505 with no inactive duplicate surfaces 'another in this lab' message + suggested name", async () => {
+  it("23505 with no inactive duplicate surfaces 'another active machine in this lab' + suggested name", async () => {
     const fake = makeFakeClient({
-      labRows: [{ id: LAB1, teacher_id: T1 }],
+      labRows: [lab({ id: LAB1, school_id: S1 })],
       insertError: { message: "dup", code: "23505" },
       machineLookupRows: [null], // inactive probe finds nothing
     });
@@ -479,7 +563,7 @@ describe("createMachineProfile", () => {
     expect(isOrchestrationError(result)).toBe(true);
     if (!isOrchestrationError(result)) return;
     expect(result.error.status).toBe(409);
-    expect(result.error.message).toMatch(/another machine in this lab/i);
+    expect(result.error.message).toMatch(/another active machine in this lab/i);
     expect(result.error.message).toContain('"Bambu Lab P1S #2"');
   });
 });
@@ -489,11 +573,17 @@ describe("createMachineProfile", () => {
 // ============================================================
 
 describe("listMyMachines", () => {
-  it("returns both buckets separately", async () => {
+  it("returns school's machines + global templates separately", async () => {
     const fake = makeFakeClient({
-      teacherMachines: [fullRow({ id: "tm-1", name: "My P1S" })],
+      schoolMachines: [fullRow({ id: "tm-1", name: "My P1S" })],
       systemTemplates: [
-        fullRow({ id: "tpl-1", teacher_id: null, is_system_template: true, name: "Bambu P1S" }),
+        fullRow({
+          id: "tpl-1",
+          school_id: null,
+          created_by_teacher_id: null,
+          is_system_template: true,
+          name: "Bambu P1S",
+        }),
       ],
     });
     const result = await listMyMachines(fake as never, { teacherId: T1 });
@@ -507,7 +597,7 @@ describe("listMyMachines", () => {
 
   it("returns empty buckets when nothing found", async () => {
     const fake = makeFakeClient({
-      teacherMachines: [],
+      schoolMachines: [],
       systemTemplates: [],
     });
     const result = await listMyMachines(fake as never, { teacherId: T1 });
@@ -517,14 +607,22 @@ describe("listMyMachines", () => {
     expect(result.systemTemplates).toEqual([]);
   });
 
-  it("propagates teacher-list query error as 500", async () => {
+  it("propagates school-list query error as 500", async () => {
     const fake = makeFakeClient({
-      listTeacherError: { message: "db dead" },
+      listSchoolError: { message: "db dead" },
     });
     const result = await listMyMachines(fake as never, { teacherId: T1 });
     expect(isOrchestrationError(result)).toBe(true);
     if (!isOrchestrationError(result)) return;
     expect(result.error.status).toBe(500);
+  });
+
+  it("401s when teacher has no school", async () => {
+    const fake = makeFakeClient({ teacherSchoolId: null });
+    const result = await listMyMachines(fake as never, { teacherId: T1 });
+    expect(isOrchestrationError(result)).toBe(true);
+    if (!isOrchestrationError(result)) return;
+    expect(result.error.status).toBe(401);
   });
 });
 
@@ -535,7 +633,7 @@ describe("listMyMachines", () => {
 describe("updateMachineProfile", () => {
   it("updates name and returns new row", async () => {
     const fake = makeFakeClient({
-      machineLookupRows: [fullRow({ id: M1, teacher_id: T1 })],
+      machineLookupRows: [fullRow({ id: M1, school_id: S1 })],
       updatedRow: fullRow({ id: M1, name: "Renamed" }),
     });
     const result = await updateMachineProfile(fake as never, {
@@ -551,7 +649,12 @@ describe("updateMachineProfile", () => {
   it("404s when machine is a system template", async () => {
     const fake = makeFakeClient({
       machineLookupRows: [
-        fullRow({ id: "tpl-1", teacher_id: null, is_system_template: true }),
+        fullRow({
+          id: "tpl-1",
+          school_id: null,
+          created_by_teacher_id: null,
+          is_system_template: true,
+        }),
       ],
     });
     const result = await updateMachineProfile(fake as never, {
@@ -564,9 +667,9 @@ describe("updateMachineProfile", () => {
     expect(result.error.status).toBe(404);
   });
 
-  it("404s when machine belongs to another teacher", async () => {
+  it("404s when machine is at another school", async () => {
     const fake = makeFakeClient({
-      machineLookupRows: [fullRow({ id: M1, teacher_id: T2 })],
+      machineLookupRows: [fullRow({ id: M1, school_id: S2 })],
     });
     const result = await updateMachineProfile(fake as never, {
       teacherId: T1,
@@ -580,7 +683,7 @@ describe("updateMachineProfile", () => {
 
   it("400s when patch is empty", async () => {
     const fake = makeFakeClient({
-      machineLookupRows: [fullRow({ id: M1, teacher_id: T1 })],
+      machineLookupRows: [fullRow({ id: M1, school_id: S1 })],
     });
     const result = await updateMachineProfile(fake as never, {
       teacherId: T1,
@@ -593,7 +696,7 @@ describe("updateMachineProfile", () => {
 
   it("rejects invalid operationColorMap in patch", async () => {
     const fake = makeFakeClient({
-      machineLookupRows: [fullRow({ id: M1, teacher_id: T1 })],
+      machineLookupRows: [fullRow({ id: M1, school_id: S1 })],
     });
     const result = await updateMachineProfile(fake as never, {
       teacherId: T1,
@@ -607,7 +710,7 @@ describe("updateMachineProfile", () => {
 
   it("maps 23505 duplicate name to 409", async () => {
     const fake = makeFakeClient({
-      machineLookupRows: [fullRow({ id: M1, teacher_id: T1 })],
+      machineLookupRows: [fullRow({ id: M1, school_id: S1 })],
       updateError: { message: "dup", code: "23505" },
     });
     const result = await updateMachineProfile(fake as never, {
@@ -622,7 +725,9 @@ describe("updateMachineProfile", () => {
 
   it("toggles requiresTeacherApproval", async () => {
     const fake = makeFakeClient({
-      machineLookupRows: [fullRow({ id: M1, teacher_id: T1, requires_teacher_approval: false })],
+      machineLookupRows: [
+        fullRow({ id: M1, school_id: S1, requires_teacher_approval: false }),
+      ],
       updatedRow: fullRow({ id: M1, requires_teacher_approval: true }),
     });
     const result = await updateMachineProfile(fake as never, {
@@ -635,12 +740,14 @@ describe("updateMachineProfile", () => {
     expect(result.machine.requiresTeacherApproval).toBe(true);
   });
 
-  // ----- Phase 8.1d-4: labId reassignment via update -----
+  // ----- Phase 8.1d-4 + 8-3: labId reassignment via update -----
 
-  it("reassigns labId to a teacher-owned target lab", async () => {
+  it("reassigns labId to a same-school target lab", async () => {
     const fake = makeFakeClient({
-      machineLookupRows: [fullRow({ id: M1, teacher_id: T1, lab_id: LAB1 })],
-      labRows: [{ id: LAB2, teacher_id: T1 }],
+      machineLookupRows: [
+        fullRow({ id: M1, school_id: S1, lab_id: LAB1 }),
+      ],
+      labRows: [lab({ id: LAB2, school_id: S1 })],
       updatedRow: fullRow({ id: M1, lab_id: LAB2 }),
     });
     const result = await updateMachineProfile(fake as never, {
@@ -653,10 +760,12 @@ describe("updateMachineProfile", () => {
     expect(result.machine.labId).toBe(LAB2);
   });
 
-  it("404s when target lab is not owned by this teacher", async () => {
+  it("404s when target lab is at another school (cross-school)", async () => {
     const fake = makeFakeClient({
-      machineLookupRows: [fullRow({ id: M1, teacher_id: T1, lab_id: LAB1 })],
-      labRows: [{ id: LAB2, teacher_id: T2 }],
+      machineLookupRows: [
+        fullRow({ id: M1, school_id: S1, lab_id: LAB1 }),
+      ],
+      labRows: [lab({ id: LAB2, school_id: S2 })],
     });
     const result = await updateMachineProfile(fake as never, {
       teacherId: T1,
@@ -670,7 +779,9 @@ describe("updateMachineProfile", () => {
 
   it("400s when labId is empty string", async () => {
     const fake = makeFakeClient({
-      machineLookupRows: [fullRow({ id: M1, teacher_id: T1, lab_id: LAB1 })],
+      machineLookupRows: [
+        fullRow({ id: M1, school_id: S1, lab_id: LAB1 }),
+      ],
     });
     const result = await updateMachineProfile(fake as never, {
       teacherId: T1,
@@ -687,8 +798,10 @@ describe("updateMachineProfile", () => {
     // reassignMachineToLab — orphans don't have a sourceLabId for the
     // /labs/[id]/machines route to anchor on.
     const fake = makeFakeClient({
-      machineLookupRows: [fullRow({ id: M1, teacher_id: T1, lab_id: null })],
-      labRows: [{ id: LAB1, teacher_id: T1 }],
+      machineLookupRows: [
+        fullRow({ id: M1, school_id: S1, lab_id: null }),
+      ],
+      labRows: [lab({ id: LAB1, school_id: S1 })],
       updatedRow: fullRow({ id: M1, lab_id: LAB1 }),
     });
     const result = await updateMachineProfile(fake as never, {
@@ -709,7 +822,7 @@ describe("updateMachineProfile", () => {
 describe("softDeleteMachineProfile", () => {
   it("soft-deletes cleanly when no active jobs", async () => {
     const fake = makeFakeClient({
-      machineLookupRows: [fullRow({ id: M1, teacher_id: T1 })],
+      machineLookupRows: [fullRow({ id: M1, school_id: S1 })],
       activeJobs: [],
     });
     const result = await softDeleteMachineProfile(fake as never, {
@@ -723,7 +836,7 @@ describe("softDeleteMachineProfile", () => {
 
   it("409s when machine has active jobs", async () => {
     const fake = makeFakeClient({
-      machineLookupRows: [fullRow({ id: M1, teacher_id: T1 })],
+      machineLookupRows: [fullRow({ id: M1, school_id: S1 })],
       activeJobs: [
         { id: "j1", status: "pending_approval" },
         { id: "j2", status: "picked_up" },
@@ -739,9 +852,9 @@ describe("softDeleteMachineProfile", () => {
     expect(result.error.message).toMatch(/2 active job/);
   });
 
-  it("404s for cross-teacher or template", async () => {
+  it("404s for cross-school or template", async () => {
     const fake = makeFakeClient({
-      machineLookupRows: [fullRow({ id: M1, teacher_id: T2 })],
+      machineLookupRows: [fullRow({ id: M1, school_id: S2 })],
     });
     const result = await softDeleteMachineProfile(fake as never, {
       teacherId: T1,
@@ -760,7 +873,7 @@ describe("softDeleteMachineProfile", () => {
 describe("bulkSetApprovalForLab", () => {
   it("turns approval ON for every machine in the lab", async () => {
     const fake = makeFakeClient({
-      labRows: [{ id: LAB1, teacher_id: T1 }],
+      labRows: [lab({ id: LAB1, school_id: S1 })],
       machinesInLab: [{ id: "m-1" }, { id: "m-2" }, { id: "m-3" }],
     });
     const result = await bulkSetApprovalForLab(fake as never, {
@@ -776,7 +889,7 @@ describe("bulkSetApprovalForLab", () => {
 
   it("turns approval OFF for every machine in the lab", async () => {
     const fake = makeFakeClient({
-      labRows: [{ id: LAB1, teacher_id: T1 }],
+      labRows: [lab({ id: LAB1, school_id: S1 })],
       machinesInLab: [{ id: "m-1" }],
     });
     const result = await bulkSetApprovalForLab(fake as never, {
@@ -792,7 +905,7 @@ describe("bulkSetApprovalForLab", () => {
 
   it("returns 0 count for an empty lab", async () => {
     const fake = makeFakeClient({
-      labRows: [{ id: LAB1, teacher_id: T1 }],
+      labRows: [lab({ id: LAB1, school_id: S1 })],
       machinesInLab: [],
     });
     const result = await bulkSetApprovalForLab(fake as never, {
@@ -805,9 +918,9 @@ describe("bulkSetApprovalForLab", () => {
     expect(result.updatedMachineCount).toBe(0);
   });
 
-  it("404s when lab is not owned by teacher", async () => {
+  it("404s when lab is at another school (cross-school)", async () => {
     const fake = makeFakeClient({
-      labRows: [{ id: LAB2, teacher_id: T2 }],
+      labRows: [lab({ id: LAB2, school_id: S2 })],
     });
     const result = await bulkSetApprovalForLab(fake as never, {
       teacherId: T1,
