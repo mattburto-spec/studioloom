@@ -21,6 +21,7 @@ export type NavItem =
 export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/teacher/dashboard" },
   { label: "Classes",   href: "/teacher/classes" },
+  { label: "Marking",   href: "/teacher/marking" },
   { label: "Units",     href: "/teacher/units" },
   { label: "Students",  href: "/teacher/students" },
   { label: "Skills",    href: "/teacher/skills" },

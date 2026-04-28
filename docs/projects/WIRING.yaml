@@ -627,10 +627,10 @@ systems:
     name: Tap-a-word (Inline Word Lookup)
     category: Student Experience
     status: planned
-    currentVersion: 0
-    summary: "Phase 1A + 1B + 1C SHIPPED 26-27 Apr 2026: TappableText shared component + /api/student/word-lookup endpoint + word_definitions cache + sandbox bypass + WordPopover via createPortal. Mounted on 5 educational text surfaces: ActivityCard prompts (via MarkdownPrompt tappable prop) + ELL-1 hint card, LessonIntro introduction.text, VocabWarmup definition+example, KitMentor speech bubble, DesignAssistantWidget assistant messages, CheckInPanel mentor messages. Pre-warm seed script with batched Haiku + cost tracking covers 575 unique design-vocab words across 10 categories. Gated live E2E test (RUN_E2E=1) verifies real Anthropic round-trip. Awaiting Checkpoint 1.1 sign-off (visual smoke + seed run + live E2E). Phase 2 adds L1 translation + audio + image."
+    currentVersion: 1
+    summary: "Phase 1 + 2A + 2B + 2.5 + 2C + 2D-sample SHIPPED 27 Apr 2026. Phase 1 (1A+1B+1C): TappableText shared component + /api/student/word-lookup endpoint + word_definitions cache + sandbox bypass (Lesson #57: read-only) + WordPopover via createPortal. Mounted on 5 educational text surfaces. 578-word pre-warm seed for English. Phase 2A: L1 translation slot, server-side l1_target derivation, dynamic Anthropic prompt + tool schema (max_tokens 250→400). Phase 2B: audio buttons via browser SpeechSynthesis (free, two-button layout — English voice next to word, L1 voice next to translation). Phase 2.5: teacher control panel at /teacher/classes/[classId]/students/support — per-student + per-class overrides for l1_target + tap_a_word_enabled, server-side resolveStudentSettings precedence chain (class > student > intake > default), JSONB columns on students + class_students (no schema needed for future Phase 4 settings), bulk multi-select + confirmation modal, useStudentSupportSettings client hook with module-level page-session cache for UI gating. Phase 2C: curated image dictionary (Wikimedia Commons stable Special:FilePath URLs, v0 6-entry seed, lazy-load + onError graceful hide). Phase 2D-sample: ScamperTool + MindMapTool + BrainstormWebTool prompts wrapped — full coverage deferred to FU-TAP-TOOLKIT-FULL-COVERAGE (24 remaining tools with hardcoded inline prompt strings). currentVersion 1; status stays planned until Phase 5 (live E2E gate full coverage)."
     depends_on: [student-profile, ai-mentor]
-    affects: [lesson-view, discovery-engine, student-open-studio, ai-mentor]
+    affects: [lesson-view, discovery-engine, student-open-studio, ai-mentor, toolkit]
     docs:
       - path: docs/projects/language-scaffolding-redesign-phase-1-brief.md
         purpose: "Phase 1 master brief — sub-phases 1A/1B/1C"
@@ -644,14 +644,16 @@ systems:
       - src/components/student/tap-a-word/TappableText.tsx
       - src/components/student/tap-a-word/WordPopover.tsx
       - src/components/student/tap-a-word/useWordLookup.ts
+      - src/components/student/tap-a-word/useTextToSpeech.ts
       - src/components/student/tap-a-word/tokenize.ts
+      - src/lib/tap-a-word/language-mapping.ts
       - src/lib/ai/sandbox/word-lookup-sandbox.ts
       - src/app/api/student/word-lookup/route.ts
       - src/components/student/MarkdownPrompt.tsx
       - scripts/preflight-tap-a-word-seed.mjs
       - scripts/seed-data/design-vocab-500.json
       - tests/e2e/word-lookup-live.test.ts
-    future_needs: "Checkpoint 1.1 sign-off (Matt action: run seed script + RUN_E2E=1 live test + visual smoke 5 words across 5 surfaces). Phase 2: + L1 translation + audio + image. Phase 4: signal-driven scaffold-fading (taps_per_100_words rolling 5-lesson average). Toolkit tool prompts: deferred 1B refinement (28 bespoke tools, not yet wired)."
+    future_needs: "Phase 2C: curated image dictionary (Wikimedia Commons + Open Symbols, ~2000 entries). Phase 2D: toolkit prompt mounts on the 28 bespoke toolkit tools (folded in from deferred 1B refinement). Phase 4: signal-driven scaffold-fading (taps_per_100_words rolling 5-lesson average). Chromebook-fleet TTS voice verification (per spec stop-trigger): if any of the 6 supported L1 voices is missing on school Chromebooks, popover degrades gracefully (button hidden) — no popover break."
     change_impacts: "First Anthropic call site in the student API surface to ship Lesson #39 stop_reason guard + defensive destructure as canonical pattern. FU-5 (6 existing student-api violations) remains out of scope. WordPopover portals to document.body via createPortal so it escapes any clipped-overflow ancestor on the 5 mount surfaces. Toolkit tool prompts deferred to a 1B refinement after Checkpoint 1.1 signs off on the core 5 surfaces."
 
   - id: student-learning-support

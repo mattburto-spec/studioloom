@@ -1181,3 +1181,35 @@ Or pin via `.nvmrc` / engine hint that documents the requirement.
 **Fix:** Either (a) extend `scan-ai-calls.py` to detect the `if (response.stop_reason === "max_tokens")` pattern with a few lines of AST-aware regex (the pattern is consistent enough), or (b) add a `stop_reason_handled_override` field to `ai-call-sites.yaml` that humans set manually for sites the scanner mis-flags. (a) is better for maintenance; (b) is a 5-minute hack.
 
 **Definition of done:** A site that has the canonical `if (response.stop_reason === "max_tokens") throw new Error(...)` block is recorded as `stop_reason_handled: true` automatically. False-positive count on FU-5 audit drops to actual violations only.
+
+---
+
+## FU-TAP-TOOLKIT-FULL-COVERAGE — Tap-a-word mounts on remaining 24 toolkit tools (P3)
+**Surfaced:** 27 Apr 2026, Phase 2D audit during language-scaffolding-redesign
+**Captured in:** Phase 2 brief §3 Phase 2D, WIRING `tap-a-word` summary
+
+**Issue:** Phase 2D landed surgical TappableText wraps on 3 of 27 toolkit tools (ScamperTool, MindMapTool, BrainstormWebTool) — the only ones with prompt text rendered as a JSX variable. The other 24 tools (DotVoting, EmpathyMap, FishboneTool, FiveWhys, HowMightWeTool, etc.) hardcode their educational text as inline JSX strings (e.g. `<p>What are ALL the ideas...</p>`), making each wrap a content-aware refactor: extract the literal into a prop, decide what's "educational text" vs UI chrome, wrap, verify visually.
+
+**Deferred rationale:**
+- Lesson page mounts (Phase 1B) cover the PRIMARY tap-a-word use case — students reading lesson content + tapping unfamiliar vocab.
+- Toolkit tools are SECONDARY surfaces — students use them less per session.
+- Phase 2.5 lets teachers disable tap-a-word per-class if it's distracting in any context.
+- No real signal data yet on whether students would tap inside tools; Phase 4 signal infrastructure will tell us empirically which tools to prioritise.
+
+**Recommended approach when work happens:**
+1. Wait for Phase 4 signal data (taps_per_100_words rolling avg) showing which tools students actually use.
+2. Pick the top 3-5 tools by usage, do focused content-aware wraps.
+3. Repeat as data accrues.
+
+**Pattern for new wraps (3 sample sites already shipped):**
+```tsx
+// Old: <div>{stepInfo.prompt}</div>
+// New:
+import { TappableText } from "@/components/student/tap-a-word";
+// ...
+<div><TappableText text={stepInfo.prompt} /></div>
+```
+
+For tools with hardcoded inline strings (the 24 deferred), the migration involves either (a) extracting the string into a const + wrapping, or (b) accepting that the literal text stays untappable. (b) is the simpler v1 — only wrap text already in a variable.
+
+**Definition of done:** All toolkit tools that show >50 chars of educational prose to students have their prompt text wrapped in `<TappableText>`. UI chrome (button labels, axis labels, etc.) intentionally stays plain — those don't benefit from tap-a-word.

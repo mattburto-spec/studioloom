@@ -68,17 +68,58 @@ export async function GET(request: NextRequest) {
   // Step 3: Get class info — try junction table first, then legacy class_id
   let classInfo: { id: string; name: string; code: string; framework?: string | null } | null = null;
 
-  // New path: class_students junction (migration 041)
-  const { data: enrollment } = await supabase
+  // New path: class_students junction (migration 041).
+  // ORDER BY enrolled_at DESC makes the "first" class deterministic when a
+  // student is in multiple — we pick their most-recent enrollment as the
+  // session-default class. Without this, .limit(1) returned a random row
+  // each request and per-class teacher overrides (Phase 2.5 support-settings)
+  // were applied to the wrong class.
+  //
+  // 28 Apr 2026: also filter archived classes. class_students.is_active
+  // doesn't get flipped when a teacher archives the class, so without
+  // this an archived class could win as the session-default. We pull the
+  // top N enrollments and pick the most-recent non-archived one in JS
+  // (cleaner than a nested PostgREST `.eq("classes.is_archived", ...)`
+  // which silently returns rows where classes is null when the join is
+  // optional — see Lesson #54-style FK ambiguity).
+  //
+  // Forward note: Option B (URL-scoped class context, ~10-day refactor) will
+  // make this default irrelevant — every student URL will carry classId
+  // explicitly. Until then, "most-recent non-archived enrollment" is the
+  // sensible default for the dashboard + topnav display.
+  const { data: enrollments } = await supabase
     .from("class_students")
-    .select("class_id, classes(id, name, code, framework)")
+    .select("class_id, classes(id, name, code, framework, is_archived)")
     .eq("student_id", student.id)
     .eq("is_active", true)
-    .limit(1)
-    .maybeSingle();
+    .order("enrolled_at", { ascending: false })
+    .limit(10);
 
-  if (enrollment?.classes) {
-    classInfo = enrollment.classes as unknown as { id: string; name: string; code: string; framework?: string | null };
+  type EnrollmentClass = {
+    id: string;
+    name: string;
+    code: string;
+    framework?: string | null;
+    is_archived?: boolean | null;
+  };
+  const liveEnrollment = (enrollments ?? []).find((e) => {
+    const c = (Array.isArray(e.classes) ? e.classes[0] : e.classes) as
+      | EnrollmentClass
+      | null
+      | undefined;
+    return c && !c.is_archived;
+  });
+
+  if (liveEnrollment?.classes) {
+    const c = (Array.isArray(liveEnrollment.classes)
+      ? liveEnrollment.classes[0]
+      : liveEnrollment.classes) as EnrollmentClass;
+    classInfo = {
+      id: c.id,
+      name: c.name,
+      code: c.code,
+      framework: c.framework ?? null,
+    };
   }
 
   // Legacy fallback: students.class_id

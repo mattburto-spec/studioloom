@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { imageForWord } from "@/lib/tap-a-word/image-dictionary";
 
 /**
  * Hook for tap-a-word: fetches definitions from /api/student/word-lookup.
@@ -10,9 +11,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * - Debounced (250ms) so accidental rapid taps coalesce.
  * - State machine: idle → loading → loaded | error
  *
- * Phase 1A returns { definition, exampleSentence }. Phase 2 will extend
- * to L1 translation, audio, image — the API contract evolves but the
- * hook's surface stays string-based.
+ * Phase 1A: { definition, exampleSentence }.
+ * Phase 2A: + { l1Translation, l1Target } — server resolves l1Target from
+ * the student's learning_profile, so the client just renders what comes back.
+ * Phase 2B: audio handled by browser SpeechSynthesis directly in WordPopover (no hook state needed).
+ * Phase 2C: + { imageUrl } — pure client-side lookup via static dictionary,
+ * no extra network roundtrip; populated alongside the API response.
  */
 
 export type LookupState = "idle" | "loading" | "loaded" | "error";
@@ -22,6 +26,9 @@ export interface LookupResult {
   word: string | null;
   definition: string | null;
   exampleSentence: string | null;
+  l1Translation: string | null;
+  l1Target: string | null;
+  imageUrl: string | null;
   errorMessage: string | null;
   lookup: (word: string, contextSentence?: string) => void;
   reset: () => void;
@@ -30,15 +37,37 @@ export interface LookupResult {
 interface CachedEntry {
   definition: string;
   exampleSentence: string | null;
+  l1Translation: string | null;
+  l1Target: string | null;
+  imageUrl: string | null;
 }
 
 const DEBOUNCE_MS = 250;
 
-export function useWordLookup(): LookupResult {
+export interface UseWordLookupOpts {
+  /**
+   * Phase 2.5: optional class context. When provided, the route's resolver
+   * applies per-class overrides (l1_target_override, tap_a_word_enabled).
+   * When omitted, only per-student overrides apply.
+   */
+  classId?: string;
+  /**
+   * Bug 2 (28 Apr 2026): optional unit context. When passed without classId,
+   * the server derives classId via class_units × class_students. classId
+   * wins when both are sent.
+   */
+  unitId?: string;
+}
+
+export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
+  const { classId, unitId } = opts;
   const [state, setState] = useState<LookupState>("idle");
   const [word, setWord] = useState<string | null>(null);
   const [definition, setDefinition] = useState<string | null>(null);
   const [exampleSentence, setExampleSentence] = useState<string | null>(null);
+  const [l1Translation, setL1Translation] = useState<string | null>(null);
+  const [l1Target, setL1Target] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const cacheRef = useRef<Map<string, CachedEntry>>(new Map());
@@ -58,10 +87,15 @@ export function useWordLookup(): LookupResult {
     setWord(null);
     setDefinition(null);
     setExampleSentence(null);
+    setL1Translation(null);
+    setL1Target(null);
+    setImageUrl(null);
     setErrorMessage(null);
   }, []);
 
   const lookup = useCallback((rawWord: string, contextSentence?: string) => {
+    // Note: classId is captured from the closure (re-renders create a new
+    // lookup callback when classId changes — useCallback dep below).
     const normalized = rawWord.trim().toLowerCase();
     if (!normalized || normalized.length < 2) {
       return;
@@ -84,6 +118,9 @@ export function useWordLookup(): LookupResult {
       setState("loaded");
       setDefinition(cached.definition);
       setExampleSentence(cached.exampleSentence);
+      setL1Translation(cached.l1Translation);
+      setL1Target(cached.l1Target);
+      setImageUrl(cached.imageUrl);
       setErrorMessage(null);
       return;
     }
@@ -91,8 +128,15 @@ export function useWordLookup(): LookupResult {
     setState("loading");
     setDefinition(null);
     setExampleSentence(null);
+    setL1Translation(null);
+    setL1Target(null);
+    setImageUrl(null);
     setErrorMessage(null);
 
+    // Capture classId + unitId at lookup() invocation time so the values
+    // used in the debounced fetch match what the user saw when they tapped.
+    const currentClassId = classId;
+    const currentUnitId = unitId;
     debounceRef.current = setTimeout(async () => {
       const controller = new AbortController();
       inFlightRef.current = controller;
@@ -100,7 +144,12 @@ export function useWordLookup(): LookupResult {
         const res = await fetch("/api/student/word-lookup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ word: normalized, contextSentence }),
+          body: JSON.stringify({
+            word: normalized,
+            contextSentence,
+            classId: currentClassId,
+            unitId: currentUnitId,
+          }),
           signal: controller.signal,
         });
         if (!res.ok) {
@@ -109,18 +158,37 @@ export function useWordLookup(): LookupResult {
           setErrorMessage(typeof body?.error === "string" ? body.error : "lookup failed");
           return;
         }
-        const data = (await res.json()) as { definition?: unknown; exampleSentence?: unknown };
+        const data = (await res.json()) as {
+          definition?: unknown;
+          exampleSentence?: unknown;
+          l1Translation?: unknown;
+          l1Target?: unknown;
+        };
         const def = typeof data?.definition === "string" ? data.definition : "";
         const ex = typeof data?.exampleSentence === "string" ? data.exampleSentence : null;
+        const l1t = typeof data?.l1Translation === "string" ? data.l1Translation : null;
+        const l1tgt = typeof data?.l1Target === "string" ? data.l1Target : null;
         if (!def) {
           setState("error");
           setErrorMessage("no definition returned");
           return;
         }
-        cacheRef.current.set(normalized, { definition: def, exampleSentence: ex });
+        // Phase 2C: synchronous image lookup against the static dictionary.
+        // No extra network call — populated alongside the API response.
+        const img = imageForWord(normalized);
+        cacheRef.current.set(normalized, {
+          definition: def,
+          exampleSentence: ex,
+          l1Translation: l1t,
+          l1Target: l1tgt,
+          imageUrl: img,
+        });
         setState("loaded");
         setDefinition(def);
         setExampleSentence(ex);
+        setL1Translation(l1t);
+        setL1Target(l1tgt);
+        setImageUrl(img);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setState("error");
@@ -131,7 +199,7 @@ export function useWordLookup(): LookupResult {
         }
       }
     }, DEBOUNCE_MS);
-  }, []);
+  }, [classId, unitId]);
 
   // Clean up on unmount.
   useEffect(() => {
@@ -141,5 +209,16 @@ export function useWordLookup(): LookupResult {
     };
   }, []);
 
-  return { state, word, definition, exampleSentence, errorMessage, lookup, reset };
+  return {
+    state,
+    word,
+    definition,
+    exampleSentence,
+    l1Translation,
+    l1Target,
+    imageUrl,
+    errorMessage,
+    lookup,
+    reset,
+  };
 }

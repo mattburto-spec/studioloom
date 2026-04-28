@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, use } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { CRITERIA, type CriterionKey } from "@/lib/constants";
 import { getPageList } from "@/lib/unit-adapter";
@@ -13,6 +14,7 @@ import type { Unit, StudentProgress, UnitPage } from "@/types";
 import { getYearLevelNumber, yearLevelToGraduationYear, YEAR_LEVEL_OPTIONS } from "@/lib/utils/year-level";
 import { StudentDiscoveryProfile } from "@/components/teacher/StudentDiscoveryProfile";
 import { StudentFabricationHistory } from "@/components/fabrication/StudentFabricationHistory";
+import { StudentSupportSettings } from "@/components/teacher/StudentSupportSettings";
 
 /**
  * Teacher Per-Student Dashboard View
@@ -47,6 +49,14 @@ export default function TeacherStudentView({
   params: Promise<{ studentId: string }>;
 }) {
   const { studentId } = use(params);
+  // Honour ?tab=<name> so cross-page links can deep-link into a specific tab
+  // (e.g. per-class support page → student profile → Support tab).
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const validTabs = ["overview", "discovery", "fabrication", "support"] as const;
+  const initialTab = (validTabs as readonly string[]).includes(tabParam ?? "")
+    ? (tabParam as (typeof validTabs)[number])
+    : "overview";
   const [student, setStudent] = useState<{ display_name: string; username: string; class_id: string | null; graduation_year: number | null; mentor_id: string | null; theme_id: string | null; learning_profile: any | null } | null>(null);
   const [enrollments, setEnrollments] = useState<Array<{ class_id: string; class_name: string; is_active: boolean; enrolled_at: string; unenrolled_at: string | null; term_id: string | null; term_name: string | null; academic_year: string | null }>>([]);
   const [allClasses, setAllClasses] = useState<Array<{ id: string; name: string }>>([]);
@@ -56,7 +66,7 @@ export default function TeacherStudentView({
   const [showAssign, setShowAssign] = useState(false);
   const [assignClassId, setAssignClassId] = useState("");
   const [assigning, setAssigning] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "discovery" | "fabrication">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "discovery" | "fabrication" | "support">(initialTab);
   const [hasDiscovery, setHasDiscovery] = useState(false);
 
   async function loadAll() {
@@ -390,11 +400,29 @@ export default function TeacherStudentView({
             <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-600 rounded-full" />
           )}
         </button>
+        <button
+          onClick={() => setActiveTab("support")}
+          className={`px-4 py-2.5 text-sm font-semibold transition-colors relative flex items-center gap-1.5 ${
+            activeTab === "support"
+              ? "text-purple-600"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          <span>🌐</span> Support
+          {activeTab === "support" && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-600 rounded-full" />
+          )}
+        </button>
       </div>
 
       {/* ─── Fabrication Tab ───────────────────────────────── */}
       {activeTab === "fabrication" && (
         <StudentFabricationHistory studentId={studentId} />
+      )}
+
+      {/* ─── Support Tab ───────────────────────────────────── */}
+      {activeTab === "support" && (
+        <StudentSupportSettings studentId={studentId} />
       )}
 
       {/* ─── Discovery Tab ─────────────────────────────────── */}

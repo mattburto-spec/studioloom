@@ -1,9 +1,14 @@
 # Project: Grading System Overhaul
 
-**Status:** Planning
-**Priority:** After Project Dimensions Phase 3-4
-**Estimated effort:** ~8-12 days (5 phases)
+**Status:** ACTIVE — G1 brief drafted, awaiting sign-off (27 Apr 2026)
+**Priority:** P0 (Matt deadline: 3 days from 27 Apr)
+**Estimated effort:** Full vision ~14-18 days (7 phases). **v1 cut (G1) = 3 days.**
 **Created:** 30 March 2026
+
+> **27 Apr 2026 — v1 scope cut + brief**
+> Matt asked for "best grading experience in the world" with AI assist, **needed in 3 days**. The full 7-phase plan below is ~14-18 days. The v1 cut (G1) ships only the three ergonomics that make grading *feel* world-class — marking queue, split-view marking, AI pre-score + draft comment. Phase brief: [`grading-phase-g1-brief.md`](grading-phase-g1-brief.md).
+>
+> **27 Apr 2026 — Grading v2 design landed.** Claude Design returned a horizontal-first → vertical-synthesis model with three views: **A · Calibrate** (default, per-question across class), **B · Synthesize** (per-student, auto-assembled rubric, past-feedback memory), **C · Studio Floor** (clustered, deferred to G2). Pivotal design decision: **8–15-word AI evidence quotes** are what makes horizontal viable — transparent reasoning, not hidden authority. Prototype + README at [`docs/prototypes/grading-v2/`](../prototypes/grading-v2/). The design's per-tile granularity sidesteps the original "single-grade vs `assessment_tasks`" question — each tile becomes its own gradeable item; per-criterion rubric scores are computed at synthesis time. **G1 brief refreshed accordingly: Q3 closed, Q1 refined, 1 open question remaining (multi-tile data model audit).**
 
 ---
 

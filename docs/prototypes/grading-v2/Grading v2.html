@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Grading v2 — StudioLoom</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --bg: #F5F1EA;
+    --paper: #FBF8F2;
+    --ink: #1A1208;
+    --ink-2: #5A4A38;
+    --ink-3: #8B7B65;
+    --hair: #E5DDD0;
+    --hair-2: #D4C9B5;
+    --accent: #E86F2C;
+    --purple: #7C3AED;
+    --teal: #14B8A6;
+    --green: #10B981;
+    --amber: #F59E0B;
+    --rose: #EF4444;
+    --serif: "Instrument Serif", serif;
+  }
+  html, body { background: var(--bg); color: var(--ink); font-family: "Manrope", sans-serif; }
+  .display    { font-weight: 800; letter-spacing: -0.02em; }
+  .display-lg { font-weight: 800; letter-spacing: -0.035em; }
+  .display-xl { font-weight: 800; letter-spacing: -0.045em; }
+  .serif-em   { font-family: var(--serif); font-style: italic; font-weight: 400; letter-spacing: -0.01em; }
+  .mono       { font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; }
+  .cap        { font-size: 10.5px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
+  .card       { background: var(--paper); border: 1px solid var(--hair); border-radius: 16px; }
+  .card-soft  { background: rgba(255,255,255,0.5); border: 1px solid var(--hair); border-radius: 14px; }
+  .btn-primary  { background: var(--ink); color: var(--paper); font-weight: 800; }
+  .btn-primary:hover { background: #000; }
+  .btn-secondary{ background: var(--paper); color: var(--ink); border: 1px solid var(--hair); font-weight: 700; }
+  .btn-secondary:hover { border-color: var(--hair-2); }
+  .btn-ai { background: linear-gradient(135deg, #7C3AED, #E86F2C); color: white; font-weight: 800; }
+  .pulse-dot { width: 6px; height: 6px; border-radius: 999px; background: currentColor; box-shadow: 0 0 0 0 currentColor; animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 currentColor} 70%{box-shadow:0 0 0 6px transparent} 100%{box-shadow:0 0 0 0 transparent} }
+  body { margin: 0; }
+  .ai-glow { position: relative; }
+  .ai-glow::before {
+    content: ""; position: absolute; inset: -1px; border-radius: inherit;
+    background: linear-gradient(135deg, rgba(124,58,237,0.4), rgba(232,111,44,0.4));
+    z-index: -1; filter: blur(8px); opacity: 0.5;
+  }
+  kbd { font-family: "JetBrains Mono", monospace; font-size: 10px; padding: 1px 5px; border-radius: 4px; background: rgba(0,0,0,0.06); border: 1px solid var(--hair); font-weight: 700; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/framer-motion@11.0.5/dist/framer-motion.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="grading-v2.jsx"></script>
+</body>
+</html>

@@ -86,10 +86,41 @@ def main() -> int:
     # until the env guard above has succeeded.
     from worker.scan_runner import process_one_job
 
+    # Phase 8.1d-36 (28 Apr): wrap process_one_job in try/except so a
+    # transient API error (httpx.ReadTimeout from claim_next_scan_job,
+    # network blip between Fly SYD and Supabase, momentary RPC hang)
+    # does NOT crash the worker. Pre-fix, an unhandled exception
+    # escaped the loop → process exit → Fly restart → same poll fails
+    # again → ... 10 times → Fly stops trying ("This machine has
+    # exhausted its maximum restart attempts"). Caught in 28 Apr
+    # smoke when a ReadTimeout flooded the logs and the worker went
+    # down for hours until manual recovery.
+    #
+    # Resilience strategy: log the exception with full traceback (so
+    # it's visible in Fly logs without losing context), exponential
+    # backoff capped at 60s (don't tight-loop on a persistent backend
+    # issue), then continue. SIGTERM/SIGINT shutdown still propagates
+    # — only API exceptions are swallowed.
+    consecutive_errors = 0
     while not shutdown_requested:
-        did_work = process_one_job(supabase, storage)
-        if not did_work:
-            time.sleep(poll_interval)
+        try:
+            did_work = process_one_job(supabase, storage)
+            consecutive_errors = 0  # reset on any successful tick
+            if not did_work:
+                time.sleep(poll_interval)
+        except Exception:
+            consecutive_errors += 1
+            # Exponential backoff capped at 60s. First failure waits
+            # poll_interval, then 2x, 4x, 8x, ... up to 60s. Stops the
+            # worker hammering a degraded Supabase but recovers
+            # quickly when it comes back.
+            backoff = min(60, poll_interval * (2 ** min(consecutive_errors - 1, 4)))
+            log.exception(
+                "worker.poll_error",
+                consecutive_errors=consecutive_errors,
+                backoff_seconds=backoff,
+            )
+            time.sleep(backoff)
 
     log.info("worker.shutdown_complete")
     return 0
