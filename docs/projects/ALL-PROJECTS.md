@@ -255,6 +255,10 @@
 - **Phase:** Marketing | **Doc:** [howtovideos.md](howtovideos.md)
 - Video tutorial system for teacher onboarding and feature walkthroughs.
 
+### Class Architecture Cleanup
+- **Status:** 🟢 READY (deferred — pick up after Access Model v2) | **Est:** ~3-5 days | **Doc:** [class-architecture-cleanup.md](class-architecture-cleanup.md)
+- **Filed 28 Apr 2026** during the multi-class smoke test of Phase 2.5. Four gaps in how the `classes` × `class_students` × `student_progress` data model handles year-over-year cohorts vs traditional per-year-class models. Both models work today (recent Bug 1/1.5/2/4 fixes route around the worst symptoms) but the underlying data and UX are still confusing. Captures: (§1, P1, ~2hr) archived classes don't auto-unenroll students; (§2, P2, decision needed) `student_progress` is global per-(student,unit) not per-(student,class,unit); (§3, P2, ~½ day) cohort label / term-system audit so multiple "10 Design" classes are human-distinguishable; (§4, P2, ~10-11 days) Option B URL-scoped classId refactor — was deferred from Phase 2.5 smoke, now also deferred behind Access v2. Trigger: after Access v2 Phase 0 ships AND tomorrow's class has had a real lesson with the recent fixes in production. Say **"continue class architecture"** to resume.
+
 ---
 
 ## 🔵 Planned (spec exists, committed)
