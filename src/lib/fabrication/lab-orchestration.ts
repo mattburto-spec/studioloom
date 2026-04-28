@@ -1,50 +1,54 @@
 /**
- * Lab orchestration — Preflight Phase 8-2.
+ * Lab orchestration — Preflight Phase 8-2 (revised 28 Apr 2026 for
+ * school-scoped lab ownership).
  *
  * Parallel to `teacher-orchestration.ts` (teacher job approval) and
  * `fab-orchestration.ts` (fabricator queue + completion). Every
- * function takes a teacherId from requireTeacherAuth and scopes all
- * reads + writes by `fabrication_labs.teacher_id = teacherId`. No
- * cross-teacher visibility; 404 (not 403) for "not yours" to avoid
- * telegraphing existence — same pattern as every other Preflight
- * orchestration layer.
+ * function takes a teacherId from requireTeacherAuth, derives the
+ * teacher's school_id, and scopes every read + write by
+ * `fabrication_labs.school_id = teacher.school_id`. Labs are
+ * school-owned (not teacher-owned per the original 24 Apr draft) —
+ * any teacher at the same school sees + edits the same labs.
  *
- * Exports 5 functions per parent brief §3.2:
- *   - createLab          — POST /api/teacher/labs
- *   - listMyLabs         — GET  /api/teacher/labs
- *   - updateLab          — PATCH /api/teacher/labs/[id]
- *   - deleteLab          — DELETE /api/teacher/labs/[id]
- *   - reassignMachineToLab — PATCH /api/teacher/labs/[labId]/machines
+ * Mismatches → 404 (not 403) to avoid leaking the existence of
+ * labs at other schools — same pattern as the rest of the
+ * Preflight orchestration layer.
  *
- * Key safety rails:
- *   - Delete: 409 if lab has ≥1 machine AND no `reassignTo` target provided
- *     (or 409 if the target lab has a different teacher_id).
- *   - Delete default: allowed, but caller must first promote another lab
- *     to `is_default = true`, else 409 "there must always be one default
- *     lab per teacher" (enforced at DB via unique partial index —
- *     promoting two-at-once fails on the constraint).
- *   - Cross-teacher ownership: every path validates teacher_id match on
- *     lab + machine_profile before touching the DB. Mismatches → 404.
- *   - `is_default` is set-only in create; `updateLab` + promotion
- *     requires a separate `setDefault` operation (not merged into the
- *     general PATCH to keep the update contract simple).
+ * Exports 5 functions per parent brief §3.2 + this revision:
+ *   - createLab            — POST   /api/teacher/labs
+ *   - listMyLabs           — GET    /api/teacher/labs
+ *   - updateLab            — PATCH  /api/teacher/labs/[id]
+ *   - deleteLab            — DELETE /api/teacher/labs/[id]
+ *   - reassignMachineToLab — PATCH  /api/teacher/labs/[labId]/machines
  *
- * Lab-level auto-approve bulk toggle (the "B. Per-lab toggle" shortcut
- * Matt agreed to): deliberately OUT OF 8-2 scope. That UX lands in 8-3
- * alongside machine CRUD, where it's cheap to add as
- * `POST /api/teacher/machine-profiles/bulk-approval` with a lab filter.
- * Keeps 8-2 focused.
+ * Key contracts:
+ *   - Lab name is unique within a school (DB-enforced via
+ *     idx_fabrication_labs_unique_name_per_school, case-insensitive,
+ *     whitespace-collapsed). Duplicate name → 23505 → 409.
+ *   - `created_by_teacher_id` is audit-only — does NOT gate access.
+ *     Any teacher at the same school can edit/delete a lab someone
+ *     else created (flat membership per access-model-v2).
+ *   - Delete safety rails: 409 if lab is referenced by ≥1
+ *     machine_profile, ≥1 class.default_lab_id, OR ≥1
+ *     teacher.default_lab_id. Caller must reassign-or-clear those
+ *     before the delete proceeds. fabrication_jobs.lab_id is
+ *     ON DELETE SET NULL so jobs are not blockers.
+ *   - reassignMachineToLab: both source + target lab must be in the
+ *     same school as the calling teacher. Cross-school reassignment
+ *     → 404.
+ *
+ * The `is_default` flag from the 24 Apr draft is GONE. Per-class
+ * defaults live on `classes.default_lab_id`; per-teacher preferences
+ * live on `teachers.default_lab_id`. Labs themselves are uniform.
+ *
+ * Lab-level auto-approve bulk toggle stays out-of-scope here; that
+ * lands in 8-3 alongside machine CRUD.
  */
 
 // ============================================================
 // Shared types
 // ============================================================
 
-/**
- * Re-using OrchestrationError from the student-facing orchestration.
- * Keeps the error shape consistent across the codebase so API routes
- * don't need a separate mapper per orchestration layer.
- */
 export interface OrchestrationError {
   error: { status: number; message: string };
 }
@@ -60,26 +64,21 @@ export function isOrchestrationError(
   );
 }
 
-/**
- * Minimal Supabase-like client shape — same convention as the other
- * orchestration modules. Decouples from supabase-js surface so tests
- * can fake it cleanly.
- */
 interface SupabaseLike {
   from: (table: string) => any; // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
 /**
- * Shape of a single lab row as returned to callers. Maps 1:1 to the
- * columns from migration 113 — no derived fields.
+ * Lab row shape returned to callers. Mirrors the post-revision
+ * fabrication_labs columns (school_id NOT NULL, created_by_teacher_id
+ * audit-only nullable). camelCase per the orchestration-layer convention.
  */
 export interface LabRow {
   id: string;
-  teacherId: string;
-  schoolId: string | null;
+  schoolId: string;
+  createdByTeacherId: string | null;
   name: string;
   description: string | null;
-  isDefault: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -97,12 +96,6 @@ export interface LabListRow extends LabRow {
 // Helpers
 // ============================================================
 
-/**
- * Name validation — shared between create + update.
- * Non-empty, trimmed, max 80 chars (arbitrary but sane — "2nd floor
- * design lab — north wing" fits at 32). If a teacher hits the cap,
- * they're probably smuggling a description into the name field.
- */
 const NAME_MAX = 80;
 
 function validateName(raw: unknown): string | OrchestrationError {
@@ -135,28 +128,69 @@ function validateDescription(raw: unknown): string | null | OrchestrationError {
 }
 
 /**
- * Load a lab by id, scoped to a teacher. Returns 404 on not-found OR
- * cross-teacher access (same error message to avoid leaking existence).
- * Used by update + delete + reassign paths.
+ * Look up the calling teacher's school_id. Returns 401 when the
+ * teacher row is missing, OR when school_id IS NULL (orphan teacher
+ * pre-welcome-wizard — they need to pick a school before they can
+ * manage labs). Used at the top of every lab orchestration function.
  */
-async function loadTeacherOwnedLab(
+async function loadTeacherSchoolId(
   db: SupabaseLike,
-  teacherId: string,
+  teacherId: string
+): Promise<{ schoolId: string } | OrchestrationError> {
+  const result = await db
+    .from("teachers")
+    .select("school_id")
+    .eq("id", teacherId)
+    .maybeSingle();
+  const { data, error } = result as {
+    data: { school_id: string | null } | null;
+    error: { message: string } | null;
+  };
+  if (error) {
+    return {
+      error: { status: 500, message: `Teacher lookup failed: ${error.message}` },
+    };
+  }
+  if (!data) {
+    return { error: { status: 401, message: "Teacher not found." } };
+  }
+  if (!data.school_id) {
+    return {
+      error: {
+        status: 401,
+        message:
+          "Pick your school before managing labs. Open Settings → School to set it.",
+      },
+    };
+  }
+  return { schoolId: data.school_id };
+}
+
+/**
+ * Load a lab by id, scoped to a teacher's school. Returns 404 on
+ * not-found OR cross-school access (same error message — don't
+ * leak existence of labs at other schools). Used by update + delete
+ * + reassign paths.
+ */
+async function loadSchoolOwnedLab(
+  db: SupabaseLike,
+  schoolId: string,
   labId: string
 ): Promise<{ lab: LabRow } | OrchestrationError> {
   const result = await db
     .from("fabrication_labs")
-    .select("id, teacher_id, school_id, name, description, is_default, created_at, updated_at")
+    .select(
+      "id, school_id, created_by_teacher_id, name, description, created_at, updated_at"
+    )
     .eq("id", labId)
     .maybeSingle();
   const { data, error } = result as {
     data: {
       id: string;
-      teacher_id: string;
-      school_id: string | null;
+      school_id: string;
+      created_by_teacher_id: string | null;
       name: string;
       description: string | null;
-      is_default: boolean;
       created_at: string;
       updated_at: string;
     } | null;
@@ -166,18 +200,17 @@ async function loadTeacherOwnedLab(
   if (error) {
     return { error: { status: 500, message: `Lab lookup failed: ${error.message}` } };
   }
-  if (!data || data.teacher_id !== teacherId) {
+  if (!data || data.school_id !== schoolId) {
     return { error: { status: 404, message: "Lab not found." } };
   }
 
   return {
     lab: {
       id: data.id,
-      teacherId: data.teacher_id,
       schoolId: data.school_id,
+      createdByTeacherId: data.created_by_teacher_id,
       name: data.name,
       description: data.description,
-      isDefault: data.is_default,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     },
@@ -192,12 +225,6 @@ export interface CreateLabRequest {
   teacherId: string;
   name: string;
   description?: string | null;
-  /** Caller can mint a new default lab directly — but since the DB has
-   *  a unique partial index enforcing one-default-per-teacher, setting
-   *  this true when another default already exists fails with a 409
-   *  surfaced from the UPDATE error. For normal "create a second lab"
-   *  flows, leave this off. */
-  isDefault?: boolean;
 }
 
 export interface CreateLabSuccess {
@@ -216,24 +243,28 @@ export async function createLab(
   const description = validateDescription(params.description);
   if (isOrchestrationError(description)) return description;
 
+  const schoolResult = await loadTeacherSchoolId(db, params.teacherId);
+  if (isOrchestrationError(schoolResult)) return schoolResult;
+
   const insertResult = await db
     .from("fabrication_labs")
     .insert({
-      teacher_id: params.teacherId,
+      school_id: schoolResult.schoolId,
+      created_by_teacher_id: params.teacherId,
       name,
       description,
-      is_default: params.isDefault === true,
     })
-    .select("id, teacher_id, school_id, name, description, is_default, created_at, updated_at")
+    .select(
+      "id, school_id, created_by_teacher_id, name, description, created_at, updated_at"
+    )
     .single();
   const { data, error } = insertResult as {
     data: {
       id: string;
-      teacher_id: string;
-      school_id: string | null;
+      school_id: string;
+      created_by_teacher_id: string | null;
       name: string;
       description: string | null;
-      is_default: boolean;
       created_at: string;
       updated_at: string;
     } | null;
@@ -241,16 +272,15 @@ export async function createLab(
   };
 
   if (error) {
-    // 23505 = unique_violation. Triggers when caller tries to mint a
-    // second default lab — DB-enforced via
-    // uq_fabrication_labs_one_default_per_teacher. Surface as 409
-    // with a clear message.
+    // 23505 = unique_violation on idx_fabrication_labs_unique_name_per_school.
+    // Triggered when another teacher at the same school already has a lab
+    // with the same case-insensitive name. Surface as 409 with a clear
+    // message — the user can rename and retry.
     if (error.code === "23505") {
       return {
         error: {
           status: 409,
-          message:
-            "You already have a default lab. Set another lab to default before creating a new one.",
+          message: `A lab named "${name}" already exists at your school. Pick a different name.`,
         },
       };
     }
@@ -263,11 +293,10 @@ export async function createLab(
   return {
     lab: {
       id: data.id,
-      teacherId: data.teacher_id,
       schoolId: data.school_id,
+      createdByTeacherId: data.created_by_teacher_id,
       name: data.name,
       description: data.description,
-      isDefault: data.is_default,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     },
@@ -275,7 +304,8 @@ export async function createLab(
 }
 
 // ============================================================
-// listMyLabs
+// listMyLabs (school-scoped — every teacher at the school sees the
+// same list)
 // ============================================================
 
 export interface ListMyLabsSuccess {
@@ -288,23 +318,31 @@ export async function listMyLabs(
   db: SupabaseLike,
   params: { teacherId: string }
 ): Promise<ListMyLabsResult> {
-  // Fetch labs, then fetch machine counts in a parallel second query.
-  // Two round-trips but keeps the main query simple; scales fine at
-  // expected cardinality (a teacher has <10 labs).
+  const schoolResult = await loadTeacherSchoolId(db, params.teacherId);
+  if (isOrchestrationError(schoolResult)) {
+    // Orphan teacher (no school_id) → empty list. Don't 401 here —
+    // the page should render with a "set your school first" prompt
+    // surfaced from the auth/settings layer, not from /api/teacher/labs.
+    if (schoolResult.error.status === 401) {
+      return { labs: [] };
+    }
+    return schoolResult;
+  }
+
   const labsQuery = await db
     .from("fabrication_labs")
-    .select("id, teacher_id, school_id, name, description, is_default, created_at, updated_at")
-    .eq("teacher_id", params.teacherId)
-    .order("is_default", { ascending: false }) // default first
+    .select(
+      "id, school_id, created_by_teacher_id, name, description, created_at, updated_at"
+    )
+    .eq("school_id", schoolResult.schoolId)
     .order("name", { ascending: true });
   const { data: labData, error: labError } = labsQuery as {
     data: Array<{
       id: string;
-      teacher_id: string;
-      school_id: string | null;
+      school_id: string;
+      created_by_teacher_id: string | null;
       name: string;
       description: string | null;
-      is_default: boolean;
       created_at: string;
       updated_at: string;
     }> | null;
@@ -312,27 +350,27 @@ export async function listMyLabs(
   };
 
   if (labError) {
-    return { error: { status: 500, message: `Lab list failed: ${labError.message}` } };
+    return {
+      error: { status: 500, message: `Lab list failed: ${labError.message}` },
+    };
   }
-
-  const labs = labData ?? [];
-  if (labs.length === 0) {
+  if (!labData || labData.length === 0) {
     return { labs: [] };
   }
 
-  // Pull machine counts per lab — scoped to this teacher's machines
-  // for defence in depth (we already scoped labs by teacher_id, but
-  // belt-and-braces).
-  const labIds = labs.map((l) => l.id);
+  // Per-lab machine count. Single GROUP-BY-style query via PostgREST:
+  // pull all machine rows in those labs, group in JS. Lab cardinality
+  // is tiny (<10 per school) and machine cardinality is small (<50)
+  // so this is cheap.
+  const labIds = labData.map((l) => l.id);
   const machinesQuery = await db
     .from("machine_profiles")
-    .select("lab_id")
+    .select("id, lab_id")
     .in("lab_id", labIds)
-    .eq("teacher_id", params.teacherId)
-    .eq("is_system_template", false)
-    .eq("is_active", true); // Phase 8.1d: count visible machines only — soft-deleted ones are gone from the UI grid
+    .eq("is_active", true)
+    .eq("is_system_template", false);
   const { data: machineData, error: machineError } = machinesQuery as {
-    data: Array<{ lab_id: string }> | null;
+    data: Array<{ id: string; lab_id: string }> | null;
     error: { message: string } | null;
   };
 
@@ -345,25 +383,23 @@ export async function listMyLabs(
     };
   }
 
-  // Bucket by lab_id for O(1) lookup when mapping lab rows.
   const countByLab = new Map<string, number>();
-  for (const row of machineData ?? []) {
-    countByLab.set(row.lab_id, (countByLab.get(row.lab_id) ?? 0) + 1);
+  for (const m of machineData ?? []) {
+    countByLab.set(m.lab_id, (countByLab.get(m.lab_id) ?? 0) + 1);
   }
 
-  return {
-    labs: labs.map((l) => ({
-      id: l.id,
-      teacherId: l.teacher_id,
-      schoolId: l.school_id,
-      name: l.name,
-      description: l.description,
-      isDefault: l.is_default,
-      createdAt: l.created_at,
-      updatedAt: l.updated_at,
-      machineCount: countByLab.get(l.id) ?? 0,
-    })),
-  };
+  const labs: LabListRow[] = labData.map((l) => ({
+    id: l.id,
+    schoolId: l.school_id,
+    createdByTeacherId: l.created_by_teacher_id,
+    name: l.name,
+    description: l.description,
+    createdAt: l.created_at,
+    updatedAt: l.updated_at,
+    machineCount: countByLab.get(l.id) ?? 0,
+  }));
+
+  return { labs };
 }
 
 // ============================================================
@@ -373,14 +409,8 @@ export async function listMyLabs(
 export interface UpdateLabRequest {
   teacherId: string;
   labId: string;
-  /** Any subset — undefined keys untouched. Null description clears. */
   name?: string;
   description?: string | null;
-  /** Set to true to promote this lab to default. The DB's unique partial
-   *  index will fail (→ 23505 → 409 from us) if another default exists.
-   *  Callers who want atomic swap should call `updateLab` twice: once
-   *  with `isDefault: false` on the current default, then once here. */
-  isDefault?: boolean;
 }
 
 export interface UpdateLabSuccess {
@@ -393,50 +423,51 @@ export async function updateLab(
   db: SupabaseLike,
   params: UpdateLabRequest
 ): Promise<UpdateLabResult> {
-  // Ownership guard first.
-  const owned = await loadTeacherOwnedLab(db, params.teacherId, params.labId);
-  if (isOrchestrationError(owned)) return owned;
+  const schoolResult = await loadTeacherSchoolId(db, params.teacherId);
+  if (isOrchestrationError(schoolResult)) return schoolResult;
+
+  // Load + verify same-school. 404 on cross-school.
+  const existing = await loadSchoolOwnedLab(
+    db,
+    schoolResult.schoolId,
+    params.labId
+  );
+  if (isOrchestrationError(existing)) return existing;
 
   const patch: Record<string, unknown> = {};
-
   if (params.name !== undefined) {
-    const name = validateName(params.name);
-    if (isOrchestrationError(name)) return name;
-    patch.name = name;
+    const validatedName = validateName(params.name);
+    if (isOrchestrationError(validatedName)) return validatedName;
+    patch.name = validatedName;
   }
   if (params.description !== undefined) {
-    const description = validateDescription(params.description);
-    if (isOrchestrationError(description)) return description;
-    patch.description = description;
-  }
-  if (params.isDefault !== undefined) {
-    patch.is_default = params.isDefault;
+    const validatedDescription = validateDescription(params.description);
+    if (isOrchestrationError(validatedDescription)) return validatedDescription;
+    patch.description = validatedDescription;
   }
 
   if (Object.keys(patch).length === 0) {
-    return {
-      error: {
-        status: 400,
-        message: "No updatable fields supplied (name / description / isDefault).",
-      },
-    };
+    // No-op — return the existing lab unchanged. Avoids a pointless
+    // round-trip + keeps the response shape consistent.
+    return { lab: existing.lab };
   }
 
   const updateResult = await db
     .from("fabrication_labs")
     .update(patch)
     .eq("id", params.labId)
-    .eq("teacher_id", params.teacherId) // defence in depth
-    .select("id, teacher_id, school_id, name, description, is_default, created_at, updated_at")
+    .eq("school_id", schoolResult.schoolId) // defence in depth
+    .select(
+      "id, school_id, created_by_teacher_id, name, description, created_at, updated_at"
+    )
     .single();
   const { data, error } = updateResult as {
     data: {
       id: string;
-      teacher_id: string;
-      school_id: string | null;
+      school_id: string;
+      created_by_teacher_id: string | null;
       name: string;
       description: string | null;
-      is_default: boolean;
       created_at: string;
       updated_at: string;
     } | null;
@@ -448,8 +479,7 @@ export async function updateLab(
       return {
         error: {
           status: 409,
-          message:
-            "Another lab is already marked as default. Unset that first, then retry.",
+          message: `A lab named "${patch.name}" already exists at your school. Pick a different name.`,
         },
       };
     }
@@ -462,11 +492,10 @@ export async function updateLab(
   return {
     lab: {
       id: data.id,
-      teacherId: data.teacher_id,
       schoolId: data.school_id,
+      createdByTeacherId: data.created_by_teacher_id,
       name: data.name,
       description: data.description,
-      isDefault: data.is_default,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     },
@@ -480,15 +509,22 @@ export async function updateLab(
 export interface DeleteLabRequest {
   teacherId: string;
   labId: string;
-  /** Optional: reassign all of this lab's machines to this target lab
-   *  in the same transaction before deleting. If omitted AND the lab
-   *  has ≥1 machine, returns 409 "reassign first". */
+  /** Optional reassignment target. If provided, every machine_profile
+   *  + class.default_lab_id + teacher.default_lab_id currently
+   *  pointing at labId will be redirected to reassignTo BEFORE the
+   *  delete fires. Both labs must be at the same school. */
   reassignTo?: string;
 }
 
 export interface DeleteLabSuccess {
-  deletedLabId: string;
-  reassignedMachineCount: number;
+  deletedId: string;
+  /** Counts of references that were redirected (or 0 if no
+   *  reassignTo was provided). Surfaced for audit + UI feedback. */
+  reassigned: {
+    machines: number;
+    classes: number;
+    teachers: number;
+  };
 }
 
 export type DeleteLabResult = DeleteLabSuccess | OrchestrationError;
@@ -497,198 +533,158 @@ export async function deleteLab(
   db: SupabaseLike,
   params: DeleteLabRequest
 ): Promise<DeleteLabResult> {
-  // Ownership guard on source lab.
-  const owned = await loadTeacherOwnedLab(db, params.teacherId, params.labId);
-  if (isOrchestrationError(owned)) return owned;
+  const schoolResult = await loadTeacherSchoolId(db, params.teacherId);
+  if (isOrchestrationError(schoolResult)) return schoolResult;
 
-  // Guard 1: if this is the default lab AND others exist, require the
-  // caller to promote a different lab as default first. Keeps the
-  // invariant that exactly one lab per teacher carries `is_default = true`.
-  if (owned.lab.isDefault) {
-    const othersQuery = await db
-      .from("fabrication_labs")
-      .select("id")
-      .eq("teacher_id", params.teacherId)
-      .neq("id", params.labId)
-      .limit(1);
-    const { data: others } = othersQuery as { data: Array<{ id: string }> | null };
-    if ((others?.length ?? 0) > 0) {
+  // Verify the lab exists + same school.
+  const existing = await loadSchoolOwnedLab(
+    db,
+    schoolResult.schoolId,
+    params.labId
+  );
+  if (isOrchestrationError(existing)) return existing;
+
+  // If a reassignment target is provided, verify it's also same-school
+  // BEFORE we touch any rows. Cross-school reassign → 404.
+  if (params.reassignTo) {
+    if (params.reassignTo === params.labId) {
       return {
         error: {
-          status: 409,
-          message:
-            "You can't delete your default lab while other labs exist. Set another lab as default first.",
+          status: 400,
+          message: "Cannot reassign a lab to itself.",
+        },
+      };
+    }
+    const reassignTarget = await loadSchoolOwnedLab(
+      db,
+      schoolResult.schoolId,
+      params.reassignTo
+    );
+    if (isOrchestrationError(reassignTarget)) {
+      return {
+        error: {
+          status: 404,
+          message: "Reassignment target lab not found.",
         },
       };
     }
   }
 
-  // Guard 2 (Phase 8.1d-2 — PH8-FU-LAST-LAB-GUARD): if this would
-  // leave the teacher with ZERO labs AND they still have any
-  // fabrication footprint (active machines or classes), block. The
-  // degraded zero-lab state turns the lab admin page into a dead-end
-  // — teachers can't add machines without a lab. Better to require
-  // them to rename the existing lab (or wait until they've cleaned
-  // up) than to silently allow the bad state.
-  const labCountQuery = await db
-    .from("fabrication_labs")
-    .select("id")
-    .eq("teacher_id", params.teacherId)
-    .neq("id", params.labId)
-    .limit(1);
-  const { data: otherLabs } = labCountQuery as {
-    data: Array<{ id: string }> | null;
-  };
-  const willBeLastLab = (otherLabs?.length ?? 0) === 0;
+  // Count + (optionally) reassign references on three tables.
+  // Order matters: count BEFORE any UPDATE so the counts reflect the
+  // pre-action state. Then apply UPDATEs (or 409 if blocked).
+  const reassigned = { machines: 0, classes: 0, teachers: 0 };
 
-  if (willBeLastLab) {
-    // Check footprint: any active machines or any classes anywhere.
-    const machineFootprint = await db
-      .from("machine_profiles")
-      .select("id")
-      .eq("teacher_id", params.teacherId)
-      .eq("is_system_template", false)
-      .eq("is_active", true)
-      .limit(1);
-    const { data: hasActiveMachines } = machineFootprint as {
-      data: Array<{ id: string }> | null;
-    };
-
-    const classFootprint = await db
-      .from("classes")
-      .select("id")
-      .eq("teacher_id", params.teacherId)
-      .limit(1);
-    const { data: hasClasses } = classFootprint as {
-      data: Array<{ id: string }> | null;
-    };
-
-    const hasFootprint =
-      (hasActiveMachines?.length ?? 0) > 0 ||
-      (hasClasses?.length ?? 0) > 0;
-
-    if (hasFootprint) {
-      return {
-        error: {
-          status: 409,
-          message:
-            "You can't delete your last lab while you still have active machines or classes. Rename this lab if you want to repurpose it, or move all your fabrication footprint elsewhere first.",
-        },
-      };
-    }
-    // Else: teacher has no footprint at all — let them delete. They're
-    // either brand-new (no fabrication usage yet) or cleaning up.
-  }
-
-  // Count ACTIVE machines in this lab. Phase 8.1d hotfix: soft-deleted
-  // (is_active=false) machines used to block lab deletion even though
-  // the UI showed them as gone — fixed by filtering here.
-  // The cascade-reassign UPDATE below leaves is_active alone so any
-  // inactive machines come along too, keeping FK references valid in
-  // case the teacher reactivates them later.
-  const machinesQuery = await db
+  const machinesRefResult = await db
     .from("machine_profiles")
     .select("id")
-    .eq("lab_id", params.labId)
-    .eq("teacher_id", params.teacherId)
-    .eq("is_system_template", false)
-    .eq("is_active", true);
-  const { data: machines, error: machineError } = machinesQuery as {
-    data: Array<{ id: string }> | null;
-    error: { message: string } | null;
-  };
+    .eq("lab_id", params.labId);
+  const machinesRefs =
+    (machinesRefResult.data as Array<{ id: string }> | null) ?? [];
 
-  if (machineError) {
+  const classesRefResult = await db
+    .from("classes")
+    .select("id")
+    .eq("default_lab_id", params.labId);
+  const classesRefs =
+    (classesRefResult.data as Array<{ id: string }> | null) ?? [];
+
+  const teachersRefResult = await db
+    .from("teachers")
+    .select("id")
+    .eq("default_lab_id", params.labId);
+  const teachersRefs =
+    (teachersRefResult.data as Array<{ id: string }> | null) ?? [];
+
+  if (params.reassignTo) {
+    if (machinesRefs.length > 0) {
+      const update = await db
+        .from("machine_profiles")
+        .update({ lab_id: params.reassignTo })
+        .eq("lab_id", params.labId);
+      if ((update as { error: { message: string } | null }).error) {
+        return {
+          error: {
+            status: 500,
+            message: `Machine reassign failed: ${(update as { error: { message: string } }).error.message}`,
+          },
+        };
+      }
+      reassigned.machines = machinesRefs.length;
+    }
+    if (classesRefs.length > 0) {
+      const update = await db
+        .from("classes")
+        .update({ default_lab_id: params.reassignTo })
+        .eq("default_lab_id", params.labId);
+      if ((update as { error: { message: string } | null }).error) {
+        return {
+          error: {
+            status: 500,
+            message: `Class reassign failed: ${(update as { error: { message: string } }).error.message}`,
+          },
+        };
+      }
+      reassigned.classes = classesRefs.length;
+    }
+    if (teachersRefs.length > 0) {
+      const update = await db
+        .from("teachers")
+        .update({ default_lab_id: params.reassignTo })
+        .eq("default_lab_id", params.labId);
+      if ((update as { error: { message: string } | null }).error) {
+        return {
+          error: {
+            status: 500,
+            message: `Teacher-default reassign failed: ${(update as { error: { message: string } }).error.message}`,
+          },
+        };
+      }
+      reassigned.teachers = teachersRefs.length;
+    }
+  } else if (
+    machinesRefs.length > 0 ||
+    classesRefs.length > 0 ||
+    teachersRefs.length > 0
+  ) {
+    // No reassign target + at least one blocker → 409 with a
+    // detailed message so the UI can prompt for a target.
+    const parts: string[] = [];
+    if (machinesRefs.length > 0)
+      parts.push(`${machinesRefs.length} machine${machinesRefs.length === 1 ? "" : "s"}`);
+    if (classesRefs.length > 0)
+      parts.push(`${classesRefs.length} class${classesRefs.length === 1 ? "" : "es"}`);
+    if (teachersRefs.length > 0)
+      parts.push(`${teachersRefs.length} teacher default${teachersRefs.length === 1 ? "" : "s"}`);
     return {
       error: {
-        status: 500,
-        message: `Machine enumeration failed: ${machineError.message}`,
+        status: 409,
+        message: `Can't delete this lab — it's still referenced by ${parts.join(
+          ", "
+        )}. Pick another lab to reassign them to, or remove the references first.`,
       },
     };
   }
 
-  const machineCount = machines?.length ?? 0;
-
-  if (machineCount > 0) {
-    if (!params.reassignTo) {
-      return {
-        error: {
-          status: 409,
-          message: `Lab has ${machineCount} machine${
-            machineCount === 1 ? "" : "s"
-          }. Provide \`reassignTo\` (another lab id) or move/delete the machines first.`,
-        },
-      };
-    }
-    // Verify reassignTo is also owned by this teacher.
-    const targetOwned = await loadTeacherOwnedLab(
-      db,
-      params.teacherId,
-      params.reassignTo
-    );
-    if (isOrchestrationError(targetOwned)) return targetOwned;
-    if (targetOwned.lab.id === params.labId) {
-      return {
-        error: {
-          status: 400,
-          message: "`reassignTo` cannot be the lab being deleted.",
-        },
-      };
-    }
-
-    // Bulk reassign before delete.
-    const reassign = await db
-      .from("machine_profiles")
-      .update({ lab_id: params.reassignTo })
-      .eq("lab_id", params.labId)
-      .eq("teacher_id", params.teacherId)
-      .eq("is_system_template", false);
-    if (reassign.error) {
-      return {
-        error: {
-          status: 500,
-          message: `Machine reassignment failed: ${reassign.error.message}`,
-        },
-      };
-    }
-  }
-
-  // Also reassign any classes defaulting to this lab, same target.
-  // Without this, classes end up with default_lab_id=NULL (ON DELETE
-  // SET NULL) and the student picker falls back to "show all
-  // machines" — fine, but surprises the teacher. If reassignTo is
-  // set, route classes to it too.
-  if (params.reassignTo) {
-    const classReassign = await db
-      .from("classes")
-      .update({ default_lab_id: params.reassignTo })
-      .eq("default_lab_id", params.labId)
-      .eq("teacher_id", params.teacherId);
-    if (classReassign.error) {
-      return {
-        error: {
-          status: 500,
-          message: `Class reassignment failed: ${classReassign.error.message}`,
-        },
-      };
-    }
-  }
-
-  // Now the actual delete.
+  // All clear — delete the lab. fabrication_jobs.lab_id is
+  // ON DELETE SET NULL so historical jobs keep working.
   const deleteResult = await db
     .from("fabrication_labs")
     .delete()
     .eq("id", params.labId)
-    .eq("teacher_id", params.teacherId);
-  if (deleteResult.error) {
+    .eq("school_id", schoolResult.schoolId); // defence in depth
+  if ((deleteResult as { error: { message: string } | null }).error) {
     return {
-      error: { status: 500, message: `Lab delete failed: ${deleteResult.error.message}` },
+      error: {
+        status: 500,
+        message: `Lab delete failed: ${(deleteResult as { error: { message: string } }).error.message}`,
+      },
     };
   }
 
   return {
-    deletedLabId: params.labId,
-    reassignedMachineCount: machineCount,
+    deletedId: params.labId,
+    reassigned,
   };
 }
 
@@ -698,97 +694,105 @@ export async function deleteLab(
 
 export interface ReassignMachineRequest {
   teacherId: string;
-  /** Source lab in the URL — used as the ownership anchor for the
-   *  route namespace. We verify the teacher owns it, but don't require
-   *  it to match the machine's current lab (teacher might be moving a
-   *  machine they just added to the wrong lab). */
-  sourceLabId: string;
+  /** The lab whose `/machines` endpoint was hit — source of truth
+   *  for "this machine SHOULD currently be in this lab". */
+  fromLabId: string;
   machineProfileId: string;
-  targetLabId: string;
+  toLabId: string;
 }
 
 export interface ReassignMachineSuccess {
   machineProfileId: string;
-  previousLabId: string | null;
-  newLabId: string;
+  fromLabId: string;
+  toLabId: string;
 }
 
-export type ReassignMachineResult = ReassignMachineSuccess | OrchestrationError;
+export type ReassignMachineResult =
+  | ReassignMachineSuccess
+  | OrchestrationError;
 
 export async function reassignMachineToLab(
   db: SupabaseLike,
   params: ReassignMachineRequest
 ): Promise<ReassignMachineResult> {
-  // Source lab ownership (URL anchor).
-  const source = await loadTeacherOwnedLab(db, params.teacherId, params.sourceLabId);
-  if (isOrchestrationError(source)) return source;
+  const schoolResult = await loadTeacherSchoolId(db, params.teacherId);
+  if (isOrchestrationError(schoolResult)) return schoolResult;
 
-  // Target lab ownership (body).
-  const target = await loadTeacherOwnedLab(db, params.teacherId, params.targetLabId);
-  if (isOrchestrationError(target)) return target;
-
-  if (target.lab.id === source.lab.id) {
+  if (params.fromLabId === params.toLabId) {
     return {
-      error: { status: 400, message: "Source and target lab are the same — nothing to reassign." },
+      error: {
+        status: 400,
+        message: "Source and target lab must differ.",
+      },
     };
   }
 
-  // Machine ownership — explicit check so we 404 (not 500) on
-  // cross-teacher or not-found.
-  const machineQuery = await db
+  // Both labs must be in the same school as the calling teacher.
+  // Cross-school → 404.
+  const fromLab = await loadSchoolOwnedLab(
+    db,
+    schoolResult.schoolId,
+    params.fromLabId
+  );
+  if (isOrchestrationError(fromLab)) return fromLab;
+  const toLab = await loadSchoolOwnedLab(
+    db,
+    schoolResult.schoolId,
+    params.toLabId
+  );
+  if (isOrchestrationError(toLab)) return toLab;
+
+  // Verify the machine exists + currently in fromLabId.
+  const machineResult = await db
     .from("machine_profiles")
-    .select("id, teacher_id, lab_id, is_system_template")
+    .select("id, lab_id")
     .eq("id", params.machineProfileId)
     .maybeSingle();
-  const { data: machine, error: machineError } = machineQuery as {
-    data: {
-      id: string;
-      teacher_id: string | null;
-      lab_id: string | null;
-      is_system_template: boolean;
-    } | null;
+  const { data: machineData, error: machineError } = machineResult as {
+    data: { id: string; lab_id: string | null } | null;
     error: { message: string } | null;
   };
 
   if (machineError) {
     return {
-      error: { status: 500, message: `Machine lookup failed: ${machineError.message}` },
+      error: {
+        status: 500,
+        message: `Machine lookup failed: ${machineError.message}`,
+      },
     };
   }
-  if (!machine || machine.teacher_id !== params.teacherId) {
+  if (!machineData) {
     return { error: { status: 404, message: "Machine not found." } };
   }
-  if (machine.is_system_template) {
-    // System templates are cross-tenant seed rows — they don't get
-    // scoped to a lab, ever.
+  if (machineData.lab_id !== params.fromLabId) {
     return {
       error: {
         status: 409,
-        message: "System-template machines can't be assigned to a lab.",
+        message:
+          "Machine is not currently in the source lab. The page may be stale — refresh and try again.",
       },
     };
   }
 
-  // Perform the update. Use teacher_id in the WHERE as defence in
-  // depth — even though we validated above, a concurrent teacher-
-  // transfer (shouldn't happen in v1 but future FU-P) won't sneak in.
+  // Conditional UPDATE — re-checks lab_id at write time so a parallel
+  // reassign racing this one doesn't double-move.
   const updateResult = await db
     .from("machine_profiles")
-    .update({ lab_id: params.targetLabId })
+    .update({ lab_id: params.toLabId })
     .eq("id", params.machineProfileId)
-    .eq("teacher_id", params.teacherId);
-  if (updateResult.error) {
+    .eq("lab_id", params.fromLabId);
+  if ((updateResult as { error: { message: string } | null }).error) {
     return {
       error: {
         status: 500,
-        message: `Machine reassignment failed: ${updateResult.error.message}`,
+        message: `Machine reassign failed: ${(updateResult as { error: { message: string } }).error.message}`,
       },
     };
   }
 
   return {
     machineProfileId: params.machineProfileId,
-    previousLabId: machine.lab_id,
-    newLabId: params.targetLabId,
+    fromLabId: params.fromLabId,
+    toLabId: params.toLabId,
   };
 }
