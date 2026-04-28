@@ -1,4 +1,5 @@
 -- Rollback for: consents
 -- Pairs with: 20260428214403_consents.sql
+-- Phase: Access Model v2 Phase 0.6b
 
--- TODO: write rollback SQL here
+DROP TABLE IF EXISTS consents CASCADE;
