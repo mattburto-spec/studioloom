@@ -21,6 +21,12 @@ const store = {
   studentEnrollments: [] as Enrollment[],
   // class_units rows for UNIT_X (which classes use this unit).
   unitClasses: [] as { class_id: string }[],
+  // 28 Apr 2026 — set of class IDs marked as archived. The resolver
+  // queries `classes` with `is_archived.is.null OR is_archived.eq.false`
+  // and we faithfully model the filter: a class id in this set returns
+  // is_archived=true (filtered OUT); not in the set → is_archived=false
+  // (passes through).
+  archivedClassIds: new Set<string>(),
 };
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -81,6 +87,25 @@ vi.mock("@/lib/supabase/admin", () => ({
           }),
         };
       }
+      if (table === "classes") {
+        // filterOutArchivedClasses chain:
+        //   .from("classes").select("id").in("id", [...]).or("is_archived.is.null,is_archived.eq.false")
+        let inIds: string[] = [];
+        const chain = {
+          select: (_cols: string) => chain,
+          in: (_col: string, vals: string[]) => {
+            inIds = vals;
+            return chain;
+          },
+          or: async (_clause: string) => {
+            const rows = inIds
+              .filter((id) => !store.archivedClassIds.has(id))
+              .map((id) => ({ id }));
+            return { data: rows, error: null };
+          },
+        };
+        return chain;
+      }
       throw new Error(`Unexpected table: ${table}`);
     },
   }),
@@ -91,6 +116,7 @@ import { resolveStudentClassId } from "../resolve-class-id";
 beforeEach(() => {
   store.studentEnrollments = [];
   store.unitClasses = [];
+  store.archivedClassIds = new Set();
 });
 
 describe("resolveStudentClassId", () => {
@@ -169,6 +195,38 @@ describe("resolveStudentClassId", () => {
   describe("Path 3: neither classId nor unitId", () => {
     it("returns undefined", async () => {
       const result = await resolveStudentClassId({ studentId: STUDENT_ID });
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe("archived-class filtering (28 Apr 2026 fix)", () => {
+    it("Path 1: archived classId returns undefined even if student is enrolled", async () => {
+      store.studentEnrollments = [{ class_id: CLASS_A, enrolled_at: "2026-04-01T00:00:00Z" }];
+      store.archivedClassIds.add(CLASS_A);
+      const result = await resolveStudentClassId({ studentId: STUDENT_ID, classId: CLASS_A });
+      expect(result).toBeUndefined();
+    });
+
+    it("Path 2: skips archived class even when most-recently enrolled (regression — student `test` 28 Apr)", async () => {
+      // Mirrors the prod scenario: same unit lives in both classes; student is
+      // enrolled in both; the archived class has a more-recent enrollment date.
+      // Pre-fix the resolver picked the archived class. Post-fix it picks the
+      // active one.
+      store.studentEnrollments = [
+        { class_id: CLASS_A, enrolled_at: "2026-03-27T00:00:00Z" }, // active class
+        { class_id: CLASS_B, enrolled_at: "2026-03-28T00:00:00Z" }, // archived (1 day newer)
+      ];
+      store.unitClasses = [{ class_id: CLASS_A }, { class_id: CLASS_B }];
+      store.archivedClassIds.add(CLASS_B);
+      const result = await resolveStudentClassId({ studentId: STUDENT_ID, unitId: UNIT_X });
+      expect(result).toBe(CLASS_A);
+    });
+
+    it("Path 2: returns undefined when ALL candidate classes are archived", async () => {
+      store.studentEnrollments = [{ class_id: CLASS_A, enrolled_at: "2026-04-01T00:00:00Z" }];
+      store.unitClasses = [{ class_id: CLASS_A }];
+      store.archivedClassIds.add(CLASS_A);
+      const result = await resolveStudentClassId({ studentId: STUDENT_ID, unitId: UNIT_X });
       expect(result).toBeUndefined();
     });
   });

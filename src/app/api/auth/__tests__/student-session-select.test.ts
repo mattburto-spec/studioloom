@@ -27,10 +27,13 @@ const routePath = join(
 const source = readFileSync(routePath, "utf8");
 
 describe("student-session route select() shapes", () => {
-  it("first select (class_students junction) includes framework field", () => {
+  it("first select (class_students junction) includes framework + is_archived", () => {
     // Locks the PostgREST-embedded select on the class_students → classes join.
+    // is_archived (28 Apr 2026) lets the route filter out archived classes
+    // when picking the session-default — without it the most-recently-enrolled
+    // archived class could win as the student's default context.
     expect(source).toContain(
-      '.select("class_id, classes(id, name, code, framework)")'
+      '.select("class_id, classes(id, name, code, framework, is_archived)")'
     );
   });
 

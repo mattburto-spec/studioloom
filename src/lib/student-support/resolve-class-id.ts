@@ -47,12 +47,38 @@ export interface ResolveClassIdInput {
  * the difference between "no input" and "input was bad" should validate
  * input themselves before calling.
  */
+/**
+ * Filter a list of class IDs down to those that are NOT archived.
+ *
+ * Why split this out: archived classes are still selectable via
+ * `class_students.is_active = true` because archive status lives on the
+ * `classes` table and student enrollments aren't auto-deactivated when a
+ * teacher archives the class. Without this filter, the resolver can pick
+ * an archived class as a student's "current" context — observed in prod
+ * 28 Apr 2026 when student `test`'s most-recent enrollment was an
+ * archived class that happened to share a unit with an active class.
+ *
+ * Returns [] when input is empty (no extra round-trip).
+ */
+async function filterOutArchivedClasses(
+  supabase: ReturnType<typeof createAdminClient>,
+  classIds: string[]
+): Promise<string[]> {
+  if (classIds.length === 0) return [];
+  const { data } = await supabase
+    .from("classes")
+    .select("id")
+    .in("id", classIds)
+    .or("is_archived.is.null,is_archived.eq.false");
+  return (data ?? []).map((r) => r.id as string).filter(Boolean);
+}
+
 export async function resolveStudentClassId(
   input: ResolveClassIdInput
 ): Promise<string | undefined> {
   const supabase = createAdminClient();
 
-  // Path 1: caller-supplied classId — verify enrollment.
+  // Path 1: caller-supplied classId — verify enrollment AND non-archived.
   if (input.classId && UUID_RE.test(input.classId)) {
     const { data } = await supabase
       .from("class_students")
@@ -61,29 +87,36 @@ export async function resolveStudentClassId(
       .eq("class_id", input.classId)
       .eq("is_active", true)
       .maybeSingle();
-    if (data?.class_id) return data.class_id as string;
+    if (!data?.class_id) return undefined;
+    // Bonus archived check — same reason as Path 2's filter. A teacher who
+    // archives a class shouldn't have students still operating "in" it.
+    const live = await filterOutArchivedClasses(supabase, [data.class_id as string]);
+    return live[0];
     // Don't fall through to unitId if classId was given but invalid —
     // the caller's intent was specific. Return undefined and let caller
     // decide (current callers fall through to "no class context" defaults).
-    return undefined;
   }
 
   // Path 2: derive from unitId via class_units × class_students.
   if (input.unitId && UUID_RE.test(input.unitId)) {
-    // Two-step query (no inner-join because PostgREST can be finicky about
+    // Three-step query (no inner-join because PostgREST can be finicky about
     // cross-table FK ambiguity — see Lesson #54). Step 1: classes that use
-    // this unit. Step 2: intersection with student's active enrollments,
-    // ordered by enrollment recency for deterministic tie-break.
+    // this unit. Step 2: drop archived classes (28 Apr 2026 fix — without
+    // this, an archived class with the same unit could win the tie-break
+    // over the active class the student is "really" working in). Step 3:
+    // intersection with student's active enrollments, ordered by enrollment
+    // recency for deterministic tie-break.
     const { data: classUnits } = await supabase
       .from("class_units")
       .select("class_id")
       .eq("unit_id", input.unitId)
       .eq("is_active", true);
 
-    const candidateClassIds = (classUnits ?? [])
+    const allCandidates = (classUnits ?? [])
       .map((r) => r.class_id as string)
       .filter(Boolean);
 
+    const candidateClassIds = await filterOutArchivedClasses(supabase, allCandidates);
     if (candidateClassIds.length === 0) return undefined;
 
     const { data: enrollments } = await supabase
