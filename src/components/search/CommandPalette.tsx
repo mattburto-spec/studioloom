@@ -2,19 +2,25 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { I } from "./icons";
-import type { SearchHit, SearchResponse } from "@/app/api/teacher/search/route";
+import { I } from "../teacher-dashboard-v2/icons";
+import type { SearchHit, SearchResponse } from "@/types/search";
 
 interface CommandPaletteProps {
   open: boolean;
   onClose: () => void;
+  /** API endpoint to GET ?q=<query> from. Defaults to teacher search. */
+  searchUrl?: string;
 }
 
 type FlatHit = SearchHit & { groupLabel: string };
 
 const EMPTY: SearchResponse = { query: "", classes: [], units: [], students: [] };
 
-export function CommandPalette({ open, onClose }: CommandPaletteProps) {
+export function CommandPalette({
+  open,
+  onClose,
+  searchUrl = "/api/teacher/search",
+}: CommandPaletteProps) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [query, setQuery] = useState("");
@@ -59,7 +65,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     const ac = new AbortController();
     const t = window.setTimeout(async () => {
       try {
-        const res = await fetch(`/api/teacher/search?q=${encodeURIComponent(trimmed)}`, {
+        const res = await fetch(`${searchUrl}?q=${encodeURIComponent(trimmed)}`, {
           signal: ac.signal,
           credentials: "same-origin",
         });
@@ -82,7 +88,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       ac.abort();
       window.clearTimeout(t);
     };
-  }, [query, open]);
+  }, [query, open, searchUrl]);
 
   // Flat list for keyboard nav, with group labels for rendering.
   const flat = useMemo<FlatHit[]>(() => {

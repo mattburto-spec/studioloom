@@ -6,7 +6,7 @@ import type { DashboardClass } from "@/types/dashboard";
 import type { Teacher } from "@/types";
 import { createClient } from "@/lib/supabase/client";
 import { I } from "./icons";
-import { CommandPalette } from "./CommandPalette";
+import { CommandPalette } from "@/components/search/CommandPalette";
 import {
   DROPDOWN_ITEMS,
   NAV_ITEMS,

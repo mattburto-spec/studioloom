@@ -1,39 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { withErrorHandler } from "@/lib/api/error-handler";
-
-interface ClassHit {
-  type: "class";
-  id: string;
-  title: string;
-  subtitle: string | null;
-  href: string;
-}
-
-interface UnitHit {
-  type: "unit";
-  id: string;
-  title: string;
-  subtitle: string | null;
-  href: string;
-}
-
-interface StudentHit {
-  type: "student";
-  id: string;
-  title: string;
-  subtitle: string | null;
-  href: string;
-}
-
-type SearchHit = ClassHit | UnitHit | StudentHit;
-
-interface SearchResponse {
-  query: string;
-  classes: ClassHit[];
-  units: UnitHit[];
-  students: StudentHit[];
-}
+import type {
+  ClassHit,
+  StudentHit,
+  UnitHit,
+  SearchResponse,
+} from "@/types/search";
 
 async function getAuthenticatedClient(request: NextRequest) {
   const supabase = createServerClient(
@@ -176,5 +149,3 @@ export const GET = withErrorHandler("teacher/search:GET", async (request: NextRe
   const response: SearchResponse = { query: rawQ, classes, units, students };
   return NextResponse.json(response);
 });
-
-export type { SearchHit, SearchResponse };
