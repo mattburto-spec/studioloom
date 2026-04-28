@@ -216,35 +216,64 @@ function CalibrateView({ classId }: { classId: string }) {
       }
       setKlass(cls as ClassDetail);
 
-      // Most recent unit assigned to the class.
-      const { data: classUnit } = await supabase
+      // All units assigned to this class, with the embedded master unit row.
+      // We sort by the master unit's updated_at client-side because Supabase's
+      // .order on a joined relation column is brittle across JS-client versions.
+      // Filter is_active === true OR null (legacy class_unit rows pre-migration
+      // sometimes have is_active = null even though the column DEFAULTs true).
+      const { data: classUnitsRaw, error: cuErr } = await supabase
         .from("class_units")
-        .select("unit_id, content_data, units!inner(id, title, content_data, updated_at)")
-        .eq("class_id", classId)
-        .eq("is_active", true)
-        .order("units(updated_at)", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .select("unit_id, is_active, content_data, units(id, title, content_data, updated_at)")
+        .eq("class_id", classId);
 
-      if (!classUnit) {
-        setLoadError("No active unit assigned to this class yet.");
+      if (cuErr) {
+        setLoadError(`Failed to load units for this class: ${cuErr.message}`);
         setLoading(false);
         return;
       }
 
-      // Resolve forked-or-master content.
       type ClassUnitJoined = {
         unit_id: string;
+        is_active: boolean | null;
         content_data: UnitContentData | null;
-        units: { id: string; title: string; content_data: UnitContentData | null };
+        units: { id: string; title: string; content_data: UnitContentData | null; updated_at: string } | null;
       };
-      const cu = classUnit as ClassUnitJoined;
-      const masterContent = cu.units.content_data ?? ({ version: 2, pages: [] } as UnitContentData);
+      const allClassUnits = (classUnitsRaw ?? []) as ClassUnitJoined[];
+
+      if (allClassUnits.length === 0) {
+        setLoadError(
+          "No units assigned to this class. Open the class page and add a unit before marking.",
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Active or unset is_active counts as active. Drop rows where the
+      // joined unit row is null (orphaned class_units pointing at deleted
+      // units — defensive only, shouldn't happen with FK CASCADE).
+      const active = allClassUnits
+        .filter((cu) => cu.is_active !== false && cu.units !== null)
+        .sort((a, b) =>
+          (b.units?.updated_at ?? "").localeCompare(a.units?.updated_at ?? ""),
+        );
+
+      if (active.length === 0) {
+        setLoadError(
+          `This class has ${allClassUnits.length} unit(s), but all are marked inactive. ` +
+            `Reactivate one from the class page to start marking.`,
+        );
+        setLoading(false);
+        return;
+      }
+
+      const cu = active[0];
+      const unitRow = cu.units!;
+      const masterContent = unitRow.content_data ?? ({ version: 2, pages: [] } as UnitContentData);
       const resolved = resolveClassUnitContent(masterContent, cu.content_data);
 
       const unitDetail: UnitDetail = {
-        id: cu.units.id,
-        title: cu.units.title,
+        id: unitRow.id,
+        title: unitRow.title,
         contentData: resolved,
       };
       setUnit(unitDetail);
