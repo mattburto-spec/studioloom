@@ -50,6 +50,7 @@ interface PutBody {
   confirmed?: boolean;
   criterion_keys?: string[];
   override_note?: string;
+  student_facing_comment?: string | null;
   marking_session_id?: string;
   // AI fields are accepted but ignored in G1.1 (no AI wiring yet); G1.3
   // will start populating these.
@@ -125,6 +126,7 @@ export async function PUT(request: NextRequest) {
     confirmed: body.confirmed,
     criterion_keys: body.criterion_keys!,
     override_note: body.override_note,
+    student_facing_comment: body.student_facing_comment,
     marking_session_id: body.marking_session_id,
     ai_pre_score: body.ai_pre_score,
     ai_quote: body.ai_quote,

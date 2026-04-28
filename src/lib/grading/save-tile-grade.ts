@@ -103,6 +103,8 @@ export interface SaveTileGradeInput {
   confirmed: boolean;
   criterion_keys: string[];
   override_note?: string;
+  /** G2.3 — student-facing comment, visible inside the student's lesson view. */
+  student_facing_comment?: string | null;
   marking_session_id?: string;
   // AI fields (optional — populated by G1.3 wiring):
   ai_pre_score?: number | null;
@@ -203,7 +205,11 @@ export async function saveTileGrade(
     updated_at: now,
   };
 
-  // Only forward AI fields if the caller is wiring them (G1.3+).
+  // Only forward optional fields if the caller passed them, so G1.1 saves
+  // don't accidentally null out columns G1.3+/G2.3 populate.
+  if (input.student_facing_comment !== undefined) {
+    upsertPayload.student_facing_comment = input.student_facing_comment;
+  }
   if (input.ai_pre_score !== undefined) upsertPayload.ai_pre_score = input.ai_pre_score;
   if (input.ai_quote !== undefined) upsertPayload.ai_quote = input.ai_quote;
   if (input.ai_confidence !== undefined) upsertPayload.ai_confidence = input.ai_confidence;
