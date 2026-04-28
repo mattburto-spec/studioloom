@@ -17,6 +17,15 @@ interface ClassRow {
   unitCount: number;
   framework?: string;
   subject?: string;
+  /**
+   * Cohort label — derived 28 Apr 2026 from the term system (migration 042).
+   * Picks the most-recent active enrollment's term_id, looks up its
+   * term_name + academic_year, displays as a chip on the card.
+   * Solves the "three '10 Design' classes look identical" discoverability
+   * problem when a teacher uses the per-year-class workflow. Null when no
+   * enrollments have a term_id (cohort system not in use for this class).
+   */
+  cohortLabel: string | null;
 }
 
 export default function ClassesPage() {
@@ -50,11 +59,15 @@ export default function ClassesPage() {
 
     const classIds = classData.map((c) => c.id);
     const [studentsRes, classUnitsRes] = await Promise.all([
+      // Pull term_id + enrolled_at so we can derive cohort label per class.
+      // Sorted DESC so the first row per class_id we see is the most-recent
+      // enrollment (used as the canonical "current cohort" of the class).
       supabase
         .from("class_students")
-        .select("class_id")
+        .select("class_id, term_id, enrolled_at")
         .in("class_id", classIds)
-        .eq("is_active", true),
+        .eq("is_active", true)
+        .order("enrolled_at", { ascending: false }),
       supabase
         .from("class_units")
         .select("class_id, is_active")
@@ -62,8 +75,33 @@ export default function ClassesPage() {
     ]);
 
     const studentCounts: Record<string, number> = {};
+    // Derive most-recent term_id per class. studentsRes is sorted enrolled_at
+    // DESC, so the FIRST occurrence we see for each class_id is the newest
+    // enrollment. Skip rows where term_id is null (cohort system not in use
+    // for that enrollment).
+    const classToTermId: Record<string, string> = {};
     for (const s of studentsRes.data || []) {
       studentCounts[s.class_id] = (studentCounts[s.class_id] || 0) + 1;
+      if (s.term_id && !(s.class_id in classToTermId)) {
+        classToTermId[s.class_id] = s.term_id;
+      }
+    }
+
+    // Batch-fetch unique term names. Most teachers will have <10 active
+    // terms so this is cheap. Empty array → skip the query.
+    const uniqueTermIds = [...new Set(Object.values(classToTermId))];
+    let termsById: Record<string, { term_name: string; academic_year: string }> = {};
+    if (uniqueTermIds.length > 0) {
+      const { data: termRows } = await supabase
+        .from("school_calendar_terms")
+        .select("id, term_name, academic_year")
+        .in("id", uniqueTermIds);
+      termsById = Object.fromEntries(
+        (termRows ?? []).map((t) => [
+          t.id as string,
+          { term_name: t.term_name as string, academic_year: t.academic_year as string },
+        ])
+      );
     }
 
     const unitCounts: Record<string, number> = {};
@@ -74,11 +112,17 @@ export default function ClassesPage() {
     }
 
     setClasses(
-      classData.map((c) => ({
-        ...c,
-        studentCount: studentCounts[c.id] || 0,
-        unitCount: unitCounts[c.id] || 0,
-      }))
+      classData.map((c) => {
+        const termId = classToTermId[c.id];
+        const term = termId ? termsById[termId] : null;
+        const cohortLabel = term ? `${term.term_name} ${term.academic_year}`.trim() : null;
+        return {
+          ...c,
+          studentCount: studentCounts[c.id] || 0,
+          unitCount: unitCounts[c.id] || 0,
+          cohortLabel,
+        };
+      })
     );
     setLoading(false);
   }, []);
@@ -457,6 +501,19 @@ export default function ClassesPage() {
                                 } as Record<string, string>)[cls.framework] || cls.framework}
                               </span>
                             )}
+                            {/* Cohort label — derived from the most-recent
+                                active enrollment's term. Distinguishes
+                                multiple classes with the same display name
+                                (e.g. three "10 Design" classes). 28 Apr 2026
+                                — class-architecture-cleanup §3. */}
+                            {cls.cohortLabel && (
+                              <span
+                                className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200"
+                                title="Current cohort/term — set on enrollments via the class detail page"
+                              >
+                                {cls.cohortLabel}
+                              </span>
+                            )}
                           </div>
                           {/* Stats row */}
                           <div className="flex items-center gap-3 mt-0.5">
@@ -664,6 +721,14 @@ export default function ClassesPage() {
                                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">
                                   Archived
                                 </span>
+                                {cls.cohortLabel && (
+                                  <span
+                                    className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-50 text-gray-500 border border-gray-200"
+                                    title="Cohort/term — frozen at archive time"
+                                  >
+                                    {cls.cohortLabel}
+                                  </span>
+                                )}
                               </div>
                               <div className="flex items-center gap-3 mt-0.5">
                                 <span className="text-xs text-text-secondary">{cls.studentCount} student{cls.studentCount !== 1 ? "s" : ""}</span>
