@@ -51,9 +51,34 @@ ALTER TABLE fabrication_jobs
 -- pre-existing rows (rows without lab_id are still nullable until
 -- step 4 below), but adding them now means new INSERTs during the
 -- migration window respect them.
+--
+-- Phase 8.1d-39 (audit MED-6, retroactive guard added 28 Apr):
+-- the original Phase 8-1 draft created `fabrication_labs` in
+-- migration 113. After 27 Apr's school-scoped revision deleted
+-- 113 and replaced it with a timestamp-prefixed migration that
+-- sorts AFTER 120 in lex order, this DO block was at risk of
+-- failing on fresh-install runs ("relation fabrication_labs does
+-- not exist"). The added guard skips the FK creation if the
+-- target table doesn't exist yet — the follow-up migration
+-- 20260428041707_restore_fabrication_jobs_lab_fk.sql then adds
+-- the constraint after fabrication_labs is created. Existing
+-- prod databases already have the FK from 25 Apr's apply; this
+-- guard is a no-op for them (the NOT EXISTS check at the
+-- constraint level catches that case).
 DO $$ BEGIN
-  -- Skip if already present (idempotent rerun safety).
+  -- Skip if the target table doesn't exist yet (fresh-install
+  -- ordering — see header comment for the full story).
   IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_name = 'fabrication_labs'
+  ) THEN
+    RAISE NOTICE 'Skipping fabrication_jobs_lab_id_fkey creation '
+      'in migration 120: fabrication_labs table does not exist '
+      'yet (fresh install). The FK will be added by '
+      '20260428041707_restore_fabrication_jobs_lab_fk.sql once '
+      'the labs table is created.';
+  -- Skip if already present (idempotent rerun safety).
+  ELSIF NOT EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conname = 'fabrication_jobs_lab_id_fkey'
   ) THEN
@@ -76,44 +101,68 @@ DO $$ BEGIN
 END $$;
 
 -- ============================================================
--- 2. Backfill — primary pass: from the bound machine
+-- 2-3. Backfill — wrapped in fresh-install guard (8.1d-39 audit MED-6).
 -- ============================================================
--- Most jobs (probably 100% before this migration) have a non-null
--- machine_profile_id; copy lab_id + machine_category from there.
+-- The entire backfill block is wrapped in a check for
+-- fabrication_labs existence, AND the fallback block ALSO checks
+-- for fabrication_labs.teacher_id + is_default columns existing.
+-- Why:
+--   - Fresh install: fabrication_labs doesn't exist → no jobs to
+--     backfill (0 rows in fabrication_jobs) → entire block is a
+--     safe no-op.
+--   - Prod re-run: fabrication_labs may exist but with the new
+--     school-scoped schema (no teacher_id, no is_default) — block
+--     is no-op there too because jobs already have lab_id set.
+--   - Original 25 Apr apply: both legacy columns existed, backfill
+--     ran successfully → all jobs got lab_id.
+-- The COLUMN existence check uses information_schema.columns; the
+-- fresh-install COLUMN check uses pg_class because column lookups
+-- on a missing table return 0 rows (safe), but explicit table
+-- check makes the intent obvious.
 
-UPDATE fabrication_jobs job
-SET
-  lab_id = mp.lab_id,
-  machine_category = mp.machine_category
-FROM machine_profiles mp
-WHERE job.machine_profile_id = mp.id
-  AND (job.lab_id IS NULL OR job.machine_category IS NULL);
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_name = 'fabrication_labs'
+  ) THEN
+    -- Step 2: primary backfill from machine_profiles
+    UPDATE fabrication_jobs job
+    SET
+      lab_id = mp.lab_id,
+      machine_category = mp.machine_category
+    FROM machine_profiles mp
+    WHERE job.machine_profile_id = mp.id
+      AND (job.lab_id IS NULL OR job.machine_category IS NULL);
 
--- ============================================================
--- 3. Backfill — fallback: orphan-machine jobs use teacher's default lab
--- ============================================================
--- A machine with NULL lab_id (orphan from a deleted lab — see
--- Phase 8.1d cascade SET NULL behaviour) leaves its jobs without a
--- lab after step 2. Slot them into the teacher's default lab so the
--- migration can flip lab_id to NOT NULL. Teacher's default lab is
--- guaranteed to exist post-Phase-8 backfill (migration 114).
+    -- Step 3: fallback to teacher's default lab — only runs if the
+    -- legacy columns exist (24 Apr schema). Post-revision (27 Apr
+    -- school-scoped) these columns are gone, so the fallback is a
+    -- no-op. Existing jobs missing lab_id at that point would be
+    -- handled by the new Phase 8-1 backfill migration instead.
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'fabrication_labs'
+        AND column_name = 'is_default'
+    ) THEN
+      UPDATE fabrication_jobs job
+      SET lab_id = lab.id
+      FROM fabrication_labs lab
+      WHERE job.lab_id IS NULL
+        AND lab.teacher_id = job.teacher_id
+        AND lab.is_default = true;
+    END IF;
 
-UPDATE fabrication_jobs job
-SET lab_id = lab.id
-FROM fabrication_labs lab
-WHERE job.lab_id IS NULL
-  AND lab.teacher_id = job.teacher_id
-  AND lab.is_default = true;
-
--- machine_category is harder to fall back on if even the machine
--- row is gone (deleted or NULL category). Defensive default: rows
--- whose machine has NULL machine_category get '3d_printer' since
--- printers are the dominant case. Any flagged drift surfaces in
--- the post-migration probe below.
-
-UPDATE fabrication_jobs job
-SET machine_category = '3d_printer'
-WHERE job.machine_category IS NULL;
+    -- machine_category fallback: independent of fabrication_labs.
+    UPDATE fabrication_jobs job
+    SET machine_category = '3d_printer'
+    WHERE job.machine_category IS NULL;
+  ELSE
+    RAISE NOTICE 'Skipping migration 120 backfill: fabrication_labs '
+      'table does not exist yet (fresh install). The new Phase 8-1 '
+      'backfill (20260427135108_backfill_fabrication_labs.sql) will '
+      'handle lab_id population once the labs table is created.';
+  END IF;
+END $$;
 
 -- ============================================================
 -- 4. Verify zero NULLs before flipping NOT NULL
