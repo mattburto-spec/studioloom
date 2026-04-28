@@ -82,13 +82,12 @@ describe("GET /api/teacher/labs", () => {
       labs: [
         {
           id: "lab-1",
-          teacherId: "teacher-1",
-          schoolId: null,
+          schoolId: "school-1",
+          createdByTeacherId: "teacher-1",
           name: "Default lab",
           description: null,
-          isDefault: true,
-          createdAt: "2026-04-25T00:00:00Z",
-          updatedAt: "2026-04-25T00:00:00Z",
+          createdAt: "2026-04-28T00:00:00Z",
+          updatedAt: "2026-04-28T00:00:00Z",
           machineCount: 2,
         },
       ],
@@ -154,20 +153,18 @@ describe("POST /api/teacher/labs", () => {
     createLabSpy.mockResolvedValueOnce({
       lab: {
         id: "new-lab",
-        teacherId: "teacher-1",
-        schoolId: null,
+        schoolId: "school-1",
+        createdByTeacherId: "teacher-1",
         name: "2nd floor",
         description: "north wing",
-        isDefault: false,
-        createdAt: "2026-04-25T00:00:00Z",
-        updatedAt: "2026-04-25T00:00:00Z",
+        createdAt: "2026-04-28T00:00:00Z",
+        updatedAt: "2026-04-28T00:00:00Z",
       },
     });
     const res = await createPost(
       makeRequest({
         name: "2nd floor",
         description: "north wing",
-        isDefault: false,
       })
     );
     expect(res.status).toBe(201);
@@ -175,7 +172,6 @@ describe("POST /api/teacher/labs", () => {
       teacherId: "teacher-1",
       name: "2nd floor",
       description: "north wing",
-      isDefault: false,
     });
   });
 
@@ -187,11 +183,14 @@ describe("POST /api/teacher/labs", () => {
     expect(res.status).toBe(400);
   });
 
-  it("propagates 409 on duplicate default", async () => {
+  it("propagates 409 on duplicate name (revised — was 'duplicate default')", async () => {
     createLabSpy.mockResolvedValueOnce({
-      error: { status: 409, message: "You already have a default lab." },
+      error: {
+        status: 409,
+        message: "A lab named \"x\" already exists at your school.",
+      },
     });
-    const res = await createPost(makeRequest({ name: "x", isDefault: true }));
+    const res = await createPost(makeRequest({ name: "x" }));
     expect(res.status).toBe(409);
   });
 });
@@ -229,13 +228,12 @@ describe("PATCH /api/teacher/labs/[id]", () => {
     updateLabSpy.mockResolvedValueOnce({
       lab: {
         id: "lab-1",
-        teacherId: "teacher-1",
-        schoolId: null,
+        schoolId: "school-1",
+        createdByTeacherId: "teacher-1",
         name: "Renamed",
         description: null,
-        isDefault: false,
-        createdAt: "2026-04-25T00:00:00Z",
-        updatedAt: "2026-04-25T00:00:00Z",
+        createdAt: "2026-04-28T00:00:00Z",
+        updatedAt: "2026-04-28T00:00:00Z",
       },
     });
     const { req, context } = makeRequest("lab-1", {
@@ -249,7 +247,6 @@ describe("PATCH /api/teacher/labs/[id]", () => {
       labId: "lab-1",
       name: "Renamed",
       description: null,
-      isDefault: undefined,
     });
   });
 
@@ -287,8 +284,8 @@ describe("DELETE /api/teacher/labs/[id]", () => {
 
   it("passes labId without reassignTo for empty-lab delete", async () => {
     deleteLabSpy.mockResolvedValueOnce({
-      deletedLabId: "lab-1",
-      reassignedMachineCount: 0,
+      deletedId: "lab-1",
+      reassigned: { machines: 0, classes: 0, teachers: 0 },
     });
     const { req, context } = makeRequest("lab-1");
     const res = await deleteRoute(req, context);
@@ -302,8 +299,8 @@ describe("DELETE /api/teacher/labs/[id]", () => {
 
   it("passes reassignTo from query string", async () => {
     deleteLabSpy.mockResolvedValueOnce({
-      deletedLabId: "lab-1",
-      reassignedMachineCount: 3,
+      deletedId: "lab-1",
+      reassigned: { machines: 3, classes: 0, teachers: 0 },
     });
     const { req, context } = makeRequest("lab-1", "lab-2");
     const res = await deleteRoute(req, context);
@@ -348,7 +345,7 @@ describe("PATCH /api/teacher/labs/[id]/machines", () => {
     mockUserId = null;
     const { req, context } = makeRequest("lab-1", {
       machineProfileId: "m1",
-      targetLabId: "lab-2",
+      toLabId: "lab-2",
     });
     const res = await reassignPatch(req, context);
     expect(res.status).toBe(401);
@@ -362,7 +359,7 @@ describe("PATCH /api/teacher/labs/[id]/machines", () => {
 
   it("returns 400 when machineProfileId is missing", async () => {
     const { req, context } = makeRequest("lab-1", {
-      targetLabId: "lab-2",
+      toLabId: "lab-2",
     });
     const res = await reassignPatch(req, context);
     expect(res.status).toBe(400);
@@ -370,14 +367,14 @@ describe("PATCH /api/teacher/labs/[id]/machines", () => {
     expect(json.error).toMatch(/machineProfileId/);
   });
 
-  it("returns 400 when targetLabId is missing", async () => {
+  it("returns 400 when toLabId is missing", async () => {
     const { req, context } = makeRequest("lab-1", {
       machineProfileId: "m1",
     });
     const res = await reassignPatch(req, context);
     expect(res.status).toBe(400);
     const json = await res.json();
-    expect(json.error).toMatch(/targetLabId/);
+    expect(json.error).toMatch(/toLabId/);
   });
 
   it("passes all params to reassignMachineToLab + 200 on success", async () => {
@@ -388,15 +385,15 @@ describe("PATCH /api/teacher/labs/[id]/machines", () => {
     });
     const { req, context } = makeRequest("lab-1", {
       machineProfileId: "m1",
-      targetLabId: "lab-2",
+      toLabId: "lab-2",
     });
     const res = await reassignPatch(req, context);
     expect(res.status).toBe(200);
     expect(reassignSpy).toHaveBeenCalledWith(expect.anything(), {
       teacherId: "teacher-1",
-      sourceLabId: "lab-1",
+      fromLabId: "lab-1",
       machineProfileId: "m1",
-      targetLabId: "lab-2",
+      toLabId: "lab-2",
     });
   });
 
@@ -406,7 +403,7 @@ describe("PATCH /api/teacher/labs/[id]/machines", () => {
     });
     const { req, context } = makeRequest("lab-1", {
       machineProfileId: "sys-1",
-      targetLabId: "lab-2",
+      toLabId: "lab-2",
     });
     const res = await reassignPatch(req, context);
     expect(res.status).toBe(409);
