@@ -371,11 +371,20 @@ export async function createUploadJob(
     resolvedCategory = profile.data.machine_category;
     resolvedMachineId = profile.data.id;
   } else {
-    // Path b: labId + machineCategory provided directly. validate
-    // the lab is real + owned by this teacher.
+    // Path b: labId + machineCategory provided directly. Validate
+    // the lab is real + accessible to this teacher.
+    //
+    // Phase 8-1 (28 Apr) flipped lab ownership from teacher-scoped
+    // to SCHOOL-scoped: any teacher at a school sees + uses any of
+    // the school's labs. Validation now requires that the lab's
+    // school_id matches the teacher's school_id (one extra teacher
+    // lookup vs the old teacher_id direct compare).
+    //
+    // 404 — not 403 — on mismatch so we don't leak existence of
+    // labs at other schools.
     const labRow = await db
       .from("fabrication_labs")
-      .select("id, teacher_id")
+      .select("id, school_id")
       .eq("id", req.labId as string)
       .maybeSingle();
     if (labRow.error) {
@@ -386,7 +395,28 @@ export async function createUploadJob(
         },
       };
     }
-    if (!labRow.data || labRow.data.teacher_id !== teacherId) {
+    if (!labRow.data) {
+      return { error: { status: 404, message: "Lab not found" } };
+    }
+    const teacherRow = await db
+      .from("teachers")
+      .select("school_id")
+      .eq("id", teacherId)
+      .maybeSingle();
+    if (teacherRow.error) {
+      return {
+        error: {
+          status: 500,
+          message: `Teacher lookup failed: ${teacherRow.error.message}`,
+        },
+      };
+    }
+    if (
+      !teacherRow.data ||
+      teacherRow.data.school_id !== labRow.data.school_id
+    ) {
+      // Teacher has no school_id (orphan), OR the lab belongs to
+      // a different school. Either way, treat as not-found.
       return { error: { status: 404, message: "Lab not found" } };
     }
     resolvedLabId = req.labId as string;
