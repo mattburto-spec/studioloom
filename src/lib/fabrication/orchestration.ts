@@ -245,8 +245,11 @@ export function validateUploadRequest(
 /**
  * Build the Storage path for a revision. Spec §4 Stage 1 proposed
  * `fabrication/{school_id}/{teacher_id}/{student_id}/{job_id}/v{version}.{ext}`
- * — we drop school_id because it's nullable throughout the schema.
- * Easy to add later by inserting `{schoolId}/` when schools lands.
+ * — we ship without `{school_id}` for v1. The current shape works
+ * fine for the single-school NIS pilot. Phase 8-1 made `school_id`
+ * NOT NULL on labs, so a future migration could backfill the
+ * `{school_id}/` prefix without schema changes — just a Storage
+ * key migration. Out of scope until pilot expands beyond NIS.
  */
 export function buildStoragePath(params: {
   teacherId: string;

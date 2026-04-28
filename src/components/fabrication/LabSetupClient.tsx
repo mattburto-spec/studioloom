@@ -22,7 +22,11 @@ import {
 import { MachineEditModal } from "./MachineEditModal";
 import { AddLabModal } from "./AddLabModal";
 import { AddMachineModal } from "./AddMachineModal";
-import { AssignClassesToLabModal } from "./AssignClassesToLabModal";
+// Phase 8-4 path 1 (28 Apr): AssignClassesToLabModal dropped —
+// class-to-lab filtering was deprecated at Phase 8.1d-5 ("have all
+// labs available for students to see"), and the modal had no remaining
+// trigger after the Assign-classes button was removed. The default-lab
+// API route + DB column survive as forward-compat seams.
 import { ApprovalWorkflowCard } from "./ApprovalWorkflowCard";
 import type { LabListRow } from "@/lib/fabrication/lab-orchestration";
 import type { MachineProfileRow } from "@/lib/fabrication/machine-orchestration";
@@ -41,8 +45,7 @@ type FetchState =
 type Modal =
   | { kind: "add-lab" }
   | { kind: "add-machine"; labId: string }
-  | { kind: "edit-machine"; machine: MachineProfileRow }
-  | { kind: "assign-classes"; labId: string; labName: string };
+  | { kind: "edit-machine"; machine: MachineProfileRow };
 
 export function LabSetupClient() {
   const [state, setState] = React.useState<FetchState>({ kind: "loading" });
@@ -549,17 +552,6 @@ export function LabSetupClient() {
               ? state.data.labs.filter((l) => l.id !== "__unassigned__")
               : undefined
           }
-          onClose={() => setModal(null)}
-          onSaved={() => {
-            setModal(null);
-            fetchAll(true);
-          }}
-        />
-      )}
-      {modal?.kind === "assign-classes" && (
-        <AssignClassesToLabModal
-          labId={modal.labId}
-          labName={modal.labName}
           onClose={() => setModal(null)}
           onSaved={() => {
             setModal(null);

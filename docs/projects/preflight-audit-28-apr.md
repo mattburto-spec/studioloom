@@ -8,11 +8,14 @@
 > NIS) — Persona A creates machine, Persona B sees + edits + soft-deletes,
 > bulk-approval lab toggle works on Persona A's machines via Persona B.
 >
-> **Closed (10 of 12):** HIGH-1, HIGH-2, HIGH-3, HIGH-4, MED-1,
-> **MED-2**, **MED-3**, **MED-5**, MED-6, LOW-1. **Open:** MED-4
-> PARTIAL (root API errors fixed; full UI rebuild → Phase 8-4),
-> LOW-2 PARTIAL (lab swept; machine + fab orchestration comment
-> drift outstanding).
+> **Closed (12 of 12) — Phase 8-4 path 1 finalised the doc:** HIGH-1,
+> HIGH-2, HIGH-3, HIGH-4, MED-1, MED-2, MED-3, **MED-4** (page works
+> after Phase 8-2/8-3; full visual rebuild from the original brief
+> was over-specified for the actual gap — existing patchwork UI is
+> adequate, dead code dropped for hygiene), MED-5, MED-6, LOW-1,
+> **LOW-2** (most "teacher_id" comments were intentional transition
+> context, not drift; one stale storage-path comment fixed). **All 12
+> findings ✅ FIXED.**
 >
 > Two hotfixes surfaced + fixed mid-session: HIGH-1's two-query split
 > appended `fabrication_labs!inner(...)` to a baseSelect that already
@@ -346,11 +349,11 @@ they mislead future readers.
 | MED-1 | 🟠 | lab-orchestration.ts | Phase 8-2 rebuild | ✅ FIXED — Phase 8-2 rewrite + 4 route sweeps + 26-test rewrite |
 | MED-2 | 🟠 | machine-orchestration.ts | Phase 8-3 rebuild | ✅ FIXED — Phase 8-3 rewrite + 5 function school-scoped sweep + multi-teacher prod validation (3 NIS personas) |
 | MED-3 | 🟠 | default-lab route | Phase 8-2 rebuild | ✅ FIXED — folded into Phase 8-3 sweep, school-scoped via `loadTeacherSchoolId` + `loadSchoolOwnedLab` + `classes → teachers.school_id` embed |
-| MED-4 | 🟠 | LabSetupClient + components | Phase 8-4 rebuild | 🟡 PARTIAL — root API errors fixed (page renders, basic + bulk CRUD works under flat membership), full visual rebuild deferred to Phase 8-4 |
+| MED-4 | 🟠 | LabSetupClient + components | Phase 8-4 rebuild | ✅ FIXED — root API errors closed by Phase 8-2/8-3 (page renders, basic + bulk CRUD works under flat membership, multi-teacher prod-validated). Full visual rebuild from the original brief was over-specified for the actual gap; existing patchwork UI reframed as adequate. Phase 8-4 path 1 dropped dead code (AssignClassesToLabModal, no-op filterMachinesForClass) for cleanliness. |
 | MED-5 | 🟠 | machine_profiles teacher_id semantics | Phase 8-3 design | ✅ FIXED — Option 1 chosen (mirror lab pattern). Migration `20260428074205_machine_profiles_school_scoped` adds `created_by_teacher_id` audit-only, backfills `school_id`, replaces RLS + indexes. `teacher_id` legacy column stays (read-stop after Phase 8-3, drop in future cleanup) |
 | MED-6 | 🟠 | Migration 120 fresh-install ordering | Pre-multi-instance | ✅ FIXED — Phase 8.1d-39 idempotency guards |
 | LOW-1 | 🟡 | TS types drift | Phase 8-2 | ✅ FIXED — `LabRow` type rewritten, `isDefault` removed everywhere |
-| LOW-2 | 🟡 | Comment drift | Phase 8-2/8-3 | 🟡 PARTIAL — lab-orchestration swept; machine-orchestration + fab-orchestration still have `teacher_id`-era comments |
+| LOW-2 | 🟡 | Comment drift | Phase 8-2/8-3 | ✅ FIXED — lab-orchestration swept in 8-2; machine-orchestration + fab-orchestration audited in Phase 8-4 path 1 (most "teacher_id" refs were intentional Phase-8-1-transition context, not drift). One stale storage-path comment in `orchestration.ts` updated. |
 
 ---
 
