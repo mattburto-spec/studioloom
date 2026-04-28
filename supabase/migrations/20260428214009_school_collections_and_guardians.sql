@@ -1,0 +1,12 @@
+-- Migration: school_collections_and_guardians
+-- Created: 20260428214009 UTC
+--
+-- WHY: <one paragraph — what problem does this migration solve?>
+-- IMPACT: <which tables/columns/indexes/RLS policies change?>
+-- ROLLBACK: paired .down.sql undoes this migration.
+--
+-- Claim discipline: commit + push this stub IMMEDIATELY (before writing
+-- the SQL body) so the timestamp is reserved on origin. See
+-- scripts/migrations/new-migration.sh for the full ritual.
+
+-- TODO: write SQL here
