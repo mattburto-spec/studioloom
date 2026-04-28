@@ -180,6 +180,7 @@ interface TileGradeRow {
   confirmed: boolean;
   ai_pre_score: number | null;
   criterion_keys: string[];
+  override_note?: string | null;
 }
 
 function CalibrateView({ classId }: { classId: string }) {
@@ -187,8 +188,12 @@ function CalibrateView({ classId }: { classId: string }) {
   const [unit, setUnit] = useState<UnitDetail | null>(null);
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [grades, setGrades] = useState<Record<string, TileGradeRow>>({});
+  // student_progress.responses, keyed: studentId → tileId → response text.
+  const [responses, setResponses] = useState<Record<string, Record<string, string>>>({});
   const [activeTileIdx, setActiveTileIdx] = useState(0);
   const [activePageId, setActivePageId] = useState<string | null>(null);
+  const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
+  const [overrideNoteDraft, setOverrideNoteDraft] = useState<Record<string, string>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
@@ -312,15 +317,49 @@ function CalibrateView({ classId }: { classId: string }) {
       // Existing grades for this class+unit.
       const { data: gradeRows } = await supabase
         .from("student_tile_grades")
-        .select("id, student_id, page_id, tile_id, score, confirmed, ai_pre_score, criterion_keys")
+        .select("id, student_id, page_id, tile_id, score, confirmed, ai_pre_score, criterion_keys, override_note")
         .eq("class_id", classId)
         .eq("unit_id", unitDetail.id);
 
       const map: Record<string, TileGradeRow> = {};
-      for (const g of (gradeRows ?? []) as TileGradeRow[]) {
-        map[gradeKey(g.student_id, g.tile_id, g.page_id)] = g;
+      const noteDraftMap: Record<string, string> = {};
+      for (const g of (gradeRows ?? []) as (TileGradeRow & { override_note?: string | null })[]) {
+        const k = gradeKey(g.student_id, g.tile_id, g.page_id);
+        map[k] = g;
+        if (g.override_note) noteDraftMap[k] = g.override_note;
       }
       setGrades(map);
+      setOverrideNoteDraft(noteDraftMap);
+
+      // Student responses for the active page (drives the override panel's
+      // "see the actual work" view). Keyed by tile_id matching response keys
+      // produced by the student page (`activity_<id>` / `section_<idx>`).
+      const cohortIds = cohort.map((s) => s.id);
+      if (cohortIds.length > 0) {
+        const { data: progressRows } = await supabase
+          .from("student_progress")
+          .select("student_id, page_id, responses")
+          .eq("unit_id", unitDetail.id)
+          .eq("page_id", firstWithSections.id)
+          .in("student_id", cohortIds);
+
+        type ProgressRow = {
+          student_id: string;
+          page_id: string;
+          responses: Record<string, unknown> | null;
+        };
+        const responseMap: Record<string, Record<string, string>> = {};
+        for (const p of (progressRows ?? []) as ProgressRow[]) {
+          if (!p.responses || typeof p.responses !== "object") continue;
+          const stringResponses: Record<string, string> = {};
+          for (const [k, v] of Object.entries(p.responses)) {
+            if (typeof v === "string") stringResponses[k] = v;
+          }
+          responseMap[p.student_id] = stringResponses;
+        }
+        setResponses(responseMap);
+      }
+
       setLoading(false);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "Unexpected error loading data.");
@@ -389,25 +428,32 @@ function CalibrateView({ classId }: { classId: string }) {
     return Array.from(out);
   }
 
-  async function saveTile(studentId: string, score: number | null, confirmed: boolean) {
+  async function saveTile(
+    studentId: string,
+    score: number | null,
+    confirmed: boolean,
+    extras: { override_note?: string | null } = {},
+  ) {
     if (!klass || !unit || !activePageId || !activeTile) return;
     const key = gradeKey(studentId, activeTile.tileId, activePageId);
     setSavingKey(key);
     try {
       const criterionKeys = resolveNeutralKeys(activeTile.criterionTags);
+      const payload: Record<string, unknown> = {
+        student_id: studentId,
+        unit_id: unit.id,
+        page_id: activePageId,
+        tile_id: activeTile.tileId,
+        class_id: klass.id,
+        score,
+        confirmed,
+        criterion_keys: criterionKeys,
+      };
+      if (extras.override_note !== undefined) payload.override_note = extras.override_note;
       const res = await fetch("/api/teacher/grading/tile-grades", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          student_id: studentId,
-          unit_id: unit.id,
-          page_id: activePageId,
-          tile_id: activeTile.tileId,
-          class_id: klass.id,
-          score,
-          confirmed,
-          criterion_keys: criterionKeys,
-        }),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -416,8 +462,15 @@ function CalibrateView({ classId }: { classId: string }) {
       // Optimistic refresh of just this row from the response.
       const newRow = json.grade as TileGradeRow;
       setGrades((prev) => ({ ...prev, [key]: newRow }));
+      // If the override_note round-tripped, sync the draft state so the
+      // textarea no longer shows "Unsaved" after a successful save.
+      if (extras.override_note !== undefined) {
+        setOverrideNoteDraft((prev) => ({
+          ...prev,
+          [key]: newRow.override_note ?? "",
+        }));
+      }
     } catch (err) {
-      // Surface inline; full error UX in G1.2.
       alert(err instanceof Error ? err.message : "Save failed");
     } finally {
       setSavingKey(null);
@@ -533,6 +586,13 @@ function CalibrateView({ classId }: { classId: string }) {
             const confirmed = grade?.confirmed ?? false;
             const aiPreScore = grade?.ai_pre_score ?? null;
             const isSaving = savingKey === key;
+            const isExpanded = expandedStudentId === s.id;
+            const responseText = responses[s.id]?.[activeTile.tileId] ?? "";
+            const noteDraft = overrideNoteDraft[key] ?? "";
+            const persistedNote =
+              ((grade as TileGradeRow & { override_note?: string | null })
+                ?.override_note ?? "") || "";
+            const noteDirty = noteDraft !== persistedNote;
             const displayName = s.display_name?.trim() || s.username?.trim() || "(unnamed)";
             const initials = displayName
               .split(/\s+/)
@@ -544,68 +604,179 @@ function CalibrateView({ classId }: { classId: string }) {
             return (
               <div
                 key={s.id}
-                className="grid grid-cols-[auto_1fr_auto_auto_auto] items-center gap-4 px-4 py-3 bg-white border border-gray-200 rounded-2xl"
+                className={[
+                  "bg-white border rounded-2xl transition-shadow",
+                  isExpanded ? "border-purple-300 shadow-md" : "border-gray-200",
+                ].join(" ")}
               >
-                {/* Avatar + name */}
-                <div className="flex items-center gap-3">
-                  {s.avatar_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={s.avatar_url}
-                      alt=""
-                      className="w-9 h-9 rounded-full object-cover bg-gray-100"
-                    />
-                  ) : (
-                    <div className="w-9 h-9 rounded-full bg-purple-100 text-purple-700 font-bold text-xs flex items-center justify-center">
-                      {initials}
+                {/* ── Compact row ── */}
+                <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-4 px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    {s.avatar_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={s.avatar_url}
+                        alt=""
+                        className="w-9 h-9 rounded-full object-cover bg-gray-100"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-purple-100 text-purple-700 font-bold text-xs flex items-center justify-center">
+                        {initials}
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{displayName}</p>
+                    <p className="text-[11px] text-gray-400 italic line-clamp-1">
+                      {responseText
+                        ? `"${responseText.slice(0, 90)}${responseText.length > 90 ? "…" : ""}"`
+                        : "No submission yet"}
+                    </p>
+                  </div>
+
+                  <ScoreSelector
+                    scale={scale}
+                    value={score}
+                    onChange={(next) => void saveTile(s.id, next, false)}
+                    disabled={isSaving}
+                  />
+
+                  <ScorePill
+                    scale={scale}
+                    score={score}
+                    confirmed={confirmed}
+                    aiPreScore={aiPreScore}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (score === null) {
+                        alert("Set a score first.");
+                        return;
+                      }
+                      void saveTile(s.id, score, !confirmed);
+                    }}
+                    disabled={isSaving || score === null}
+                    className={[
+                      "px-3 py-1.5 text-xs font-bold rounded-lg border transition",
+                      confirmed
+                        ? "bg-green-50 text-green-700 border-green-200"
+                        : "bg-white text-purple-700 border-purple-200 hover:bg-purple-50",
+                      isSaving || score === null ? "opacity-50 cursor-not-allowed" : "",
+                    ].join(" ")}
+                  >
+                    {isSaving ? "…" : confirmed ? "Confirmed" : "Confirm"}
+                  </button>
+
+                  {/* Expand chevron */}
+                  <button
+                    type="button"
+                    onClick={() => setExpandedStudentId(isExpanded ? null : s.id)}
+                    className="w-7 h-7 rounded-md text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition flex items-center justify-center"
+                    aria-label={isExpanded ? "Collapse details" : "Expand details"}
+                    aria-expanded={isExpanded}
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s" }}
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* ── Override panel (G1.2) ── */}
+                {isExpanded && (
+                  <div className="border-t border-gray-100 p-4 bg-gray-50/40 rounded-b-2xl">
+                    <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-5">
+                      {/* Student work */}
+                      <div>
+                        <div className="text-[10px] font-bold tracking-wider uppercase text-gray-400 mb-2">
+                          Student response
+                        </div>
+                        {responseText ? (
+                          <div className="text-sm leading-relaxed text-gray-800 whitespace-pre-wrap bg-white border border-gray-200 rounded-xl p-4 max-h-[420px] overflow-y-auto">
+                            {responseText}
+                          </div>
+                        ) : (
+                          <div className="text-sm italic text-gray-500 bg-white border border-dashed border-gray-300 rounded-xl p-4">
+                            {displayName} hasn&rsquo;t submitted on this tile yet.
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Score + note column */}
+                      <div className="space-y-4">
+                        <div>
+                          <div className="text-[10px] font-bold tracking-wider uppercase text-gray-400 mb-2">
+                            Score
+                          </div>
+                          <ScoreSelector
+                            scale={scale}
+                            value={score}
+                            onChange={(next) => void saveTile(s.id, next, false)}
+                            disabled={isSaving}
+                          />
+                        </div>
+
+                        <div>
+                          <div className="text-[10px] font-bold tracking-wider uppercase text-gray-400 mb-2">
+                            Override note <span className="font-normal lowercase tracking-normal text-gray-400">(private to you)</span>
+                          </div>
+                          <textarea
+                            value={noteDraft}
+                            onChange={(e) =>
+                              setOverrideNoteDraft((prev) => ({ ...prev, [key]: e.target.value }))
+                            }
+                            placeholder="Why this score over what the rubric defaults to? Anchored to specific evidence is best."
+                            rows={4}
+                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                          />
+                          <div className="flex items-center justify-end gap-2 mt-2">
+                            {noteDirty && (
+                              <span className="text-[11px] text-amber-600 font-semibold">Unsaved</span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void saveTile(s.id, score, confirmed, {
+                                  override_note: noteDraft.trim() === "" ? null : noteDraft,
+                                })
+                              }
+                              disabled={isSaving || !noteDirty}
+                              className={[
+                                "px-3 py-1.5 text-xs font-bold rounded-lg transition",
+                                noteDirty
+                                  ? "bg-purple-600 text-white hover:bg-purple-700"
+                                  : "bg-gray-100 text-gray-400 cursor-not-allowed",
+                              ].join(" ")}
+                            >
+                              {isSaving ? "Saving…" : "Save note"}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-end pt-2 border-t border-gray-200">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedStudentId(null)}
+                            className="text-xs font-semibold text-gray-500 hover:text-gray-700 transition"
+                          >
+                            Done
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 truncate">{displayName}</p>
-                  <p className="text-[11px] text-gray-400 italic">
-                    {/* AI quote slot — empty until G1.3 */}
-                    AI evidence quote will appear here in G1.3.
-                  </p>
-                </div>
-
-                {/* Score selector (input) */}
-                <ScoreSelector
-                  scale={scale}
-                  value={score}
-                  onChange={(next) => void saveTile(s.id, next, false)}
-                  disabled={isSaving}
-                />
-
-                {/* Score pill (display) */}
-                <ScorePill
-                  scale={scale}
-                  score={score}
-                  confirmed={confirmed}
-                  aiPreScore={aiPreScore}
-                />
-
-                {/* Confirm button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (score === null) {
-                      alert("Set a score first.");
-                      return;
-                    }
-                    void saveTile(s.id, score, !confirmed);
-                  }}
-                  disabled={isSaving || score === null}
-                  className={[
-                    "px-3 py-1.5 text-xs font-bold rounded-lg border transition",
-                    confirmed
-                      ? "bg-green-50 text-green-700 border-green-200"
-                      : "bg-white text-purple-700 border-purple-200 hover:bg-purple-50",
-                    isSaving || score === null ? "opacity-50 cursor-not-allowed" : "",
-                  ].join(" ")}
-                >
-                  {isSaving ? "…" : confirmed ? "Confirmed" : "Confirm"}
-                </button>
+                  </div>
+                )}
               </div>
             );
           })
