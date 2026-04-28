@@ -150,3 +150,45 @@ export async function verifyTeacherOwnsClass(
 
   return !!data;
 }
+
+/**
+ * Verify a teacher can manage a specific student. Returns true when the
+ * teacher owns at least one class the student is currently enrolled in
+ * (active enrollment + non-archived class). Used by per-student endpoints
+ * that don't have a single classId in scope (e.g. unified support-settings
+ * page) but still need to enforce that random teachers can't edit students
+ * they have no relationship with.
+ *
+ * Stricter than `students.author_teacher_id` because that's "who created
+ * the student record" — co-teachers + shared classes mean someone other
+ * than the author may legitimately need to manage the student. Less strict
+ * than per-class verify because it doesn't require a specific class match.
+ */
+export async function verifyTeacherCanManageStudent(
+  teacherId: string,
+  studentId: string
+): Promise<boolean> {
+  const db = createAdminClient();
+
+  // Step 1: classes this teacher owns.
+  const { data: teacherClasses } = await db
+    .from("classes")
+    .select("id")
+    .eq("teacher_id", teacherId);
+  const teacherClassIds = (teacherClasses ?? [])
+    .map((r) => r.id as string)
+    .filter(Boolean);
+  if (teacherClassIds.length === 0) return false;
+
+  // Step 2: any active enrollment of the student in those classes?
+  const { data: hit } = await db
+    .from("class_students")
+    .select("class_id")
+    .eq("student_id", studentId)
+    .eq("is_active", true)
+    .in("class_id", teacherClassIds)
+    .limit(1)
+    .maybeSingle();
+
+  return !!hit;
+}

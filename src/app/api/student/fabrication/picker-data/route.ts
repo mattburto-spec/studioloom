@@ -41,10 +41,16 @@ export async function GET(request: NextRequest) {
 
   // Classes via class_students junction. Phase 8-5: also ship
   // default_lab_id so the client can filter machines when the
-  // student picks a class.
+  // student picks a class. Phase 8.1d-39 (audit HIGH-1): also pull
+  // the class's teacher's school_id so we can scope the machine
+  // picker to the student's school(s) — without this, the picker
+  // returned every active machine globally (cross-school inventory
+  // leak when pilot expands beyond NIS).
   const enrolmentsResult = await db
     .from("class_students")
-    .select("classes(id, name, code, default_lab_id)")
+    .select(
+      "classes(id, name, code, default_lab_id, teachers(school_id))"
+    )
     .eq("student_id", auth.studentId);
 
   if (enrolmentsResult.error) {
@@ -54,19 +60,53 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  type EnrolmentRow = {
-    classes:
-      | { id: string; name: string; code: string; default_lab_id: string | null }
-      | { id: string; name: string; code: string; default_lab_id: string | null }[]
-      | null;
+  type TeachersEmbed =
+    | { school_id: string | null }
+    | { school_id: string | null }[]
+    | null;
+  type ClassEmbed = {
+    id: string;
+    name: string;
+    code: string;
+    default_lab_id: string | null;
+    teachers: TeachersEmbed;
   };
-  const classes = (enrolmentsResult.data as EnrolmentRow[] | null ?? [])
+  type EnrolmentRow = {
+    classes: ClassEmbed | ClassEmbed[] | null;
+  };
+  const flatClasses = (enrolmentsResult.data as EnrolmentRow[] | null ?? [])
     .flatMap((row) => {
       // PostgREST returns the embedded table as an object when the FK is
       // singular, but some versions/select shapes return an array. Normalise.
       if (!row.classes) return [];
       return Array.isArray(row.classes) ? row.classes : [row.classes];
-    })
+    });
+
+  // Distinct school_ids the student's enrollments span. Most students
+  // are at one school but a transfer / visiting student could be at
+  // two. We surface every school-scoped machine they could legitimately
+  // pick.
+  const schoolIds = Array.from(
+    new Set(
+      flatClasses
+        .flatMap((c) => {
+          if (!c.teachers) return [];
+          return Array.isArray(c.teachers) ? c.teachers : [c.teachers];
+        })
+        .map((t) => t.school_id)
+        .filter((s): s is string => typeof s === "string" && s.length > 0)
+    )
+  );
+
+  // Strip the teachers embed before sending classes back — the
+  // client only needs id/name/code/default_lab_id.
+  const classes = flatClasses
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      code: c.code,
+      default_lab_id: c.default_lab_id,
+    }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   // Machine profiles — Phase 8.1d-5: nested-select the lab name so
@@ -74,21 +114,60 @@ export async function GET(request: NextRequest) {
   // Excludes soft-deleted (is_active=false). System templates first
   // — they have no lab and bucket into "Unassigned" / "Templates"
   // group on the picker side.
-  const profilesResult = await db
-    .from("machine_profiles")
-    .select(
-      "id, name, machine_category, machine_brand, machine_model, bed_size_x_mm, bed_size_y_mm, nozzle_diameter_mm, kerf_mm, is_system_template, lab_id, fabrication_labs(name)"
-    )
-    .eq("is_active", true)
-    .order("is_system_template", { ascending: false })
-    .order("name", { ascending: true });
+  //
+  // Phase 8.1d-39 (audit HIGH-1): server-side school filter.
+  // Two-query split (templates + school-scoped) so we don't have to
+  // do a complex `.or(...)` over an embedded-resource filter that
+  // PostgREST handles inconsistently. Templates are visible to every
+  // student regardless of school (they're seed data with no owner);
+  // teacher-owned machines must be in a lab at one of the student's
+  // schools.
+  const baseSelect =
+    "id, name, machine_category, machine_brand, machine_model, bed_size_x_mm, bed_size_y_mm, nozzle_diameter_mm, kerf_mm, is_system_template, lab_id, fabrication_labs(name)";
 
-  if (profilesResult.error) {
+  const templatesResult = await db
+    .from("machine_profiles")
+    .select(baseSelect)
+    .eq("is_active", true)
+    .eq("is_system_template", true)
+    .order("name", { ascending: true });
+  if (templatesResult.error) {
     return NextResponse.json(
-      { error: `Machine profile lookup failed: ${profilesResult.error.message}` },
+      { error: `Machine profile lookup failed: ${templatesResult.error.message}` },
       { status: 500, headers: NO_CACHE_HEADERS }
     );
   }
+
+  // School-scoped non-templates: only fetch if the student has at
+  // least one school. Orphan students (no school via any class)
+  // see only templates — no leakage of any school's machines.
+  let schoolProfilesData: unknown[] = [];
+  if (schoolIds.length > 0) {
+    const schoolResult = await db
+      .from("machine_profiles")
+      .select(`${baseSelect}, fabrication_labs!inner(school_id, name)`)
+      .eq("is_active", true)
+      .eq("is_system_template", false)
+      .in("fabrication_labs.school_id", schoolIds)
+      .order("name", { ascending: true });
+    if (schoolResult.error) {
+      return NextResponse.json(
+        { error: `Machine profile lookup failed: ${schoolResult.error.message}` },
+        { status: 500, headers: NO_CACHE_HEADERS }
+      );
+    }
+    schoolProfilesData = schoolResult.data ?? [];
+  }
+
+  // Build a single profilesResult-shaped array so the downstream
+  // mapping logic doesn't need to know about the split. Errors from
+  // each query are already returned above; this is just a merge.
+  const profilesResult = {
+    data: [
+      ...((templatesResult.data ?? []) as unknown[]),
+      ...schoolProfilesData,
+    ],
+  };
 
   // Flatten the nested fabrication_labs join into a `lab_name` field.
   // PostgREST nests as object or array depending on the FK; normalise.

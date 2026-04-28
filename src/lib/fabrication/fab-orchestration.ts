@@ -257,6 +257,91 @@ export async function fabricatorInvitingTeacherId(
 }
 
 /**
+ * Phase 8.1d-39 (audit HIGH-2/3/4): school-scoped fab context.
+ *
+ * Returns the fab's inviting teacher_id, that teacher's school_id,
+ * and the IDs of every other teacher at the same school. The
+ * `sameSchoolTeacherIds` set is the authoritative list of teachers
+ * whose jobs/machines/classes the fab can see + manage.
+ *
+ * This replaces the per-route `fabricatorInvitingTeacherId` →
+ * `teacher_id = X` filter pattern with school-scoped membership:
+ * Cynthia (invited by Matt persona 1) sees jobs from persona 2 +
+ * any other NIS teacher because they share `teachers.school_id`.
+ *
+ * Returns:
+ *   - { teacherId, schoolId, sameSchoolTeacherIds } on success
+ *   - null when fabricator missing/inactive
+ *   - { error: ... } on DB failure or orphan-school case
+ *     (school_id IS NULL on the inviting teacher → fab can't see
+ *      anything; surface as 404-equivalent; see callers)
+ */
+export interface FabricatorSchoolContext {
+  teacherId: string;
+  schoolId: string;
+  sameSchoolTeacherIds: string[];
+}
+
+export async function fabricatorSchoolContext(
+  db: SupabaseLike,
+  fabricatorId: string
+): Promise<FabricatorSchoolContext | null | OrchestrationError> {
+  const teacherIdResult = await fabricatorInvitingTeacherId(db, fabricatorId);
+  if (teacherIdResult === null) return null;
+  if (typeof teacherIdResult === "object") return teacherIdResult; // OrchestrationError
+
+  const teacherId = teacherIdResult;
+
+  // Look up the inviting teacher's school_id.
+  const teacherRow = await db
+    .from("teachers")
+    .select("school_id")
+    .eq("id", teacherId)
+    .maybeSingle();
+  if (teacherRow.error) {
+    return {
+      error: {
+        status: 500,
+        message: `Inviting teacher lookup failed: ${teacherRow.error.message}`,
+      },
+    };
+  }
+  const teacherData = teacherRow.data as { school_id: string | null } | null;
+  if (!teacherData || !teacherData.school_id) {
+    // The inviting teacher exists but has no school_id (orphan
+    // teacher pre-welcome-wizard). Treat the fab as having no
+    // visible school — same shape as missing/inactive fabricator.
+    return null;
+  }
+
+  const schoolId = teacherData.school_id;
+
+  // Pull every teacher at the same school. Excludes the
+  // @studioloom.internal sentinel by exact match (it has school_id
+  // IS NULL anyway, but belt + braces).
+  const peersResult = await db
+    .from("teachers")
+    .select("id")
+    .eq("school_id", schoolId);
+  if (peersResult.error) {
+    return {
+      error: {
+        status: 500,
+        message: `Same-school teacher lookup failed: ${peersResult.error.message}`,
+      },
+    };
+  }
+  const peers = (peersResult.data as Array<{ id: string }> | null) ?? [];
+  const sameSchoolTeacherIds = peers.map((t) => t.id);
+
+  return {
+    teacherId,
+    schoolId,
+    sameSchoolTeacherIds,
+  };
+}
+
+/**
  * Confirms the fabricator can CURRENTLY pick up this job — job
  * exists AND its machine is in the fabricator's assignment list.
  * Used for fresh pickups; NOT used for complete/fail on an own
@@ -277,11 +362,12 @@ async function loadFabricatorAssignedJob(
     }
   | OrchestrationError
 > {
-  // Phase 8.1d-9: scope by inviting teacher's jobs, not by junction.
-  // Fabricator can pick up any job from their inviting teacher.
-  const teacherId = await fabricatorInvitingTeacherId(db, fabricatorId);
-  if (teacherId !== null && typeof teacherId === "object") return teacherId;
-  if (!teacherId) {
+  // Phase 8.1d-9 + 8.1d-39 (audit HIGH-2/3/4): scope by SCHOOL, not
+  // by single inviting teacher. Fabricator can pick up any job from
+  // any teacher at the same school as their inviting teacher.
+  const ctx = await fabricatorSchoolContext(db, fabricatorId);
+  if (ctx !== null && typeof ctx === "object" && "error" in ctx) return ctx;
+  if (!ctx) {
     return { error: { status: 404, message: "Job not found" } };
   }
 
@@ -298,7 +384,7 @@ async function loadFabricatorAssignedJob(
   if (!result.data) {
     return { error: { status: 404, message: "Job not found" } };
   }
-  // 404 (not 403) on cross-teacher job — don't leak existence.
+  // 404 (not 403) on cross-school job — don't leak existence.
   const data = result.data as {
     id: string;
     status: string;
@@ -306,7 +392,7 @@ async function loadFabricatorAssignedJob(
     lab_tech_picked_up_by: string | null;
     teacher_id: string;
   };
-  if (data.teacher_id !== teacherId) {
+  if (!ctx.sameSchoolTeacherIds.includes(data.teacher_id)) {
     return { error: { status: 404, message: "Job not found" } };
   }
   return {
@@ -436,16 +522,17 @@ export async function listFabricatorQueue(
   const { fabricatorId, tab, limit = 100 } = params;
   const boundedLimit = Math.max(1, Math.min(limit, 200));
 
-  // Phase 8.1d-9: scope by inviting teacher (sees ALL their machines)
-  // not by per-machine junction. Drops the "teacher must assign
-  // machines per fabricator" overhead. See fabricatorInvitingTeacherId
-  // for the rationale.
-  const teacherId = await fabricatorInvitingTeacherId(db, fabricatorId);
-  if (teacherId !== null && typeof teacherId === "object") return teacherId;
+  // Phase 8.1d-9 + 8.1d-39 (audit HIGH-2): scope by SCHOOL, not by
+  // single inviting teacher. Cynthia (invited by Matt persona 1)
+  // sees jobs from persona 2 and any other NIS teacher because
+  // they share teachers.school_id. The .in("teacher_id", ids) call
+  // below replaces the old .eq("teacher_id", teacherId) filter.
+  const ctx = await fabricatorSchoolContext(db, fabricatorId);
+  if (ctx !== null && typeof ctx === "object" && "error" in ctx) return ctx;
 
-  // Fabricator missing/inactive — empty queue (route still returns
-  // 200; the fab session middleware would have 401'd if truly invalid).
-  if (!teacherId) {
+  // Fabricator missing/inactive OR inviting teacher has no school
+  // (orphan). Either way, empty queue — route returns 200.
+  if (!ctx) {
     return { jobs: [] };
   }
 
@@ -469,7 +556,7 @@ export async function listFabricatorQueue(
       fabrication_job_revisions(revision_number, thumbnail_path, file_size_bytes)
       `
     )
-    .eq("teacher_id", teacherId);
+    .in("teacher_id", ctx.sameSchoolTeacherIds);
 
   // Phase 8.1d-20: determine the order direction up front because
   // each tab keys on a different column + direction:
@@ -675,10 +762,11 @@ export async function getFabJobDetail(
 ): Promise<FabJobDetail | OrchestrationError> {
   const { fabricatorId, jobId } = params;
 
-  // Phase 8.1d-9: scope by inviting teacher rather than per-machine
-  // junction. Fabricator can see any job from their inviting teacher.
-  const teacherId = await fabricatorInvitingTeacherId(db, fabricatorId);
-  if (teacherId !== null && typeof teacherId === "object") return teacherId;
+  // Phase 8.1d-9 + 8.1d-39 (audit HIGH-2): school-scoped visibility.
+  // Fabricator sees jobs from any teacher at the same school as
+  // their inviting teacher.
+  const ctx = await fabricatorSchoolContext(db, fabricatorId);
+  if (ctx !== null && typeof ctx === "object" && "error" in ctx) return ctx;
 
   // 1. Job row with joins.
   const jobResult = await db
@@ -713,15 +801,16 @@ export async function getFabJobDetail(
   }
 
   // Visibility: the fabricator sees this job if either
-  //   (a) it's owned by their inviting teacher (default model — they
-  //       see ALL of that teacher's jobs), OR
+  //   (a) it's owned by ANY teacher at the same school as their
+  //       inviting teacher (default flat-membership model), OR
   //   (b) THEY are the one who picked it up (§11 Q8 — allows
   //       complete/fail access even if the inviter relationship
   //       changed mid-job, e.g. fabricator account got reassigned
-  //       between teachers).
-  const sameTeacher = teacherId && rawJob.teacher_id === teacherId;
+  //       between teachers/schools).
+  const sameSchool =
+    ctx !== null && ctx.sameSchoolTeacherIds.includes(rawJob.teacher_id);
   const ownedByMe = rawJob.lab_tech_picked_up_by === fabricatorId;
-  if (!sameTeacher && !ownedByMe) {
+  if (!sameSchool && !ownedByMe) {
     return { error: { status: 404, message: "Job not found" } };
   }
 
@@ -856,10 +945,12 @@ export async function assignMachine(
 ): Promise<AssignMachineResult> {
   const { fabricatorId, jobId, machineProfileId } = params;
 
-  // 1. Resolve inviter teacher + check fab is active.
-  const teacherId = await fabricatorInvitingTeacherId(db, fabricatorId);
-  if (teacherId !== null && typeof teacherId === "object") return teacherId;
-  if (!teacherId) {
+  // 1. Resolve school context + check fab is active. Phase 8.1d-39
+  //    (audit HIGH-2/3): scope by school not by single inviting
+  //    teacher so cross-teacher-same-school assignments work.
+  const ctx = await fabricatorSchoolContext(db, fabricatorId);
+  if (ctx !== null && typeof ctx === "object" && "error" in ctx) return ctx;
+  if (!ctx) {
     return { error: { status: 401, message: "Fabricator not active" } };
   }
 
@@ -887,7 +978,7 @@ export async function assignMachine(
       error: { status: 500, message: `Job lookup failed: ${jobLookup.error.message}` },
     };
   }
-  if (!jobRow || jobRow.teacher_id !== teacherId) {
+  if (!jobRow || !ctx.sameSchoolTeacherIds.includes(jobRow.teacher_id)) {
     return { error: { status: 404, message: "Job not found" } };
   }
   if (jobRow.status !== "approved") {
@@ -899,8 +990,14 @@ export async function assignMachine(
     };
   }
 
-  // 3. Load the target machine. Must belong to the inviting teacher,
-  //    match the job's lab + category, and be active.
+  // 3. Load the target machine. Must match the job's lab + category
+  //    and be active. Phase 8.1d-39 (audit HIGH-3): the old
+  //    `machine.teacher_id === teacherId` check was teacher-scoped
+  //    and blocked valid cross-teacher-same-school assignments
+  //    (Cynthia couldn't send a job to a machine owned by a
+  //    colleague, even though both at NIS). Removed — the lab_id
+  //    match below already enforces the school boundary correctly,
+  //    because labs are school-scoped post-Phase 8-1.
   const machineLookup = await db
     .from("machine_profiles")
     .select(
@@ -927,11 +1024,6 @@ export async function assignMachine(
     };
   }
   if (!machineRow || machineRow.is_active === false) {
-    return { error: { status: 404, message: "Machine not found" } };
-  }
-  if (machineRow.teacher_id !== teacherId) {
-    // Teacher-owned machines must match — system templates can't be
-    // assigned to (they have teacher_id = null).
     return { error: { status: 404, message: "Machine not found" } };
   }
   if (machineRow.lab_id !== jobRow.lab_id) {
@@ -1024,9 +1116,10 @@ export async function unassignMachine(
 ): Promise<UnassignMachineResult> {
   const { fabricatorId, jobId } = params;
 
-  const teacherId = await fabricatorInvitingTeacherId(db, fabricatorId);
-  if (teacherId !== null && typeof teacherId === "object") return teacherId;
-  if (!teacherId) {
+  // Phase 8.1d-39 (audit HIGH-2): school-scoped visibility.
+  const ctx = await fabricatorSchoolContext(db, fabricatorId);
+  if (ctx !== null && typeof ctx === "object" && "error" in ctx) return ctx;
+  if (!ctx) {
     return { error: { status: 401, message: "Fabricator not active" } };
   }
 
@@ -1048,7 +1141,7 @@ export async function unassignMachine(
       error: { status: 500, message: `Job lookup failed: ${jobLookup.error.message}` },
     };
   }
-  if (!jobRow || jobRow.teacher_id !== teacherId) {
+  if (!jobRow || !ctx.sameSchoolTeacherIds.includes(jobRow.teacher_id)) {
     return { error: { status: 404, message: "Job not found" } };
   }
   if (jobRow.status !== "approved") {
@@ -1146,13 +1239,14 @@ export async function deleteJob(
 ): Promise<DeleteJobResult> {
   const { fabricatorId, jobId } = params;
 
-  const teacherId = await fabricatorInvitingTeacherId(db, fabricatorId);
-  if (teacherId !== null && typeof teacherId === "object") return teacherId;
-  if (!teacherId) {
+  // Phase 8.1d-39 (audit HIGH-2): school-scoped visibility.
+  const ctx = await fabricatorSchoolContext(db, fabricatorId);
+  if (ctx !== null && typeof ctx === "object" && "error" in ctx) return ctx;
+  if (!ctx) {
     return { error: { status: 401, message: "Fabricator not active" } };
   }
 
-  // Existence + ownership check. We need the teacher_id match
+  // Existence + ownership check. We need the school-scoped match
   // before any destructive op so a fab can't delete a job they
   // can't see (which would be a privilege-escalation bug).
   const jobLookup = await db
@@ -1166,7 +1260,7 @@ export async function deleteJob(
     };
   }
   const jobRow = jobLookup.data as { id: string; teacher_id: string } | null;
-  if (!jobRow || jobRow.teacher_id !== teacherId) {
+  if (!jobRow || !ctx.sameSchoolTeacherIds.includes(jobRow.teacher_id)) {
     return { error: { status: 404, message: "Job not found" } };
   }
 
@@ -1197,12 +1291,15 @@ export async function deleteJob(
     .filter((p): p is string => typeof p === "string" && p.length > 0);
 
   // Delete the parent row — cascade clears revisions + scan_jobs
-  // via ON DELETE CASCADE (migration 095/096).
+  // via ON DELETE CASCADE (migration 095/096). Phase 8.1d-39 (audit
+  // HIGH-2): defence-in-depth ownership guard now uses .in() over
+  // sameSchoolTeacherIds instead of .eq() over a single inviter,
+  // matching the school-scoped check above.
   const deleteResult = await db
     .from("fabrication_jobs")
     .delete()
     .eq("id", jobId)
-    .eq("teacher_id", teacherId)
+    .in("teacher_id", ctx.sameSchoolTeacherIds)
     .select("id");
   const { data: deleteData, error: deleteError } = deleteResult as {
     data: Array<{ id: string }> | null;

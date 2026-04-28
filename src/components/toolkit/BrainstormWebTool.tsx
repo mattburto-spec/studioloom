@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useToolSession } from '@/hooks/useToolSession';
+import { TappableText } from '@/components/student/tap-a-word';
 
 type EffortLevel = 'low' | 'medium' | 'high';
 
@@ -303,7 +304,7 @@ export function BrainstormWebTool(props: { mode: 'public' | 'embedded' | 'standa
           {/* Input Area */}
           <div style={{ background: 'rgba(236, 72, 153, 0.08)', border: '1px solid rgba(236, 72, 153, 0.3)', borderRadius: '0.75rem', padding: '1.5rem', marginBottom: '2rem' }}>
             <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', color: '#ec4899', marginBottom: '0.5rem' }}>
-              {roundInfo.prompt}
+              <TappableText text={roundInfo.prompt} />
             </label>
             <textarea
               value={currentIdea}

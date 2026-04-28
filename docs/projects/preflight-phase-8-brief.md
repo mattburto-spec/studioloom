@@ -30,7 +30,8 @@ This phase replaces the flat list with a **single visual admin page** showing al
 5. **`/teacher/preflight/lab-setup`** — the new visual admin page. Replaces the Phase 1B-2 `/teacher/preflight/fabricators` list view (that URL redirects). All teachers at the school see the same labs page; edits propagate (Cynthia adds a lab, Matt sees it on next refresh).
 6. **Machine CRUD**: "+ Add machine" from template OR from scratch. Customise dimensions, kerf, operation colour map, `requires_teacher_approval` toggle.
 7. **Fabricator reassignment in the new UI** — move a fab to a different machine without opening a modal.
-8. **Backfill migration** — two-step: (a) for each school, create a "Default lab" row owned by `school_id`; (b) prompt each teacher on next login to pick their `teachers.default_lab_id` from the labs visible to their school, which then cascades to all their existing classes' `default_lab_id` (single UPDATE per teacher). Existing `machine_profiles` rows initially set `lab_id = <school's default lab>`; teachers can split into subsidiary labs (PYP, MYP, etc.) afterwards. Student picker keeps working throughout — legacy NULL fallback shows all school machines.
+8. **Class-disambiguation on fab queue cards** — `FabJobRow` gains a `teacherName: string | null` field; class chip renders teacher initial alongside the class name (e.g. `Grade 10 · M.B.`) so two same-named classes from different teachers don't blur together. Becomes load-bearing post-Phase-8 because the school-scoped queue is the first surface where multi-teacher class collisions appear. `colorForClassName()` rekeyed on `(className, teacherId)` so two "Grade 10"s also get visually distinct chip colors. Touches `listFabricatorQueue` orchestration (one extra join column) + `ClassChip` component + helper rekey.
+9. **Backfill migration** — two-step: (a) for each school, create a "Default lab" row owned by `school_id`; (b) prompt each teacher on next login to pick their `teachers.default_lab_id` from the labs visible to their school, which then cascades to all their existing classes' `default_lab_id` (single UPDATE per teacher). Existing `machine_profiles` rows initially set `lab_id = <school's default lab>`; teachers can split into subsidiary labs (PYP, MYP, etc.) afterwards. Student picker keeps working throughout — legacy NULL fallback shows all school machines.
 
 ## 2. Design decision: drag-drop vs click-based v1
 
@@ -68,6 +69,7 @@ Why:
   2. Auto-create a stub "Personal" school per orphan teacher (ugly fallback if the prompt is too disruptive — discuss with Matt before shipping).
   3. Block lab access until the teacher picks a school (similar to #1 but more punitive).
   Migration report logs every orphan teacher so we can pick the right path before deploy.
+- **System-account exclusion (verified 27 Apr):** teachers with email matching `%@studioloom.internal` are sentinel/system accounts (used by ingestion pipeline + AI provenance — see existing FU-GG and FU-KK). They legitimately have `school_id IS NULL` and never log in. Backfill logic must explicitly skip them: `WHERE email NOT LIKE '%@studioloom.internal'` in every pass that touches teacher rows. The blocking school-pick modal (path 1 above) will never fire for them because they have no session — but the migration log should still report them as "intentionally excluded" so they don't appear as warnings.
 - RLS on `fabrication_labs`: SELECT/UPDATE/INSERT/DELETE all gated by `school_id IN (SELECT school_id FROM teachers WHERE id = auth.uid())`. Hint: use a SECURITY DEFINER function that joins `teachers` once, otherwise RLS recursion + perf concerns surface.
 - Tests: migration tests + backfill tests (including the orphan-teacher flag path) + RLS audit on the new table covering: same-school visibility (positive), cross-school invisibility (negative), orphan-teacher denial (negative).
 
@@ -95,18 +97,24 @@ Why:
 
 **Est:** ~0.5 day.
 
-### 8-4 — Visual lab admin page (click-based)
+### 8-4 — Visual lab admin page (click-based) + class-disambiguation on fab queue
 
 - `/teacher/preflight/lab-setup` — replaces `/teacher/preflight/fabricators` (that URL redirects).
-- Layout: vertical stack of location cards. Each location = expandable. Inside: machine card grid. Click machine → side panel with spec fields + operation colour map + fabricator chips.
-- "+ Add location" button at top.
-- "+ Add machine" button per location.
-- Fabricator chips with "+ Assign fabricator" opens a picker modal (list of the teacher's invited fabricators, multi-select).
+- Layout: vertical stack of lab cards. Each lab = expandable. Inside: machine card grid. Click machine → side panel with spec fields + operation colour map + fabricator chips.
+- "+ Add lab" button at top.
+- "+ Add machine" button per lab.
+- Fabricator chips with "+ Assign fabricator" opens a picker modal (list of the school's invited fabricators, multi-select).
 - Drag-drop explicitly OUT of scope per Option B.
 - Invite-new-fabricator inline button (reuses Phase 1B-2 invite flow).
-- Tests: mostly helper tests (the UI state reducer etc.), some route tests for reassignment paths.
+- **Fab queue class-disambiguation** (per §1 ship #8):
+  - Extend `FabJobRow` interface in `fab-orchestration.ts` with `teacherName: string | null`.
+  - Update `listFabricatorQueue` row builder to join `teachers.full_name` (or whichever display field the row uses elsewhere).
+  - Update `ClassChip` component to render teacher initial (e.g. `M.B.`) alongside the class name. Single-line preferred: `Grade 10 · M.B.`. Two-line fallback if width-constrained.
+  - Update `colorForClassName(className, teacherId)` so two "Grade 10"s from different teachers get distinct chip colors. Hash both inputs together; existing single-string callers can pass a stable empty teacherId for backward compat.
+  - Helper test for the new color-keying; visual smoke covered by 8-5 scenario 4.
+- Tests: helper tests (UI state reducer + ClassChip rendering with teacher initial + colorForClassName collision avoidance), some route tests for reassignment paths.
 
-**Est:** ~1 day.
+**Est:** ~1.25 day (was 1 day; +0.25 for the class-disambiguation work).
 
 ### 8-5 — Student picker filter by `default_lab_id` + Checkpoint 8.1 smoke + saveme
 
@@ -117,6 +125,7 @@ Why:
   2. **Machine CRUD** — add a custom machine from scratch, edit dimensions, save.
   3. **Fabricator assignment** — assign a fab to a machine, click through, confirm the fab's `/fab/queue` now shows jobs for that machine.
   4. **Cross-teacher visibility (NEW — flipped from 24 Apr brief)** — Matt creates "NIS PYP Lab"; sign in as a second NIS teacher → confirm the PYP Lab is visible + editable. Sign in as a teacher at a DIFFERENT school → confirm NIS labs are NOT visible.
+  4b. **Class-disambiguation on fab queue** — Matt creates a class called "Grade 10". A second NIS teacher also creates a class called "Grade 10". Both teachers approve a job from their respective classes. Sign in as Cynthia (fab) → confirm both job cards render distinct chips: different colors AND a teacher initial under/beside the class name (e.g. `Grade 10 · M.B.` vs `Grade 10 · C.W.`). Confirm Cynthia can correctly route each job to its student without ambiguity.
   5. **Per-class default lab routing** — set Matt's G4 class `default_lab_id` to PYP Lab and his G8 class to MYP Lab. Upload as a G4 student — picker shows only PYP machines. Upload as a G8 student — picker shows only MYP machines.
   6. **Teacher default seeding** — set `teachers.default_lab_id`. Create a NEW class — confirm the dropdown pre-selects the teacher default. Manually override per-class — confirm the class default wins.
   7. **Orphan-teacher path** — sign in as a teacher with `school_id IS NULL` (or simulate via direct DB) → confirm the blocking modal "Pick your school" appears before lab access. Pick a school → confirm labs become visible.
@@ -133,6 +142,7 @@ Why:
 - [ ] Machine CRUD from template + from scratch. Laser operation colour map editable + persists correctly.
 - [ ] Fabricator reassignment surface-level: click a chip → move to different machine → verify the fab's queue reflects the change.
 - [ ] `/teacher/preflight/lab-setup` renders all three axes (lab → machine → fab) correctly. Edits made by Teacher A are visible to Teacher B at the same school on next refresh.
+- [ ] Fab queue class chip disambiguates same-named classes from different teachers — distinct colors AND visible teacher initial. `colorForClassName` rekeyed on `(className, teacherId)`.
 - [ ] Old `/teacher/preflight/fabricators` URL redirects to the new page (saves bookmarks).
 - [ ] Per-class default lab routing: student picker filters machines by `class.default_lab_id`. Different classes at the same school can use different labs (G4→PYP, G8→MYP).
 - [ ] `teachers.default_lab_id` correctly seeds the new-class picker default; per-class override wins.
@@ -178,7 +188,8 @@ Q2 was also re-thought: the 24 Apr "Default lab per teacher" auto-create is wron
 - [x] Matt has re-resolved the 6 open questions (revised 27 Apr — Q2 + Q3 flipped, see §5 + §5b)
 - [x] `schools` table verified present (migration 085, applied) — Phase 8's school-scoped model has its data foundation.
 - [x] No outstanding Phase 7 production bugs (4 open follow-ups all P2/P3, Phase 9 scope — not blocking)
-- [ ] **Pre-flight to-do**: query prod for `SELECT COUNT(*) FROM teachers WHERE school_id IS NULL` to size the orphan-teacher migration cohort. Drives whether the blocking school-pick modal is the right call or whether a softer migration UX is needed. Run before opening 8-1.
+- [x] **Pre-flight to-do (DONE 27 Apr):** orphan-teacher count = 1, but it's the `system@studioloom.internal` sentinel (excluded from migration logic). Real-teacher orphan count = 0. All 3 real-teacher rows are Matt's personas, all at Nanjing International School (`636ff4fc-4413-4a8e-a3cd-c6f1e17bd5a1`). Migration in prod is essentially zero-risk on day one.
+- [ ] **Pre-flight to-do (BEFORE 8-5):** create 2 dedicated test teacher accounts to exercise the cross-teacher visibility predicate properly. Matt's 3 personas all share teacher_id behaviour (same human, just different sessions) — they don't prove a `teacher_id != $self` query works. Suggested: (a) Test Teacher A at Nanjing (`school_id = 636ff4fc-...`) to prove same-school visibility, (b) Test Teacher B at a different verified school (e.g. NIST Bangkok `ac7b575b-...`) to prove cross-school 404. Both via `/teacher/onboarding` welcome flow + manual `school_id` set if needed. Doesn't block 8-1..8-4; only needed when smoke runs.
 
 ## 7. Known deviations from original spec
 
@@ -192,4 +203,4 @@ The **"Rule overrides UI"** from the original §13 Phase 8 is explicitly DEFERRE
 
 **Status 24 Apr PM:** ✅ READY. All pre-conditions met. Phase 8-1 (migration + backfill) opens next — see dedicated brief: `preflight-phase-8-1-brief.md` (draft pending).
 
-**Status 27 Apr PM (revision):** ✅ READY (revised). Q2 + Q3 re-resolved to school-scoped lab ownership using existing migration 085 `schools` infrastructure. Open pre-flight task: query prod for orphan-teacher count before opening 8-1. Estimated duration unchanged at ~2-3 days; sub-phase 8-1 + 8-2 each ticked up by ~0.25 day for school-scoping migration + RLS work, recovered by simpler 8-4 visibility model (one labs-list shared across all same-school teachers, no per-teacher filter).
+**Status 27 Apr PM (revision):** ✅ READY (revised). Q2 + Q3 re-resolved to school-scoped lab ownership using existing migration 085 `schools` infrastructure. Open pre-flight task: orphan-teacher count = 1 (Matt verified via prod query 27 Apr) — manually fix that single row before migration; modal still ships to handle future orphans. Estimated duration ~2.5–3.5 days (slight bump from ~2-3 days): 8-1 + 8-2 +0.25 day each for school-scoping; 8-4 +0.25 day for class-disambiguation work added 27 Apr. Net: original 2.5 → revised 3.25 best-case.

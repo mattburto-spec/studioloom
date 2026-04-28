@@ -4,6 +4,74 @@
 
 ---
 
+## 28 Apr 2026 PM — Smart tap-a-word defaults + speaker removal + Bug 3 prod verification
+
+**Context:** Late-day polish on the language-scaffolding-redesign work after the morning's Option A unified Support tab landed. Three commits + a prod verification step that closes out today's work on student lesson support.
+
+**Commits (4 today PM, all pushed to origin/main):**
+- `ebeb1a1` feat(support): smart default for tap-a-word — ON for ELL≤2 OR L1≠English. Replaces the previous hard-coded `true` default that applied tap-a-word to every student including advanced native English speakers. New `defaultTapAWordEnabled(ell, l1)` helper. Resolver now reads `students.ell_level` + `class_students.ell_level_override`. Resolution table: ELL 1-2 → ON; ELL 3 + L1=en → OFF (clean reading); ELL 3 + L1≠en → ON (translation safety for advanced bilinguals). Defensive: invalid ELL coerces to 1 to err on side of scaffolding. 8 new tests across all ELL × L1 combinations + override-beats-default both directions + per-class ELL flip + null defaults. Support tab UI: explainer panel adds policy footnote; "inherit" option shows actual resolved value not hardcoded "(default: on)" lie.
+- `9a126f7` feat(tap-a-word): remove word-level speaker buttons from popover. Per Matt: block-level read-aloud already handles English; single-word L1 audio audience too narrow to justify visual noise. Net -75 lines (popover JSX + inline SpeakerIcon SVG + useTextToSpeech subscription). Hook + tests preserved (exported from barrel) for future re-introduction if learning support specialists want heritage-learner workflows. Cleaner popover: word / definition / translation / example / image only.
+- `e30d372` chore(scripts/dev): bank list-class-units.mjs as a reusable DB inspector. Generalised header, moved to scripts/dev/ alongside other one-off diagnostic tools. Sibling check-test-student.mjs deleted (hardcoded UUID, won't be useful again).
+
+**Bug 3 verified in prod (no commit, manual workflow):** Set + reset overrides on 10 Design + Service LEEDers via the new Support tab. SQL inspection confirmed:
+  - `class_students.support_settings = '{}'::jsonb` after reset (no orphan nulls)
+  - **Service LEEDers self-heal worked** — pre-existing stale `{l1_target_override: null}` row from yesterday's testing flipped to `{}` when the new mergeSupportSettingsForWrite ran on touch. This is the strongest possible proof of Bug 3: the new code doesn't just avoid creating null orphans, it cleans up legacy ones.
+  - One remaining test override on 6 Design (archived class) — left in place; harmless because Bug 4 filters archived classes from resolution. Will be cleared automatically when class-architecture-cleanup §1 (auto-unenroll trigger) ships.
+
+**Decisions added (3):** Smart default policy for tap-a-word (ELL≤2 OR L1≠en); word-level speaker buttons removed (block read-aloud already covers English, single-word L1 audience too narrow); per-feature granular split deferred (Matt to consult learning support before locking the matrix design).
+
+**Followup explicitly NOT filed:** the per-feature granular split (definitions / translations / audio / images as separate flags + admin matrix). Matt's call: "seems too much for this site at this point. what we've just built is more than most sites already." Accepted — pulling back scope when something is already strong is good discipline.
+
+**Tests after PM:** 2279 → 2287 (+8 from smart-default tests). 0 failures, 9 skipped, 146 files. tsc clean. No new migrations.
+
+**API surface:** No route changes (smart default + speaker removal are pure logic/UI changes inside existing routes). Registry scan clean.
+
+**Today total tally (AM + PM):** 11 commits (8 AM + 3 PM); +28 tests (2259 → 2287); 1 new project doc filed (deferred); 9 decisions added; 1 lesson learned (#60); Supabase Free → Pro Small. All Bugs 1/1.5/2/3/4 verified end-to-end in prod via SQL.
+
+**Wrap state:** Matt explicitly said "I feel like this wraps up things for now for language support." Treat as a done milestone; next pickup is whatever surfaces from tomorrow's class OR Phase 3 Response Starters when ready.
+
+---
+
+## 28 Apr 2026 — Multi-class context fix + Option A unified Support tab + Class architecture cleanup filed
+
+**Context:** Continuation of the language-scaffolding-redesign Phase 2.5 work. Matt's first prod smoke test of the teacher control panel surfaced 4 bugs around multi-class context resolution. Fixed tactically (5 commits), then surfaced a deeper UX concern ("teachers will find this confusing if settings are in different places") which triggered an Option A unification: per-student Support tab as the single source of truth, with per-class as collapsed accordion. ELL editing also consolidated. Filed remaining architectural work as deferred. Saveme + handoff for the next session (Access Model v2 starting in parallel).
+
+**Commits (8 today, all pushed to origin/main):**
+- `79df0aa` fix(auth): student-session — deterministic class selection via ORDER BY enrolled_at DESC (Bug 1)
+- `6bdc403` fix(tap-a-word): server-derive classId from unitId via class_units JOIN (Bug 2 — new `resolveStudentClassId` helper, 10 tests, TappableText auto-detects unitId from URL)
+- `a6fcfc2` fix(student-nav): topnav class label follows the URL on /unit/[unitId]/... (Bug 1.5 — new `/api/student/me/unit-context` endpoint, layout watches pathname)
+- `aa0f113` fix(support-settings): teacher reset deletes JSONB key (not persists null) — Bug 3, new `mergeSupportSettingsForWrite` helper, 7 tests
+- `45249d3` test(support-settings): update PATCH null-reset assertion for Bug 3 semantics
+- `a1dc37e` fix(student-context): exclude archived classes from session-default + unit-derived class — Bug 4 (new `filterOutArchivedClasses` helper, 3 new tests, regression test for the exact prod scenario)
+- `11c2df0` docs(lessons): #60 — side-findings inside touched code belong in the same commit
+- `e52105a` feat(teacher): unified per-student Support tab — single source of truth (Option A) — new `/api/teacher/students/[studentId]/support-settings` GET+PATCH, `<StudentSupportSettings />` component (resolution explainer + per-student global form + collapsed per-class accordion), new "Support" tab on `/teacher/students/[studentId]`, `?tab=` URL param honoured, cross-link from per-class teacher page
+- `1406e6c` feat(teacher): consolidate ELL editing into the unified Support tab — per-student API accepts `ell_level`, per-class API accepts `ell_level_override`, ELL row added to Support tab UI, inline ELL pills REMOVED from class page (they were silently writing global while reading per-class — broken by coincidence)
+- `184dc55` docs(projects): file class-architecture-cleanup as 🟢 READY (deferred behind Access v2)
+- (saveme commit pending)
+
+**Test baseline:** 2259 → 2279 (+20 across the day). 0 failures, 9 skipped, 146 files. tsc clean.
+
+**Migrations this session:** None. All changes are pure app code.
+
+**Decisions added (6):** Multi-class context fix shipped tactically (not deferred behind Option B); archived classes filtered at resolve-time not enrollment-time; Option A chosen for support settings unification; inline ELL pills removed (silently inconsistent); class architecture cleanup filed as deferred.
+
+**Lessons added (1):** #60 — side-findings inside touched code belong in the same commit, not "follow-up later." Bit me today: I audited the Bug 1 fix, noted the archived-class gap, deferred it, then Matt hit it 30 minutes later and required commit `a1dc37e` to the same files.
+
+**Projects filed (1):** `docs/projects/class-architecture-cleanup.md` — 4 gaps (archived auto-unenroll P1, student_progress scope decision P2, cohort labels P2, Option B URL-scoped classId P2 ~10-11d). Deferred behind Access Model v2. Trigger phrase: "continue class architecture".
+
+**API surface changes:** +3 routes (per-student support-settings GET/PATCH, unit-context GET); modified word-lookup + me/support-settings to accept unitId; modified per-class single-student PATCH to accept ell_level_override; modified student-session select shape (added is_archived to nested classes select).
+
+**Followups:**
+- 🐛 Stale `{l1_target_override: null}` row on Service LEEDers from pre-Bug-3 testing — will self-heal on next teacher edit via new `mergeSupportSettingsForWrite`. Cosmetic.
+- 🧪 No dedicated tests for the per-student support-settings endpoint shape — existing tests still pass but new behavior (ELL handling, partial UPDATE, `verifyTeacherCanManageStudent` auth) isn't locked. ~30 min if pulled forward.
+- ⚠️ `docs/handoff/main.md` was stale (27 Apr) all session — Access v2 parallel session was given a manual briefing in chat instead. Refreshed as part of this saveme.
+
+**Ops:** Supabase project auto-paused early in the day (Cloudflare 522). Matt upgraded free → Pro Small compute mid-session — restored access + permanent paused-state immunity going forward. Resolved before any user impact.
+
+**Side-finding worth banking but not actioned:** Matt has 3 different teacher accounts in prod with the same display name "Matt" (`mattburto@gmail.com`, `hello@loominary.org`, `mattburton@nanjing-school.com`). Access Model v2 unification will need to handle this — already noted in the parallel-session briefing.
+
+---
+
 ## 27 Apr 2026 — Preflight Phase 8.1d-31..35 SHIPPED + smoke 16/16 ✅
 
 **Context:** Continuation of Phase 8.1 fab-dashboard polish. Five
@@ -2102,3 +2170,43 @@ Trying to handle both in one route produces silent failures — either "PKCE ver
 **Cost spent this session:** ~$0.53 live seed + ~$0.0005 live E2E + ~$0.003 ergonomics rerun = **~$0.535 total**.
 
 **Pending after this saveme:** Apply prod migration (DONE), push origin/main (DONE), Phase 2 (L1 translation + audio + image) awaits next session. Decide whether toolkit-prompt mounts land as a 1B refinement or fold into Phase 2.
+
+---
+
+## 27 April 2026 (PM) — Phase 2 + Phase 2.5 SHIPPED end-to-end
+
+**Branch:** `tap-a-word-phase-2-5-build` (12 commits) merged into `main` via `2f08fb6`. Pushed to `origin/main`. **`student_support_settings` migration apply pending** (Matt-action; SQL given in chat).
+
+**Sub-phases shipped (in order):**
+- **Phase 2A — L1 translation slot** (`56b25b1` → `52a3cbe`): Server-side `l1_target` derivation from `learning_profile.languages_at_home[0]`. Dynamic Anthropic prompt + tool schema (max_tokens 250→400). Supports en/zh/ko/ja/es/fr. WIRING `tap-a-word.currentVersion` 0→1.
+- **Phase 2B — Audio buttons** (`94fdfee` → `53c6b7c`): Browser SpeechSynthesis. Two micro-buttons (English voice next to word, L1 voice next to translation). `useTextToSpeech` hook + `pickVoice` pure helper. Hidden gracefully when L1 voice missing on device.
+- **Phase 2.5 — Teacher control panel** (inserted mid-flight, `e90bb01` → `f758f11`): Per-student + per-class JSONB overrides for `l1_target_override` + `tap_a_word_enabled`. New migration `20260427115409_student_support_settings`. `resolveStudentSettings` server-side precedence chain (class > student > intake > default). Teacher UI page at `/teacher/classes/[classId]/students/support` with inline edit + bulk multi-select + confirmation modal. New `useStudentSupportSettings` page-session-cached client hook. Route returns `{disabled:true}` when teacher gates the student. **Inserted ahead of original Phase 2 sequence after Matt's "real students arriving" trigger.**
+- **Phase 2C — Image dictionary** (`4a91f93` → `a48bb7e`): Static curated dictionary (`src/lib/tap-a-word/image-dictionary.json`). `imageForWord(word)` synchronous loader. v0 ships 6-entry seed using Wikimedia Commons `Special:FilePath` URLs (auto-resolves to current CDN). Lazy-load + onError graceful hide.
+- **Phase 2D-sample — Toolkit mounts** (`ccd7940` → `25e0095`): TappableText on 3 of 27 toolkit tools (ScamperTool / MindMapTool / BrainstormWebTool — the 3 that render prompt as JSX variable). 24 remaining tools deferred as `FU-TAP-TOOLKIT-FULL-COVERAGE` P3 — they hardcode prompts inline, requiring content-aware refactors. Wait for Phase 4 signal data to prioritise.
+
+**Verification (pre-merge):**
+- ✅ Phase 2A — Tests 2181 → 2207 (+26 incl. 12 lang-mapping + 14 route)
+- ✅ Phase 2B — Tests 2207 → 2215 (+8 pickVoice)
+- ✅ Phase 2.5 — Tests 2215 → 2252 (+37 incl. 18 resolver + 18 API + 1 disabled-path)
+- ✅ Phase 2C — Tests 2252 → 2259 (+7 image-dictionary)
+- ✅ Phase 2D-sample — Tests unchanged (pure JSX wraps)
+- ✅ tsc clean throughout
+- ✅ Build green with `NODE_OPTIONS=--max-old-space-size=4096`
+- ⚠️ `student_support_settings` migration NOT YET applied to prod — SQL ready for Matt to paste
+
+**Migrations this session:**
+- `20260427115409_student_support_settings.sql` — 2 ALTER TABLE ADD COLUMN JSONB DEFAULT '{}'. Idempotent (IF NOT EXISTS). Applied to local dev only at the moment.
+
+**Decisions added (8):** authority model A (student-as-source + teacher-overrides), per-student + per-class scope, Phase 2.5 inserted ahead of 2C/2D, bulk ops with confirmation only (no undo/history for v0), Phase 2D scope deferred to 3-of-27, image dictionary 6-entry v0 seed, sandbox-pollution defensive fix even though gate change made it moot, migration discipline v2 vindicated again.
+
+**Lessons added (1):** #59 (brief estimates can lie when audit hasn't happened yet — for any "N similar items" estimate, sample-audit before locking time).
+
+**FUs added (1):** `FU-TAP-TOOLKIT-FULL-COVERAGE` P3 — wrap remaining 24 toolkit tools after Phase 4 signal data shows priorities.
+
+**FUs resolved (1):** `FU-TAP-SANDBOX-POLLUTION` P2 — defensive fix in Phase 1 closeout.
+
+**Systems affected:** `tap-a-word` (currentVersion 0→1, status stays planned until Phase 5; affects:[+toolkit] for 2D-sample); `student-learning-support` unchanged (still planned until Phase 5 ships full coverage).
+
+**Cost spent this session (Phase 2 work):** $0.0 (all changes are infrastructure + UI; no Anthropic calls fired beyond Phase 1 baseline).
+
+**Pending after this saveme:** (1) Matt applies `student_support_settings` migration to prod; (2) browser-test the teacher control panel; (3) decide Phase 3 (Response Starters) vs Phase 4 (signal infrastructure + unified settings) as next major chunk.

@@ -139,6 +139,25 @@ function makeFakeClient(opts: FakeOpts = {}) {
           error: null,
         };
       }
+      // Phase 8.1d-39 (audit HIGH-2/3): fabricatorSchoolContext
+      // resolves the inviting teacher's school_id via a maybeSingle
+      // on teachers. Default school is "school-1"; tests can
+      // override via opts.inviterSchoolId.
+      if (table === "teachers") {
+        if (opts.teacherSchoolLookupError) {
+          return {
+            data: null,
+            error: { message: opts.teacherSchoolLookupError },
+          };
+        }
+        if (opts.inviterSchoolId === null) {
+          return { data: { school_id: null }, error: null };
+        }
+        return {
+          data: { school_id: opts.inviterSchoolId ?? "school-1" },
+          error: null,
+        };
+      }
       if (table === "fabrication_jobs") {
         fabJobMaybeSingleCalls++;
         if (opts.jobLookupError) {
@@ -221,6 +240,47 @@ function makeFakeClient(opts: FakeOpts = {}) {
       };
       return updChain;
     };
+
+    // Phase 8.1d-39 (audit HIGH-2/3): teachers.select("id").eq("school_id", X)
+    // returns the list of same-school teacher IDs. No .maybeSingle()
+    // — the chain is awaited directly. Default returns the inviter's
+    // own ID; tests can override via opts.sameSchoolTeacherIds.
+    if (table === "teachers") {
+      const teachersChain: Record<string, unknown> = {};
+      teachersChain.select = (cols: string) => {
+        entry.selectCols = cols;
+        return teachersChain;
+      };
+      teachersChain.eq = (col: string, val: unknown) => {
+        entry.eq.push([col, val]);
+        // Maintain a thenable chain for the school-scoped teacher list.
+        const thenable: Record<string, unknown> = {
+          then: (resolve: (v: unknown) => unknown) => {
+            log.push({ ...entry });
+            if (opts.sameSchoolLookupError) {
+              return Promise.resolve(
+                resolve({
+                  data: null,
+                  error: { message: opts.sameSchoolLookupError },
+                })
+              );
+            }
+            const ids = opts.sameSchoolTeacherIds ?? [
+              opts.inviterTeacherId ?? "teacher-1",
+            ];
+            return Promise.resolve(
+              resolve({
+                data: ids.map((id) => ({ id })),
+                error: null,
+              })
+            );
+          },
+        };
+        thenable.maybeSingle = chain.maybeSingle as () => Promise<unknown>;
+        return thenable;
+      };
+      return teachersChain;
+    }
 
     // fabricator_machines assignments: .select("machine_profile_id").eq()
     // returns array directly (not maybeSingle). Implement as a thenable
@@ -314,16 +374,22 @@ describe("listFabricatorQueue", () => {
     ).toBe(true);
   });
 
-  it("scopes teacher_id = inviter on every fetch (no per-machine junction)", async () => {
+  it("scopes teacher_id IN same-school teachers (Phase 8.1d-39 audit HIGH-2 — was teacher-scoped)", async () => {
     const { client, log } = makeFakeClient({
       inviterTeacherId: "teacher-99",
+      sameSchoolTeacherIds: ["teacher-99", "teacher-100", "teacher-101"],
     });
     await listFabricatorQueue(client, { fabricatorId: "fab-1", tab: "ready" });
     const jobQuery = log.find((l) => l.table === "fabrication_jobs");
     const teacherFilter = jobQuery?.eq.find(([col]) => col === "teacher_id");
     expect(teacherFilter).toBeDefined();
-    expect(teacherFilter?.[1]).toBe("teacher-99");
-    // Crucially: NO per-machine filter anymore.
+    // Now matches IN list of same-school teachers, not a single inviter.
+    expect(teacherFilter?.[1]).toEqual([
+      "teacher-99",
+      "teacher-100",
+      "teacher-101",
+    ]);
+    // Crucially: NO per-machine filter (was Phase 8.1d-9 contract; still holds).
     const machineFilter = jobQuery?.eq.find(
       ([col]) => col === "machine_profile_id"
     );
