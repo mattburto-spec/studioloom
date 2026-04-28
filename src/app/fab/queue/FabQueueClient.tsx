@@ -1747,7 +1747,7 @@ function IncomingCard({
               <div className="text-[12px] font-extrabold truncate">
                 {job.studentName}
               </div>
-              <ClassChip name={job.className} small />
+              <ClassChip name={job.className} teacherInitials={job.teacherInitials} small />
             </div>
             <div
               className={`${styles.mono} text-[10px] truncate`}
@@ -2083,7 +2083,7 @@ function RunningBlock({
             <div className="text-[12px] font-extrabold truncate">
               {job.studentName}
             </div>
-            <ClassChip name={job.className} small />
+            <ClassChip name={job.className} teacherInitials={job.teacherInitials} small />
           </div>
           <div
             className={`${styles.mono} text-[10px] truncate`}
@@ -2167,7 +2167,7 @@ function QueuedJobCard({
               <div className="text-[11.5px] font-extrabold truncate">
                 {job.studentName}
               </div>
-              <ClassChip name={job.className} small />
+              <ClassChip name={job.className} teacherInitials={job.teacherInitials} small />
             </div>
             <div
               className={`${styles.mono} text-[10px] truncate`}
@@ -2447,13 +2447,26 @@ function alertUser(msg: string) {
 // Class + file-type chips
 // ============================================================
 
-function ClassChip({ name, small }: { name: string | null; small?: boolean }) {
+function ClassChip({
+  name,
+  teacherInitials,
+  small,
+}: {
+  name: string | null;
+  teacherInitials?: string | null;
+  small?: boolean;
+}) {
   if (!name) return null;
-  const c = colorForClassName(name);
-  const tint = colorTintForClassName(name);
+  // Phase 8-4 path 2: pass teacherInitials as the disambiguation key
+  // so two "Grade 10"s from different teachers get distinct hues.
+  // Falls back to single-key hashing when no initials present
+  // (single-teacher schools / pre-Phase-8-4 fixtures).
+  const teacherKey = teacherInitials ?? null;
+  const c = colorForClassName(name, teacherKey);
+  const tint = colorTintForClassName(name, "subtle", teacherKey);
   return (
     <span
-      className="font-extrabold rounded flex-shrink-0"
+      className="font-extrabold rounded flex-shrink-0 inline-flex items-baseline gap-1"
       style={{
         fontSize: small ? 9 : 10,
         padding: small ? "2px 6px" : "3px 7px",
@@ -2461,7 +2474,14 @@ function ClassChip({ name, small }: { name: string | null; small?: boolean }) {
         color: c,
       }}
     >
-      {name}
+      <span>{name}</span>
+      {teacherInitials && (
+        // 70% opacity — present but secondary. The class name
+        // is the primary cue; initials are the tiebreaker.
+        <span style={{ opacity: 0.7, fontWeight: 600 }}>
+          · {teacherInitials}
+        </span>
+      )}
     </span>
   );
 }

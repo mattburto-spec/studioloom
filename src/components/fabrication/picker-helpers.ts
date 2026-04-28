@@ -90,17 +90,11 @@ export function groupMachinesByLab(
   return result;
 }
 
-/**
- * @deprecated Phase 8.1d-5: class-to-lab filtering removed. Use
- * groupMachinesByLab in the picker instead. Kept as a no-op for any
- * stale imports — returns the input list unchanged.
- */
-export function filterMachinesForClass(
-  machines: MachineProfileOption[],
-  _selectedClass: ClassOption | null | undefined
-): MachineProfileOption[] {
-  return machines;
-}
+// Phase 8-4 path 1 (28 Apr): the deprecated `filterMachinesForClass`
+// no-op stub from Phase 8.1d-5 has been removed. Use
+// `groupMachinesByLab` instead. The `default_lab_id` column survives
+// as a forward-compat seam if class-to-lab routing is ever resurrected,
+// but no helper code reads it today.
 
 export function formatMachineLabel(p: MachineProfileOption): string {
   const category = p.machine_category === "laser_cutter" ? "Laser" : "3D Printer";

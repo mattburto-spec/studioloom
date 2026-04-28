@@ -1,20 +1,15 @@
 import { describe, it, expect } from "vitest";
 import {
-  filterMachinesForClass,
   groupMachinesByLab,
-  type ClassOption,
   type MachineProfileOption,
 } from "../picker-helpers";
 
 /**
- * Phase 8.1d-5 picker tests.
+ * Picker helper tests.
  *
- * filterMachinesForClass: deprecated in 8.1d-5 (class-to-lab filter
- * dropped per Matt's UX call). Function is a no-op pass-through now;
- * we keep one identity test to lock the contract.
- *
- * groupMachinesByLab: replacement for the old filter — buckets
- * machines by lab_name for the picker's <optgroup> rendering.
+ * groupMachinesByLab: buckets machines by lab_name for the picker's
+ * <optgroup> rendering. Replaced the Phase 8.1d-5 deprecated
+ * `filterMachinesForClass` (now removed in Phase 8-4 path 1).
  */
 
 const M = (
@@ -30,25 +25,9 @@ const M = (
   lab_name: overrides.lab_name,
 });
 
-const C = (id: string, default_lab_id: string | null): ClassOption => ({
-  id,
-  name: "Class " + id,
-  code: id,
-  default_lab_id,
-});
-
-describe("filterMachinesForClass (deprecated, no-op)", () => {
-  it("returns the input list unchanged regardless of class", () => {
-    const machines = [
-      M({ id: "m1", lab_id: "lab-a" }),
-      M({ id: "m2", lab_id: "lab-b" }),
-    ];
-    expect(filterMachinesForClass(machines, null)).toEqual(machines);
-    expect(filterMachinesForClass(machines, undefined)).toEqual(machines);
-    expect(filterMachinesForClass(machines, C("c1", "lab-a"))).toEqual(machines);
-    expect(filterMachinesForClass(machines, C("c1", null))).toEqual(machines);
-  });
-});
+// Phase 8-4 path 1 (28 Apr): tests for `filterMachinesForClass`
+// removed alongside the helper itself. Lab grouping covered by the
+// `groupMachinesByLab` describe block below.
 
 describe("groupMachinesByLab", () => {
   it("buckets machines by lab_name and sorts groups alpha", () => {

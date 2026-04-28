@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   colorForClassName,
   colorTintForClassName,
+  formatTeacherInitials,
 } from "../class-color";
 
 /**
@@ -75,5 +76,97 @@ describe("colorTintForClassName", () => {
     expect(colorTintForClassName(null)).toBe("rgba(110,106,96,0.10)");
     expect(colorTintForClassName(undefined, "soft")).toBe("rgba(110,106,96,0.18)");
     expect(colorTintForClassName("")).toBe("rgba(110,106,96,0.10)");
+  });
+
+  it("teacherKey threads through to the same palette slot as colorForClassName", () => {
+    const tint = colorTintForClassName("Grade 10", "subtle", "M.B.");
+    const c = colorForClassName("Grade 10", "M.B.");
+    expect(tint).toBe(`${c}22`);
+  });
+});
+
+// ============================================================
+// Phase 8-4 path 2: teacher-key disambiguation
+// ============================================================
+
+describe("colorForClassName with teacherKey (Phase 8-4 path 2)", () => {
+  it("two same-named classes from different teachers get different colors", () => {
+    const matt = colorForClassName("Grade 10", "M.B.");
+    const colleague = colorForClassName("Grade 10", "C.W.");
+    // The whole point: Cynthia must be able to tell two NIS "Grade 10"s
+    // apart at a glance on the fab queue.
+    expect(matt).not.toBe(colleague);
+  });
+
+  it("same name + same teacherKey is deterministic", () => {
+    expect(colorForClassName("Grade 10", "M.B.")).toBe(
+      colorForClassName("Grade 10", "M.B.")
+    );
+  });
+
+  it("name only (no teacherKey) is unchanged from pre-Phase-8-4 behavior", () => {
+    // Backward compat — single-arg callers must keep getting the same
+    // color they always did. The hash key is the trimmed name only.
+    const before = colorForClassName("9 Design");
+    const afterUndefined = colorForClassName("9 Design", undefined);
+    const afterNull = colorForClassName("9 Design", null);
+    const afterEmpty = colorForClassName("9 Design", "   ");
+    expect(afterUndefined).toBe(before);
+    expect(afterNull).toBe(before);
+    // Whitespace-only teacherKey collapses to "no key" — same as undef.
+    expect(afterEmpty).toBe(before);
+  });
+
+  it("teacherKey is trimmed before hashing", () => {
+    expect(colorForClassName("Grade 10", "M.B.")).toBe(
+      colorForClassName("Grade 10", "  M.B.  ")
+    );
+  });
+
+  it("returns fallback when name is empty regardless of teacherKey", () => {
+    expect(colorForClassName(null, "M.B.")).toBe("#6E6A60");
+    expect(colorForClassName("", "M.B.")).toBe("#6E6A60");
+  });
+});
+
+// ============================================================
+// formatTeacherInitials
+// ============================================================
+
+describe("formatTeacherInitials", () => {
+  it("returns First.Last. for two-name inputs", () => {
+    expect(formatTeacherInitials("Matt Burton")).toBe("M.B.");
+    expect(formatTeacherInitials("Matthew Burton")).toBe("M.B.");
+  });
+
+  it("returns First. for single-name inputs", () => {
+    expect(formatTeacherInitials("Cynthia")).toBe("C.");
+    expect(formatTeacherInitials("Matt")).toBe("M.");
+  });
+
+  it("uses first + last only for 3+ names (caps the chip cue)", () => {
+    expect(formatTeacherInitials("Anna Marie Schmidt")).toBe("A.S.");
+    expect(formatTeacherInitials("José Luis Rodríguez García")).toBe("J.G.");
+  });
+
+  it("uppercases initials regardless of input case", () => {
+    expect(formatTeacherInitials("matt burton")).toBe("M.B.");
+    expect(formatTeacherInitials("MATT BURTON")).toBe("M.B.");
+  });
+
+  it("treats hyphen as a name separator", () => {
+    expect(formatTeacherInitials("Mary-Jane Wong")).toBe("M.W.");
+    expect(formatTeacherInitials("Anne-Marie")).toBe("A.M.");
+  });
+
+  it("collapses extra whitespace and trims", () => {
+    expect(formatTeacherInitials("  Matt   Burton  ")).toBe("M.B.");
+  });
+
+  it("returns null for null / undefined / whitespace", () => {
+    expect(formatTeacherInitials(null)).toBe(null);
+    expect(formatTeacherInitials(undefined)).toBe(null);
+    expect(formatTeacherInitials("")).toBe(null);
+    expect(formatTeacherInitials("   ")).toBe(null);
   });
 });
