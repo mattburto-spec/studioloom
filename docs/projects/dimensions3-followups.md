@@ -1213,3 +1213,33 @@ import { TappableText } from "@/components/student/tap-a-word";
 For tools with hardcoded inline strings (the 24 deferred), the migration involves either (a) extracting the string into a const + wrapping, or (b) accepting that the literal text stays untappable. (b) is the simpler v1 — only wrap text already in a variable.
 
 **Definition of done:** All toolkit tools that show >50 chars of educational prose to students have their prompt text wrapped in `<TappableText>`. UI chrome (button labels, axis labels, etc.) intentionally stays plain — those don't benefit from tap-a-word.
+
+---
+
+## FU-PROGRESS-COHORT-YEAR — Cohort-year attribution for student_progress (P3)
+**Surfaced:** 28 Apr 2026 PM, class-architecture-cleanup §2 resolution
+**Captured in:** `docs/decisions-log.md` (28 Apr 2026 PM cohort-scoping decision), `docs/projects/class-architecture-cleanup.md` §2
+
+**Issue:** `student_progress` is keyed on `(student_id, unit_id, page_number)` with no `class_id` column. The Cohort Model decision (RESOLVED 28 Apr 2026) confirmed this is the right schema — sharing progress across class enrollments is correct for the dominant case (mid-year transfers, cohort rotations, etc.). But there's a downstream reporting question this defers: if a teacher ever wants "average progress on CO2 Racer for the 10 Design 2024-25 cohort specifically," the schema doesn't natively answer it.
+
+**Why P3:** No current reporting surface needs this. Filed as a query-layer follow-up so it's not lost when reporting work eventually surfaces it.
+
+**Recommended approach when work happens:** Derive cohort attribution at query time, NOT at schema time. Join `student_progress.created_at` against `class_students.enrolled_at` / `unenrolled_at` ranges for that `(student_id, class_id)` pair. Pseudocode:
+
+```sql
+SELECT sp.*, cs.class_id, cs.term_id
+FROM student_progress sp
+JOIN class_students cs
+  ON cs.student_id = sp.student_id
+  AND sp.created_at >= cs.enrolled_at
+  AND (cs.unenrolled_at IS NULL OR sp.created_at < cs.unenrolled_at)
+WHERE cs.class_id = '<target class>'
+  AND sp.unit_id = '<target unit>';
+```
+
+Edge cases to handle in the query helper (when written):
+- Student in two concurrent enrollments → progress row attributes to BOTH (or to the most-specific by some rule — UI/reporting decision)
+- Progress created before any enrollment_at (should be impossible but defensive guard)
+- Long-running progress that spans multiple enrollments (rare; pick the active enrollment at progress.updated_at if it matters)
+
+**Definition of done:** When the first reporting surface needs cohort-scoped progress, write a `getProgressByCohort(classId, unitId)` helper that does the JOIN above + handles the edge cases. No schema change.
