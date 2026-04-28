@@ -129,7 +129,6 @@ Advanced prototype — ~290+ source files, ~72,000+ lines of code, 41 completed 
 **Resolved issues archive: [`docs/resolved-issues-archive.md`](docs/resolved-issues-archive.md)** — includes migration status log and all fixed bugs.
 
 **Active issues:**
-- **student_progress table lacks class_id field (ARCHITECTURE GAP)** — multi-class enrollment ambiguity. Design decision needed.
 - ~~**13+ commits pending push**~~ — RESOLVED 7 Apr 2026.
 - Set `subject` field on classes in Supabase for best card label results (currently relies on name-based detection).
 - NM ObservationSnap `classes` query — may need `teacher_id` instead of `author_teacher_id`. Needs verification.
