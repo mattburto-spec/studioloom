@@ -11,6 +11,7 @@ import type { UnitContentData } from "@/types";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
 import { extractTilesFromPage, tileProgress, type LessonTile } from "@/lib/grading/lesson-tiles";
 import { computeStudentRollup, type CriterionRollup } from "@/lib/grading/rollup";
+import { computeCriterionCoverage, coverageStatus } from "@/lib/grading/criterion-coverage";
 import { ScorePill } from "@/components/grading/ScorePill";
 import { ScoreSelector } from "@/components/grading/ScoreSelector";
 
@@ -844,6 +845,9 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
           aiBatchRunning={aiBatchRunning}
           aiBatchSummary={aiBatchSummary}
           runAiPrescoreBatch={runAiPrescoreBatch}
+          unitContentData={unit?.contentData ?? null}
+          framework={klass?.framework ?? undefined}
+          unitType={klass?.subject ?? undefined}
         />
       )}
     </div>
@@ -876,6 +880,10 @@ interface CalibrateInnerProps {
   aiBatchRunning: boolean;
   aiBatchSummary: string | null;
   runAiPrescoreBatch: () => Promise<void>;
+  // G2.2 — heatmap inputs (unit-level coverage across all tiles).
+  unitContentData: UnitContentData | null;
+  framework: string | undefined;
+  unitType: string | undefined;
 }
 
 function CalibrateInner({
@@ -899,9 +907,78 @@ function CalibrateInner({
   aiBatchRunning,
   aiBatchSummary,
   runAiPrescoreBatch,
+  unitContentData,
+  framework,
+  unitType,
 }: CalibrateInnerProps) {
+  // G2.2 — criterion coverage heatmap (unit-level, across all pages).
+  const coverage = useMemo(
+    () =>
+      computeCriterionCoverage(
+        unitContentData,
+        Object.values(grades).map((g) => ({
+          student_id: g.student_id,
+          page_id: g.page_id,
+          tile_id: g.tile_id,
+          confirmed: g.confirmed,
+          criterion_keys: g.criterion_keys,
+          score: g.score,
+        })),
+        students.map((s) => s.id),
+        { framework, unitType },
+      ),
+    [unitContentData, grades, students, framework, unitType],
+  );
+
   return (
     <>
+      {/* G2.2 — Criterion coverage heatmap */}
+      {coverage.length > 0 && (
+        <div className="mb-4 px-4 py-3 bg-white border border-gray-200 rounded-2xl">
+          <div className="flex items-center justify-between mb-2.5">
+            <div className="text-[10px] font-bold tracking-wider uppercase text-gray-400">
+              Coverage
+            </div>
+            <div className="text-[10px] text-gray-400">
+              students with ≥1 confirmed score on this criterion
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {coverage.map((c) => {
+              const status = coverageStatus(c.percent);
+              const styles = {
+                covered: { bg: "#10B98115", text: "#047857", bar: "#10B981" },
+                partial: { bg: "#F59E0B15", text: "#B45309", bar: "#F59E0B" },
+                thin:    { bg: "#EF444415", text: "#B91C1C", bar: "#EF4444" },
+              }[status];
+              return (
+                <div
+                  key={c.criterionKey}
+                  className="inline-flex flex-col gap-1 px-2.5 py-1.5 rounded-lg border"
+                  style={{ background: styles.bg, borderColor: `${styles.bar}33` }}
+                  title={`${c.tilesTargeting} tile${c.tilesTargeting === 1 ? "" : "s"} target this criterion`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: styles.text }}>
+                      {c.label.split(" ")[0]}
+                    </span>
+                    <span className="text-[10px] font-mono tabular-nums" style={{ color: styles.text }}>
+                      {c.confirmedStudents}/{c.totalStudents}
+                    </span>
+                  </div>
+                  <div className="h-1 w-16 rounded-full bg-white/60 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${c.percent}%`, background: styles.bar }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Tile strip */}
       <div className="mb-6 -mx-1 overflow-x-auto">
         <div className="flex gap-2 px-1 pb-2">
