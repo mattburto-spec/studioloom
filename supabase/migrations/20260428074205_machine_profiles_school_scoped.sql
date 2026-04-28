@@ -41,23 +41,36 @@
 --       20260427134953 (current_teacher_school_id() helper).
 
 -- ============================================================
--- 1. Backfill: machine_profiles.school_id (currently NULL on all
---    non-template rows) <- teachers.school_id via teacher_id.
+-- 1. Backfill machine_profiles.school_id (currently NULL on
+--    non-template rows). Two-pass approach because Postgres
+--    UPDATE...FROM can't reference the target alias from a JOIN's
+--    ON clause — caught at prod-apply time on 28 Apr.
 --
---    Belt-and-braces: prefer fabrication_labs.school_id if lab_id is
---    set (canonical post Phase 8-1), else teacher chain. Templates
---    keep school_id = NULL (global seed data).
+--    Pass 1a: prefer fabrication_labs.school_id (canonical post
+--    Phase 8-1) for machines that have a lab_id.
+--    Pass 1b: fallback to teachers.school_id for orphan machines
+--    (lab_id IS NULL, possible after a lab cascade SET NULL or
+--    pre-Phase-8-1 row).
+--    Templates keep school_id = NULL (global seed data, excluded
+--    by the is_system_template = false filter).
 -- ============================================================
 
-UPDATE machine_profiles AS mp
-SET school_id = COALESCE(fl.school_id, t.school_id)
-FROM teachers AS t
-LEFT JOIN fabrication_labs AS fl
-  ON fl.id = mp.lab_id
-WHERE mp.is_system_template = false
-  AND mp.teacher_id = t.id
-  AND t.school_id IS NOT NULL
-  AND mp.school_id IS DISTINCT FROM COALESCE(fl.school_id, t.school_id);
+-- Pass 1a: lab → school (canonical)
+UPDATE machine_profiles mp
+SET school_id = fl.school_id
+FROM fabrication_labs fl
+WHERE mp.lab_id = fl.id
+  AND mp.is_system_template = false
+  AND mp.school_id IS DISTINCT FROM fl.school_id;
+
+-- Pass 1b: teacher → school (orphan fallback)
+UPDATE machine_profiles mp
+SET school_id = t.school_id
+FROM teachers t
+WHERE mp.teacher_id = t.id
+  AND mp.is_system_template = false
+  AND mp.school_id IS NULL
+  AND t.school_id IS NOT NULL;
 
 -- ============================================================
 -- 2. Add created_by_teacher_id column (audit-only, mirrors labs).
