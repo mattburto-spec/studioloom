@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { getPageList } from "@/lib/unit-adapter";
 import { getGradingScale, type CurriculumFrameworkId } from "@/lib/constants";
@@ -13,14 +14,32 @@ import { computeStudentRollup, type CriterionRollup } from "@/lib/grading/rollup
 import { ScorePill } from "@/components/grading/ScorePill";
 import { ScoreSelector } from "@/components/grading/ScoreSelector";
 
+const STEP_TRANSITION = { type: "tween" as const, duration: 0.18, ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number] };
+
 export default function MarkingPage() {
   const searchParams = useSearchParams();
   const classId = searchParams.get("class");
+  const unitId = searchParams.get("unit");
 
-  if (!classId) {
-    return <ClassPicker />;
-  }
-  return <CalibrateView classId={classId} />;
+  // The step key drives the AnimatePresence swap. Each step is independent;
+  // exit animation overlaps the next step's enter for no perceived delay.
+  const stepKey = !classId ? "classes" : !unitId ? "units" : "calibrate";
+
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={stepKey}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -6 }}
+        transition={STEP_TRANSITION}
+      >
+        {stepKey === "classes" && <ClassPicker />}
+        {stepKey === "units" && <UnitPicker classId={classId!} />}
+        {stepKey === "calibrate" && <CalibrateView classId={classId!} unitId={unitId!} />}
+      </motion.div>
+    </AnimatePresence>
+  );
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -149,6 +168,204 @@ function ClassPicker() {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// UnitPicker — class is selected, list this class's units to choose from.
+// ════════════════════════════════════════════════════════════════════════════
+
+interface UnitCardRow {
+  unitId: string;
+  title: string;
+  thumbnailUrl: string | null;
+  pageCount: number;
+  classUnitUpdatedAt: string | null;
+  unitCreatedAt: string;
+}
+
+function UnitPicker({ classId }: { classId: string }) {
+  const [className, setClassName] = useState<string | null>(null);
+  const [units, setUnits] = useState<UnitCardRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const supabase = createClient();
+      const [classRes, cuRes] = await Promise.all([
+        supabase.from("classes").select("name").eq("id", classId).single(),
+        supabase
+          .from("class_units")
+          .select(
+            "unit_id, is_active, content_data, updated_at, units(id, title, thumbnail_url, content_data, created_at)",
+          )
+          .eq("class_id", classId),
+      ]);
+
+      if (cancelled) return;
+
+      if (classRes.error || !classRes.data) {
+        setError("Class not found.");
+        return;
+      }
+      setClassName((classRes.data as { name: string }).name);
+
+      if (cuRes.error) {
+        setError(`Failed to load units: ${cuRes.error.message}`);
+        return;
+      }
+
+      type Joined = {
+        unit_id: string;
+        is_active: boolean | null;
+        content_data: UnitContentData | null;
+        updated_at: string | null;
+        units: {
+          id: string;
+          title: string;
+          thumbnail_url: string | null;
+          content_data: UnitContentData | null;
+          created_at: string;
+        } | null;
+      };
+
+      const all = (cuRes.data ?? []) as Joined[];
+      const active = all
+        .filter((cu) => cu.is_active !== false && cu.units !== null)
+        .map<UnitCardRow>((cu) => {
+          // Use the resolved (forked-or-master) content for the page count
+          // so the card reflects what the teacher actually sees in this class.
+          const masterContent =
+            cu.units!.content_data ?? ({ version: 2, pages: [] } as UnitContentData);
+          const resolved = resolveClassUnitContent(masterContent, cu.content_data);
+          const pages = getPageList(resolved);
+          return {
+            unitId: cu.units!.id,
+            title: cu.units!.title,
+            thumbnailUrl: cu.units!.thumbnail_url,
+            pageCount: pages.length,
+            classUnitUpdatedAt: cu.updated_at,
+            unitCreatedAt: cu.units!.created_at,
+          };
+        })
+        .sort((a, b) => {
+          const aKey = a.classUnitUpdatedAt ?? a.unitCreatedAt;
+          const bKey = b.classUnitUpdatedAt ?? b.unitCreatedAt;
+          return bKey.localeCompare(aKey);
+        });
+
+      setUnits(active);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [classId]);
+
+  if (error) {
+    return (
+      <div className="max-w-3xl mx-auto px-6 py-10">
+        <Link href="/teacher/marking" className="text-sm text-purple-600 hover:underline">
+          ← Back to classes
+        </Link>
+        <div className="mt-4 p-6 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-900">
+          {error}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto px-6 py-10">
+      <Link href="/teacher/marking" className="text-xs text-gray-500 hover:text-purple-600 transition">
+        ← All classes
+      </Link>
+      <header className="mb-6 mt-1">
+        <h1 className="text-2xl font-extrabold tracking-tight text-gray-900">
+          {className ?? "Loading…"}
+        </h1>
+        <p className="text-sm text-gray-500 mt-1">Pick a unit to start marking.</p>
+      </header>
+
+      {units === null ? (
+        // Skeleton — animates in instantly so there's no blank flash
+        <div className="grid gap-3">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-[78px] bg-white border border-gray-200 rounded-2xl animate-pulse"
+            />
+          ))}
+        </div>
+      ) : units.length === 0 ? (
+        <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-2xl text-sm text-gray-500">
+          No active units in this class.
+        </div>
+      ) : (
+        <motion.div
+          className="grid gap-3"
+          initial="hidden"
+          animate="visible"
+          variants={{
+            hidden: {},
+            visible: { transition: { staggerChildren: 0.04, delayChildren: 0.04 } },
+          }}
+        >
+          {units.map((u) => (
+            <motion.div
+              key={u.unitId}
+              variants={{
+                hidden: { opacity: 0, y: 6 },
+                visible: { opacity: 1, y: 0, transition: { duration: 0.18 } },
+              }}
+            >
+              <Link
+                href={`/teacher/marking?class=${classId}&unit=${u.unitId}`}
+                className="group flex items-center gap-4 px-4 py-3 bg-white border border-gray-200 rounded-2xl hover:border-purple-300 hover:shadow-sm transition"
+              >
+                {u.thumbnailUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={u.thumbnailUrl}
+                    alt=""
+                    className="w-14 h-14 rounded-xl object-cover bg-gray-100 flex-shrink-0"
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center flex-shrink-0">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                    </svg>
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-gray-900 group-hover:text-purple-700 transition truncate">
+                    {u.title}
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    {u.pageCount} lesson{u.pageCount === 1 ? "" : "s"}
+                  </p>
+                </div>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-gray-300 group-hover:text-purple-500 transition flex-shrink-0"
+                >
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </Link>
+            </motion.div>
+          ))}
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // Calibrate view (when ?class=X is present)
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -187,7 +404,7 @@ interface TileGradeRow {
   override_note?: string | null;
 }
 
-function CalibrateView({ classId }: { classId: string }) {
+function CalibrateView({ classId, unitId }: { classId: string; unitId: string }) {
   const [klass, setKlass] = useState<ClassDetail | null>(null);
   const [unit, setUnit] = useState<UnitDetail | null>(null);
   const [students, setStudents] = useState<StudentRow[]>([]);
@@ -231,20 +448,16 @@ function CalibrateView({ classId }: { classId: string }) {
       }
       setKlass(cls as ClassDetail);
 
-      // All units assigned to this class, with the embedded master unit row.
-      // Sort by class_units.updated_at client-side (the units table has only
-      // created_at — no updated_at). class_units.updated_at is actually the
-      // better "active in this class" signal anyway because it tracks per-
-      // class assignments + forks.
-      // Filter is_active === true OR null (legacy class_unit rows pre-migration
-      // sometimes have is_active = null even though the column DEFAULTs true).
-      const { data: classUnitsRaw, error: cuErr } = await supabase
+      // Fetch the specific class_unit assignment (unitId from URL).
+      const { data: cuRow, error: cuErr } = await supabase
         .from("class_units")
-        .select("unit_id, is_active, content_data, updated_at, units(id, title, content_data, created_at)")
-        .eq("class_id", classId);
+        .select("unit_id, is_active, content_data, units(id, title, content_data)")
+        .eq("class_id", classId)
+        .eq("unit_id", unitId)
+        .maybeSingle();
 
       if (cuErr) {
-        setLoadError(`Failed to load units for this class: ${cuErr.message}`);
+        setLoadError(`Failed to load this unit: ${cuErr.message}`);
         setLoading(false);
         return;
       }
@@ -253,43 +466,22 @@ function CalibrateView({ classId }: { classId: string }) {
         unit_id: string;
         is_active: boolean | null;
         content_data: UnitContentData | null;
-        updated_at: string | null;
-        units: { id: string; title: string; content_data: UnitContentData | null; created_at: string } | null;
+        units: { id: string; title: string; content_data: UnitContentData | null } | null;
       };
-      const allClassUnits = (classUnitsRaw ?? []) as ClassUnitJoined[];
+      const cu = cuRow as ClassUnitJoined | null;
 
-      if (allClassUnits.length === 0) {
-        setLoadError(
-          "No units assigned to this class. Open the class page and add a unit before marking.",
-        );
+      if (!cu || !cu.units) {
+        setLoadError("This unit isn't assigned to the class. Pick a different unit.");
+        setLoading(false);
+        return;
+      }
+      if (cu.is_active === false) {
+        setLoadError("This unit is marked inactive in this class. Reactivate it first.");
         setLoading(false);
         return;
       }
 
-      // Active or unset is_active counts as active. Drop rows where the
-      // joined unit row is null (orphaned class_units pointing at deleted
-      // units — defensive only, shouldn't happen with FK CASCADE).
-      // Sort by class_units.updated_at (when assigned/forked) primarily, with
-      // units.created_at as tiebreaker for class_unit rows that share a stamp.
-      const active = allClassUnits
-        .filter((cu) => cu.is_active !== false && cu.units !== null)
-        .sort((a, b) => {
-          const aKey = a.updated_at ?? a.units?.created_at ?? "";
-          const bKey = b.updated_at ?? b.units?.created_at ?? "";
-          return bKey.localeCompare(aKey);
-        });
-
-      if (active.length === 0) {
-        setLoadError(
-          `This class has ${allClassUnits.length} unit(s), but all are marked inactive. ` +
-            `Reactivate one from the class page to start marking.`,
-        );
-        setLoading(false);
-        return;
-      }
-
-      const cu = active[0];
-      const unitRow = cu.units!;
+      const unitRow = cu.units;
       const masterContent = unitRow.content_data ?? ({ version: 2, pages: [] } as UnitContentData);
       const resolved = resolveClassUnitContent(masterContent, cu.content_data);
 
@@ -384,7 +576,7 @@ function CalibrateView({ classId }: { classId: string }) {
       setLoadError(err instanceof Error ? err.message : "Unexpected error loading data.");
       setLoading(false);
     }
-  }, [classId]);
+  }, [classId, unitId]);
 
   useEffect(() => {
     void loadAll();
@@ -557,8 +749,11 @@ function CalibrateView({ classId }: { classId: string }) {
   if (loadError) {
     return (
       <div className="max-w-3xl mx-auto px-6 py-10">
-        <Link href="/teacher/marking" className="text-sm text-purple-600 hover:underline">
-          ← Back to classes
+        <Link
+          href={`/teacher/marking?class=${classId}`}
+          className="text-sm text-purple-600 hover:underline"
+        >
+          ← Back to units
         </Link>
         <div className="mt-4 p-6 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-900">
           {loadError}
@@ -572,8 +767,11 @@ function CalibrateView({ classId }: { classId: string }) {
       {/* Header */}
       <header className="mb-6 flex items-end justify-between gap-6">
         <div className="min-w-0">
-          <Link href="/teacher/marking" className="text-xs text-gray-500 hover:text-purple-600 transition">
-            ← All classes
+          <Link
+            href={`/teacher/marking?class=${classId}`}
+            className="text-xs text-gray-500 hover:text-purple-600 transition"
+          >
+            ← {klass?.name ?? "All units"}
           </Link>
           <h1 className="text-2xl font-extrabold tracking-tight text-gray-900 mt-1">
             Marking · <span className="text-gray-500 font-bold">{klass?.name}</span>
