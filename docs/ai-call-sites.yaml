@@ -5,7 +5,7 @@
 # docs/projects/dimensions3-followups.md FU-5 (stop_reason_handled seeding).
 #
 # Last synced: 2026-04-14
-# Total call sites: 53
+# Total call sites: 54
 
 call_sites:
 - id: ai_app_api_admin_ai_model_test_lesson_route_buildUnitTypeSystemPrompt
@@ -412,6 +412,18 @@ call_sites:
   - /api/student/design-assistant
   cost_category: unknown
   notes: HTTP-based call (no SDK import)
+- id: ai_lib_grading_ai_prescore_Anthropic
+  file: src/lib/grading/ai-prescore.ts
+  function: Anthropic
+  provider: anthropic
+  model: claude-haiku-4-5-20251001
+  max_tokens: 600
+  stop_reason_handled: unknown
+  has_fallback: false
+  called_from_routes:
+  - /api/teacher/grading/tile-grades/ai-prescore
+  cost_category: unknown
+  notes: null
 - id: ai_lib_ingestion_dedup_embedText
   file: src/lib/ingestion/dedup.ts
   function: embedText
