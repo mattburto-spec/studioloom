@@ -169,7 +169,7 @@ New `class_members` table replacing the current `author_teacher_id` direct owner
 23. Platform super-admin view at `/admin/school/[id]` (gated on `auth.users.is_platform_admin`) — teachers, fabricators, settings snapshot, audit log, merge request controls
 24. **Forward-compat schema only (Phase 0, no UX):** `school_resources` + `school_resource_relations` polymorphic tables — first consumer is Matt's future Service/PYP people-places-things library; pattern reusable for alumni / partner / shared-rubric collections (see §8.6)
 25. **Forward-compat schema only:** `guardians` + `student_guardians` relational tables — unblocks future parent comms, report sharing, parent portal SSO (see §8.6)
-26. **Forward-compat schema only:** SIS integration columns `external_id`, `sis_source`, `last_synced_at` on students, teachers, classes — unblocks future Google / Microsoft / PowerSchool / ManageBac roster sync without rewrite (see §8.6)
+26. **SIS integration seam — already partially exists in mig 005 (28 Apr 2026 pre-flight finding).** Mig 005_lms_integration.sql added `students.external_id`, `students.external_provider`, `classes.external_class_id`, `classes.external_provider`, `classes.last_synced_at` under different names than the v2 plan called for (`sis_source` → `external_provider`; `external_id` on classes → `external_class_id`). Renaming touches every reader of the LMS integration code path. **Decision (28 Apr PM):** keep mig 005's column names as-is for v2; canonicalisation deferred to Phase 6 cutover audit (or post-pilot follow-up). `teachers.external_id` / `teachers.sis_source` not added — `teachers` uses the separate `teacher_integrations` table (mig 005) for ManageBac/Toddle/Canvas API config. See §8.6 for updated forward-compat narrative.
 27. **Forward-compat schema only:** `consents` table tracking per-subject opt-ins (media release, AI usage, directory visibility, community contact, third-party share) — required for FERPA / GDPR / PIPL; UX wired in Phase 5 alongside privacy endpoints (see §8.6)
 28. **Forward-compat schema only:** `schools.status` lifecycle enum (`active` / `dormant` / `archived` / `merged_into`) — covers teacher turnover, school closure, post-merge redirect window (see §8.6)
 29. **`students.school_id` + `units.school_id` columns** (NEW — gap surfaced by 28 Apr audit). Without these, school library queries can't filter cleanly and RLS on student-touched tables has to traverse `students → class_students → classes.school_id` per row. Phase 0 adds both as nullable, backfills from the canonical class chain, then tightens to NOT NULL.
@@ -208,7 +208,7 @@ Each phase ends with a named Matt Checkpoint. No phase begins until the previous
 - **API versioning ritual (starts here, no migration):** every new route introduced by v2 ships under `/api/v1/...` prefix. Existing routes stay where they are until Phase 6's rename pass. Document in `docs/conventions/api-versioning.md` so future contributors don't drift.
 - **NEW gap-fill columns (28 Apr audit):** `students.school_id`, `units.school_id` — backfilled from class chain, tightened to NOT NULL
 - **Forward-compat tables (schema only, no UX wiring):** `school_resources`, `school_resource_relations`, `guardians`, `student_guardians`, `consents`
-- **Column additions:** soft-delete (`deleted_at`) on every user-touched table; `unit_version_id` on submission-shaped tables; SIS forward-compat (`external_id`, `sis_source`, `last_synced_at`) on students / teachers / classes
+- **Column additions:** soft-delete (`deleted_at`) on every user-touched table; `unit_version_id` on submission-shaped tables. *(SIS forward-compat originally planned here — partially exists via mig 005 under different names; see §3 item #26 + §8.6 item 3. Phase 0 does NOT add SIS columns; canonicalisation deferred to Phase 6.)*
 - **User type extensibility:** `auth.users.user_type` enum starting with `student | teacher | fabricator | platform_admin` — designed extensible for future `community_member` (§8.7) and `guardian` without migration
 - **Backfill:** populate `teachers.school_id` for orphan teachers (creates personal schools); backfill `classes.school_id`, `machine_profiles.school_id`, `fabricators.school_id` from teacher chain (already nullable); seed `class_members.lead_teacher` from existing `classes.teacher_id`; soft-delete columns default `NULL`; SIS columns default `NULL`
 - **🛡️ MFA enablement (audit F6 BLOCKER):** turn on Supabase TOTP MFA at project level; require enrollment on first login for every teacher account; require Matt's platform-admin account to enroll before pilot. ~1 day. Documented procedure for MFA reset.
@@ -457,14 +457,22 @@ student_guardians (student_id, guardian_id, is_primary, receives_reports, create
 
 No UI in v1. Schema unblocks future parent comms, report sharing, parent-portal SSO, emergency contact retrieval. Email/phone encrypted at rest like `school_resources.contact_info_jsonb`.
 
-**3. SIS external ID columns**
+**3. SIS external ID columns — reality check (28 April 2026 pre-flight)**
 
-On students, teachers, and classes:
-- `external_id text nullable` — the ID from whatever SIS the school uses
-- `sis_source text nullable` — `'manual'` (default) | `'google'` | `'microsoft'` | `'powerschool'` | `'managebac'` | `'veracross'` | extensible
-- `last_synced_at timestamptz nullable`
+The seam ALREADY EXISTS in mig 005_lms_integration.sql with different naming than this plan originally called for:
 
-Without these columns, future roster sync from a school's existing SIS becomes a rewrite of every user-shaped table. With them, integration is additive — a sync job can read `WHERE sis_source = 'managebac' AND last_synced_at < NOW() - interval '1 day'` and update.
+| What v2 plan said | What mig 005 actually shipped |
+|---|---|
+| `students.sis_source` | `students.external_provider` |
+| `students.external_id` | `students.external_id` ✓ |
+| `classes.sis_source` | `classes.external_provider` |
+| `classes.external_id` | `classes.external_class_id` |
+| `classes.last_synced_at` | `classes.last_synced_at` ✓ |
+| `teachers.{sis_source,external_id,last_synced_at}` | not added — `teachers` uses separate `teacher_integrations` table for API tokens |
+
+The seam is real, just under different names. Renaming touches every reader of the LMS integration code path (currently quarantined behind unused `teacher_integrations` flow). **Decision 28 Apr PM:** keep mig 005's names for v2; canonicalise to `sis_source` / `external_id` in Phase 6 cutover audit OR a post-pilot follow-up, whichever surfaces a real reason to break things. The forward-compat goal is achieved as-is — a future sync job reads `WHERE external_provider = 'managebac' AND last_synced_at < NOW() - interval '1 day'` instead of the originally-planned `sis_source` filter, and that's fine.
+
+**Why not rename now:** Lesson #44 (simplicity first — no speculative refactors) and Lesson #45 (surgical changes — touch only what each sub-task names). Renaming a year-old column to satisfy a forward-compat plan is the kind of yak-shave the methodology explicitly warns against. The seam works.
 
 **4. Consent tracking model**
 
@@ -559,7 +567,8 @@ Systems touched (incomplete — full audit before Phase 0):
 - **Forward-compat (schema-only in Phase 0, see §8.6):** `school_resources`, `school_resource_relations`, `guardians`, `student_guardians`, `consents`
 
 **New columns on existing tables:**
-- `students`, `teachers`, `classes`: `external_id`, `sis_source`, `last_synced_at` (SIS forward-compat)
+- `teachers.locale TEXT NOT NULL DEFAULT 'en'`, `students.locale TEXT NOT NULL DEFAULT 'en'` (Phase 0.2 — locale forward-compat)
+- ~~`students`, `teachers`, `classes`: `external_id`, `sis_source`, `last_synced_at`~~ — already in mig 005 under different names; canonicalisation deferred to Phase 6 (see §3 item #26 + §8.6 item 3)
 - All user-touched tables: `deleted_at` (soft delete)
 - Submission-shaped tables: `unit_version_id`
 - `auth.users`: `user_type` (extensible enum), `is_platform_admin` (boolean)

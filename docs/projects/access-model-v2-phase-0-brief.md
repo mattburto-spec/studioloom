@@ -9,6 +9,7 @@
 **Estimated effort:** ~3–4 days across 9 sub-phases
 **Master spec:** [`docs/projects/access-model-v2.md`](access-model-v2.md) §4 Phase 0
 **Path:** B (chosen 28 Apr PM — ship full v2 before any pilot)
+**Supabase boundary (clarified 28 Apr PM):** every Supabase action — applying migrations, dashboard config (MFA toggle, regional settings), prod data queries (multi-Matt audit, RLS test harness fixtures) — **goes through Matt manually, not autonomously**. Code/Cowork writes the migration files + scripts + test runners; Matt applies to prod as part of each sub-task sign-off and the final Checkpoint A1.
 
 ---
 
@@ -24,8 +25,8 @@ The discipline: many small migrations, each one concern, each one paired with a 
 
 | # | Sub-task | Effort | Deliverable |
 |---|---|---|---|
-| **0.1** | Schools column expansion (status / region / bootstrap_expires_at / subscription_tier / timezone / default_locale) | ~1 hr | 1 migration pair |
-| **0.2** | Locale columns on user tables (`teachers.locale`, `students.locale`) + SIS forward-compat columns (`external_id`, `sis_source`, `last_synced_at` on students/teachers/classes) | ~1 hr | 1 migration pair |
+| **0.1** | ✅ DONE — Schools column expansion (status / region / bootstrap_expires_at / subscription_tier / timezone / default_locale). Mig `20260428125547`. Tests +13. | ~1 hr | 1 migration pair |
+| **0.2** | ✅ DONE — Locale columns on user tables (`teachers.locale`, `students.locale`). Mig `20260428132944`. Tests +7. **SIS columns originally planned here — narrowed to Option A (locale only) after pre-flight audit caught mig 005_lms_integration.sql already had `external_id` / `external_provider` / `external_class_id` / `last_synced_at` under different names than the v2 plan called for. Canonicalisation deferred to Phase 6 cutover.** See plan §3 item #26 + §8.6 item 3. | ~30 min actual | 1 migration pair |
 | **0.3** | School-id gap fill (`students.school_id`, `units.school_id`) + backfill from class chain | ~2 hr | 1 migration pair |
 | **0.4** | Soft-delete columns (`deleted_at`) on user-touched tables + `unit_version_id` on submission-shaped tables | ~2 hr | 1 migration pair (after schema-audit of which tables qualify) |
 | **0.5** | `auth.users.user_type` extensible enum (`student`/`teacher`/`fabricator`/`platform_admin`; designed to absorb `community_member` and `guardian` later without migration) + `auth.users.is_platform_admin` boolean | ~1 hr | 1 migration pair |
