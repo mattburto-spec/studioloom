@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireStudentAuth } from "@/lib/auth/student";
-import type { UnitHit, SearchResponse } from "@/types/search";
+import { getPageList } from "@/lib/unit-adapter";
+import { resolveClassUnitContent } from "@/lib/units/resolve-content";
+import type { UnitContentData } from "@/types";
+import type { LessonHit, UnitHit, SearchResponse } from "@/types/search";
 
 const PER_BUCKET = 8;
 
@@ -13,10 +16,9 @@ export const GET = withErrorHandler("student/search:GET", async (request: NextRe
 
   const url = new URL(request.url);
   const rawQ = (url.searchParams.get("q") ?? "").trim();
-  const escaped = rawQ.replace(/[\\%_]/g, (m) => `\\${m}`);
-  const pattern = `%${escaped}%`;
+  const queryLower = rawQ.toLowerCase();
 
-  const empty: SearchResponse = { query: rawQ, classes: [], units: [], students: [] };
+  const empty: SearchResponse = { query: rawQ, classes: [], units: [], lessons: [], students: [] };
   if (rawQ.length < 2) {
     return NextResponse.json(empty);
   }
@@ -53,46 +55,105 @@ export const GET = withErrorHandler("student/search:GET", async (request: NextRe
 
   const classIdArray = Array.from(classIds);
 
-  // Fetch class names (for unit subtitles) and matching units in parallel.
+  // Load class names (for unit subtitles) and the student's class_unit
+  // assignments (with per-class fork content_data) in parallel.
   const [classRowsRes, classUnitsRes] = await Promise.all([
     supabase.from("classes").select("id, name").in("id", classIdArray),
     supabase
       .from("class_units")
-      .select("unit_id, class_id, units!inner(id, title)")
+      .select("unit_id, class_id, content_data")
       .in("class_id", classIdArray)
-      .eq("is_active", true)
-      .ilike("units.title", pattern)
-      .limit(PER_BUCKET * 2),
+      .eq("is_active", true),
   ]);
 
   const classNameById = new Map(
     ((classRowsRes.data ?? []) as Array<{ id: string; name: string }>).map((c) => [c.id, c.name])
   );
 
-  // Dedup units by id (one unit may be assigned to multiple of the
-  // student's classes — show it once, attribute to the first class).
-  // PostgREST !inner embed returns a single object at runtime; the
-  // generated type widens to an array, so cast through unknown.
-  const seen = new Set<string>();
-  const units: UnitHit[] = [];
-  const cuRows = (classUnitsRes.data ?? []) as unknown as Array<{
+  const cuRows = (classUnitsRes.data ?? []) as Array<{
     unit_id: string;
     class_id: string;
-    units: { id: string; title: string };
+    content_data: UnitContentData | null;
   }>;
-  for (const row of cuRows) {
-    if (!row.units || seen.has(row.units.id)) continue;
-    seen.add(row.units.id);
-    units.push({
-      type: "unit",
-      id: row.units.id,
-      title: row.units.title,
-      subtitle: classNameById.get(row.class_id) ?? null,
-      href: `/unit/${row.units.id}`,
-    });
-    if (units.length >= PER_BUCKET) break;
+  if (cuRows.length === 0) {
+    return NextResponse.json(empty);
   }
 
-  const response: SearchResponse = { query: rawQ, classes: [], units, students: [] };
+  // Dedup by unit_id — if a student has the same unit in multiple classes,
+  // keep the first assignment (subtitle attribution falls back accordingly).
+  const seenUnits = new Set<string>();
+  const dedupedAssignments: typeof cuRows = [];
+  for (const cu of cuRows) {
+    if (seenUnits.has(cu.unit_id)) continue;
+    seenUnits.add(cu.unit_id);
+    dedupedAssignments.push(cu);
+  }
+
+  // Load master units in one query so we can resolve effective content
+  // (per-class fork wins via resolveClassUnitContent).
+  const unitIds = dedupedAssignments.map((cu) => cu.unit_id);
+  const { data: unitRows } = await supabase
+    .from("units")
+    .select("id, title, content_data")
+    .in("id", unitIds);
+
+  const unitMap = new Map<string, { id: string; title: string; content_data: UnitContentData }>();
+  for (const u of (unitRows ?? []) as Array<{ id: string; title: string; content_data: UnitContentData }>) {
+    unitMap.set(u.id, u);
+  }
+
+  // Walk each assignment once, resolving content; collect units (by title)
+  // and lessons (by page title) until both buckets are full.
+  const units: UnitHit[] = [];
+  const lessons: LessonHit[] = [];
+
+  for (const cu of dedupedAssignments) {
+    const u = unitMap.get(cu.unit_id);
+    if (!u) continue;
+
+    const subtitleClass = classNameById.get(cu.class_id) ?? null;
+
+    if (units.length < PER_BUCKET && u.title.toLowerCase().includes(queryLower)) {
+      units.push({
+        type: "unit",
+        id: u.id,
+        title: u.title,
+        subtitle: subtitleClass,
+        href: `/unit/${u.id}`,
+      });
+    }
+
+    if (lessons.length < PER_BUCKET) {
+      // Resolve the class-fork-aware effective content so lesson titles
+      // reflect what the student actually sees in the unit.
+      const effective = resolveClassUnitContent(u.content_data, cu.content_data);
+      const pages = getPageList(effective);
+      for (const p of pages) {
+        if (!p.title) continue;
+        if (p.title.toLowerCase().includes(queryLower)) {
+          lessons.push({
+            type: "lesson",
+            id: `${u.id}:${p.id}`,
+            unitId: u.id,
+            pageId: p.id,
+            title: p.title,
+            subtitle: u.title,
+            href: `/unit/${u.id}/${p.id}`,
+          });
+          if (lessons.length >= PER_BUCKET) break;
+        }
+      }
+    }
+
+    if (units.length >= PER_BUCKET && lessons.length >= PER_BUCKET) break;
+  }
+
+  const response: SearchResponse = {
+    query: rawQ,
+    classes: [],
+    units,
+    lessons,
+    students: [],
+  };
   return NextResponse.json(response);
 });

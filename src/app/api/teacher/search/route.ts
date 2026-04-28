@@ -41,7 +41,7 @@ export const GET = withErrorHandler("teacher/search:GET", async (request: NextRe
   const escaped = rawQ.replace(/[\\%_]/g, (m) => `\\${m}`);
   const pattern = `%${escaped}%`;
 
-  const empty: SearchResponse = { query: rawQ, classes: [], units: [], students: [] };
+  const empty: SearchResponse = { query: rawQ, classes: [], units: [], lessons: [], students: [] };
   if (rawQ.length < 2) {
     return NextResponse.json(empty);
   }
@@ -146,6 +146,6 @@ export const GET = withErrorHandler("teacher/search:GET", async (request: NextRe
     if (students.length >= PER_BUCKET) break;
   }
 
-  const response: SearchResponse = { query: rawQ, classes, units, students };
+  const response: SearchResponse = { query: rawQ, classes, units, lessons: [], students };
   return NextResponse.json(response);
 });

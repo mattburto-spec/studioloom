@@ -14,7 +14,7 @@ interface CommandPaletteProps {
 
 type FlatHit = SearchHit & { groupLabel: string };
 
-const EMPTY: SearchResponse = { query: "", classes: [], units: [], students: [] };
+const EMPTY: SearchResponse = { query: "", classes: [], units: [], lessons: [], students: [] };
 
 export function CommandPalette({
   open,
@@ -95,6 +95,7 @@ export function CommandPalette({
     const out: FlatHit[] = [];
     for (const c of results.classes) out.push({ ...c, groupLabel: "Classes" });
     for (const u of results.units) out.push({ ...u, groupLabel: "Units" });
+    for (const l of results.lessons) out.push({ ...l, groupLabel: "Lessons" });
     for (const s of results.students) out.push({ ...s, groupLabel: "Students" });
     return out;
   }, [results]);
@@ -130,11 +131,13 @@ export function CommandPalette({
   const showHint = trimmed.length < 2;
 
   // Build grouped index ranges so each row knows its position in `flat` for activeIdx.
+  // Order here must match the `flat` build above.
   let runningIdx = 0;
   const groups: Array<{ label: string; items: Array<{ hit: SearchHit; flatIdx: number }> }> = [];
   for (const [label, items] of [
     ["Classes", results.classes] as const,
     ["Units", results.units] as const,
+    ["Lessons", results.lessons] as const,
     ["Students", results.students] as const,
   ]) {
     if (items.length === 0) continue;
@@ -243,14 +246,15 @@ export function CommandPalette({
   );
 }
 
+const BADGE_BY_TYPE: Record<SearchHit["type"], { label: string; tone: string }> = {
+  class: { label: "Class", tone: "bg-[#0EA5E9]/10 text-[#0369A1]" },
+  unit: { label: "Unit", tone: "bg-[#9333EA]/10 text-[#6B21A8]" },
+  lesson: { label: "Lesson", tone: "bg-[#10B981]/10 text-[#047857]" },
+  student: { label: "Student", tone: "bg-[#E86F2C]/10 text-[#9A3D08]" },
+};
+
 function TypeBadge({ type }: { type: SearchHit["type"] }) {
-  const label = type === "class" ? "Class" : type === "unit" ? "Unit" : "Student";
-  const tone =
-    type === "class"
-      ? "bg-[#0EA5E9]/10 text-[#0369A1]"
-      : type === "unit"
-      ? "bg-[#9333EA]/10 text-[#6B21A8]"
-      : "bg-[#E86F2C]/10 text-[#9A3D08]";
+  const { label, tone } = BADGE_BY_TYPE[type];
   return (
     <span
       className={`shrink-0 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide ${tone}`}

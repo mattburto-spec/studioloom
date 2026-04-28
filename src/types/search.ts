@@ -29,11 +29,24 @@ export interface StudentHit {
   href: string;
 }
 
-export type SearchHit = ClassHit | UnitHit | StudentHit;
+export interface LessonHit {
+  type: "lesson";
+  /** Composite id for React keys: `<unitId>:<pageId>`. */
+  id: string;
+  unitId: string;
+  pageId: string;
+  title: string;
+  /** Parent unit title — gives the student "lesson X in Unit Y". */
+  subtitle: string | null;
+  href: string;
+}
+
+export type SearchHit = ClassHit | UnitHit | StudentHit | LessonHit;
 
 export interface SearchResponse {
   query: string;
   classes: ClassHit[];
   units: UnitHit[];
+  lessons: LessonHit[];
   students: StudentHit[];
 }
