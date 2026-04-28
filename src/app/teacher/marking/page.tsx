@@ -232,13 +232,15 @@ function CalibrateView({ classId }: { classId: string }) {
       setKlass(cls as ClassDetail);
 
       // All units assigned to this class, with the embedded master unit row.
-      // We sort by the master unit's updated_at client-side because Supabase's
-      // .order on a joined relation column is brittle across JS-client versions.
+      // Sort by class_units.updated_at client-side (the units table has only
+      // created_at — no updated_at). class_units.updated_at is actually the
+      // better "active in this class" signal anyway because it tracks per-
+      // class assignments + forks.
       // Filter is_active === true OR null (legacy class_unit rows pre-migration
       // sometimes have is_active = null even though the column DEFAULTs true).
       const { data: classUnitsRaw, error: cuErr } = await supabase
         .from("class_units")
-        .select("unit_id, is_active, content_data, units(id, title, content_data, updated_at)")
+        .select("unit_id, is_active, content_data, updated_at, units(id, title, content_data, created_at)")
         .eq("class_id", classId);
 
       if (cuErr) {
@@ -251,7 +253,8 @@ function CalibrateView({ classId }: { classId: string }) {
         unit_id: string;
         is_active: boolean | null;
         content_data: UnitContentData | null;
-        units: { id: string; title: string; content_data: UnitContentData | null; updated_at: string } | null;
+        updated_at: string | null;
+        units: { id: string; title: string; content_data: UnitContentData | null; created_at: string } | null;
       };
       const allClassUnits = (classUnitsRaw ?? []) as ClassUnitJoined[];
 
@@ -266,11 +269,15 @@ function CalibrateView({ classId }: { classId: string }) {
       // Active or unset is_active counts as active. Drop rows where the
       // joined unit row is null (orphaned class_units pointing at deleted
       // units — defensive only, shouldn't happen with FK CASCADE).
+      // Sort by class_units.updated_at (when assigned/forked) primarily, with
+      // units.created_at as tiebreaker for class_unit rows that share a stamp.
       const active = allClassUnits
         .filter((cu) => cu.is_active !== false && cu.units !== null)
-        .sort((a, b) =>
-          (b.units?.updated_at ?? "").localeCompare(a.units?.updated_at ?? ""),
-        );
+        .sort((a, b) => {
+          const aKey = a.updated_at ?? a.units?.created_at ?? "";
+          const bKey = b.updated_at ?? b.units?.created_at ?? "";
+          return bKey.localeCompare(aKey);
+        });
 
       if (active.length === 0) {
         setLoadError(
