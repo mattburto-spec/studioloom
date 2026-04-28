@@ -9,6 +9,7 @@ import { getGradingScale, type CurriculumFrameworkId } from "@/lib/constants";
 import type { UnitContentData } from "@/types";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
 import { extractTilesFromPage, tileProgress, type LessonTile } from "@/lib/grading/lesson-tiles";
+import { computeStudentRollup, type CriterionRollup } from "@/lib/grading/rollup";
 import { ScorePill } from "@/components/grading/ScorePill";
 import { ScoreSelector } from "@/components/grading/ScoreSelector";
 
@@ -202,6 +203,10 @@ function CalibrateView({ classId }: { classId: string }) {
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [aiBatchRunning, setAiBatchRunning] = useState(false);
   const [aiBatchSummary, setAiBatchSummary] = useState<string | null>(null);
+  const [view, setView] = useState<"calibrate" | "synthesize">("calibrate");
+  const [releasingStudentId, setReleasingStudentId] = useState<string | null>(null);
+  const [synthCommentDraft, setSynthCommentDraft] = useState<Record<string, string>>({});
+  const [releasedAtByStudent, setReleasedAtByStudent] = useState<Record<string, string>>({});
 
   // Compose a stable key for the grade map.
   const gradeKey = (studentId: string, tileId: string, pageId: string) =>
@@ -558,18 +563,140 @@ function CalibrateView({ classId }: { classId: string }) {
   return (
     <div className="max-w-6xl mx-auto px-6 py-8">
       {/* Header */}
-      <header className="mb-6">
-        <Link href="/teacher/marking" className="text-xs text-gray-500 hover:text-purple-600 transition">
-          ← All classes
-        </Link>
-        <h1 className="text-2xl font-extrabold tracking-tight text-gray-900 mt-1">
-          Marking · <span className="text-gray-500 font-bold">{klass?.name}</span>
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">
-          {unit?.title} · {scale.type === "percentage" ? "Percentage" : `Scale ${scale.min}–${scale.max}`}
-        </p>
+      <header className="mb-6 flex items-end justify-between gap-6">
+        <div className="min-w-0">
+          <Link href="/teacher/marking" className="text-xs text-gray-500 hover:text-purple-600 transition">
+            ← All classes
+          </Link>
+          <h1 className="text-2xl font-extrabold tracking-tight text-gray-900 mt-1">
+            Marking · <span className="text-gray-500 font-bold">{klass?.name}</span>
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            {unit?.title} · {scale.type === "percentage" ? "Percentage" : `Scale ${scale.min}–${scale.max}`}
+          </p>
+        </div>
+
+        {/* View switcher */}
+        <div className="flex-shrink-0 inline-flex bg-gray-100 rounded-lg p-1 text-xs font-bold">
+          <button
+            type="button"
+            onClick={() => setView("calibrate")}
+            className={[
+              "px-3 py-1.5 rounded-md transition",
+              view === "calibrate" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700",
+            ].join(" ")}
+          >
+            Calibrate
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("synthesize")}
+            className={[
+              "px-3 py-1.5 rounded-md transition",
+              view === "synthesize" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700",
+            ].join(" ")}
+          >
+            Synthesize
+          </button>
+        </div>
       </header>
 
+      {view === "synthesize" ? (
+        <SynthesizeView
+          klass={klass}
+          unit={unit}
+          students={students}
+          grades={grades}
+          activePageId={activePageId}
+          scale={scale}
+          synthCommentDraft={synthCommentDraft}
+          setSynthCommentDraft={setSynthCommentDraft}
+          releasingStudentId={releasingStudentId}
+          setReleasingStudentId={setReleasingStudentId}
+          releasedAtByStudent={releasedAtByStudent}
+          setReleasedAtByStudent={setReleasedAtByStudent}
+          loadAll={loadAll}
+        />
+      ) : (
+        <CalibrateInner
+          tiles={tiles}
+          activeTileIdx={activeTileIdx}
+          setActiveTileIdx={setActiveTileIdx}
+          activeTile={activeTile}
+          activePageId={activePageId}
+          students={students}
+          confirmedRows={confirmedRows}
+          grades={grades}
+          responses={responses}
+          gradeKey={gradeKey}
+          scale={scale}
+          savingKey={savingKey}
+          saveTile={saveTile}
+          expandedStudentId={expandedStudentId}
+          setExpandedStudentId={setExpandedStudentId}
+          overrideNoteDraft={overrideNoteDraft}
+          setOverrideNoteDraft={setOverrideNoteDraft}
+          aiBatchRunning={aiBatchRunning}
+          aiBatchSummary={aiBatchSummary}
+          runAiPrescoreBatch={runAiPrescoreBatch}
+        />
+      )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// CalibrateInner — extracted from inline render to allow tab switch.
+// All hooks stay on the parent CalibrateView; this is presentational.
+// ════════════════════════════════════════════════════════════════════════════
+
+interface CalibrateInnerProps {
+  tiles: LessonTile[];
+  activeTileIdx: number;
+  setActiveTileIdx: (n: number) => void;
+  activeTile: LessonTile | undefined;
+  activePageId: string | null;
+  students: StudentRow[];
+  confirmedRows: { tile_id: string; confirmed: boolean }[];
+  grades: Record<string, TileGradeRow>;
+  responses: Record<string, Record<string, string>>;
+  gradeKey: (s: string, t: string, p: string) => string;
+  scale: ReturnType<typeof getGradingScale>;
+  savingKey: string | null;
+  saveTile: (s: string, score: number | null, confirmed: boolean, extras?: { override_note?: string | null }) => Promise<void>;
+  expandedStudentId: string | null;
+  setExpandedStudentId: (s: string | null) => void;
+  overrideNoteDraft: Record<string, string>;
+  setOverrideNoteDraft: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  aiBatchRunning: boolean;
+  aiBatchSummary: string | null;
+  runAiPrescoreBatch: () => Promise<void>;
+}
+
+function CalibrateInner({
+  tiles,
+  activeTileIdx,
+  setActiveTileIdx,
+  activeTile,
+  activePageId,
+  students,
+  confirmedRows,
+  grades,
+  responses,
+  gradeKey,
+  scale,
+  savingKey,
+  saveTile,
+  expandedStudentId,
+  setExpandedStudentId,
+  overrideNoteDraft,
+  setOverrideNoteDraft,
+  aiBatchRunning,
+  aiBatchSummary,
+  runAiPrescoreBatch,
+}: CalibrateInnerProps) {
+  return (
+    <>
       {/* Tile strip */}
       <div className="mb-6 -mx-1 overflow-x-auto">
         <div className="flex gap-2 px-1 pb-2">
@@ -910,6 +1037,200 @@ function CalibrateView({ classId }: { classId: string }) {
           })
         )}
       </div>
+    </>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// SynthesizeView — per-student vertical rollup + Release flow.
+// ════════════════════════════════════════════════════════════════════════════
+
+interface SynthesizeViewProps {
+  klass: ClassDetail | null;
+  unit: UnitDetail | null;
+  students: StudentRow[];
+  grades: Record<string, TileGradeRow>;
+  activePageId: string | null;
+  scale: ReturnType<typeof getGradingScale>;
+  synthCommentDraft: Record<string, string>;
+  setSynthCommentDraft: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  releasingStudentId: string | null;
+  setReleasingStudentId: React.Dispatch<React.SetStateAction<string | null>>;
+  releasedAtByStudent: Record<string, string>;
+  setReleasedAtByStudent: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  loadAll: () => Promise<void>;
+}
+
+function SynthesizeView({
+  klass,
+  unit,
+  students,
+  grades,
+  scale,
+  synthCommentDraft,
+  setSynthCommentDraft,
+  releasingStudentId,
+  setReleasingStudentId,
+  releasedAtByStudent,
+  setReleasedAtByStudent,
+  loadAll,
+}: SynthesizeViewProps) {
+  if (!klass || !unit) return null;
+  if (students.length === 0) {
+    return (
+      <div className="p-6 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-900">
+        No students enrolled in this class yet.
+      </div>
+    );
+  }
+
+  // For each student, compute the cross-page rollup using the full set of
+  // confirmed grades for the unit (NOT just the active page — Synthesize is
+  // the assemble-everything step).
+  return (
+    <div className="space-y-3">
+      {students.map((s) => {
+        const studentGrades = Object.values(grades).filter(
+          (g) => g.student_id === s.id,
+        );
+        const confirmedCount = studentGrades.filter((g) => g.confirmed && g.score !== null).length;
+        const totalCount = studentGrades.length;
+        const rollups: CriterionRollup[] = computeStudentRollup(
+          studentGrades.map((g) => ({
+            tile_id: g.tile_id,
+            page_id: g.page_id,
+            score: g.score,
+            confirmed: g.confirmed,
+            criterion_keys: g.criterion_keys,
+            graded_at: null,
+          })),
+        );
+        const displayName = s.display_name?.trim() || s.username?.trim() || "(unnamed)";
+        const initials = displayName
+          .split(/\s+/)
+          .map((w) => w[0])
+          .join("")
+          .slice(0, 2)
+          .toUpperCase();
+        const commentDraft = synthCommentDraft[s.id] ?? "";
+        const isReleasing = releasingStudentId === s.id;
+        const releasedAt = releasedAtByStudent[s.id];
+        const canRelease = rollups.length > 0;
+
+        return (
+          <div key={s.id} className="bg-white border border-gray-200 rounded-2xl p-5">
+            <div className="flex items-start gap-4">
+              {s.avatar_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={s.avatar_url}
+                  alt=""
+                  className="w-11 h-11 rounded-full object-cover bg-gray-100 flex-shrink-0"
+                />
+              ) : (
+                <div className="w-11 h-11 rounded-full bg-purple-100 text-purple-700 font-bold text-sm flex items-center justify-center flex-shrink-0">
+                  {initials}
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-3 flex-wrap">
+                  <p className="text-base font-bold text-gray-900">{displayName}</p>
+                  <span className="text-[11px] font-mono text-gray-400 tabular-nums">
+                    {confirmedCount}/{totalCount} confirmed
+                  </span>
+                  {releasedAt && (
+                    <span className="text-[10px] font-bold text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
+                      Released
+                    </span>
+                  )}
+                </div>
+
+                {/* Rollup pills */}
+                {rollups.length === 0 ? (
+                  <p className="text-xs italic text-gray-400 mt-2">
+                    No confirmed scores yet — confirm at least one tile in Calibrate to see a rollup.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {rollups.map((r) => (
+                      <div
+                        key={r.neutral_key}
+                        className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200"
+                      >
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                          {r.neutral_key}
+                        </span>
+                        <span className="text-sm font-extrabold text-gray-900 tabular-nums">
+                          {scale.formatDisplay(r.score)}
+                        </span>
+                        <span className="text-[10px] font-mono text-gray-400">
+                          n={r.count}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Comment textarea + release */}
+                <div className="mt-4">
+                  <textarea
+                    value={commentDraft}
+                    onChange={(e) =>
+                      setSynthCommentDraft((prev) => ({ ...prev, [s.id]: e.target.value }))
+                    }
+                    placeholder={`A short overall comment for ${displayName} — what landed, what to push on next.`}
+                    rows={3}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                  />
+                  <div className="flex items-center justify-end gap-2 mt-2">
+                    <button
+                      type="button"
+                      disabled={isReleasing || !canRelease}
+                      onClick={async () => {
+                        setReleasingStudentId(s.id);
+                        try {
+                          const res = await fetch("/api/teacher/grading/release", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              class_id: klass.id,
+                              unit_id: unit.id,
+                              student_id: s.id,
+                              comment: commentDraft.trim() || null,
+                            }),
+                          });
+                          const json = await res.json();
+                          if (!res.ok) {
+                            throw new Error(json.error ?? `Release failed (${res.status})`);
+                          }
+                          setReleasedAtByStudent((prev) => ({ ...prev, [s.id]: json.released_at }));
+                          await loadAll();
+                        } catch (err) {
+                          alert(err instanceof Error ? err.message : "Release failed");
+                        } finally {
+                          setReleasingStudentId(null);
+                        }
+                      }}
+                      className={[
+                        "px-4 py-2 text-xs font-bold rounded-lg transition",
+                        canRelease && !isReleasing
+                          ? "bg-purple-600 text-white hover:bg-purple-700"
+                          : "bg-gray-100 text-gray-400 cursor-not-allowed",
+                      ].join(" ")}
+                    >
+                      {isReleasing
+                        ? "Releasing…"
+                        : releasedAt
+                          ? "Re-release"
+                          : `Release to ${displayName.split(" ")[0] || "student"}`}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
