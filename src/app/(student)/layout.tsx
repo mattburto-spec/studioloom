@@ -169,11 +169,26 @@ export default function StudentLayout({
   };
 
   if (loading) {
+    // Warm-paper Bold loading screen — matches the lesson page palette so
+    // students don't get a cold gray-on-purple flash before their workspace
+    // mounts. Uses literal hex values because .sl-v2 .lesson-bold tokens
+    // aren't in scope yet (BoldTopNav hasn't injected the scoped <style>).
     return (
-      <div className="min-h-screen flex items-center justify-center bg-surface-alt">
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ background: "#F5F1EA" }}
+      >
         <div className="flex items-center gap-3">
-          <div className="w-5 h-5 border-2 border-brand-purple border-t-transparent rounded-full animate-spin" />
-          <span className="text-text-secondary text-sm">Loading...</span>
+          <div
+            className="w-5 h-5 rounded-full animate-spin"
+            style={{
+              border: "2px solid #E5DFD2",
+              borderTopColor: "#0F0E0C",
+            }}
+          />
+          <span className="text-sm font-semibold" style={{ color: "#413D36" }}>
+            Loading…
+          </span>
         </div>
       </div>
     );
