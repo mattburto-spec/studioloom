@@ -4,10 +4,54 @@ import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireStudentAuth } from "@/lib/auth/student";
 import { getPageList } from "@/lib/unit-adapter";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
-import type { UnitContentData } from "@/types";
+import type { UnitContentData, UnitPage } from "@/types";
 import type { LessonHit, UnitHit, SearchResponse } from "@/types/search";
 
 const PER_BUCKET = 8;
+
+/**
+ * Concatenate every student-visible string on a page into one lowercase
+ * blob for substring matching. Lesson titles in v4 units are derived
+ * from the first core activity's title only — most of the words a
+ * student remembers (vocab terms, prompt language, intro paragraphs,
+ * reflection prompts, success criteria) live in the body. Without this,
+ * lesson search misses anything that isn't in the short title.
+ *
+ * Deliberately excludes teacher_notes (private) and AI rules (internal).
+ */
+function pageSearchText(page: UnitPage): string {
+  const parts: string[] = [];
+  if (page.title) parts.push(page.title);
+  const c = page.content;
+  if (c) {
+    if (c.title && c.title !== page.title) parts.push(c.title);
+    if (c.learningGoal) parts.push(c.learningGoal);
+    if (c.introduction?.text) parts.push(c.introduction.text);
+    if (Array.isArray(c.sections)) {
+      for (const s of c.sections) {
+        if (s.prompt) parts.push(s.prompt);
+        if (s.exampleResponse) parts.push(s.exampleResponse);
+        const sc = s.scaffolding;
+        if (sc) {
+          if (sc.ell1?.sentenceStarters) parts.push(...sc.ell1.sentenceStarters);
+          if (sc.ell1?.hints) parts.push(...sc.ell1.hints);
+          if (sc.ell2?.sentenceStarters) parts.push(...sc.ell2.sentenceStarters);
+          if (sc.ell3?.extensionPrompts) parts.push(...sc.ell3.extensionPrompts);
+        }
+      }
+    }
+    if (Array.isArray(c.success_criteria)) parts.push(...c.success_criteria);
+    if (c.reflection?.items?.length) parts.push(...c.reflection.items);
+    if (c.vocabWarmup?.terms?.length) {
+      for (const t of c.vocabWarmup.terms) {
+        if (t.term) parts.push(t.term);
+        if (t.definition) parts.push(t.definition);
+        if (t.example) parts.push(t.example);
+      }
+    }
+  }
+  return parts.join(" \n").toLowerCase();
+}
 
 export const GET = withErrorHandler("student/search:GET", async (request: NextRequest) => {
   const auth = await requireStudentAuth(request);
@@ -102,10 +146,12 @@ export const GET = withErrorHandler("student/search:GET", async (request: NextRe
     unitMap.set(u.id, u);
   }
 
-  // Walk each assignment once, resolving content; collect units (by title)
-  // and lessons (by page title) until both buckets are full.
+  // Walk each assignment once, resolving content. Collect title hits and
+  // body hits separately so title matches sort first when we trim to the
+  // bucket cap.
   const units: UnitHit[] = [];
-  const lessons: LessonHit[] = [];
+  const titleHits: LessonHit[] = [];
+  const bodyHits: LessonHit[] = [];
 
   for (const cu of dedupedAssignments) {
     const u = unitMap.get(cu.unit_id);
@@ -123,30 +169,33 @@ export const GET = withErrorHandler("student/search:GET", async (request: NextRe
       });
     }
 
-    if (lessons.length < PER_BUCKET) {
-      // Resolve the class-fork-aware effective content so lesson titles
-      // reflect what the student actually sees in the unit.
-      const effective = resolveClassUnitContent(u.content_data, cu.content_data);
-      const pages = getPageList(effective);
-      for (const p of pages) {
-        if (!p.title) continue;
-        if (p.title.toLowerCase().includes(queryLower)) {
-          lessons.push({
-            type: "lesson",
-            id: `${u.id}:${p.id}`,
-            unitId: u.id,
-            pageId: p.id,
-            title: p.title,
-            subtitle: u.title,
-            href: `/unit/${u.id}/${p.id}`,
-          });
-          if (lessons.length >= PER_BUCKET) break;
-        }
-      }
+    // Resolve the class-fork-aware effective content so lesson hits
+    // reflect what the student actually sees in the unit.
+    const effective = resolveClassUnitContent(u.content_data, cu.content_data);
+    const pages = getPageList(effective);
+    for (const p of pages) {
+      const titleHit = !!p.title && p.title.toLowerCase().includes(queryLower);
+      const bodyHit = titleHit ? false : pageSearchText(p).includes(queryLower);
+      if (!titleHit && !bodyHit) continue;
+      const hit: LessonHit = {
+        type: "lesson",
+        id: `${u.id}:${p.id}`,
+        unitId: u.id,
+        pageId: p.id,
+        title: p.title || `Lesson`,
+        subtitle: u.title,
+        href: `/unit/${u.id}/${p.id}`,
+      };
+      (titleHit ? titleHits : bodyHits).push(hit);
+      if (titleHits.length >= PER_BUCKET) break;
     }
 
-    if (units.length >= PER_BUCKET && lessons.length >= PER_BUCKET) break;
+    if (units.length >= PER_BUCKET && titleHits.length >= PER_BUCKET) break;
   }
+
+  const lessons: LessonHit[] = titleHits
+    .concat(bodyHits.slice(0, Math.max(0, PER_BUCKET - titleHits.length)))
+    .slice(0, PER_BUCKET);
 
   const response: SearchResponse = {
     query: rawQ,
