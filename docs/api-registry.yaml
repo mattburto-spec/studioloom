@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 388
+# Total routes: 393
 
 routes:
 - path: /api/admin/ai-model
@@ -1597,6 +1597,16 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/student/tile-comments
+  method: GET
+  file: src/app/api/student/tile-comments/route.ts
+  auth: student
+  tables_read:
+  - student_tile_grades
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'student_tile_grades' — not in schema-registry
 - path: /api/student/tool-sessions
   method: GET
   file: src/app/api/student/tool-sessions/route.ts
@@ -2275,10 +2285,8 @@ routes:
   auth: teacher
   tables_read:
   - classes
-  - fabrication_labs
   tables_written:
   - classes
-  - fabrication_labs
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
@@ -2585,6 +2593,53 @@ routes:
   file: src/app/api/teacher/generate-unit/route.ts
   auth: teacher
   tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/grading/past-feedback
+  method: GET
+  file: src/app/api/teacher/grading/past-feedback/route.ts
+  auth: teacher
+  tables_read:
+  - assessment_records
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/grading/release
+  method: POST
+  file: src/app/api/teacher/grading/release/route.ts
+  auth: teacher
+  tables_read:
+  - assessment_records
+  - classes
+  - student_tile_grades
+  tables_written:
+  - assessment_records
+  - student_tile_grades
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'student_tile_grades' — not in schema-registry
+- path: /api/teacher/grading/tile-grades
+  method: PUT
+  file: src/app/api/teacher/grading/tile-grades/route.ts
+  auth: teacher
+  tables_read:
+  - classes
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/grading/tile-grades/ai-prescore
+  method: POST
+  file: src/app/api/teacher/grading/tile-grades/ai-prescore/route.ts
+  auth: teacher
+  tables_read:
+  - class_units
+  - classes
+  - student_progress
+  - students
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null

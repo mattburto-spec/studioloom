@@ -1,102 +1,102 @@
 # Handoff — preflight-active
 
-**Last session ended:** 2026-04-28T08:30:00Z
+**Last session ended:** 2026-04-28T11:00:00Z
 **Worktree:** `/Users/matt/CWORK/questerra-preflight`
-**HEAD:** `bff9724` "Merge remote-tracking branch 'origin/main' into preflight-active"
-**Top of main (post Phase 8-3 merge):** `5a75ec8`
+**HEAD:** `9824900` "feat(preflight): Phase 8-4 path 2 — class-chip teacher disambiguation on fab queue"
+**Top of main (post Phase 8-4 merge):** `740b892`
 
 ## What just happened
 
-- **Phase 8-3 SHIPPED + multi-teacher validated in prod.**
-  Migration `20260428074205_machine_profiles_school_scoped`
-  applied step-by-step (4 verification queries passed). 5 commits
-  through orchestration rewrite + MED-3 default-lab fold-in + tests.
-  All 4 audit-doc-driven Phase 8-3 findings closed:
-  MED-2, MED-3, MED-5, plus 36 new orchestration tests.
-- **Multi-teacher smoke PASSED** across 3 NIS personas
-  (`mattburto@gmail.com`, `hello@loominary.org`,
-  `mattburton@nanjing-school.com`) all at same school_id
-  `636ff4fc-4413-4a8e-a3cd-c6f1e17bd5a1`. Visibility +
-  edit + soft-delete + bulk-approval all confirmed cross-teacher.
-  This is the strongest possible proof of flat school membership
-  for machines. Phase 8-3 is the most thoroughly validated Preflight
-  phase shipped to date.
-- **Full audit-doc resolution:** 10 of 12 findings ✅ FIXED. Only
-  MED-4 (UI rebuild → Phase 8-4) and LOW-2 (comment drift) remain,
-  both PARTIAL and non-blocking.
-- **Saveme done earlier this session** (commit `62ec699`); Phase
-  8-3 work happened after, audit doc updated post-validation.
-  Changelog already has the 28 Apr entry covering Phase 8-1 through
-  Phase 8-2; Phase 8-3 is captured in commit messages but doesn't
-  yet have its own changelog entry — consider folding into next
-  saveme.
+- **Preflight Phase 8 is fully done.** Phase 8-1 schema flip + Round
+  1 audit + Phase 8-2 lab orchestration + Phase 8-3 machine
+  orchestration + Phase 8-4 paths 1+2 all SHIPPED in a single
+  full-day session driven by Matt's smoke of yesterday's
+  school-scoped lab ownership migration.
+- **Audit doc CLOSED — 12 of 12 findings ✅ FIXED.** See
+  `docs/projects/preflight-audit-28-apr.md`. HIGH-1/2/3/4,
+  MED-1/2/3/4/5/6, LOW-1/2.
+- **Phase 8-4 path 2** shipped class-chip teacher disambiguation on
+  fab queue: `<ClassChip>` now renders `Grade 10 · M.B.` and uses
+  teacher initials as a color hash key so two NIS teachers' "Grade
+  10" classes get distinct colors. `formatTeacherInitials` helper.
+  PostgREST embed extended.
+- **Multi-teacher prod smoke validated** flat school membership
+  across 3 NIS personas at school_id `636ff4fc-...`. Strongest
+  possible proof that the school-scoped contract works
+  cross-teacher.
+- **saveme done at session end** (commit pending push). Changelog,
+  ALL-PROJECTS, dashboard, master CLAUDE.md, audit doc, doc-manifest
+  all in sync. 5 registry scans rerun (api/ai/feature-flags/vendors/
+  rls). API registry picked up 3 new grading routes from the
+  parallel session that merged to main.
 
 ## State of working tree
 
-- Branch `preflight-active` clean + in sync with origin
-  (after the merge of origin/main resolving the parallel
-  grading-session conflicts in `docs/changelog.md` +
-  `docs/scanner-reports/*.json`).
-- Top-of-main `5a75ec8` (Phase 8-3 merge).
-- Tests: **2421 pass / 9 skipped** (was 2210 pre-merge; +211 from
-  the parallel grading session's tests landing on main). tsc strict
-  clean. CI green on Phase 8-3 merge commit.
+- Branch `preflight-active` clean + in sync with origin.
+- Top-of-main `740b892` (Phase 8-4 merge).
+- Tests: **2433 pass / 9 skipped** (was 2208 at session start;
+  +225 net). tsc strict (`tsc --noEmit --project tsconfig.check.json`)
+  clean. CI green throughout the day's 4 merge commits.
 - Untracked: `Systems/Ingestion/ingestion-pipeline-summary.md`
-  has uncommitted modifications from a prior session (a doc note
-  about Pipeline 1 role change). Out of scope; leave alone.
+  (uncommitted modifications from a prior session, doc note about
+  Pipeline 1 role change). Out of scope; leave alone.
 - Untracked: `.github/workflows/deploy-preflight-scanner.yml` from
   FU-SCANNER-CICD work. Out of scope.
 
 ## Next steps
 
-- [ ] **Phase 8-4 — full LabSetupClient + components visual rebuild**
-      (audit MED-4 PARTIAL → CLOSED). The page works after Phase 8-2
-      hotfix but is patchwork: the bulk-approval card is a one-off,
-      the lab list is a long stack of expandable cards, no clear
-      hierarchy for "default lab per class" management. Phase 8 brief
-      describes the visual unified admin: option B click-based over
-      drag-drop, ~half a day. Lower priority — page works.
+- [ ] **Access Model v2 Phase 0** — the canonical next pickup. Worktree
+      `/Users/matt/CWORK/questerra-access-v2` on branch
+      `access-model-v2`. Spec at `docs/projects/access-model-v2.md`.
+      Its scope already addresses the "3 Matts" identity cleanup
+      that surfaced today (all 3 NIS personas have `display_name = null`
+      and `name = "Matt"`, so Phase 8-4 path 2 disambiguation is
+      wired correctly but visually identical until distinct names
+      land — Access v2 fixes this properly via auth unification +
+      first-class schools entity).
 
-- [ ] **LOW-2 sweep — fab-orchestration + machine-orchestration
-      header comment drift** from teacher_id-era. Pure cosmetic, no
-      runtime impact. ~30 min cleanup pass while in the
-      orchestration files for Phase 8-4.
+- [ ] **Or: dashboard-v2 polish** — if that's still the higher-priority
+      pickup. Worktree `/Users/matt/CWORK/questerra-dashboard` on
+      branch `dashboard-v2-build`.
 
-- [ ] **Optional: drop legacy `machine_profiles.teacher_id` column**
-      in a follow-up migration. Phase 8-3 left it as legacy (still
-      NOT NULL via mig 093 ownership_check). Future cleanup —
-      verify no downstream consumers (RLS on other tables, FK
-      references) before dropping.
-
-- [ ] **Pre-pilot housekeeping:**
-  - `RUN_E2E` env var flagged missing from `docs/feature-flags.yaml`
-    (drift from tap-a-word work). Register or document as test-only.
+- [ ] **Optional pre-pilot housekeeping** (low priority):
+  - Drop legacy `machine_profiles.teacher_id` column in a follow-up
+    migration. Phase 8-3 left it as legacy (still NOT NULL via mig
+    093 ownership_check). Verify no downstream consumers (RLS on
+    other tables, FK references) before dropping.
+  - `RUN_E2E` env var still flagged missing from
+    `docs/feature-flags.yaml` (drift from tap-a-word work).
+    Register or document as test-only.
   - PH9-FU-SCANNER-OOM-T1..T5 longevity plan (T1-T3 pre-pilot).
   - FU-SCANNER-LEASE-REAPER P2 (blocks horizontal scaling).
   - FU-SCANNER-CICD P2 (FLY_API_TOKEN minting + workflow file
     pending in untracked).
 
-- [ ] **Access Model v2** can begin once Phase 8-4 lands +
-      dashboard-v2 polish quiescent. Worktree: `questerra-access-v2`
-      on branch `access-model-v2`. Spec at
-      `docs/projects/access-model-v2.md`.
-
 ## Open questions / blockers
 
-- **None blocking.** Phase 8-3 closed every audit finding it scoped.
-  The remaining audit items are PARTIAL UI work (Phase 8-4) and
-  cosmetic comment drift (LOW-2), neither of which blocks any
-  Preflight surface.
+- **None blocking.** Phase 8 is closed. The audit doc is closed.
+  Multi-teacher prod-validated. CI green. Tests at all-day high.
 
-- **Legacy column drop deferred:** the audit doc + commit messages
-  flag that `machine_profiles.teacher_id` stays as a legacy column
-  after Phase 8-3 (orchestration writes both, reads only
-  `created_by_teacher_id`). A future cleanup migration drops the
-  column, but only after auditing downstream consumers (RLS on
-  other tables, FK references). Not urgent — stale columns don't
-  hurt runtime.
+- **3 Matts caveat:** All 3 NIS personas have `display_name = null`
+  and `name = "Matt"`. Phase 8-4 path 2 disambiguation works
+  correctly under the hood (initials populate, color hash takes
+  initials as input) but renders identically across personas
+  (`Grade 10 · M.` with same chip color) because the inputs
+  collide. Not a Phase 8 bug — it's a function of having 3 accounts
+  named Matt at one school. Real NIS pilot with 2+ distinct teacher
+  names will surface full disambiguation. Access Model v2 spec
+  addresses this identity cleanup.
 
-- **3 personas, 1 school:** the side-finding from the parallel
-  grading session noted Matt has 3 teacher accounts all named
-  "Matt". Access Model v2 unification will need to handle this
-  (already in the v2 spec). Not a Phase 8 concern.
+- **Legacy `machine_profiles.teacher_id` column** still present
+  after Phase 8-3 (orchestration writes both `teacher_id` AND
+  `created_by_teacher_id`, reads only `created_by_teacher_id`).
+  Future cleanup migration drops the column. Not urgent.
+
+- **Phase 8 brief 6 open questions** — implicitly answered by the
+  shipped 8-1/8-2/8-3/8-4 work. Q1 (entity naming = labs school-scoped),
+  Q3 (cross-teacher visibility = flat), Q4 (who creates labs = any
+  teacher), Q2 (default-location = per-class via classes.default_lab_id
+  + per-teacher via teachers.default_lab_id), Q5 (student-side =
+  groupMachinesByLab unfiltered), Q6 (click vs drag = click). Brief
+  itself can be marked superseded by the actually-shipped work in
+  the next saveme.

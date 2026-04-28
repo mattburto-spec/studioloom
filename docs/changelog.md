@@ -4,6 +4,186 @@
 
 ---
 
+## 28 Apr 2026 evening — Preflight Phase 8-3 + Phase 8-4 paths 1+2 SHIPPED — audit doc CLOSED 12/12 ✅
+
+**Context:** Continuation of the morning's Phase 8-1 + 8-2 work.
+After saveme + handoff at lunch, picked up Phase 8-3
+(machine-orchestration rebuild) and ran it through to closure
+including Phase 8-4 path 1 (audit cleanup) and path 2 (class-chip
+teacher disambiguation on fab queue). Multi-teacher cross-persona
+prod smoke validated flat school membership end-to-end. Phase 8
+trilogy + 8-4 closure all done in one continuous session.
+
+**What changed:**
+
+- **Phase 8-3-1 migration `20260428074205_machine_profiles_school_scoped`:**
+  Mirrors the lab pattern. Backfilled `school_id` from teacher chain
+  + lab chain (two-pass UPDATE — first attempt failed with
+  `42P01 invalid reference to FROM-clause entry` because Postgres
+  UPDATE...FROM can't reference the target alias from a JOIN's ON
+  clause; split into two sequential passes). Added
+  `created_by_teacher_id` audit-only column (FK to teachers, ON
+  DELETE SET NULL). CHECK constraint: non-templates require school_id.
+  4 RLS policies replaced with school-scoped versions using
+  `current_teacher_school_id()` helper. Indexes swapped: dropped
+  `idx_machine_profiles_teacher_id`, `uq_machine_profiles_teacher_name`,
+  `idx_machine_profiles_teacher_lab_name_active` (mig 118); added
+  `idx_machine_profiles_school_id`, `idx_machine_profiles_created_by`,
+  `uq_machine_profiles_lab_name_active` (lab + name unique within
+  active non-templates). Migration applied step-by-step to prod, all
+  4 verification queries passed.
+
+- **Phase 8-3-2 `machine-orchestration.ts` rewrite:** All 5 public
+  functions resolve teacher → school via re-exported
+  `loadTeacherSchoolId`, scope ops via `school_id`. Lab ownership
+  pierces (3 sites: createMachineProfile, updateMachineProfile.labId
+  reassignment, bulkSetApprovalForLab) replaced with
+  `loadSchoolOwnedLab`. New helper `loadSchoolOwnedMachine`
+  (replaces `loadTeacherOwnedMachine`). Insert payload writes both
+  `teacher_id` (legacy NOT NULL column from mig 093 ownership_check)
+  AND `created_by_teacher_id` (audit-only). Duplicate-name probe
+  rescoped from teacher → lab to match the new `(lab_id, name)
+  WHERE is_active` unique index. `MachineProfileRow` shape: dropped
+  `teacherId`, added `createdByTeacherId`. Public API unchanged on
+  the wire (callers still pass `teacherId`).
+
+- **Phase 8-3-3 tests + MED-3 fold-in:** Full rewrite of
+  `machine-orchestration.test.ts` (~600 lines, 36 tests). Mock
+  pattern matches `lab-orchestration.test.ts`: handles
+  `teachers.maybeSingle()`, school-scoped lab/machine queries,
+  `.in()` vs `.eq()` distinguishing. Test cases reframed: "404
+  cross-teacher" → "404 cross-school", added "401 orphan teacher".
+  Mock bug caught + fixed: `null ?? "school-1"` returned
+  `"school-1"` (nullish coalescing fallback) instead of preserving
+  explicit null; switched to `"teacherSchoolId" in opts` check.
+  MED-3 fold-in: `default-lab/route.ts` rewritten under
+  school-scoped contract using `loadTeacherSchoolId` +
+  `loadSchoolOwnedLab` + `classes → teachers.school_id` embedded
+  join. `lab-setup-helpers.test.ts` machine fixture updated to new
+  shape (CI strict tsc excludes test files so this didn't block
+  CI but the shape was technically stale).
+
+- **Multi-teacher prod smoke (3 NIS personas, all at school_id
+  `636ff4fc-4413-4a8e-a3cd-c6f1e17bd5a1`):** Persona A
+  (`mattburto@gmail.com`) creates machine → Persona B
+  (`hello@loominary.org`) sees it, edits, soft-deletes, runs bulk
+  approval toggle on lab containing A's machines. All confirmed
+  cross-teacher. This is the strongest possible proof of flat school
+  membership for machines.
+
+- **Phase 8-4 path 1 — audit cleanup (commit `401235d`):**
+  - Dropped `AssignClassesToLabModal.tsx` (entire file). Trigger
+    button removed at Phase 8.1d-5; modal had no remaining mount
+    path. Default-lab API route + `classes.default_lab_id` column
+    survive as forward-compat seams.
+  - Dropped deprecated `filterMachinesForClass` no-op stub (Phase
+    8.1d-5 removed class-to-lab filtering; `groupMachinesByLab` is
+    the sole picker grouping helper now). 4 deprecated test cases
+    removed.
+  - Updated 1 stale storage-path comment in `orchestration.ts`
+    (Phase 8-1 made school_id NOT NULL on labs; comment was
+    pre-Phase-8-1).
+  - **Audit doc updates:** MED-4 PARTIAL → ✅ FIXED (root API
+    errors closed by Phase 8-2/8-3, multi-teacher prod-validated;
+    full visual rebuild from original brief over-specified for the
+    actual gap). LOW-2 PARTIAL → ✅ FIXED (most "teacher_id"
+    comments were intentional Phase-8-1-transition context, not
+    drift; one storage-path drift fixed).
+
+- **Phase 8-4 path 2 — class-chip teacher disambiguation (commit
+  `9824900`):**
+  - Real product gap from original 8-4 brief: two NIS teachers
+    each have a "Grade 10" → Cynthia can't tell their cards apart
+    on the fab queue. Same color, same name.
+  - `class-color.ts` extended: `colorForClassName` +
+    `colorTintForClassName` accept optional `teacherKey` (trimmed;
+    whitespace = ignored). Backward compat preserved for single-arg
+    callers. New helper `formatTeacherInitials` ("Matt Burton" →
+    "M.B.", "Cynthia" → "C.", "Anna Marie Schmidt" → "A.S.",
+    hyphen-aware).
+  - `fab-orchestration.ts` extended: queue PostgREST embed becomes
+    `classes(name, teachers(display_name, name))`. `FabJobRow`
+    gains `teacherInitials: string | null` populated via
+    `formatTeacherInitials(teacher.display_name ?? teacher.name)`.
+  - `FabQueueClient.tsx`: `<ClassChip>` accepts `teacherInitials`
+    prop, threads it as the disambiguation key into color helpers,
+    renders inline as `Grade 10 · M.B.` (70% opacity for the
+    initials, secondary cue). All 3 mount sites updated.
+  - **Skipped per Matt's call:** fabricator-to-machine assignment
+    chips. Over-engineered for v1 single-fab schools.
+
+- **Audit doc CLOSED — 12 of 12 findings ✅ FIXED:** HIGH-1/2/3/4,
+  MED-1/2/3/4/5/6, LOW-1/2.
+
+**Verification:**
+
+- ✅ Migration applied step-by-step to prod (all 4 verification
+  queries passed: 0 non-templates without school_id, 0 with
+  mismatched created_by_teacher_id, 4 school-scoped RLS policies,
+  3 new indexes).
+- ✅ Tests: 2421 → 2433 (+13 from class-color + formatTeacherInitials
+  tests; +1 from new orch tests; -1 from removed deprecated picker
+  test). Net 2208 → 2433 across the day (+225).
+- ✅ tsc strict (`tsc --noEmit --project tsconfig.check.json`)
+  clean throughout.
+- ✅ CI green on all 4 merge commits today (`8e04aef`, `dafa25d`,
+  `5a75ec8`, `740b892`).
+- ✅ Multi-teacher cross-persona prod smoke: 4/4 scenarios passed.
+
+**Migration applied to prod:**
+`20260428074205_machine_profiles_school_scoped` — see commit
+`27709c6` (body) + `daf652a` (backfill UPDATE...FROM split fix).
+
+**Lessons surfaced + filed:**
+
+- **PostgREST embed alias collision** — when appending an embedded
+  resource onto a baseSelect that already embeds the same target
+  table via the same FK, PostgREST aliases both as
+  `parent_target_1` / `parent_target_2` and emits "table name X
+  specified more than once". Rule: each query gets exactly one
+  embed per (target, FK) pair. Caught at picker-data hotfix.
+
+- **`tsc --noEmit` vs `tsc --noEmit --project tsconfig.check.json`**
+  — the latter is what CI uses. The former includes test files with
+  pre-existing legacy Mock<Procedure> errors that drown out new
+  errors in production code. Use the project's strict config when
+  pre-validating before push.
+
+- **Postgres UPDATE...FROM target alias** — can't reference the
+  UPDATE target's alias from a JOIN's ON clause inside the FROM
+  list. Two-pass UPDATEs are cleaner anyway. Caught at backfill
+  apply time.
+
+**Pending after this saveme:** Push origin/main DONE. Phase 8
+trilogy + 8-4 trilogy DONE. **Next session:** Access Model v2
+Phase 0 (worktree `questerra-access-v2`, branch `access-model-v2`)
+or dashboard-v2 polish if queued first. Access v2 spec already
+addresses the "3 Matts" identity cleanup that surfaced today via
+display_name nulls.
+
+**Worktree state at session end:** `/Users/matt/CWORK/questerra-preflight`
+on `preflight-active` (in sync with origin). Top-of-main: `740b892`.
+
+**Side-finding worth banking:** All 3 Matt teacher personas
+(`mattburto@gmail.com`, `hello@loominary.org`,
+`mattburton@nanjing-school.com`) at school_id `636ff4fc-...` have
+`display_name = null` and `name = "Matt"`. Phase 8-4 path 2
+disambiguation works correctly under the hood (initials + color
+hash both populate from this data) but renders identically across
+personas — they all show `Grade 10 · M.` with the same chip color.
+Not a bug; consequence of test data. Real NIS pilot with 2+ distinct
+teachers will get full disambiguation. Access Model v2 spec
+addresses this identity cleanup.
+
+**Systems affected:** `fabrication-machine-orchestration` (rewrite),
+`fabrication-fab-orchestration` (FabJobRow extended +
+PostgREST embed extended), `fabrication-class-color` (helper API
+extended for teacher disambiguation), `default-lab-route`
+(school-scoped rewrite — MED-3 fold-in), `LabSetupClient` (dead
+code dropped).
+
+---
+
 ## 28 Apr 2026 — Preflight Phase 8-1 schema flip + Round 1 audit + Phase 8-2 SHIPPED + E2E smoke PASS ✅
 
 **Context:** Full day driven by Matt's smoke test of yesterday's
