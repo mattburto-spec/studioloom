@@ -1,0 +1,16 @@
+-- Rollback for: backfill_fabrication_labs
+-- Pairs with: 20260427135108_backfill_fabrication_labs.sql
+-- Phase: Preflight Phase 8-1 (school-scoped lab ownership)
+--
+-- INTENTIONAL NO-OP.
+--
+-- Backfill rolls back implicitly via the schema migration's
+-- .down.sql (20260427134953_fabrication_labs.down.sql). When the
+-- fabrication_labs table is dropped, the backfilled lab rows die
+-- with it, and the lab_id / default_lab_id columns on
+-- machine_profiles / classes / teachers are dropped at the same
+-- time, so there's nothing left to "undo."
+--
+-- The pair file exists only so the new-migration.sh contract
+-- (every up has a paired down) stays consistent. Do not add SQL
+-- here unless the schema rollback strategy changes.
