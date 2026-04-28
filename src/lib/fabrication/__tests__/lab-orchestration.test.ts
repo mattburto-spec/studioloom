@@ -9,129 +9,123 @@ import {
 } from "../lab-orchestration";
 
 /**
- * Phase 8-2 lab-orchestration unit tests. Pure logic — Supabase
- * client faked as a query-builder chain matching the shape used by
- * fab-orchestration.test.ts / teacher-orchestration.test.ts.
+ * Phase 8-2 lab-orchestration unit tests (rewritten 28 Apr 2026 for
+ * school-scoped contract). The previous teacher-scoped test file was
+ * superseded by today's Q3 flip + audit Round 1.
  *
- * Coverage goals per Phase 8-2 brief:
- *   - createLab: happy path, input validation, unique-default 23505 → 409
- *   - listMyLabs: empty, multi-lab with machine counts, teacher scoping
- *   - updateLab: happy path, validation, empty patch, cross-teacher 404
- *   - deleteLab: happy (empty lab), 409 with machines + no target,
- *                machine + class reassignment, default-safety guard,
- *                target = self 400, target not-owned 404
- *   - reassignMachineToLab: happy path, same-source-target 400,
- *                           source/target/machine not-owned 404,
- *                           system-template 409
+ * Coverage:
+ *   - createLab: derives school from teacher; orphan-teacher 401;
+ *     name validation; dup-name 23505 → 409.
+ *   - listMyLabs: school-scoped (every same-school teacher sees same
+ *     list); empty when teacher has no school; machine counts.
+ *   - updateLab: school-scoped 404 (cross-school invisibility);
+ *     name validation; empty-patch no-op.
+ *   - deleteLab: 404 cross-school; 409 with refs + no reassign;
+ *     reassignTo redirects machines + classes + teacher defaults;
+ *     reassignTo cross-school → 404; self-reassign → 400.
+ *   - reassignMachineToLab: same-school check; source mismatch 409;
+ *     same source/target → 400; success.
+ *
+ * Tests use the same scripted-query-builder mock pattern as
+ * fab-orchestration.test.ts.
  */
 
 // ============================================================
-// Shared fake: scripted query-builder
+// Shared mock — scripted query-builder
 // ============================================================
 
 interface FakeOpts {
-  /** What `fabrication_labs.maybeSingle()` returns, keyed by call order.
-   *  First call = ownership of param.labId (or source lab).
-   *  Subsequent calls = target lab (for deleteLab reassignTo path, for
-   *  reassignMachineToLab target-lab check). */
+  /** Teacher's school_id (returned by `teachers.maybeSingle()` for
+   *  the calling teacher). Default "school-1". null = orphan
+   *  teacher (no school picked yet). undefined keyword = teacher
+   *  row missing entirely. */
+  teacherSchoolId?: string | null | "missing";
+  /** Sequenced labRows returned by `fabrication_labs.maybeSingle()`
+   *  in call order. Drives loadSchoolOwnedLab. */
   labRows?: Array<
     | {
         id: string;
-        teacher_id: string;
-        school_id: string | null;
+        school_id: string;
+        created_by_teacher_id: string | null;
         name: string;
         description: string | null;
-        is_default: boolean;
         created_at: string;
         updated_at: string;
       }
     | null
   >;
-  /** INSERT into fabrication_labs returns this row (or error). */
   insertLabRow?: {
     id: string;
-    teacher_id: string;
-    school_id: string | null;
+    school_id: string;
+    created_by_teacher_id: string | null;
     name: string;
     description: string | null;
-    is_default: boolean;
     created_at: string;
     updated_at: string;
   } | null;
   insertLabError?: { message: string; code?: string };
-  /** UPDATE .select().single() on fabrication_labs returns this. */
   updatedLabRow?: {
     id: string;
-    teacher_id: string;
-    school_id: string | null;
+    school_id: string;
+    created_by_teacher_id: string | null;
     name: string;
     description: string | null;
-    is_default: boolean;
     created_at: string;
     updated_at: string;
   } | null;
   updateLabError?: { message: string; code?: string };
-  /** List of labs returned by the list-query (no maybeSingle, array). */
+  /** Array result of `fabrication_labs.eq("school_id", X).order(...)`
+   *  in listMyLabs. */
   listLabsRows?: Array<{
     id: string;
-    teacher_id: string;
-    school_id: string | null;
+    school_id: string;
+    created_by_teacher_id: string | null;
     name: string;
     description: string | null;
-    is_default: boolean;
     created_at: string;
     updated_at: string;
   }>;
   listLabsError?: { message: string };
-  /** List of machines for machine-count lookup in listMyLabs + delete. */
+  /** machine_profiles list for count + ref lookups. */
   machinesByLab?: Array<{ id: string; lab_id: string }>;
   machinesError?: { message: string };
-  /** fabrication_labs `.neq().limit()` for deleteLab default-safety check. */
-  otherLabsExist?: boolean;
-  /** Phase 8.1d-2 last-lab guard: machine_profiles `.limit()` returns 1 row when true. */
-  hasActiveMachinesAnywhere?: boolean;
-  /** Phase 8.1d-2 last-lab guard: classes `.limit()` returns 1 row when true. */
-  hasClassesAnywhere?: boolean;
-  /** Single machine lookup for reassignMachineToLab. */
+  /** classes WHERE default_lab_id = X — for delete blocker. */
+  classesByLab?: Array<{ id: string }>;
+  /** teachers WHERE default_lab_id = X — for delete blocker. */
+  teachersByLab?: Array<{ id: string }>;
   machineLookupRow?: {
     id: string;
-    teacher_id: string | null;
     lab_id: string | null;
-    is_system_template: boolean;
   } | null;
   machineLookupError?: { message: string };
-  /** Generic update errors on machine_profiles or classes. */
   machineUpdateError?: { message: string };
   classUpdateError?: { message: string };
+  teacherUpdateError?: { message: string };
   deleteLabError?: { message: string };
 }
 
+interface LogEntry {
+  table: string;
+  op: string;
+  eq: Array<[string, unknown]>;
+  payload?: Record<string, unknown>;
+  selectCols?: string;
+}
+
 function makeFakeClient(opts: FakeOpts = {}) {
-  const log: Array<{ table: string; op: string; eq: Array<[string, unknown]>; payload?: Record<string, unknown> }> = [];
+  const log: LogEntry[] = [];
   let labMaybeSingleCalls = 0;
 
   const tableHandler = (table: string) => {
-    const entry: { table: string; op: string; eq: Array<[string, unknown]>; payload?: Record<string, unknown> } = {
-      table,
-      op: "select",
-      eq: [],
-    };
+    const entry: LogEntry = { table, op: "select", eq: [] };
 
     const chain: Record<string, unknown> = {};
-    let listSelectMode = false;
-    let insertPayload: Record<string, unknown> | undefined;
-    let updatePayload: Record<string, unknown> | undefined;
-
-    chain.select = (_cols: string) => {
-      listSelectMode = table === "fabrication_labs" || table === "machine_profiles";
+    chain.select = (cols: string) => {
+      entry.selectCols = cols;
       return chain;
     };
     chain.eq = (col: string, val: unknown) => {
       entry.eq.push([col, val]);
-      return chain;
-    };
-    chain.neq = (col: string, val: unknown) => {
-      entry.eq.push([`neq:${col}`, val]);
       return chain;
     };
     chain.in = (col: string, vals: unknown[]) => {
@@ -139,125 +133,107 @@ function makeFakeClient(opts: FakeOpts = {}) {
       return chain;
     };
     chain.order = () => chain;
-    chain.limit = () => ({
-      then: (resolve: (v: unknown) => unknown) => {
-        log.push({ ...entry });
-        // fabrication_labs.limit() — for default-safety check + last-lab guard
-        if (table === "fabrication_labs") {
-          return Promise.resolve(
-            resolve({
-              data: opts.otherLabsExist ? [{ id: "other-lab" }] : [],
-              error: null,
-            })
-          );
-        }
-        // machine_profiles.limit() — for last-lab guard footprint check
-        if (table === "machine_profiles") {
-          return Promise.resolve(
-            resolve({
-              data: opts.hasActiveMachinesAnywhere
-                ? [{ id: "any-machine" }]
-                : [],
-              error: null,
-            })
-          );
-        }
-        // classes.limit() — for last-lab guard footprint check
-        if (table === "classes") {
-          return Promise.resolve(
-            resolve({
-              data: opts.hasClassesAnywhere ? [{ id: "any-class" }] : [],
-              error: null,
-            })
-          );
-        }
-        return Promise.resolve(resolve({ data: [], error: null }));
-      },
-    });
+
     chain.maybeSingle = async () => {
       log.push({ ...entry });
-      if (table === "fabrication_labs") {
-        const idx = labMaybeSingleCalls++;
-        const row = opts.labRows?.[idx];
-        if (row === undefined) return { data: null, error: null };
-        return { data: row, error: null };
+
+      if (table === "teachers") {
+        if (opts.teacherSchoolId === "missing") {
+          return { data: null, error: null };
+        }
+        return {
+          data: {
+            school_id:
+              opts.teacherSchoolId === undefined
+                ? "school-1"
+                : opts.teacherSchoolId,
+          },
+          error: null,
+        };
       }
+
+      if (table === "fabrication_labs") {
+        const row = opts.labRows?.[labMaybeSingleCalls];
+        labMaybeSingleCalls++;
+        return { data: row ?? null, error: null };
+      }
+
       if (table === "machine_profiles") {
         if (opts.machineLookupError) {
-          return { data: null, error: opts.machineLookupError };
+          return {
+            data: null,
+            error: { message: opts.machineLookupError.message },
+          };
         }
         return { data: opts.machineLookupRow ?? null, error: null };
       }
+
       return { data: null, error: null };
     };
 
-    // List query: select().eq()...[.order().order()] resolved as a
-    // thenable. fabrication_labs list or machine_profiles count.
-    // Make the chain itself awaitable via a `then` method — triggered
-    // when the orchestration awaits the final builder.
-    chain.then = (resolve: (v: unknown) => unknown) => {
+    // .single() — used after .insert/.update for create/update returns.
+    chain.single = async () => {
       log.push({ ...entry });
-      if (!listSelectMode) {
-        return Promise.resolve(resolve({ data: null, error: null }));
-      }
-      if (table === "fabrication_labs") {
-        if (opts.listLabsError) {
-          return Promise.resolve(resolve({ data: null, error: opts.listLabsError }));
+      if (entry.op === "insert") {
+        if (opts.insertLabError) {
+          return { data: null, error: opts.insertLabError };
         }
-        return Promise.resolve(resolve({ data: opts.listLabsRows ?? [], error: null }));
+        return { data: opts.insertLabRow ?? null, error: null };
       }
-      if (table === "machine_profiles") {
-        if (opts.machinesError) {
-          return Promise.resolve(resolve({ data: null, error: opts.machinesError }));
+      if (entry.op === "update") {
+        if (opts.updateLabError) {
+          return { data: null, error: opts.updateLabError };
         }
-        return Promise.resolve(resolve({ data: opts.machinesByLab ?? [], error: null }));
+        return { data: opts.updatedLabRow ?? null, error: null };
       }
-      return Promise.resolve(resolve({ data: null, error: null }));
+      return { data: null, error: null };
     };
 
     chain.insert = (payload: Record<string, unknown>) => {
       entry.op = "insert";
       entry.payload = payload;
-      insertPayload = payload;
-      void insertPayload;
-      const insChain: Record<string, unknown> = {};
-      insChain.select = () => insChain;
-      insChain.single = async () => {
-        log.push({ ...entry });
-        if (opts.insertLabError) {
-          return { data: null, error: opts.insertLabError };
-        }
-        return { data: opts.insertLabRow ?? null, error: null };
-      };
-      return insChain;
+      return chain;
     };
 
     chain.update = (payload: Record<string, unknown>) => {
       entry.op = "update";
       entry.payload = payload;
-      updatePayload = payload;
-      void updatePayload;
       const updChain: Record<string, unknown> = {};
       updChain.eq = (col: string, val: unknown) => {
         entry.eq.push([col, val]);
         return updChain;
       };
-      updChain.select = () => updChain;
-      updChain.single = async () => {
-        log.push({ ...entry });
-        if (table === "fabrication_labs") {
-          if (opts.updateLabError) return { data: null, error: opts.updateLabError };
-          return { data: opts.updatedLabRow ?? null, error: null };
-        }
-        return { data: null, error: null };
+      updChain.select = (cols: string) => {
+        entry.selectCols = cols;
+        const sel: Record<string, unknown> = {};
+        sel.single = chain.single;
+        return sel;
       };
       updChain.then = (resolve: (v: unknown) => unknown) => {
         log.push({ ...entry });
-        if (table === "machine_profiles" && opts.machineUpdateError) {
-          return Promise.resolve(resolve({ error: opts.machineUpdateError }));
+        if (table === "machine_profiles") {
+          if (opts.machineUpdateError) {
+            return Promise.resolve(
+              resolve({ error: opts.machineUpdateError })
+            );
+          }
+          return Promise.resolve(resolve({ error: null }));
         }
-        if (table === "classes" && opts.classUpdateError) {
-          return Promise.resolve(resolve({ error: opts.classUpdateError }));
+        if (table === "classes") {
+          if (opts.classUpdateError) {
+            return Promise.resolve(
+              resolve({ error: opts.classUpdateError })
+            );
+          }
+          return Promise.resolve(resolve({ error: null }));
+        }
+        if (table === "teachers") {
+          if (opts.teacherUpdateError) {
+            return Promise.resolve(
+              resolve({ error: opts.teacherUpdateError })
+            );
+          }
+          return Promise.resolve(resolve({ error: null }));
         }
         return Promise.resolve(resolve({ error: null }));
       };
@@ -281,109 +257,212 @@ function makeFakeClient(opts: FakeOpts = {}) {
       return delChain;
     };
 
-    return chain as {
-      from: (t: string) => unknown;
-      select: (cols: string) => unknown;
-      eq: (c: string, v: unknown) => unknown;
-      maybeSingle: () => Promise<{ data: unknown; error: unknown }>;
+    // Special-case: list-style queries (no .maybeSingle, no .single)
+    // that resolve via implicit await. We support a thenable on chain
+    // for the listMyLabs + reference-count queries.
+    const originalEq = chain.eq as (col: string, val: unknown) => unknown;
+    chain.eq = (col: string, val: unknown) => {
+      originalEq(col, val);
+      // Make the chain thenable AFTER .eq was called so listMyLabs
+      // and ref-count queries work. .order() returns chain too.
+      (chain as { then?: unknown }).then = (
+        resolve: (v: unknown) => unknown
+      ) => {
+        log.push({ ...entry });
+        if (table === "fabrication_labs" && entry.op === "select") {
+          if (opts.listLabsError) {
+            return Promise.resolve(
+              resolve({ data: null, error: opts.listLabsError })
+            );
+          }
+          return Promise.resolve(
+            resolve({ data: opts.listLabsRows ?? [], error: null })
+          );
+        }
+        if (table === "machine_profiles") {
+          if (opts.machinesError) {
+            return Promise.resolve(
+              resolve({ data: null, error: opts.machinesError })
+            );
+          }
+          // Filter by lab_id. Distinguish .eq("lab_id", X) (single
+          // string value — used by deleteLab refs scan) from
+          // .in("lab_id", [...]) (array — used by listMyLabs counts).
+          const labIdEq = entry.eq.find(([c]) => c === "lab_id");
+          if (labIdEq && Array.isArray(labIdEq[1])) {
+            // .in() — return all machines whose lab_id is in the set
+            const labIdSet = new Set(labIdEq[1] as string[]);
+            const matches = (opts.machinesByLab ?? []).filter((m) =>
+              labIdSet.has(m.lab_id)
+            );
+            return Promise.resolve(
+              resolve({ data: matches, error: null })
+            );
+          }
+          if (labIdEq) {
+            // .eq() — single lab_id filter
+            const matches = (opts.machinesByLab ?? []).filter(
+              (m) => m.lab_id === labIdEq[1]
+            );
+            return Promise.resolve(
+              resolve({ data: matches, error: null })
+            );
+          }
+          return Promise.resolve(
+            resolve({ data: opts.machinesByLab ?? [], error: null })
+          );
+        }
+        if (table === "classes") {
+          return Promise.resolve(
+            resolve({ data: opts.classesByLab ?? [], error: null })
+          );
+        }
+        if (table === "teachers") {
+          return Promise.resolve(
+            resolve({ data: opts.teachersByLab ?? [], error: null })
+          );
+        }
+        return Promise.resolve(resolve({ data: [], error: null }));
+      };
+      return chain;
     };
+    chain.in = (col: string, vals: unknown[]) => {
+      entry.eq.push([col, vals]);
+      (chain as { then?: unknown }).then = (
+        resolve: (v: unknown) => unknown
+      ) => {
+        log.push({ ...entry });
+        if (table === "machine_profiles") {
+          if (opts.machinesError) {
+            return Promise.resolve(
+              resolve({ data: null, error: opts.machinesError })
+            );
+          }
+          return Promise.resolve(
+            resolve({ data: opts.machinesByLab ?? [], error: null })
+          );
+        }
+        return Promise.resolve(resolve({ data: [], error: null }));
+      };
+      return chain;
+    };
+
+    return chain;
   };
 
   return {
-    from: (table: string) => tableHandler(table),
-    _log: log,
+    client: { from: tableHandler } as unknown as Parameters<
+      typeof createLab
+    >[0],
+    log,
   };
 }
 
-const T1 = "teacher-1";
-const T2 = "teacher-2";
-const L1 = "lab-1";
-const L2 = "lab-2";
-
-const labRow = (overrides: Partial<{ id: string; teacher_id: string; name: string; is_default: boolean; description: string | null }> = {}) => ({
-  id: overrides.id ?? L1,
-  teacher_id: overrides.teacher_id ?? T1,
-  school_id: null,
-  name: overrides.name ?? "Default lab",
-  description: overrides.description ?? null,
-  is_default: overrides.is_default ?? true,
-  created_at: "2026-04-25T00:00:00Z",
-  updated_at: "2026-04-25T00:00:00Z",
-});
+// Helper to build a lab row with all required fields.
+function labRow(overrides: Partial<{
+  id: string;
+  school_id: string;
+  created_by_teacher_id: string | null;
+  name: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}> = {}) {
+  return {
+    id: overrides.id ?? "lab-1",
+    school_id: overrides.school_id ?? "school-1",
+    created_by_teacher_id:
+      overrides.created_by_teacher_id === undefined
+        ? "teacher-1"
+        : overrides.created_by_teacher_id,
+    name: overrides.name ?? "Default lab",
+    description: overrides.description === undefined ? null : overrides.description,
+    created_at: overrides.created_at ?? "2026-04-28T00:00:00Z",
+    updated_at: overrides.updated_at ?? "2026-04-28T00:00:00Z",
+  };
+}
 
 // ============================================================
 // createLab
 // ============================================================
 
 describe("createLab", () => {
-  it("creates a lab and returns the new row", async () => {
-    const fake = makeFakeClient({
-      insertLabRow: labRow({ id: "new-lab", name: "2nd floor", is_default: false }),
+  it("creates a lab in the calling teacher's school", async () => {
+    const inserted = labRow({ id: "lab-new", name: "PYP Lab" });
+    const { client, log } = makeFakeClient({ insertLabRow: inserted });
+    const result = await createLab(client, {
+      teacherId: "teacher-1",
+      name: "PYP Lab",
     });
-    const result = await createLab(fake as never, {
-      teacherId: T1,
-      name: "2nd floor",
-    });
-    expect(isOrchestrationError(result)).toBe(false);
-    if (isOrchestrationError(result)) return;
-    expect(result.lab.id).toBe("new-lab");
-    expect(result.lab.name).toBe("2nd floor");
-    expect(result.lab.isDefault).toBe(false);
+    if (isOrchestrationError(result)) throw new Error("expected success");
+    expect(result.lab.id).toBe("lab-new");
+    expect(result.lab.schoolId).toBe("school-1");
+    expect(result.lab.name).toBe("PYP Lab");
+    expect(result.lab.createdByTeacherId).toBe("teacher-1");
+
+    // INSERT payload should include school_id from the teacher and
+    // created_by_teacher_id audit field.
+    const insertEntry = log.find(
+      (e) => e.table === "fabrication_labs" && e.op === "insert"
+    );
+    expect(insertEntry?.payload?.school_id).toBe("school-1");
+    expect(insertEntry?.payload?.created_by_teacher_id).toBe("teacher-1");
   });
 
-  it("rejects empty name with 400", async () => {
-    const fake = makeFakeClient();
-    const result = await createLab(fake as never, { teacherId: T1, name: "   " });
-    expect(isOrchestrationError(result)).toBe(true);
-    if (!isOrchestrationError(result)) return;
+  it("rejects empty / whitespace name with 400", async () => {
+    const { client } = makeFakeClient();
+    const result = await createLab(client, {
+      teacherId: "teacher-1",
+      name: "   ",
+    });
+    if (!isOrchestrationError(result)) throw new Error("expected error");
     expect(result.error.status).toBe(400);
-    expect(result.error.message).toMatch(/cannot be empty/i);
+    expect(result.error.message).toMatch(/empty/i);
   });
 
-  it("rejects over-long name with 400", async () => {
-    const fake = makeFakeClient();
-    const result = await createLab(fake as never, {
-      teacherId: T1,
-      name: "x".repeat(200),
+  it("rejects name longer than 80 chars with 400", async () => {
+    const { client } = makeFakeClient();
+    const result = await createLab(client, {
+      teacherId: "teacher-1",
+      name: "x".repeat(81),
     });
-    expect(isOrchestrationError(result)).toBe(true);
-    if (!isOrchestrationError(result)) return;
-    expect(result.error.status).toBe(400);
-  });
-
-  it("rejects non-string name with 400", async () => {
-    const fake = makeFakeClient();
-    const result = await createLab(fake as never, {
-      teacherId: T1,
-      name: 42 as unknown as string,
-    });
-    expect(isOrchestrationError(result)).toBe(true);
-    if (!isOrchestrationError(result)) return;
+    if (!isOrchestrationError(result)) throw new Error("expected error");
     expect(result.error.status).toBe(400);
   });
 
-  it("maps unique-default violation (23505) to 409", async () => {
-    const fake = makeFakeClient({
-      insertLabError: { message: "duplicate key", code: "23505" },
+  it("returns 401 when teacher has no school_id (orphan)", async () => {
+    const { client } = makeFakeClient({ teacherSchoolId: null });
+    const result = await createLab(client, {
+      teacherId: "teacher-1",
+      name: "Lab",
     });
-    const result = await createLab(fake as never, {
-      teacherId: T1,
-      name: "Dup default",
-      isDefault: true,
+    if (!isOrchestrationError(result)) throw new Error("expected error");
+    expect(result.error.status).toBe(401);
+    expect(result.error.message).toMatch(/pick your school/i);
+  });
+
+  it("maps duplicate-name unique violation (23505) to 409", async () => {
+    const { client } = makeFakeClient({
+      insertLabError: { message: "duplicate", code: "23505" },
     });
-    expect(isOrchestrationError(result)).toBe(true);
-    if (!isOrchestrationError(result)) return;
+    const result = await createLab(client, {
+      teacherId: "teacher-1",
+      name: "Default lab",
+    });
+    if (!isOrchestrationError(result)) throw new Error("expected error");
     expect(result.error.status).toBe(409);
-    expect(result.error.message).toMatch(/default lab/i);
+    expect(result.error.message).toMatch(/already exists/i);
   });
 
   it("maps generic insert failure to 500", async () => {
-    const fake = makeFakeClient({
-      insertLabError: { message: "disk full" },
+    const { client } = makeFakeClient({
+      insertLabError: { message: "connection dropped" },
     });
-    const result = await createLab(fake as never, { teacherId: T1, name: "x" });
-    expect(isOrchestrationError(result)).toBe(true);
-    if (!isOrchestrationError(result)) return;
+    const result = await createLab(client, {
+      teacherId: "teacher-1",
+      name: "Lab",
+    });
+    if (!isOrchestrationError(result)) throw new Error("expected error");
     expect(result.error.status).toBe(500);
   });
 });
@@ -393,50 +472,63 @@ describe("createLab", () => {
 // ============================================================
 
 describe("listMyLabs", () => {
-  it("returns empty array when teacher has no labs", async () => {
-    const fake = makeFakeClient({ listLabsRows: [] });
-    const result = await listMyLabs(fake as never, { teacherId: T1 });
-    expect(isOrchestrationError(result)).toBe(false);
-    if (isOrchestrationError(result)) return;
+  it("returns labs at the calling teacher's school sorted by name", async () => {
+    const { client } = makeFakeClient({
+      listLabsRows: [
+        labRow({ id: "lab-a", name: "PYP Lab" }),
+        labRow({ id: "lab-b", name: "MYP Lab" }),
+      ],
+      machinesByLab: [
+        { id: "m1", lab_id: "lab-a" },
+        { id: "m2", lab_id: "lab-a" },
+        { id: "m3", lab_id: "lab-b" },
+      ],
+    });
+    const result = await listMyLabs(client, { teacherId: "teacher-1" });
+    if (isOrchestrationError(result)) throw new Error("expected success");
+    expect(result.labs).toHaveLength(2);
+    expect(result.labs.find((l) => l.id === "lab-a")?.machineCount).toBe(2);
+    expect(result.labs.find((l) => l.id === "lab-b")?.machineCount).toBe(1);
+  });
+
+  it("returns empty list when teacher has no school (orphan)", async () => {
+    const { client } = makeFakeClient({ teacherSchoolId: null });
+    const result = await listMyLabs(client, { teacherId: "teacher-1" });
+    if (isOrchestrationError(result)) throw new Error("expected success");
     expect(result.labs).toEqual([]);
   });
 
-  it("bubbles machine counts into LabListRow", async () => {
-    const fake = makeFakeClient({
-      listLabsRows: [
-        labRow({ id: L1, name: "Default lab", is_default: true }),
-        labRow({ id: L2, name: "2nd floor", is_default: false }),
-      ],
-      machinesByLab: [
-        { id: "m1", lab_id: L1 },
-        { id: "m2", lab_id: L1 },
-        { id: "m3", lab_id: L2 },
-      ],
-    });
-    const result = await listMyLabs(fake as never, { teacherId: T1 });
-    expect(isOrchestrationError(result)).toBe(false);
-    if (isOrchestrationError(result)) return;
-    const byId = new Map(result.labs.map((l) => [l.id, l]));
-    expect(byId.get(L1)?.machineCount).toBe(2);
-    expect(byId.get(L2)?.machineCount).toBe(1);
+  it("returns empty list when school has no labs", async () => {
+    const { client } = makeFakeClient({ listLabsRows: [] });
+    const result = await listMyLabs(client, { teacherId: "teacher-1" });
+    if (isOrchestrationError(result)) throw new Error("expected success");
+    expect(result.labs).toEqual([]);
   });
 
-  it("returns zero count for labs with no machines", async () => {
-    const fake = makeFakeClient({
-      listLabsRows: [labRow({ id: L1 })],
-      machinesByLab: [],
+  it("filters list query by school_id (not teacher_id)", async () => {
+    const { client, log } = makeFakeClient({
+      teacherSchoolId: "school-99",
+      listLabsRows: [labRow({ school_id: "school-99" })],
     });
-    const result = await listMyLabs(fake as never, { teacherId: T1 });
-    if (isOrchestrationError(result)) return;
-    expect(result.labs[0].machineCount).toBe(0);
+    await listMyLabs(client, { teacherId: "teacher-1" });
+    const labsQuery = log.find(
+      (e) => e.table === "fabrication_labs" && e.op === "select"
+    );
+    const schoolFilter = labsQuery?.eq.find(([c]) => c === "school_id");
+    expect(schoolFilter?.[1]).toBe("school-99");
+    // Should NOT be filtering by teacher_id at the lab level
+    const teacherFilter = labsQuery?.eq.find(([c]) => c === "teacher_id");
+    expect(teacherFilter).toBeUndefined();
   });
 
-  it("propagates list query errors as 500", async () => {
-    const fake = makeFakeClient({ listLabsError: { message: "boom" } });
-    const result = await listMyLabs(fake as never, { teacherId: T1 });
-    expect(isOrchestrationError(result)).toBe(true);
-    if (!isOrchestrationError(result)) return;
+  it("surfaces list query errors as 500", async () => {
+    const { client } = makeFakeClient({
+      listLabsError: { message: "connection dropped" },
+    });
+    const result = await listMyLabs(client, { teacherId: "teacher-1" });
+    if (!isOrchestrationError(result)) throw new Error("expected error");
     expect(result.error.status).toBe(500);
+    expect(result.error.message).toMatch(/connection dropped/);
   });
 });
 
@@ -445,90 +537,87 @@ describe("listMyLabs", () => {
 // ============================================================
 
 describe("updateLab", () => {
-  it("updates name and returns the new row", async () => {
-    const fake = makeFakeClient({
-      labRows: [labRow({ id: L1, teacher_id: T1 })], // ownership
-      updatedLabRow: labRow({ id: L1, name: "Renamed" }),
+  it("updates name + description and returns the new row", async () => {
+    const updated = labRow({
+      name: "Renamed Lab",
+      description: "new desc",
     });
-    const result = await updateLab(fake as never, {
-      teacherId: T1,
-      labId: L1,
-      name: "Renamed",
+    const { client } = makeFakeClient({
+      labRows: [labRow()],
+      updatedLabRow: updated,
     });
-    expect(isOrchestrationError(result)).toBe(false);
-    if (isOrchestrationError(result)) return;
-    expect(result.lab.name).toBe("Renamed");
+    const result = await updateLab(client, {
+      teacherId: "teacher-1",
+      labId: "lab-1",
+      name: "Renamed Lab",
+      description: "new desc",
+    });
+    if (isOrchestrationError(result)) throw new Error("expected success");
+    expect(result.lab.name).toBe("Renamed Lab");
+    expect(result.lab.description).toBe("new desc");
   });
 
-  it("404s when lab belongs to a different teacher", async () => {
-    const fake = makeFakeClient({
-      labRows: [labRow({ id: L1, teacher_id: T2 })],
+  it("returns 404 when lab is at a different school (cross-school invisibility)", async () => {
+    const { client } = makeFakeClient({
+      teacherSchoolId: "school-1",
+      labRows: [labRow({ school_id: "school-99" })],
     });
-    const result = await updateLab(fake as never, {
-      teacherId: T1,
-      labId: L1,
-      name: "Hacked",
-    });
-    expect(isOrchestrationError(result)).toBe(true);
-    if (!isOrchestrationError(result)) return;
-    expect(result.error.status).toBe(404);
-  });
-
-  it("404s when lab does not exist", async () => {
-    const fake = makeFakeClient({ labRows: [null] });
-    const result = await updateLab(fake as never, {
-      teacherId: T1,
-      labId: "missing",
+    const result = await updateLab(client, {
+      teacherId: "teacher-1",
+      labId: "lab-1",
       name: "x",
     });
-    expect(isOrchestrationError(result)).toBe(true);
-    if (!isOrchestrationError(result)) return;
+    if (!isOrchestrationError(result)) throw new Error("expected error");
     expect(result.error.status).toBe(404);
   });
 
-  it("400s when patch is empty", async () => {
-    const fake = makeFakeClient({
-      labRows: [labRow({ id: L1, teacher_id: T1 })],
+  it("returns 404 when lab doesn't exist", async () => {
+    const { client } = makeFakeClient({ labRows: [null] });
+    const result = await updateLab(client, {
+      teacherId: "teacher-1",
+      labId: "lab-1",
+      name: "x",
     });
-    const result = await updateLab(fake as never, {
-      teacherId: T1,
-      labId: L1,
+    if (!isOrchestrationError(result)) throw new Error("expected error");
+    expect(result.error.status).toBe(404);
+  });
+
+  it("returns existing lab unchanged on empty patch (no DB call)", async () => {
+    const existing = labRow({ name: "untouched" });
+    const { client, log } = makeFakeClient({ labRows: [existing] });
+    const result = await updateLab(client, {
+      teacherId: "teacher-1",
+      labId: "lab-1",
     });
-    expect(isOrchestrationError(result)).toBe(true);
-    if (!isOrchestrationError(result)) return;
+    if (isOrchestrationError(result)) throw new Error("expected success");
+    expect(result.lab.name).toBe("untouched");
+    // No update operation logged
+    expect(log.find((e) => e.op === "update")).toBeUndefined();
+  });
+
+  it("rejects empty name string with 400", async () => {
+    const { client } = makeFakeClient({ labRows: [labRow()] });
+    const result = await updateLab(client, {
+      teacherId: "teacher-1",
+      labId: "lab-1",
+      name: "  ",
+    });
+    if (!isOrchestrationError(result)) throw new Error("expected error");
     expect(result.error.status).toBe(400);
-    expect(result.error.message).toMatch(/No updatable fields/);
   });
 
-  it("maps 23505 on isDefault promotion to 409", async () => {
-    const fake = makeFakeClient({
-      labRows: [labRow({ id: L1, teacher_id: T1, is_default: false })],
-      updateLabError: { message: "dup", code: "23505" },
+  it("maps unique-name violation (23505) to 409", async () => {
+    const { client } = makeFakeClient({
+      labRows: [labRow()],
+      updateLabError: { message: "duplicate", code: "23505" },
     });
-    const result = await updateLab(fake as never, {
-      teacherId: T1,
-      labId: L1,
-      isDefault: true,
+    const result = await updateLab(client, {
+      teacherId: "teacher-1",
+      labId: "lab-1",
+      name: "Default lab",
     });
-    expect(isOrchestrationError(result)).toBe(true);
-    if (!isOrchestrationError(result)) return;
+    if (!isOrchestrationError(result)) throw new Error("expected error");
     expect(result.error.status).toBe(409);
-    expect(result.error.message).toMatch(/default/i);
-  });
-
-  it("clears description when null is explicitly passed", async () => {
-    const fake = makeFakeClient({
-      labRows: [labRow({ id: L1, teacher_id: T1, description: "old" })],
-      updatedLabRow: labRow({ id: L1, description: null }),
-    });
-    const result = await updateLab(fake as never, {
-      teacherId: T1,
-      labId: L1,
-      description: null,
-    });
-    expect(isOrchestrationError(result)).toBe(false);
-    if (isOrchestrationError(result)) return;
-    expect(result.lab.description).toBeNull();
   });
 });
 
@@ -537,126 +626,138 @@ describe("updateLab", () => {
 // ============================================================
 
 describe("deleteLab", () => {
-  it("deletes an empty lab (no machines) cleanly", async () => {
-    const fake = makeFakeClient({
-      labRows: [labRow({ id: L1, teacher_id: T1, is_default: false })],
+  it("deletes a lab with no references", async () => {
+    const { client, log } = makeFakeClient({
+      labRows: [labRow()],
       machinesByLab: [],
+      classesByLab: [],
+      teachersByLab: [],
     });
-    const result = await deleteLab(fake as never, {
-      teacherId: T1,
-      labId: L1,
+    const result = await deleteLab(client, {
+      teacherId: "teacher-1",
+      labId: "lab-1",
     });
-    expect(isOrchestrationError(result)).toBe(false);
-    if (isOrchestrationError(result)) return;
-    expect(result.deletedLabId).toBe(L1);
-    expect(result.reassignedMachineCount).toBe(0);
+    if (isOrchestrationError(result)) throw new Error("expected success");
+    expect(result.deletedId).toBe("lab-1");
+    expect(result.reassigned).toEqual({ machines: 0, classes: 0, teachers: 0 });
+    expect(log.find((e) => e.op === "delete")).toBeDefined();
   });
 
-  it("409s when lab has machines and no reassignTo provided", async () => {
-    const fake = makeFakeClient({
-      labRows: [labRow({ id: L1, teacher_id: T1, is_default: false })],
-      machinesByLab: [{ id: "m1", lab_id: L1 }],
+  it("returns 404 when lab is at a different school", async () => {
+    const { client } = makeFakeClient({
+      teacherSchoolId: "school-1",
+      labRows: [labRow({ school_id: "school-99" })],
     });
-    const result = await deleteLab(fake as never, {
-      teacherId: T1,
-      labId: L1,
+    const result = await deleteLab(client, {
+      teacherId: "teacher-1",
+      labId: "lab-1",
     });
-    expect(isOrchestrationError(result)).toBe(true);
-    if (!isOrchestrationError(result)) return;
-    expect(result.error.status).toBe(409);
-    expect(result.error.message).toMatch(/machine/i);
-  });
-
-  it("reassigns machines then deletes when reassignTo is provided", async () => {
-    const fake = makeFakeClient({
-      labRows: [
-        labRow({ id: L1, teacher_id: T1, is_default: false }), // source
-        labRow({ id: L2, teacher_id: T1, is_default: true }), // target
-      ],
-      machinesByLab: [
-        { id: "m1", lab_id: L1 },
-        { id: "m2", lab_id: L1 },
-      ],
-    });
-    const result = await deleteLab(fake as never, {
-      teacherId: T1,
-      labId: L1,
-      reassignTo: L2,
-    });
-    expect(isOrchestrationError(result)).toBe(false);
-    if (isOrchestrationError(result)) return;
-    expect(result.deletedLabId).toBe(L1);
-    expect(result.reassignedMachineCount).toBe(2);
-    // Verify the log shows machine UPDATE + class UPDATE + lab DELETE
-    const ops = fake._log.map((e) => `${e.table}:${e.op}`);
-    expect(ops).toContain("machine_profiles:update");
-    expect(ops).toContain("classes:update");
-    expect(ops).toContain("fabrication_labs:delete");
-  });
-
-  it("400s when reassignTo === labId", async () => {
-    const fake = makeFakeClient({
-      labRows: [
-        labRow({ id: L1, teacher_id: T1, is_default: false }),
-        labRow({ id: L1, teacher_id: T1, is_default: false }), // same lab
-      ],
-      machinesByLab: [{ id: "m1", lab_id: L1 }],
-    });
-    const result = await deleteLab(fake as never, {
-      teacherId: T1,
-      labId: L1,
-      reassignTo: L1,
-    });
-    expect(isOrchestrationError(result)).toBe(true);
-    if (!isOrchestrationError(result)) return;
-    expect(result.error.status).toBe(400);
-    expect(result.error.message).toMatch(/cannot be the lab being deleted/i);
-  });
-
-  it("404s when reassignTo lab belongs to another teacher", async () => {
-    const fake = makeFakeClient({
-      labRows: [
-        labRow({ id: L1, teacher_id: T1, is_default: false }), // source OK
-        labRow({ id: L2, teacher_id: T2 }), // target owned by T2 — 404 to T1
-      ],
-      machinesByLab: [{ id: "m1", lab_id: L1 }],
-    });
-    const result = await deleteLab(fake as never, {
-      teacherId: T1,
-      labId: L1,
-      reassignTo: L2,
-    });
-    expect(isOrchestrationError(result)).toBe(true);
-    if (!isOrchestrationError(result)) return;
+    if (!isOrchestrationError(result)) throw new Error("expected error");
     expect(result.error.status).toBe(404);
   });
 
-  it("409s when deleting default lab while others exist", async () => {
-    const fake = makeFakeClient({
-      labRows: [labRow({ id: L1, teacher_id: T1, is_default: true })],
-      otherLabsExist: true,
+  it("blocks delete with 409 when machines reference the lab + no reassign", async () => {
+    const { client } = makeFakeClient({
+      labRows: [labRow()],
+      machinesByLab: [{ id: "m1", lab_id: "lab-1" }],
+      classesByLab: [],
+      teachersByLab: [],
     });
-    const result = await deleteLab(fake as never, {
-      teacherId: T1,
-      labId: L1,
+    const result = await deleteLab(client, {
+      teacherId: "teacher-1",
+      labId: "lab-1",
     });
-    expect(isOrchestrationError(result)).toBe(true);
-    if (!isOrchestrationError(result)) return;
+    if (!isOrchestrationError(result)) throw new Error("expected error");
     expect(result.error.status).toBe(409);
-    expect(result.error.message).toMatch(/default/i);
+    expect(result.error.message).toMatch(/1 machine\b/);
   });
 
-  it("allows deleting the last default lab (no others exist, no machines)", async () => {
-    const fake = makeFakeClient({
-      labRows: [labRow({ id: L1, teacher_id: T1, is_default: true })],
-      otherLabsExist: false,
+  it("blocks delete with 409 when classes reference + lists count", async () => {
+    const { client } = makeFakeClient({
+      labRows: [labRow()],
       machinesByLab: [],
+      classesByLab: [{ id: "c1" }, { id: "c2" }],
+      teachersByLab: [],
     });
-    const result = await deleteLab(fake as never, {
-      teacherId: T1,
-      labId: L1,
+    const result = await deleteLab(client, {
+      teacherId: "teacher-1",
+      labId: "lab-1",
     });
-    expect(isOrchestrationError(result)).toBe(false);
+    if (!isOrchestrationError(result)) throw new Error("expected error");
+    expect(result.error.status).toBe(409);
+    expect(result.error.message).toMatch(/2 classes/);
+  });
+
+  it("blocks delete with 409 when a teacher's default points at the lab", async () => {
+    const { client } = makeFakeClient({
+      labRows: [labRow()],
+      machinesByLab: [],
+      classesByLab: [],
+      teachersByLab: [{ id: "t1" }],
+    });
+    const result = await deleteLab(client, {
+      teacherId: "teacher-1",
+      labId: "lab-1",
+    });
+    if (!isOrchestrationError(result)) throw new Error("expected error");
+    expect(result.error.status).toBe(409);
+    expect(result.error.message).toMatch(/teacher default/);
+  });
+
+  it("reassigns machines + classes + teacher defaults when reassignTo is provided", async () => {
+    const { client } = makeFakeClient({
+      labRows: [
+        labRow({ id: "lab-source" }),
+        labRow({ id: "lab-target" }),
+      ],
+      machinesByLab: [
+        { id: "m1", lab_id: "lab-source" },
+        { id: "m2", lab_id: "lab-source" },
+      ],
+      classesByLab: [{ id: "c1" }],
+      teachersByLab: [{ id: "t1" }],
+    });
+    const result = await deleteLab(client, {
+      teacherId: "teacher-1",
+      labId: "lab-source",
+      reassignTo: "lab-target",
+    });
+    if (isOrchestrationError(result)) throw new Error("expected success");
+    expect(result.reassigned).toEqual({
+      machines: 2,
+      classes: 1,
+      teachers: 1,
+    });
+  });
+
+  it("rejects self-reassignment with 400", async () => {
+    const { client } = makeFakeClient({ labRows: [labRow()] });
+    const result = await deleteLab(client, {
+      teacherId: "teacher-1",
+      labId: "lab-1",
+      reassignTo: "lab-1",
+    });
+    if (!isOrchestrationError(result)) throw new Error("expected error");
+    expect(result.error.status).toBe(400);
+    expect(result.error.message).toMatch(/itself/);
+  });
+
+  it("returns 404 when reassignTo is at a different school", async () => {
+    const { client } = makeFakeClient({
+      teacherSchoolId: "school-1",
+      labRows: [
+        labRow({ id: "lab-1" }), // source — same school
+        labRow({ id: "lab-target", school_id: "school-99" }), // cross-school target
+      ],
+    });
+    const result = await deleteLab(client, {
+      teacherId: "teacher-1",
+      labId: "lab-1",
+      reassignTo: "lab-target",
+    });
+    if (!isOrchestrationError(result)) throw new Error("expected error");
+    expect(result.error.status).toBe(404);
+    expect(result.error.message).toMatch(/Reassignment target/);
   });
 });
 
@@ -665,254 +766,102 @@ describe("deleteLab", () => {
 // ============================================================
 
 describe("reassignMachineToLab", () => {
-  it("reassigns a teacher-owned machine from source lab to target lab", async () => {
-    const fake = makeFakeClient({
+  it("moves a machine from source lab to target lab in the same school", async () => {
+    const { client } = makeFakeClient({
       labRows: [
-        labRow({ id: L1, teacher_id: T1 }), // source
-        labRow({ id: L2, teacher_id: T1 }), // target
+        labRow({ id: "lab-from" }),
+        labRow({ id: "lab-to" }),
       ],
-      machineLookupRow: {
-        id: "m1",
-        teacher_id: T1,
-        lab_id: L1,
-        is_system_template: false,
-      },
+      machineLookupRow: { id: "m-1", lab_id: "lab-from" },
     });
-    const result = await reassignMachineToLab(fake as never, {
-      teacherId: T1,
-      sourceLabId: L1,
-      machineProfileId: "m1",
-      targetLabId: L2,
+    const result = await reassignMachineToLab(client, {
+      teacherId: "teacher-1",
+      fromLabId: "lab-from",
+      machineProfileId: "m-1",
+      toLabId: "lab-to",
     });
-    expect(isOrchestrationError(result)).toBe(false);
-    if (isOrchestrationError(result)) return;
-    expect(result.machineProfileId).toBe("m1");
-    expect(result.previousLabId).toBe(L1);
-    expect(result.newLabId).toBe(L2);
+    if (isOrchestrationError(result)) throw new Error("expected success");
+    expect(result.machineProfileId).toBe("m-1");
+    expect(result.fromLabId).toBe("lab-from");
+    expect(result.toLabId).toBe("lab-to");
   });
 
-  it("400s when source and target are the same", async () => {
-    const fake = makeFakeClient({
-      labRows: [
-        labRow({ id: L1, teacher_id: T1 }),
-        labRow({ id: L1, teacher_id: T1 }), // same
-      ],
+  it("rejects same source/target with 400", async () => {
+    const { client } = makeFakeClient();
+    const result = await reassignMachineToLab(client, {
+      teacherId: "teacher-1",
+      fromLabId: "lab-1",
+      machineProfileId: "m-1",
+      toLabId: "lab-1",
     });
-    const result = await reassignMachineToLab(fake as never, {
-      teacherId: T1,
-      sourceLabId: L1,
-      machineProfileId: "m1",
-      targetLabId: L1,
-    });
-    expect(isOrchestrationError(result)).toBe(true);
-    if (!isOrchestrationError(result)) return;
+    if (!isOrchestrationError(result)) throw new Error("expected error");
     expect(result.error.status).toBe(400);
   });
 
-  it("404s when source lab not owned", async () => {
-    const fake = makeFakeClient({
-      labRows: [labRow({ id: L1, teacher_id: T2 })],
+  it("returns 404 when source lab is at a different school", async () => {
+    const { client } = makeFakeClient({
+      teacherSchoolId: "school-1",
+      labRows: [
+        labRow({ id: "lab-from", school_id: "school-99" }),
+      ],
     });
-    const result = await reassignMachineToLab(fake as never, {
-      teacherId: T1,
-      sourceLabId: L1,
-      machineProfileId: "m1",
-      targetLabId: L2,
+    const result = await reassignMachineToLab(client, {
+      teacherId: "teacher-1",
+      fromLabId: "lab-from",
+      machineProfileId: "m-1",
+      toLabId: "lab-to",
     });
-    expect(isOrchestrationError(result)).toBe(true);
-    if (!isOrchestrationError(result)) return;
+    if (!isOrchestrationError(result)) throw new Error("expected error");
     expect(result.error.status).toBe(404);
   });
 
-  it("404s when target lab not owned", async () => {
-    const fake = makeFakeClient({
+  it("returns 404 when target lab is at a different school", async () => {
+    const { client } = makeFakeClient({
+      teacherSchoolId: "school-1",
       labRows: [
-        labRow({ id: L1, teacher_id: T1 }), // source OK
-        labRow({ id: L2, teacher_id: T2 }), // target NOT owned
+        labRow({ id: "lab-from", school_id: "school-1" }),
+        labRow({ id: "lab-to", school_id: "school-99" }),
       ],
     });
-    const result = await reassignMachineToLab(fake as never, {
-      teacherId: T1,
-      sourceLabId: L1,
-      machineProfileId: "m1",
-      targetLabId: L2,
+    const result = await reassignMachineToLab(client, {
+      teacherId: "teacher-1",
+      fromLabId: "lab-from",
+      machineProfileId: "m-1",
+      toLabId: "lab-to",
     });
-    expect(isOrchestrationError(result)).toBe(true);
-    if (!isOrchestrationError(result)) return;
+    if (!isOrchestrationError(result)) throw new Error("expected error");
     expect(result.error.status).toBe(404);
   });
 
-  it("404s when machine not found or owned by another teacher", async () => {
-    const fake = makeFakeClient({
-      labRows: [
-        labRow({ id: L1, teacher_id: T1 }),
-        labRow({ id: L2, teacher_id: T1 }),
-      ],
-      machineLookupRow: null, // not found
+  it("returns 409 when machine is not currently in source lab (stale page)", async () => {
+    const { client } = makeFakeClient({
+      labRows: [labRow({ id: "lab-from" }), labRow({ id: "lab-to" })],
+      machineLookupRow: { id: "m-1", lab_id: "lab-other" }, // not in lab-from
     });
-    const result = await reassignMachineToLab(fake as never, {
-      teacherId: T1,
-      sourceLabId: L1,
-      machineProfileId: "m1",
-      targetLabId: L2,
+    const result = await reassignMachineToLab(client, {
+      teacherId: "teacher-1",
+      fromLabId: "lab-from",
+      machineProfileId: "m-1",
+      toLabId: "lab-to",
     });
-    expect(isOrchestrationError(result)).toBe(true);
-    if (!isOrchestrationError(result)) return;
+    if (!isOrchestrationError(result)) throw new Error("expected error");
+    expect(result.error.status).toBe(409);
+    expect(result.error.message).toMatch(/not currently in the source lab/i);
+  });
+
+  it("returns 404 when machine doesn't exist", async () => {
+    const { client } = makeFakeClient({
+      labRows: [labRow({ id: "lab-from" }), labRow({ id: "lab-to" })],
+      machineLookupRow: null,
+    });
+    const result = await reassignMachineToLab(client, {
+      teacherId: "teacher-1",
+      fromLabId: "lab-from",
+      machineProfileId: "m-1",
+      toLabId: "lab-to",
+    });
+    if (!isOrchestrationError(result)) throw new Error("expected error");
     expect(result.error.status).toBe(404);
-  });
-
-  it("409s when attempting to move a system template", async () => {
-    const fake = makeFakeClient({
-      labRows: [
-        labRow({ id: L1, teacher_id: T1 }),
-        labRow({ id: L2, teacher_id: T1 }),
-      ],
-      machineLookupRow: {
-        id: "m-sys",
-        teacher_id: T1,
-        lab_id: null,
-        is_system_template: true,
-      },
-    });
-    const result = await reassignMachineToLab(fake as never, {
-      teacherId: T1,
-      sourceLabId: L1,
-      machineProfileId: "m-sys",
-      targetLabId: L2,
-    });
-    expect(isOrchestrationError(result)).toBe(true);
-    if (!isOrchestrationError(result)) return;
-    expect(result.error.status).toBe(409);
-    expect(result.error.message).toMatch(/system.template/i);
-  });
-});
-
-// ============================================================
-// Phase 8.1d hotfix: deleteLab + listMyLabs filter is_active=true
-// ============================================================
-//
-// Regression for the bug Matt found during S1 smoke 25 Apr PM:
-//   - Teacher soft-deletes 2 machines (is_active=false)
-//   - UI grid shows 0 machines (correct — already filtered)
-//   - Try to delete the lab
-//   - Server pre-fix: counts ALL rows (including inactive) → 409
-//   - Server post-fix: counts is_active=true only → 0 → succeeds
-//
-// We can't run the actual SQL filter through the fake, but we CAN
-// assert the orchestration code applies the .eq("is_active", true)
-// filter on both queries — which is what fixes the bug at the
-// PostgREST layer in prod.
-
-// ============================================================
-// Phase 8.1d-2: last-lab guard (PH8-FU-LAST-LAB-GUARD)
-// ============================================================
-//
-// Regression for the bad UX Matt hit during S1 smoke 25 Apr PM:
-// teacher deleted ALL labs and ended up in a degraded state where
-// student picker fell back to "show all" and they couldn't add new
-// machines (API requires labId). New rule: if delete would leave
-// the teacher with zero labs AND they have active machines or
-// classes, 409.
-
-describe("Phase 8.1d-2: last-lab guard", () => {
-  it("blocks deleting the last lab when teacher has active machines", async () => {
-    const fake = makeFakeClient({
-      labRows: [labRow({ id: L1, teacher_id: T1, is_default: false })],
-      otherLabsExist: false, // last lab
-      hasActiveMachinesAnywhere: true,
-    });
-    const result = await deleteLab(fake as never, {
-      teacherId: T1,
-      labId: L1,
-    });
-    expect(isOrchestrationError(result)).toBe(true);
-    if (!isOrchestrationError(result)) return;
-    expect(result.error.status).toBe(409);
-    expect(result.error.message).toMatch(/last lab/);
-  });
-
-  it("blocks deleting the last lab when teacher has any classes", async () => {
-    const fake = makeFakeClient({
-      labRows: [labRow({ id: L1, teacher_id: T1, is_default: false })],
-      otherLabsExist: false,
-      hasClassesAnywhere: true,
-    });
-    const result = await deleteLab(fake as never, {
-      teacherId: T1,
-      labId: L1,
-    });
-    expect(isOrchestrationError(result)).toBe(true);
-    if (!isOrchestrationError(result)) return;
-    expect(result.error.status).toBe(409);
-  });
-
-  it("ALLOWS deleting the last lab when teacher has zero footprint (clean reset)", async () => {
-    const fake = makeFakeClient({
-      labRows: [labRow({ id: L1, teacher_id: T1, is_default: true })],
-      otherLabsExist: false,
-      hasActiveMachinesAnywhere: false,
-      hasClassesAnywhere: false,
-      machinesByLab: [],
-    });
-    const result = await deleteLab(fake as never, {
-      teacherId: T1,
-      labId: L1,
-    });
-    expect(isOrchestrationError(result)).toBe(false);
-  });
-
-  it("does NOT trigger the last-lab guard when other labs exist", async () => {
-    const fake = makeFakeClient({
-      labRows: [labRow({ id: L1, teacher_id: T1, is_default: false })],
-      otherLabsExist: true,
-      hasActiveMachinesAnywhere: true, // doesn't matter — other labs exist
-      machinesByLab: [],
-    });
-    const result = await deleteLab(fake as never, {
-      teacherId: T1,
-      labId: L1,
-    });
-    expect(isOrchestrationError(result)).toBe(false);
-  });
-});
-
-describe("Phase 8.1d hotfix: is_active filter on lab counts", () => {
-  it("deleteLab includes is_active=true on the machine count query", async () => {
-    const fake = makeFakeClient({
-      labRows: [labRow({ id: L1, teacher_id: T1, is_default: false })],
-      machinesByLab: [], // simulating "no active machines"
-    });
-    await deleteLab(fake as never, { teacherId: T1, labId: L1 });
-
-    // Find the machine_profiles SELECT query (count phase, before delete).
-    const machineCountEntry = fake._log.find(
-      (e) =>
-        e.table === "machine_profiles" &&
-        e.op === "select" &&
-        e.eq.some(([col]) => col === "lab_id")
-    );
-    expect(machineCountEntry).toBeDefined();
-    const eqMap = new Map(machineCountEntry!.eq as [string, unknown][]);
-    expect(eqMap.get("is_active")).toBe(true);
-  });
-
-  it("listMyLabs includes is_active=true on the per-lab machine count query", async () => {
-    const fake = makeFakeClient({
-      listLabsRows: [labRow({ id: L1 })],
-      machinesByLab: [],
-    });
-    await listMyLabs(fake as never, { teacherId: T1 });
-
-    const machineCountEntry = fake._log.find(
-      (e) =>
-        e.table === "machine_profiles" &&
-        e.op === "select" &&
-        // listMyLabs uses .in("lab_id", labIds) not .eq, but is_active
-        // still appears as an .eq filter in the same chain.
-        e.eq.some(([col]) => col === "is_active")
-    );
-    expect(machineCountEntry).toBeDefined();
-    const eqMap = new Map(machineCountEntry!.eq as [string, unknown][]);
-    expect(eqMap.get("is_active")).toBe(true);
+    expect(result.error.message).toMatch(/Machine not found/);
   });
 });

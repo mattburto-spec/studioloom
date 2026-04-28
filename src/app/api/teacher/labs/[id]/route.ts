@@ -1,11 +1,13 @@
 /**
  * /api/teacher/labs/[id]
- *   PATCH  — rename / edit / promote-to-default a lab
+ *   PATCH  — rename / edit a lab (any teacher at the school can)
  *   DELETE — delete a lab with optional reassignTo target
  *
- * Auth: teacher (Supabase Auth). Ownership scoped by teacher_id = auth.uid().
+ * Auth: teacher (Supabase Auth). Visibility + writes scoped by
+ * `fabrication_labs.school_id = teacher.school_id` (revised 28 Apr
+ * from teacher-scoped per Phase 8-1 Q3 flip).
  *
- * Preflight Phase 8-2.
+ * Preflight Phase 8-2 (revised 28 Apr).
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -48,7 +50,8 @@ function privateJson(body: unknown, status = 200) {
 interface UpdateLabBody {
   name?: unknown;
   description?: unknown;
-  isDefault?: unknown;
+  // Phase 8-2 (revised 28 Apr): isDefault dropped along with the
+  // per-lab default flag. See lab-orchestration.ts header.
 }
 
 export async function PATCH(
@@ -76,8 +79,6 @@ export async function PATCH(
       typeof body.description === "string" || body.description === null
         ? body.description
         : undefined,
-    isDefault:
-      typeof body.isDefault === "boolean" ? body.isDefault : undefined,
   });
 
   if (isOrchestrationError(result)) {
