@@ -1,38 +1,49 @@
 /**
- * Machine-profile orchestration — Preflight Phase 8-3.
+ * Machine-profile orchestration — Preflight Phase 8-3 (revised 28 Apr).
  *
- * Parallel to `lab-orchestration.ts` (Phase 8-2) and
- * `teacher-orchestration.ts` (Phase 6). Every function takes a
- * teacherId from requireTeacherAuth and scopes writes by
- * `machine_profiles.teacher_id = teacherId`. No cross-teacher
- * visibility; 404 (not 403) for "not yours" — same pattern as the
- * rest of Preflight.
+ * Parallel to `lab-orchestration.ts` (Phase 8-2). Phase 8-3 flipped
+ * machine ownership from teacher-scoped to school-scoped to mirror
+ * the Phase 8-1 lab pattern. Every function takes a `teacherId`
+ * (from Supabase Auth), resolves the teacher's `school_id` via
+ * `loadTeacherSchoolId` (re-exported from lab-orchestration), and
+ * scopes reads + writes via `machine_profiles.school_id`. Any teacher
+ * at the same school manages the same machines (flat membership).
+ * Cross-school access → 404 (not 403) — no existence leak.
  *
- * Exports per parent brief §3.3 + the "bulk lab-level approval
- * toggle" promised to Matt at the 8-2 pre-flight conversation:
+ * Schema (post Phase 8-3 migration `20260428074205_machine_profiles_school_scoped`):
+ *   - `school_id` NOT NULL for non-templates (CHECK constraint)
+ *   - `created_by_teacher_id` UUID NULL REFERENCES teachers(id)
+ *     ON DELETE SET NULL — audit-only, mirrors lab pattern
+ *   - `teacher_id` STAYS as legacy column (still NOT NULL via
+ *     ownership_check from mig 093) — orchestration writes both
+ *     `teacher_id` AND `created_by_teacher_id` on insert (same
+ *     UUID via teachers.id = auth.users.id FK chain), but ONLY
+ *     reads `created_by_teacher_id` for audit display + scopes
+ *     all access via `school_id`.
+ *   - Uniqueness: `(lab_id, name)` WHERE is_active = true
+ *     (mig 8-3 replaces the old `(teacher_id, lab_id, name)`)
+ *
+ * Exports:
  *   - createMachineProfile    — POST /api/teacher/machine-profiles
  *   - listMyMachines          — GET  /api/teacher/machine-profiles
+ *                               (returns school's machines + global templates)
  *   - updateMachineProfile    — PATCH .../[id]
  *   - softDeleteMachineProfile— DELETE .../[id] (is_active = false; 409 if active jobs)
  *   - bulkSetApprovalForLab   — POST /api/teacher/labs/[id]/bulk-approval
  *
- * Design decisions:
+ * Design decisions (carried over from Phase 8-3 v1, unchanged):
  *
  *   Create-from-template vs create-from-scratch: one endpoint, two
  *   paths. Pass `fromTemplateId` to copy; omit to create from scratch.
- *   Copy-from-template inherits every spec field, swaps
- *   `teacher_id` to self + `is_system_template` to false, ignores
- *   the template's own `lab_id` (template lab_id is always null per
- *   8-1 backfill rules) and uses the caller-provided `labId`. `rule_overrides`
- *   + `operation_color_map` + `supported_materials` are deep-copied
- *   (these are JSONB so a shallow object copy is fine).
+ *   Copy-from-template inherits every spec field, sets the new row's
+ *   `school_id` from the target lab's school_id, `created_by_teacher_id`
+ *   to the calling teacher, `is_system_template` to false. Templates
+ *   themselves have `school_id = NULL` (global seeds).
  *
- *   Hard delete vs soft delete: ALWAYS soft-delete. Sets
- *   `is_active = false`. Preserves historical trail (completed jobs
- *   still reference the machine). Matches the "no hard-delete"
- *   pattern from fabricators (1B-2 D-FABRICATOR-3). If the teacher
- *   later wants to permanently remove, that's an admin-level action
- *   not shipped in v1.
+ *   Hard delete vs soft delete: ALWAYS soft-delete (is_active = false).
+ *   Preserves historical trail (completed jobs still reference the
+ *   machine). Matches the "no hard-delete" pattern from fabricators
+ *   (1B-2 D-FABRICATOR-3).
  *
  *   Active-jobs guard on delete: any job whose status is NOT in
  *   {completed, rejected, cancelled} counts as active. Blocks machines
@@ -41,9 +52,13 @@
  *
  *   System templates are read-only. Teachers can copy them but can't
  *   edit or delete them — those are global seeds. API calls mutating
- *   a template row return 404 (we scope by teacher_id, so the template
- *   never matches).
+ *   a template row return 404.
  */
+
+import {
+  loadTeacherSchoolId,
+  loadSchoolOwnedLab,
+} from "./lab-orchestration";
 
 // ============================================================
 // Shared types (re-used from lab-orchestration for consistency)
@@ -83,11 +98,16 @@ export type OperationColorMap = Record<string, "cut" | "score" | "engrave">;
 /**
  * Full spec payload returned to callers. Maps 1:1 to the columns on
  * `machine_profiles` with camelCase + sensible null semantics.
+ *
+ * Phase 8-3: `teacherId` removed from the public shape. `schoolId` is
+ * NOT NULL for non-templates (DB CHECK constraint), nullable here
+ * because the same shape carries templates (school_id NULL).
+ * `createdByTeacherId` is audit-only (mirrors lab pattern).
  */
 export interface MachineProfileRow {
   id: string;
-  teacherId: string | null;
   schoolId: string | null;
+  createdByTeacherId: string | null;
   labId: string | null;
   isSystemTemplate: boolean;
   name: string;
@@ -224,8 +244,8 @@ const TERMINAL_STATUSES = ["completed", "rejected", "cancelled"] as const;
 
 type MachineProfileRawRow = {
   id: string;
-  teacher_id: string | null;
   school_id: string | null;
+  created_by_teacher_id: string | null;
   lab_id: string | null;
   is_system_template: boolean;
   name: string;
@@ -253,8 +273,8 @@ type MachineProfileRawRow = {
 function toRow(raw: MachineProfileRawRow): MachineProfileRow {
   return {
     id: raw.id,
-    teacherId: raw.teacher_id,
     schoolId: raw.school_id,
+    createdByTeacherId: raw.created_by_teacher_id,
     labId: raw.lab_id,
     isSystemTemplate: raw.is_system_template,
     name: raw.name,
@@ -281,17 +301,21 @@ function toRow(raw: MachineProfileRawRow): MachineProfileRow {
 }
 
 const FULL_SELECT =
-  "id, teacher_id, school_id, lab_id, is_system_template, name, machine_category, machine_brand, machine_model, is_active, requires_teacher_approval, bed_size_x_mm, bed_size_y_mm, bed_size_z_mm, nozzle_diameter_mm, supported_materials, max_print_time_min, supports_auto_supports, kerf_mm, operation_color_map, min_feature_mm, rule_overrides, notes, created_at, updated_at";
+  "id, school_id, created_by_teacher_id, lab_id, is_system_template, name, machine_category, machine_brand, machine_model, is_active, requires_teacher_approval, bed_size_x_mm, bed_size_y_mm, bed_size_z_mm, nozzle_diameter_mm, supported_materials, max_print_time_min, supports_auto_supports, kerf_mm, operation_color_map, min_feature_mm, rule_overrides, notes, created_at, updated_at";
 
 /**
- * Load a machine profile by id, scoped to a teacher. Returns 404 on
- * not-found / cross-teacher / system-template.
+ * Load a machine profile by id, scoped to a school. Returns 404 on
+ * not-found / cross-school / system-template.
  * Used by update + soft-delete paths. Does NOT load templates — if a
  * teacher tries to mutate a template, they get 404 not 403 (per pattern).
+ *
+ * Phase 8-3: replaces the previous `loadTeacherOwnedMachine` (per-teacher
+ * scope). Flat school membership now — any teacher at the school
+ * manages any of the school's machines.
  */
-async function loadTeacherOwnedMachine(
+async function loadSchoolOwnedMachine(
   db: SupabaseLike,
-  teacherId: string,
+  schoolId: string,
   machineId: string
 ): Promise<{ machine: MachineProfileRow } | OrchestrationError> {
   const result = await db
@@ -309,7 +333,7 @@ async function loadTeacherOwnedMachine(
       error: { status: 500, message: `Machine lookup failed: ${error.message}` },
     };
   }
-  if (!data || data.teacher_id !== teacherId || data.is_system_template) {
+  if (!data || data.school_id !== schoolId || data.is_system_template) {
     return { error: { status: 404, message: "Machine not found." } };
   }
 
@@ -369,24 +393,15 @@ export async function createMachineProfile(
   const name = validateName(params.name);
   if (isOrchestrationError(name)) return name;
 
-  // Verify labId belongs to this teacher (ownership pierce).
-  const labCheck = await db
-    .from("fabrication_labs")
-    .select("id, teacher_id")
-    .eq("id", params.labId)
-    .maybeSingle();
-  const { data: labRow, error: labError } = labCheck as {
-    data: { id: string; teacher_id: string } | null;
-    error: { message: string } | null;
-  };
-  if (labError) {
-    return {
-      error: { status: 500, message: `Lab lookup failed: ${labError.message}` },
-    };
-  }
-  if (!labRow || labRow.teacher_id !== params.teacherId) {
-    return { error: { status: 404, message: "Lab not found." } };
-  }
+  // Resolve calling teacher's school + verify target lab is at the
+  // same school (Phase 8-3 school-scoped). Cross-school → 404.
+  const schoolResult = await loadTeacherSchoolId(db, params.teacherId);
+  if (isOrchestrationError(schoolResult)) return schoolResult;
+  const schoolId = schoolResult.schoolId;
+
+  const labResult = await loadSchoolOwnedLab(db, schoolId, params.labId);
+  if (isOrchestrationError(labResult)) return labResult;
+  // labResult.lab.schoolId is now guaranteed === schoolId.
 
   let insertPayload: Record<string, unknown>;
 
@@ -415,8 +430,13 @@ export async function createMachineProfile(
     }
 
     insertPayload = {
+      // Phase 8-3: write both teacher_id (legacy column, still NOT
+      // NULL via mig 093 ownership_check) AND created_by_teacher_id
+      // (audit-only, mirrors lab pattern). Same UUID — teachers.id
+      // = auth.users.id (mig 001 FK cascade).
       teacher_id: params.teacherId,
-      school_id: null,
+      created_by_teacher_id: params.teacherId,
+      school_id: schoolId,
       lab_id: params.labId,
       is_system_template: false,
       name,
@@ -456,8 +476,11 @@ export async function createMachineProfile(
     if (isOrchestrationError(colorMap)) return colorMap;
 
     insertPayload = {
+      // Phase 8-3: see template-path comment above. Both columns
+      // get the same UUID; school_id sourced from the validated lab.
       teacher_id: params.teacherId,
-      school_id: null,
+      created_by_teacher_id: params.teacherId,
+      school_id: schoolId,
       lab_id: params.labId,
       is_system_template: false,
       name,
@@ -492,22 +515,19 @@ export async function createMachineProfile(
   };
 
   if (insertError) {
-    // 23505 = unique name collision. Pre-118 the index was scoped on
-    // (teacher_id, name) without the is_active predicate, so a
-    // soft-deleted machine could hold the name hostage and surface
-    // as a confusing "you already have a machine with that name"
-    // error. Migration 118 narrows the scope to (teacher_id, lab_id,
-    // name) WHERE is_active = true, but keep the diagnostic split
-    // here so the message stays correct on hosts that haven't
-    // applied 118 yet — and so the friendly "{name} #2" suggestion
-    // lands either way.
+    // 23505 = unique name collision. Phase 8-3 replaced the
+    // (teacher_id, lab_id, name) unique index from mig 118 with
+    // (lab_id, name) WHERE is_active = true AND is_system_template
+    // = false AND lab_id IS NOT NULL — multi-teacher safe under flat
+    // school membership.
     if (insertError.code === "23505") {
-      // Phase 8.1d-13: probe whether an inactive duplicate is the
-      // culprit. Cheap — only runs on the error path.
+      // Phase 8.1d-13 + 8-3: probe whether an inactive duplicate is
+      // the culprit. Now lab-scoped to match the new unique index.
+      // Cheap — only runs on the error path.
       const inactiveProbe = await db
         .from("machine_profiles")
         .select("id")
-        .eq("teacher_id", params.teacherId)
+        .eq("lab_id", params.labId)
         .eq("name", name)
         .eq("is_active", false)
         .maybeSingle();
@@ -516,7 +536,7 @@ export async function createMachineProfile(
           error: {
             status: 409,
             message:
-              `You have a deactivated machine called "${name}". ` +
+              `This lab has a deactivated machine called "${name}". ` +
               `Either rename this one (try "${name} #2"), or ` +
               `reactivate the existing one from the bin.`,
           },
@@ -526,7 +546,7 @@ export async function createMachineProfile(
         error: {
           status: 409,
           message:
-            `Another machine in this lab is already called "${name}". ` +
+            `Another active machine in this lab is already called "${name}". ` +
             `Pick a different name (e.g., "${name} #2"). Two ` +
             `labs can each have a "${name}" — only the same lab can't.`,
         },
@@ -560,11 +580,20 @@ export async function listMyMachines(
 ): Promise<ListMyMachinesResult> {
   const includeInactive = params.includeInactive === true;
 
-  // Teacher-owned machines.
+  // Phase 8-3: school-scoped. Returns the school's machines (any
+  // teacher at the school sees the same list — flat membership)
+  // plus all global system templates.
+  const schoolResult = await loadTeacherSchoolId(db, params.teacherId);
+  if (isOrchestrationError(schoolResult)) return schoolResult;
+  const schoolId = schoolResult.schoolId;
+
+  // School-owned machines (renamed from "teacher machines" — the
+  // public-facing field name `teacherMachines` is preserved for
+  // wire-protocol stability with existing callers).
   let teacherQuery = db
     .from("machine_profiles")
     .select(FULL_SELECT)
-    .eq("teacher_id", params.teacherId)
+    .eq("school_id", schoolId)
     .eq("is_system_template", false);
   if (!includeInactive) {
     teacherQuery = teacherQuery.eq("is_active", true);
@@ -663,9 +692,14 @@ export async function updateMachineProfile(
   db: SupabaseLike,
   params: UpdateMachineProfileRequest
 ): Promise<UpdateMachineProfileResult> {
-  const owned = await loadTeacherOwnedMachine(
+  // Phase 8-3: resolve school first, then load machine school-scoped.
+  const schoolResult = await loadTeacherSchoolId(db, params.teacherId);
+  if (isOrchestrationError(schoolResult)) return schoolResult;
+  const schoolId = schoolResult.schoolId;
+
+  const owned = await loadSchoolOwnedMachine(
     db,
-    params.teacherId,
+    schoolId,
     params.machineProfileId
   );
   if (isOrchestrationError(owned)) return owned;
@@ -709,11 +743,9 @@ export async function updateMachineProfile(
   if (params.maxPrintTimeMin !== undefined)
     patch.max_print_time_min = params.maxPrintTimeMin;
 
-  // Phase 8.1d-4: lab reassignment via edit modal. Validate target
-  // lab ownership before letting the patch through — same pattern as
-  // reassignMachineToLab. Allows orphan→lab, lab→lab, lab→orphan
-  // (the last one by passing labId=null... but we don't expose that
-  // route here; teachers should soft-delete instead of orphan).
+  // Phase 8.1d-4 + 8-3: lab reassignment via edit modal. Validate
+  // target lab is at the same school. Cross-school → 404. School
+  // can't change as a side effect — both labs are school-validated.
   if (params.labId !== undefined) {
     if (typeof params.labId !== "string" || params.labId.length === 0) {
       return {
@@ -723,23 +755,8 @@ export async function updateMachineProfile(
         },
       };
     }
-    const labResult = await db
-      .from("fabrication_labs")
-      .select("id, teacher_id")
-      .eq("id", params.labId)
-      .maybeSingle();
-    const { data: labRow, error: labError } = labResult as {
-      data: { id: string; teacher_id: string } | null;
-      error: { message: string } | null;
-    };
-    if (labError) {
-      return {
-        error: { status: 500, message: `Lab lookup failed: ${labError.message}` },
-      };
-    }
-    if (!labRow || labRow.teacher_id !== params.teacherId) {
-      return { error: { status: 404, message: "Lab not found." } };
-    }
+    const labResult = await loadSchoolOwnedLab(db, schoolId, params.labId);
+    if (isOrchestrationError(labResult)) return labResult;
     patch.lab_id = params.labId;
   }
 
@@ -752,11 +769,14 @@ export async function updateMachineProfile(
     };
   }
 
+  // Phase 8-3: school-scoped WHERE (defence in depth — service role
+  // bypasses RLS, so we keep the explicit filter even though
+  // loadSchoolOwnedMachine already verified ownership above).
   const updateResult = await db
     .from("machine_profiles")
     .update(patch)
     .eq("id", params.machineProfileId)
-    .eq("teacher_id", params.teacherId)
+    .eq("school_id", schoolId)
     .eq("is_system_template", false) // triple-belt: can't edit templates
     .select(FULL_SELECT)
     .single();
@@ -770,7 +790,7 @@ export async function updateMachineProfile(
       return {
         error: {
           status: 409,
-          message: "Another machine of yours already uses that name.",
+          message: "Another active machine in this lab already uses that name.",
         },
       };
     }
@@ -810,9 +830,14 @@ export async function softDeleteMachineProfile(
   db: SupabaseLike,
   params: SoftDeleteMachineRequest
 ): Promise<SoftDeleteMachineResult> {
-  const owned = await loadTeacherOwnedMachine(
+  // Phase 8-3: school-scoped ownership check.
+  const schoolResult = await loadTeacherSchoolId(db, params.teacherId);
+  if (isOrchestrationError(schoolResult)) return schoolResult;
+  const schoolId = schoolResult.schoolId;
+
+  const owned = await loadSchoolOwnedMachine(
     db,
-    params.teacherId,
+    schoolId,
     params.machineProfileId
   );
   if (isOrchestrationError(owned)) return owned;
@@ -851,11 +876,13 @@ export async function softDeleteMachineProfile(
 
   // Soft-delete: is_active = false. Preserves historical FK references
   // from completed jobs.
+  // Phase 8-3: school-scoped WHERE — same defence-in-depth pattern as
+  // updateMachineProfile.
   const updateResult = await db
     .from("machine_profiles")
     .update({ is_active: false })
     .eq("id", params.machineProfileId)
-    .eq("teacher_id", params.teacherId)
+    .eq("school_id", schoolId)
     .eq("is_system_template", false);
   const { error: updateError } = updateResult as {
     error: { message: string } | null;
@@ -923,36 +950,22 @@ export async function bulkSetApprovalForLab(
     };
   }
 
-  // Ownership check on the lab first.
-  const labResult = await db
-    .from("fabrication_labs")
-    .select("id, teacher_id")
-    .eq("id", params.labId)
-    .maybeSingle();
-  const { data: labRow, error: labError } = labResult as {
-    data: { id: string; teacher_id: string } | null;
-    error: { message: string } | null;
-  };
-  if (labError) {
-    return {
-      error: {
-        status: 500,
-        message: `Lab lookup failed: ${labError.message}`,
-      },
-    };
-  }
-  if (!labRow || labRow.teacher_id !== params.teacherId) {
-    return { error: { status: 404, message: "Lab not found." } };
-  }
+  // Phase 8-3: school-scoped lab ownership check.
+  const schoolResult = await loadTeacherSchoolId(db, params.teacherId);
+  if (isOrchestrationError(schoolResult)) return schoolResult;
+  const schoolId = schoolResult.schoolId;
+
+  const labResult = await loadSchoolOwnedLab(db, schoolId, params.labId);
+  if (isOrchestrationError(labResult)) return labResult;
 
   // Count machines first — we return the count in the response so the
-  // UI can show "updated 3 machines". Scope to teacher + non-template
-  // + active (skip already-deactivated ones).
+  // UI can show "updated 3 machines". Scope by lab_id (lab is
+  // school-validated upstream, so machines in that lab are by
+  // definition at the same school).
   const machinesResult = await db
     .from("machine_profiles")
     .select("id")
     .eq("lab_id", params.labId)
-    .eq("teacher_id", params.teacherId)
     .eq("is_system_template", false)
     .eq("is_active", true);
   const { data: machines, error: machinesError } = machinesResult as {
@@ -977,12 +990,11 @@ export async function bulkSetApprovalForLab(
     };
   }
 
-  // Bulk update.
+  // Bulk update — same lab scope as the count query above.
   const updateResult = await db
     .from("machine_profiles")
     .update({ requires_teacher_approval: params.requireApproval })
     .eq("lab_id", params.labId)
-    .eq("teacher_id", params.teacherId)
     .eq("is_system_template", false)
     .eq("is_active", true);
   const { error: updateError } = updateResult as {

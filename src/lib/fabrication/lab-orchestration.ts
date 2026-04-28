@@ -133,7 +133,7 @@ function validateDescription(raw: unknown): string | null | OrchestrationError {
  * pre-welcome-wizard — they need to pick a school before they can
  * manage labs). Used at the top of every lab orchestration function.
  */
-async function loadTeacherSchoolId(
+export async function loadTeacherSchoolId(
   db: SupabaseLike,
   teacherId: string
 ): Promise<{ schoolId: string } | OrchestrationError> {
@@ -172,7 +172,7 @@ async function loadTeacherSchoolId(
  * leak existence of labs at other schools). Used by update + delete
  * + reassign paths.
  */
-async function loadSchoolOwnedLab(
+export async function loadSchoolOwnedLab(
   db: SupabaseLike,
   schoolId: string,
   labId: string
