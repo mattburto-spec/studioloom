@@ -62,7 +62,9 @@ interface ClassRow {
 async function buildResponse(studentId: string) {
   const supabase = createAdminClient();
 
-  // Student row.
+  // Student row. ell_level is on a dedicated column (not in support_settings
+  // JSONB) but follows the same per-student/per-class cascade pattern, so we
+  // surface it here too — single source of truth for support-related settings.
   const { data: student } = await supabase
     .from("students")
     .select("id, display_name, username, ell_level, learning_profile, support_settings")
@@ -89,7 +91,7 @@ async function buildResponse(studentId: string) {
   const { data: enrollmentRows } = await supabase
     .from("class_students")
     .select(
-      "class_id, support_settings, classes!inner(id, name, code, framework, is_archived)"
+      "class_id, support_settings, ell_level_override, classes!inner(id, name, code, framework, is_archived)"
     )
     .eq("student_id", studentId)
     .eq("is_active", true)
@@ -98,6 +100,7 @@ async function buildResponse(studentId: string) {
   type EnrollmentRow = {
     class_id: string;
     support_settings: unknown;
+    ell_level_override: number | null;
     classes: ClassRow | ClassRow[] | null;
   };
   const liveEnrollments = ((enrollmentRows ?? []) as EnrollmentRow[]).filter((e) => {
@@ -110,13 +113,26 @@ async function buildResponse(studentId: string) {
     liveEnrollments.map(async (e) => {
       const c = (Array.isArray(e.classes) ? e.classes[0] : e.classes) as ClassRow;
       const resolved = await resolveStudentSettings(studentId, c.id);
+      // ELL resolution mirrors the JSONB cascade: per-class override (if set)
+      // wins, else falls back to the student's global ell_level. No "intake"
+      // layer for ELL — it's teacher-set, not student-set.
+      const resolvedEll = e.ell_level_override ?? student.ell_level ?? null;
+      const ellSource: "class-override" | "student-global" | "default" =
+        e.ell_level_override != null
+          ? "class-override"
+          : student.ell_level != null
+            ? "student-global"
+            : "default";
       return {
         classId: c.id,
         className: c.name,
         classCode: c.code,
         framework: c.framework,
         classOverrides: parseSupportSettings(e.support_settings),
+        ellLevelOverride: e.ell_level_override,
         resolved,
+        resolvedEll,
+        ellSource,
       };
     })
   );
@@ -185,9 +201,9 @@ export async function PATCH(
     );
   }
 
-  let raw: unknown = null;
+  let raw: { ell_level?: unknown; [k: string]: unknown } = {};
   try {
-    raw = await request.json();
+    raw = (await request.json()) as { ell_level?: unknown; [k: string]: unknown };
   } catch {
     return NextResponse.json(
       { error: "invalid JSON body" },
@@ -195,10 +211,33 @@ export async function PATCH(
     );
   }
 
+  // Two parallel writes: support_settings JSONB (l1 + tap-a-word) AND the
+  // dedicated students.ell_level column. Body can include either or both.
   const incoming = parseSupportSettings(raw);
-  if (Object.keys(incoming).length === 0) {
+
+  // ell_level: number 1-3 sets the global, null is meaningless here (the
+  // students table requires a value). Caller should pass a number to change
+  // it; omit the field to leave unchanged.
+  let ellLevelToWrite: number | undefined;
+  if (raw.ell_level !== undefined) {
+    if (
+      typeof raw.ell_level === "number" &&
+      Number.isInteger(raw.ell_level) &&
+      raw.ell_level >= 1 &&
+      raw.ell_level <= 3
+    ) {
+      ellLevelToWrite = raw.ell_level;
+    } else {
+      return NextResponse.json(
+        { error: "ell_level must be 1, 2, or 3" },
+        { status: 400, headers: CACHE_HEADERS }
+      );
+    }
+  }
+
+  if (Object.keys(incoming).length === 0 && ellLevelToWrite === undefined) {
     return NextResponse.json(
-      { error: "body must contain at least one valid override field" },
+      { error: "body must contain at least one valid field (l1_target_override, tap_a_word_enabled, or ell_level)" },
       { status: 400, headers: CACHE_HEADERS }
     );
   }
@@ -223,12 +262,24 @@ export async function PATCH(
     );
   }
 
-  // Bug 3 semantics — null in `incoming` deletes the key, doesn't persist null.
-  const merged = mergeSupportSettingsForWrite(existing.support_settings, incoming);
+  // Build the partial UPDATE payload. Only include fields the caller set —
+  // avoids accidentally clobbering values when the caller only wanted to
+  // change one thing.
+  const updatePayload: Record<string, unknown> = {};
+  if (Object.keys(incoming).length > 0) {
+    // Bug 3 semantics — null in `incoming` deletes the key, doesn't persist null.
+    updatePayload.support_settings = mergeSupportSettingsForWrite(
+      existing.support_settings,
+      incoming
+    );
+  }
+  if (ellLevelToWrite !== undefined) {
+    updatePayload.ell_level = ellLevelToWrite;
+  }
 
   const { error: updateErr } = await supabase
     .from("students")
-    .update({ support_settings: merged })
+    .update(updatePayload)
     .eq("id", studentId);
   if (updateErr) {
     return NextResponse.json(

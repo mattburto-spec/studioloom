@@ -3,9 +3,10 @@
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { ELL_LEVELS } from "@/lib/constants";
+// ELL_LEVELS + EllLevel imports removed 28 Apr 2026 — inline ELL selector
+// was moved to the unified per-student Support tab. ELL_COLORS (defined
+// below) still surfaces the resolved-value badge for at-a-glance scanning.
 import type { Class, Student, Unit, ClassUnit } from "@/types";
-import type { EllLevel } from "@/lib/constants";
 import { ClassFabricationHistorySection } from "@/components/fabrication/ClassFabricationHistorySection";
 
 // Avatar gradient helper — deterministic by name hash
@@ -440,17 +441,11 @@ export default function ClassDetailPage({
     setAdding(false);
   }
 
-  async function updateEllLevel(studentId: string, level: EllLevel) {
-    const supabase = createClient();
-    await supabase
-      .from("students")
-      .update({ ell_level: level })
-      .eq("id", studentId);
-
-    setStudents((prev) =>
-      prev.map((s) => (s.id === studentId ? { ...s, ell_level: level } : s))
-    );
-  }
+  // updateEllLevel REMOVED 28 Apr 2026 — inline ELL editing moved to the
+  // unified per-student Support tab. The handler used to write
+  // students.ell_level (global) directly from a button that read from
+  // class_students.ell_level_override (per-class), which was inconsistent.
+  // The Support tab cleanly separates the two layers via dedicated APIs.
 
   async function toggleUnit(unitId: string, isActive: boolean) {
     const supabase = createClient();
@@ -1778,27 +1773,14 @@ export default function ClassDetailPage({
                       </div>
                     )}
 
-                    {/* ELL selector */}
-                    <div className="hidden md:flex items-center gap-1 flex-shrink-0">
-                      <span className="text-[10px] text-gray-400 mr-1">ELL</span>
-                      {([1, 2, 3] as EllLevel[]).map((level) => (
-                        <button
-                          key={level}
-                          onClick={() => updateEllLevel(student.id, level)}
-                          className="w-7 h-7 rounded-full text-[11px] font-bold transition"
-                          style={student.ell_level === level ? {
-                            background: ELL_COLORS[level]?.color || "#2563EB",
-                            color: "white",
-                          } : {
-                            background: "#F3F4F6",
-                            color: "#9CA3AF",
-                          }}
-                          title={ELL_LEVELS[level].label}
-                        >
-                          {level}
-                        </button>
-                      ))}
-                    </div>
+                    {/* ELL selector REMOVED 28 Apr 2026 — moved to the unified
+                        per-student Support tab (/teacher/students/[id]?tab=support).
+                        Inline editing here was confusing because it wrote
+                        students.ell_level (global) while the row read from
+                        class_students.ell_level_override (per-class). The
+                        Support tab cleanly separates the two layers. The static
+                        ELL badge above (lines ~1727) still shows the resolved
+                        value for at-a-glance class scanning. */}
 
                     {/* Actions */}
                     <div className="flex items-center gap-1 flex-shrink-0">
@@ -1806,6 +1788,7 @@ export default function ClassDetailPage({
                         href={`/teacher/students/${student.id}`}
                         className="px-2.5 py-1.5 text-[11px] font-semibold rounded-lg transition"
                         style={{ background: "#F3E8FF", color: "#7C3AED" }}
+                        title="Open student profile (ELL + L1 + tap-a-word edits live in the Support tab)"
                       >
                         Profile
                       </Link>

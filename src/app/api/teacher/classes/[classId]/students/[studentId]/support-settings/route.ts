@@ -36,9 +36,9 @@ export async function PATCH(
     );
   }
 
-  let body: unknown = null;
+  let body: { ell_level_override?: unknown; [k: string]: unknown } = {};
   try {
-    body = await request.json();
+    body = (await request.json()) as { ell_level_override?: unknown; [k: string]: unknown };
   } catch {
     return NextResponse.json(
       { error: "invalid JSON body" },
@@ -46,10 +46,35 @@ export async function PATCH(
     );
   }
 
+  // 28 Apr 2026: this endpoint now also accepts `ell_level_override` (number
+  // 1-3, or null to clear). ELL override is on a dedicated column on
+  // class_students, not in the support_settings JSONB, but it's a per-class
+  // student-support setting, so it belongs here for UX consistency with the
+  // unified Support tab.
   const incoming = parseSupportSettings(body);
-  if (Object.keys(incoming).length === 0) {
+
+  let ellOverrideToWrite: number | null | undefined;
+  if (body.ell_level_override !== undefined) {
+    if (body.ell_level_override === null) {
+      ellOverrideToWrite = null;
+    } else if (
+      typeof body.ell_level_override === "number" &&
+      Number.isInteger(body.ell_level_override) &&
+      body.ell_level_override >= 1 &&
+      body.ell_level_override <= 3
+    ) {
+      ellOverrideToWrite = body.ell_level_override;
+    } else {
+      return NextResponse.json(
+        { error: "ell_level_override must be 1, 2, 3, or null" },
+        { status: 400, headers: CACHE_HEADERS }
+      );
+    }
+  }
+
+  if (Object.keys(incoming).length === 0 && ellOverrideToWrite === undefined) {
     return NextResponse.json(
-      { error: "body must contain at least one valid override field" },
+      { error: "body must contain at least one valid field (l1_target_override, tap_a_word_enabled, or ell_level_override)" },
       { status: 400, headers: CACHE_HEADERS }
     );
   }
@@ -78,13 +103,23 @@ export async function PATCH(
     );
   }
 
-  // Bug 3: explicit null in `incoming` deletes the key rather than persisting
-  // it as null. Keeps JSONB clean after teacher resets.
-  const merged = mergeSupportSettingsForWrite(existing.support_settings, incoming);
+  // Build a partial UPDATE — only include columns the caller actually set so
+  // we never accidentally clobber a sibling value.
+  const updatePayload: Record<string, unknown> = {};
+  if (Object.keys(incoming).length > 0) {
+    // Bug 3: explicit null in `incoming` deletes the JSONB key.
+    updatePayload.support_settings = mergeSupportSettingsForWrite(
+      existing.support_settings,
+      incoming
+    );
+  }
+  if (ellOverrideToWrite !== undefined) {
+    updatePayload.ell_level_override = ellOverrideToWrite;
+  }
 
   const { error: updateErr } = await supabase
     .from("class_students")
-    .update({ support_settings: merged })
+    .update(updatePayload)
     .eq("class_id", classId)
     .eq("student_id", studentId);
 
@@ -101,7 +136,10 @@ export async function PATCH(
   return NextResponse.json(
     {
       ok: true,
-      classSupportSettings: merged,
+      classSupportSettings:
+        updatePayload.support_settings ?? parseSupportSettings(existing.support_settings),
+      ellLevelOverride:
+        ellOverrideToWrite !== undefined ? ellOverrideToWrite : undefined,
       resolved,
     },
     { headers: CACHE_HEADERS }

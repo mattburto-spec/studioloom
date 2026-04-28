@@ -26,6 +26,7 @@ import {
   l1DisplayLabel,
   type L1Target,
 } from "@/lib/tap-a-word/language-mapping";
+import { ELL_LEVELS, type EllLevel } from "@/lib/constants";
 
 interface ResolvedSettings {
   l1Target: L1Target;
@@ -59,7 +60,10 @@ interface ApiResponse {
       l1_target_override?: L1Target | null;
       tap_a_word_enabled?: boolean | null;
     };
+    ellLevelOverride: number | null;
     resolved: ResolvedSettings;
+    resolvedEll: number | null;
+    ellSource: "class-override" | "student-global" | "default";
   }>;
 }
 
@@ -114,6 +118,7 @@ export function StudentSupportSettings({ studentId }: { studentId: string }) {
     async (patch: {
       l1_target_override?: L1Target | null;
       tap_a_word_enabled?: boolean | null;
+      ell_level?: EllLevel;
     }) => {
       setSaving(true);
       try {
@@ -148,6 +153,7 @@ export function StudentSupportSettings({ studentId }: { studentId: string }) {
       patch: {
         l1_target_override?: L1Target | null;
         tap_a_word_enabled?: boolean | null;
+        ell_level_override?: number | null;
       }
     ) => {
       setClassBusy((s) => new Set(s).add(classId));
@@ -264,6 +270,30 @@ export function StudentSupportSettings({ studentId }: { studentId: string }) {
             Applies everywhere unless a class overrides it.
           </span>
         </div>
+
+        {/* ELL level — separate row, full-width because the labels are longer */}
+        <label className="block mb-4">
+          <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+            ELL level (English language scaffolding)
+          </span>
+          <select
+            value={student.ellLevel || 1}
+            onChange={(e) =>
+              void updateGlobal({ ell_level: Number(e.target.value) as EllLevel })
+            }
+            disabled={saving}
+            className="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm bg-white"
+          >
+            {([1, 2, 3] as EllLevel[]).map((lvl) => (
+              <option key={lvl} value={lvl}>
+                {lvl} — {ELL_LEVELS[lvl].label} — {ELL_LEVELS[lvl].description}
+              </option>
+            ))}
+          </select>
+          <div className="mt-1 text-xs text-gray-500">
+            Global default. Each class can override below.
+          </div>
+        </label>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* L1 target */}
@@ -410,13 +440,15 @@ function ClassRowView({
   onUpdate: (patch: {
     l1_target_override?: L1Target | null;
     tap_a_word_enabled?: boolean | null;
+    ell_level_override?: number | null;
   }) => void;
 }) {
   const hasOverride = useMemo(
     () =>
       cls.classOverrides.l1_target_override !== undefined ||
-      cls.classOverrides.tap_a_word_enabled !== undefined,
-    [cls.classOverrides]
+      cls.classOverrides.tap_a_word_enabled !== undefined ||
+      cls.ellLevelOverride !== null,
+    [cls.classOverrides, cls.ellLevelOverride]
   );
 
   return (
@@ -429,7 +461,11 @@ function ClassRowView({
         {hasOverride && (
           <button
             onClick={() =>
-              onUpdate({ l1_target_override: null, tap_a_word_enabled: null })
+              onUpdate({
+                l1_target_override: null,
+                tap_a_word_enabled: null,
+                ell_level_override: null,
+              })
             }
             disabled={busy}
             className="text-xs text-gray-500 hover:text-gray-800 hover:underline disabled:opacity-50"
@@ -438,7 +474,41 @@ function ClassRowView({
           </button>
         )}
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+        {/* ELL override */}
+        <div>
+          <span className="text-xs text-gray-500">ELL: </span>
+          <select
+            value={cls.ellLevelOverride ?? "__inherit__"}
+            onChange={(e) => {
+              const val = e.target.value;
+              onUpdate({
+                ell_level_override:
+                  val === "__inherit__" ? null : Number(val),
+              });
+            }}
+            disabled={busy}
+            className="rounded border border-gray-200 px-1.5 py-0.5 text-sm bg-white"
+          >
+            <option value="__inherit__">inherit</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+          </select>
+          <span className="ml-2 text-xs text-gray-500">
+            → <span className="font-mono">{cls.resolvedEll ?? "—"}</span>{" "}
+            <SourceBadge
+              source={
+                cls.ellSource === "class-override"
+                  ? "class-override"
+                  : cls.ellSource === "student-global"
+                    ? "student-override"
+                    : "default"
+              }
+            />
+          </span>
+        </div>
+
         <div>
           <span className="text-xs text-gray-500">L1: </span>
           <select
