@@ -8,8 +8,12 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
  * precedence chain end-to-end.
  */
 
-let studentRow: { support_settings: unknown; learning_profile: unknown } | null = null;
-let csRow: { support_settings: unknown } | null = null;
+let studentRow: {
+  support_settings: unknown;
+  learning_profile: unknown;
+  ell_level?: number | null;
+} | null = null;
+let csRow: { support_settings: unknown; ell_level_override?: number | null } | null = null;
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
@@ -225,7 +229,7 @@ describe("resolveStudentSettings", () => {
     expect(result.l1Source).toBe("student-override");
   });
 
-  it("tap_a_word_enabled defaults to true when no overrides set", async () => {
+  it("tap_a_word_enabled defaults to true when no ELL data + L1=English (defensive — ELL coerces to 1)", async () => {
     studentRow = {
       support_settings: {},
       learning_profile: { languages_at_home: ["English"] },
@@ -233,6 +237,95 @@ describe("resolveStudentSettings", () => {
     const result = await resolveStudentSettings("student-1");
     expect(result.tapAWordEnabled).toBe(true);
     expect(result.tapASource).toBe("default");
+  });
+
+  // ─── Smart default tests (28 Apr 2026) ───────────────────────────
+  describe("smart default for tapAWordEnabled (28 Apr 2026)", () => {
+    it("ELL 3 + L1=en (true monolingual native) defaults to OFF — clean reading view", async () => {
+      studentRow = {
+        support_settings: {},
+        learning_profile: { languages_at_home: ["English"] },
+        ell_level: 3,
+      };
+      const result = await resolveStudentSettings("student-1");
+      expect(result.tapAWordEnabled).toBe(false);
+      expect(result.tapASource).toBe("default");
+    });
+
+    it("ELL 3 + L1=Mandarin (advanced bilingual) defaults to ON — translation safety", async () => {
+      studentRow = {
+        support_settings: {},
+        learning_profile: { languages_at_home: ["Mandarin"] },
+        ell_level: 3,
+      };
+      const result = await resolveStudentSettings("student-1");
+      expect(result.tapAWordEnabled).toBe(true);
+      expect(result.tapASource).toBe("default");
+    });
+
+    it("ELL 1 + L1=en defaults to ON — beginner needs scaffolding", async () => {
+      studentRow = {
+        support_settings: {},
+        learning_profile: { languages_at_home: ["English"] },
+        ell_level: 1,
+      };
+      const result = await resolveStudentSettings("student-1");
+      expect(result.tapAWordEnabled).toBe(true);
+    });
+
+    it("ELL 2 + L1=en defaults to ON — intermediate needs scaffolding", async () => {
+      studentRow = {
+        support_settings: {},
+        learning_profile: { languages_at_home: ["English"] },
+        ell_level: 2,
+      };
+      const result = await resolveStudentSettings("student-1");
+      expect(result.tapAWordEnabled).toBe(true);
+    });
+
+    it("teacher per-student override OFF beats smart default ON (ELL 1)", async () => {
+      studentRow = {
+        support_settings: { tap_a_word_enabled: false },
+        learning_profile: { languages_at_home: ["Mandarin"] },
+        ell_level: 1,
+      };
+      const result = await resolveStudentSettings("student-1");
+      expect(result.tapAWordEnabled).toBe(false);
+      expect(result.tapASource).toBe("student-override");
+    });
+
+    it("teacher per-student override ON beats smart default OFF (ELL 3 + L1=en)", async () => {
+      studentRow = {
+        support_settings: { tap_a_word_enabled: true },
+        learning_profile: { languages_at_home: ["English"] },
+        ell_level: 3,
+      };
+      const result = await resolveStudentSettings("student-1");
+      expect(result.tapAWordEnabled).toBe(true);
+      expect(result.tapASource).toBe("student-override");
+    });
+
+    it("per-class ELL override flips smart default — global ELL 1 + class override 3 + L1=en → OFF", async () => {
+      studentRow = {
+        support_settings: {},
+        learning_profile: { languages_at_home: ["English"] },
+        ell_level: 1,
+      };
+      csRow = { support_settings: {}, ell_level_override: 3 };
+      const result = await resolveStudentSettings("student-1", "class-1");
+      expect(result.tapAWordEnabled).toBe(false);
+      expect(result.tapASource).toBe("default");
+    });
+
+    it("invalid/missing ELL coerces to 1 — defaults to ON (err on side of scaffolding)", async () => {
+      studentRow = {
+        support_settings: {},
+        learning_profile: { languages_at_home: ["English"] },
+        ell_level: null,
+      };
+      const result = await resolveStudentSettings("student-1");
+      expect(result.tapAWordEnabled).toBe(true);
+    });
   });
 
   it("student-level tap_a_word_enabled = false disables for that student", async () => {

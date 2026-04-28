@@ -9,11 +9,18 @@
  *   1. class_students.support_settings (per-class override) — only if classId given
  *   2. students.support_settings (per-student override)
  *   3. learning_profile.languages_at_home (intake-derived L1 only)
- *   4. defaults (l1='en', tapAWordEnabled=true)
+ *   4. smart defaults (l1='en'; tapAWordEnabled = (ellLevel <= 2) OR (l1Target !== 'en'))
  *
  * Authority model (Q1 locked 27 Apr): student is source of truth (intake),
  * teacher overrides per-context. Original learning_profile.languages_at_home
  * is never written to by the teacher — overrides go in support_settings JSONB.
+ *
+ * Smart default for tapAWordEnabled (28 Apr 2026): instead of hard-coded
+ * `true` for everyone, the default is true when the student has either a
+ * non-native English profile (ELL ≤ 2) OR a non-English L1 (Mandarin etc.
+ * — bilingual students still benefit from translation lookup even if
+ * they're advanced English readers). ELL 3 monolingual English students
+ * default to OFF for clean reading. Teachers can override either way.
  *
  * All callers that need the runtime values for tap-a-word (and future
  * Phase 4 settings) MUST go through this resolver. Don't read
@@ -31,8 +38,28 @@ import { parseSupportSettings, type ResolvedSupportSettings } from "./types";
 
 const DEFAULTS = {
   l1Target: "en" as L1Target,
-  tapAWordEnabled: true,
 } as const;
+
+/**
+ * Smart default for tapAWordEnabled — ON when the student is still
+ * developing English (ELL 1-2) OR is bilingual (L1 ≠ English). Defaults
+ * OFF only for ELL 3 monolingual English students who get a clean
+ * reading view. Teacher overrides at student or class level always win.
+ *
+ * 28 Apr 2026: replaces the previous hard-coded `true` default. Was
+ * causing tap-a-word to apply unnecessary visual noise to advanced
+ * native English speakers.
+ */
+export function defaultTapAWordEnabled(
+  ellLevel: number | null | undefined,
+  l1Target: L1Target
+): boolean {
+  // Defensive: if ellLevel is null/undefined/invalid we err on the side of
+  // ON. Better to give a fluent student a useless tooltip than to leave
+  // an ELL student without scaffolding because their level wasn't set.
+  const ell = typeof ellLevel === "number" && ellLevel >= 1 && ellLevel <= 3 ? ellLevel : 1;
+  return ell <= 2 || l1Target !== "en";
+}
 
 export async function resolveStudentSettings(
   studentId: string,
@@ -40,10 +67,12 @@ export async function resolveStudentSettings(
 ): Promise<ResolvedSupportSettings> {
   const supabase = createAdminClient();
 
-  // Per-student row: support_settings + learning_profile (for intake-derived L1).
+  // Per-student row: support_settings + learning_profile + ell_level
+  // (the ell_level is needed to compute the smart default for
+  // tapAWordEnabled — see defaultTapAWordEnabled below).
   const { data: studentRow } = await supabase
     .from("students")
-    .select("support_settings, learning_profile")
+    .select("support_settings, learning_profile, ell_level")
     .eq("id", studentId)
     .maybeSingle();
 
@@ -53,7 +82,9 @@ export async function resolveStudentSettings(
   if (!studentRow) {
     return {
       l1Target: DEFAULTS.l1Target,
-      tapAWordEnabled: DEFAULTS.tapAWordEnabled,
+      // No ELL info → fall back to "everyone gets it" so we don't
+      // accidentally strip scaffolding from a student we can't read.
+      tapAWordEnabled: true,
       l1Source: "default",
       tapASource: "default",
     };
@@ -63,16 +94,20 @@ export async function resolveStudentSettings(
 
   // Per-class row: only fetched when classId is passed (per-student-only
   // contexts skip this query entirely, e.g. student dashboard before they
-  // enter a class).
+  // enter a class). Also pulls ell_level_override so the smart default
+  // can use the per-class effective ELL when present.
   let classOverrides = parseSupportSettings(undefined);
+  let classEllOverride: number | null = null;
   if (classId) {
     const { data: csRow } = await supabase
       .from("class_students")
-      .select("support_settings")
+      .select("support_settings, ell_level_override")
       .eq("student_id", studentId)
       .eq("class_id", classId)
       .maybeSingle();
     classOverrides = parseSupportSettings(csRow?.support_settings);
+    classEllOverride =
+      typeof csRow?.ell_level_override === "number" ? csRow.ell_level_override : null;
   }
 
   // Resolve l1Target: class > student > intake > default.
@@ -100,8 +135,13 @@ export async function resolveStudentSettings(
     }
   }
 
-  // Resolve tapAWordEnabled: class > student > default
-  let tapAWordEnabled: boolean = DEFAULTS.tapAWordEnabled;
+  // Resolve tapAWordEnabled: class > student > smart default.
+  // Smart default uses the effective ELL (per-class override or student
+  // global) AND the resolved L1 — see defaultTapAWordEnabled docstring.
+  const effectiveEll = classEllOverride ?? studentRow.ell_level ?? null;
+  const smartDefault = defaultTapAWordEnabled(effectiveEll, l1Target);
+
+  let tapAWordEnabled: boolean = smartDefault;
   let tapASource: ResolvedSupportSettings["tapASource"] = "default";
   if (typeof classOverrides.tap_a_word_enabled === "boolean") {
     tapAWordEnabled = classOverrides.tap_a_word_enabled;

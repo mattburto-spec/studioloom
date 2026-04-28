@@ -258,6 +258,12 @@ export function StudentSupportSettings({ studentId }: { studentId: string }) {
             student global, only inside that class.
           </li>
         </ol>
+        <div className="mt-3 pt-3 border-t border-amber-200 text-xs text-amber-800">
+          <span className="font-semibold">Tap-a-word default policy:</span> ON
+          for ELL 1-2 students OR for any student whose L1 isn&apos;t English
+          (translation safety). OFF for ELL 3 monolingual English students
+          (clean reading view). Teachers can override either way.
+        </div>
       </div>
 
       {/* ─── Per-student global form ─────────────────────────────── */}
@@ -352,7 +358,9 @@ export function StudentSupportSettings({ studentId }: { studentId: string }) {
               disabled={saving}
               className="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm bg-white"
             >
-              <option value="__inherit__">inherit (default: on)</option>
+              <option value="__inherit__">
+                inherit (default: {student.resolvedGlobal.tapAWordEnabled ? "on" : "off"})
+              </option>
               <option value="true">on</option>
               <option value="false">off</option>
             </select>
