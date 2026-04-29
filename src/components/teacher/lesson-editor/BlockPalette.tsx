@@ -577,15 +577,13 @@ export default function BlockPalette({
   );
 
   return (
-    <div className="flex flex-col h-full bg-gray-50/50">
+    <div className="flex flex-col h-full bg-[var(--le-paper)] lesson-editor-warm">
       {/* Header */}
-      <div className="px-3 pt-3 pb-2">
+      <div className="px-3 pt-3 pb-2 border-b border-[var(--le-hair)]">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
-            Blocks
-          </h3>
-          <span className="text-[10px] text-gray-400 tabular-nums">
-            {displayBlocks.length}
+          <h3 className="le-cap text-[var(--le-ink-3)]">Blocks</h3>
+          <span className="text-[10.5px] text-[var(--le-ink-3)] le-tnum">
+            {displayBlocks.length} total
           </span>
         </div>
 
@@ -598,7 +596,7 @@ export default function BlockPalette({
             fill="none"
             stroke="currentColor"
             strokeWidth="2"
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--le-ink-3)]"
           >
             <circle cx="11" cy="11" r="8" />
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -607,8 +605,8 @@ export default function BlockPalette({
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search blocks..."
-            className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-transparent"
+            placeholder="Search blocks…"
+            className="w-full pl-8 pr-3 py-1.5 text-[11.5px] bg-[var(--le-bg)] border border-[var(--le-hair)] rounded-md focus:outline-none focus:border-[var(--le-ink-2)]"
           />
         </div>
 
@@ -616,25 +614,25 @@ export default function BlockPalette({
         <div className="flex gap-1 mt-2">
           <button
             onClick={() => setActiveTab("templates")}
-            className={`flex-1 px-2 py-1.5 text-[11px] font-semibold rounded-md transition-all ${
+            className={`flex-1 px-2 py-1 text-[11px] font-extrabold rounded-md border transition-colors ${
               activeTab === "templates"
-                ? "bg-indigo-50 text-indigo-600 border border-indigo-200"
-                : "text-gray-500 hover:bg-gray-100 border border-transparent"
+                ? "bg-violet-100 border-violet-300 text-violet-800"
+                : "bg-[var(--le-paper)] border-[var(--le-hair)] text-[var(--le-ink-2)] hover:text-[var(--le-ink)]"
             }`}
           >
             Templates
           </button>
           <button
             onClick={() => setActiveTab("my-blocks")}
-            className={`flex-1 px-2 py-1.5 text-[11px] font-semibold rounded-md transition-all ${
+            className={`flex-1 px-2 py-1 text-[11px] font-extrabold rounded-md border transition-colors ${
               activeTab === "my-blocks"
-                ? "bg-rose-50 text-rose-600 border border-rose-200"
-                : "text-gray-500 hover:bg-gray-100 border border-transparent"
+                ? "bg-rose-50 border-rose-300 text-rose-700"
+                : "bg-[var(--le-paper)] border-[var(--le-hair)] text-[var(--le-ink-2)] hover:text-[var(--le-ink)]"
             }`}
           >
             My Blocks
             {myBlocksFetched && myBlocks.length > 0 && (
-              <span className="ml-1 text-[10px] tabular-nums opacity-70">
+              <span className="ml-1 text-[10px] le-tnum opacity-70">
                 {myBlocks.length}
               </span>
             )}

@@ -376,6 +376,57 @@
   box-shadow: 0 1px 3px rgba(0,0,0,0.12);
 }
 
+/* ===== LESSON EDITOR — warm paper aesthetic =====
+ * Scoped to `.lesson-editor-warm` so the rest of the app stays on the
+ * existing purple/gray chrome. Uses Manrope for display + body within
+ * the editor only. Tokens map 1:1 to the design source
+ * (Unit Editor.html / unit_editor.jsx).
+ */
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
+.lesson-editor-warm {
+  --le-bg:      #F5F1EA;
+  --le-paper:   #FDFBF6;
+  --le-ink:     #0F0E0C;
+  --le-ink-2:   #413D36;
+  --le-ink-3:   #8A8477;
+  --le-hair:    #E5DFD2;
+  --le-hair-2:  #EFE9DB;
+  --le-accent:  #E86F2C;
+
+  /* Phase accents — match the design's section colors */
+  --le-phase-opening:    #0EA5E9;  /* Hook (sky) */
+  --le-phase-miniLesson: #9333EA;  /* Workshop (violet) */
+  --le-phase-workTime:   #F59E0B;  /* Work (amber) */
+  --le-phase-debrief:    #16A34A;  /* Share (emerald) */
+
+  font-family: "Manrope", system-ui, -apple-system, sans-serif;
+  background: var(--le-bg);
+  color: var(--le-ink);
+}
+
+/* Display / eyebrow utilities used by the editor chrome */
+.lesson-editor-warm .le-display {
+  font-family: "Manrope", sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.lesson-editor-warm .le-cap {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.lesson-editor-warm .le-tnum {
+  font-variant-numeric: tabular-nums;
+}
+.lesson-editor-warm .le-card {
+  background: var(--le-paper);
+  border: 1px solid var(--le-hair);
+  border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(15,14,12,0.04), 0 2px 10px rgba(15,14,12,0.04);
+}
+
 /* Smooth scrollbar for wizard builder panel */
 .scrollbar-thin {
   scrollbar-width: thin;
