@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { motion, useDragControls, AnimatePresence } from "framer-motion";
 import InlineEdit from "./InlineEdit";
+import { MarkdownPrompt } from "@/components/student/MarkdownPrompt";
 import { CRITERIA, type CriterionKey } from "@/lib/constants";
 import type {
   ActivitySection,
@@ -190,6 +191,7 @@ export default function ActivityBlock({
   const [expanded, setExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [promptMode, setPromptMode] = useState<"edit" | "preview">("edit");
 
   const toggleTab = useCallback((tab: TabId) => {
     setActiveTab((prev) => (prev === tab ? null : tab));
@@ -332,10 +334,36 @@ export default function ActivityBlock({
                 </div>
               )}
 
-              {/* Prompt */}
+              {/* Prompt — Edit / Preview tabs */}
               <div className="mt-3">
-                <div className="text-[10px] le-cap text-[var(--le-ink-3)]">Prompt to students</div>
-                <div className="mt-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="text-[10px] le-cap text-[var(--le-ink-3)]">Prompt to students</div>
+                  <div className="ml-auto flex items-center text-[10px] font-extrabold tracking-wider rounded-md border border-[var(--le-hair)] overflow-hidden bg-[var(--le-paper)]">
+                    <button
+                      type="button"
+                      onClick={() => setPromptMode("edit")}
+                      className={`px-2 py-0.5 transition-colors ${
+                        promptMode === "edit"
+                          ? "bg-[var(--le-ink)] text-white"
+                          : "text-[var(--le-ink-3)] hover:text-[var(--le-ink)]"
+                      }`}
+                    >
+                      EDIT
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPromptMode("preview")}
+                      className={`px-2 py-0.5 transition-colors border-l border-[var(--le-hair)] ${
+                        promptMode === "preview"
+                          ? "bg-[var(--le-ink)] text-white"
+                          : "text-[var(--le-ink-3)] hover:text-[var(--le-ink)]"
+                      }`}
+                    >
+                      PREVIEW
+                    </button>
+                  </div>
+                </div>
+                {promptMode === "edit" ? (
                   <InlineEdit
                     value={activity.prompt}
                     onChange={(newPrompt) => onUpdate({ prompt: newPrompt })}
@@ -343,7 +371,18 @@ export default function ActivityBlock({
                     multiline
                     className="text-[12.5px] leading-relaxed text-[var(--le-ink-2)]"
                   />
-                </div>
+                ) : (
+                  <div className="px-3 py-2 rounded-md border border-[var(--le-hair)] bg-[var(--le-bg)] text-[12.5px] leading-relaxed text-[var(--le-ink-2)] [&_p]:my-1.5 [&_strong]:font-bold [&_strong]:text-[var(--le-ink)] [&_em]:italic [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5">
+                    {activity.prompt ? (
+                      <MarkdownPrompt text={activity.prompt} />
+                    ) : (
+                      <span className="italic text-[var(--le-ink-3)]">No prompt yet.</span>
+                    )}
+                    <div className="mt-2 pt-2 border-t border-dashed border-[var(--le-hair)] text-[10px] text-[var(--le-ink-3)] italic">
+                      Note: students see only paragraphs, <strong className="not-italic">bold</strong>, <em>italic</em>, lists, and links. Headings (<code>###</code>) and tables (<code>| col | col |</code>) are dropped.
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Response type / Criteria / Portfolio + Duration */}

@@ -664,6 +664,19 @@ export default function LessonEditor({
             {suggestionsLoading ? "Thinking..." : "AI Suggest"}
           </button>
 
+          {/* View as student — opens preview in new tab */}
+          {selectedPage && (
+            <a
+              href={`/teacher/units/${unitId}/preview/${selectedPage.id}?classId=${classId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2 py-1 rounded-md border border-[var(--le-hair)] bg-[var(--le-paper)] text-[11.5px] font-bold text-[var(--le-ink-3)] hover:text-[var(--le-ink)] hover:border-[var(--le-ink-3)] transition-colors"
+              title="See exactly what students see for this lesson"
+            >
+              👁 View as student
+            </a>
+          )}
+
           {/* Save / palette toggle — solid ink */}
           <button
             onClick={() => setPaletteOpen(!paletteOpen)}

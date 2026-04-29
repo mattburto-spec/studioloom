@@ -13,7 +13,7 @@
  */
 
 import { useState, useEffect, use } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { getPageList, normalizeContentData } from "@/lib/unit-adapter";
@@ -21,7 +21,8 @@ import { getPageColor } from "@/lib/constants";
 import { collectCriterionChips } from "@/lib/frameworks/render-helpers";
 import { MarkdownPrompt } from "@/components/student/MarkdownPrompt";
 import { toEmbedUrl } from "@/lib/video-embed";
-import type { Unit, UnitPage, PageContent, ActivitySection } from "@/types";
+import { resolveClassUnitContent } from "@/lib/units/resolve-content";
+import type { Unit, UnitPage, PageContent, ActivitySection, UnitContentData } from "@/types";
 
 // ---------------------------------------------------------------------------
 // Read-only activity card — shows prompt, media, metadata but no inputs
@@ -156,8 +157,11 @@ export default function TeacherPreviewPage({
 }) {
   const { unitId, pageId } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const classId = searchParams.get("classId");
 
   const [unit, setUnit] = useState<Unit | null>(null);
+  const [forkContent, setForkContent] = useState<UnitContentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -176,6 +180,19 @@ export default function TeacherPreviewPage({
           return;
         }
         setUnit(data as Unit);
+
+        // If classId provided, fetch fork content too
+        if (classId) {
+          const { data: cu } = await supabase
+            .from("class_units")
+            .select("content_data")
+            .eq("class_id", classId)
+            .eq("unit_id", unitId)
+            .maybeSingle();
+          if (cu?.content_data) {
+            setForkContent(cu.content_data as UnitContentData);
+          }
+        }
       } catch {
         setError("Failed to load unit");
       } finally {
@@ -183,7 +200,7 @@ export default function TeacherPreviewPage({
       }
     }
     loadUnit();
-  }, [unitId]);
+  }, [unitId, classId]);
 
   if (loading) {
     return (
@@ -209,8 +226,13 @@ export default function TeacherPreviewPage({
     );
   }
 
-  // Normalize content and get page list
-  const contentData = normalizeContentData(unit.content_data);
+  // Resolve content: prefer class fork over master if classId was passed.
+  // Mirrors the resolution the student route uses, so this preview matches
+  // exactly what students enrolled in `classId` see.
+  const resolvedContent = classId
+    ? resolveClassUnitContent(unit.content_data as UnitContentData, forkContent)
+    : (unit.content_data as UnitContentData);
+  const contentData = normalizeContentData(resolvedContent);
   const allPages: UnitPage[] = getPageList(contentData);
   const currentPage = allPages.find((p) => p.id === pageId);
   const currentIndex = allPages.findIndex((p) => p.id === pageId);
@@ -355,7 +377,7 @@ export default function TeacherPreviewPage({
         <div className="flex items-center justify-between mt-12 pt-6 border-t border-gray-100">
           {currentIndex > 0 ? (
             <Link
-              href={`/teacher/units/${unitId}/preview/${allPages[currentIndex - 1].id}`}
+              href={`/teacher/units/${unitId}/preview/${allPages[currentIndex - 1].id}${classId ? `?classId=${classId}` : ""}`}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -368,7 +390,7 @@ export default function TeacherPreviewPage({
           )}
           {currentIndex < allPages.length - 1 ? (
             <Link
-              href={`/teacher/units/${unitId}/preview/${allPages[currentIndex + 1].id}`}
+              href={`/teacher/units/${unitId}/preview/${allPages[currentIndex + 1].id}${classId ? `?classId=${classId}` : ""}`}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition"
               style={{ backgroundColor: pageColor }}
             >

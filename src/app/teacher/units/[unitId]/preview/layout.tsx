@@ -9,14 +9,15 @@
  */
 
 import { use, useEffect, useMemo, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { getPageList, normalizeContentData } from "@/lib/unit-adapter";
 import { getPageColor } from "@/lib/constants";
 import { renderCriterionLabel, getCriterionColor } from "@/lib/frameworks/render-helpers";
+import { resolveClassUnitContent } from "@/lib/units/resolve-content";
 import type { FrameworkId } from "@/lib/frameworks/adapter";
-import type { Unit, UnitPage } from "@/types";
+import type { Unit, UnitPage, UnitContentData } from "@/types";
 
 // ---------------------------------------------------------------------------
 // Phase colors (same as student LessonSidebar)
@@ -127,6 +128,8 @@ function PreviewSidebar({
   onClose: () => void;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const classId = searchParams.get("classId");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   const framework: FrameworkId = "IB_MYP"; // Default for preview
@@ -143,7 +146,8 @@ function PreviewSidebar({
   }
 
   function navigateToPage(pageId: string) {
-    router.push(`/teacher/units/${unitId}/preview/${pageId}`);
+    const qs = classId ? `?classId=${classId}` : "";
+    router.push(`/teacher/units/${unitId}/preview/${pageId}${qs}`);
     onClose();
   }
 
@@ -292,13 +296,18 @@ export default function PreviewLayout({
 }) {
   const { unitId } = use(params);
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const classId = searchParams.get("classId");
 
   const [unit, setUnit] = useState<Unit | null>(null);
+  const [forkContent, setForkContent] = useState<UnitContentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const currentPageId = useMemo(() => {
-    const parts = pathname.split("/");
+    // strip trailing query string if present, then take the final path segment
+    const cleanPath = pathname.split("?")[0];
+    const parts = cleanPath.split("/");
     return parts[parts.length - 1] || "";
   }, [pathname]);
 
@@ -312,6 +321,16 @@ export default function PreviewLayout({
           .eq("id", unitId)
           .single();
         if (data) setUnit(data as Unit);
+
+        if (classId) {
+          const { data: cu } = await supabase
+            .from("class_units")
+            .select("content_data")
+            .eq("class_id", classId)
+            .eq("unit_id", unitId)
+            .maybeSingle();
+          if (cu?.content_data) setForkContent(cu.content_data as UnitContentData);
+        }
       } catch {
         // handled by page
       } finally {
@@ -319,12 +338,15 @@ export default function PreviewLayout({
       }
     }
     loadUnit();
-  }, [unitId]);
+  }, [unitId, classId]);
 
   const pages = useMemo(() => {
     if (!unit) return [];
-    return getPageList(normalizeContentData(unit.content_data));
-  }, [unit]);
+    const resolved = classId
+      ? resolveClassUnitContent(unit.content_data as UnitContentData, forkContent)
+      : (unit.content_data as UnitContentData);
+    return getPageList(normalizeContentData(resolved));
+  }, [unit, forkContent, classId]);
 
   if (loading || !unit) {
     return (
