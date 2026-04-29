@@ -61,13 +61,23 @@
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import {
+  CREATED_VIA_TAG,
+  SYNTHETIC_EMAIL_DOMAIN,
+  buildAuthUserPayload,
+  provisionStudentAuthUser,
+  syntheticEmailForStudentId,
+} from '../../src/lib/access-v2/provision-student-auth-user';
 
-// ─────────────────────────────────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────────────────────────────────
-
-export const SYNTHETIC_EMAIL_DOMAIN = 'students.studioloom.local';
-export const CREATED_VIA_TAG = 'phase-1-1-backfill';
+// Re-exports for backwards compatibility with the existing test file.
+// The shared helper at src/lib/access-v2/provision-student-auth-user.ts is
+// the canonical home post-Phase-1.1d.
+export {
+  CREATED_VIA_TAG,
+  SYNTHETIC_EMAIL_DOMAIN,
+  buildAuthUserPayload,
+};
+export const syntheticEmailFor = syntheticEmailForStudentId;
 
 // ─────────────────────────────────────────────────────────────────────────
 // Types
@@ -89,46 +99,6 @@ export interface BackfillResult {
   reused: number;          // forward mode: auth.users existed; just re-linked
   failed: number;
   failures: Array<{ student_id: string; error: string }>;
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// Pure helpers (testable without Supabase)
-// ─────────────────────────────────────────────────────────────────────────
-
-/**
- * Generate the synthetic email for a student given their UUID.
- *
- * Pattern: `student-${uuid}@students.studioloom.local`
- *
- * - `.local` TLD reserved by RFC 6762 — guarantees no collision with real domains
- * - Deterministic from student.id — re-running yields the same email per student
- * - Opaque to humans; never displayed in UI; never used for outbound email
- */
-export function syntheticEmailFor(studentId: string): string {
-  if (!studentId || typeof studentId !== 'string') {
-    throw new Error(`syntheticEmailFor: invalid studentId (got ${typeof studentId})`);
-  }
-  return `student-${studentId}@${SYNTHETIC_EMAIL_DOMAIN}`;
-}
-
-/**
- * Build the metadata payload for createUser. Splits into user_metadata + app_metadata
- * because the Phase 0 handle_new_user_profile trigger reads from raw_user_meta_data,
- * but the security-critical claim should live in raw_app_meta_data.
- */
-export function buildAuthUserPayload(student: { id: string; school_id: string | null }) {
-  return {
-    email: syntheticEmailFor(student.id),
-    email_confirm: true,
-    user_metadata: {
-      user_type: 'student' as const,
-    },
-    app_metadata: {
-      user_type: 'student' as const,
-      school_id: student.school_id,
-      created_via: CREATED_VIA_TAG,
-    },
-  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -154,65 +124,32 @@ export async function processStudent(
     return { kind: 'skipped', reason: 'already_linked' };
   }
 
-  const payload = buildAuthUserPayload(student);
-
   if (opts.dryRun) {
-    // No writes; pretend "created" for counter purposes only — caller will not
-    // actually count this as processed. Exercise the payload-builder path so any
-    // throw (e.g., invalid student id) surfaces in dry-run.
+    // No writes; pretend "created" for counter purposes only. Exercises the
+    // payload-builder path so any throw (e.g., invalid student id) surfaces.
+    buildAuthUserPayload(student);
     return { kind: 'created', userId: '<dry-run>' };
   }
 
-  // Idempotency: check if auth.users row with this email already exists (resume path)
-  const lookup = await supabase.auth.admin.listUsers({
-    page: 1,
-    perPage: 1,
+  // Delegate to the shared helper (Phase 1.1d). It handles createUser-first
+  // with duplicate-email recovery via listUsers + lookup, then UPDATEs students.
+  const result = await provisionStudentAuthUser(supabase, {
+    id: student.id,
+    user_id: student.user_id,
+    school_id: student.school_id,
   });
-  // listUsers doesn't accept email filter natively; we filter client-side from
-  // the result set. For prod scale (<5k students), we look up by email via getUserByEmail
-  // — fall back to listUsers when the SDK doesn't expose getUserByEmail.
-  // Phase 1.1b prod has dozens of students so this is fine.
-  let existingUserId: string | null = null;
-  if (lookup.data?.users) {
-    const match = lookup.data.users.find((u) => u.email === payload.email);
-    if (match) existingUserId = match.id;
+
+  if (!result.ok) {
+    return { kind: 'failed', error: result.error };
   }
-  // Note: listUsers() pages by 1000 by default in Supabase; for tiny datasets
-  // the first page covers it. If a future prod has >1000 backfilled students
-  // partway through a re-run, this needs pagination — re-evaluate then.
-
-  let authUserId: string;
-  let kind: 'created' | 'reused';
-
-  if (existingUserId) {
-    authUserId = existingUserId;
-    kind = 'reused';
-  } else {
-    const { data, error } = await supabase.auth.admin.createUser(payload);
-    if (error || !data?.user) {
-      return {
-        kind: 'failed',
-        error: `createUser: ${error?.message ?? 'no user returned'}`,
-      };
-    }
-    authUserId = data.user.id;
-    kind = 'created';
+  if (result.skipped) {
+    // Defensive — already handled above, but keeps the contract honest.
+    return { kind: 'skipped', reason: 'already_linked' };
   }
-
-  // Link students.user_id → new/existing auth.users.id
-  const { error: updateError } = await supabase
-    .from('students')
-    .update({ user_id: authUserId })
-    .eq('id', student.id);
-
-  if (updateError) {
-    return {
-      kind: 'failed',
-      error: `update students.user_id: ${updateError.message}`,
-    };
-  }
-
-  return { kind, userId: authUserId };
+  return {
+    kind: result.created ? 'created' : 'reused',
+    userId: result.user_id,
+  };
 }
 
 /**

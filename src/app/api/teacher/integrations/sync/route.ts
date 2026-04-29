@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decrypt } from "@/lib/encryption";
 import { createLMSProvider } from "@/lib/lms";
+import { provisionStudentAuthUser } from "@/lib/access-v2/provision-student-auth-user";
 
 function createSupabaseServer(request: NextRequest) {
   return createServerClient(
@@ -43,10 +44,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Verify the teacher owns this class
+  // Verify the teacher owns this class.
+  // Also load school_id so newly-synced students can be provisioned with
+  // their auth.users metadata pointing at the right school (Phase 1.1d).
   const { data: classData } = await supabase
     .from("classes")
-    .select("id, teacher_id")
+    .select("id, teacher_id, school_id")
     .eq("id", classId)
     .eq("teacher_id", user.id)
     .single();
@@ -134,18 +137,39 @@ export async function POST(request: NextRequest) {
         username = candidate;
         existingUsernames.add(username);
 
-        const { error: insertError } = await admin.from("students").insert({
-          username,
-          display_name: lmsStudent.name,
-          class_id: classId,
-          external_id: lmsStudent.id,
-          external_provider: integration.provider,
-        });
+        // Insert + return id so we can provision the matching auth.users row.
+        // Phase 1.1d: server-side INSERT sites must auto-provision so students
+        // can log in via the new flow without lazy-provision fallback.
+        const { data: insertedRow, error: insertError } = await admin
+          .from("students")
+          .insert({
+            username,
+            display_name: lmsStudent.name,
+            class_id: classId,
+            external_id: lmsStudent.id,
+            external_provider: integration.provider,
+            school_id: classData.school_id ?? null,
+          })
+          .select("id")
+          .single();
 
-        if (insertError) {
-          console.error(`Failed to create student ${lmsStudent.name}:`, insertError.message);
+        if (insertError || !insertedRow) {
+          console.error(`Failed to create student ${lmsStudent.name}:`, insertError?.message);
         } else {
           created++;
+          // Provision auth.users immediately. Per-student failures are logged
+          // but don't fail the sync — lazy provision on first login is the
+          // safety net.
+          const provisionResult = await provisionStudentAuthUser(admin, {
+            id: insertedRow.id,
+            user_id: null,
+            school_id: classData.school_id ?? null,
+          });
+          if (!provisionResult.ok) {
+            console.error(
+              `[integrations/sync] provisionStudentAuthUser failed for student=${insertedRow.id}: ${provisionResult.error}`
+            );
+          }
         }
       }
     }

@@ -28,6 +28,7 @@ import {
   requireTeacherAuth,
   verifyTeacherOwnsClass,
 } from "@/lib/auth/verify-teacher-unit";
+import { provisionStudentAuthUser } from "@/lib/access-v2/provision-student-auth-user";
 
 type RosterInput = { name?: string; username?: string };
 
@@ -193,6 +194,39 @@ export const POST = withErrorHandler(
       console.warn(
         "[welcome/add-roster] class_students insert warning:",
         enrollErr.message
+      );
+    }
+
+    // Phase 1.1d — provision auth.users rows for the new students. Per-student
+    // failures are logged but do not fail the bulk roster import; lazy-provision
+    // on first login (Phase 1.2 student-classcode-login) is the safety net.
+    //
+    // Derive school_id from the class once (all roster students land in the
+    // same class so they share school_id).
+    const { data: classRow } = await supabase
+      .from("classes")
+      .select("school_id")
+      .eq("id", classId)
+      .single();
+    const schoolId: string | null = classRow?.school_id ?? null;
+
+    let provisionFailures = 0;
+    for (const s of inserted) {
+      const result = await provisionStudentAuthUser(supabase, {
+        id: s.id,
+        user_id: null,
+        school_id: schoolId,
+      });
+      if (!result.ok) {
+        provisionFailures += 1;
+        console.error(
+          `[welcome/add-roster] provisionStudentAuthUser failed for student=${s.id}: ${result.error}`
+        );
+      }
+    }
+    if (provisionFailures > 0) {
+      console.warn(
+        `[welcome/add-roster] ${provisionFailures}/${inserted.length} students need lazy auth provisioning on first login`
       );
     }
 

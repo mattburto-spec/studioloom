@@ -4,6 +4,7 @@ import { verifyLtiSignature, extractLtiStudentInfo } from "@/lib/lti";
 import { decrypt } from "@/lib/encryption";
 import { nanoid } from "nanoid";
 import { SESSION_COOKIE_NAME, SESSION_DURATION_DAYS } from "@/lib/constants";
+import { provisionStudentAuthUser } from "@/lib/access-v2/provision-student-auth-user";
 
 /**
  * POST /api/auth/lti/launch
@@ -217,7 +218,20 @@ async function findOrCreateStudent(
     username = `${username}_${studentInfo.externalId.slice(-4)}`;
   }
 
-  // Create new student
+  // Create new student.
+  //
+  // Per Phase 0.3 (mig 20260428134250), students.school_id is denormalised
+  // for school-scoped RLS in Phase 1+. Derive from classes.school_id so the
+  // newly-created student is queryable by the new helper without a JOIN
+  // chain. If classes.school_id is NULL (rare; pre-Phase-0 leftover), the
+  // student row also gets NULL — Phase 0.8a backfill cron-style reconciles.
+  const { data: classRow } = await supabase
+    .from("classes")
+    .select("school_id")
+    .eq("id", classId)
+    .single();
+  const schoolId: string | null = classRow?.school_id ?? null;
+
   const { data: newStudent, error } = await supabase
     .from("students")
     .insert({
@@ -226,12 +240,30 @@ async function findOrCreateStudent(
       class_id: classId,
       external_id: studentInfo.externalId,
       external_provider: provider,
+      school_id: schoolId,
     })
     .select("id")
     .single();
 
   if (error || !newStudent) {
     throw new Error(`Failed to create student: ${error?.message}`);
+  }
+
+  // Phase 1.1d — provision matching auth.users row immediately. If this fails,
+  // login attempts will fall back to the lazy-provision path in
+  // /api/auth/student-classcode-login (Phase 1.2). LTI is server-side only so
+  // we can call admin SDK here.
+  const provisionResult = await provisionStudentAuthUser(supabase, {
+    id: newStudent.id,
+    user_id: null,
+    school_id: schoolId,
+  });
+  if (!provisionResult.ok) {
+    // Log but do NOT fail the LTI launch — the student row is valid; lazy
+    // provision will recover on next login. Surfaces in Sentry for monitoring.
+    console.error(
+      `[lti/launch] provisionStudentAuthUser failed for student=${newStudent.id}: ${provisionResult.error}`
+    );
   }
 
   return newStudent.id;

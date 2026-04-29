@@ -217,16 +217,30 @@ describe('processStudent', () => {
   it('reuses an existing auth.users row when email already exists (resume path)', async () => {
     // Seed: auth.users row exists with the synthetic email but student.user_id is still NULL.
     // This is the "previous run crashed mid-pair" case.
+    //
+    // Phase 1.1d updated behavior: helper now calls createUser FIRST (1 API call
+    // happy path), and only does listUsers when createUser returns a duplicate-email
+    // signal. So the test must simulate that error to drive the recovery path.
     mock.state.authUsers.push({
       id: 'auth-resumed',
       email: 'student-stu-1@students.studioloom.local',
       app_metadata: { user_type: 'student', created_via: 'phase-1-1-backfill' },
     });
+    // Override createUser to simulate Supabase's duplicate-email rejection.
+    // We increment mock.calls manually since replacing the fn bypasses the
+    // original closure's call counter.
+    mock.client.auth.admin.createUser = vi.fn(() => {
+      mock.calls.createUser += 1;
+      return Promise.resolve({
+        data: { user: null },
+        error: { message: 'User already registered', code: 'email_exists' },
+      });
+    });
 
     const out = await processStudent(mock.client, mock.state.students[0], { dryRun: false });
     expect(out).toEqual({ kind: 'reused', userId: 'auth-resumed' });
-    expect(mock.calls.createUser).toBe(0);   // did NOT create a duplicate
-    expect(mock.calls.studentUpdate).toBe(1); // DID re-link
+    expect(mock.calls.createUser).toBe(1);    // tried (got duplicate error)
+    expect(mock.calls.studentUpdate).toBe(1); // then recovered + re-linked
     expect(mock.state.students[0].user_id).toBe('auth-resumed');
   });
 
@@ -237,18 +251,21 @@ describe('processStudent', () => {
     expect(mock.calls.studentUpdate).toBe(0);
   });
 
-  it('reports failure when createUser returns an error (continues; no throw)', async () => {
+  it('reports failure when createUser returns a non-recoverable error (continues; no throw)', async () => {
+    // Use a non-duplicate error so the helper's recovery path doesn't kick in.
+    // (Duplicate-email errors are now treated as recoverable signals — see the
+    // "reuses an existing auth.users row" test above.)
     mock.client.auth.admin.createUser = vi.fn(() =>
       Promise.resolve({
         data: { user: null },
-        error: { message: 'duplicate email' },
+        error: { message: 'rate limit exceeded' },
       })
     );
 
     const out = await processStudent(mock.client, mock.state.students[0], { dryRun: false });
     expect(out.kind).toBe('failed');
     if (out.kind === 'failed') {
-      expect(out.error).toMatch(/createUser: duplicate email/);
+      expect(out.error).toMatch(/createUser: rate limit/);
     }
   });
 

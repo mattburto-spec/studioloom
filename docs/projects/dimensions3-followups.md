@@ -1243,3 +1243,45 @@ Edge cases to handle in the query helper (when written):
 - Long-running progress that spans multiple enrollments (rare; pick the active enrollment at progress.updated_at if it matters)
 
 **Definition of done:** When the first reporting surface needs cohort-scoped progress, write a `getProgressByCohort(classId, unitId)` helper that does the JOIN above + handles the edge cases. No schema change.
+
+---
+
+## FU-AV2-UI-STUDENT-INSERT-REFACTOR — 4 client-side student INSERT sites need server-side route + auth.users provisioning (P2)
+**Surfaced:** 29 Apr 2026 PM, Access Model v2 Phase 1.1d preflight audit
+**Captured in:** `docs/projects/access-model-v2-phase-1-brief.md` §4.4 (Phase 1.4 route migration)
+
+**Issue:** 7 sites in the codebase INSERT into the `students` table:
+
+| Server-side (Phase 1.1d wired ✅) | Client-side UI (this FU) |
+|---|---|
+| `src/app/api/auth/lti/launch/route.ts` | `src/app/teacher/classes/[classId]/page.tsx` |
+| `src/app/api/teacher/welcome/add-roster/route.ts` | `src/app/teacher/units/[unitId]/class/[classId]/page.tsx` |
+| `src/app/api/teacher/integrations/sync/route.ts` | `src/app/teacher/students/page.tsx` |
+|  | `src/lib/students/class-enrollment.ts` (called from client) |
+
+The 4 client-side sites use the browser Supabase client (`createClient()`). They cannot call `auth.admin.createUser()` from the browser — service-role key is server-only. So when a teacher adds a student via these UI flows, `students.user_id` stays NULL until either:
+
+1. **Lazy provision on first login** — Phase 1.2's `/api/auth/student-classcode-login` route detects NULL `user_id` and provisions inline. Already in scope. Idempotent + safe (we only provision after classCode + username verifies).
+2. **Manual backfill cron** — could ship as a daily cleanup task, but redundant with #1.
+
+**Why P2 not P1:** lazy provision (#1) closes the security gap for any UI-created student before they can do anything in-app. The remaining concern is operational: a freshly-added student has NULL `user_id` for the time between teacher-add and first-login. RLS policies post-Phase-1.5 should treat this as "auth not provisioned" gracefully. Acceptable transient state for the pilot.
+
+**Why we should still close it (P2 not P3):** The right architecture is server-side INSERT for all student-creation flows. Phase 1.4 (route migration) is the natural place to refactor — when teacher routes get migrated to `requireActorSession()`, the 4 UI INSERT call sites should also move to a new `POST /api/teacher/students` (or similar) route that does insert + provision atomically.
+
+**Recommended approach when work happens (Phase 1.4 sub-step):**
+
+1. Build new server-side route `POST /api/teacher/students` accepting `{ classId, username, displayName, gradYear?, ellLevel?, authorTeacherId }`
+   - Verifies teacher owns the class
+   - Inserts the student row
+   - Calls `provisionStudentAuthUserOrThrow()` from `src/lib/access-v2/provision-student-auth-user.ts` (already wired by Phase 1.1d for the other 3 routes)
+   - Returns the inserted student with `user_id` populated
+2. Update the 4 UI sites to `fetch('/api/teacher/students', { method: 'POST', body: ... })` instead of direct Supabase INSERT
+3. Update `src/lib/students/class-enrollment.ts` similarly — its consumers move to the route
+4. Delete the inline INSERT logic from the 4 UI files (Lesson #45 — surgical cleanup of replaced code)
+
+**Definition of done:**
+- Zero remaining `from("students").insert(...)` calls in `src/app/teacher/**/*.tsx`
+- The new `POST /api/teacher/students` route exists with shape tests
+- Verification: `grep -rn 'from("students").*insert' src/app/teacher` returns 0 results
+
+**Related:** Phase 1.1d shipped the server-side helper (`provisionStudentAuthUser`); 3 of 7 sites use it. Phase 1.4 closes the remaining 4. FU-REGISTRY-DRIFT-CI Layer 2 (pre-commit hook) would catch a 5th UI site if added before Phase 1.4 runs.
