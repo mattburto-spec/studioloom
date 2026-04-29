@@ -86,8 +86,8 @@ Compiled by an Explore agent run on 29 April 2026 PM. Numbers are exact.
 | `verifyTeacherCanManageStudent(teacherId, studentId)` | `src/lib/auth/verify-teacher-unit.ts:167–194` | ✅ Confirmed |
 | `resolveStudentClassId(input)` | `src/lib/student-support/resolve-class-id.ts:76–136` | ✅ Confirmed |
 | `current_teacher_school_id()` Postgres function | Migration `20260427134953_fabrication_labs.sql` | ✅ Confirmed; SECURITY DEFINER |
-| `students.user_id` column (FK to auth.users) | Migration `20260428142618_user_profiles.sql` (Phase 0) | ✅ Confirmed; NULL for all rows pre-Phase 1 |
-| `user_profiles` table + `handle_new_user_profile` trigger | Same migration | ✅ Confirmed; trigger fires on auth.users INSERT |
+| `students.user_id` column (FK to auth.users) | Migration `20260429073552_phase_1_1a_student_user_id_column.sql` | ⚠️ **CORRECTED 29 Apr PM (§3.8)**: column does NOT exist post-Phase-0. Phase 0 explicitly deferred it (see comment in `20260428142618_user_profiles.sql`). Phase 1.1a adds it. Original audit was wrong — verified by `grep "ALTER TABLE students" supabase/migrations/2026*.sql`. |
+| `user_profiles` table + `handle_new_user_profile` trigger | `20260428142618_user_profiles.sql` | ✅ Confirmed; trigger fires on auth.users INSERT. **Side-finding (§3.8):** trigger reads `raw_user_meta_data->>'user_type'` (user-modifiable), not `raw_app_meta_data` (admin-only). For security, `user_type` should live in app_metadata. Phase 1 backfill sets BOTH so the trigger fires correctly AND the security claim lives in app_metadata. Trigger fix deferred — Phase 0 work, out of Phase 1 scope. |
 
 ### 3.3 Routes to migrate
 
@@ -108,13 +108,22 @@ Categories (rough):
 | Studio prefs / portfolio | 4 | studio-preferences, portfolio, learning-profile, avatar |
 | Misc (own-time, search, next-class) | ~17 | … |
 
-**Auth pattern is 100% uniform** across all 63: `const auth = await requireStudentAuth(request); if (auth.error) return auth.error;`. No legacy inline token parsing. **This uniformity is the single biggest gift.** Phase 1 changes one helper internal — every route benefits.
+**Auth pattern is uniform across 61 of 63 routes** (corrected 29 Apr PM §3.8 — original audit said "100% uniform"; verified by `for f in $(find src/app/api/student -name 'route.ts'); do grep -L "requireStudentAuth" "$f"; done`).
+
+The 2 deviations:
+
+| Route | Pattern | Phase 1 disposition |
+|---|---|---|
+| `src/app/api/student/own-time/status/route.ts` | Returns 410 Gone, no auth check. Deprecated stub pointing at Open Studio replacement. | **Delete in §4.4 cleanup** (dead code, Lesson #45). |
+| `src/app/api/student/nm-checkpoint/[pageId]/route.ts` | Calls `getStudentId(request)` directly (the lower-level helper), then returns `{ checkpoint: null }` for unauthenticated callers (used by the public toolkit). **Polymorphic dual-mode auth.** | **Use `getStudentSession()` not `requireStudentSession()`** — keeps the public-fallback semantic. §4.4 Batch B (mutations + complex auth) gets this one explicitly called out. |
+
+**This still leaves 61 routes flowing through one helper internal change.** The "single biggest gift" framing holds — just adjusted from "63" to "61 standard + 2 special-case". No legacy inline token parsing in any of them.
 
 **All 63 use `createAdminClient()`** to bypass RLS. After Phase 1, this should switch to an RLS-respecting client for student-owned data reads. Audit + migration of the client itself happens in §4.4.
 
 ### 3.4 Student-facing pages
 
-23 pages under `src/app/(student)/`:
+**17 pages** under `src/app/(student)/` (corrected 29 Apr PM §3.8 — original audit said 23; verified via `find "src/app/(student)" -name 'page.tsx' | wc -l` = 17):
 - `/dashboard`, `/dashboard-legacy`
 - `/unit/[unitId]/...` (lesson, page, etc.)
 - `/discovery/*`, `/open-studio/*`, `/quest/*`
@@ -182,37 +191,116 @@ Cross-checked the brief against the 7 saveme-relevant registries. Verified findi
 
 ---
 
+### 3.8 Audit verification log (Option C — 29 April 2026 PM)
+
+After §3.7 cross-check found `WIRING.yaml auth-system.key_files` had drifted, I ran a grep-verification of every fact claimed in §3.1–§3.6. Method: spot-check ONE entry per registry/audit claim against actual code per the new Step 5c discipline.
+
+**Verification results (audit accuracy ~85%):**
+
+| Claim | Verified | Notes |
+|---|---|---|
+| §3.1 `getStudentId` at `student.ts:23–38` | ✅ Line 23 confirmed | |
+| §3.1 `studentUnauthorized` at `:43–45` | ✅ Line 43 confirmed | |
+| §3.1 `studentInvalidSession` at `:50–52` | ✅ Line 50 confirmed | |
+| §3.1 `requireStudentAuth` at `:64–74` | ✅ Line 64 confirmed | |
+| §3.1 cookie name `questerra_student_session` | ✅ in `src/lib/constants.ts` | |
+| §3.1 7-day TTL | ✅ `SESSION_DURATION_DAYS = 7` | |
+| §3.1 nanoid(48) token | ✅ in login route line 133 | |
+| §3.2 `verifyTeacherCanManageStudent` at `verify-teacher-unit.ts:167–194` | ✅ Line 167 confirmed | |
+| §3.2 `resolveStudentClassId` at `resolve-class-id.ts:76–136` | ✅ Line 76 confirmed | |
+| §3.2 `current_teacher_school_id()` Postgres function | ✅ Mig `20260427134953_fabrication_labs.sql` confirmed | |
+| §3.2 **`students.user_id` column exists** | ❌ **DOES NOT EXIST.** | Phase 0 deferred it. Original audit claim was a hallucination. **Fix: Phase 1.1a adds the column (this commit).** |
+| §3.2 `user_profiles` table + trigger | ✅ Mig `20260428142618_user_profiles.sql` confirmed | **Side-finding:** trigger reads `raw_user_meta_data` (user-modifiable) instead of `raw_app_meta_data` (admin-only). For security, `user_type` should be admin-only. Phase 1 backfill sets BOTH for belt-and-suspenders. Trigger fix deferred — out of Phase 1 scope. |
+| §3.3 63 student routes | ✅ `find` confirms 63 | |
+| §3.3 100% uniform `requireStudentAuth` | ❌ **WRONG: 61 of 63.** Two deviations (deprecated stub + dual-mode polymorphic). | Disposition documented in §3.3. Doesn't break architecture; just adjusts §4.4 plan. |
+| §3.4 23 student-facing pages | ❌ **WRONG: 17.** | `find "src/app/(student)" -name 'page.tsx' \| wc -l` = 17. Doesn't impact architecture (pages aren't directly migrated). |
+| §3.5 7 RLS-candidate tables exist | ✅ All 7 have CREATE TABLE statements | |
+| §3.6 cookie shape (httpOnly + secure + sameSite=lax + 7-day) | ✅ Exact match in login route | |
+| §3.6 `quest_journeys` uses raw JWT `current_setting` | ✅ In mig `046_quest_journey_system.sql` | |
+| §3.6 `design_conversations` uses `auth.uid()` | ✅ In mig `022_design_assistant.sql` | |
+
+**3 errors found in original audit:**
+1. **CRITICAL:** `students.user_id` doesn't exist (fixed by Phase 1.1a)
+2. **MEDIUM:** Route uniformity overstated by 2 (cosmetic; §4.4 calls out the dual-mode case)
+3. **LOW:** Page count overstated by 6 (cosmetic; pages aren't directly migrated)
+
+**Pattern:** all 3 were Explore-agent claims I trusted without grep-verification. The new Step 5c rule (added today to `build-phase-prep` SKILL.md) — "spot-check ONE entry per registry/claim against code" — would have caught all 3 at brief-drafting time. Lesson #54 reinforced again.
+
+**FU-REGISTRY-DRIFT-CI status updated:** Layer 1 (skill update) is now demonstrably worth its weight — Phase 1 dodged 3 silent-bug surfaces by enforcing the cross-check.
+
+---
+
 ## 4. Phase 1 sub-phases
 
 Each sub-phase is a separate commit (or small commit chain). No squashing.
 
 ### 4.1 Backfill: every student → auth.users row
 
-**Goal:** Every row in `students` has a non-NULL `user_id` pointing at a real `auth.users` row.
+**Restructured 29 Apr PM (§3.8):** original brief assumed `students.user_id` already existed. It doesn't. Phase 0 deferred the column-add to Phase 1. So §4.1 splits into three sub-steps.
 
-**Migration:** `supabase/migrations/<TIMESTAMP>_phase_1_1_student_auth_users_backfill.sql`
+#### 4.1a — ADD COLUMN students.user_id (~30 min)
 
-**Procedure (script lives in `scripts/access-v2/backfill-student-auth-users.ts`, called from a one-shot migration node):**
+**Migration:** `supabase/migrations/20260429073552_phase_1_1a_student_user_id_column.sql`
 
-1. **Synthetic email format:** `student-<student_uuid>@students.studioloom.local`. Locked decision because:
+```sql
+ALTER TABLE students
+  ADD COLUMN IF NOT EXISTS user_id UUID NULL
+    REFERENCES auth.users(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_students_user_id
+  ON students(user_id) WHERE user_id IS NOT NULL;
+```
+
+- `ON DELETE SET NULL` matches the established student-FK pattern (`school_id`, `author_teacher_id`).
+- Partial index uses IS NOT NULL only — IMMUTABLE-safe per Lesson #61.
+- `IF NOT EXISTS` guards — idempotent per Lesson #24.
+- Shape test: `src/lib/access-v2/__tests__/migration-phase-1-1a-student-user-id-column.test.ts` (8 tests).
+
+**Apply procedure:**
+1. Matt applies via Supabase SQL Editor.
+2. Verify with `\d students` — column landed, FK present, index built.
+
+**Stop trigger:** any verification fails.
+
+#### 4.1b — Backfill students → auth.users via TS script (~0.5 day)
+
+**Script:** `scripts/access-v2/backfill-student-auth-users.ts` (does NOT need its own migration timestamp — the SQL is just the column-add in 4.1a; the script populates it).
+
+**Procedure:**
+
+1. **Synthetic email format:** `student-<student_uuid>@students.studioloom.local`. Locked decision:
    - Supabase requires non-NULL email on auth.users
    - Students never log in by email (PIPL); the value is opaque
    - `.local` TLD is reserved (RFC 6762) — guarantees no collision with real domains
    - Each student gets a deterministic email derived from their stable UUID — re-runnable
-2. **App metadata:** `app_metadata.user_type = 'student'`, `app_metadata.school_id = <derived>`, `app_metadata.created_via = 'phase-1-backfill'`. The `user_type` claim is what `getActorSession()` reads to dispatch.
-3. **Idempotent:** if `students.user_id IS NOT NULL`, skip. If a previous run partially succeeded, the next run completes the rest.
-4. **Dry-run first:** `--dry-run` flag prints `(student_id, email, school_id)` for first 5 rows + total count. No writes.
+2. **Metadata strategy (revised post-§3.8):**
+   - `user_metadata: { user_type: 'student' }` — for the Phase 0 `handle_new_user_profile` trigger which reads `raw_user_meta_data->>'user_type'`
+   - `app_metadata: { user_type: 'student', school_id: <derived>, created_via: 'phase-1-1-backfill' }` — security-critical claim location read by future `getActorSession()`
+   - Both fields set so the trigger fires AND security-critical claim sits in admin-only metadata
+3. **Idempotent:** if `students.user_id IS NOT NULL`, skip. Re-runnable until `Failed: 0`.
+4. **Dry-run first:** `--dry-run` flag prints `(student_id, synthetic_email, school_id)` for first 5 rows + total count. No writes.
 5. **Apply to prod:** Matt runs live after dry-run looks clean. RLS still bypassed via service role.
-6. **Trigger fires:** Phase 0's `handle_new_user_profile` trigger creates a `user_profiles` row per new auth.users row. Verify in dry-run output.
-7. **Roll-back script:** `down` migration deletes auth.users rows where `app_metadata->>'created_via' = 'phase-1-backfill'`, sets `students.user_id = NULL`. Tested in test branch first.
+6. **Trigger fires:** Phase 0's `handle_new_user_profile` trigger creates a `user_profiles` row per new auth.users row. Verify post-run via SQL (block in 1.1a migration's comment header).
+7. **Rollback flag:** `--rollback` deletes `auth.users` rows where `raw_app_meta_data->>'created_via' = 'phase-1-1-backfill'`, sets `students.user_id = NULL`.
 
 **Tests:**
-- Unit test: backfill on a 3-student fixture creates 3 auth.users rows, populates 3 user_id values, idempotent on re-run.
-- Live: post-apply, query `SELECT COUNT(*) FROM students WHERE user_id IS NULL` → 0.
-- Live: query `SELECT COUNT(*) FROM auth.users WHERE app_metadata->>'user_type' = 'student'` → matches student count.
-- Live: query `SELECT COUNT(*) FROM user_profiles WHERE user_type = 'student'` → matches student count (trigger fired).
+- Unit (mocked Supabase admin client): script creates auth.users with right email + metadata shape, populates user_id, idempotent on re-run.
+- Live verification (post-prod-apply, paste into SQL Editor — verbatim from 1.1a migration's comment header):
+  - `SELECT COUNT(*) FROM students WHERE user_id IS NULL` → 0
+  - `SELECT COUNT(*) FROM auth.users WHERE raw_app_meta_data->>'user_type' = 'student' AND raw_app_meta_data->>'created_via' = 'phase-1-1-backfill'` → matches processed count
+  - `SELECT COUNT(*) FROM user_profiles ... WHERE user_type = 'student'` → matches (trigger fired)
 
-**Stop trigger:** any backfill row fails. Investigate before proceeding.
+**Stop trigger:** any row fails. Investigate before re-running.
+
+#### 4.1c — NOT NULL tighten (deferred to §4.6 cleanup)
+
+After §4.4 ships and every route uses the new helper (no route reads `students.user_id IS NULL` defensively), tighten:
+
+```sql
+ALTER TABLE students ALTER COLUMN user_id SET NOT NULL;
+```
+
+Lives in §4.6 (negative control + cleanup) as a single-statement migration. Pattern matches Phase 0's 0.8b NOT NULL tighten.
 
 ### 4.2 New custom Supabase auth flow for classcode+name
 
