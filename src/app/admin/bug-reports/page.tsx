@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 
 interface BugReport {
   id: string;
@@ -21,7 +21,8 @@ interface BugReport {
 }
 
 const STATUS_OPTIONS = ["new", "investigating", "fixed", "closed"];
-const CATEGORY_OPTIONS = ["broken", "looks_wrong", "confused", "feature_request"];
+const CATEGORY_OPTIONS = ["broken", "visual", "confused", "feature_request"];
+const ROLE_OPTIONS = ["teacher", "student", "admin"];
 
 type ClientContext = {
   release?: string | null;
@@ -29,6 +30,7 @@ type ClientContext = {
   userAgent?: string;
   platform?: string;
   language?: string;
+  languages?: string[];
   viewport?: { width?: number; height?: number; dpr?: number };
   screen?: { width?: number | null; height?: number | null };
   connection?: { effectiveType?: string | null; downlink?: number | null; rtt?: number | null; saveData?: boolean | null } | null;
@@ -36,10 +38,11 @@ type ClientContext = {
   referrer?: string | null;
   timeOnPageMs?: number;
   timezone?: string | null;
+  submittedAt?: string;
+  role?: string;
   events?: Array<{ kind: string; message: string; source?: string | null; ts: number }>;
 } | null;
 
-// Parse the userAgent into a readable browser/OS pair without pulling in a parser dep.
 function summarizeUserAgent(ua: string | undefined): { browser: string; os: string } {
   if (!ua) return { browser: "?", os: "?" };
   let browser = "Unknown";
@@ -63,17 +66,141 @@ function summarizeUserAgent(ua: string | undefined): { browser: string; os: stri
   return { browser, os };
 }
 
+function formatMs(ms: number | undefined): string {
+  if (ms == null) return "?";
+  if (ms < 1000) return `${ms}ms`;
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const rs = s % 60;
+  return rs ? `${m}m ${rs}s` : `${m}m`;
+}
+
+function FilterButtonRow({
+  label,
+  options,
+  value,
+  onChange,
+  counts,
+}: {
+  label: string;
+  options: string[];
+  value: string;
+  onChange: (v: string) => void;
+  counts: Record<string, number>;
+}) {
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wide w-16">{label}</span>
+      <button
+        onClick={() => onChange("")}
+        className={`px-2.5 py-1 text-xs font-medium rounded-md transition ${
+          !value ? "bg-purple-100 text-purple-700" : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+        }`}
+      >
+        All
+      </button>
+      {options.map((opt) => (
+        <button
+          key={opt}
+          onClick={() => onChange(value === opt ? "" : opt)}
+          className={`px-2.5 py-1 text-xs font-medium rounded-md transition capitalize ${
+            value === opt ? "bg-purple-100 text-purple-700" : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+          }`}
+        >
+          {opt.replace(/_/g, " ")} <span className="opacity-60">({counts[opt] || 0})</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ContextRow({ label, value }: { label: string; value: React.ReactNode }) {
+  if (value == null || value === "") return null;
+  return (
+    <div className="flex gap-3 py-1 border-b border-gray-100 last:border-b-0">
+      <span className="text-[11px] text-gray-500 w-28 shrink-0">{label}</span>
+      <span className="text-xs text-gray-800 font-mono break-all">{value}</span>
+    </div>
+  );
+}
+
+function ClientContextSummary({ ctx }: { ctx: ClientContext }) {
+  if (!ctx) return null;
+  const { browser, os } = summarizeUserAgent(ctx.userAgent);
+  const vp = ctx.viewport;
+  const conn = ctx.connection;
+  const hw = ctx.hardware;
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 p-3 bg-gray-50 rounded-lg">
+      {/* Page / Identity */}
+      <div>
+        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Page</p>
+        <ContextRow label="Release" value={ctx.release ? String(ctx.release).slice(0, 7) : null} />
+        <ContextRow label="Environment" value={ctx.deployEnv} />
+        <ContextRow label="Time on page" value={formatMs(ctx.timeOnPageMs)} />
+        <ContextRow label="Submitted at" value={ctx.submittedAt ? new Date(ctx.submittedAt).toLocaleString() : null} />
+        <ContextRow label="Referrer" value={ctx.referrer || "(direct)"} />
+      </div>
+
+      {/* Browser */}
+      <div>
+        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Browser</p>
+        <ContextRow label="Browser" value={browser} />
+        <ContextRow label="OS" value={os} />
+        <ContextRow label="Platform" value={ctx.platform} />
+        <ContextRow label="Language" value={Array.isArray(ctx.languages) && ctx.languages.length ? ctx.languages.join(", ") : ctx.language} />
+        <ContextRow label="Timezone" value={ctx.timezone} />
+      </div>
+
+      {/* Viewport / Screen */}
+      <div>
+        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1 mt-2">Viewport</p>
+        <ContextRow
+          label="Viewport"
+          value={vp?.width && vp?.height ? `${vp.width} × ${vp.height}${vp.dpr ? ` @${vp.dpr}x DPR` : ""}` : null}
+        />
+        <ContextRow
+          label="Screen"
+          value={ctx.screen?.width && ctx.screen?.height ? `${ctx.screen.width} × ${ctx.screen.height}` : null}
+        />
+      </div>
+
+      {/* Network / Hardware */}
+      <div>
+        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1 mt-2">Network &amp; Hardware</p>
+        <ContextRow
+          label="Connection"
+          value={
+            conn?.effectiveType
+              ? `${conn.effectiveType}${conn.downlink ? ` · ${conn.downlink} Mbps` : ""}${conn.rtt ? ` · ${conn.rtt}ms RTT` : ""}${conn.saveData ? " · saveData" : ""}`
+              : null
+          }
+        />
+        <ContextRow label="CPU cores" value={hw?.cores ?? null} />
+        <ContextRow label="Device memory" value={hw?.memoryGb ? `${hw.memoryGb} GB` : null} />
+        <ContextRow label="Touch points" value={hw?.touchPoints ?? null} />
+      </div>
+    </div>
+  );
+}
+
 export default function BugReportsPage() {
   const [reports, setReports] = useState<BugReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("");
+  const [filterCategory, setFilterCategory] = useState<string>("");
+  const [filterRole, setFilterRole] = useState<string>("");
+  const [search, setSearch] = useState<string>("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
 
+  // Always fetch the full set; filter on the client. Reports are capped at
+  // 200 server-side, well within client-side filtering territory.
   const loadReports = useCallback(() => {
-    const url = filterStatus ? `/api/admin/bug-reports?status=${filterStatus}` : "/api/admin/bug-reports";
-    fetch(url)
+    fetch("/api/admin/bug-reports")
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -81,7 +208,7 @@ export default function BugReportsPage() {
       .then((data) => setReports(data.reports || []))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [filterStatus]);
+  }, []);
 
   useEffect(() => { loadReports(); }, [loadReports]);
 
@@ -102,64 +229,97 @@ export default function BugReportsPage() {
     }
   };
 
+  const { filtered, statusCounts, categoryCounts, roleCounts } = useMemo(() => {
+    const sc: Record<string, number> = {};
+    const cc: Record<string, number> = {};
+    const rc: Record<string, number> = {};
+    for (const r of reports) {
+      sc[r.status] = (sc[r.status] || 0) + 1;
+      cc[r.category] = (cc[r.category] || 0) + 1;
+      if (r.reporter_role) rc[r.reporter_role] = (rc[r.reporter_role] || 0) + 1;
+    }
+    const q = search.trim().toLowerCase();
+    const f = reports.filter((r) => {
+      if (filterStatus && r.status !== filterStatus) return false;
+      if (filterCategory && r.category !== filterCategory) return false;
+      if (filterRole && r.reporter_role !== filterRole) return false;
+      if (q) {
+        const hay = `${r.description} ${r.page_url ?? ""} ${r.admin_notes ?? ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+    return { filtered: f, statusCounts: sc, categoryCounts: cc, roleCounts: rc };
+  }, [reports, filterStatus, filterCategory, filterRole, search]);
+
   if (loading) return <div className="max-w-7xl mx-auto px-6 py-8"><p className="text-sm text-gray-500">Loading bug reports...</p></div>;
   if (error) return <div className="max-w-7xl mx-auto px-6 py-8"><p className="text-sm text-red-600">Error: {error}</p></div>;
 
-  const statusCounts: Record<string, number> = {};
-  for (const r of reports) {
-    statusCounts[r.status] = (statusCounts[r.status] || 0) + 1;
-  }
+  const activeFilterCount = [filterStatus, filterCategory, filterRole, search.trim()].filter(Boolean).length;
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-bold text-gray-900">Bug Reports</h2>
-          <p className="text-sm text-gray-500">{reports.length} report{reports.length !== 1 ? "s" : ""}</p>
-        </div>
-        <div className="flex gap-1">
-          <button
-            onClick={() => setFilterStatus("")}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition ${
-              !filterStatus ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-            }`}
-          >
-            All ({reports.length})
-          </button>
-          {STATUS_OPTIONS.map((s) => (
+    <div className="max-w-7xl mx-auto px-6 py-8 space-y-4">
+      <div>
+        <h2 className="text-lg font-bold text-gray-900">Bug Reports</h2>
+        <p className="text-sm text-gray-500">
+          {filtered.length} of {reports.length} report{reports.length !== 1 ? "s" : ""}
+          {activeFilterCount > 0 && (
             <button
-              key={s}
-              onClick={() => setFilterStatus(s)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition capitalize ${
-                filterStatus === s ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
+              onClick={() => {
+                setFilterStatus("");
+                setFilterCategory("");
+                setFilterRole("");
+                setSearch("");
+              }}
+              className="ml-2 text-xs text-purple-600 hover:underline"
             >
-              {s} ({statusCounts[s] || 0})
+              clear filters
             </button>
-          ))}
-        </div>
+          )}
+        </p>
       </div>
 
-      {reports.length === 0 ? (
+      {/* Filter bar */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
+        <input
+          type="text"
+          placeholder="Search description, URL, or notes..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400"
+        />
+        <FilterButtonRow label="Status" options={STATUS_OPTIONS} value={filterStatus} onChange={setFilterStatus} counts={statusCounts} />
+        <FilterButtonRow label="Category" options={CATEGORY_OPTIONS} value={filterCategory} onChange={setFilterCategory} counts={categoryCounts} />
+        <FilterButtonRow label="Role" options={ROLE_OPTIONS} value={filterRole} onChange={setFilterRole} counts={roleCounts} />
+      </div>
+
+      {filtered.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
-          <p className="text-sm text-gray-400">No bug reports{filterStatus ? ` with status "${filterStatus}"` : ""}</p>
+          <p className="text-sm text-gray-400">No bug reports match the current filters</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {reports.map((r) => (
+          {filtered.map((r) => (
             <div key={r.id} className="bg-white rounded-xl border border-gray-200 p-4">
               <div
                 className="flex items-start justify-between cursor-pointer"
                 onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                     r.status === "new" ? "bg-blue-100 text-blue-700" :
                     r.status === "investigating" ? "bg-amber-100 text-amber-700" :
                     r.status === "fixed" ? "bg-green-100 text-green-700" :
                     "bg-gray-100 text-gray-600"
                   }`}>{r.status}</span>
-                  <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">{r.category}</span>
+                  <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">{r.category.replace(/_/g, " ")}</span>
+                  {r.reporter_role && (
+                    <span className={`px-2 py-0.5 rounded-full text-xs ${
+                      r.reporter_role === "student" ? "bg-cyan-50 text-cyan-700" :
+                      r.reporter_role === "teacher" ? "bg-purple-50 text-purple-700" :
+                      "bg-gray-100 text-gray-600"
+                    }`}>{r.reporter_role}</span>
+                  )}
                   <p className="text-sm text-gray-900">{r.description.slice(0, 100)}{r.description.length > 100 ? "..." : ""}</p>
                 </div>
                 <span className="text-xs text-gray-400 whitespace-nowrap ml-4">
@@ -169,40 +329,22 @@ export default function BugReportsPage() {
 
               {expandedId === r.id && (
                 <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
-                  <p className="text-sm text-gray-700">{r.description}</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{r.description}</p>
 
                   {r.page_url && (
-                    <p className="text-xs text-gray-500">Page: <span className="font-mono">{r.page_url}</span></p>
+                    <p className="text-xs text-gray-500">Page: <span className="font-mono break-all">{r.page_url}</span></p>
                   )}
                   {r.reporter_role && (
                     <p className="text-xs text-gray-500">Reporter: {r.reporter_role} ({r.reporter_id?.slice(0, 8)}...)</p>
                   )}
+
                   {r.client_context && Object.keys(r.client_context).length > 0 && (() => {
                     const ctx = r.client_context as ClientContext;
                     if (!ctx) return null;
-                    const { browser, os } = summarizeUserAgent(ctx.userAgent);
-                    const vp = ctx.viewport;
-                    const conn = ctx.connection;
                     const events = Array.isArray(ctx.events) ? ctx.events : [];
-                    const tags: Array<[string, string]> = [
-                      ["browser", browser],
-                      ["os", os],
-                    ];
-                    if (vp?.width && vp?.height) tags.push(["viewport", `${vp.width}×${vp.height}${vp.dpr ? `@${vp.dpr}x` : ""}`]);
-                    if (conn?.effectiveType) tags.push(["network", `${conn.effectiveType}${conn.downlink ? ` ${conn.downlink}Mbps` : ""}`]);
-                    if (ctx.timezone) tags.push(["tz", ctx.timezone]);
-                    if (ctx.release) tags.push(["release", String(ctx.release).slice(0, 7)]);
-                    if (ctx.deployEnv) tags.push(["env", String(ctx.deployEnv)]);
-
                     return (
                       <div className="space-y-2">
-                        <div className="flex flex-wrap gap-1.5">
-                          {tags.map(([k, v]) => (
-                            <span key={k} className="px-2 py-0.5 bg-gray-100 rounded text-[11px] text-gray-700 font-mono">
-                              <span className="text-gray-400">{k}=</span>{v}
-                            </span>
-                          ))}
-                        </div>
+                        <ClientContextSummary ctx={ctx} />
                         {events.length > 0 && (
                           <details className="text-xs">
                             <summary className="text-gray-500 cursor-pointer">Runtime events ({events.length})</summary>
@@ -218,6 +360,7 @@ export default function BugReportsPage() {
                                         : "bg-amber-50 text-amber-700"
                                     }`}>{e.kind}</span>
                                     {e.source && <span className="text-[10px] text-gray-400 font-mono">{e.source}</span>}
+                                    <span className="text-[10px] text-gray-400 ml-auto">{new Date(e.ts).toLocaleTimeString()}</span>
                                   </div>
                                   <pre className="text-[11px] text-gray-700 whitespace-pre-wrap break-words">{e.message}</pre>
                                 </li>
@@ -226,7 +369,7 @@ export default function BugReportsPage() {
                           </details>
                         )}
                         <details className="text-xs">
-                          <summary className="text-gray-500 cursor-pointer">Full client context</summary>
+                          <summary className="text-gray-500 cursor-pointer">Raw JSON</summary>
                           <pre className="mt-1 p-2 bg-gray-50 rounded text-xs overflow-auto max-h-48">
                             {JSON.stringify(r.client_context, null, 2)}
                           </pre>
@@ -250,7 +393,7 @@ export default function BugReportsPage() {
                     </div>
                   )}
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     {STATUS_OPTIONS.filter((s) => s !== r.status).map((s) => (
                       <button
                         key={s}
