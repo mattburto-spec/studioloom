@@ -296,6 +296,15 @@ export function BugReportButton({ role, classId, enabled = true }: BugReportButt
   const handleAttachScreenshot = async () => {
     setCapturingScreenshot(true);
     setError(null);
+
+    // toJpeg does heavy synchronous DOM/canvas work before its first
+    // internal await — without a yield here, the main thread is blocked
+    // before the browser paints the shimmer, and the loading state
+    // either flashes for a frame or never paints at all. Two rAF ticks
+    // guarantees React commits and the browser paints before we start.
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
     const result = await capturePageScreenshot();
     setCapturingScreenshot(false);
     if (result) {
