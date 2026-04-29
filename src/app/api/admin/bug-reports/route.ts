@@ -8,7 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/require-admin";
 
 const SCREENSHOT_BUCKET = "bug-report-screenshots";
-const SCREENSHOT_URL_TTL_SECONDS = 60 * 30; // 30 min — admins triage in one sitting
+const SCREENSHOT_URL_TTL_SECONDS = 60 * 60 * 4; // 4 hr — admin can leave a tab open across a triage session without thumbnails dying. For internal admin use; longer URL-leakage window is a non-issue with a single admin viewer.
 
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
