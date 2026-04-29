@@ -104,6 +104,25 @@ export type ActorSession = StudentSession | TeacherSession;
  * legacy teacher signin flow. Used internally; tests inject a stub.
  */
 async function buildSsrClient(): Promise<SupabaseClient> {
+  // TEMP Phase 1.4-debug — log incoming cookie names so we can diagnose
+  // whether the SSR client is seeing the sb-* cookies at all.
+  // Remove after fix lands.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { cookies } = await import("next/headers");
+    const store = await cookies();
+    const allCookies = store.getAll();
+    // eslint-disable-next-line no-console
+    console.error("[actor-session-debug] cookies seen by buildSsrClient", {
+      count: allCookies.length,
+      names: allCookies.map((c) => c.name),
+      hasSupabaseCookie: allCookies.some((c) => c.name.startsWith("sb-")),
+    });
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error("[actor-session-debug] cookies() read failed", (e as Error).message);
+  }
+
   return createServerSupabaseClient();
 }
 
@@ -205,11 +224,32 @@ export async function getActorSession(
 ): Promise<ActorSession | null> {
   const ssr = await buildSsrClient();
   const { data: userData, error: userErr } = await ssr.auth.getUser();
-  if (userErr || !userData?.user) return null;
+
+  // TEMP Phase 1.4-debug — verbose logging to diagnose Vercel-preview 401s.
+  // Remove after fix lands.
+  if (userErr || !userData?.user) {
+    // eslint-disable-next-line no-console
+    console.error("[actor-session-debug] auth.getUser failed", {
+      hasError: Boolean(userErr),
+      errorMessage: userErr?.message ?? null,
+      errorStatus: (userErr as { status?: number } | null)?.status ?? null,
+      hasUser: Boolean(userData?.user),
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "(unset)",
+      hasAnonKey: Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
+    });
+    return null;
+  }
 
   const user = userData.user;
   const userType = (user.app_metadata as Record<string, unknown> | undefined)
     ?.user_type;
+
+  // eslint-disable-next-line no-console
+  console.error("[actor-session-debug] auth.getUser ok", {
+    userId: user.id,
+    userType,
+    appMetadataKeys: Object.keys(user.app_metadata ?? {}),
+  });
 
   // Use admin client for the actor-row lookup (RLS-respecting reads come
   // later when routes migrate; for the session helper itself we want
