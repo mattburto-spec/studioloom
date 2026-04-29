@@ -1243,3 +1243,80 @@ Edge cases to handle in the query helper (when written):
 - Long-running progress that spans multiple enrollments (rare; pick the active enrollment at progress.updated_at if it matters)
 
 **Definition of done:** When the first reporting surface needs cohort-scoped progress, write a `getProgressByCohort(classId, unitId)` helper that does the JOIN above + handles the edge cases. No schema change.
+
+---
+
+## FU-REGISTRY-DRIFT-CI — Registry consultation isn't enforced; drift detection runs only at saveme (P2)
+**Surfaced:** 29 Apr 2026 PM, Access Model v2 Phase 1 brief preparation
+**Captured in:** `docs/projects/access-model-v2-phase-1-brief.md` §3.7
+
+**Issue:** The 6 saveme registries (`WIRING.yaml`, `schema-registry.yaml`, `api-registry.yaml`, `feature-flags.yaml`, `vendors.yaml`, `ai-call-sites.yaml`) + 3 taxonomies + scanner reports are foundationally good but have known drift surfaces:
+
+1. **Hand-curated entries drift between saveme runs.** Phase 1 brief prep cross-check (29 Apr) found `WIRING.yaml` `auth-system.key_files` listed `src/lib/auth/student-session.ts` — a file that doesn't exist (actual: `student.ts`). Lesson #54 in action: registry claimed something the codebase didn't have.
+2. **Phase briefs aren't consulting the registries upfront.** The `build-phase-prep` skill's Step 5 mentions WIRING.yaml but is silent on the other 5 registries. Phase 1 brief was drafted with a code-side audit only; the registry cross-check happened *after* the brief existed, and only because Matt asked. Without that prompt, the brief would have shipped with `auth-system.affects` missing 5 systems and `key_files` still pointing at a non-existent file.
+3. **No CI gate.** Drift is caught only when someone runs saveme. Between sessions, branches diverge from registries silently. The registries are themselves an early-warning system that no current process forces consultation of before doing meaningful work.
+
+**Why P2:** Registry drift isn't a bug-shipping risk on its own (the code still works), but it propagates blind spots into every subsequent phase brief that trusts the registries. Phase 1's `student_sessions` RLS-no-policy gap (FU-FF) could have been caught earlier if a CI gate had flagged it; instead it sat as a P3 "likely intentional" until Phase 1 made it load-bearing.
+
+**Recommended approach (3 layers, ordered cheapest → strongest):**
+
+### Layer 1 — Update `build-phase-prep` skill to make registry consultation mandatory
+The skill at `.claude/skills/build-phase-prep/SKILL.md` Step 5 currently mentions only WIRING. Extend it:
+
+> **Step 5b — Registry cross-check (mandatory for any phase that touches multiple files).** Before drafting the brief, identify which registries the phase will touch:
+> - Migrations or schema changes → read `schema-registry.yaml` entries for affected tables
+> - Routes added/modified → read `api-registry.yaml` for current state and auth taxonomy
+> - AI calls → read `ai-call-sites.yaml`
+> - Feature flags or env vars → read `feature-flags.yaml`
+> - New vendor integrations → read `vendors.yaml`
+> - PII / data classification → read `data-classification-taxonomy.md`
+> - RLS work → read `docs/scanner-reports/rls-coverage.json`
+>
+> For each consulted registry, spot-check ONE entry against code. If drift found, flag in the brief AND include closure in the phase deliverables.
+
+This is the cheapest change with the highest leverage — it forces the consultation that the Phase 1 brief had to be reminded to do.
+
+### Layer 2 — Pre-commit hook on `docs/projects/` updates
+When a brief is committed under `docs/projects/`, a hook runs the registry scanners and warns if drift exists. Doesn't block commits (briefs ship fast), but surfaces drift the moment it's committed.
+
+```bash
+# .husky/pre-commit (or equivalent)
+if git diff --cached --name-only | grep -q "^docs/projects/"; then
+  echo "Brief change detected — running registry scanners..."
+  python3 scripts/registry/scan-api-routes.py --check-only
+  python3 scripts/registry/scan-rls-coverage.py
+  # Don't fail; just warn
+fi
+```
+
+### Layer 3 — CI gate on registry drift
+Add a GitHub Action job that runs all 7 saveme scanners on every PR and **fails CI if any auto-generated registry has drift**. Hand-curated parts (WIRING `affects` lists, schema `spec_drift` entries) can't be auto-checked but the auto-generated halves (api, ai-calls, rls-coverage) can.
+
+```yaml
+# .github/workflows/registry-drift.yml
+- name: Check api-registry drift
+  run: |
+    python3 scripts/registry/scan-api-routes.py --apply
+    git diff --exit-code docs/api-registry.yaml || exit 1
+```
+
+Equivalent jobs for ai-call-sites and rls-coverage. Hard fail = forces saveme before merge.
+
+**Definition of done (each layer):**
+- L1: build-phase-prep SKILL.md updated; first phase brief after the update demonstrates the cross-check pattern.
+- L2: Pre-commit hook installed; tested by intentionally drifting a registry and confirming the hook warns.
+- L3: GitHub Action runs on every PR; tested by a PR that intentionally drifts api-registry; CI fails.
+
+**Sequence:** L1 should ship NOW (before Phase 1 starts) because it gates the very next brief. L2 + L3 are post-Phase-1.
+
+**Related:** Lesson #54 (WIRING claiming things that don't exist), FU-FF (`student_sessions` no-policy was a "likely intentional" P3 that Phase 1 promotes to load-bearing), FU-DD (legacy scanners strip `version:` field on rewrite — same pattern of hand-curated content lost to auto-regeneration).
+
+**Registry freshness baseline (29 Apr 2026 PM):**
+- `WIRING.yaml`: 28 Apr (1d old) — known drift on `auth-system.key_files`
+- `schema-registry.yaml`: 29 Apr — fresh (saveme today)
+- `api-registry.yaml`: 29 Apr — fresh (auto-generated)
+- `feature-flags.yaml`: 29 Apr — fresh
+- `vendors.yaml`: **14 Apr (15d old)** — stable enums, low risk but oldest
+- `ai-call-sites.yaml`: 29 Apr — fresh (auto-generated)
+- `data-classification-taxonomy.md`: **14 Apr (15d old)** — stable enums
+- `scanner-reports/rls-coverage.json`: 29 Apr — fresh (auto-generated)
