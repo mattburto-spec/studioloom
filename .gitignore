@@ -58,3 +58,7 @@ outputs/
 /docs/newmetrics/
 /docs/newlook/
 /docs/lesson plans/
+
+# Test artifacts (curl session cookies, debug dumps)
+cookies.txt
+/tmp/test*.json
