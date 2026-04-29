@@ -1342,3 +1342,56 @@ const studentId = session.studentId;
 **Sequence:** Do this AFTER Phase 1.4c (Batch B + C) ships, since those touch many of the same files.
 
 **Related:** `FU-AV2-UI-STUDENT-INSERT-REFACTOR` (P2 — different surface; client-side INSERT sites). Phase 1.5 RLS work assumes student auth is via auth.users (which the dual-mode wrapper already provides for these 18 routes).
+
+---
+
+## FU-AV2-PHASE-15B — Phase 1.5b additive student-side RLS policies (4 tables, P2)
+**Surfaced:** 29 Apr 2026 PM, Access Model v2 Phase 1.5
+**Captured in:** `docs/projects/access-model-v2-phase-1-brief.md` §4.5
+
+**Issue:** Phase 1.5 shipped 4 critical RLS migrations (1 add + 3 rewrites of broken policies). 4 additional migrations from the brief's §4.5 are deferred to Phase 1.5b — they're additive (lower urgency than the 3 rewrites because admin-client paths still work):
+
+| # | Migration | Purpose |
+|---|---|---|
+| 1 | `class_students_self_read_authuid` | ADD a parallel "Students read own enrollments" policy that uses `auth.uid()` chain. The existing policy on this table joins through `student_sessions` (legacy auth path) which still works during the grace period. |
+| 2 | `student_progress_self_read` | ADD "Students read own progress" — currently no student policy exists; legacy admin-client path is the only access. |
+| 3 | `fabrication_scan_jobs_self_read` | ADD "Students read own jobs" — currently `rls_enabled_no_policy` per scanner (one of the FU-FF-class drifts). |
+| 4 | `student_sessions_deny_all` | ADD explicit `USING (false)` policy to make intent explicit + close FU-FF officially. Currently `rls_enabled_no_policy` (deny-by-default but undocumented). |
+
+**Why P2 not P1:** these are additive. The current legacy admin-client paths still work for all 4 surfaces. Phase 1.4c routes that switch to RLS-respecting clients will start needing these policies once their batches ship — but Phase 1.4c is also P3 (FU-AV2-PHASE-14B-2 family).
+
+**Pattern (mechanical, ~10 min per migration):**
+
+```sql
+-- Pattern for "students read own X via auth.uid() chain"
+CREATE POLICY "Students read own X"
+  ON <table>
+  FOR SELECT
+  USING (
+    student_id IN (
+      SELECT id FROM students WHERE user_id = auth.uid()
+    )
+  );
+```
+
+For `student_sessions_deny_all`:
+
+```sql
+CREATE POLICY "Deny all (service role only)"
+  ON student_sessions
+  FOR ALL
+  USING (false)
+  WITH CHECK (false);
+```
+
+(Service role bypasses RLS regardless; this just makes the deny intent explicit.)
+
+**Definition of done:**
+- 4 migrations land on the access-model-v2-phase-1 branch (or its successor)
+- Shape tests assert the chain pattern (Lesson #38 — exact USING clause shape)
+- Applied to prod via Supabase SQL Editor
+- `docs/scanner-reports/rls-coverage.json` shows fabrication_scan_jobs + student_sessions move out of `rls_enabled_no_policy` drift bucket
+
+**Sequence:** ship after Phase 1.5 (this commit) lands in prod and Phase 1.4c routes start migrating to RLS-respecting clients. Could ship before Checkpoint A2 if convenient; otherwise tracks separately.
+
+**Related:** FU-FF (P3 — RLS-as-deny-all on 3 tables), Phase 1.5 (the 3 rewrite migrations that fix broken policies).
