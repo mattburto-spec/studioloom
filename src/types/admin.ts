@@ -51,6 +51,7 @@ export interface BugReport {
   screenshot_url: string | null;
   page_url: string | null;
   console_errors: unknown[];
+  client_context: Record<string, unknown> | null;
   status: BugReportStatus;
   admin_notes: string | null;
   response: string | null;

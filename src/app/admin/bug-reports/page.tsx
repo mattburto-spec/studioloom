@@ -12,6 +12,7 @@ interface BugReport {
   screenshot_url: string | null;
   page_url: string | null;
   console_errors: unknown[] | null;
+  client_context: Record<string, unknown> | null;
   status: string;
   admin_notes: string | null;
   response: string | null;
@@ -21,6 +22,46 @@ interface BugReport {
 
 const STATUS_OPTIONS = ["new", "investigating", "fixed", "closed"];
 const CATEGORY_OPTIONS = ["broken", "looks_wrong", "confused", "feature_request"];
+
+type ClientContext = {
+  release?: string | null;
+  deployEnv?: string | null;
+  userAgent?: string;
+  platform?: string;
+  language?: string;
+  viewport?: { width?: number; height?: number; dpr?: number };
+  screen?: { width?: number | null; height?: number | null };
+  connection?: { effectiveType?: string | null; downlink?: number | null; rtt?: number | null; saveData?: boolean | null } | null;
+  hardware?: { cores?: number | null; memoryGb?: number | null; touchPoints?: number | null };
+  referrer?: string | null;
+  timeOnPageMs?: number;
+  timezone?: string | null;
+  events?: Array<{ kind: string; message: string; source?: string | null; ts: number }>;
+} | null;
+
+// Parse the userAgent into a readable browser/OS pair without pulling in a parser dep.
+function summarizeUserAgent(ua: string | undefined): { browser: string; os: string } {
+  if (!ua) return { browser: "?", os: "?" };
+  let browser = "Unknown";
+  const chrome = ua.match(/Chrome\/(\d+)/);
+  const safari = ua.match(/Version\/(\d+).*Safari/);
+  const firefox = ua.match(/Firefox\/(\d+)/);
+  const edge = ua.match(/Edg\/(\d+)/);
+  if (edge) browser = `Edge ${edge[1]}`;
+  else if (chrome) browser = `Chrome ${chrome[1]}`;
+  else if (firefox) browser = `Firefox ${firefox[1]}`;
+  else if (safari) browser = `Safari ${safari[1]}`;
+
+  let os = "Unknown";
+  if (/Windows NT 10/.test(ua)) os = "Windows 10/11";
+  else if (/Windows/.test(ua)) os = "Windows";
+  else if (/Mac OS X ([\d_]+)/.test(ua)) os = `macOS ${RegExp.$1.replace(/_/g, ".")}`;
+  else if (/Android (\d+)/.test(ua)) os = `Android ${RegExp.$1}`;
+  else if (/iPhone OS ([\d_]+)/.test(ua)) os = `iOS ${RegExp.$1.replace(/_/g, ".")}`;
+  else if (/iPad/.test(ua)) os = "iPadOS";
+  else if (/Linux/.test(ua)) os = "Linux";
+  return { browser, os };
+}
 
 export default function BugReportsPage() {
   const [reports, setReports] = useState<BugReport[]>([]);
@@ -136,9 +177,67 @@ export default function BugReportsPage() {
                   {r.reporter_role && (
                     <p className="text-xs text-gray-500">Reporter: {r.reporter_role} ({r.reporter_id?.slice(0, 8)}...)</p>
                   )}
+                  {r.client_context && Object.keys(r.client_context).length > 0 && (() => {
+                    const ctx = r.client_context as ClientContext;
+                    if (!ctx) return null;
+                    const { browser, os } = summarizeUserAgent(ctx.userAgent);
+                    const vp = ctx.viewport;
+                    const conn = ctx.connection;
+                    const events = Array.isArray(ctx.events) ? ctx.events : [];
+                    const tags: Array<[string, string]> = [
+                      ["browser", browser],
+                      ["os", os],
+                    ];
+                    if (vp?.width && vp?.height) tags.push(["viewport", `${vp.width}×${vp.height}${vp.dpr ? `@${vp.dpr}x` : ""}`]);
+                    if (conn?.effectiveType) tags.push(["network", `${conn.effectiveType}${conn.downlink ? ` ${conn.downlink}Mbps` : ""}`]);
+                    if (ctx.timezone) tags.push(["tz", ctx.timezone]);
+                    if (ctx.release) tags.push(["release", String(ctx.release).slice(0, 7)]);
+                    if (ctx.deployEnv) tags.push(["env", String(ctx.deployEnv)]);
+
+                    return (
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap gap-1.5">
+                          {tags.map(([k, v]) => (
+                            <span key={k} className="px-2 py-0.5 bg-gray-100 rounded text-[11px] text-gray-700 font-mono">
+                              <span className="text-gray-400">{k}=</span>{v}
+                            </span>
+                          ))}
+                        </div>
+                        {events.length > 0 && (
+                          <details className="text-xs">
+                            <summary className="text-gray-500 cursor-pointer">Runtime events ({events.length})</summary>
+                            <ul className="mt-1 space-y-1">
+                              {events.map((e, i) => (
+                                <li key={i} className="p-2 bg-gray-50 rounded">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
+                                      e.kind === "unhandledrejection" || e.kind === "window.error"
+                                        ? "bg-red-100 text-red-700"
+                                        : e.kind === "console.error"
+                                        ? "bg-orange-100 text-orange-700"
+                                        : "bg-amber-50 text-amber-700"
+                                    }`}>{e.kind}</span>
+                                    {e.source && <span className="text-[10px] text-gray-400 font-mono">{e.source}</span>}
+                                  </div>
+                                  <pre className="text-[11px] text-gray-700 whitespace-pre-wrap break-words">{e.message}</pre>
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        )}
+                        <details className="text-xs">
+                          <summary className="text-gray-500 cursor-pointer">Full client context</summary>
+                          <pre className="mt-1 p-2 bg-gray-50 rounded text-xs overflow-auto max-h-48">
+                            {JSON.stringify(r.client_context, null, 2)}
+                          </pre>
+                        </details>
+                      </div>
+                    );
+                  })()}
+
                   {r.console_errors && (r.console_errors as unknown[]).length > 0 && (
                     <details className="text-xs">
-                      <summary className="text-gray-500 cursor-pointer">Console errors ({(r.console_errors as unknown[]).length})</summary>
+                      <summary className="text-gray-500 cursor-pointer">Legacy console_errors ({(r.console_errors as unknown[]).length})</summary>
                       <pre className="mt-1 p-2 bg-gray-50 rounded text-xs overflow-auto max-h-32">
                         {JSON.stringify(r.console_errors, null, 2)}
                       </pre>
