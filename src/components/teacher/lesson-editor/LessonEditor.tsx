@@ -245,59 +245,113 @@ export default function LessonEditor({
     [selectedPageIndex, updatePage]
   );
 
-  // Activity mutations
+  // Phase ordering for activity grouping
+  const PHASE_ORDER = ["opening", "miniLesson", "workTime", "debrief"] as const;
+  type WorkshopPhaseKey = (typeof PHASE_ORDER)[number];
+
+  // Group sections by phase (legacy activities default to workTime)
+  const sectionsByPhase = useMemo(() => {
+    const groups: Record<WorkshopPhaseKey, ActivitySection[]> = {
+      opening: [],
+      miniLesson: [],
+      workTime: [],
+      debrief: [],
+    };
+    (pageContent?.sections || []).forEach((s) => {
+      const p = (s.phase || "workTime") as WorkshopPhaseKey;
+      if (PHASE_ORDER.includes(p)) groups[p].push(s);
+      else groups.workTime.push(s);
+    });
+    return groups;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageContent?.sections]);
+
+  // ── Activity mutations (id-based — phase-scoped rendering needs stable handles) ──
   const handleUpdateActivity = useCallback(
-    (activityIndex: number, partial: Partial<ActivitySection>) => {
+    (activityId: string, partial: Partial<ActivitySection>) => {
       if (!pageContent) return;
+      const idx = pageContent.sections.findIndex((s) => s.activityId === activityId);
+      if (idx < 0) return;
       const newSections = [...pageContent.sections];
-      newSections[activityIndex] = { ...newSections[activityIndex], ...partial };
+      newSections[idx] = { ...newSections[idx], ...partial };
       handleUpdatePageContent({ sections: newSections });
     },
     [pageContent, handleUpdatePageContent]
   );
 
   const handleDeleteActivity = useCallback(
-    (activityIndex: number) => {
+    (activityId: string) => {
       if (!pageContent) return;
       const newSections = pageContent.sections.filter(
-        (_, i) => i !== activityIndex
+        (s) => s.activityId !== activityId
       );
       handleUpdatePageContent({ sections: newSections });
     },
     [pageContent, handleUpdatePageContent]
   );
 
+  // Add activity, optionally targeting a specific phase. Inserts at end of
+  // that phase's slot in the flat array so phase ordering is preserved.
   const handleAddActivity = useCallback(
-    (activity: ActivitySection) => {
+    (activity: ActivitySection, targetPhase?: WorkshopPhaseKey) => {
       if (!pageContent) return;
-      const newActivity = {
+      const phase: WorkshopPhaseKey = targetPhase || (activity.phase as WorkshopPhaseKey) || "workTime";
+      const newActivity: ActivitySection = {
         ...activity,
+        phase,
         activityId: activity.activityId || nanoid(8),
       };
-      handleUpdatePageContent({
-        sections: [...pageContent.sections, newActivity],
-      });
+      const phaseIdx = PHASE_ORDER.indexOf(phase);
+      const sections = pageContent.sections;
+      // Insert before the first activity belonging to a later phase
+      let insertIdx = sections.length;
+      for (let i = 0; i < sections.length; i++) {
+        const sPhase = (sections[i].phase || "workTime") as WorkshopPhaseKey;
+        const sPhaseIdx = PHASE_ORDER.indexOf(sPhase);
+        if (sPhaseIdx > phaseIdx) {
+          insertIdx = i;
+          break;
+        }
+      }
+      const newSections = [...sections];
+      newSections.splice(insertIdx, 0, newActivity);
+      handleUpdatePageContent({ sections: newSections });
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [pageContent, handleUpdatePageContent]
   );
 
-  const handleReorderActivities = useCallback(
-    (newOrder: ActivitySection[]) => {
-      handleUpdatePageContent({ sections: newOrder });
+  // Reorder within a phase. Replaces that phase's slice with newOrder,
+  // preserving the order of items in other phases.
+  const handleReorderPhase = useCallback(
+    (phase: WorkshopPhaseKey, newOrder: ActivitySection[]) => {
+      if (!pageContent) return;
+      const result: ActivitySection[] = [];
+      for (const p of PHASE_ORDER) {
+        if (p === phase) {
+          result.push(...newOrder);
+        } else {
+          result.push(...sectionsByPhase[p]);
+        }
+      }
+      handleUpdatePageContent({ sections: result });
     },
-    [handleUpdatePageContent]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pageContent, sectionsByPhase, handleUpdatePageContent]
   );
 
   const handleDuplicateActivity = useCallback(
-    (activityIndex: number) => {
+    (activityId: string) => {
       if (!pageContent) return;
-      const source = pageContent.sections[activityIndex];
+      const idx = pageContent.sections.findIndex((s) => s.activityId === activityId);
+      if (idx < 0) return;
+      const source = pageContent.sections[idx];
       const duplicate: ActivitySection = {
         ...structuredClone(source),
         activityId: nanoid(8),
       };
       const newSections = [...pageContent.sections];
-      newSections.splice(activityIndex + 1, 0, duplicate);
+      newSections.splice(idx + 1, 0, duplicate);
       handleUpdatePageContent({ sections: newSections });
     },
     [pageContent, handleUpdatePageContent]
@@ -383,10 +437,67 @@ export default function LessonEditor({
       phases.debrief.durationMinutes
     : 0;
 
-  const activityTotalMinutes = (pageContent?.sections || []).reduce(
-    (sum, s) => sum + (s.durationMinutes || 0),
-    0
-  );
+  // --- Per-phase activity render helper ---
+  const renderPhaseActivities = (phase: WorkshopPhaseKey) => {
+    const items = sectionsByPhase[phase];
+    return (
+      <>
+        {items.length > 0 && (
+          <Reorder.Group
+            axis="y"
+            values={items}
+            onReorder={(newOrder) => handleReorderPhase(phase, newOrder)}
+            className="space-y-2"
+          >
+            <AnimatePresence initial={false}>
+              {items.map((section, i) => (
+                <Reorder.Item
+                  key={section.activityId || `${phase}-${i}`}
+                  value={section}
+                  className="list-none"
+                  whileDrag={{
+                    scale: 1.01,
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                    zIndex: 50,
+                  }}
+                  layout
+                  transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                >
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ type: "spring", damping: 20, stiffness: 300 }}
+                  >
+                    <ActivityBlock
+                      activity={section}
+                      index={i}
+                      framework={framework}
+                      udlEnabled={udlEnabled}
+                      onUpdate={(partial) =>
+                        section.activityId &&
+                        handleUpdateActivity(section.activityId, partial)
+                      }
+                      onDelete={() =>
+                        section.activityId && handleDeleteActivity(section.activityId)
+                      }
+                      onDuplicate={() =>
+                        section.activityId &&
+                        handleDuplicateActivity(section.activityId)
+                      }
+                    />
+                  </motion.div>
+                </Reorder.Item>
+              ))}
+            </AnimatePresence>
+          </Reorder.Group>
+        )}
+        <ActivityBlockAdd
+          onAdd={(activity) => handleAddActivity(activity, phase)}
+        />
+      </>
+    );
+  };
 
   // --- Render ---
 
@@ -872,7 +983,7 @@ export default function LessonEditor({
                       {/* Drop zone for opening phase */}
                       <DropZone
                         zoneId="opening"
-                        onDrop={handleAddActivity}
+                        onDrop={(activity) => handleAddActivity(activity, "opening")}
                         label="Drop block into Opening"
                         accentColor="indigo"
                       />
@@ -888,13 +999,14 @@ export default function LessonEditor({
                               icon={suggestion.icon}
                               reason={suggestion.reason}
                               onAccept={(activity) => {
-                                handleAddActivity(activity);
+                                handleAddActivity(activity, "opening");
                                 acceptSuggestion(suggestion.id);
                               }}
                               onDismiss={() => dismissSuggestion(suggestion.id)}
                             />
                           ))}
                       </AnimatePresence>
+                      {renderPhaseActivities("opening")}
                     </div>
                   </PhaseSection>
                 </div>
@@ -933,7 +1045,7 @@ export default function LessonEditor({
                       {/* Drop zone for miniLesson phase */}
                       <DropZone
                         zoneId="miniLesson"
-                        onDrop={handleAddActivity}
+                        onDrop={(activity) => handleAddActivity(activity, "miniLesson")}
                         label="Drop block into Mini-Lesson"
                         accentColor="blue"
                       />
@@ -949,13 +1061,14 @@ export default function LessonEditor({
                               icon={suggestion.icon}
                               reason={suggestion.reason}
                               onAccept={(activity) => {
-                                handleAddActivity(activity);
+                                handleAddActivity(activity, "miniLesson");
                                 acceptSuggestion(suggestion.id);
                               }}
                               onDismiss={() => dismissSuggestion(suggestion.id)}
                             />
                           ))}
                       </AnimatePresence>
+                      {renderPhaseActivities("miniLesson")}
                     </div>
                   </PhaseSection>
                 </div>
@@ -976,7 +1089,7 @@ export default function LessonEditor({
                     {/* Drop zone for workTime phase */}
                     <DropZone
                       zoneId="workTime"
-                      onDrop={handleAddActivity}
+                      onDrop={(activity) => handleAddActivity(activity, "workTime")}
                       label="Drop block into Work Time"
                       accentColor="emerald"
                     />
@@ -992,7 +1105,7 @@ export default function LessonEditor({
                             icon={suggestion.icon}
                             reason={suggestion.reason}
                             onAccept={(activity) => {
-                              handleAddActivity(activity);
+                              handleAddActivity(activity, "workTime");
                               acceptSuggestion(suggestion.id);
                             }}
                             onDismiss={() => dismissSuggestion(suggestion.id)}
@@ -1000,78 +1113,25 @@ export default function LessonEditor({
                         ))}
                     </AnimatePresence>
 
-                    {/* Activities with drag-and-drop */}
-                    <Reorder.Group
-                      axis="y"
-                      values={pageContent.sections}
-                      onReorder={handleReorderActivities}
-                      className="space-y-2"
-                    >
-                      <AnimatePresence initial={false}>
-                        {pageContent.sections.map((section, index) => (
-                          <Reorder.Item
-                            key={section.activityId || `section-${index}`}
-                            value={section}
-                            className="list-none"
-                            whileDrag={{
-                              scale: 1.01,
-                              boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-                              zIndex: 50,
-                            }}
-                            layout
-                            transition={{
-                              type: "spring",
-                              damping: 25,
-                              stiffness: 300,
-                            }}
-                          >
-                            <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: "auto" }}
-                              exit={{ opacity: 0, height: 0 }}
-                              transition={{
-                                type: "spring",
-                                damping: 20,
-                                stiffness: 300,
-                              }}
-                            >
-                              <ActivityBlock
-                                activity={section}
-                                index={index}
-                                framework={framework}
-                                udlEnabled={udlEnabled}
-                                onUpdate={(partial) =>
-                                  handleUpdateActivity(index, partial)
-                                }
-                                onDelete={() => handleDeleteActivity(index)}
-                                onDuplicate={() =>
-                                  handleDuplicateActivity(index)
-                                }
-                              />
-                            </motion.div>
-                          </Reorder.Item>
-                        ))}
-                      </AnimatePresence>
-                    </Reorder.Group>
+                    {renderPhaseActivities("workTime")}
 
                     {/* Activity duration summary + timeWeight distribution */}
-                    {pageContent.sections.length > 0 && (
-                      <div className="text-xs text-gray-400 text-right py-1 space-y-0.5">
+                    {sectionsByPhase.workTime.length > 0 && (
+                      <div className="text-[11px] text-[var(--le-ink-3)] text-right py-1 space-y-0.5">
                         <div>
-                          Activities total: {activityTotalMinutes} min
-                          {phases?.workTime.durationMinutes &&
-                            activityTotalMinutes > phases.workTime.durationMinutes && (
-                              <span className="text-red-500 ml-1">
-                                (over by{" "}
-                                {activityTotalMinutes -
-                                  phases.workTime.durationMinutes}{" "}
-                                min)
+                          Activities total: {sectionsByPhase.workTime.reduce((s, a) => s + (a.durationMinutes || 0), 0)} min
+                          {phases?.workTime.durationMinutes && (() => {
+                            const wt = sectionsByPhase.workTime.reduce((s, a) => s + (a.durationMinutes || 0), 0);
+                            return wt > phases.workTime.durationMinutes ? (
+                              <span className="text-rose-600 ml-1">
+                                (over by {wt - phases.workTime.durationMinutes} min)
                               </span>
-                            )}
+                            ) : null;
+                          })()}
                         </div>
                         {/* TimeWeight distribution */}
                         {(() => {
-                          const weights = pageContent.sections.reduce((acc, s) => {
+                          const weights = sectionsByPhase.workTime.reduce((acc, s) => {
                             if (s.timeWeight) acc[s.timeWeight] = (acc[s.timeWeight] || 0) + 1;
                             return acc;
                           }, {} as Record<string, number>);
@@ -1090,9 +1150,6 @@ export default function LessonEditor({
                         })()}
                       </div>
                     )}
-
-                    {/* Add activity */}
-                    <ActivityBlockAdd onAdd={handleAddActivity} />
                   </div>
                 </PhaseSection>
               </div>
@@ -1147,7 +1204,7 @@ export default function LessonEditor({
                       {/* Drop zone for debrief phase */}
                       <DropZone
                         zoneId="debrief"
-                        onDrop={handleAddActivity}
+                        onDrop={(activity) => handleAddActivity(activity, "debrief")}
                         label="Drop block into Debrief"
                         accentColor="amber"
                       />
@@ -1163,13 +1220,14 @@ export default function LessonEditor({
                               icon={suggestion.icon}
                               reason={suggestion.reason}
                               onAccept={(activity) => {
-                                handleAddActivity(activity);
+                                handleAddActivity(activity, "debrief");
                                 acceptSuggestion(suggestion.id);
                               }}
                               onDismiss={() => dismissSuggestion(suggestion.id)}
                             />
                           ))}
                       </AnimatePresence>
+                      {renderPhaseActivities("debrief")}
                     </div>
                   </PhaseSection>
                 </div>

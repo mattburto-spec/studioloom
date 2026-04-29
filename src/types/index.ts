@@ -408,6 +408,8 @@ export interface ActivitySection {
   tags?: string[];
   /** Dimensions2: ID of the Activity Block this was generated from (if any). Enables efficacy tracking. */
   source_block_id?: string;
+  /** Workshop phase this activity belongs to. Defaults to "workTime" when missing (legacy). */
+  phase?: "opening" | "miniLesson" | "workTime" | "debrief";
 }
 
 export interface Reflection {
