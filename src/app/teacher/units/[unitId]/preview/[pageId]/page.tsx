@@ -112,6 +112,22 @@ export default function TeacherPreviewPage({
     }
   }, [loading, allPages, currentPage, router, unitId, classId]);
 
+  // Allowed response types — derived from sections. MUST be called unconditionally
+  // (before any early returns) to keep hook order stable across renders.
+  const allowedTypes = useMemo<("text" | "upload" | "voice" | "link")[]>(() => {
+    if (!pageContent?.sections) return ["text", "upload", "voice", "link"];
+    const present = new Set<string>();
+    pageContent.sections.forEach((s) => {
+      if (s.responseType) present.add(s.responseType);
+    });
+    const allowed: ("text" | "upload" | "voice" | "link")[] = [];
+    if (present.has("text")) allowed.push("text");
+    if (present.has("upload")) allowed.push("upload");
+    if (present.has("voice")) allowed.push("voice");
+    if (present.has("link")) allowed.push("link");
+    return allowed.length > 0 ? allowed : ["text", "upload", "voice", "link"];
+  }, [pageContent]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--sl-bg, #F5F1EA)" }}>
@@ -140,9 +156,6 @@ export default function TeacherPreviewPage({
     pageContent?.sections && currentPage
       ? collectCriterionChips(pageContent.sections, "IB_MYP")
       : undefined;
-
-  // Allowed response types — derived from sections, fed into ResponseInput
-  const allowedTypes = useMemoAllowed(pageContent);
 
   return (
     <div className="lesson-bold min-h-screen" style={{ background: "var(--sl-bg, #F5F1EA)" }}>
@@ -251,20 +264,3 @@ export default function TeacherPreviewPage({
   );
 }
 
-// Hook helper kept inline — derives ResponseInput's allowed-types prop
-// from whatever response types appear in this lesson's activities.
-function useMemoAllowed(pageContent: PageContent | undefined): ("text" | "upload" | "voice" | "link")[] {
-  return useMemo(() => {
-    if (!pageContent?.sections) return ["text", "upload", "voice", "link"];
-    const present = new Set<string>();
-    pageContent.sections.forEach((s) => {
-      if (s.responseType) present.add(s.responseType);
-    });
-    const allowed: ("text" | "upload" | "voice" | "link")[] = [];
-    if (present.has("text")) allowed.push("text");
-    if (present.has("upload")) allowed.push("upload");
-    if (present.has("voice")) allowed.push("voice");
-    if (present.has("link")) allowed.push("link");
-    return allowed.length > 0 ? allowed : ["text", "upload", "voice", "link"];
-  }, [pageContent]);
-}
