@@ -4,6 +4,30 @@
 
 ---
 
+## 30 Apr 2026 — Access Model v2 Phase 1 CLOSED (Option A): auth path live, RLS pre-positioned, client-switch deferred ✅
+
+**Context:** Two-day session continuing from the Day-1 saveme that shipped Phases 1.1a/1.1b/1.1d/1.2/1.3/1.4a/1.4b/1.5/1.5b on branch. Day 2 applied 8 RLS migrations to prod, then closed Phase 1 with Phase 1.6 cleanup + Phase 1.7 registry hygiene under "Option A" scope (full client-switch deferred to a follow-up rather than absorbed into Phase 1).
+
+**What changed (4 commits across the day, all on `access-model-v2-phase-1`):**
+
+- **Day 2 morning — 8 RLS migrations applied to prod** via Supabase SQL Editor in timestamp order. 4 from Phase 1.5 (3 rewrites of broken policies + 1 additive on `students`); 4 from Phase 1.5b (additive on `class_students`, `student_progress`, `fabrication_jobs` + `fabrication_scan_jobs`, deny-all on `student_sessions`). Verification queries returned expected pg_policies rows for each. `scan-rls-coverage.py` confirmed `student_sessions` + `fabrication_scan_jobs` exited the `rls_enabled_no_policy` drift bucket.
+
+- **Phase 1.6 cleanup (`be2f3c8`):** Dropped the temporary alias pattern (`const auth = { studentId: session.studentId }`) from 3 of the 6 Phase 1.4b routes — `grades`, `me/support-settings`, `me/unit-context` now use `studentId` directly. The other 3 Phase 1.4b routes (`units`, `insights`, `safety/pending`) were never aliased. Also created `docs/security/student-auth-cookie-grace-period.md` documenting dual-auth-path coexistence semantics until Phase 6 cutover (cookie surface during the grace window, stale-token edge case, RLS implications, audit-trail asymmetry).
+
+- **Phase 1.7 registry hygiene (`936fd96`):** WIRING.yaml `auth-system` rewritten to v2 — summary describes polymorphic auth.users + app_metadata.user_type model + dual-mode wrapper grace period; `affects` expanded 4 → 12 systems (every student-* surface that consumes the helper); `key_files` corrected (removed nonexistent `student-session.ts`, added `actor-session.ts`, `provision-student-auth-user.ts`, classcode-login route); `data_fields` adds `students.user_id`. schema-registry.yaml: spec_drift entries on 12 tables touched by Phase 1.5 + 1.5b. dimensions3-followups.md: FU-AV2-PHASE-15B ✅ RESOLVED; new **FU-AV2-PHASE-14-CLIENT-SWITCH (P2)** filed (route migration, supporting-table policies, live RLS harness, cross-class smoke, feature flag). Phase 1 brief §7 split into "Phase 1 close (NOW)" + "Deferred to client-switch follow-up".
+
+- **Saveme registry sync:** scan-api-routes / scan-ai-calls / scan-feature-flags / scan-vendors / scan-rls-coverage all rerun. No new drift introduced by Phase 1 work; pre-existing drifts unchanged (FU-FF flagged tables remain intentionally deny-all; feature-flags drift pre-existing).
+
+**Systems affected:** `auth-system` (v1 → v2). Indirectly: every student-* surface (12 systems in the rewritten `affects` list).
+
+**State of working tree:** clean (post-saveme commit). Tests 2762 passed | 11 skipped (no regression from Day 1 baseline). Typecheck 0 errors. 24+ commits ahead of main, all pushed.
+
+**Decisions logged:** see decisions-log entry "Phase 1 closed under Option A — RLS pre-positioned not load-bearing (30 Apr 2026)". Lessons #62 + #63 added Day 1.
+
+**Next:** merge `access-model-v2-phase-1` → `main` (with `git merge origin/main` first to absorb the school_id NOT NULL hotfix commits). Then Phase 2 (OAuth + email-password for teachers) per `docs/projects/access-model-v2.md`.
+
+---
+
 ## 29 Apr 2026 — Bug-report system overhaul: role-hint auth, rich client_context, Sentry, screenshots, dedupe, email, motion polish ✅
 
 **Context:** Matt noticed a student-submitted bug report was tagged

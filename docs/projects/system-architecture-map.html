@@ -908,12 +908,13 @@ const SYSTEMS = [
   {
     id: "auth-system", name: "Auth System", category: "Platform Core",
     v1: "Dual auth: Supabase Auth for teachers + nanoid(48) token sessions for students. requireTeacherAuth / requireStudentAuth helpers. Cache-Control: private on all auth routes (Vercel). 3-level student login fallback.",
-    v2: "SSO (Google, Apple, LMS), RBAC roles, ServiceContext pattern",
-    v3: "Multi-tenant school accounts, admin hierarchy",
-    v4: null, v5: null,
-    currentVersion: 1, status: "complete",
+    v2: "Polymorphic auth via Supabase Auth + auth.users + app_metadata.user_type claim — teachers, students, platform admins all in auth.users. Phase 1.2 student-classcode-login mints sessions via generateLink/verifyOtp. Phase 1.3 polymorphic helpers (getActorSession / getStudentSession / getTeacherSession). Phase 1.4a dual-mode wrapper falls back to legacy student_sessions cookie. Phase 1.5 + 1.5b RLS policies pre-positioned via canonical auth.uid() → students.user_id chain. Fabricator auth remains separate (Argon2id + opaque tokens).",
+    v3: "Phase 1.4 client-switch (FU-AV2-PHASE-14-CLIENT-SWITCH P2): routes use RLS-respecting SSR client; supporting-table policies authored; live RLS harness covers cross-class isolation",
+    v4: "Phase 6 cutover: legacy student_sessions table dropped, dual-mode fallback removed, classcode-login becomes the only student-login path",
+    v5: "Phase 2 OAuth (Google/Microsoft) + email-password for teachers; LMS SSO; QR-code student login; multi-tenant school admin hierarchy",
+    currentVersion: 2, status: "complete",
     deps: [],
-    osSeam: "ready", osNotes: "Auth + ServiceContext is THE first OS service to extract."
+    osSeam: "ready", osNotes: "Auth + ServiceContext is THE first OS service to extract. Phase 1 unified the user model — Phase 2 onwards extends it without changing the seam shape."
   },
   {
     id: "journey-engine", name: "Journey Engine", category: "Platform Core",

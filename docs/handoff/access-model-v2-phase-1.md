@@ -1,91 +1,71 @@
 # Handoff — access-model-v2-phase-1
 
-**Last session ended:** 2026-04-29T14:55Z (long evening session — Phase 1.3, 1.4a/b, 1.5, 1.5b, prod-preview verification, debugging the URL-staleness false-alarm)
+**Last session ended:** 2026-04-30T07:00Z (Day-2 close — applied 8 RLS migrations to prod, shipped Phase 1.6 cleanup + Phase 1.7 registry hygiene under Option A scope, ran saveme)
 **Worktree:** `/Users/matt/CWORK/questerra-access-v2`
-**HEAD:** `80d68f6` "chore(access-v2): revert TEMP Phase 1.4 diagnostic logging — bug was a stale URL"
-**Branch:** `access-model-v2-phase-1` — 21 commits ahead of `main`, all pushed to origin
+**HEAD:** `936fd96` "chore(access-v2): Phase 1.7 registry hygiene + Checkpoint A2 Option-A amendment" (saveme commit follows on top of this — see git log)
+**Branch:** `access-model-v2-phase-1` — 24+ commits ahead of `main`, all pushed to origin
 
 ## What just happened (this session)
 
-**Massive session — 5 sub-phases shipped on top of the previous saveme:**
+Day 2 of the long Phase 1 build. Continued from yesterday's saveme with prod migration application + Phase 1 close.
 
-- **Phase 1.3** — Polymorphic actor session helpers at `src/lib/access-v2/actor-session.ts`. `getStudentSession`, `getActorSession`, `getTeacherSession`, `requireStudentSession`, `requireActorSession`. Dispatches on `app_metadata.user_type`. 18 tests.
-- **Phase 1.4a** — **DUAL-MODE wrapper** — rewrote legacy `requireStudentAuth` in `src/lib/auth/student.ts` to try `getStudentSession` FIRST, fall back to legacy `student_sessions` cookie path. **Net result: all 63 student routes auto-upgraded with zero route file changes.** 9 dual-mode tests.
-- **Phase 1.4b** — 6 GET routes explicitly migrated to `requireStudentSession` (grades, units, insights, safety/pending, me/support-settings, me/unit-context). Cosmetic over 1.4a; demonstrates pattern; unlocks `session.userId` + `session.schoolId` access. 18 remaining GET routes filed as FU-AV2-PHASE-14B-2 (P3).
-- **Phase 1.5** — 4 RLS migrations on branch. **CRITICAL FINDING:** pre-flight audit caught that 7 existing student-side policies (on competency_assessments, quest_journeys+milestones+evidence, design_conversations+turns) used `student_id = auth.uid()` which was always wrong post-Phase-1 (students.id ≠ auth.users.id). Worked accidentally only because legacy custom-token student auth bypassed RLS via admin client. Phase 1.5 rewrites them with the canonical `auth.uid() → students.user_id → students.id` chain. Plus 1 additive (students self-read).
-- **Phase 1.5b** — 4 additive RLS migrations on branch. class_students parallel auth.uid path, student_progress self-read, fabrication_jobs + fabrication_scan_jobs self-read, student_sessions explicit deny-all (closes FU-FF). Drift dropped from 7 → 5 entries in rls-coverage.
+- **8 RLS migrations applied to prod** via Supabase SQL Editor in timestamp order. Phase 1.5 (3 rewrites of broken policies + 1 additive `students_self_read`) + Phase 1.5b (3 additive student-side policies + 1 explicit deny-all on `student_sessions`). Each verified with a pg_policies query showing the rewritten USING clause shape. `scan-rls-coverage.py` confirmed `student_sessions` + `fabrication_scan_jobs` exited the `rls_enabled_no_policy` drift bucket.
 
-**Phase 1.4 verified end-to-end in prod-preview (3 tests, all 200):**
-- Test 1: login mints sb-* cookies ✅
-- Test 2: explicit-migration route via SSR session ✅
-- Test 3: non-migrated route via dual-mode wrapper ✅
+- **Picked Option A for Phase 1 close.** Mid-session it became clear that activating the new RLS policies in real route traffic requires (1) authoring student-side policies on supporting tables (`classes`, `units`, `class_units`, etc.) that don't exist yet, and (2) a route-by-route switch from `createAdminClient()` to RLS-respecting SSR client with smoke per surface. Rather than expand Phase 1, deferred client-switch to **FU-AV2-PHASE-14-CLIENT-SWITCH (P2)**. Phase 1 ships with policies pre-positioned + dual-mode wrapper covering all 63 routes; existing app-level filtering remains the active line of defense.
 
-**Lesson #63 added** — Vercel preview URLs are deployment-specific. Each push creates a new URL hash. Use the auto-aliased branch URL pattern `studioloom-git-<branch>-...vercel.app` for "latest on branch" testing. Took ~30 min of diagnostic-logging and false debugging before realising we were testing an old deployment.
+- **Phase 1.6 cleanup (`be2f3c8`).** Dropped the temporary alias pattern (`const auth = { studentId: session.studentId }`) from 3 of the 6 Phase 1.4b routes — `grades`, `me/support-settings`, `me/unit-context` now use `studentId` directly. Wrote `docs/security/student-auth-cookie-grace-period.md` documenting dual-auth-path coexistence semantics until Phase 6 cutover.
 
-**Lesson #62 also added earlier in the session** — pg_catalog vs information_schema for cross-schema FK verification.
+- **Phase 1.7 registry hygiene (`936fd96`).** WIRING.yaml `auth-system` rewritten v1→v2 (12 systems in `affects`, `key_files` corrected, `data_fields` includes `students.user_id`, `change_impacts` flags dual-mode-removal hazard). schema-registry.yaml: spec_drift on 12 tables touched by Phase 1.5 + 1.5b. Filed FU-AV2-PHASE-14-CLIENT-SWITCH (P2). Marked FU-AV2-PHASE-15B ✅ RESOLVED. Phase 1 brief §7 split into "Phase 1 close (NOW)" with checked items + "Deferred to client-switch follow-up". wiring-dashboard.html + system-architecture-map.html both synced to v2.
+
+- **Saveme.** All 5 registry scanners rerun (no new drift introduced; pre-existing FU-FF tables remain intentionally deny-all). Changelog + decisions-log + doc-manifest entries appended for Phase 1 work. ALL-PROJECTS.md Access Model v2 entry rewritten to reflect Phase 1 close.
 
 ## State of working tree
 
-- `git status --short`: clean (after this saveme commit)
-- Tests: **2762 passed | 11 skipped** (was 2642 baseline pre-Phase-1; +120 across the day)
-- Typecheck: 0 errors
-- Pending push: 0 (all 21 commits on `access-model-v2-phase-1` pushed)
-- Active-sessions: row claimed at `/Users/matt/CWORK/.active-sessions.txt`
-- Vercel: branch alias URL `https://studioloom-git-access-model-v2-phase-1-mattburto-specs-projects.vercel.app` always points at latest deploy. Bypass token for automation: see Vercel project settings.
+- `git status --short`: clean (after saveme commit lands)
+- Tests: **2762 passed | 11 skipped** (no regression from Day-1 baseline)
+- Typecheck: 0 errors (`npx tsc --noEmit --project tsconfig.check.json`)
+- Pending push: 0 (everything pushed to origin)
+- Active-sessions: row at `/Users/matt/CWORK/.active-sessions.txt` should be removed when this session closes
+- Vercel: branch alias URL `https://studioloom-git-access-model-v2-phase-1-mattburto-specs-projects.vercel.app` always points at latest deploy on this branch
+- All 8 RLS migrations applied to prod via Supabase SQL Editor (verified each with pg_policies query)
 
 ## Next steps — pick up here
 
-Recommended ORDER (highest priority first):
+Recommended ORDER:
 
-- [ ] **Apply 8 RLS migrations to prod** via Supabase SQL Editor. Apply in timestamp order:
-  - **Phase 1.5 (4 migrations — 3 fix BROKEN policies):**
-    - [ ] `20260429130730_phase_1_5_students_self_read.sql` (additive)
-    - [ ] `20260429130731_phase_1_5_competency_assessments_student_rewrite.sql` (rewrites 2 broken)
-    - [ ] `20260429130732_phase_1_5_quest_journeys_student_rewrite.sql` (rewrites 4 broken across quest_journeys + quest_milestones + quest_evidence)
-    - [ ] `20260429130733_phase_1_5_design_conversations_student_rewrite.sql` (rewrites 2 broken across design_conversations + design_conversation_turns)
-  - **Phase 1.5b (4 additive migrations):**
-    - [ ] `20260429133359_phase_1_5b_class_students_self_read_authuid.sql`
-    - [ ] `20260429133400_phase_1_5b_student_progress_self_read.sql`
-    - [ ] `20260429133401_phase_1_5b_fabrication_jobs_and_scan_jobs_student_read.sql`
-    - [ ] `20260429133402_phase_1_5b_student_sessions_deny_all.sql` (closes FU-FF)
-  - After all 8 land, run `python3 scripts/registry/scan-rls-coverage.py` to verify `student_sessions` + `fabrication_scan_jobs` exit the drift bucket.
-
-- [ ] **Phase 1.4c** — migrate Batch B (mutations, ~21 routes) + Batch C (teacher routes touching students, ~17 routes). Mostly mechanical; same pattern as 1.4b. Lower priority — already covered by Phase 1.4a's dual-mode wrapper functionally. Cosmetic + grants `session.userId`/`session.schoolId` access.
-
-- [ ] **Phase 1.4 client-switch** — change routes from `createAdminClient()` to an RLS-respecting SSR client. **This is what actually turns the new RLS policies "on" in real route traffic.** Higher-stakes; route-by-route review with smoke testing.
-
-- [ ] **Phase 1.6** — negative control test + cleanup. Delete the dual-mode legacy fallback in `requireStudentAuth` (after all routes migrated). Drop the alias pattern from Phase 1.4b routes.
-
-- [ ] **Phase 1.7** — Registry hygiene per brief §4.7. WIRING `auth-system` rewrite, schema-registry spec_drift, feature-flags additions, vendors notes, taxonomy.
-
-- [ ] **Checkpoint A2** — full gate criteria pass. Merge `access-model-v2-phase-1` → `main` after `git merge origin/main` to absorb the school_id hotfix commits from earlier today.
+- [ ] **Merge `access-model-v2-phase-1` → `main`.** Branch can't sit forever; the `school_id` NOT NULL hotfix commits on main need to be absorbed. Procedure:
+  1. `git fetch origin`
+  2. `git merge origin/main` (resolve any conflicts — likely none, but the school_id work touched some of the same files Phase 1 does)
+  3. Re-run tests + typecheck after merge: `npm test && npx tsc --noEmit --project tsconfig.check.json`
+  4. Push the merge commit
+  5. Open PR `access-model-v2-phase-1 → main` (or fast-forward merge if no diverge), request CI green
+  6. Land via PR
+- [ ] **Phase 2 — OAuth Google/Microsoft + email/password for teachers** (per `docs/projects/access-model-v2.md`, ~3-4 days). The polymorphic `getActorSession()` from Phase 1.3 is the seam Phase 2 plugs into. Trigger phrase to start: "next phase access model v2".
+- [ ] **OR — Phase 1.4 client-switch (FU-AV2-PHASE-14-CLIENT-SWITCH P2)** if you'd rather make the policies load-bearing before adding more auth surfaces. Same difficulty, different unblock priority.
+- [ ] **OR — switch projects.** Preflight Phase 8-3 is queued; dashboard-v2 has Phases 9-16. Both have build briefs ready.
 
 ## Open questions / blockers
 
 - _None blocking._
-- **8 RLS migrations awaiting prod apply** — that's the immediate fresh-eyes task tomorrow. Apply via Supabase SQL Editor in timestamp order. Each migration's WHY/IMPACT/ROLLBACK comment block is comprehensive — read before applying.
-- **Phase 1.4a + 1.4b + 1.2 verified in prod-preview** — no further architectural risk in the auth path. Phase 1.4c is mechanical, Phase 1.5 prod apply is the next high-attention item.
-- **18 GET routes still unmigrated** (FU-AV2-PHASE-14B-2 P3) — they ALL work via dual-mode wrapper. Migration is purely cosmetic.
+- **dashboard.html (`docs/projects/dashboard.html`) doesn't yet have a top-level Access Model v2 row** — only the legacy "Auth / ServiceContext Seam" stub. Adding it is a small follow-up — not urgent, the canonical tracker is ALL-PROJECTS.md.
+- **API-registry + AI-call-sites scanners ran clean** — no Phase 1 work added new routes or AI calls (everything reused existing helpers).
+- **5 RLS-coverage drift entries remain** — `admin_audit_log`, `ai_model_config`, `ai_model_config_history`, `fabricator_sessions`, `teacher_access_requests`. All previously documented as intentional deny-all under FU-FF. Two new ones (`student_sessions` + `fabrication_scan_jobs`) exited the bucket via Phase 1.5b.
 
 ## Key references
 
-- Phase 1 brief: `docs/projects/access-model-v2-phase-1-brief.md` (with §3.7 cross-check + §3.8 verification log)
+- Phase 1 brief: `docs/projects/access-model-v2-phase-1-brief.md` (§7 amended for Option A)
 - Master spec: `docs/projects/access-model-v2.md`
-- Build methodology: `docs/build-methodology.md`
-- Lessons learned: `docs/lessons-learned.md` — #62 + #63 added today
-- Decisions log: `docs/decisions-log.md` — multiple Phase 1 entries from today
-- Helpers built: `src/lib/access-v2/{provision-student-auth-user,actor-session}.ts`
-- Routes built: `src/app/api/auth/student-classcode-login/route.ts`
-- Migrations on branch (8 RLS pending prod apply):
-  - `supabase/migrations/2026042913073{0,1,2,3}_phase_1_5_*.sql`
-  - `supabase/migrations/2026042913335{9}+2026042913340{0,1,2}_phase_1_5b_*.sql`
-- Active-sessions: `/Users/matt/CWORK/.active-sessions.txt`
-- Branch-alias preview URL: `https://studioloom-git-access-model-v2-phase-1-mattburto-specs-projects.vercel.app`
+- New security doc: `docs/security/student-auth-cookie-grace-period.md`
+- Registry updates: `docs/projects/WIRING.yaml` (auth-system v2), `docs/schema-registry.yaml` (12 tables with Phase 1 spec_drift)
+- Follow-up tracker: `docs/projects/dimensions3-followups.md` — see FU-AV2-PHASE-14-CLIENT-SWITCH (P2, new), FU-AV2-PHASE-15B (✅ RESOLVED)
+- Lessons: `docs/lessons-learned.md` — #62 (pg_catalog vs information_schema), #63 (Vercel URLs deployment-specific)
+- Decisions: `docs/decisions-log.md` — Phase 1 Option-A entry, dual-mode wrapper rationale, synthetic email format
+- Branch alias preview URL: `https://studioloom-git-access-model-v2-phase-1-mattburto-specs-projects.vercel.app`
 
 ## Don't forget
 
-- The 4 client-side UI INSERT sites (FU-AV2-UI-STUDENT-INSERT-REFACTOR P2) leave students with NULL user_id until first login. Phase 1.2's lazy-provision fallback closes the security gap. Phase 1.4 (when it gets to UI batch) refactors to a server-side route.
+- After merge to main: remove `/Users/matt/CWORK/.active-sessions.txt` row for this worktree.
+- After merge to main: the worktree at `/Users/matt/CWORK/questerra-access-v2` can stay (it'll automatically track main going forward) — or delete it if you prefer to work in the main `questerra/` worktree for Phase 2.
+- Phase 2 unlocks pilot readiness — at that point Matt's outreach pattern resurfaces. Bottleneck is never code.
+- The 4 client-side UI INSERT sites (FU-AV2-UI-STUDENT-INSERT-REFACTOR P2) leave students with NULL user_id until first login. Phase 1.2's lazy-provision fallback closes the security gap. Phase 1.4 client-switch (when it picks up) refactors to a server-side route.
 - Multi-Matt prod data (3 teacher rows at NIS) preserved — not merged. Phase 6 cutover decision deferred.
-- ENCRYPTION_KEY rotation script ready but never run live (no encrypted rows in prod yet).
-- The 6 Phase 1.4b migrated routes (grades, units, insights, safety/pending, me/support-settings, me/unit-context) use an alias pattern (`const auth = { studentId: session.studentId }`) for tight diffs. Phase 1.6 cleanup inlines `session.studentId` directly.
-- After Phase 1.4 client-switch ships, the routes will need RLS-respecting SSR client construction in addition to the helper change. Phase 1.5 + 1.5b's policies are pre-positioned for that work.

@@ -320,21 +320,39 @@ docs:
 
   - path: docs/projects/access-model-v2.md
     title: "Access Model v2 — Auth Unification, Multi-Tenancy & Privacy Foundation"
-    purpose: "Project plan (19-25 days, 6 phases — Path B chosen 28 Apr) for unifying StudioLoom's auth model (every student → auth.users, classcode+name as custom Supabase flow), introducing schools as a first-class entity with flat membership + no-designated-admin governance (two-tier change rules, 7-day revert, 48h confirm window), audit log, per-student AI budgets, FERPA/GDPR/PIPL data export+delete, OAuth (Google + Microsoft + email/PW; Apple deferred), and 8 forward-compat schema seams in §8.6 (school_resources polymorphic for PYP/Service library + alumni + partners; guardians; SIS external IDs; consents; school lifecycle; monetisation tier seam; school_responsibilities programme coordinators; student_mentors cross-program mentorship). Collapses FU-O/P/R/Q/W into one project. **Phase 0 SHIPPED ON BRANCH 29 Apr 2026 — 12 migrations + 5 audit-derived security artifacts on access-model-v2 branch awaiting prod apply + Checkpoint A1 sign-off + merge.**"
+    purpose: "Project plan (19-25 days, 6 phases — Path B chosen 28 Apr) for unifying StudioLoom's auth model (every student → auth.users, classcode+name as custom Supabase flow), introducing schools as a first-class entity with flat membership + no-designated-admin governance (two-tier change rules, 7-day revert, 48h confirm window), audit log, per-student AI budgets, FERPA/GDPR/PIPL data export+delete, OAuth (Google + Microsoft + email/PW; Apple deferred), and 8 forward-compat schema seams in §8.6 (school_resources polymorphic for PYP/Service library + alumni + partners; guardians; SIS external IDs; consents; school lifecycle; monetisation tier seam; school_responsibilities programme coordinators; student_mentors cross-program mentorship). Collapses FU-O/P/R/Q/W into one project. **Phase 0 MERGED to main 29 Apr 2026 (Checkpoint A1 ✅). Phase 1 CLOSED on branch 30 Apr 2026 under Option A — auth path live + 8 RLS migrations applied to prod + dual-mode wrapper covers all 63 routes; client-switch deferred to FU-AV2-PHASE-14-CLIENT-SWITCH (P2). Branch awaiting merge to main.**"
     category: projects
-    last_verified: "2026-04-29"
-    referenced_from: ["ALL-PROJECTS.md Access Model v2 project", "ALL-PROJECTS.md Governance GOV-2 (subsumed components)", "ALL-PROJECTS.md Mentor Manager (gated dependency)", "access-model-v2-phase-0-brief.md"]
+    last_verified: "2026-04-30"
+    referenced_from: ["ALL-PROJECTS.md Access Model v2 project", "ALL-PROJECTS.md Governance GOV-2 (subsumed components)", "ALL-PROJECTS.md Mentor Manager (gated dependency)", "access-model-v2-phase-0-brief.md", "access-model-v2-phase-1-brief.md"]
     max_age_days: 90
-    last_scanned: "2026-04-29"
+    last_scanned: "2026-04-30"
 
   - path: docs/projects/access-model-v2-phase-0-brief.md
     title: "Access Model v2 — Phase 0 Brief"
-    purpose: "Build phase brief for Phase 0 (Foundation Schema + Audit Pre-Reqs). 9 sub-tasks, ~3-4 days estimated. Documents pre-flight ritual, stop triggers, lessons to re-read, Checkpoint A1 PASS criteria, sub-task instruction blocks. As of 29 Apr 2026 ALL 9 SUB-TASKS DONE on branch — 12 migrations + 5 security artifacts + 209 new tests. Tracker rows in the table mark each sub-task with mig timestamp + test count + scope notes."
+    purpose: "Build phase brief for Phase 0 (Foundation Schema + Audit Pre-Reqs). 9 sub-tasks, ~3-4 days estimated. Documents pre-flight ritual, stop triggers, lessons to re-read, Checkpoint A1 PASS criteria, sub-task instruction blocks. As of 29 Apr 2026 ALL 9 SUB-TASKS DONE + merged to main. 12 migrations + 5 security artifacts + 209 new tests. Tracker rows in the table mark each sub-task with mig timestamp + test count + scope notes."
     category: projects
     last_verified: "2026-04-29"
     referenced_from: ["access-model-v2.md", "ALL-PROJECTS.md Access Model v2"]
     max_age_days: 90
     last_scanned: "2026-04-29"
+
+  - path: docs/projects/access-model-v2-phase-1-brief.md
+    title: "Access Model v2 — Phase 1 Brief (Auth Unification)"
+    purpose: "Build phase brief for Phase 1 (Auth Unification). 7 sub-phases (1.1a/b/d, 1.2, 1.3, 1.4a/b, 1.5, 1.5b, 1.6, 1.7). Documents pre-flight audit (which surfaced 3 broken pre-existing RLS policies + 2 missing forward-compat seams), stop triggers, lessons to re-read, Checkpoint A2 PASS criteria split into 'Phase 1 close (NOW)' + 'Deferred to FU-AV2-PHASE-14-CLIENT-SWITCH'. As of 30 Apr 2026: ALL sub-phases SHIPPED on branch + 8 RLS migrations applied to prod + Phase 1.6/1.7 cleanup + registry hygiene complete. Phase 1 closed under Option A (full client-switch deferred). Branch awaiting merge to main."
+    category: projects
+    last_verified: "2026-04-30"
+    referenced_from: ["access-model-v2.md", "ALL-PROJECTS.md Access Model v2"]
+    max_age_days: 90
+    last_scanned: "2026-04-30"
+
+  - path: docs/security/student-auth-cookie-grace-period.md
+    title: "Student Auth Cookie Grace Period (Phase 1)"
+    purpose: "Operational doc covering the dual-auth-path coexistence semantics during the Access Model v2 grace window. Documents which cookies a student request may carry (sb-* only / questerra_student_session only / both), how the dual-mode wrapper resolves each, the stale-token edge case ('downgrade' to legacy auth), RLS implications (policies pre-positioned but not load-bearing yet — see FU-AV2-PHASE-14-CLIENT-SWITCH), and the audit-trail asymmetry between the new login route (writes audit_events) and the legacy one (uninstrumented during grace period). Grace period ends at Phase 6 cutover."
+    category: security
+    last_verified: "2026-04-30"
+    referenced_from: ["access-model-v2-phase-1-brief.md §4.6", "WIRING.yaml auth-system docs"]
+    max_age_days: 180
+    last_scanned: "2026-04-30"
 
   - path: docs/security/multi-matt-audit-query.md
     title: "Multi-Matt Prod Data Audit Query"
