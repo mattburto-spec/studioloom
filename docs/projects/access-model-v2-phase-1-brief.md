@@ -139,12 +139,46 @@ Once `auth.uid()` resolves to a student's auth.users id, these policies simplify
 
 Limit Phase 1 RLS work to these 7. Other student-touching tables get audited at Checkpoint A2; if simplification adds risk without payoff, defer to Phase 6.
 
-### 3.6 Risk surface (top 4)
+### 3.6 Risk surface (top 5)
 
 1. **Service-role → RLS-respecting client switch.** All 63 routes use admin client. If Phase 1 leaves them on admin client, RLS doesn't engage — students still cross-read on a missed app-level filter. **Mitigation:** §4.4 sub-phase explicitly covers client migration; Checkpoint A2 includes a synthetic cross-class test.
 2. **Cookie shape transition.** Old `questerra_student_session` (custom token) → new `sb-<hash>-auth-token` (Supabase). During migration, both may exist. **Mitigation:** §4.3 covers the dual-cookie grace period; clients keep working during the window.
 3. **`resolveStudentClassId` unit-only fallback ambiguity.** A student in two classes that share a unit could resolve to the wrong class context. Already known. **Mitigation:** Phase 1 deprecates unit-only fallback in the new helper; routes must pass classId explicitly. Old helper kept callable for legacy flows during transition.
 4. **`quest_journeys` JWT claim populated by Supabase auth, not custom tokens.** When the policy reads `current_setting('request.jwt.claims', true)::json->>'sub'`, it expects the Supabase session's `sub` claim. **Mitigation:** Supabase auth handles this automatically once students log in via the new flow. Verify with the live RLS harness at Checkpoint A2.
+5. **`student_sessions` is RLS-enabled-but-no-policy (FU-FF P3 — "likely intentional"). Phase 1 promotes this to load-bearing.** Today the table is queried only via service-role admin client (RLS bypassed). Phase 1's new helper introduces SSR/RLS client paths; if anything queries `student_sessions` via that client, it returns nothing (deny-by-default) AND drops the legacy fallback silently. FU-FF was P3 because nothing depended on the gap; Phase 1 makes it Phase-1-blocking. **Mitigation:** Phase 1 keeps `student_sessions` reads on the admin client only. New `getStudentSession()` reads `auth.users` + `students` (both RLS-clean) instead. Add a deny-all-with-service-role-bypass policy in §4.5 + close FU-FF in the same migration. RLS harness writes one explicit cross-student `student_sessions` test.
+
+---
+
+### 3.7 Registry cross-check findings (29 April 2026)
+
+Cross-checked the brief against the 7 saveme-relevant registries. Verified findings (numbers confirmed by grep, not just agent reports):
+
+| # | Source | Finding | Severity | Action |
+|---|---|---|---|---|
+| 1 | `WIRING.yaml:1762–1794` | `auth-system.affects = [student-signin, teacher-dashboard, teach-mode, preflight-pipeline]` — only 4 entries; missing `student-experience`, `class-management`, `discovery-engine`, `gallery`, `fabrication-pipeline` (all read student data via auth path) | High | §4.6 cleanup adds 5 systems + updates `change_impacts` |
+| 2 | `WIRING.yaml:1786` | `key_files: [src/lib/auth/student-session.ts]` — **stale; actual file is `src/lib/auth/student.ts`**. Lesson #54 in action: registry claims a file that doesn't exist | Medium | §4.6 cleanup corrects the path; flag for next saveme |
+| 3 | `api-registry.yaml` | Code audit found 63 student routes; cross-check agent claimed 86/90 (incorrect — likely registry-side double-count or auth-tag mismatch). My `find` confirms 63. | Low | Run `python3 scripts/registry/scan-api-routes.py --apply` at A2; commit any drift |
+| 4 | `api-registry.yaml` (teacher routes) | **17 teacher routes touch student tables** (verified: `grep -rln 'from\(.students.\)' src/app/api/teacher --include='route.ts' \| wc -l` = 17). Brief §4.4 Batch C estimated "~21". Adjust to 17. | Low | §4.4 Batch C exact count = 17 |
+| 5 | `scanner-reports/rls-coverage.json` | 3 student-related tables flagged `rls_enabled_no_policy`: `student_sessions`, `fabrication_scan_jobs`, `fabricator_sessions`. Pre-existing follow-ups: **FU-FF P3** (student_sessions, ai_model_config, ai_model_config_history — "likely intentional") and **FU-HH P2** (no live RLS harness). | High | Phase 1 §4.5 closes the `fabrication_scan_jobs` gap (already in plan). Adds explicit deny-all policy on `student_sessions` + closes FU-FF. Adds spec_drift entry on `fabricator_sessions` documenting intentional deny-all. Phase 1 also seeds the live RLS harness with first real tests, partially closing FU-HH |
+| 6 | `feature-flags.yaml` | No existing `auth.*` flags. Master plan §2 anticipates `auth.oauth_google_enabled`, `auth.email_password_enabled` (Phase 2). For Phase 1: need `auth.student_supabase_session_enabled` (gates new helper for emergency rollback) + `auth.legacy_cookie_grace_period_days` (grace window length). | Medium | §4.6 adds both flags; Phase 6 flips them to remove legacy code |
+| 7 | `vendors.yaml` (Supabase entry) | `data_sent.pii_identifiers` lists `auth.users.email` but doesn't note that post-Phase-1, student `auth.users.email` rows are SYNTHETIC (`student-<uuid>@students.studioloom.local`) — opaque, not real contact. Treating it as PII is correct legally but causes confusion in DPA discussions. | Low | §4.6 adds clarifying `notes` to the pii_identifiers category |
+| 8 | `data-classification-taxonomy.md` | No rule covering synthetic/opaque identifiers used to satisfy a technical platform constraint (e.g., "Supabase requires email; student never logs in by email"). The §4.1 synthetic-email decision needs a taxonomy entry so the next reviewer doesn't flag it as PII drift. | Low | §4.6 adds "Synthetic/Opaque Identifiers on Minor Accounts" subsection to the taxonomy |
+| 9 | `schema-registry.yaml` | `students.user_id` column added in Phase 0 mig `20260428142618_user_profiles.sql`; not yet documented in the registry's `students` entry. Phase 1 backfill makes it canonical. | Low | §4.6 adds spec_drift entry with backfill plan + reader/writer list |
+| 10 | `WIRING.yaml` `auth-system.summary` | Currently describes "triple auth" (teacher Supabase / student custom token / fabricator opaque). Post-Phase-1 reality: "polymorphic auth.users for teacher+student / fabricator opaque". | Medium | §4.6 rewrites the summary as part of A2 sign-off |
+
+**Cross-references to existing follow-ups (per `docs/projects/dimensions3-followups.md` + master CLAUDE.md):**
+
+- **FU-FF P3** — `student_sessions` no-policy: closed by Phase 1 §4.5 (explicit deny-all + spec_drift)
+- **FU-HH P2** — no live Supabase RLS test harness: partially closed by Phase 1 (writes ~5 first real tests on the Phase 0 scaffold)
+- **FU-O/P/R cluster** — Access Model v2 was filed as the umbrella; Phase 1 closes the "auth model split" item (FU-R)
+- **FU-Q architectural debt — dual student identity**: closed by Phase 1 (every student has both `students.id` AND `auth.users.id`; legacy custom-token system stays callable as fallback only, removed in Phase 6)
+
+**Not addressed by Phase 1 (deferred):**
+
+- FU-V — no audit log on every mutation: Phase 5 (Phase 1 covers login routes only)
+- FU-S/T architectural debt — Phase 5/6
+- Resend vendor entry: Phase 2 (when email/password adds it)
+- API versioning rename to `/api/v1/*`: Phase 6
 
 ---
 
@@ -283,7 +317,9 @@ Per-route:
 2. Add `audit_events` insert if mutation is significant (Phase 5 will add for everything; Phase 1 covers login + a handful of high-stakes mutations identified at audit time).
 3. Switch RLS client.
 
-**Batch C — student-touching teacher routes + middleware (~21 routes, high risk):**
+**Batch C — student-touching teacher routes + middleware (17 routes, high risk):**
+
+**Verified count:** `grep -rln 'from\(.students.\)' src/app/api/teacher --include='route.ts' | wc -l` = 17. (Cross-checked 29 Apr 2026.)
 
 Teacher routes that read student data via `verifyTeacherCanManageStudent`. These should switch to `requireActorSession()` and dispatch on actor type. Middleware (`src/middleware.ts`) gets the polymorphic helper too.
 
@@ -323,11 +359,64 @@ One migration per table (clean diff per audit):
    - RLS rejects the read (because the response has no auth context)
    - Or app-level filter rejects (because we removed the student id check)
    - Document the behaviour, then **revert the mutation**.
-2. **Update WIRING.yaml** — flip `auth-system` entry from "triple-auth (teacher Supabase, student custom, fabricator opaque)" to "polymorphic (teacher + student in auth.users; fabricator opaque)". Update `change_impacts`.
-3. **Update api-registry.yaml** — rerun the scanner, check the diff, commit.
-4. **Update schema-registry.yaml** — add `students.user_id` writers/readers.
-5. **Document grace period.** New file `docs/security/student-auth-cookie-grace-period.md`. Lists: legacy cookie name, when it stops being read, removal commit (Phase 6).
-6. **Add Lesson** if Phase 1 surfaced a hard-won finding worth logging.
+2. **Document grace period.** New file `docs/security/student-auth-cookie-grace-period.md`. Lists: legacy cookie name, when it stops being read, removal commit (Phase 6).
+3. **Add Lesson** if Phase 1 surfaced a hard-won finding worth logging.
+
+(Registry sync — WIRING/api/schema/feature-flags/vendors/taxonomy — moved to dedicated §4.7 below since cross-check found multiple gaps to close in one pass.)
+
+### 4.7 Registry hygiene — close drift surfaced by 29 Apr cross-check
+
+**Goal:** Phase 1 ships without leaving stale registries behind. Cross-check (§3.7) found 10 gaps across 6 registries; this sub-phase closes them in one auditable pass before Checkpoint A2.
+
+**Procedure:**
+
+1. **`docs/projects/WIRING.yaml` — `auth-system` entry rewrite.**
+   - Update `summary` from "triple auth" → "polymorphic auth.users for teacher+student / fabricator opaque (Argon2id)". Note Phase 1 ship date.
+   - Expand `affects: [...]` to include `student-experience, class-management, discovery-engine, gallery, fabrication-pipeline` (cross-check finding #1).
+   - Fix `key_files` — replace stale `src/lib/auth/student-session.ts` with actual `src/lib/auth/student.ts`; add `src/lib/auth/actor.ts` (new in §4.3) (finding #2).
+   - Update `data_fields` to include `students.user_id` (FK → auth.users) and the new `auth.users.app_metadata` claim shape (`user_type`, `school_id`).
+   - Rewrite `change_impacts` to mention the polymorphic dispatch + grace-period cookie + RLS simplification.
+
+2. **`docs/projects/wiring-dashboard.html` — sync `SYSTEMS` array.** Per saveme step 6, mirror the WIRING.yaml change.
+
+3. **`docs/api-registry.yaml` — rerun scanner.** `python3 scripts/registry/scan-api-routes.py --apply`. Review `git diff`. Expected drift: any route now flagged with `auth: actor` (vs the old `auth: student` for student routes, `auth: teacher` for teacher routes). Commit if non-empty.
+
+4. **`docs/schema-registry.yaml` — student-touching tables.**
+   - Add spec_drift entry on `students` documenting `user_id` column added in Phase 0, backfilled in Phase 1.4.1, reader/writer list updated.
+   - Add spec_drift on `student_sessions` documenting Phase 1 behaviour: explicit deny-all RLS policy, admin-client-only access, deprecation in Phase 6 (closes **FU-FF**).
+   - Add spec_drift on `fabricator_sessions` confirming intentional deny-all (no longer flagged as drift).
+   - Update RLS section for the 7 §3.5 tables now using `auth.uid()`.
+
+5. **`docs/feature-flags.yaml` — add 2 flags.**
+   - `auth.student_supabase_session_enabled` (boolean, default `false` until §4.4 Batch C ships and smoke passes; flipped to `true` ahead of A2 sign-off; removed in Phase 6 once legacy fallback dies).
+   - `auth.legacy_cookie_grace_period_days` (number, default `30`).
+   - Rerun `python3 scripts/registry/scan-feature-flags.py`; review `docs/scanner-reports/feature-flags.json` drift.
+
+6. **`docs/vendors.yaml` — clarify Supabase entry.** Add `notes` on the `pii_identifiers` `data_sent` category: "Post-Phase-1 (29 Apr 2026), student `auth.users.email` rows are SYNTHETIC (`student-<uuid>@students.studioloom.local`); they satisfy Supabase's NOT NULL constraint and are not real contact addresses. Treated as PII for retention/audit but not for outbound communication." Rerun `scan-vendors.py`.
+
+7. **`docs/data-classification-taxonomy.md` — add Synthetic/Opaque Identifiers rule.** New subsection covering: when permissible (technical platform constraint, not contactable), how to mark (`pii: true, contactable: false, ai_exportable: hash_only`), worked example (synthetic student email format). Reference Phase 1 §4.1.
+
+8. **`docs/scanner-reports/rls-coverage.json` — rerun + verify.** `python3 scripts/registry/scan-rls-coverage.py`. Expected: `student_sessions` and `fabricator_sessions` move out of `rls_enabled_no_policy` (now have explicit policies); `fabrication_scan_jobs` also resolved. **FU-FF closed.** Commit drift report.
+
+9. **`docs/projects/dimensions3-followups.md` — close follow-ups.**
+   - Mark **FU-FF** ✅ RESOLVED 29 Apr 2026 (Phase 1 §4.5 + §4.7).
+   - Mark **FU-Q** ✅ RESOLVED — dual student identity collapsed; legacy stays as fallback only.
+   - Mark **FU-R** ✅ RESOLVED — auth model unified.
+   - Update **FU-HH** to "PARTIAL — Phase 1 seeded ~5 live RLS tests on Phase 0 scaffold; full coverage Phase 5".
+   - Leave **FU-O** (co-teacher roles) and **FU-P** (school entity) open — Phases 3 and 4.
+
+10. **`docs/lessons-learned.md` — append if applicable.** If Phase 1 surfaced a hard-won finding, log it. Specifically: if the WIRING `key_files` drift to `student-session.ts` (finding #2) had a knock-on effect during the migration, capture the lesson on registry-vs-reality drift even when the registry isn't load-bearing.
+
+11. **`docs/changelog.md` — append entry.** Standard Phase 1 changelog: what shipped, what landed in registries, links to commits/migrations.
+
+12. **`docs/decisions-log.md` — append decisions.** At minimum: synthetic email format, dual-cookie grace period choice, helper-composition pattern (don't re-implement), backfill error policy.
+
+**Tests + verification:**
+
+- After §4.7 lands, rerun all 7 saveme scanners (api, schema, ai-call-sites, feature-flags, vendors, RLS coverage, plus the schema-registry sync). Expected: zero drift on any.
+- Manual review: WIRING `auth-system.affects` list against the 5 systems Phase 1 actually touched (verify by reading their `data_fields`).
+
+**Stop trigger:** any registry sync produces a diff that doesn't match Phase 1's actual changes. Investigate before committing.
 
 ---
 
@@ -372,10 +461,22 @@ Phase 1 closes when **ALL** of these pass:
 ### Code
 
 - [ ] All 63 student routes call `requireStudentSession()` (or `requireActorSession()`); zero call `requireStudentAuth()` directly. Verify: `grep -rn "requireStudentAuth" src/app/api/student/ | wc -l` returns 0.
+- [ ] All 17 student-touching teacher routes (Batch C) migrated.
 - [ ] Zero routes read `questerra_student_session` cookie directly. Verify: `grep -rn "questerra_student_session" src/ | wc -l` returns hits only in legacy route + cookie constant.
 - [ ] No new `createAdminClient()` calls in student routes for student-owned-data reads. (Mutations may still need admin client; reads should respect RLS.)
-- [ ] WIRING.yaml `auth-system` updated.
-- [ ] api-registry.yaml regenerated.
+
+### Registries (§4.7 hygiene pass)
+
+- [ ] `WIRING.yaml` `auth-system`: summary rewritten, `affects` expanded to 9 systems, `key_files` corrected (no `student-session.ts`), `data_fields` includes `students.user_id` + auth.users `app_metadata` shape, `change_impacts` rewritten.
+- [ ] `wiring-dashboard.html` SYSTEMS array synced.
+- [ ] `api-registry.yaml` rerun + drift committed.
+- [ ] `schema-registry.yaml` spec_drift entries added for `students`, `student_sessions`, `fabricator_sessions`.
+- [ ] `feature-flags.yaml` adds `auth.student_supabase_session_enabled` + `auth.legacy_cookie_grace_period_days`.
+- [ ] `vendors.yaml` Supabase pii_identifiers note added re synthetic student emails.
+- [ ] `data-classification-taxonomy.md` Synthetic/Opaque Identifiers section added.
+- [ ] `scanner-reports/rls-coverage.json` rerun: `student_sessions`, `fabricator_sessions`, `fabrication_scan_jobs` no longer flagged.
+- [ ] `dimensions3-followups.md` updated: FU-FF ✅, FU-Q ✅, FU-R ✅, FU-HH PARTIAL.
+- [ ] `decisions-log.md` + `changelog.md` + `lessons-learned.md` (if applicable) appended.
 
 ### Data
 
