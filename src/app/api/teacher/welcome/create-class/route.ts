@@ -90,6 +90,20 @@ export const POST = withErrorHandler(
 
     const supabase = createAdminClient();
 
+    // TODO(access-v2 §4.0): replace with requireActorSession().schoolId once Phase 1 lands.
+    // classes.school_id was tightened to NOT NULL by mig 20260428222049_phase_0_8b.
+    const { data: welcomeTeacherRow } = await supabase
+      .from("teachers")
+      .select("school_id")
+      .eq("id", teacherId)
+      .single();
+    if (!welcomeTeacherRow?.school_id) {
+      return NextResponse.json(
+        { error: "Teacher missing school context" },
+        { status: 500 }
+      );
+    }
+
     // Generate a class code, retrying a few times on collision. 6 chars from a
     // 32-char alphabet = ~1 in a billion collision rate at N=1000 classes, but
     // retry anyway so a collision doesn't 500 the welcome flow.
@@ -100,6 +114,7 @@ export const POST = withErrorHandler(
         .from("classes")
         .insert({
           teacher_id: teacherId,
+          school_id: welcomeTeacherRow.school_id,
           name,
           code: classCode,
           framework,
