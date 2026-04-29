@@ -2720,3 +2720,57 @@ Following the saveme commit `64d2afc` that flipped Access Model v2 to "PHASE 0 S
 **Branch state at saveme:** clean. 8 commits ahead of `main`, pushed.
 
 **NEXT:** Matt continues to Phase 1.3 — `getStudentSession()` / `getActorSession()` polymorphic helpers. Pure code, no prod step. Builds on the now-verified architecture.
+
+---
+
+### 29 April 2026 (evening) — Phase 1.3 + 1.4a + 1.4b + 1.5 + 1.5b SHIPPED ON BRANCH; Phase 1.4 verified end-to-end in prod-preview
+
+**Branch:** `access-model-v2-phase-1` (21 commits ahead of `main`, all pushed)
+**Test count:** 2695 → **2762** (+67 across the evening session)
+**Typecheck:** 0 errors throughout
+**Lessons added:** #62 (pg_catalog FK verification), #63 (Vercel preview URLs are deployment-specific)
+
+**Sub-phases shipped + state:**
+
+| Sub-phase | What | State |
+|---|---|---|
+| 1.3 | Polymorphic actor session helpers (`getStudentSession` / `getActorSession` / `requireStudentSession` / `requireActorSession`) | ✅ Code on branch; 18 tests |
+| 1.4a | Dual-mode `requireStudentAuth` wrapper — legacy entry point tries Supabase Auth first, falls back to legacy. All 63 student routes auto-upgraded with zero route file changes. | ✅ Code on branch; 9 tests; **VERIFIED in prod-preview** |
+| 1.4b | 6 GET routes explicitly migrated to `requireStudentSession` (grades, units, insights, safety/pending, me/support-settings, me/unit-context) | ✅ Code on branch; **VERIFIED in prod-preview** |
+| 1.5 | 4 RLS migrations: students self-read + 3 REWRITES of broken policies (competency_assessments, quest_journeys+milestones+evidence, design_conversations+turns). Pre-flight audit caught that `student_id = auth.uid()` was wrong post-Phase-1.1a (different UUIDs). Rewrites use `auth.uid() → students.user_id → students.id` chain. | ✅ Migrations + 21 shape tests on branch; awaiting Matt's prod apply |
+| 1.5b | 4 additive RLS migrations: class_students parallel auth.uid policy, student_progress self-read, fabrication_jobs + fabrication_scan_jobs self-read, student_sessions explicit deny-all (closes FU-FF). | ✅ Migrations + 19 shape tests on branch; awaiting Matt's prod apply |
+
+**Phase 1.4 prod-preview verification (29 Apr evening):**
+
+| Test | URL | Method | Status | Notes |
+|---|---|---|---|---|
+| 1 | `studioloom-git-...vercel.app/api/auth/student-classcode-login` | POST | 200 ✅ | sb-* cookies set |
+| 2 | `studioloom-git-...vercel.app/api/student/units` (Phase 1.4b) | GET via sb-* | 200 ✅ | requireStudentSession reads JWT, dual-mode auth works |
+| 3 | `studioloom-git-...vercel.app/api/student/portfolio` (NOT migrated) | GET via sb-* | 200 ✅ | dual-mode wrapper auto-upgrades via legacy `requireStudentAuth` |
+
+**False alarm during verification (Lesson #63 source):** Initial Test 2 attempts returned 401 against the OLD deployment URL (`studioloom-5yfej1l0t-...`). That URL pinned to a Phase-1.2-era build, before Phase 1.4a/b shipped. Switching to the auto-aliased branch URL (`studioloom-git-access-model-v2-phase-1-...`) immediately returned 200. Spent ~30 min adding diagnostic logging (commits 57454af, f0087ea — both reverted in 80d68f6) before realising the URL was stale. Logged as Lesson #63 — Vercel preview URLs are deployment-specific.
+
+**Side cleanup commit (`8b0be68`):** accidentally committed `cookies.txt` (test artifact with valid session token) in 57454af. Removed via `git rm` + appended `.gitignore` entry to block future commits. Repo is private + token is for synthetic test student, blast radius near zero.
+
+**Registries (this saveme):**
+
+| File | Action | Result |
+|---|---|---|
+| `api-registry.yaml` | Rerun scanner — applied | No new diff (Phase 1.4b helper migration didn't add routes) |
+| `ai-call-sites.yaml` | Rerun scanner — applied | No diff |
+| `feature-flags.yaml` | Rerun scanner | Pre-existing FU-CC + RUN_E2E drift (known) |
+| `vendors.yaml` | Rerun scanner | Status: ok |
+| `rls-coverage.json` | Rerun scanner | **Drift dropped from 7 → 5 entries** (student_sessions + fabrication_scan_jobs exited the drift bucket via Phase 1.5b — even though the migrations haven't applied to prod yet, the scanner reads the migration files in the repo). Remaining 5 (admin_audit_log, ai_model_config, ai_model_config_history, fabricator_sessions, teacher_access_requests) are separate concerns or intentional deny-all. |
+| `schema-registry.yaml` | Manual review | spec_drift entries for the Phase 1.5 + 1.5b RLS rewrites tracked in Phase 1.7 (registry hygiene sub-phase) |
+| `data-classification-taxonomy.md` | Manual review | No drift |
+
+**What's next:**
+
+1. **Matt applies 8 RLS migrations to prod** via Supabase SQL Editor (Phase 1.5: 4 migrations, then Phase 1.5b: 4 migrations, in timestamp order; ~10 sec each). Each is a small SQL paste from the file.
+2. **Phase 1.4c** — Batch B (mutations) + Batch C (teacher routes touching students), ~38 routes mechanical migration. Tracked: FU-AV2-PHASE-14B-2 (P3) covers the 18 GET routes too.
+3. **Phase 1.4 client-switch** — change routes from `createAdminClient()` to RLS-respecting SSR client. Higher-stakes than helper migration; route-by-route review.
+4. **Phase 1.6** — negative control + cleanup (delete legacy fallback, drop alias pattern from 1.4b).
+5. **Phase 1.7** — registry hygiene (WIRING auth-system rewrite, schema-registry spec_drift, taxonomies).
+6. **Checkpoint A2** — gate criteria + merge to main.
+
+~2 days from Checkpoint A2.

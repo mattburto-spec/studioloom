@@ -693,3 +693,40 @@ WHERE c.contype = 'f'
 - For verifying that a constraint exists at all (without needing shape): the simplest, most reliable test is to attempt to CREATE it — Postgres returns a clear `already exists` error (SQLSTATE 42710) if it does.
 - For RLS policy verification: use `pg_policies` (a thin wrapper over `pg_policy`).
 - Treat `information_schema` as a portability layer for SQL standard tooling, not as authoritative for Postgres-specific features (cross-schema FKs, partial indexes, generated columns, RLS, etc.).
+
+---
+
+### Lesson #63 — Vercel preview URLs are deployment-specific; use the auto-aliased branch URL for "latest on branch" testing
+
+**Date:** 29 April 2026 PM
+**Surfaced in:** Access Model v2 Phase 1.4 prod-preview smoke testing
+
+**The bug:** Phase 1.4a + 1.4b prod-preview smoke tests appeared to fail with HTTP 401. Spent ~30 min adding diagnostic logging, capturing log exports, debugging the SSR cookie adapter — looking for issues in code that wasn't actually being tested.
+
+**The cause:** Vercel preview URLs are **deployment-specific**. Each `git push` creates a NEW deployment with a NEW URL hash:
+
+```
+push 1 → studioloom-aaa111-mattburto-specs-projects.vercel.app
+push 2 → studioloom-bbb222-mattburto-specs-projects.vercel.app
+push 3 → studioloom-ccc333-mattburto-specs-projects.vercel.app
+```
+
+We had captured the URL from push 1 (Phase 1.2 verification) and kept reusing it in curl commands for subsequent pushes. The URL pinned forever to commit-1's build, which lacked Phase 1.4a + 1.4b changes. Tests "failed" because we were testing the wrong code.
+
+**The fix:** Use Vercel's **auto-aliased branch URL** pattern, which always resolves to the latest deploy of the branch:
+
+```
+studioloom-git-<branch-name>-<team>-projects.vercel.app
+```
+
+Example: `studioloom-git-access-model-v2-phase-1-mattburto-specs-projects.vercel.app` always points at the most recent commit on `access-model-v2-phase-1`. As soon as we used it, Tests 1/2/3 all returned 200 — the new auth path worked all along.
+
+**Wider applicability:** Any Vercel-deployed app's preview testing. The deployment-hash URL is the right URL when you need to reference a specific build (e.g., "this exact bug is in deploy X"). The branch-alias URL is the right URL for "latest on this feature branch" smoke testing.
+
+**Rules:**
+- **Default to the branch-alias URL** for smoke testing during active development. Pattern: `<project>-git-<branch>-<team>.vercel.app`. The branch name has slashes converted to hyphens for URL safety.
+- **Use the deployment-hash URL** ONLY when you need to reference a specific build (debugging post-merge regressions, comparing two deployments, etc.).
+- **Confirm the deploy is "Ready"** in the Vercel dashboard before testing — the branch alias URL might point at a still-building deploy if you tested too soon after pushing.
+- **Verify the URL hits the expected commit** by adding a temporary version marker (e.g., `console.log("v" + COMMIT_SHA)`) if you suspect URL drift. Or — cheapest — temporarily add a `_debug: { commit: ... }` field in a response body to confirm.
+
+**Why this is a Lesson #38 sibling:** Lesson #38 was "verify expected values, not just non-null." This is "verify expected DEPLOYMENT, not just success-once." Both are about the gap between "the test didn't error" and "the test verified the thing you thought it did."
