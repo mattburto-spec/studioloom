@@ -4,6 +4,128 @@
 
 ---
 
+## 29 Apr 2026 — Bug-report system overhaul: role-hint auth, rich client_context, Sentry, screenshots, dedupe, email, motion polish ✅
+
+**Context:** Matt noticed a student-submitted bug report was tagged
+`reporter_role = "teacher"` in the admin panel and asked what could be
+improved. The existing `/admin/bug-reports` UI captured only
+description / category / page_url / last 5 console.errors and showed a
+flat list filtered only by status. Sentry was installed (`@sentry/nextjs`
+10.43.0) but never linked to bug reports. No screenshot UX existed despite
+the schema having a `screenshot_url` column. No notifications, no
+dedupe.
+
+**What changed (one branch on main, ~6 commits, 2 migrations applied to
+prod 28–29 Apr):**
+
+- **Role-hint auth fix** (commit `7a30e04`, migration
+  `20260428230559_add_bug_report_client_context`): API resolution order
+  was always Supabase Auth first → student session second. If a student
+  was logged in on a profile that also had a teacher Supabase Auth
+  session, every report got tagged "teacher". Frontend now sends
+  `role_hint`; API tries the matching source first and falls through
+  the other way only if it fails. Hint is verified, not trusted.
+- **Rich `client_context` JSONB column** added to `bug_reports`. Captures
+  userAgent, platform, language(s), viewport (w/h/DPR), screen, connection
+  (effectiveType/downlink/RTT/saveData), hardware (cores/memory/touch),
+  release SHA, deploy env, timezone, time-on-page, referrer, route
+  context (`{routeKind, unitId, lessonNumber, activityNumber, classId}`
+  parsed client-side from `/unit/:id/L:n/A:n`, `/class/:id`, etc.), and
+  rolling last-10 runtime events (console.error / console.warn /
+  window.error / unhandledrejection — the screenshot Matt sent of an
+  unhandledrejection would have been missed by the old console.error-only
+  hook).
+- **Admin UI overhaul** (`784f3d2`, `4ef85eb`): structured 4-section
+  context grid (Page / Browser / Viewport / Network & Hardware) with
+  per-row labels that hide on null. Filter bar with free-text search
+  across description+page_url+admin_notes plus Status/Category/Role
+  button rows with live counts and a one-click "clear filters" link.
+  Reporter role shown as a coloured chip on each row card (cyan/purple).
+- **Sentry tie-in** (`eebd5ef`, migration `20260429010718`): client calls
+  `Sentry.captureMessage` at submit time tagged with `bug_report`,
+  `bug_category`, `reporter_role`, `class_id`, `route_kind`. Returned
+  `event_id` stored in new `bug_reports.sentry_event_id` column. Admin
+  links to the Sentry events search (`NEXT_PUBLIC_SENTRY_ORG_SLUG` /
+  `NEXT_PUBLIC_SENTRY_PROJECT_SLUG` env vars narrow the deep-link to a
+  specific project).
+- **Screenshot capture** (same commit): adds `html-to-image` dep
+  (~50 KB gz). Client uses `toJpeg` q=0.8 with dynamically-computed
+  `pixelRatio` so longest output dim caps at 1400 px (a 1500×8000
+  lesson page becomes ~262×1400 ≈ 200–400 KB JPEG, well under
+  Vercel's 4.5 MB body limit). New private `bug-report-screenshots`
+  Storage bucket with service-role-only RLS (matches migration 102
+  pattern). API uploads decoded base64, stores object path. Admin GET
+  batch-mints signed URLs (30 min TTL) so admin UI can render
+  screenshots inline. Initial bug: tall preview pushed the textarea
+  off the panel — fixed (`c8d2579`) with `max-h-32 object-cover-top`
+  + click-to-open-fullsize. Second bug: rAF yield needed before the
+  blocking `toJpeg` work or the capture-shimmer never paints
+  (`5d5e224`).
+- **Email notification on every new report**: fire-and-forget
+  `api.resend.com` POST from "StudioLoom <hello@loominary.org>"
+  (loominary.org is verified in Resend, reuses existing
+  RESEND_API_KEY). Subject `[Bug · category] description-50`,
+  body has page URL + admin link + Sentry link. Skips silently
+  when `BUG_REPORT_NOTIFY_EMAIL` or `RESEND_API_KEY` are unset.
+  Failures logged, never break submission.
+- **Client-side dedupe** in admin UI: reports fingerprinted by
+  (category | route_kind | first event kind+message). Description
+  intentionally NOT in the fingerprint — different students will phrase
+  the same bug differently. Row card shows "×N similar" rose badge
+  when more than one report shares the fingerprint. No schema work
+  (computed over the full 200-row page).
+- **Motion polish** (`30a4a4c`, `5d5e224`) via existing framer-motion
+  dep, students-only:
+  - Idle wiggle: 1.6 s 6-frame jiggle every ~5 s, just enough
+    personality without being distracting. Teachers get the static icon.
+  - Click splat: multi-blob radial (yellow/pink/green/blue/purple)
+    scales 0.4 → 2.4× and fades over 0.55 s, re-keyed via state
+    counter so it re-fires on every click.
+  - Capture shimmer: 128 px gradient panel with a horizontal shimmer
+    sweep, pulsing camera icon, "Capturing screenshot…" headline +
+    "Long pages can take a few seconds" subtitle. Two `requestAnimationFrame`
+    yields after `setCapturingScreenshot(true)` ensure the shimmer paints
+    before `toJpeg`'s synchronous DOM/canvas work blocks the main thread.
+
+**Migrations applied to prod (in order):**
+1. `20260428230559_add_bug_report_client_context.sql` — `client_context JSONB NOT NULL DEFAULT '{}'`.
+2. `20260429010718_add_bug_report_sentry_and_screenshots.sql` — `sentry_event_id TEXT NULL` + private `bug-report-screenshots` Storage bucket + service-role-only RLS policy.
+
+**Systems affected:** `bug-reporting`, `auth-system` (role-hint resolution
+pattern), `governance-registries` (feature-flags + schema-registry
+updates).
+
+**Tests:** No new automated tests this session. Verified end-to-end via
+Matt's prod smoke — student-tagged role correctly captured, admin UI
+renders rich context, screenshot panel sized correctly, capture shimmer
+visible during the 2–3 s capture window after the rAF fix.
+
+**Lessons surfaced:**
+- For long pages, JPEG q=0.8 with dynamically-scaled `pixelRatio`
+  beats PNG by ~10× on file size, comfortably fitting Vercel's
+  4.5 MB body limit even on 8000-pixel-tall lesson pages.
+- React state updates inside an event handler don't paint before
+  subsequent synchronous work in the same async function — explicit
+  `requestAnimationFrame` yields are required if the work that
+  follows blocks the main thread (e.g. `toJpeg`'s DOM/canvas
+  rendering).
+- Auth disambiguation should be a hint passed from the client, not
+  inferred server-side. Two valid auth sources can coexist in the
+  same browser; trust what the user's UI claims they are, then
+  verify against that source first.
+
+**Follow-ups (not done — opportunity backlog):**
+- "Reply to reporter" — schema has `response` field but no notification
+  path. Would close the loop with students. Resend already wired.
+- "Send a response" auto-email when admin marks status `fixed`.
+- Reporter session correlation (per-browser ID so multiple reports
+  from same student/session group together).
+- CSV export for batch triage.
+- Server-side fingerprint column (currently computed client-side; fine
+  at <200 rows).
+
+---
+
 ## 29 Apr 2026 — TopNav search palettes wired (teacher + student) + lesson body-content scan ✅
 
 **Context:** The search icon in the dashboard-v2 TopNav had been an inert

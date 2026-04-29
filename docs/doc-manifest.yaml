@@ -24,15 +24,15 @@ docs:
     title: "Session Changelog"
     purpose: "Rolling log of changes across sessions for cross-session context"
     category: root
-    last_verified: "2026-04-27"
+    last_verified: "2026-04-29"
     max_age_days: 90
-    last_scanned: "2026-04-27"
+    last_scanned: "2026-04-29"
 
   - path: docs/decisions-log.md
     title: "Key Decisions Log"
-    purpose: "197+ architectural and design decisions from 17 Mar – 15 Apr 2026. Last: PKCE vs implicit auth flow split (15 Apr 2026)."
+    purpose: "203+ architectural and design decisions from 17 Mar – 29 Apr 2026. Last: bug-report system design — role-hint auth, JSONB client_context, screenshot bounds, dedupe, Sentry tie-in, rAF yield (29 Apr 2026)."
     category: root
-    last_verified: "2026-04-15"
+    last_verified: "2026-04-29"
     max_age_days: 90
     last_scanned: null
 
@@ -411,10 +411,10 @@ docs:
     title: "Schema Registry — Table-Level Truth"
     purpose: "~76 tables with columns, RLS policies, writers, readers, spec drift. Backfilled from migration files through 103 (Preflight 1B-1). 3 flagged No RLS (FU-X). Sync: scripts/registry/sync-schema-registry.py"
     category: root
-    last_verified: "2026-04-20"
+    last_verified: "2026-04-29"
     referenced_from: ["CLAUDE.md registries section"]
     max_age_days: 30
-    last_scanned: "2026-04-20"
+    last_scanned: "2026-04-29"
 
   - path: docs/api-registry.yaml
     title: "API Registry — Route-Level Truth"
@@ -2190,11 +2190,11 @@ docs:
 
   - path: docs/feature-flags.yaml
     title: "Feature Flag & Secret Registry"
-    purpose: "Runtime feature-flag + secret registry — 15 flags, 12 secrets"
+    purpose: "Runtime feature-flag + secret registry — 19 flags, 13 secrets (added BUG_REPORT_NOTIFY_EMAIL secret + NEXT_PUBLIC_SENTRY_ORG_SLUG/PROJECT_SLUG/VERCEL_ENV/VERCEL_GIT_COMMIT_SHA flags 29 Apr 2026)"
     category: root
-    last_verified: "2026-04-14"
+    last_verified: "2026-04-29"
     max_age_days: 30
-    last_scanned: null
+    last_scanned: "2026-04-29"
 
   - path: docs/feature-flags-taxonomy.md
     title: "Feature Flag & Secret Taxonomy"

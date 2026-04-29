@@ -1,73 +1,113 @@
 # Handoff — main
 
-**Last session ended:** 2026-04-28T22:54Z
+**Last session ended:** 2026-04-29T03:10Z
 **Worktree:** /Users/matt/CWORK/questerra
-**HEAD:** 9c472c3 "fix(student-search): scan lesson body content, not just titles"
+**HEAD:** 5d5e224 "fix(bug-reports): paint capture shimmer before blocking on toJpeg"
 
 ## What just happened
 
-- TopNav search icon was an inert placeholder since 24 Apr scaffold. Wired
-  it to a real command palette end-to-end for both teacher and student
-  topnavs over four commits to `main`:
-  - `d9045bf` teacher palette + `/api/teacher/search` (classes / units /
-    students, parallel ilike, teacher-scoped via `classes.teacher_id`).
-  - `3b6e748` student palette + shared refactor — types extracted to
-    `src/types/search.ts`, component moved to `src/components/search/`
-    with a `searchUrl` prop, new `/api/student/search` (units only, v1).
-  - `f84a13a` lessons bucket — shared `LessonHit` type, student route
-    now scans pages via `getPageList` after `resolveClassUnitContent`.
-    Teacher search returns `lessons: []`.
-  - `9c472c3` body-content fix after Matt found searches missing words
-    he knew were in lessons. Root cause: v4 `v4ToPageList` derives
-    lesson title from just the first core activity's title. New
-    `pageSearchText()` helper concatenates every student-visible string
-    (title, learningGoal, intro, prompts, scaffolding, success_criteria,
-    reflection items, vocab terms). Title-hits sort before body-hits.
-- Matt confirmed working in prod ("ok works").
-- saveme ritual ran: api-registry + ai-call-sites synced via scanners
-  (changelog entry appended). Pre-existing drift surfaced but not
-  addressed: `feature-flags.yaml` orphaned `SENTRY_AUTH_TOKEN` (FU-CC,
-  build-time-only) and missing `RUN_E2E` (used in word-lookup test
-  gate); `rls-coverage` 7 tables RLS-enabled-no-policies (FU-FF).
+Bug-report system overhaul end-to-end. Matt reported a student
+submission was tagged `reporter_role = "teacher"` in the admin
+panel and asked what could be improved. One session, six commits,
+two prod migrations, all on `main`:
+
+- **Role-hint auth fix** (`7a30e04`) — frontend sends `role_hint`,
+  API tries the matching auth source first, falls through if it
+  fails. Hint is verified, not trusted. Migration
+  `20260428230559_add_bug_report_client_context` adds
+  `client_context JSONB NOT NULL DEFAULT '{}'`.
+- **Admin UI rich context render** (`784f3d2`) — 4-section grid
+  (Page / Browser / Viewport / Network & Hardware) with rows that
+  hide on null, parsed UA into readable browser+OS, runtime events
+  list with severity colours, raw JSON behind a details fallback.
+- **Filter bar + multi-filter** (`4ef85eb`) — free-text search
+  (description / page_url / admin_notes), Status / Category / Role
+  button rows, live counts, one-click clear, role chips on each card.
+- **Sentry tie-in + screenshots + email + dedupe** (`eebd5ef`) — biggest
+  commit. `Sentry.captureMessage` at submit with bug-report tags,
+  event_id stored on row, admin "View in Sentry" deep-link;
+  html-to-image screenshot capture into a private storage bucket
+  with signed-URL retrieval; fire-and-forget Resend email on every
+  new report from `StudioLoom <hello@loominary.org>`; client-side
+  fingerprint dedupe. Migration
+  `20260429010718_add_bug_report_sentry_and_screenshots` adds
+  `sentry_event_id TEXT NULL` + `bug-report-screenshots` private
+  Storage bucket + service-role-only RLS.
+- **Screenshot bounds + preview cap** (`c8d2579`) — switched
+  `toPng → toJpeg q=0.8`, dynamic pixelRatio caps longest output
+  dim at 1400 px (a 1500×8000 lesson page becomes ~262×1400 ≈
+  200–400 KB). Preview is now `max-h-32 object-cover-top` with
+  click-to-open-fullsize so the form stays visible.
+- **Motion polish + rAF yield fix** (`30a4a4c`, `5d5e224`) —
+  students-only idle wiggle (1.6s every 5s), click splat (multi-blob
+  radial), capture shimmer (gradient panel + sweep + pulsing camera).
+  `5d5e224` adds two `requestAnimationFrame` yields after
+  `setCapturingScreenshot(true)` so the shimmer paints before
+  `toJpeg`'s synchronous DOM/canvas work blocks the main thread.
+
+Matt confirmed all three motion bits working in prod. Initial
+shimmer-not-visible report led to the rAF fix.
+
+saveme ritual ran end-to-end:
+- 5 registry scanners executed (api / ai-calls / feature-flags /
+  vendors / rls-coverage). api + ai-calls auto-applied.
+  feature-flags drift surfaced 4 missing env vars (BUG_REPORT_NOTIFY_EMAIL,
+  NEXT_PUBLIC_SENTRY_ORG_SLUG / PROJECT_SLUG / VERCEL_GIT_COMMIT_SHA /
+  VERCEL_ENV); manually added the new bug-report ones to
+  `docs/feature-flags.yaml`.
+- `docs/schema-registry.yaml` updated for the 2 new `bug_reports`
+  columns + classification entries.
+- `docs/changelog.md` + `docs/decisions-log.md` appended.
+- `docs/doc-manifest.yaml` `last_verified` bumped on changelog,
+  decisions-log, schema-registry, feature-flags.
 
 ## State of working tree
 
-- Branch `main`, 0 commits ahead of upstream (all 4 search commits
-  pushed: `8460a7c..9c472c3`).
-- Staged for saveme commit (not yet committed at time of writing):
-  - `M docs/ai-call-sites.yaml` (scanner drift, +14 lines)
-  - `M docs/api-registry.yaml` (scanner drift, +87 lines — new search
-    routes captured)
-  - `M docs/changelog.md` (new 29 Apr entry prepended)
-  - `M docs/scanner-reports/{feature-flags,rls-coverage,vendors}.json`
-    (scanner output)
-- Untracked, NOT mine — pre-date this session, leave alone:
-  - `?? docs/landing-copy-story-b.md`
-  - `?? docs/landing-redesign-prompt.md`
-  - `?? docs/specs/brief-generator.md`
-- Tests: unchanged — search routes have no tests yet (small enough that
-  endpoint-level smoke + tsc was the bar).
-- tsc strict (`tsconfig.check.json`) clean throughout the session.
-- `refresh-project-dashboard` scheduled task does NOT exist in
-  scheduled-tasks MCP. Per saveme protocol step 5, that's a CWORK-level
-  setup, not for this session to create. Master `CWORK/CLAUDE.md` index
-  was NOT updated this session — the change is pure UI polish, no
-  priority/status shift, and the existing 28 Apr line still describes
-  the active state.
+- Branch `main`, 0 ahead of upstream (commits `7a30e04..5d5e224`
+  already pushed mid-session, after each migration was applied to
+  prod Supabase per the never-push-without-applied-migration rule).
+- Staged for saveme commit (registry + docs sync):
+  - `M docs/api-registry.yaml` (scanner-driven, 2 lines)
+  - `M docs/ai-call-sites.yaml` (scanner check, no diff expected)
+  - `M docs/changelog.md` (new session entry at top)
+  - `M docs/decisions-log.md` (6 new bullets at top)
+  - `M docs/doc-manifest.yaml` (4 last_verified bumps)
+  - `M docs/feature-flags.yaml` (5 new env vars + RESEND_API_KEY consumer)
+  - `M docs/schema-registry.yaml` (bug_reports columns + classifications)
+- Drift surfaced this session but **not addressed** (existing
+  follow-ups carried forward):
+  - `feature-flags.yaml` still has `SENTRY_AUTH_TOKEN` orphaned
+    (FU-CC build-time-only) and `RUN_E2E` missing (test gate).
+  - `rls-coverage` 7 tables RLS-enabled-no-policies (FU-FF —
+    deliberate deny-all pattern).
+
+## Migrations applied to prod this session
+
+1. ✅ `20260428230559_add_bug_report_client_context.sql` (applied
+   28 Apr by Matt before the first push).
+2. ✅ `20260429010718_add_bug_report_sentry_and_screenshots.sql`
+   (applied 29 Apr by Matt before the second push).
 
 ## Next steps
 
-- [ ] Pick the next queue item: Access Model v2 Phase 0 (worktree
-      `questerra-access-v2`, branch `access-model-v2`), dashboard-v2
-      polish, or a new request.
-- [ ] If anyone asks to extend search:
-  - [ ] Wire teacher lesson search (type + component already support it;
-        just populate `lessons[]` from `/api/teacher/search`).
-  - [ ] Add a client-side `content_data` cache per palette-open if
-        keystroke perf becomes noticeable on the student side.
-  - [ ] Consider richer ranking (term frequency / position) if body-hit
-        results get noisy for common words.
+- [ ] Set Vercel env vars — instructions already given in chat:
+  - [ ] `BUG_REPORT_NOTIFY_EMAIL` (recipient — required for email)
+  - [ ] `NEXT_PUBLIC_SENTRY_ORG_SLUG` (Sentry org slug — for deep link)
+  - [ ] `NEXT_PUBLIC_SENTRY_PROJECT_SLUG` (optional — narrows the link)
+  - [ ] Trigger a Vercel redeploy after adding so the env vars bake in
+- [ ] Verify in prod after redeploy:
+  - Submit a test bug report → check inbox for the email
+  - Open admin row → click "View in Sentry" → lands on the matching event
+  - Submit two reports from same page+category → admin shows ×2 similar badge
+- [ ] Backlog (declined this session, available later):
+  - Reply-to-reporter notification path (schema has `response`,
+    no UI/email yet)
+  - "Status changed to fixed" auto-email
+  - Server-side fingerprint column (when report volume > 200/page)
+  - CSV export, reporter session correlation
 
 ## Open questions / blockers
 
-_None._
+_None._ Bug-report work is shipped, deployed, and verified by Matt.
+The only outstanding work is configuration (Vercel env vars), which
+is in his court.

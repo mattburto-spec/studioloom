@@ -440,11 +440,9 @@ routes:
   file: src/app/api/bug-reports/route.ts
   auth: teacher
   tables_read:
-  - bug_reports
   - student_sessions
   tables_written:
   - bug_reports
-  - student_sessions
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null

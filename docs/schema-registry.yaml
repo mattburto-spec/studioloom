@@ -1621,11 +1621,15 @@ tables:
   spec_drift: []
 - name: bug_reports
   status: written
-  source_migration: 076_bug_reports.sql
-  applied_date: 2026-04-14
-  purpose: 'Bug Reporting System (spec §9.13). Floating button on student + teacher surfaces (only visible when class has
-    bug_reporting_enabled). Captures context auto-magically (URL, browser, console errors). Admin triage in /admin/bug-reports
-    (Phase 7H).
+  source_migration: 076_bug_reports.sql + 20260428230559_add_bug_report_client_context.sql + 20260429010718_add_bug_report_sentry_and_screenshots.sql
+  applied_date: 2026-04-29
+  purpose: 'Bug Reporting System. Floating button on student + teacher surfaces (only visible when class has
+    bug_reporting_enabled). Captures rich client_context JSONB (userAgent, OS, viewport, connection, route ctx, runtime
+    events incl. unhandledrejection / window.error / console.warn), optional JPEG screenshot uploaded to private
+    bug-report-screenshots Storage bucket, and a Sentry event_id linking back to the auto-captured Sentry record.
+    Admin triage in /admin/bug-reports with filters (status/category/role + free-text search), Sentry deep-link, signed
+    screenshot URLs, and client-side dedupe by (category | route_kind | first event message). Optional Resend email
+    notification on every new report when BUG_REPORT_NOTIFY_EMAIL is configured.
 
     '
   columns:
@@ -1638,6 +1642,8 @@ tables:
     screenshot_url: TEXT
     page_url: TEXT
     console_errors: JSONB DEFAULT '[]'::jsonb
+    client_context: JSONB NOT NULL DEFAULT '{}'::jsonb
+    sentry_event_id: TEXT
     status: TEXT NOT NULL DEFAULT 'new' CHECK IN ('new','investigating','fixed','closed')
     admin_notes: TEXT
     response: TEXT
@@ -1707,6 +1713,24 @@ tables:
       safety_sensitive: false
       ai_exportable: none
       retention_days: 365
+      basis: pseudonymous
+    client_context:
+      # Free-form JSONB capturing browser/OS/viewport/network/release SHA + recent
+      # runtime events. Includes userAgent + IP-derived bits (timezone, language)
+      # so treat as low-risk pseudonymous; not direct PII but fingerprintable.
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: none
+      retention_days: 365
+      basis: pseudonymous
+    sentry_event_id:
+      # Opaque Sentry id; pseudonymous link to a separate observability system.
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: none
+      retention_days: indefinite
       basis: pseudonymous
     status:
       pii: false
