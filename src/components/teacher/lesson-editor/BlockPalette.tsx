@@ -646,16 +646,16 @@ export default function BlockPalette({
         {activeTab === "my-blocks" && myBlocksLoading && (
           <div className="flex items-center justify-center py-8">
             <div className="w-4 h-4 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
-            <span className="ml-2 text-xs text-gray-400">Loading...</span>
+            <span className="ml-2 text-[11px] text-[var(--le-ink-3)]">Loading...</span>
           </div>
         )}
         {activeTab === "my-blocks" && !myBlocksLoading && myBlocksFetched && myBlocks.length === 0 && !search && (
           <div className="text-center py-8 px-4">
             <div className="text-2xl mb-2">📚</div>
-            <p className="text-xs text-gray-500 mb-2">
+            <p className="text-[11.5px] text-[var(--le-ink-2)] mb-2">
               No blocks in your library yet.
             </p>
-            <p className="text-[11px] text-gray-400">
+            <p className="text-[11px] text-[var(--le-ink-3)]">
               Upload documents at{" "}
               <a href="/teacher/library" className="text-rose-500 hover:underline">
                 Library
@@ -667,14 +667,12 @@ export default function BlockPalette({
 
         {/* AI Suggested blocks — templates tab only */}
         {activeTab === "templates" && suggestedBlocks.length > 0 && !search && (
-          <div className="mb-3">
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
-              <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">
-                AI Suggested
-              </span>
+          <div className="mb-2 border-b border-[var(--le-hair)] pb-2">
+            <div className="flex items-center gap-1.5 mb-1.5 px-1">
+              <div className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse" />
+              <span className="le-cap text-violet-700">AI Suggested</span>
             </div>
-            <div className="space-y-0.5">
+            <div className="space-y-0">
               {suggestedBlocks.map((block) => (
                 <PaletteBlock
                   key={`suggested-${block.id}`}
@@ -689,9 +687,9 @@ export default function BlockPalette({
 
         {/* Search results */}
         {search ? (
-          <div className="space-y-0.5">
+          <div className="space-y-0">
             {filteredBlocks.length === 0 ? (
-              <p className="text-xs text-gray-400 text-center py-4">
+              <p className="text-[11px] text-[var(--le-ink-3)] text-center py-4">
                 No blocks match &ldquo;{search}&rdquo;
               </p>
             ) : (
@@ -706,7 +704,7 @@ export default function BlockPalette({
           </div>
         ) : (
           /* Categorized accordion */
-          <div className="space-y-0.5">
+          <div className="-mx-3">
             {activeCategories.map((cat) => {
               const meta = CATEGORIES[cat];
               const blocks = filteredBlocks.filter(
@@ -717,37 +715,23 @@ export default function BlockPalette({
               const isExpanded = expandedCategory === cat;
 
               return (
-                <div key={cat}>
+                <div key={cat} className="border-b border-[var(--le-hair)]">
                   <button
                     onClick={() =>
                       setExpandedCategory(isExpanded ? null : cat)
                     }
-                    className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-all ${
-                      isExpanded
-                        ? `${meta.bgColor} ${meta.color}`
-                        : "hover:bg-gray-100 text-gray-600"
-                    }`}
+                    className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[var(--le-hair-2)] transition-colors text-left"
                   >
-                    <div className={`w-2 h-2 rounded-full ${meta.dotColor} flex-shrink-0`} />
-                    <span className="text-[13px] font-semibold flex-1">
+                    <div className={`w-1.5 h-1.5 rounded-full ${meta.dotColor} flex-shrink-0`} />
+                    <span className="text-[12px] font-extrabold text-[var(--le-ink)] flex-1">
                       {meta.label}
                     </span>
-                    <span className="text-[10px] text-gray-400 tabular-nums">
+                    <span className="text-[10px] text-[var(--le-ink-3)] le-tnum">
                       {blocks.length}
                     </span>
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      className={`transition-transform ${
-                        isExpanded ? "rotate-90" : ""
-                      }`}
-                    >
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
+                    <span className="text-[10px] text-[var(--le-ink-3)] w-3 text-right select-none">
+                      {isExpanded ? "▾" : "▸"}
+                    </span>
                   </button>
 
                   <AnimatePresence initial={false}>
@@ -763,7 +747,7 @@ export default function BlockPalette({
                         }}
                         className="overflow-hidden"
                       >
-                        <div className="pl-1 pt-1 pb-1 space-y-0">
+                        <div className="px-2 pb-2 space-y-0.5">
                           {blocks.map((block) => (
                             <PaletteBlock
                               key={block.id}
@@ -785,6 +769,24 @@ export default function BlockPalette({
   );
 }
 
+// ─── Bloom level → 1-6 load score for palette chips ──
+const BLOOM_LOAD_MAP: Record<string, number> = {
+  remember: 1,
+  understand: 2,
+  apply: 3,
+  analyze: 4,
+  evaluate: 5,
+  create: 6,
+};
+
+// ─── Time weight → 1-5 effort hint for palette chips ──
+const TIME_WEIGHT_LOAD_MAP: Record<string, number> = {
+  quick: 1,
+  moderate: 2,
+  extended: 4,
+  flexible: 3,
+};
+
 // ─────────────────────────────────────────────────────────────────
 // Individual palette block — clean, text-forward, tooltip on hover
 // ─────────────────────────────────────────────────────────────────
@@ -800,6 +802,11 @@ function PaletteBlock({
 }) {
   const { startDrag, endDrag } = useDndContext();
   const meta = CATEGORIES[block.category] || CATEGORIES.custom;
+
+  // Read default dimensions once per render — block.create() is cheap (returns a literal)
+  const sample = block.create();
+  const bloomLoad = sample.bloom_level ? BLOOM_LOAD_MAP[sample.bloom_level] : null;
+  const effortLoad = sample.timeWeight ? TIME_WEIGHT_LOAD_MAP[sample.timeWeight] : null;
 
   const handleDragStart = (e: DragEvent) => {
     const activity = block.create();
@@ -828,47 +835,47 @@ function PaletteBlock({
       onDragEnd={handleDragEnd}
       onClick={() => onAdd(block)}
       title={block.description}
-      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all group cursor-grab active:cursor-grabbing ${
+      className={`group flex items-center gap-2 px-2 py-1.5 rounded-md border cursor-grab active:cursor-grabbing transition-colors ${
         highlight
-          ? "bg-indigo-50/80 border border-indigo-200 hover:bg-indigo-100/80 hover:border-indigo-300"
-          : "hover:bg-white border border-transparent hover:border-gray-200 hover:shadow-sm"
-      } active:scale-[0.97]`}
+          ? "border-violet-300 bg-violet-50 hover:bg-violet-100"
+          : "border-transparent hover:border-[var(--le-hair)] hover:bg-[var(--le-paper)]"
+      }`}
     >
       {/* Category dot */}
-      <div className={`w-1.5 h-1.5 rounded-full ${meta.dotColor} flex-shrink-0 opacity-60 group-hover:opacity-100 transition-opacity`} />
+      <div
+        className={`w-1.5 h-1.5 rounded-full ${meta.dotColor} flex-shrink-0 opacity-70 group-hover:opacity-100 transition-opacity`}
+      />
 
-      {/* Label — bigger text, no description visible */}
-      <span className="text-[13px] font-medium text-gray-700 group-hover:text-gray-900 transition-colors flex-1 truncate">
-        {block.label}
-      </span>
+      {/* Label + dimension chips */}
+      <div className="flex-1 min-w-0">
+        <div className="text-[11.5px] font-bold truncate text-[var(--le-ink)]">
+          {block.label}
+        </div>
+        {(bloomLoad !== null || effortLoad !== null) && (
+          <div className="flex items-center gap-1 text-[9.5px] text-[var(--le-ink-3)] tracking-wider mt-0.5">
+            {bloomLoad !== null && <span>B{bloomLoad}</span>}
+            {bloomLoad !== null && effortLoad !== null && <span>·</span>}
+            {effortLoad !== null && <span>load {effortLoad}/5</span>}
+          </div>
+        )}
+      </div>
 
-      {/* Custom/imported badge */}
+      {/* Custom / Pack badge */}
       {block.source === "custom" && (
-        <span className="text-[9px] font-semibold text-rose-500 uppercase tracking-wider flex-shrink-0">
+        <span className="text-[9px] font-extrabold text-rose-500 uppercase tracking-wider flex-shrink-0">
           Custom
         </span>
       )}
       {block.source === "imported" && (
-        <span className="text-[9px] font-semibold text-cyan-500 uppercase tracking-wider flex-shrink-0">
+        <span className="text-[9px] font-extrabold text-cyan-600 uppercase tracking-wider flex-shrink-0">
           Pack
         </span>
       )}
 
-      {/* Add indicator on hover */}
-      <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          className="text-gray-400"
-        >
-          <line x1="12" y1="5" x2="12" y2="19" />
-          <line x1="5" y1="12" x2="19" y2="12" />
-        </svg>
-      </div>
+      {/* Drag hint */}
+      <span className="opacity-0 group-hover:opacity-100 text-[10px] text-[var(--le-ink-3)] flex-shrink-0 transition-opacity select-none">
+        drag
+      </span>
     </div>
   );
 }
