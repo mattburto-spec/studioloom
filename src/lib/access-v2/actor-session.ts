@@ -104,25 +104,6 @@ export type ActorSession = StudentSession | TeacherSession;
  * legacy teacher signin flow. Used internally; tests inject a stub.
  */
 async function buildSsrClient(): Promise<SupabaseClient> {
-  // TEMP Phase 1.4-debug — log incoming cookie names so we can diagnose
-  // whether the SSR client is seeing the sb-* cookies at all.
-  // Remove after fix lands.
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { cookies } = await import("next/headers");
-    const store = await cookies();
-    const allCookies = store.getAll();
-    // eslint-disable-next-line no-console
-    console.error("[actor-session-debug] cookies seen by buildSsrClient", {
-      count: allCookies.length,
-      names: allCookies.map((c) => c.name),
-      hasSupabaseCookie: allCookies.some((c) => c.name.startsWith("sb-")),
-    });
-  } catch (e) {
-    // eslint-disable-next-line no-console
-    console.error("[actor-session-debug] cookies() read failed", (e as Error).message);
-  }
-
   return createServerSupabaseClient();
 }
 
@@ -224,32 +205,11 @@ export async function getActorSession(
 ): Promise<ActorSession | null> {
   const ssr = await buildSsrClient();
   const { data: userData, error: userErr } = await ssr.auth.getUser();
-
-  // TEMP Phase 1.4-debug — verbose logging to diagnose Vercel-preview 401s.
-  // Remove after fix lands.
-  if (userErr || !userData?.user) {
-    // eslint-disable-next-line no-console
-    console.error("[actor-session-debug] auth.getUser failed", {
-      hasError: Boolean(userErr),
-      errorMessage: userErr?.message ?? null,
-      errorStatus: (userErr as { status?: number } | null)?.status ?? null,
-      hasUser: Boolean(userData?.user),
-      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "(unset)",
-      hasAnonKey: Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
-    });
-    return null;
-  }
+  if (userErr || !userData?.user) return null;
 
   const user = userData.user;
   const userType = (user.app_metadata as Record<string, unknown> | undefined)
     ?.user_type;
-
-  // eslint-disable-next-line no-console
-  console.error("[actor-session-debug] auth.getUser ok", {
-    userId: user.id,
-    userType,
-    appMetadataKeys: Object.keys(user.app_metadata ?? {}),
-  });
 
   // Use admin client for the actor-row lookup (RLS-respecting reads come
   // later when routes migrate; for the session helper itself we want
@@ -291,92 +251,6 @@ export async function getTeacherSession(
   return actor;
 }
 
-// TEMP Phase 1.4-debug — diagnostic getActorSession that returns failure
-// reason alongside the result. Used by requireStudentSession to surface
-// the failure to the response body. Remove after fix lands.
-async function getActorSessionWithDiagnostics(
-  _request?: NextRequest
-): Promise<{
-  session: ActorSession | null;
-  diagnostic: Record<string, unknown>;
-}> {
-  const diag: Record<string, unknown> = {};
-  let cookieNames: string[] = [];
-  let hasSupabaseCookie = false;
-
-  try {
-    const { cookies } = await import("next/headers");
-    const store = await cookies();
-    const allCookies = store.getAll();
-    cookieNames = allCookies.map((c) => c.name);
-    hasSupabaseCookie = allCookies.some((c) => c.name.startsWith("sb-"));
-    diag.cookieCount = allCookies.length;
-    diag.cookieNames = cookieNames;
-    diag.hasSupabaseCookie = hasSupabaseCookie;
-  } catch (e) {
-    diag.cookieReadError = (e as Error).message;
-  }
-
-  diag.supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "(unset)";
-  diag.hasAnonKey = Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-
-  // Note: don't short-circuit on missing Supabase cookie — let the SSR
-  // client + auth.getUser() report whatever it sees. That's the actual
-  // signal we want for the diagnosis.
-
-  let userData: { user: User | null } | null = null;
-  let userErr: { message?: string; status?: number } | null = null;
-
-  try {
-    const ssr = await createServerSupabaseClient();
-    const result = await ssr.auth.getUser();
-    userData = result.data;
-    userErr = result.error as { message?: string; status?: number } | null;
-  } catch (e) {
-    diag.failedAt = "auth.getUser-threw";
-    diag.threwError = (e as Error).message;
-    return { session: null, diagnostic: diag };
-  }
-
-  if (userErr || !userData?.user) {
-    diag.failedAt = "auth.getUser-returned-error";
-    diag.errorMessage = userErr?.message ?? null;
-    diag.errorStatus = userErr?.status ?? null;
-    diag.hasUser = Boolean(userData?.user);
-    return { session: null, diagnostic: diag };
-  }
-
-  const user = userData.user;
-  const userType = (user.app_metadata as Record<string, unknown> | undefined)?.user_type;
-  diag.userId = user.id;
-  diag.userType = userType;
-  diag.appMetadataKeys = Object.keys(user.app_metadata ?? {});
-
-  const supabaseAdmin = createAdminClient();
-
-  if (userType === "student") {
-    const session = await buildStudentSession(user, supabaseAdmin);
-    if (!session) {
-      diag.failedAt = "student-row-missing";
-      return { session: null, diagnostic: diag };
-    }
-    diag.failedAt = null;
-    return { session, diagnostic: diag };
-  }
-  if (userType === "teacher") {
-    const session = await buildTeacherSession(user, supabaseAdmin);
-    if (!session) {
-      diag.failedAt = "teacher-row-missing";
-      return { session: null, diagnostic: diag };
-    }
-    diag.failedAt = null;
-    return { session, diagnostic: diag };
-  }
-
-  diag.failedAt = "unsupported-user-type";
-  return { session: null, diagnostic: diag };
-}
-
 // ─────────────────────────────────────────────────────────────────────────
 // require* wrappers — return NextResponse(401) instead of null
 // ─────────────────────────────────────────────────────────────────────────
@@ -384,19 +258,6 @@ async function getActorSessionWithDiagnostics(
 function unauthorizedResponse(): NextResponse {
   return NextResponse.json(
     { error: "Unauthorized" },
-    {
-      status: 401,
-      headers: { "Cache-Control": "private, no-cache, no-store, must-revalidate" },
-    }
-  );
-}
-
-// TEMP Phase 1.4-debug — diagnostic 401 that returns auth-failure shape in
-// the response body so we don't need server logs to diagnose. Used by
-// requireStudentSession during the access-v2 debug session. Remove after fix.
-function diagnosticUnauthorizedResponse(diag: Record<string, unknown>): NextResponse {
-  return NextResponse.json(
-    { error: "Unauthorized", _debug: diag },
     {
       status: 401,
       headers: { "Cache-Control": "private, no-cache, no-store, must-revalidate" },
@@ -417,14 +278,9 @@ function diagnosticUnauthorizedResponse(diag: Record<string, unknown>): NextResp
 export async function requireStudentSession(
   request?: NextRequest
 ): Promise<StudentSession | NextResponse> {
-  // TEMP Phase 1.4-debug — diagnostic path that surfaces session-failure
-  // shape in the response body. Routes using requireStudentSession get
-  // _debug fields back temporarily until this is reverted.
-  const diag = await getActorSessionWithDiagnostics(request);
-  if (diag.session && diag.session.type === "student") {
-    return diag.session;
-  }
-  return diagnosticUnauthorizedResponse(diag.diagnostic);
+  const session = await getStudentSession(request);
+  if (!session) return unauthorizedResponse();
+  return session;
 }
 
 /**
