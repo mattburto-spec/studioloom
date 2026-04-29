@@ -2400,3 +2400,42 @@ All 9 sub-tasks of Access Model v2 Phase 0 (Foundation Schema + Audit Pre-Reqs) 
 **Scheduled task gap:** `refresh-project-dashboard` not in scheduled-tasks MCP — same gap as previous saveme runs. Dashboard `PROJECTS` array sync deferred to manual update or master CWORK-level dashboard refresh.
 
 **Session context:** This was the multi-day Phase 0 execution. Started from access-model-v2 plan signed off 25 Apr + IT audit reviewed 28 Apr → restructured plan for Path B (ship-before-pilot) → 9 sub-tasks across 3+ days of work in the questerra-access-v2 worktree. Matt manually applied migrations 0.1–0.5 to prod during execution (per "Supabase actions go through me manually" rule); migrations 0.6+ ship on the branch awaiting his apply. Checkpoint A1 verification ran with **5 PASS / 2 PARTIAL / 3 PENDING-MATT** status; merge to main waits for the 3 PENDING-MATT items (apply remaining migrations, MFA enrol, ENCRYPTION_KEY fire drill).
+
+---
+
+### 29 April 2026 — Access Model v2 Phase 0 APPLIED TO PROD + Checkpoint A1 PASS
+
+**What changed (post-saveme-#1 prod applies):**
+
+Following the saveme commit `64d2afc` that flipped Access Model v2 to "PHASE 0 SHIPPED ON BRANCH", Matt walked through the 12-step prod application + Checkpoint A1 close-out one step at a time. All 12 done.
+
+**Migrations applied to prod** (Supabase project `cxxbfmnbwihuskaaltlk`):
+1. ✅ 0.1 schools_v2_columns (already applied earlier in session window)
+2. ✅ 0.2 user_locale_columns (already applied)
+3. ✅ 0.3 student_unit_school_id (already applied)
+4. ✅ 0.4 soft_delete_and_unit_version_refs
+5. ✅ 0.5 user_profiles (4 teachers backfilled with user_type='teacher')
+6. ✅ 0.6a school_collections_and_guardians (4 tables)
+7. ✅ 0.6b consents (1 table + deny-all RLS)
+8. ✅ 0.6c school_responsibilities + student_mentors
+9. ✅ 0.7a class_members + audit_events
+10. ✅ 0.7b ai_budgets_and_state — **mid-apply fix** for Lesson #61 (`WHERE reset_at < now()` rejected by Postgres because `now()` is STABLE not IMMUTABLE; partial predicate dropped, plain b-tree on `reset_at` ships)
+11. ✅ 0.8a backfill — **mid-apply data fix** for orphan unit `Arcade Machine Project` (`fd2eaf1d-...`) which had NULL author_teacher_id AND teacher_id. Derived author from class_units chain → set to `mattburto@gmail.com` Matt row (`0f610a0b-...`). Migration ran cleanly afterward: 0 orphans, 26 lead_teacher rows seeded matching 26 classes-with-teacher.
+12. ✅ 0.8b NOT NULL tighten on students/units/classes school_id — **mid-apply data fix** for the 26 classes that had NULL school_id (Phase 0 doesn't auto-backfill mig 117's nullable column). Manual UPDATE FROM teacher chain populated all 26. Then 0.8b ran cleanly.
+
+**A1 ops items (Steps 10–12):**
+- ✅ Step 10 — Multi-Matt audit query run. Output: 3 Matts at NIS school_id `636ff4fc-...`, no other duplicate-name candidates. Data weights: `mattburto@gmail.com` (13 classes / 6 students / 7 units, oldest), `mattburton@nanjing-school.com` (7/1/3, school email), `hello@loominary.org` (6/0/1, newest). Phase 6 cutover decision: keep all 3 vs merge → deferred per plan.
+- ✅ Step 11 — Supabase MFA TOTP **Enabled** at project level (audit F6 satisfied). Per-user enrolment deferred to Phase 2 in-app UI (StudioLoom doesn't have `/auth/mfa/enroll` route yet — Supabase doesn't allow admin-side enrolment). `is_platform_admin=true` set on `mattburton@nanjing-school.com` user_profiles row.
+- ✅ Step 12 — ENCRYPTION_KEY rotation script smoke-tested via `--dry-run`. Prod has 0 encrypted rows (no BYOK API keys, no LMS integrations wired pre-pilot). Script connected to prod, queried 3 encrypted columns (ai_settings.encrypted_api_key, teacher_integrations.encrypted_api_token, lti_consumer_secret), reported 0 rows in each, exited `Failed: 0`. Live rotation deferred until first BYOK row exists. Rotation log entry appended to `docs/security/encryption-key-rotation.md`.
+
+**Checkpoint A1 final status: ALL 10 PASS ✅** (was 5 PASS / 2 PARTIAL / 3 PENDING-MATT post-saveme-#1).
+
+**Lessons logged this session:**
+- **Lesson #61** (`docs/lessons-learned.md`) — non-IMMUTABLE functions in index predicates are rejected by Postgres. Sibling to Lesson #38: shape-asserting tests catch string presence but not SQL semantic errors. Pair migration shape tests with execution tests against a real Postgres OR audit partial index predicates for `STABLE`/`VOLATILE` functions before declaring "Phase X DONE on branch".
+
+**Bumped commits:**
+- `2f87f1b` fix(access-v2): drop non-IMMUTABLE WHERE clause from idx_ai_budget_state_due_reset (mid-apply Lesson #61 fix)
+
+**Branch state:** `access-model-v2` at HEAD (commit added during this session). 53+ commits ahead of `main`. Tree clean. Ready to merge to main via PR. Worktree cleanup deferred — Matt can `git worktree remove ../questerra-access-v2` after merge OR keep for Phase 1.
+
+**Session context:** This was the prod apply + A1 close-out session. Multi-step walkthrough one migration at a time. Two mid-apply hiccups (Lesson #61 SQL bug + orphan data); both diagnosed + fixed inline; both informed Lesson #61 + the data-fix patterns. Now Phase 1 (Auth Unification — every student → auth.users + getStudentSession() helper + route migration) is the next milestone.

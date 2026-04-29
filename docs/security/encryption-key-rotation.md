@@ -112,7 +112,7 @@ Append a row each time the key is rotated:
 
 | Date | Reason | Rows rotated | Failures | Operator | Notes |
 |---|---|---|---|---|---|
-| _YYYY-MM-DD_ | _Initial fire drill_ | _N_ | _0_ | _Matt_ | _First rotation post-Phase 0.9 to verify procedure._ |
+| 2026-04-29 | Phase 0.9 fire drill — smoke test (dry-run) | 0 | 0 | Matt | Pre-pilot prod has zero encrypted rows (no BYOK API keys, no LMS integrations wired yet). Dry-run verified script connects to prod via service role, queries all 3 encrypted columns (`ai_settings.encrypted_api_key`, `teacher_integrations.encrypted_api_token`, `teacher_integrations.lti_consumer_secret`), reports zero rows, exits cleanly with `Failed: 0`. Live rotation NOT executed (no rows to rotate; throwaway NEW key never persisted to Vercel). Script proven functional. Re-run as live rotation when first BYOK row exists OR scheduled rotation cadence kicks in. |
 
 ## Closes audit finding
 
