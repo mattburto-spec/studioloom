@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
 
 // Forward mapping for pre-migration-011 fallback
@@ -12,9 +12,10 @@ const NUMBER_TO_PAGE_ID: Record<number, string> = {
 };
 
 export async function GET(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  // Phase 1.4b — explicit Supabase Auth via requireStudentSession.
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   const supabase = createAdminClient();
 

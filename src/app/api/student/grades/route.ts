@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -7,10 +7,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * Returns the student's published assessment for a unit.
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if ("error" in auth) {
-    return auth.error;
-  }
+  // Phase 1.4b — explicit Supabase Auth via requireStudentSession.
+  // Dual-mode fallback to legacy still works automatically (Phase 1.4a wrapper)
+  // for any client that hasn't switched to the new login route yet.
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  // Note: alias to studentId to keep downstream code compatible without
+  // ripping out the old `auth.studentId` references inline.
+  const auth = { studentId: session.studentId };
 
   const unitId = request.nextUrl.searchParams.get("unitId");
   if (!unitId) {

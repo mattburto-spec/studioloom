@@ -1285,3 +1285,60 @@ The 4 client-side sites use the browser Supabase client (`createClient()`). They
 - Verification: `grep -rn 'from("students").*insert' src/app/teacher` returns 0 results
 
 **Related:** Phase 1.1d shipped the server-side helper (`provisionStudentAuthUser`); 3 of 7 sites use it. Phase 1.4 closes the remaining 4. FU-REGISTRY-DRIFT-CI Layer 2 (pre-commit hook) would catch a 5th UI site if added before Phase 1.4 runs.
+
+---
+
+## FU-AV2-PHASE-14B-2 — Migrate remaining 18 GET-only student routes to requireStudentSession (P3)
+**Surfaced:** 29 Apr 2026 PM, Access Model v2 Phase 1.4b
+**Captured in:** `docs/projects/access-model-v2-phase-1-brief.md` §4.4
+
+**Issue:** Phase 1.4b shipped requireStudentSession migration on 6 GET-only routes as a representative sample. The remaining 18 GET-only routes still call `requireStudentAuth` directly:
+
+| # | File |
+|---|---|
+| 1 | `src/app/api/student/fabrication/jobs/[jobId]/status/route.ts` |
+| 2 | `src/app/api/student/fabrication/jobs/route.ts` |
+| 3 | `src/app/api/student/fabrication/picker-data/route.ts` |
+| 4 | `src/app/api/student/gallery/feedback/route.ts` |
+| 5 | `src/app/api/student/gallery/rounds/route.ts` |
+| 6 | `src/app/api/student/gallery/submissions/route.ts` |
+| 7 | `src/app/api/student/open-studio/status/route.ts` |
+| 8 | `src/app/api/student/safety-certs/route.ts` |
+| 9 | `src/app/api/student/safety/badges/[badgeId]/route.ts` |
+| 10 | `src/app/api/student/safety/badges/route.ts` |
+| 11 | `src/app/api/student/safety/check-requirements/route.ts` |
+| 12 | `src/app/api/student/search/route.ts` |
+| 13 | `src/app/api/student/skills/cards/[slug]/quiz-status/route.ts` |
+| 14 | `src/app/api/student/skills/cards/[slug]/route.ts` |
+| 15 | `src/app/api/student/skills/library/route.ts` |
+| 16 | `src/app/api/student/tile-comments/route.ts` |
+| 17 | `src/app/api/student/unit-pages/[pageId]/skill-refs/route.ts` |
+| 18 | `src/app/api/student/unit/route.ts` |
+
+**Why P3:** Phase 1.4a's dual-mode `requireStudentAuth` wrapper means these 18 routes ALREADY accept the new sb-* cookie auth. Migration is purely cosmetic + grants access to `session.userId` + `session.schoolId` (currently unused by these GET routes). No functional regression today.
+
+**Pattern (mechanical, ~2 min per route):**
+
+```typescript
+// BEFORE
+import { requireStudentAuth } from "@/lib/auth/student";
+// ...
+const auth = await requireStudentAuth(request);
+if (auth.error) return auth.error;
+const studentId = auth.studentId;
+
+// AFTER
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
+// ...
+const session = await requireStudentSession(request);
+if (session instanceof NextResponse) return session;
+const studentId = session.studentId;
+// (or alias: const auth = { studentId: session.studentId };
+//  to preserve downstream `auth.studentId` references inline)
+```
+
+**Definition of done:** `grep -rl "requireStudentAuth" src/app/api/student | xargs grep -l "^export async function GET" | xargs grep -L "^export async function POST\|^export async function PATCH\|^export async function DELETE\|^export async function PUT"` returns empty.
+
+**Sequence:** Do this AFTER Phase 1.4c (Batch B + C) ships, since those touch many of the same files.
+
+**Related:** `FU-AV2-UI-STUDENT-INSERT-REFACTOR` (P2 — different surface; client-side INSERT sites). Phase 1.5 RLS work assumes student auth is via auth.users (which the dual-mode wrapper already provides for these 18 routes).

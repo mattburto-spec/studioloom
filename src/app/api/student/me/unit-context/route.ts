@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveStudentClassId } from "@/lib/student-support/resolve-class-id";
 
@@ -26,8 +26,11 @@ import { resolveStudentClassId } from "@/lib/student-support/resolve-class-id";
 const CACHE_HEADERS = { "Cache-Control": "private, no-cache, no-store, must-revalidate" };
 
 export async function GET(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
+  // Phase 1.4b — explicit Supabase Auth via requireStudentSession.
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  // Alias to keep downstream `auth.studentId` references compatible.
+  const auth = { studentId: session.studentId };
 
   const unitId = request.nextUrl.searchParams.get("unitId") || undefined;
   if (!unitId) {
