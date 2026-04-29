@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import * as Sentry from "@sentry/nextjs";
-import { toPng } from "html-to-image";
+import { toJpeg } from "html-to-image";
 
 const CATEGORIES = [
   { value: "broken", label: "Something's broken", icon: "🔴" },
@@ -138,36 +138,66 @@ function buildClientContext(role: "teacher" | "student") {
 }
 
 /**
- * Capture the current page as a PNG data-URL using html-to-image. Returns
- * null on failure (some pages have CORS-tainted images that block canvas
- * export — we'd rather submit without a screenshot than fail the whole
- * report).
+ * Capture the current page as a JPEG data-URL using html-to-image. Returns
+ * { dataUrl, bytes } on success, null on failure or oversized payload.
+ *
+ * Long lesson pages can render to 20+ MP — even at JPEG q=0.8 that blows
+ * past Vercel's 4.5 MB body limit. So we dynamically scale pixelRatio so
+ * the longest output dimension caps at MAX_LONGEST_DIM, and reject the
+ * payload if it's still over MAX_PAYLOAD_BYTES after encoding (rather
+ * than letting the API 413 with a confusing error).
  */
-async function capturePageScreenshot(): Promise<string | null> {
+const MAX_LONGEST_DIM = 1400;
+const MAX_PAYLOAD_BYTES = 3 * 1024 * 1024; // 3MB after base64 — fits Vercel 4.5MB body limit
+
+async function capturePageScreenshot(): Promise<{ dataUrl: string; bytes: number } | null> {
   try {
     // Hide the bug-report panel itself so it doesn't appear in the shot.
     const panel = document.querySelector<HTMLElement>("[data-bug-report-panel]");
     const prevDisplay = panel?.style.display;
     if (panel) panel.style.display = "none";
 
-    const dataUrl = await toPng(document.body, {
+    // Compute pixelRatio so that max(naturalWidth, naturalHeight) * ratio <= MAX_LONGEST_DIM.
+    const naturalW = document.documentElement.scrollWidth;
+    const naturalH = document.documentElement.scrollHeight;
+    const longest = Math.max(naturalW, naturalH);
+    const baseRatio = longest > 0 ? Math.min(1, MAX_LONGEST_DIM / longest) : 1;
+
+    const dataUrl = await toJpeg(document.body, {
       cacheBust: true,
-      // Cap at 1600px wide; downscale on retina to keep payload small.
-      pixelRatio: Math.min(window.devicePixelRatio || 1, 1.5),
-      quality: 0.85,
+      pixelRatio: baseRatio,
+      quality: 0.8,
+      backgroundColor: "#ffffff",
       filter: (node) => {
-        // Skip the bug button itself
         if (node instanceof HTMLElement && node.dataset.bugReportButton === "true") return false;
         return true;
       },
     });
 
     if (panel && prevDisplay !== undefined) panel.style.display = prevDisplay;
-    return dataUrl;
+
+    // Approximate base64-decoded byte count: 3/4 of the data part length.
+    const commaIdx = dataUrl.indexOf(",");
+    const base64Len = commaIdx >= 0 ? dataUrl.length - commaIdx - 1 : dataUrl.length;
+    const decodedBytes = Math.floor(base64Len * 0.75);
+
+    if (dataUrl.length > MAX_PAYLOAD_BYTES) {
+      // Even after compression, this is too big for the wire. Caller surfaces
+      // a friendly message rather than letting the server 413.
+      return null;
+    }
+
+    return { dataUrl, bytes: decodedBytes };
   } catch (e) {
     console.warn("Bug report: screenshot capture failed", e);
     return null;
   }
+}
+
+function formatBytes(b: number): string {
+  if (b < 1024) return `${b}B`;
+  if (b < 1024 * 1024) return `${Math.round(b / 1024)} KB`;
+  return `${(b / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export function BugReportButton({ role, classId, enabled = true }: BugReportButtonProps) {
@@ -179,6 +209,7 @@ export function BugReportButton({ role, classId, enabled = true }: BugReportButt
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [screenshotDataUrl, setScreenshotDataUrl] = useState<string | null>(null);
+  const [screenshotBytes, setScreenshotBytes] = useState<number>(0);
   const [capturingScreenshot, setCapturingScreenshot] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const eventsRef = useRef<CapturedEvent[]>([]);
@@ -254,18 +285,20 @@ export function BugReportButton({ role, classId, enabled = true }: BugReportButt
     setError(null);
     setSubmitted(false);
     setScreenshotDataUrl(null);
+    setScreenshotBytes(0);
     setCapturingScreenshot(false);
   };
 
   const handleAttachScreenshot = async () => {
     setCapturingScreenshot(true);
     setError(null);
-    const dataUrl = await capturePageScreenshot();
+    const result = await capturePageScreenshot();
     setCapturingScreenshot(false);
-    if (dataUrl) {
-      setScreenshotDataUrl(dataUrl);
+    if (result) {
+      setScreenshotDataUrl(result.dataUrl);
+      setScreenshotBytes(result.bytes);
     } else {
-      setError("Couldn't capture screenshot — submit without it?");
+      setError("Page is too long to screenshot. Submit without it — we'll still get the URL + browser info.");
     }
   };
 
@@ -435,15 +468,26 @@ export function BugReportButton({ role, classId, enabled = true }: BugReportButt
               {/* Screenshot attach */}
               <div className="mt-3">
                 {screenshotDataUrl ? (
-                  <div className="relative rounded-lg border border-gray-200 overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={screenshotDataUrl} alt="Attached screenshot" className="w-full h-auto block" />
-                    <button
-                      onClick={() => setScreenshotDataUrl(null)}
-                      className="absolute top-1 right-1 px-2 py-0.5 text-[10px] bg-black/60 text-white rounded hover:bg-black/80"
-                    >
-                      Remove
-                    </button>
+                  <div className="space-y-1">
+                    <div className="relative rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
+                      <a href={screenshotDataUrl} target="_blank" rel="noopener noreferrer" className="block">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={screenshotDataUrl}
+                          alt="Attached screenshot"
+                          className="w-full h-32 object-cover object-top block"
+                        />
+                      </a>
+                      <button
+                        onClick={() => { setScreenshotDataUrl(null); setScreenshotBytes(0); }}
+                        className="absolute top-1 right-1 px-2 py-0.5 text-[10px] bg-black/60 text-white rounded hover:bg-black/80"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-gray-400">
+                      Screenshot attached · {formatBytes(screenshotBytes)} · click to view full
+                    </p>
                   </div>
                 ) : (
                   <button
