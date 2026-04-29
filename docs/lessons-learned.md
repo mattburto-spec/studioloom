@@ -619,3 +619,31 @@ if (process.env.NODE_ENV === "test" && process.env.RUN_E2E !== "1") { sandbox pa
 
 **Wider applicability:** Pre-push audit / code-review checklists should explicitly ask "did the audit surface anything in the code I'm touching that I'm planning to defer? If yes, why not fix it now?" The default answer should be "fix now"; the burden is on "defer" to justify itself. Especially true for fixes that share a helper function or test fixture with the in-flight change.
 
+
+### Lesson #61 — Index predicates can't contain non-IMMUTABLE functions; shape-asserting tests don't catch this
+**Date:** 29 Apr 2026
+**Phase:** Access Model v2 Phase 0.7b apply
+**Trigger:** Tried to apply migration `20260428220303_ai_budgets_and_state.sql` to prod. Postgres rejected it with `42P17: functions in index predicate must be marked IMMUTABLE`. The offending DDL was:
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_ai_budget_state_due_reset
+  ON ai_budget_state(reset_at)
+  WHERE reset_at < now();
+```
+
+**What happened:** `now()` is `STABLE`, not `IMMUTABLE`. Postgres won't let you build a partial index whose predicate value changes over time (otherwise the index would silently lose correctness as `now()` advances). The fix: drop the predicate, use a plain b-tree on `reset_at`. The cron's `WHERE reset_at < now()` filter happens at query time; the b-tree forward-scan from earliest is efficient enough.
+
+The migration shape test asserted:
+```ts
+expect(sql).toMatch(/idx_ai_budget_state_due_reset[\s\S]+WHERE reset_at < now\(\)/);
+```
+which passed because the SQL TEXT contained that string. But the SQL TEXT being well-formed strings doesn't guarantee the SQL would actually compile against Postgres. **Shape-asserting tests assert presence of strings; they don't catch SQL semantic errors.**
+
+**Why this is a Lesson #38 sibling:** Lesson #38 was about tests asserting non-null instead of expected values. Lesson #61 is about tests asserting string-presence-in-text instead of execution-success. Both are "the test passed but the underlying thing is wrong." The fix is the same shape — make the test verify the expected outcome, not just the surface representation.
+
+**Rules:**
+- **For any partial index, verify the predicate uses only `IMMUTABLE` functions.** `now()`, `current_timestamp`, `random()`, anything that depends on session state — all rejected. `lower()`, arithmetic, constant comparisons — fine.
+- **Shape-asserting migration tests should be paired with at least one test that actually executes the migration against a real Postgres** (the live RLS test harness skeleton from Phase 0.9 is the right home for this — extend with a "this migration applies cleanly" check per migration).
+- **When you add a partial index, ask: is the predicate a constant? If not, is the function IMMUTABLE?** If the answer is "no" or "I'm not sure", drop the partial. The plain b-tree is almost always fast enough.
+
+**Wider applicability:** Anywhere a migration generates DDL that depends on database semantics (CHECK constraints with subqueries, CHECK constraints referencing other tables, partial indexes with mutable predicates, generated columns with non-immutable expressions, COMMENT escapes, etc.), the shape-asserting tests miss the failure mode. Pair with execution tests OR run the migration against a test database before declaring "Phase X DONE on branch."

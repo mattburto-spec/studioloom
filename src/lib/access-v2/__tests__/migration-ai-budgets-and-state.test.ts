@@ -92,10 +92,13 @@ describe('Migration: 20260428220303_ai_budgets_and_state', () => {
     expect(sql).toMatch(/last_warning_sent_at TIMESTAMPTZ NULL/);
   });
 
-  it('has reset cron index (partial WHERE reset_at < now())', () => {
+  it('has reset_at b-tree index for cron queries (no partial predicate — now() is not IMMUTABLE)', () => {
     expect(sql).toContain('idx_ai_budget_state_due_reset');
+    // The CREATE INDEX statement itself ends in a `;` immediately after
+    // the column list — no WHERE clause. Comments may mention WHERE for
+    // documentation purposes; we only care about the DDL shape.
     expect(sql).toMatch(
-      /idx_ai_budget_state_due_reset[\s\S]+WHERE reset_at < now\(\)/
+      /CREATE INDEX IF NOT EXISTS idx_ai_budget_state_due_reset\s+ON ai_budget_state\(reset_at\)\s*;/
     );
   });
 

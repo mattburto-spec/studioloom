@@ -78,10 +78,13 @@ CREATE TABLE ai_budget_state (
 );
 
 -- Reset cron query: "students whose reset_at has passed — wipe and
--- bump". Partial index keeps the active set small.
+-- bump". Plain b-tree on reset_at — Postgres rejects partial indexes
+-- whose predicate uses non-IMMUTABLE functions (now() is STABLE), so
+-- the cron's WHERE reset_at < now() filter happens at query time.
+-- The b-tree still satisfies the query efficiently (forward scan from
+-- earliest reset_at).
 CREATE INDEX IF NOT EXISTS idx_ai_budget_state_due_reset
-  ON ai_budget_state(reset_at)
-  WHERE reset_at < now();
+  ON ai_budget_state(reset_at);
 
 -- ============================================================
 -- 3. RLS — Phase 0 baseline
