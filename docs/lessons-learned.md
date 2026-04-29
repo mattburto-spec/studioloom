@@ -647,3 +647,49 @@ which passed because the SQL TEXT contained that string. But the SQL TEXT being 
 - **When you add a partial index, ask: is the predicate a constant? If not, is the function IMMUTABLE?** If the answer is "no" or "I'm not sure", drop the partial. The plain b-tree is almost always fast enough.
 
 **Wider applicability:** Anywhere a migration generates DDL that depends on database semantics (CHECK constraints with subqueries, CHECK constraints referencing other tables, partial indexes with mutable predicates, generated columns with non-immutable expressions, COMMENT escapes, etc.), the shape-asserting tests miss the failure mode. Pair with execution tests OR run the migration against a test database before declaring "Phase X DONE on branch."
+
+
+---
+
+### Lesson #62 — Use `pg_catalog.pg_constraint` for cross-schema FK verification, not `information_schema.constraint_column_usage`
+
+**Date:** 29 April 2026
+**Surfaced in:** Access Model v2 Phase 1.1a (`students.user_id` → `auth.users(id)` FK verification)
+
+**The bug:** Phase 1.1a's prod apply ran `ALTER TABLE students ADD COLUMN user_id UUID NULL REFERENCES auth.users(id) ON DELETE SET NULL`. The column landed, the index landed, the comment landed. The FK check query I wrote used `information_schema.constraint_column_usage` to verify the FK shape — and it **returned zero rows**. False alarm: the FK actually existed (confirmed by a `pg_catalog.pg_constraint` query and by the "constraint already exists" error when I tried to re-add it).
+
+**The cause:** `information_schema.constraint_column_usage` has documented quirks around cross-schema FK references. When the local table is in `public` and the foreign table is in `auth` (Supabase's auth schema), the JOIN to find the foreign-side schema/table can return zero rows even though the constraint exists. This is a Postgres standard-conformance issue; the view exists for SQL-standard portability but doesn't fully resolve cross-schema FKs.
+
+**The fix:** Use `pg_catalog.pg_constraint` directly. It's the authoritative source — the planner and executor both use it. Pattern for FK verification:
+
+```sql
+SELECT
+  c.conname AS constraint_name,
+  c.conrelid::regclass AS local_table,
+  a.attname AS local_column,
+  c.confrelid::regclass AS foreign_table,
+  af.attname AS foreign_column,
+  CASE c.confdeltype
+    WHEN 'a' THEN 'NO ACTION'
+    WHEN 'r' THEN 'RESTRICT'
+    WHEN 'c' THEN 'CASCADE'
+    WHEN 'n' THEN 'SET NULL'
+    WHEN 'd' THEN 'SET DEFAULT'
+  END AS on_delete
+FROM pg_constraint c
+JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey)
+JOIN pg_attribute af ON af.attrelid = c.confrelid AND af.attnum = ANY(c.confkey)
+WHERE c.contype = 'f'
+  AND c.conrelid = '<schema>.<table>'::regclass
+  AND a.attname = '<column>';
+```
+
+**Wider applicability:** Same pattern for any cross-schema PK/UNIQUE/EXCLUSION lookup. The `information_schema.*` views are good for portability and same-schema references, but **for any constraint check that crosses schemas (typically `public` ↔ `auth` in Supabase), reach for `pg_catalog` first.**
+
+**Why this is a Lesson #54 sibling:** Lesson #54 was "WIRING.yaml entries can claim 'complete' features that don't exist; audit by grep before trusting any system summary." This is the inverse: **information_schema views can claim 'absent' features that DO exist** because of standard-view limitations on cross-schema references. The fix shape is the same — when the abstraction layer says something doesn't exist, verify against the authoritative source before acting.
+
+**Rules:**
+- For FK shape verification: use `pg_catalog.pg_constraint` joined with `pg_attribute`.
+- For verifying that a constraint exists at all (without needing shape): the simplest, most reliable test is to attempt to CREATE it — Postgres returns a clear `already exists` error (SQLSTATE 42710) if it does.
+- For RLS policy verification: use `pg_policies` (a thin wrapper over `pg_policy`).
+- Treat `information_schema` as a portability layer for SQL standard tooling, not as authoritative for Postgres-specific features (cross-schema FKs, partial indexes, generated columns, RLS, etc.).
