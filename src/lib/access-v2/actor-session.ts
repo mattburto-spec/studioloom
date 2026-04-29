@@ -291,6 +291,92 @@ export async function getTeacherSession(
   return actor;
 }
 
+// TEMP Phase 1.4-debug — diagnostic getActorSession that returns failure
+// reason alongside the result. Used by requireStudentSession to surface
+// the failure to the response body. Remove after fix lands.
+async function getActorSessionWithDiagnostics(
+  _request?: NextRequest
+): Promise<{
+  session: ActorSession | null;
+  diagnostic: Record<string, unknown>;
+}> {
+  const diag: Record<string, unknown> = {};
+  let cookieNames: string[] = [];
+  let hasSupabaseCookie = false;
+
+  try {
+    const { cookies } = await import("next/headers");
+    const store = await cookies();
+    const allCookies = store.getAll();
+    cookieNames = allCookies.map((c) => c.name);
+    hasSupabaseCookie = allCookies.some((c) => c.name.startsWith("sb-"));
+    diag.cookieCount = allCookies.length;
+    diag.cookieNames = cookieNames;
+    diag.hasSupabaseCookie = hasSupabaseCookie;
+  } catch (e) {
+    diag.cookieReadError = (e as Error).message;
+  }
+
+  diag.supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "(unset)";
+  diag.hasAnonKey = Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+
+  // Note: don't short-circuit on missing Supabase cookie — let the SSR
+  // client + auth.getUser() report whatever it sees. That's the actual
+  // signal we want for the diagnosis.
+
+  let userData: { user: User | null } | null = null;
+  let userErr: { message?: string; status?: number } | null = null;
+
+  try {
+    const ssr = await createServerSupabaseClient();
+    const result = await ssr.auth.getUser();
+    userData = result.data;
+    userErr = result.error as { message?: string; status?: number } | null;
+  } catch (e) {
+    diag.failedAt = "auth.getUser-threw";
+    diag.threwError = (e as Error).message;
+    return { session: null, diagnostic: diag };
+  }
+
+  if (userErr || !userData?.user) {
+    diag.failedAt = "auth.getUser-returned-error";
+    diag.errorMessage = userErr?.message ?? null;
+    diag.errorStatus = userErr?.status ?? null;
+    diag.hasUser = Boolean(userData?.user);
+    return { session: null, diagnostic: diag };
+  }
+
+  const user = userData.user;
+  const userType = (user.app_metadata as Record<string, unknown> | undefined)?.user_type;
+  diag.userId = user.id;
+  diag.userType = userType;
+  diag.appMetadataKeys = Object.keys(user.app_metadata ?? {});
+
+  const supabaseAdmin = createAdminClient();
+
+  if (userType === "student") {
+    const session = await buildStudentSession(user, supabaseAdmin);
+    if (!session) {
+      diag.failedAt = "student-row-missing";
+      return { session: null, diagnostic: diag };
+    }
+    diag.failedAt = null;
+    return { session, diagnostic: diag };
+  }
+  if (userType === "teacher") {
+    const session = await buildTeacherSession(user, supabaseAdmin);
+    if (!session) {
+      diag.failedAt = "teacher-row-missing";
+      return { session: null, diagnostic: diag };
+    }
+    diag.failedAt = null;
+    return { session, diagnostic: diag };
+  }
+
+  diag.failedAt = "unsupported-user-type";
+  return { session: null, diagnostic: diag };
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // require* wrappers — return NextResponse(401) instead of null
 // ─────────────────────────────────────────────────────────────────────────
@@ -298,6 +384,19 @@ export async function getTeacherSession(
 function unauthorizedResponse(): NextResponse {
   return NextResponse.json(
     { error: "Unauthorized" },
+    {
+      status: 401,
+      headers: { "Cache-Control": "private, no-cache, no-store, must-revalidate" },
+    }
+  );
+}
+
+// TEMP Phase 1.4-debug — diagnostic 401 that returns auth-failure shape in
+// the response body so we don't need server logs to diagnose. Used by
+// requireStudentSession during the access-v2 debug session. Remove after fix.
+function diagnosticUnauthorizedResponse(diag: Record<string, unknown>): NextResponse {
+  return NextResponse.json(
+    { error: "Unauthorized", _debug: diag },
     {
       status: 401,
       headers: { "Cache-Control": "private, no-cache, no-store, must-revalidate" },
@@ -318,9 +417,14 @@ function unauthorizedResponse(): NextResponse {
 export async function requireStudentSession(
   request?: NextRequest
 ): Promise<StudentSession | NextResponse> {
-  const session = await getStudentSession(request);
-  if (!session) return unauthorizedResponse();
-  return session;
+  // TEMP Phase 1.4-debug — diagnostic path that surfaces session-failure
+  // shape in the response body. Routes using requireStudentSession get
+  // _debug fields back temporarily until this is reverted.
+  const diag = await getActorSessionWithDiagnostics(request);
+  if (diag.session && diag.session.type === "student") {
+    return diag.session;
+  }
+  return diagnosticUnauthorizedResponse(diag.diagnostic);
 }
 
 /**
