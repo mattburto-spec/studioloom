@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { motion } from "framer-motion";
 import type { ActivitySection, BloomLevel, WorkshopPhases } from "@/types";
 
 interface DimensionsSummaryBarProps {
@@ -35,18 +37,7 @@ const BLOOM_LOAD: Record<BloomLevel, number> = {
   create: 6,
 };
 
-// Tier colors for the Bloom mini-bar (low → high)
 const BLOOM_TIER_COLORS = ["#E5E7EB", "#DBEAFE", "#C7D2FE", "#DDD6FE", "#FBCFE8", "#FCA5A5"];
-
-// Phase ordering + colors for Time segments
-const PHASE_ORDER: { key: keyof WorkshopPhases; short: string; color: string }[] = [
-  { key: "opening", short: "Opening", color: "var(--le-phase-opening)" },
-  { key: "miniLesson", short: "Mini", color: "var(--le-phase-miniLesson)" },
-  { key: "workTime", short: "Work", color: "var(--le-phase-workTime)" },
-  { key: "debrief", short: "Debrief", color: "var(--le-phase-debrief)" },
-];
-
-const TARGET_MINUTES = 60;
 
 function loadTone(score: number): { label: string; bg: string; text: string; border: string; bar: string } {
   if (score <= 2) return { label: "Low", bg: "bg-emerald-50", text: "text-emerald-900", border: "border-emerald-200", bar: "#10B981" };
@@ -56,34 +47,27 @@ function loadTone(score: number): { label: string; bg: string; text: string; bor
 }
 
 /**
- * DimensionsSummaryBar (renamed in spirit to "Lesson Health card") —
- * warm-paper 3-column card showing live Time / Bloom's / Cognitive Load.
- * Updates as activities + phase durations change.
+ * Lesson Health card — Bloom's distribution + Cognitive Load.
+ *
+ * Time was previously a third column here, but the phase strip above the
+ * card already shows the same per-phase segments + total + over/under, so
+ * Time here was duplicate. Dropped to two columns.
+ *
+ * Collapsible: defaults to collapsed and shows a one-line summary strip.
+ * Click to expand into the full two-column view.
  */
 export default function DimensionsSummaryBar({ sections, phases }: DimensionsSummaryBarProps) {
-  // ─── Time column ──────────────────────────────────────────────────
-  const segments = phases
-    ? PHASE_ORDER.map((p) => ({ ...p, minutes: phases[p.key].durationMinutes || 0 }))
-    : [];
-  const totalMin =
-    segments.length > 0
-      ? segments.reduce((s, x) => s + x.minutes, 0)
-      : sections.reduce((s, a) => s + (a.durationMinutes || 0), 0);
-  const overUnder = totalMin - TARGET_MINUTES;
-  const overUnderTone =
-    overUnder > 0
-      ? "text-rose-600"
-      : overUnder < -5
-      ? "text-amber-600"
-      : "text-emerald-600";
-  const overUnderLabel =
-    overUnder > 0
-      ? `+${overUnder}m over`
-      : overUnder < -5
-      ? `${-overUnder}m under`
-      : "on target";
+  const [open, setOpen] = useState(false);
 
-  // ─── Bloom's column ───────────────────────────────────────────────
+  // Derived totals (still used to drive Cognitive Load math + section count)
+  const segmentTotal = phases
+    ? phases.opening.durationMinutes +
+      phases.miniLesson.durationMinutes +
+      phases.workTime.durationMinutes +
+      phases.debrief.durationMinutes
+    : sections.reduce((s, a) => s + (a.durationMinutes || 0), 0);
+
+  // ─── Bloom's ──────────────────────────────────────────────────────
   const bloomCounts: Record<BloomLevel, number> = {
     remember: 0, understand: 0, apply: 0, analyze: 0, evaluate: 0, create: 0,
   };
@@ -108,122 +92,119 @@ export default function DimensionsSummaryBar({ sections, phases }: DimensionsSum
       ? "Skews toward mid-tier — consider one Create task."
       : "Heavy on higher-order thinking — pace your scaffolding.";
 
-  // ─── Cognitive load column ────────────────────────────────────────
-  // Score = bloomAvg * 0.7 + activityDensity * 0.3, normalised to 1-5
+  // ─── Cognitive load ───────────────────────────────────────────────
   const activityCount = sections.length;
-  const phaseMinutes = totalMin || 1;
-  const density = (activityCount / Math.max(phaseMinutes, 30)) * 60; // activities per 60 min
+  const phaseMinutes = segmentTotal || 1;
+  const density = (activityCount / Math.max(phaseMinutes, 30)) * 60;
   const rawLoad = bloomAvg * 0.7 + Math.min(density, 6) * 0.3;
   const loadScore = Math.min(5, Math.max(1, rawLoad / 1.2));
   const loadPct = (loadScore / 5) * 100;
   const tone = loadTone(loadScore);
 
+  // ─── Collapsed strip ──────────────────────────────────────────────
   return (
-    <div className="le-card p-3.5">
-      <div className="le-cap text-[var(--le-ink-3)] mb-2">Lesson Health</div>
-      <div className="grid grid-cols-3 gap-3">
-        {/* ── Time ── */}
-        <div>
-          <div className="flex items-baseline justify-between">
-            <div className="text-[10px] font-extrabold tracking-widest uppercase text-[var(--le-ink-3)]">Time</div>
-            <div className={`text-[10px] font-extrabold ${overUnderTone}`}>{overUnderLabel}</div>
-          </div>
-          <div className="mt-1 text-[20px] font-extrabold le-tnum text-[var(--le-ink)]">
-            {totalMin}
-            <span className="text-[11px] font-bold text-[var(--le-ink-3)]"> / {TARGET_MINUTES}m</span>
-          </div>
-          <div className="mt-1.5 h-1.5 rounded-full bg-[var(--le-hair-2)] overflow-hidden flex">
-            {segments.length > 0 ? (
-              segments.map((s) => (
-                <div
-                  key={s.key}
-                  className="h-full"
-                  style={{
-                    width: `${(s.minutes / TARGET_MINUTES) * 100}%`,
-                    background: s.color,
-                    opacity: s.minutes ? 1 : 0.25,
-                  }}
-                />
-              ))
-            ) : (
-              <div
-                className="h-full bg-[var(--le-accent)]"
-                style={{ width: `${Math.min(100, (totalMin / TARGET_MINUTES) * 100)}%` }}
-              />
-            )}
-          </div>
-          {segments.length > 0 && (
-            <div className="mt-1.5 flex gap-2 flex-wrap">
-              {segments.map((s) => (
-                <div
-                  key={s.key}
-                  className="flex items-center gap-1 text-[10px] text-[var(--le-ink-2)]"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: s.color }} />
-                  {s.short} {s.minutes}m
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* ── Bloom's ── */}
-        <div>
-          <div className="flex items-baseline justify-between">
-            <div className="text-[10px] font-extrabold tracking-widest uppercase text-[var(--le-ink-3)]">Bloom&apos;s</div>
-            <div className="text-[10px] font-extrabold text-[var(--le-ink-2)]">{bloomLabel}</div>
-          </div>
-          <div className="mt-1 text-[20px] font-extrabold le-tnum text-[var(--le-ink)]">
-            {bloomTotal > 0 ? bloomAvg.toFixed(1) : "—"}
-            <span className="text-[11px] font-bold text-[var(--le-ink-3)]"> / 6</span>
-          </div>
-          <div className="mt-1.5 flex gap-[2px]">
-            {Array.from({ length: 6 }).map((_, i) => {
-              const filled = i < bloomRounded;
-              const total = bloomTotal;
-              const cellColor = filled
-                ? BLOOM_TIER_COLORS[i] || "var(--le-hair-2)"
-                : "var(--le-hair-2)";
-              const count = bloomCounts[BLOOM_ORDER[i]];
-              const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-              return (
-                <div
-                  key={i}
-                  className="flex-1 h-1.5 rounded-sm"
-                  style={{ background: cellColor }}
-                  title={`${BLOOM_LABEL[BLOOM_ORDER[i]]}: ${count} (${pct}%)`}
-                />
-              );
-            })}
-          </div>
-          <div className="mt-1.5 text-[10px] text-[var(--le-ink-3)]">{bloomNarrative}</div>
-        </div>
-
-        {/* ── Cognitive Load ── */}
-        <div>
-          <div className="flex items-baseline justify-between">
-            <div className="text-[10px] font-extrabold tracking-widest uppercase text-[var(--le-ink-3)]">Cognitive Load</div>
+    <div className="le-card overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-3 px-3.5 py-2 hover:bg-[var(--le-hair-2)]/40 transition-colors text-left"
+      >
+        <div className="le-cap text-[var(--le-ink-3)]">Lesson Health</div>
+        <div className="flex-1 flex items-center gap-3 text-[11px]">
+          {/* Bloom's mini summary */}
+          <span className="flex items-center gap-1.5">
+            <span className="text-[var(--le-ink-3)] uppercase tracking-wider text-[9.5px] font-extrabold">Bloom&apos;s</span>
+            <span className="font-extrabold le-tnum text-[var(--le-ink)]">
+              {bloomTotal > 0 ? bloomAvg.toFixed(1) : "—"}
+              <span className="font-bold text-[var(--le-ink-3)]">/6</span>
+            </span>
+            <span className="text-[var(--le-ink-2)] hidden md:inline">· {bloomLabel}</span>
+          </span>
+          <span className="w-px h-3 bg-[var(--le-hair)]" />
+          {/* Cognitive load mini summary */}
+          <span className="flex items-center gap-1.5">
+            <span className="text-[var(--le-ink-3)] uppercase tracking-wider text-[9.5px] font-extrabold">Load</span>
+            <span className="font-extrabold le-tnum text-[var(--le-ink)]">
+              {loadScore.toFixed(1)}
+              <span className="font-bold text-[var(--le-ink-3)]">/5</span>
+            </span>
             <span
-              className={`text-[10.5px] font-extrabold tracking-wider uppercase px-2 py-[3px] border rounded-full ${tone.bg} ${tone.text} ${tone.border}`}
+              className={`text-[10px] font-extrabold tracking-wider uppercase px-1.5 py-[1px] border rounded-full ${tone.bg} ${tone.text} ${tone.border}`}
             >
               {tone.label}
             </span>
+          </span>
+        </div>
+        <span className="text-[var(--le-ink-3)] text-[12px] leading-none select-none">
+          {open ? "▴" : "▾"}
+        </span>
+      </button>
+
+      <motion.div
+        initial={false}
+        animate={{ height: open ? "auto" : 0, opacity: open ? 1 : 0 }}
+        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+        className="overflow-hidden"
+      >
+        <div className="px-3.5 pb-3.5 pt-1 grid grid-cols-2 gap-4 border-t border-[var(--le-hair)]">
+          {/* Bloom's full */}
+          <div>
+            <div className="flex items-baseline justify-between">
+              <div className="text-[10px] font-extrabold tracking-widest uppercase text-[var(--le-ink-3)]">Bloom&apos;s</div>
+              <div className="text-[10px] font-extrabold text-[var(--le-ink-2)]">{bloomLabel}</div>
+            </div>
+            <div className="mt-1 text-[20px] font-extrabold le-tnum text-[var(--le-ink)]">
+              {bloomTotal > 0 ? bloomAvg.toFixed(1) : "—"}
+              <span className="text-[11px] font-bold text-[var(--le-ink-3)]"> / 6</span>
+            </div>
+            <div className="mt-1.5 flex gap-[2px]">
+              {Array.from({ length: 6 }).map((_, i) => {
+                const filled = i < bloomRounded;
+                const total = bloomTotal;
+                const cellColor = filled
+                  ? BLOOM_TIER_COLORS[i] || "var(--le-hair-2)"
+                  : "var(--le-hair-2)";
+                const count = bloomCounts[BLOOM_ORDER[i]];
+                const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                return (
+                  <div
+                    key={i}
+                    className="flex-1 h-1.5 rounded-sm"
+                    style={{ background: cellColor }}
+                    title={`${BLOOM_LABEL[BLOOM_ORDER[i]]}: ${count} (${pct}%)`}
+                  />
+                );
+              })}
+            </div>
+            <div className="mt-1.5 text-[10px] text-[var(--le-ink-3)]">{bloomNarrative}</div>
           </div>
-          <div className="mt-1 text-[20px] font-extrabold le-tnum text-[var(--le-ink)]">
-            {loadScore.toFixed(1)}
-            <span className="text-[11px] font-bold text-[var(--le-ink-3)]"> / 5</span>
-          </div>
-          <div className="mt-1.5 h-1.5 rounded-full bg-[var(--le-hair-2)] overflow-hidden">
-            <div
-              className="h-full rounded-full"
-              style={{ width: `${loadPct}%`, background: tone.bar }}
-            />
-          </div>
-          <div className="mt-1.5 text-[10px] text-[var(--le-ink-3)]">
-            Derived from Bloom&apos;s mix · {activityCount} {activityCount === 1 ? "activity" : "activities"} in {totalMin}m.
+
+          {/* Cognitive load full */}
+          <div>
+            <div className="flex items-baseline justify-between">
+              <div className="text-[10px] font-extrabold tracking-widest uppercase text-[var(--le-ink-3)]">Cognitive Load</div>
+              <span
+                className={`text-[10.5px] font-extrabold tracking-wider uppercase px-2 py-[3px] border rounded-full ${tone.bg} ${tone.text} ${tone.border}`}
+              >
+                {tone.label}
+              </span>
+            </div>
+            <div className="mt-1 text-[20px] font-extrabold le-tnum text-[var(--le-ink)]">
+              {loadScore.toFixed(1)}
+              <span className="text-[11px] font-bold text-[var(--le-ink-3)]"> / 5</span>
+            </div>
+            <div className="mt-1.5 h-1.5 rounded-full bg-[var(--le-hair-2)] overflow-hidden">
+              <div
+                className="h-full rounded-full"
+                style={{ width: `${loadPct}%`, background: tone.bar }}
+              />
+            </div>
+            <div className="mt-1.5 text-[10px] text-[var(--le-ink-3)]">
+              Derived from Bloom&apos;s mix · {activityCount} {activityCount === 1 ? "activity" : "activities"} in {segmentTotal}m.
+            </div>
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

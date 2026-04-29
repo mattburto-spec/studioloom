@@ -891,17 +891,31 @@ export default function LessonEditor({
                         </div>
                       ))}
                     </div>
-                    <span
-                      className={`text-[11px] font-extrabold le-tnum min-w-[60px] text-right ${
-                        totalDuration > 50
+                    {(() => {
+                      const TARGET = 60;
+                      const delta = totalDuration - TARGET;
+                      const tag =
+                        delta > 0
+                          ? `+${delta}m over`
+                          : delta < -5
+                          ? `${-delta}m under`
+                          : "on target";
+                      const tagTone =
+                        delta > 0
                           ? "text-rose-600"
-                          : totalDuration > 45
+                          : delta < -5
                           ? "text-amber-600"
-                          : "text-[var(--le-ink-2)]"
-                      }`}
-                    >
-                      {totalDuration} min
-                    </span>
+                          : "text-emerald-600";
+                      return (
+                        <div className="flex items-baseline gap-2 min-w-[140px] justify-end">
+                          <span className="text-[11px] font-extrabold le-tnum text-[var(--le-ink-2)]">
+                            {totalDuration}
+                            <span className="font-bold text-[var(--le-ink-3)]"> / {TARGET}m</span>
+                          </span>
+                          <span className={`text-[10px] font-extrabold ${tagTone}`}>{tag}</span>
+                        </div>
+                      );
+                    })()}
                   </div>
                   {/* ─── Dimensions Summary Bar (sticky with timeline) ─── */}
                   {pageContent?.sections && pageContent.sections.length > 0 && (
