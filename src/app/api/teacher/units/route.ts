@@ -149,11 +149,28 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // TODO(access-v2 §4.0): replace with requireActorSession().schoolId once Phase 1 lands.
+      // units.school_id was tightened to NOT NULL by mig 20260428222049_phase_0_8b; without
+      // this lookup the insert below 500s. Direct lookup keeps blast radius minimal — full
+      // 14-site audit (units + classes + students writers) belongs in access-v2 Phase 1.
+      const { data: teacherRow } = await adminClient
+        .from("teachers")
+        .select("school_id")
+        .eq("id", user.id)
+        .single();
+      if (!teacherRow?.school_id) {
+        return NextResponse.json(
+          { error: "Teacher missing school context" },
+          { status: 500 }
+        );
+      }
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const insertPayload: Record<string, any> = {
         title,
         description: description || null,
         content_data: contentData,
+        school_id: teacherRow.school_id,
         author_teacher_id: user.id,
         teacher_id: user.id,
         grade_level: gradeLevel || null,
