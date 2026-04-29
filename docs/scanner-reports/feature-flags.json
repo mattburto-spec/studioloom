@@ -1,24 +1,19 @@
 {
   "registry": "feature-flags.yaml",
-  "timestamp": "2026-04-29T02:55:29.000058+00:00",
+  "timestamp": "2026-04-28T22:53:44.490547+00:00",
   "version": 1,
   "drift": {
     "orphaned": [
       "SENTRY_AUTH_TOKEN"
     ],
     "missing": [
-      "BUG_REPORT_NOTIFY_EMAIL",
-      "NEXT_PUBLIC_SENTRY_ORG_SLUG",
-      "NEXT_PUBLIC_SENTRY_PROJECT_SLUG",
-      "NEXT_PUBLIC_VERCEL_ENV",
-      "NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA",
       "RUN_E2E"
     ]
   },
   "stats": {
     "registered_flags": 15,
     "registered_secrets": 12,
-    "code_env_vars": 27
+    "code_env_vars": 22
   },
   "status": "drift"
 }

@@ -320,12 +320,48 @@ docs:
 
   - path: docs/projects/access-model-v2.md
     title: "Access Model v2 — Auth Unification, Multi-Tenancy & Privacy Foundation"
-    purpose: "Project plan (16-22 days, 6 phases) for unifying StudioLoom's auth model (every student → auth.users, classcode+name as custom Supabase flow), introducing schools as a first-class entity with flat membership + no-designated-admin governance (two-tier change rules, 7-day revert, 48h confirm window), audit log, per-student AI budgets, FERPA/GDPR/PIPL data export+delete, OAuth (Google + Microsoft + email/PW; Apple deferred), and forward-compat schema seams (school_resources polymorphic for PYP/Service library + alumni + partners; guardians; SIS external IDs; consents; school lifecycle). Collapses FU-O/P/R/Q/W into one project. Provides the spec gap referenced by Governance GOV-2. Design phase signed off 25 Apr 2026; Phase 0 trigger = Preflight Phase 8 ships + dashboard-v2 polish quiescent."
+    purpose: "Project plan (19-25 days, 6 phases — Path B chosen 28 Apr) for unifying StudioLoom's auth model (every student → auth.users, classcode+name as custom Supabase flow), introducing schools as a first-class entity with flat membership + no-designated-admin governance (two-tier change rules, 7-day revert, 48h confirm window), audit log, per-student AI budgets, FERPA/GDPR/PIPL data export+delete, OAuth (Google + Microsoft + email/PW; Apple deferred), and 8 forward-compat schema seams in §8.6 (school_resources polymorphic for PYP/Service library + alumni + partners; guardians; SIS external IDs; consents; school lifecycle; monetisation tier seam; school_responsibilities programme coordinators; student_mentors cross-program mentorship). Collapses FU-O/P/R/Q/W into one project. **Phase 0 SHIPPED ON BRANCH 29 Apr 2026 — 12 migrations + 5 audit-derived security artifacts on access-model-v2 branch awaiting prod apply + Checkpoint A1 sign-off + merge.**"
     category: projects
-    last_verified: "2026-04-25"
-    referenced_from: ["ALL-PROJECTS.md Access Model v2 project", "ALL-PROJECTS.md Governance GOV-2 (subsumed components)", "ALL-PROJECTS.md Mentor Manager (gated dependency)"]
+    last_verified: "2026-04-29"
+    referenced_from: ["ALL-PROJECTS.md Access Model v2 project", "ALL-PROJECTS.md Governance GOV-2 (subsumed components)", "ALL-PROJECTS.md Mentor Manager (gated dependency)", "access-model-v2-phase-0-brief.md"]
     max_age_days: 90
-    last_scanned: "2026-04-25"
+    last_scanned: "2026-04-29"
+
+  - path: docs/projects/access-model-v2-phase-0-brief.md
+    title: "Access Model v2 — Phase 0 Brief"
+    purpose: "Build phase brief for Phase 0 (Foundation Schema + Audit Pre-Reqs). 9 sub-tasks, ~3-4 days estimated. Documents pre-flight ritual, stop triggers, lessons to re-read, Checkpoint A1 PASS criteria, sub-task instruction blocks. As of 29 Apr 2026 ALL 9 SUB-TASKS DONE on branch — 12 migrations + 5 security artifacts + 209 new tests. Tracker rows in the table mark each sub-task with mig timestamp + test count + scope notes."
+    category: projects
+    last_verified: "2026-04-29"
+    referenced_from: ["access-model-v2.md", "ALL-PROJECTS.md Access Model v2"]
+    max_age_days: 90
+    last_scanned: "2026-04-29"
+
+  - path: docs/security/multi-matt-audit-query.md
+    title: "Multi-Matt Prod Data Audit Query"
+    purpose: "Read-only diagnostic SQL for surfacing duplicate-name teacher rows in prod. Three NIS Matt teacher rows (different emails, same name='Matt', same school) plus any other test/demo accounts that share names. Phase 0.8a's orphan-teacher backfill explicitly does NOT silently merge — each row keeps its own school_id. Query gives Matt the data the Phase 6 cutover decision needs (merge vs keep separate). Phase 0.9 audit-derived deliverable."
+    category: security
+    last_verified: "2026-04-29"
+    referenced_from: ["access-model-v2.md §6 Risks", "access-model-v2-phase-0-brief.md sub-task 0.9"]
+    max_age_days: 365
+    last_scanned: "2026-04-29"
+
+  - path: docs/security/mfa-procedure.md
+    title: "Teacher MFA Procedure"
+    purpose: "Operational runbook for enabling Supabase TOTP MFA on teacher + platform-admin accounts. Covers project-level enable, first-login enrolment flow, recovery code storage, self-service reset (recovery codes), platform-admin reset path (out-of-band identity verification required), what-not-to-do (phishing guards). Phase 0.9 audit-derived deliverable closing audit F6 BLOCKER procedurally — Matt enables in Supabase dashboard before NIS pilot launch."
+    category: security
+    last_verified: "2026-04-29"
+    referenced_from: ["IT audit F6", "access-model-v2.md §3 item #30"]
+    max_age_days: 365
+    last_scanned: "2026-04-29"
+
+  - path: docs/security/encryption-key-rotation.md
+    title: "ENCRYPTION_KEY Rotation Procedure"
+    purpose: "Procedure + script (scripts/security/rotate-encryption-key.ts) for rotating the AES-256-GCM key that encrypts teacher BYOK credentials (LMS API tokens, AI provider API keys, LTI consumer secrets). Per-row decrypt-with-OLD → encrypt-with-NEW → roundtrip-verify-with-NEW with --dry-run flag. Phase 0.9 audit-derived deliverable closing audit F9 HIGH. Matt runs fire drill once during pilot setup. Rotation log table for appending each rotation event."
+    category: security
+    last_verified: "2026-04-29"
+    referenced_from: ["IT audit F9", "access-model-v2.md §3 item #32"]
+    max_age_days: 365
+    last_scanned: "2026-04-29"
 
   - path: docs/projects/discovery-engine-cognitive-layer.md
     title: "Discovery Engine — Cognitive Layer (MindPrint-Informed)"

@@ -2542,3 +2542,123 @@ Trying to handle both in one route produces silent failures — either "PKCE ver
 **Cost spent this session (Phase 2 work):** $0.0 (all changes are infrastructure + UI; no Anthropic calls fired beyond Phase 1 baseline).
 
 **Pending after this saveme:** (1) Matt applies `student_support_settings` migration to prod; (2) browser-test the teacher control panel; (3) decide Phase 3 (Response Starters) vs Phase 4 (signal infrastructure + unified settings) as next major chunk.
+
+---
+
+### 29 April 2026 — Access Model v2 Phase 0 SHIPPED ON BRANCH (foundation schema + audit pre-reqs)
+
+**What changed:**
+
+All 9 sub-tasks of Access Model v2 Phase 0 (Foundation Schema + Audit Pre-Reqs) shipped on the `access-model-v2` branch in worktree `/Users/matt/CWORK/questerra-access-v2`. 12 migrations + 5 audit-derived security artifacts + 209 new tests. **51 commits ahead of main, not pushed.** Awaiting Matt's manual Supabase apply of remaining 7 migrations + Checkpoint A1 sign-off + branch merge to main.
+
+**Sub-tasks shipped (all DONE):**
+
+- **0.1** schools column expansion — 6 cols: `status` (lifecycle enum), `region`, `bootstrap_expires_at`, `subscription_tier` (monetisation seam), `timezone` (IANA), `default_locale`. Mig `20260428125547`. Tests +13.
+- **0.2** user locale columns — `teachers.locale` + `students.locale`. Mig `20260428132944`. Tests +7. **Option A scope** — SIS columns originally planned here narrowed to locale-only after pre-flight audit caught mig 005_lms_integration.sql already had SIS-shaped columns under different names. Canonicalisation deferred to Phase 6.
+- **0.3** student/unit school_id gap fill + backfill — `students.school_id` + `units.school_id` (nullable + indexed) + UPDATE FROM teacher chain + `COALESCE(author_teacher_id, teacher_id)` for units. Mig `20260428134250`. Tests +13. NOT NULL tightening deferred to Phase 0.8.
+- **0.4** soft-delete + unit_version_id — `deleted_at` on `students/teachers/units` (3 cols) + `unit_version_id` UUID FK `unit_versions(id)` ON DELETE SET NULL on 7 submission-shaped tables (`assessment_records`, `competency_assessments`, `portfolio_entries`, `student_progress`, `gallery_submissions`, `fabrication_jobs`, `student_tool_sessions`). Mig `20260428135317`. Tests +19. Existing `is_archived` patterns on `classes` / `knowledge_items` / `activity_blocks` preserved — harmonisation deferred to Phase 6.
+- **0.5** `user_profiles` table (Option B chosen) — id PK FK `auth.users(id) ON DELETE CASCADE` + 6-value `user_type` enum (`student / teacher / fabricator / platform_admin / community_member / guardian`) + `is_platform_admin BOOLEAN`. Auto-create trigger on `auth.users` INSERT alongside existing `handle_new_teacher` trigger. Backfill from existing teachers. RLS: self-read + platform_admin-anywhere; INSERT/UPDATE deny-by-default (trigger + service role only). Mig `20260428142618`. Tests +20.
+- **0.6** 7 forward-compat tables across 3 migration pairs:
+  - **0.6a** `school_resources` + `school_resource_relations` + `guardians` + `student_guardians` (mig `20260428214009`, +24 tests)
+  - **0.6b** `consents` (polymorphic subject, RLS deny-all-Phase-0; mig `20260428214403`, +16 tests)
+  - **0.6c** `school_responsibilities` (programme coordinators) + `student_mentors` (cross-program mentorship — resolves FU-MENTOR-SCOPE P1; polymorphic mentor via `auth.users` FK; mig `20260428214735`, +22 tests)
+- **0.7** core access tables across 2 migration pairs:
+  - **0.7a** `class_members` (6-role enum incl. `mentor`) + `audit_events` (immutable append-only, polymorphic actor_type 7 values, denormalised school+class FKs, monetisation analytics seam, 5 indexes; mig `20260428215923`, +24 tests)
+  - **0.7b** `ai_budgets` (polymorphic subject student/class/school) + `ai_budget_state` (per-student running counter; mig `20260428220303`, +19 tests)
+- **0.8** backfill split into 0.8a + 0.8b for safer manual application:
+  - **0.8a** orphan teachers → personal schools, students/units cascade tail, class_members lead_teacher seed (single DO $$ block with RAISE EXCEPTION on remaining NULLs; mig `20260428221516`, +18 tests)
+  - **0.8b** tighten NOT NULL on students/units/classes school_id (with pre-flight RAISE EXCEPTION guards; mig `20260428222049`, +14 tests)
+- **0.9** audit-derived non-schema deliverables:
+  - api-registry annotation: 7 `/api/tools/*` routes → `auth: public` (closes audit F10; scanner heuristic + gate threshold bumped 40→50)
+  - `docs/security/multi-matt-audit-query.md` — read-only diagnostic for 3-Matts + duplicate-name candidates
+  - `scripts/security/rotate-encryption-key.ts` + `docs/security/encryption-key-rotation.md` (closes audit F9; per-row decrypt-encrypt-roundtrip-verify with --dry-run)
+  - `docs/security/mfa-procedure.md` (closes audit F6 procedurally; Matt enables in Supabase dashboard)
+  - `src/lib/access-v2/__tests__/rls-harness/` — RLS test scaffold + 1 starter test (closes audit F14 partially; full coverage = `FU-AV2-RLS-HARNESS-FULL-COVERAGE` P2)
+
+**Plan corrections during execution (filed as inline edits to access-model-v2.md):**
+- §3 item #26 rewritten to acknowledge mig 005 SIS prior art (Option A decision)
+- §3 Phase 0 column-additions bullet updated to name exact tables for soft-delete + unit_version_id
+- §8.6 item 3 full reality-check section with what-vs-what comparison table
+- §3 §8.6 expanded from 5 to 7 forward-compat tables (added school_responsibilities + student_mentors)
+- §4 Phase 0 user-type bullet updated to ship 6 enum values from day one
+- Phase 0 brief sub-task table rows ticked DONE for each completed sub-task
+- Supabase boundary note added to Phase 0 brief header (Matt applies migrations + dashboard + prod queries manually, not autonomously)
+
+**Decisions logged (9 entries):** see `docs/decisions-log.md` tail for full text. Highlights: Option B for user_profiles (Supabase recommendation over auth.users direct columns); Option A for SIS columns (mig 005 prior art deferral); 3 soft-delete patterns coexist (don't harmonize in Phase 0); 6-value user_type enum from day one (community_member + guardian match schema seams); 7 forward-compat tables (programme coordinators + student mentors added 28 Apr from cross-program mentorship discovery); class_members.role includes 'mentor'; 0.8a/0.8b split for safer manual application; multi-Matt prod data preserved as 3 separate teacher rows; API versioning + timezone seams added 28 Apr.
+
+**Side-findings filed (5 follow-ups + several closed):**
+- `FU-AV2-GUARDIAN-CONTACT-ENCRYPTION` P3 — encrypt guardians.email + phone before parent portal UI
+- `FU-AV2-AUDIT-EVENTS-PARTITION` P3 — partition by month when row count justifies (~1M rows)
+- `FU-AV2-RLS-HARNESS-FULL-COVERAGE` P2 — extend harness to per-route coverage as Phase 1+ migrates routes
+- `FU-AV2-NEW-TEACHER-USER-TYPE-DEFAULT` (Phase 1 fixup — handled when auth unification updates the trigger)
+- Earlier in session: `FU-AV2-IT-SUPPORT-USER-TYPE`, `FU-AV2-TEACHER-CROSS-SCHOOL-MOVE`, `FU-AV2-MULTI-SCHOOL-MEMBERSHIPS`, `FU-AV2-HIERARCHICAL-GOVERNANCE`, `FU-AV2-PROGRAMME-COORDINATORS` (filed in §3 deferred list)
+
+**Files created:**
+- 12 migration pairs at `supabase/migrations/2026*.sql` + `.down.sql`
+- 12 migration shape test files at `src/lib/access-v2/__tests__/migration-*.test.ts`
+- `docs/projects/access-model-v2-phase-0-brief.md` (~470 lines master brief for the phase)
+- `docs/security/multi-matt-audit-query.md`, `docs/security/mfa-procedure.md`, `docs/security/encryption-key-rotation.md`
+- `scripts/security/rotate-encryption-key.ts`
+- `src/lib/access-v2/__tests__/rls-harness/{README.md, setup.ts, students.live.test.ts}`
+
+**Files modified:**
+- `docs/projects/access-model-v2.md` — extensive plan corrections (Path B chosen, Option B for user_profiles, mig 005 prior art, Option A scope narrowing, soft-delete pattern coexistence, scope expansion for programme coordinators + student mentors, monetisation/timezone/locale/API-versioning forward-compat seams, etc.)
+- `docs/api-registry.yaml` — sync after scanner heuristic fix (7 unknown → public)
+- `docs/schema-registry.yaml` — sync via sync-schema-registry.py (88 → 108 entries, +20 from Phase 0 tables + columns)
+- `docs/ai-call-sites.yaml` — sync (no diff this session)
+- `scripts/registry/scan-api-routes.py` — path-based public override for `/api/tools/*` + gate threshold bumped 40→50
+
+**Test counts:** 2433 → **2642 passed** (+209 across all 9 sub-tasks); 9 → 11 skipped (+2 RLS harness live tests skipped without env). Typecheck clean throughout.
+
+**Systems affected:** none "live" — Phase 0 is pure schema + scaffolding. WIRING.yaml `auth-system` entry will update in Phase 1 when the unified `getStudentSession()` helper lands. Schema-registry now records 12 new tables + ~12 column additions.
+
+**Registry sync results (saveme step 11):**
+- `api-registry.yaml` — drift captured (the F10 fix + recent route work)
+- `ai-call-sites.yaml` — clean
+- `feature-flags.yaml` — `SENTRY_AUTH_TOKEN` orphan persists (FU-CC, P3 known)
+- `vendors.yaml` — clean, status: ok
+- `rls-coverage.json` — 7 RLS-no-policy tables (all pre-existing FU-FF set; zero new from Phase 0)
+- `schema-registry.yaml` — 108 entries (+20 from Phase 0)
+
+**Scheduled task gap:** `refresh-project-dashboard` not in scheduled-tasks MCP — same gap as previous saveme runs. Dashboard `PROJECTS` array sync deferred to manual update or master CWORK-level dashboard refresh.
+
+**Session context:** This was the multi-day Phase 0 execution. Started from access-model-v2 plan signed off 25 Apr + IT audit reviewed 28 Apr → restructured plan for Path B (ship-before-pilot) → 9 sub-tasks across 3+ days of work in the questerra-access-v2 worktree. Matt manually applied migrations 0.1–0.5 to prod during execution (per "Supabase actions go through me manually" rule); migrations 0.6+ ship on the branch awaiting his apply. Checkpoint A1 verification ran with **5 PASS / 2 PARTIAL / 3 PENDING-MATT** status; merge to main waits for the 3 PENDING-MATT items (apply remaining migrations, MFA enrol, ENCRYPTION_KEY fire drill).
+
+---
+
+### 29 April 2026 — Access Model v2 Phase 0 APPLIED TO PROD + Checkpoint A1 PASS
+
+**What changed (post-saveme-#1 prod applies):**
+
+Following the saveme commit `64d2afc` that flipped Access Model v2 to "PHASE 0 SHIPPED ON BRANCH", Matt walked through the 12-step prod application + Checkpoint A1 close-out one step at a time. All 12 done.
+
+**Migrations applied to prod** (Supabase project `cxxbfmnbwihuskaaltlk`):
+1. ✅ 0.1 schools_v2_columns (already applied earlier in session window)
+2. ✅ 0.2 user_locale_columns (already applied)
+3. ✅ 0.3 student_unit_school_id (already applied)
+4. ✅ 0.4 soft_delete_and_unit_version_refs
+5. ✅ 0.5 user_profiles (4 teachers backfilled with user_type='teacher')
+6. ✅ 0.6a school_collections_and_guardians (4 tables)
+7. ✅ 0.6b consents (1 table + deny-all RLS)
+8. ✅ 0.6c school_responsibilities + student_mentors
+9. ✅ 0.7a class_members + audit_events
+10. ✅ 0.7b ai_budgets_and_state — **mid-apply fix** for Lesson #61 (`WHERE reset_at < now()` rejected by Postgres because `now()` is STABLE not IMMUTABLE; partial predicate dropped, plain b-tree on `reset_at` ships)
+11. ✅ 0.8a backfill — **mid-apply data fix** for orphan unit `Arcade Machine Project` (`fd2eaf1d-...`) which had NULL author_teacher_id AND teacher_id. Derived author from class_units chain → set to `mattburto@gmail.com` Matt row (`0f610a0b-...`). Migration ran cleanly afterward: 0 orphans, 26 lead_teacher rows seeded matching 26 classes-with-teacher.
+12. ✅ 0.8b NOT NULL tighten on students/units/classes school_id — **mid-apply data fix** for the 26 classes that had NULL school_id (Phase 0 doesn't auto-backfill mig 117's nullable column). Manual UPDATE FROM teacher chain populated all 26. Then 0.8b ran cleanly.
+
+**A1 ops items (Steps 10–12):**
+- ✅ Step 10 — Multi-Matt audit query run. Output: 3 Matts at NIS school_id `636ff4fc-...`, no other duplicate-name candidates. Data weights: `mattburto@gmail.com` (13 classes / 6 students / 7 units, oldest), `mattburton@nanjing-school.com` (7/1/3, school email), `hello@loominary.org` (6/0/1, newest). Phase 6 cutover decision: keep all 3 vs merge → deferred per plan.
+- ✅ Step 11 — Supabase MFA TOTP **Enabled** at project level (audit F6 satisfied). Per-user enrolment deferred to Phase 2 in-app UI (StudioLoom doesn't have `/auth/mfa/enroll` route yet — Supabase doesn't allow admin-side enrolment). `is_platform_admin=true` set on `mattburton@nanjing-school.com` user_profiles row.
+- ✅ Step 12 — ENCRYPTION_KEY rotation script smoke-tested via `--dry-run`. Prod has 0 encrypted rows (no BYOK API keys, no LMS integrations wired pre-pilot). Script connected to prod, queried 3 encrypted columns (ai_settings.encrypted_api_key, teacher_integrations.encrypted_api_token, lti_consumer_secret), reported 0 rows in each, exited `Failed: 0`. Live rotation deferred until first BYOK row exists. Rotation log entry appended to `docs/security/encryption-key-rotation.md`.
+
+**Checkpoint A1 final status: ALL 10 PASS ✅** (was 5 PASS / 2 PARTIAL / 3 PENDING-MATT post-saveme-#1).
+
+**Lessons logged this session:**
+- **Lesson #61** (`docs/lessons-learned.md`) — non-IMMUTABLE functions in index predicates are rejected by Postgres. Sibling to Lesson #38: shape-asserting tests catch string presence but not SQL semantic errors. Pair migration shape tests with execution tests against a real Postgres OR audit partial index predicates for `STABLE`/`VOLATILE` functions before declaring "Phase X DONE on branch".
+
+**Bumped commits:**
+- `2f87f1b` fix(access-v2): drop non-IMMUTABLE WHERE clause from idx_ai_budget_state_due_reset (mid-apply Lesson #61 fix)
+
+**Branch state:** `access-model-v2` at HEAD (commit added during this session). 53+ commits ahead of `main`. Tree clean. Ready to merge to main via PR. Worktree cleanup deferred — Matt can `git worktree remove ../questerra-access-v2` after merge OR keep for Phase 1.
+
+**Session context:** This was the prod apply + A1 close-out session. Multi-step walkthrough one migration at a time. Two mid-apply hiccups (Lesson #61 SQL bug + orphan data); both diagnosed + fixed inline; both informed Lesson #61 + the data-fix patterns. Now Phase 1 (Auth Unification — every student → auth.users + getStudentSession() helper + route migration) is the next milestone.

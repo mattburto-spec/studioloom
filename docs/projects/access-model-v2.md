@@ -169,7 +169,7 @@ New `class_members` table replacing the current `author_teacher_id` direct owner
 23. Platform super-admin view at `/admin/school/[id]` (gated on `auth.users.is_platform_admin`) — teachers, fabricators, settings snapshot, audit log, merge request controls
 24. **Forward-compat schema only (Phase 0, no UX):** `school_resources` + `school_resource_relations` polymorphic tables — first consumer is Matt's future Service/PYP people-places-things library; pattern reusable for alumni / partner / shared-rubric collections (see §8.6)
 25. **Forward-compat schema only:** `guardians` + `student_guardians` relational tables — unblocks future parent comms, report sharing, parent portal SSO (see §8.6)
-26. **Forward-compat schema only:** SIS integration columns `external_id`, `sis_source`, `last_synced_at` on students, teachers, classes — unblocks future Google / Microsoft / PowerSchool / ManageBac roster sync without rewrite (see §8.6)
+26. **SIS integration seam — already partially exists in mig 005 (28 Apr 2026 pre-flight finding).** Mig 005_lms_integration.sql added `students.external_id`, `students.external_provider`, `classes.external_class_id`, `classes.external_provider`, `classes.last_synced_at` under different names than the v2 plan called for (`sis_source` → `external_provider`; `external_id` on classes → `external_class_id`). Renaming touches every reader of the LMS integration code path. **Decision (28 Apr PM):** keep mig 005's column names as-is for v2; canonicalisation deferred to Phase 6 cutover audit (or post-pilot follow-up). `teachers.external_id` / `teachers.sis_source` not added — `teachers` uses the separate `teacher_integrations` table (mig 005) for ManageBac/Toddle/Canvas API config. See §8.6 for updated forward-compat narrative.
 27. **Forward-compat schema only:** `consents` table tracking per-subject opt-ins (media release, AI usage, directory visibility, community contact, third-party share) — required for FERPA / GDPR / PIPL; UX wired in Phase 5 alongside privacy endpoints (see §8.6)
 28. **Forward-compat schema only:** `schools.status` lifecycle enum (`active` / `dormant` / `archived` / `merged_into`) — covers teacher turnover, school closure, post-merge redirect window (see §8.6)
 29. **`students.school_id` + `units.school_id` columns** (NEW — gap surfaced by 28 Apr audit). Without these, school library queries can't filter cleanly and RLS on student-touched tables has to traverse `students → class_students → classes.school_id` per row. Phase 0 adds both as nullable, backfills from the canonical class chain, then tightens to NOT NULL.
@@ -183,6 +183,10 @@ New `class_members` table replacing the current `author_teacher_id` direct owner
 37. **Timezone column on schools (NEW — 28 Apr regret-prevention pass):** `schools.timezone TEXT NOT NULL DEFAULT 'Asia/Shanghai'` (IANA format, validated). Replaces the ambiguous "midnight in school's local timezone" reference in Decision 6. Every scheduled job reads this: AI budget reset, dormant-school cron, retention enforcement, audit log day-bucketing, Resend send windows. ~5 minutes of Phase 0 work; saves a backfill migration the day a US or EU school onboards.
 38. **API versioning seam (NEW — 28 Apr regret-prevention pass):** all new v2-introduced routes ship under `/api/v1/...` prefix from Phase 0 onward. Existing 388 unversioned routes get a one-PR find-replace rename in Phase 6 cutover (`/api/teacher/*` → `/api/v1/teacher/*`, etc.) with a 90-day legacy-redirect alias on the old paths. Without versioning, the first SIS / LMS / parent-portal integration locks shape forever; with it, future v2 endpoints are non-breaking adds. ~30 minutes per phase of mechanical care; one focused day in Phase 6 for the rename pass.
 39. **Locale columns (NEW — 28 Apr regret-prevention pass):** `teachers.locale TEXT DEFAULT 'en'`, `students.locale TEXT DEFAULT 'en'`, `schools.default_locale TEXT DEFAULT 'en'`. No translation system in v2 — just the columns. Resolution: `user.locale ?? school.default_locale ?? 'en'`. When i18n eventually lands (likely within a year given Chinese parent / non-Anglophone international audience), the columns are populated and routes already pass `locale` through. Two columns of effort now; eliminates the cross-table user backfill that would otherwise gate any translation effort.
+40. **`school_responsibilities` table (NEW — 28 Apr, programme-coordinator seam — see §8.6 item 7):** Forward-compat schema only. Holds (school_id, teacher_id, responsibility_type, scope_jsonb, granted_at/by, deleted_at). `responsibility_type` enum: `pp_coordinator | pyp_coordinator | cas_coordinator | myp_coordinator | dp_coordinator | service_coordinator | safeguarding_lead` + extensible. Permission helper in Phase 3 reads via `has_school_responsibility(school_id, type?)`. First consumers: Open Studio v2 PP supervisor approval, PYP Exhibition mentor coordination, future CAS dashboard. Without this seam each programme feature reinvents its own coordinator concept.
+41. **`student_mentors` table (NEW — 28 Apr, student-specific mentorship seam — see §8.6 item 8):** Forward-compat schema only. Holds (student_id, mentor_user_id, programme, scope_jsonb, granted_at/by, deleted_at). `mentor_user_id REFERENCES auth.users(id)` so polymorphic identity works once Phase 1 + community_member auth land — same column accepts teacher / community_member / guardian. Resolves the cross-program mentorship case surfaced by `dashboard-v2-build` 26 Apr (MYP teacher mentoring a PP student in another teacher's class — gets 403 today). Permission helper in Phase 3 reads via `has_student_mentorship(student_id, programme?)`. Existing `student_projects.mentor_teacher_id` and PYPX/PP per-feature mentor patterns will eventually consolidate into this table; no break in v2.
+42. **`class_members.role` enum includes `mentor` (NEW — 28 Apr):** class-level mentor / substitute / cover-teacher cases (someone covering a whole class for a term, distinct from `student_mentors` which is per-student). Final Phase 0.7 enum: `lead_teacher | co_teacher | dept_head | mentor | lab_tech | observer`. Adds zero migration cost — just one enum value.
+43. **Phase 3 permission helper expansion (NEW — 28 Apr):** `can(actor, action, resource)` now does a 3-way scope lookup: `has_class_role(class_id, role?)` (class_members) + `has_student_mentorship(student_id, programme?)` (student_mentors) + `has_school_responsibility(school_id, type?)` (school_responsibilities). Dashboard scope endpoint returns the union with role badges so chip UI can render `[class:abc owner], [student:xyz mentor], [school:nis pyp_coordinator]` with correct hat per scope. ~half-day extra in Phase 3 vs the original single-table check.
 
 ### Explicitly NOT in scope (deferred)
 - Regional Supabase project splits — `region` column is the only forward-prep
@@ -194,6 +198,10 @@ New `class_members` table replacing the current `author_teacher_id` direct owner
 - **School Resources Library UI** — Matt's people / places / things browse experience for Service/PYP students. Schema lands in Phase 0; the browse UI, search, filtering, contact-reveal flow, and student-facing card/list views are a separate future project that builds on the schema seam
 - **Parent portal UI, SIS roster sync code, alumni directory UI** — schema seams ship; user-facing features are separate future projects
 - **DPAs, privacy policy, ToS, China network test, incident response runbook, parental consent forms, pentest, dependency scanning, second engineer, status page** — pilot-blocking but NOT v2 work. Run as parallel track per §12
+- **`FU-AV2-TEACHER-CROSS-SCHOOL-MOVE`** (filed 28 Apr 2026) — flow to preserve teacher identity when moving NIS → ISB or similar. Decide what work transfers (portfolio, units, classes) vs stays at the old school (audit log, historical grades). Single-column `teachers.school_id` (today's model) makes a clean swap awkward — the teacher's old classes get orphaned-from-this-teacher and need a new `lead_teacher` assignment. Full flow ~3–5 days when needed.
+- **`FU-AV2-MULTI-SCHOOL-MEMBERSHIPS`** (filed 28 Apr 2026) — `teacher_memberships` junction to support consultants / district-wide teachers / multi-campus roles (e.g., teaching at both NIS Pukou and NIS Xianlin). Today's `teachers.school_id` is single-valued. Junction table is additive but every `teachers.school_id` reader needs migration. ~2–3 days when needed.
+- **`FU-AV2-IT-SUPPORT-USER-TYPE`** (filed 28 Apr 2026) — narrower-than-teacher account type for school IT departments who need password resets + roster visibility but should NOT see student work or read AI conversations. Add `'school_support'` to `auth.users.user_type` enum + tighten the `can()` permission helper for that type. Build when first school IT dept asks for it.
+- **`FU-AV2-HIERARCHICAL-GOVERNANCE`** (filed 28 Apr 2026) — optional `governance_mode TEXT` on schools (`'flat'` default vs `'hierarchical'`). Hierarchical mode adds a `school_admin` per-school role that can override the 2-teacher confirm rule, with full audit log preservation. v1 ships flat-only (Decision 7 + Decision 8). Build when a school with a strict authority structure (principal-signs-off culture) requests it. Estimated 3–4 days. Schools that prefer NIS-style collaborative culture stay on `'flat'`.
 
 ---
 
@@ -208,8 +216,8 @@ Each phase ends with a named Matt Checkpoint. No phase begins until the previous
 - **API versioning ritual (starts here, no migration):** every new route introduced by v2 ships under `/api/v1/...` prefix. Existing routes stay where they are until Phase 6's rename pass. Document in `docs/conventions/api-versioning.md` so future contributors don't drift.
 - **NEW gap-fill columns (28 Apr audit):** `students.school_id`, `units.school_id` — backfilled from class chain, tightened to NOT NULL
 - **Forward-compat tables (schema only, no UX wiring):** `school_resources`, `school_resource_relations`, `guardians`, `student_guardians`, `consents`
-- **Column additions:** soft-delete (`deleted_at`) on every user-touched table; `unit_version_id` on submission-shaped tables; SIS forward-compat (`external_id`, `sis_source`, `last_synced_at`) on students / teachers / classes
-- **User type extensibility:** `auth.users.user_type` enum starting with `student | teacher | fabricator | platform_admin` — designed extensible for future `community_member` (§8.7) and `guardian` without migration
+- **Column additions:** soft-delete (`deleted_at`) on `students` / `teachers` / `units` only — `classes` / `knowledge_items` / `activity_blocks` keep their existing `is_archived` patterns (mig 033 / 017 / 060+072); harmonisation deferred to Phase 6. `unit_version_id UUID NULL REFERENCES unit_versions(id) ON DELETE SET NULL` on 7 submission-shaped tables (`assessment_records`, `competency_assessments`, `portfolio_entries`, `student_progress`, `gallery_submissions`, `fabrication_jobs`, `student_tool_sessions`) — wires into the existing `unit_versions` table from mig 040, no new versioning system. *(SIS forward-compat originally planned here — partially exists via mig 005 under different names; see §3 item #26 + §8.6 item 3. Phase 0 does NOT add SIS columns; canonicalisation deferred to Phase 6.)*
+- **User type extensibility:** `user_type` enum ships with **6 values from day one** — `student | teacher | fabricator | platform_admin | community_member | guardian`. The first 4 have code paths in v2; the last 2 match the schema seams shipping in Phase 0.6 (`school_resources` for community_member surfacing; `guardians` table for parent records) and have no code paths until their respective features build. Designed extensible — `'school_support'` deferred to follow-up `FU-AV2-IT-SUPPORT-USER-TYPE`.
 - **Backfill:** populate `teachers.school_id` for orphan teachers (creates personal schools); backfill `classes.school_id`, `machine_profiles.school_id`, `fabricators.school_id` from teacher chain (already nullable); seed `class_members.lead_teacher` from existing `classes.teacher_id`; soft-delete columns default `NULL`; SIS columns default `NULL`
 - **🛡️ MFA enablement (audit F6 BLOCKER):** turn on Supabase TOTP MFA at project level; require enrollment on first login for every teacher account; require Matt's platform-admin account to enroll before pilot. ~1 day. Documented procedure for MFA reset.
 - **🛡️ Live RLS test harness (audit F14):** authenticate as student-A in class-A, assert cross-class reads return zero rows; covers the HIGH-1 leak class. ~1–2 days. Integration test runs in CI.
@@ -409,7 +417,7 @@ Several things currently teacher-scoped should bubble up. Phase 4 migration hand
 
 ### 8.6 Forward-compatibility seams (schema in Phase 0, features later)
 
-These six additions are pure schema in Phase 0 — no UX, no business logic. Each unblocks a future feature without forcing a future migration. The cost is a handful of empty tables and columns; the benefit is that every one of these features becomes additive, not architectural.
+These eight additions are pure schema in Phase 0 — no UX, no business logic. Each unblocks a future feature without forcing a future migration. The cost is a handful of empty tables and columns; the benefit is that every one of these features becomes additive, not architectural.
 
 **1. Generic `school_resources` polymorphic pattern (Matt's library + future collections)**
 
@@ -457,14 +465,22 @@ student_guardians (student_id, guardian_id, is_primary, receives_reports, create
 
 No UI in v1. Schema unblocks future parent comms, report sharing, parent-portal SSO, emergency contact retrieval. Email/phone encrypted at rest like `school_resources.contact_info_jsonb`.
 
-**3. SIS external ID columns**
+**3. SIS external ID columns — reality check (28 April 2026 pre-flight)**
 
-On students, teachers, and classes:
-- `external_id text nullable` — the ID from whatever SIS the school uses
-- `sis_source text nullable` — `'manual'` (default) | `'google'` | `'microsoft'` | `'powerschool'` | `'managebac'` | `'veracross'` | extensible
-- `last_synced_at timestamptz nullable`
+The seam ALREADY EXISTS in mig 005_lms_integration.sql with different naming than this plan originally called for:
 
-Without these columns, future roster sync from a school's existing SIS becomes a rewrite of every user-shaped table. With them, integration is additive — a sync job can read `WHERE sis_source = 'managebac' AND last_synced_at < NOW() - interval '1 day'` and update.
+| What v2 plan said | What mig 005 actually shipped |
+|---|---|
+| `students.sis_source` | `students.external_provider` |
+| `students.external_id` | `students.external_id` ✓ |
+| `classes.sis_source` | `classes.external_provider` |
+| `classes.external_id` | `classes.external_class_id` |
+| `classes.last_synced_at` | `classes.last_synced_at` ✓ |
+| `teachers.{sis_source,external_id,last_synced_at}` | not added — `teachers` uses separate `teacher_integrations` table for API tokens |
+
+The seam is real, just under different names. Renaming touches every reader of the LMS integration code path (currently quarantined behind unused `teacher_integrations` flow). **Decision 28 Apr PM:** keep mig 005's names for v2; canonicalise to `sis_source` / `external_id` in Phase 6 cutover audit OR a post-pilot follow-up, whichever surfaces a real reason to break things. The forward-compat goal is achieved as-is — a future sync job reads `WHERE external_provider = 'managebac' AND last_synced_at < NOW() - interval '1 day'` instead of the originally-planned `sis_source` filter, and that's fine.
+
+**Why not rename now:** Lesson #44 (simplicity first — no speculative refactors) and Lesson #45 (surgical changes — touch only what each sub-task names). Renaming a year-old column to satisfy a forward-compat plan is the kind of yak-shave the methodology explicitly warns against. The seam works.
 
 **4. Consent tracking model**
 
@@ -510,6 +526,61 @@ What v2 deliberately does NOT build:
 - Tier UI (the "you've hit your free-plan limit" upsell card). Built in monetisation.md after seams are live.
 
 The seam adds ~1–2 hours of work spread across Phases 0/3/5. The cost of NOT adding it now is touching every `can()` call, every AI budget resolver, and possibly every audit-log producer when monetisation lands — exactly the retrofitting we avoid for `school_resources`, `guardians`, `consents`, and the others above.
+
+**7. Programme coordinator seam (`school_responsibilities`) — added 28 April 2026**
+
+A flat `teachers.school_id` membership model doesn't capture the IB programme-coordinator pattern: a teacher who has cross-class admin responsibility for a programme stream (PP / PYP / CAS / MYP / DP / Service Learning). They're not in authority over other teachers — they coordinate, sign off, submit to IB. Without a seam, every programme feature (Open Studio v2 PP supervisor approval, future PYP Exhibition flow, future CAS dashboard) reinvents its own coordinator concept.
+
+```
+school_responsibilities (
+  id uuid pk,
+  school_id uuid fk schools.id,
+  teacher_id uuid fk teachers.id,
+  responsibility_type text,    -- 'pp_coordinator' | 'pyp_coordinator' |
+                                --   'cas_coordinator' | 'myp_coordinator' |
+                                --   'dp_coordinator' | 'service_coordinator' |
+                                --   'safeguarding_lead' | extensible
+  scope_jsonb jsonb,            -- e.g. { "year_group": "G10" } or
+                                --   { "programme_year": "2026" } when needed
+  granted_at timestamptz nullable,
+  granted_by uuid fk teachers.id nullable,
+  deleted_at timestamptz nullable,
+  created_at timestamptz default now()
+)
+```
+
+No UX in v2 — just the seam. Multiple coordinators per programme allowed (some schools split G10/G11; some co-coordinate). Adding a coordinator = low-stakes change (audit-logged, revertable per §8.3); removing = high-stakes (2-teacher confirm). Permission helper in Phase 3 reads via `has_school_responsibility(school_id, type?)`.
+
+**8. Student-specific mentor seam (`student_mentors`) — added 28 April 2026**
+
+The cross-program mentorship case (an MYP teacher mentoring a PP student in another teacher's class) was surfaced by the `dashboard-v2-build` session 26 April 2026. Today the row exists in `student_projects.mentor_teacher_id` but no API/RLS reads it for scope — the mentor gets 403 when they try to load that PP student's cohort. Filed as FU-MENTOR-SCOPE P1, tied to FU-O cluster.
+
+This seam is the consolidation target for that pattern. Existing per-feature mentor columns (`student_projects.mentor_teacher_id`, future PP/CAS/Service equivalents) stay in place during v2; `student_mentors` is the v3+ canonical home.
+
+```
+student_mentors (
+  id uuid pk,
+  student_id uuid fk students.id,
+  mentor_user_id uuid fk auth.users.id,   -- POLYMORPHIC after Phase 1:
+                                           -- accepts teachers, community_members,
+                                           -- guardians (all share auth.users)
+  programme text,                          -- 'pp' | 'pypx' | 'cas' | 'service' |
+                                           --   'myp_personal_project' | 'open' | extensible
+  scope_jsonb jsonb,                       -- e.g. { "milestones": ["m1","m3"] }
+                                           --   or { "valid_until": "2026-12-15" }
+  granted_at timestamptz default now(),
+  granted_by uuid fk teachers.id nullable, -- the inviting teacher (typically class lead)
+  deleted_at timestamptz nullable,
+  created_at timestamptz default now()
+)
+```
+
+The polymorphic `mentor_user_id REFERENCES auth.users(id)` works because:
+- Phase 1 brings every student into `auth.users` (Decision 1)
+- §8.7 community_member auth lands its identity into `auth.users` too
+- §8.6 item 2 guardian auth (parent portal future) likewise
+
+Permission helper in Phase 3 reads via `has_student_mentorship(student_id, programme?)`. Dashboard scope endpoint returns `[{ scope: 'student:xyz', role: 'mentor', programme: 'pp' }]` so chip UI renders the right hat. Class-wide mentor / substitute teachers go through `class_members.role = 'mentor'` (Phase 0.7), not this table — different scope.
 
 ### 8.7 External community member access (future — explore later)
 
@@ -559,7 +630,8 @@ Systems touched (incomplete — full audit before Phase 0):
 - **Forward-compat (schema-only in Phase 0, see §8.6):** `school_resources`, `school_resource_relations`, `guardians`, `student_guardians`, `consents`
 
 **New columns on existing tables:**
-- `students`, `teachers`, `classes`: `external_id`, `sis_source`, `last_synced_at` (SIS forward-compat)
+- `teachers.locale TEXT NOT NULL DEFAULT 'en'`, `students.locale TEXT NOT NULL DEFAULT 'en'` (Phase 0.2 — locale forward-compat)
+- ~~`students`, `teachers`, `classes`: `external_id`, `sis_source`, `last_synced_at`~~ — already in mig 005 under different names; canonicalisation deferred to Phase 6 (see §3 item #26 + §8.6 item 3)
 - All user-touched tables: `deleted_at` (soft delete)
 - Submission-shaped tables: `unit_version_id`
 - `auth.users`: `user_type` (extensible enum), `is_platform_admin` (boolean)
