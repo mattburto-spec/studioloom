@@ -2662,3 +2662,61 @@ Following the saveme commit `64d2afc` that flipped Access Model v2 to "PHASE 0 S
 **Branch state:** `access-model-v2` at HEAD (commit added during this session). 53+ commits ahead of `main`. Tree clean. Ready to merge to main via PR. Worktree cleanup deferred — Matt can `git worktree remove ../questerra-access-v2` after merge OR keep for Phase 1.
 
 **Session context:** This was the prod apply + A1 close-out session. Multi-step walkthrough one migration at a time. Two mid-apply hiccups (Lesson #61 SQL bug + orphan data); both diagnosed + fixed inline; both informed Lesson #61 + the data-fix patterns. Now Phase 1 (Auth Unification — every student → auth.users + getStudentSession() helper + route migration) is the next milestone.
+
+---
+
+### 29 April 2026 (later still) — Access Model v2 Phase 1.1a/1.1b/1.1d/1.2 SHIPPED ON BRANCH + verified in preview
+
+**Branch:** `access-model-v2-phase-1` (8 commits ahead of `main`, pushed)
+**Worktree:** `/Users/matt/CWORK/questerra-access-v2`
+**Test count:** 2642 (Phase 0 baseline) → **2695** (+53 new tests across 1.1a + 1.1b + 1.1d + 1.2)
+**Typecheck:** 0 errors
+
+**Sub-phases shipped + state:**
+
+| Sub-phase | What | Prod state |
+|---|---|---|
+| 1.1a | ALTER TABLE students ADD COLUMN user_id UUID NULL FK auth.users(id) ON DELETE SET NULL + partial index + comment | ✅ Applied to prod via Supabase SQL Editor; verified column + FK + index + comment shape |
+| 1.1b | TS backfill script `scripts/access-v2/backfill-student-auth-users.ts` (--dry-run, --rollback flags, idempotent, robust to SDK drift) | ✅ Applied to prod; **7 students backfilled**, 7 auth.users created with synthetic emails + `app_metadata.user_type='student'` + `school_id` + `created_via='phase-1-1-backfill'`, 7 user_profiles auto-created via Phase 0 trigger |
+| 1.1d | Shared helper `provisionStudentAuthUser()` at `src/lib/access-v2/provision-student-auth-user.ts` + wires into 3 server-side INSERT routes (LTI launch, welcome/add-roster, integrations/sync) + post-Phase-1.1d miss fix to add school_id on add-roster's parseEntry payload | Pure code; no prod step. Filed FU-AV2-UI-STUDENT-INSERT-REFACTOR (P2) for the 4 client-side UI INSERT sites Phase 1.4 will refactor |
+| 1.2 | `POST /api/auth/student-classcode-login` — generateLink + verifyOtp via SSR cookie adapter; per-IP + per-classcode rate limit; lazy-provision fallback for UI-created students; audit_events on every outcome (success/failed/rate_limited); sanitised error logging; Cache-Control: private | ✅ Verified end-to-end in Vercel preview deploy: HTTP 200 happy path + sb-* session cookies set + JWT decoded with `app_metadata.user_type='student'` + 401 failure paths + audit_events rows shaped correctly + ip_address captured |
+
+**Test breakdown (29 new test cases added in this session):**
+- `migration-phase-1-1a-student-user-id-column.test.ts` — 8 shape tests
+- `provision-student-auth-user.test.ts` — 15 helper tests (pure helpers + happy/skip/reuse/fail paths + throwing variant)
+- `student-classcode-login/__tests__/route.test.ts` — 9 route tests (rate limit / 401 / lazy provision fail / generateLink fail / verifyOtp fail / happy + lazy provision)
+- `backfill-student-auth-users.test.ts` — 21 backfill tests (refactored to delegate to shared helper; 2 tests updated for new createUser-first semantics)
+
+**Lessons added (`docs/lessons-learned.md`):**
+- Lesson #62 — Use `pg_catalog.pg_constraint` for cross-schema FK verification, not `information_schema.constraint_column_usage` (surfaced when 1.1a's `students.user_id` FK to `auth.users(id)` was correctly created but information_schema query falsely reported zero rows; pg_catalog query confirmed the constraint exists with `ON DELETE SET NULL`)
+
+**Side issues handled in parallel by another session (NOT in this branch):**
+- `units-school-id-hotfix` (`c2ccb7e`) merged to main — fixes `/api/teacher/units` create case for post-0.8b NOT NULL school_id
+- Follow-up cleanup `462cfa8` on main — covers 4 other server-side INSERT sites (units/route.ts fork, convert-lesson, welcome/create-class, welcome/setup-from-timetable)
+- Proposal doc `c67dbc1` `access-v2-phase-1-school-id-foldin-proposal.md` reviewed and rejected — fold-in into Phase 1 conflated auth-unification with constraint-compliance bugfixes; recommendation taken to keep them as separate hotfixes on main + a single Phase-1.1d miss fix on this branch (add-roster school_id population)
+
+**Phase 1.2 prod-preview verification results (29 Apr 2026 PM):**
+- Test 1 (happy path): HTTP 200 + sb-* cookie + Cache-Control: private + correct response body ✅
+- Test 2 (JWT decode): app_metadata.user_type='student' + school_id + created_via all in claims; access_token TTL 3600s; amr method='otp' confirms magiclink flow ✅
+- Test 3a (bad classCode): HTTP 401 + Cache-Control: private + body `{"error":"Invalid class code"}` + audit row with failureReason='invalid_class_code' ✅
+- Test 3b (bad username): HTTP 401 + Cache-Control: private + body `{"error":"Student not found in this class"}` + audit row with failureReason='student_not_in_class' ✅
+- Test 4 (audit_events): 3 rows landed with correct shape; actor_id populated on success / NULL on failure; payload_jsonb shape correct; ip_address from x-forwarded-for ✅
+- Test 5 (per-classcode rate limit): skipped (unit-test covered)
+
+**Phase 1 progress:** 4 sub-phases of 7 done. Highest-risk sub-phase (1.2) verified. Remaining: 1.3 helpers (~0.5d), 1.4 route migrations (~1d), 1.5 RLS simplification (~0.5d), 1.6 negative control + cleanup (~0.5d), 1.7 registry hygiene (~0.5d). ~3 days from Checkpoint A2.
+
+**Registries (this saveme):**
+
+| File | Action | Result |
+|---|---|---|
+| `api-registry.yaml` | Rerun scanner — applied | New route `/api/auth/student-classcode-login` registered earlier in commit `c2a7456` (Phase 1.2). Scanner picked up the route + tests. No new diff this saveme. |
+| `ai-call-sites.yaml` | Rerun scanner — applied | No diff |
+| `feature-flags.yaml` | Rerun scanner | Pre-existing FU-CC drift (SENTRY_AUTH_TOKEN orphan) + RUN_E2E test env var still missing — known, deferred |
+| `vendors.yaml` | Rerun scanner | Status: ok |
+| `rls-coverage.json` | Rerun scanner | 7 known `rls_enabled_no_policy` (FU-FF + 6 others) — none new. Phase 1.5 closes 2 of these (student_sessions + fabrication_scan_jobs). |
+| `schema-registry.yaml` | Manual review | Phase 1.1a column add documented in migration shape test (`migration-phase-1-1a-student-user-id-column.test.ts`); `students.user_id` writers list expansion to be done in Phase 1.7 registry hygiene — drift acknowledged, deferred (not load-bearing). |
+| `data-classification-taxonomy.md` | Manual review | No drift this session. Phase 1.7 registry hygiene adds the Synthetic/Opaque Identifiers rule when Phase 1 closes. |
+
+**Branch state at saveme:** clean. 8 commits ahead of `main`, pushed.
+
+**NEXT:** Matt continues to Phase 1.3 — `getStudentSession()` / `getActorSession()` polymorphic helpers. Pure code, no prod step. Builds on the now-verified architecture.
