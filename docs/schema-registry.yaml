@@ -1978,7 +1978,9 @@ tables:
   - src/lib/fabrication/orchestration.ts
   - src/lib/student-support/resolve-class-id.ts
   - src/lib/student-support/resolve-settings.ts
-  spec_drift: []
+  spec_drift:
+  - date: 2026-04-30
+    note: "Phase 1.5b — applied 20260429133359_phase_1_5b_class_students_self_read_authuid.sql. Additive parallel auth.uid() path: `class_students_self_read_authuid` USING (EXISTS (SELECT 1 FROM students WHERE id = class_students.student_id AND user_id = auth.uid())). Pre-positioned for Phase 1.4 client-switch; coexists with existing teacher-side policies."
   classification:
     student_id:
       pii: true
@@ -2463,7 +2465,9 @@ tables:
   - src/app/api/student/insights/route.ts
   - src/app/api/teacher/nm-results/route.ts
   - src/app/api/teacher/student-snapshot/route.ts
-  spec_drift: []
+  spec_drift:
+  - date: 2026-04-30
+    note: "Phase 1.5 — applied 20260429130731_phase_1_5_competency_assessments_student_rewrite.sql. Dropped 2 broken policies (used `student_id = auth.uid()` which was always wrong post-Phase-1.1a — those are different UUIDs). Replaced with canonical chain `EXISTS (SELECT 1 FROM students WHERE id = competency_assessments.student_id AND user_id = auth.uid())`. Pre-positioned for Phase 1.4 client-switch; not load-bearing yet."
   classification:
     id:
       pii: true
@@ -3126,7 +3130,9 @@ tables:
   writers:
   - src/lib/design-assistant/conversation.ts
   readers: []
-  spec_drift: []
+  spec_drift:
+  - date: 2026-04-30
+    note: "Phase 1.5 — applied 20260429130733_phase_1_5_design_conversations_student_rewrite.sql. Dropped broken self-read policy. Replaced with canonical chain via design_conversations → students.user_id. Pre-positioned for Phase 1.4 client-switch; not load-bearing yet."
   classification:
     id:
       pii: false
@@ -3211,7 +3217,9 @@ tables:
   - src/lib/design-assistant/conversation.ts
   readers:
   - src/app/api/student/design-assistant/route.ts
-  spec_drift: []
+  spec_drift:
+  - date: 2026-04-30
+    note: "Phase 1.5 — applied 20260429130733_phase_1_5_design_conversations_student_rewrite.sql. Dropped broken self-read policy (used `student_id = auth.uid()`). Replaced with canonical chain via students.user_id. Pre-positioned for Phase 1.4 client-switch; not load-bearing yet."
   classification:
     id:
       pii: false
@@ -3506,7 +3514,9 @@ tables:
   - src/lib/preflight/email.ts
   readers:
   - src/lib/fabrication/machine-orchestration.ts
-  spec_drift: []
+  spec_drift:
+  - date: 2026-04-30
+    note: "Phase 1.5b — applied 20260429133401_phase_1_5b_fabrication_jobs_and_scan_jobs_student_read.sql. Additive `fabrication_jobs_student_self_read` USING canonical chain via students.user_id → auth.uid(). Pre-positioned for Phase 1.4 client-switch; not load-bearing yet."
   notes: 'lab_tech_picked_up_by intentionally has no FK to fabricators(id) — table not yet existed at migration time. FK hardening
     deferred. Dual-visibility RLS uses direct teacher_id fallback rather than Lesson #29 junction UNION because teacher_id
     column covers the NULL class_id case cleanly.'
@@ -3557,7 +3567,9 @@ tables:
   writers:
   - src/lib/fabrication/orchestration.ts
   readers: []
-  spec_drift: []
+  spec_drift:
+  - date: 2026-04-30
+    note: "Phase 1.5b — applied 20260429133401_phase_1_5b_fabrication_jobs_and_scan_jobs_student_read.sql. Additive `fabrication_scan_jobs_student_self_read` USING triple-nested chain (fabrication_scan_jobs → fabrication_jobs → students.user_id → auth.uid()). Closes scan_jobs side of the fabrication self-read story. Pre-positioned for Phase 1.4 client-switch."
   notes: scan-rls-coverage scanner will flag this as rls_enabled_no_policy — that is intentional and documented in-migration.
     Not drift.
 - name: fabricator_machines
@@ -6476,7 +6488,9 @@ tables:
   readers:
   - src/app/api/student/quest/mentor/route.ts
   - src/app/api/student/quest/route.ts
-  spec_drift: []
+  spec_drift:
+  - date: 2026-04-30
+    note: "Phase 1.5 — applied 20260429130732_phase_1_5_quest_journeys_student_rewrite.sql. Dropped broken self-read policy. Replaced with canonical chain quest_evidence → quest_milestones → quest_journeys → students.user_id → auth.uid(). Pre-positioned for Phase 1.4 client-switch; not load-bearing yet."
   classification:
     id:
       pii: true
@@ -6639,7 +6653,9 @@ tables:
   - src/app/api/student/quest/milestones/[id]/route.ts
   - src/app/api/student/quest/milestones/route.ts
   - src/app/api/teacher/quest/detail/route.ts
-  spec_drift: []
+  spec_drift:
+  - date: 2026-04-30
+    note: "Phase 1.5 — applied 20260429130732_phase_1_5_quest_journeys_student_rewrite.sql. Dropped broken self-read policy (used `student_id = auth.uid()` — wrong post-Phase-1.1a). Replaced with canonical chain via students.user_id. Pre-positioned for Phase 1.4 client-switch; not load-bearing yet."
   classification:
     id:
       pii: true
@@ -6912,7 +6928,9 @@ tables:
   - src/app/api/student/quest/mentor/route.ts
   - src/app/api/student/quest/route.ts
   - src/app/api/teacher/quest/detail/route.ts
-  spec_drift: []
+  spec_drift:
+  - date: 2026-04-30
+    note: "Phase 1.5 — applied 20260429130732_phase_1_5_quest_journeys_student_rewrite.sql. Dropped broken self-read/write policies (used `student_id = auth.uid()` — wrong post-Phase-1.1a). Replaced with canonical chain via quest_journeys.student_id → students.user_id → auth.uid(). Pre-positioned for Phase 1.4 client-switch; not load-bearing yet."
   classification:
     id:
       pii: true
@@ -8377,7 +8395,9 @@ tables:
   - src/app/teacher/units/[unitId]/class/[classId]/page.tsx
   - src/lib/feedback/signals.ts
   - src/lib/jobs/usage-analytics.ts
-  spec_drift: []
+  spec_drift:
+  - date: 2026-04-30
+    note: "Phase 1.5b — applied 20260429133400_phase_1_5b_student_progress_self_read.sql. Additive `student_progress_self_read` USING canonical chain via students.user_id → auth.uid(). Pre-positioned for Phase 1.4 client-switch; not load-bearing yet."
   classification:
     id:
       pii: false
@@ -8540,7 +8560,9 @@ tables:
   - src/app/api/bug-reports/route.ts
   - src/app/api/teacher/teach/live-status/route.ts
   - src/lib/auth/student.ts
-  spec_drift: []
+  spec_drift:
+  - date: 2026-04-30
+    note: "Phase 1.5b — applied 20260429133402_phase_1_5b_student_sessions_deny_all.sql. Explicit deny-all RLS via USING (false) WITH CHECK (false). Closes FU-FF (was implicit deny via no-policy state, now scanner-clean). Service role still bypasses RLS as expected. Table will be dropped at Phase 6 cutover."
   classification:
     id:
       pii: true
@@ -8766,6 +8788,7 @@ tables:
     locale: TEXT NOT NULL DEFAULT 'en'
     school_id: UUID NULL REFERENCES schools(id) ON DELETE SET NULL
     deleted_at: TIMESTAMPTZ NULL
+    user_id: UUID NULL REFERENCES auth.users(id) ON DELETE SET NULL
   unique_constraints:
   - - username
     - class_id
@@ -8777,8 +8800,9 @@ tables:
   - idx_students_graduation_year ON (graduation_year) WHERE graduation_year IS NOT NULL
   - idx_students_teacher_grad_year ON (author_teacher_id, graduation_year)
   - idx_students_school_id ON (school_id) WHERE school_id IS NOT NULL
+  - idx_students_user_id ON (user_id) WHERE user_id IS NOT NULL
   rls:
-    read: Teachers manage students in their classes (unknown); Teachers manage students (unknown)
+    read: Teachers manage students in their classes (unknown); Teachers manage students (unknown); students_self_read auth.uid() (Phase 1.5)
     write: Teachers manage students in their classes (unknown); Teachers manage students (unknown)
   writers:
   - src/app/api/auth/lti/launch/route.ts
@@ -8837,7 +8861,11 @@ tables:
   - src/lib/admin/monitors/usage-analytics.ts
   - src/lib/design-assistant/conversation.ts
   - src/lib/student-support/resolve-settings.ts
-  spec_drift: []
+  spec_drift:
+  - date: 2026-04-29
+    note: "Phase 1.1a — added students.user_id NULLABLE FK to auth.users(id) (migration 20260429073552_phase_1_1a_student_user_id_column.sql). Establishes canonical chain auth.uid() → students.user_id → students.id. NULL until lazy-provisioned at first Phase-1.2 login."
+  - date: 2026-04-30
+    note: "Phase 1.5 — applied 20260429130730_phase_1_5_students_self_read.sql. Additive policy `students_self_read` USING (user_id = auth.uid()) lets a student read their own row. Pre-positioned for Phase 1.4 client-switch (FU-AV2-PHASE-14-CLIENT-SWITCH); not load-bearing yet because routes still use createAdminClient()."
   classification:
     id:
       pii: true

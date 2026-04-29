@@ -1345,7 +1345,9 @@ const studentId = session.studentId;
 
 ---
 
-## FU-AV2-PHASE-15B — Phase 1.5b additive student-side RLS policies (4 tables, P2)
+## FU-AV2-PHASE-15B — Phase 1.5b additive student-side RLS policies (4 tables, P2) ✅ RESOLVED
+**Resolved:** 30 Apr 2026 — all 4 migrations applied to prod (`20260429133359..133402`). Verified clean via `python3 scripts/registry/scan-rls-coverage.py` — `student_sessions` + `fabrication_scan_jobs` exited the `rls_enabled_no_policy` drift bucket. See spec_drift entries on those tables in `docs/schema-registry.yaml`.
+
 **Surfaced:** 29 Apr 2026 PM, Access Model v2 Phase 1.5
 **Captured in:** `docs/projects/access-model-v2-phase-1-brief.md` §4.5
 
@@ -1395,3 +1397,35 @@ CREATE POLICY "Deny all (service role only)"
 **Sequence:** ship after Phase 1.5 (this commit) lands in prod and Phase 1.4c routes start migrating to RLS-respecting clients. Could ship before Checkpoint A2 if convenient; otherwise tracks separately.
 
 **Related:** FU-FF (P3 — RLS-as-deny-all on 3 tables), Phase 1.5 (the 3 rewrite migrations that fix broken policies).
+
+## FU-AV2-PHASE-14-CLIENT-SWITCH — Switch student routes from createAdminClient to RLS-respecting SSR client (P2)
+**Surfaced:** 30 Apr 2026 — Access Model v2 Phase 1.6 close
+**Captured in:** `docs/projects/access-model-v2-phase-1-brief.md` §7 (Checkpoint A2 — Option A scope adjustment)
+
+**Issue:** Phase 1.5 + 1.5b shipped 14 student-side RLS policies via the canonical `auth.uid() → students.user_id → students.id` chain — they're applied to prod but **NOT load-bearing** because the routes that read student data still use `createAdminClient()`, which bypasses RLS entirely. The policies serve as a documented backstop for future client-switch, not as the active line of defense.
+
+For Phase 1 to close cleanly, this is acceptable: app-level filtering (the existing `studentId IN (...)` and `student_id = $1` checks in route code) remains the primary isolation mechanism. But the design intent is for the policies to be load-bearing — that's the whole point of unifying student auth into `auth.users`.
+
+**Why P2 (deferred from Phase 1, not P1):**
+- New auth path (Phase 1.2) verified end-to-end in prod-preview — students can log in via Supabase Auth, get sb-* cookies, hit dual-mode-wrapped routes, and receive correct data.
+- Existing app-level filtering has been audited (no new gaps introduced by Phase 1).
+- Client-switch is route-by-route mechanical work that needs careful smoke testing per surface (no single migration; ~57 routes).
+- **Supporting tables don't yet have student-side RLS** — `classes`, `class_units`, `units`, `class_lessons`, etc. need parallel `auth.uid() → teachers/classes` policies before student SSR clients can read them. That's Phase 1.4 client-switch's prerequisite, not Phase 1.5's scope.
+
+**Scope when picked up:**
+
+1. **Audit supporting tables** — list every table the 6 Phase 1.4b migrated routes read (and every table they `JOIN` to). Flag which already have student-side policies (Phase 1.5/1.5b additions) vs which are admin-only.
+2. **Author missing supporting-table policies** — `classes_student_via_class_students`, `units_student_via_class_units`, etc. Pattern: student can read row IF they have a row in `class_students` for the relevant class.
+3. **Switch routes one batch at a time** — replace `createAdminClient()` with the SSR-aware client (per Lesson docs). Start with a low-risk read-only batch (e.g. the 6 Phase 1.4b routes), smoke-test in prod-preview, then expand.
+4. **Smoke per batch** — log in as a real student, hit each route, compare response shape vs admin-client baseline.
+5. **Remove dual-mode fallback in Phase 6** — once all routes use RLS-respecting clients AND the front-end is fully on the new login endpoint, drop the legacy `student_sessions` lookup from `requireStudentAuth` (Phase 1.4a wrapper).
+
+**Definition of done:**
+- All 63 student routes use the RLS-respecting SSR client (or are deleted).
+- Supporting-table policies exist for every table read transitively from a student route.
+- Smoke-test plan signed off (one student, one teacher, one cross-school check that returns 0 rows or 404).
+- Phase 6 cutover unblocked.
+
+**Sequence:** picks up after Phase 1.6 + 1.7 close Phase 1. Could be done in parallel with Phase 2 (school entity) but probably cleaner to ship Phase 2 first and then do client-switch on the post-Phase-2 schema.
+
+**Related:** FU-AV2-PHASE-14B-2 (P3 — finish the cosmetic GET-route migration), FU-AV2-PHASE-15B ✅ RESOLVED (the policies that this work activates), `docs/security/student-auth-cookie-grace-period.md` (RLS implications section).

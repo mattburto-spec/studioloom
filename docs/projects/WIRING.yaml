@@ -1763,19 +1763,28 @@ systems:
     name: Authentication System
     category: Platform Core
     status: complete
-    currentVersion: 1
-    summary: "Triple auth: Supabase Auth for teachers, custom token sessions for students, and a separate Fabricator (lab tech) auth with Argon2id-hashed passwords + opaque 32-byte session tokens (Preflight Phase 1B-2). Student login via class code + display name → nanoid(48) token with 7-day TTL. 3-level fallback for multi-class enrollment (junction → legacy class_id → name+teacher match). Fabricator sessions include an is_setup flag that gates the /fab/set-password invite/reset flow and excludes the session from regular /fab/* page access."
+    currentVersion: 2
+    summary: "Polymorphic auth via Supabase Auth + auth.users + app_metadata.user_type claim. Teachers, students, and platform admins all live in auth.users with `app_metadata.user_type` ∈ {teacher, student, platform_admin}. Polymorphic dispatch helpers in src/lib/access-v2/actor-session.ts: getActorSession() / getStudentSession() / getTeacherSession() / requireStudentSession() / requireActorSession(). Phase 1.2 added /api/auth/student-classcode-login route that mints Supabase sessions via generateLink({type:'magiclink'}) + verifyOtp({token_hash}) — produces sb-*-auth-token.0/.1 split-cookies. Phase 1.4a wrapped legacy requireStudentAuth in a dual-mode shim: tries getStudentSession first, falls back to legacy questerra_student_session cookie + student_sessions table lookup. Grace period until Phase 6 cutover, documented in docs/security/student-auth-cookie-grace-period.md. Fabricator (lab tech) auth remains separate with Argon2id-hashed passwords + opaque 32-byte session tokens (Preflight Phase 1B-2)."
     depends_on: []
-    affects: [student-signin, teacher-dashboard, teach-mode, preflight-pipeline]
+    affects: [student-signin, student-dashboard, student-onboarding, student-pm, student-open-studio, student-grade-view, student-nm, student-profile, student-learning-support, teacher-dashboard, teach-mode, preflight-pipeline]
     docs:
+      - path: docs/projects/access-model-v2.md
+        purpose: Master spec — auth unification, schools, audit, AI budgets, FERPA/GDPR/PIPL
+      - path: docs/projects/access-model-v2-phase-1-brief.md
+        purpose: Phase 1 build brief (auth unification + RLS pre-positioning)
+      - path: docs/security/student-auth-cookie-grace-period.md
+        purpose: Dual-auth-path coexistence semantics until Phase 6 cutover
       - path: docs/projects/school-readiness.md
         purpose: Auth architecture and compliance
       - path: docs/projects/preflight-phase-1b-2-brief.md
         purpose: Fabricator auth + invite + /fab/set-password + /fab/login flows
     data_fields:
+      - table: students
+        columns: [id, user_id]
+        notes: "Phase 1.1a: students.user_id NULLABLE FK → auth.users(id). Canonical chain auth.uid() → students.user_id → students.id. NULL for students who haven't completed first Supabase login yet (lazy-provisioned by Phase 1.2 login route)."
       - table: student_sessions
         columns: [id, student_id, token, class_id, created_at, expires_at]
-        notes: Token-based sessions
+        notes: Legacy token-based sessions. Still read by Phase 1.4a dual-mode fallback. Will be dropped at Phase 6 cutover. Phase 1.5b added explicit deny-all RLS (closes FU-FF).
       - table: fabricators
         columns: [id, email, display_name, password_hash, invited_by_teacher_id, is_active]
         notes: Fabricator (lab tech) accounts. password_hash is Argon2id; sentinel value during INVITE_PENDING until /fab/set-password lands.
@@ -1783,15 +1792,18 @@ systems:
         columns: [id, fabricator_id, token_hash, is_setup, expires_at]
         notes: Opaque 32-byte session tokens (stored as SHA-256 hash). is_setup=true means the session only grants access to /fab/set-password (invite/reset flow). Normal login creates is_setup=false sessions.
     key_files:
-      - src/lib/auth/student-session.ts
+      - src/lib/access-v2/actor-session.ts
+      - src/lib/access-v2/provision-student-auth-user.ts
+      - src/lib/auth/student.ts
       - src/lib/auth/verify-teacher-unit.ts
+      - src/app/api/auth/student-classcode-login/route.ts
       - src/lib/fab/auth.ts
       - src/lib/fab/token.ts
       - src/middleware.ts
-    future_needs: LMS SSO integration, QR code login, passwordless teacher auth. Fabricator email verification column + weekly digest. Unified loominary.org-only sender story (currently alerts@studioloom.app still works for cost alerts).
+    future_needs: Phase 1.4 client-switch (FU-AV2-PHASE-14-CLIENT-SWITCH P2) — switch student routes from createAdminClient() to RLS-respecting SSR client to activate Phase 1.5 + 1.5b policies in real route traffic. Phase 6 cutover — drop dual-mode fallback, drop questerra_student_session cookie + student_sessions table, drop /api/auth/student-login route. LMS SSO integration. QR code login. Fabricator email verification column + weekly digest. Unified loominary.org-only sender story.
     adrs: ["003"]
     os_seam: ready
-    change_impacts: Changes to token TTL affect session duration. Changes to student_sessions schema require migration. Changes to is_setup session semantics affect both /fab/set-password flow and normal /fab/* routing.
+    change_impacts: Changes to user_type claim semantics affect every actor-session call site. Changes to dual-mode fallback in src/lib/auth/student.ts affect all 63 /api/student/* routes. Changes to is_setup session semantics affect both /fab/set-password flow and normal /fab/* routing. Removing the legacy fallback before Phase 6 will break logged-in users on the legacy cookie path.
 
   - id: journey-engine
     name: Journey Engine (Interactive Sequences)

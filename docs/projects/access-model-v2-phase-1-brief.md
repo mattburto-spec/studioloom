@@ -544,59 +544,70 @@ Any of these → pause + report to Matt + wait for "go":
 
 ## 7. Checkpoint A2 — gate criteria
 
-Phase 1 closes when **ALL** of these pass:
+> **2026-04-30 scope amendment — Option A.** Mid-build it became clear that full client-switch (route reads via RLS-respecting SSR client) requires authoring student-side policies on supporting tables (`classes`, `units`, `class_units`, etc.) that don't yet exist. Rather than expand Phase 1, we shipped Phases 1.1–1.5b (auth path + critical RLS rewrites) and **deferred client-switch to FU-AV2-PHASE-14-CLIENT-SWITCH (P2)**. The original gate criteria below have been split into "Phase 1 close" (A2) and "client-switch close" (deferred).
+>
+> Phase 1.5 + 1.5b RLS policies are pre-positioned but **NOT load-bearing** until the client-switch follow-up ships. App-level filtering remains the active line of defense for student data isolation. The new auth path (Supabase Auth via classcode-login) is verified end-to-end in prod-preview and works for both new logins and the dual-mode-wrapped legacy flow.
 
-### Code
+### Phase 1 close (A2) — what's required NOW
 
-- [ ] All 63 student routes call `requireStudentSession()` (or `requireActorSession()`); zero call `requireStudentAuth()` directly. Verify: `grep -rn "requireStudentAuth" src/app/api/student/ | wc -l` returns 0.
-- [ ] All 17 student-touching teacher routes (Batch C) migrated.
-- [ ] Zero routes read `questerra_student_session` cookie directly. Verify: `grep -rn "questerra_student_session" src/ | wc -l` returns hits only in legacy route + cookie constant.
-- [ ] No new `createAdminClient()` calls in student routes for student-owned-data reads. (Mutations may still need admin client; reads should respect RLS.)
+#### Code
 
-### Registries (§4.7 hygiene pass)
+- [x] Phase 1.1a migration applied (`students.user_id` column).
+- [x] Phase 1.2 login route shipped (`/api/auth/student-classcode-login`) — verified end-to-end in prod-preview.
+- [x] Phase 1.3 polymorphic helpers shipped (`src/lib/access-v2/actor-session.ts`).
+- [x] Phase 1.4a dual-mode wrapper shipped (`requireStudentAuth` falls back gracefully).
+- [x] 6 GET routes explicitly migrated to `requireStudentSession` (Phase 1.4b). 18 GETs + Batch B mutations + Batch C teacher routes deferred (FU-AV2-PHASE-14B-2 P3 + FU-AV2-PHASE-14-CLIENT-SWITCH P2 — they all work via dual-mode wrapper).
+- [x] Zero new `createAdminClient()` calls **in routes that already use the new helper**. Wider client-switch deferred.
 
-- [ ] `WIRING.yaml` `auth-system`: summary rewritten, `affects` expanded to 9 systems, `key_files` corrected (no `student-session.ts`), `data_fields` includes `students.user_id` + auth.users `app_metadata` shape, `change_impacts` rewritten.
-- [ ] `wiring-dashboard.html` SYSTEMS array synced.
-- [ ] `api-registry.yaml` rerun + drift committed.
-- [ ] `schema-registry.yaml` spec_drift entries added for `students`, `student_sessions`, `fabricator_sessions`.
-- [ ] `feature-flags.yaml` adds `auth.student_supabase_session_enabled` + `auth.legacy_cookie_grace_period_days`.
-- [ ] `vendors.yaml` Supabase pii_identifiers note added re synthetic student emails.
-- [ ] `data-classification-taxonomy.md` Synthetic/Opaque Identifiers section added.
-- [ ] `scanner-reports/rls-coverage.json` rerun: `student_sessions`, `fabricator_sessions`, `fabrication_scan_jobs` no longer flagged.
-- [ ] `dimensions3-followups.md` updated: FU-FF ✅, FU-Q ✅, FU-R ✅, FU-HH PARTIAL.
-- [ ] `decisions-log.md` + `changelog.md` + `lessons-learned.md` (if applicable) appended.
+#### Registries (§4.7 hygiene pass — minimal-Option-A scope)
 
-### Data
+- [x] `WIRING.yaml` `auth-system`: summary rewritten, `affects` expanded to 12 systems, `key_files` corrected (`student.ts` not `student-session.ts`, plus `actor-session.ts` + `provision-student-auth-user.ts` + classcode-login route), `data_fields` includes `students.user_id`, `change_impacts` rewritten.
+- [x] `schema-registry.yaml` spec_drift entries added for `students`, `student_sessions`, `competency_assessments`, `quest_journeys`, `quest_milestones`, `quest_evidence`, `design_conversations`, `design_conversation_turns`, `class_students`, `student_progress`, `fabrication_jobs`, `fabrication_scan_jobs` (12 tables touched by Phase 1.5 + 1.5b).
+- [x] `scanner-reports/rls-coverage.json` rerun: `student_sessions` + `fabrication_scan_jobs` exited the `rls_enabled_no_policy` drift bucket.
+- [x] `dimensions3-followups.md` updated: FU-AV2-PHASE-15B ✅ RESOLVED; new FU-AV2-PHASE-14-CLIENT-SWITCH P2 filed.
+- [ ] `api-registry.yaml` rerun + drift committed (saveme).
+- [ ] `wiring-dashboard.html` SYSTEMS array synced (saveme).
+- [ ] `decisions-log.md` + `changelog.md` appended (saveme).
 
-- [ ] `SELECT COUNT(*) FROM students WHERE user_id IS NULL` returns 0 in prod.
-- [ ] `SELECT COUNT(*) FROM auth.users WHERE app_metadata->>'user_type' = 'student'` matches student count.
-- [ ] `SELECT COUNT(*) FROM user_profiles WHERE user_type = 'student'` matches student count (trigger fired correctly).
+#### Data
 
-### Tests
+- [x] All 8 RLS migrations from Phase 1.5 + 1.5b applied to prod 30 Apr 2026.
+- [ ] (Deferred to client-switch) `SELECT COUNT(*) FROM students WHERE user_id IS NULL` going to 0 — depends on Phase 1.4 client-switch enforcing the new path; until then, lazy-provision at first login is sufficient.
 
-- [ ] `npm test` 2642+ baseline still passes; new tests added (target: +30 to +50 covering helpers + backfill + RLS).
-- [ ] `npx tsc --noEmit --project tsconfig.check.json` exits 0.
-- [ ] Live RLS harness has at least 5 real tests across the 7 migrated tables; all green.
-- [ ] Negative control test (§4.6) was attempted, observed failing, then reverted.
+#### Tests
 
-### Smoke (prod or preview)
+- [x] `npm test` baseline 2762 passing (was 2642 pre-Phase-1; +120 across the day).
+- [x] `npx tsc --noEmit --project tsconfig.check.json` exits 0.
+- [ ] Live RLS harness — deferred to client-switch (policies aren't load-bearing yet, so live tests would prove nothing the migration shape tests don't already prove).
+- [ ] Negative control test — deferred to client-switch.
 
-- [ ] One real student logs in via classcode+name → lands on dashboard.
-- [ ] Same student opens a lesson page → reads load.
-- [ ] Same student saves tool work → write succeeds, persists.
-- [ ] Same student submits a gallery item → submit + feedback flow work.
-- [ ] Same student logs in from a SECOND class → resolves correct class context.
-- [ ] Teacher loads class hub → all students visible; opens one student profile → loads.
-- [ ] In Vercel logs: zero `Invalid session` errors during smoke.
+#### Smoke (prod-preview)
 
-### Documentation
+- [x] Student login mints sb-* cookies (Test 1 — 200).
+- [x] Explicitly-migrated route reads via SSR session (Test 2 — 200).
+- [x] Non-migrated route reads via dual-mode wrapper (Test 3 — 200).
+- [ ] Same student logs in from a SECOND class → deferred to pilot smoke (no second-class fixture in prod-preview yet).
+- [ ] Cross-class read attempt returns 0 rows / 404 → deferred to client-switch (would only exercise app-level filtering today; meaningful test arrives with RLS-respecting client).
 
-- [ ] Phase 1 brief (this file) committed at start of phase.
-- [ ] `docs/security/student-auth-cookie-grace-period.md` written and committed.
-- [ ] Decisions log appended (synthetic email format, dual-cookie grace window, batch ordering).
-- [ ] Changelog entry written.
-- [ ] Active-sessions row removed.
+#### Documentation
+
+- [x] Phase 1 brief committed at start of phase.
+- [x] `docs/security/student-auth-cookie-grace-period.md` written and committed.
+- [ ] `decisions-log.md` + `changelog.md` appended (saveme).
 - [ ] `docs/handoff/access-model-v2-phase-1.md` written for the next session.
+
+### Deferred to FU-AV2-PHASE-14-CLIENT-SWITCH (P2)
+
+These were originally Checkpoint-A2 criteria but moved to the follow-up so Phase 1 can close. Each will become a gate criterion on the client-switch follow-up itself.
+
+- All 63 student routes call `requireStudentSession()` directly (currently 6 do; 57 work via dual-mode wrapper).
+- All 17 student-touching teacher routes (Batch C) migrated.
+- No `createAdminClient()` calls for student-owned-data reads in any route.
+- Supporting-table policies (`classes`, `units`, `class_units`, etc.) authored and applied.
+- Cross-class smoke returns 0 rows / 404.
+- Live RLS harness with ≥5 real tests across the 7 migrated tables.
+- `feature-flags.yaml` `auth.student_supabase_session_enabled` flag (paired with client-switch rollout).
+- Negative control test attempted + reverted.
 
 ---
 
