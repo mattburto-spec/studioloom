@@ -90,29 +90,21 @@ export function LessonSidebar({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Unit header */}
+      {/* Unit title strip — cover lives in UnitThumbnailEditor above this component */}
       {unitTitle && (
-        <div className="px-3 py-3 border-b border-gray-200 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            {thumbnailUrl && (
-              <img
-                src={thumbnailUrl}
-                alt=""
-                className="w-8 h-8 rounded-md object-cover flex-shrink-0"
-              />
-            )}
-            <span className="text-sm font-semibold text-gray-800 truncate">
+        <div className="px-3 pt-2 pb-2 border-b border-[var(--le-hair)] flex-shrink-0">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[12px]">🎒</span>
+            <div className="text-[11.5px] font-extrabold truncate text-[var(--le-ink)]">
               {unitTitle}
-            </span>
+            </div>
           </div>
         </div>
       )}
 
       {/* ─── EDITING MODE ─── */}
-      <div className="px-3 py-3 border-b border-gray-200 flex-shrink-0">
-        <div className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">
-          Editing
-        </div>
+      <div className="px-3 py-2.5 border-b border-[var(--le-hair)] flex-shrink-0">
+        <div className="le-cap text-[var(--le-ink-3)] mb-2">Editing</div>
         <div className="space-y-1.5">
           <label className="flex items-center gap-2 cursor-pointer group">
             <input
@@ -121,9 +113,15 @@ export function LessonSidebar({
               value="all"
               checked={editMode === "all"}
               onChange={() => onEditModeChange("all")}
-              className="w-3.5 h-3.5 text-indigo-600 border-gray-300 focus:ring-indigo-500"
+              className="w-3.5 h-3.5 text-violet-600 border-[var(--le-hair)] focus:ring-violet-500"
             />
-            <span className={`text-sm ${editMode === "all" ? "font-medium text-gray-900" : "text-gray-600 group-hover:text-gray-800"}`}>
+            <span
+              className={`text-[12px] ${
+                editMode === "all"
+                  ? "font-semibold text-[var(--le-ink)]"
+                  : "text-[var(--le-ink-2)] group-hover:text-[var(--le-ink)]"
+              }`}
+            >
               All classes
             </span>
           </label>
@@ -134,9 +132,15 @@ export function LessonSidebar({
               value="class"
               checked={editMode === "class"}
               onChange={() => onEditModeChange("class")}
-              className="w-3.5 h-3.5 text-indigo-600 border-gray-300 focus:ring-indigo-500"
+              className="w-3.5 h-3.5 text-violet-600 border-[var(--le-hair)] focus:ring-violet-500"
             />
-            <span className={`text-sm ${editMode === "class" ? "font-medium text-gray-900" : "text-gray-600 group-hover:text-gray-800"}`}>
+            <span
+              className={`text-[12px] ${
+                editMode === "class"
+                  ? "font-semibold text-[var(--le-ink)]"
+                  : "text-[var(--le-ink-2)] group-hover:text-[var(--le-ink)]"
+              }`}
+            >
               This class only
             </span>
           </label>
@@ -158,7 +162,7 @@ export function LessonSidebar({
         )}
 
         {editMode === "all" && (
-          <p className="mt-2 text-[11px] text-gray-400 leading-tight">
+          <p className="mt-2 text-[11px] text-[var(--le-ink-3)] leading-tight">
             Changes update the unit template. Customized classes keep their own version.
           </p>
         )}
@@ -167,8 +171,10 @@ export function LessonSidebar({
           <div className="mt-2 flex items-center gap-1.5">
             <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M6 3v12" /><path d="M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
-                <path d="M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" /><path d="M18 9c0 9-12 6-12 12" />
+                <path d="M6 3v12" />
+                <path d="M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
+                <path d="M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
+                <path d="M18 9c0 9-12 6-12 12" />
               </svg>
               Customized
             </span>
@@ -176,21 +182,15 @@ export function LessonSidebar({
         )}
       </div>
 
-      {/* ─── LESSONS ─── */}
-      <div className="px-3 py-2.5 border-b border-gray-200 flex-shrink-0 flex items-center justify-between">
-        <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-          Lessons
-        </h3>
+      {/* ─── LESSONS header ─── */}
+      <div className="px-3 py-2 border-b border-[var(--le-hair)] flex-shrink-0 flex items-center justify-between">
+        <h3 className="le-cap text-[var(--le-ink-3)]">Lessons</h3>
         <button
           onClick={onAdd}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all"
+          className="text-[10px] font-extrabold tracking-wider px-1.5 py-0.5 rounded border border-violet-300 text-violet-700 bg-[var(--le-paper)] hover:bg-violet-50 transition-colors"
           title="Add a new lesson"
         >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          New
+          + New
         </button>
       </div>
 
@@ -217,8 +217,8 @@ export function LessonSidebar({
                       className="px-2 pt-3 pb-1"
                     >
                       <span
-                        className={`text-[10px] font-bold uppercase tracking-wider ${
-                          PHASE_COLORS[phase.toLowerCase()] || "text-gray-500"
+                        className={`text-[10px] font-extrabold uppercase tracking-widest ${
+                          PHASE_COLORS[phase.toLowerCase()] || "text-[var(--le-ink-3)]"
                         }`}
                       >
                         {phase}
@@ -237,26 +237,40 @@ export function LessonSidebar({
                   >
                     <button
                       onClick={() => onSelect(index)}
-                      className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all group flex items-center gap-2 ${
+                      className={`w-full text-left px-2 py-1.5 rounded-md transition-colors group flex items-start gap-2 ${
                         selectedIndex === index
-                          ? "bg-indigo-50 border-l-2 border-indigo-500 text-indigo-900 font-medium"
-                          : "hover:bg-gray-100 text-gray-700 border-l-2 border-transparent"
+                          ? "bg-violet-50 ring-1 ring-violet-200"
+                          : "hover:bg-[var(--le-hair-2)]"
                       }`}
                     >
-                      {/* Drag handle */}
-                      <span className="opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing text-gray-400 flex-shrink-0 select-none">
-                        ⠿
+                      {/* Lesson number circle */}
+                      <span
+                        className={`mt-0.5 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-extrabold flex-shrink-0 ${
+                          selectedIndex === index
+                            ? "bg-violet-600 text-white"
+                            : "bg-[var(--le-hair-2)] text-[var(--le-ink-2)]"
+                        }`}
+                      >
+                        {index + 1}
                       </span>
 
-                      {/* Lesson number + title */}
-                      <span className="truncate flex-1 min-w-0">
-                        <span className="text-gray-400 mr-1.5">{index + 1}.</span>
+                      {/* Lesson title */}
+                      <span
+                        className={`text-[11.5px] leading-[1.25] flex-1 truncate ${
+                          selectedIndex === index
+                            ? "font-extrabold text-[var(--le-ink)]"
+                            : "font-semibold text-[var(--le-ink-2)]"
+                        }`}
+                      >
                         {page.content?.title || page.title || `Lesson ${index + 1}`}
                       </span>
 
-                      {/* Active dot */}
+                      {/* Active pulse */}
                       {selectedIndex === index && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0" />
+                        <span
+                          className="mt-1 inline-block w-1.5 h-1.5 rounded-full bg-violet-600 flex-shrink-0"
+                          style={{ boxShadow: "0 0 0 3px rgba(147, 51, 234, 0.13)" }}
+                        />
                       )}
                     </button>
                   </Reorder.Item>
@@ -268,31 +282,29 @@ export function LessonSidebar({
       </div>
 
       {/* ─── HISTORY ─── */}
-      <div className="px-3 py-2.5 border-t border-gray-200 flex-shrink-0">
-        <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
-          History
-        </h3>
+      <div className="px-3 py-2.5 border-t border-[var(--le-hair)] flex-shrink-0">
+        <h3 className="le-cap text-[var(--le-ink-3)] mb-2">History</h3>
         {loadingVersions ? (
-          <div className="text-xs text-gray-400">Loading...</div>
+          <div className="text-[11px] text-[var(--le-ink-3)]">Loading...</div>
         ) : recentVersions.length === 0 ? (
-          <div className="text-xs text-gray-400">No versions yet</div>
+          <div className="text-[11px] text-[var(--le-ink-3)]">No versions yet</div>
         ) : (
           <div className="space-y-1">
             {recentVersions.map((v) => (
               <div
                 key={v.version}
-                className="flex items-center justify-between text-xs group"
+                className="flex items-center justify-between text-[11px] group"
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-gray-400 flex-shrink-0">
+                  <span className="text-[var(--le-ink-3)] flex-shrink-0">
                     {formatDate(v.created_at)}
                   </span>
-                  <span className="text-gray-600 truncate">
+                  <span className="text-[var(--le-ink-2)] truncate">
                     {v.label || v.sourceClassName || "Saved"}
                   </span>
                 </div>
                 <button
-                  className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600 transition-opacity flex-shrink-0 ml-1"
+                  className="opacity-0 group-hover:opacity-100 text-[var(--le-ink-3)] hover:text-violet-700 transition-opacity flex-shrink-0 ml-1"
                   title="Restore this version"
                 >
                   ↺
@@ -304,11 +316,11 @@ export function LessonSidebar({
       </div>
 
       {/* ─── BOTTOM ACTIONS ─── */}
-      <div className="px-3 py-3 border-t border-gray-200 flex-shrink-0 space-y-2">
+      <div className="px-3 py-3 border-t border-[var(--le-hair)] flex-shrink-0 space-y-2">
         {/* Settings link */}
         <a
           href={`/teacher/units/${unitId}/class/${classId}`}
-          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          className="flex items-center gap-2 text-[12px] text-[var(--le-ink-2)] hover:text-[var(--le-ink)] transition-colors"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="3" />

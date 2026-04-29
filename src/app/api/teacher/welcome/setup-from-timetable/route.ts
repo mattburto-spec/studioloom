@@ -122,6 +122,21 @@ export const POST = withErrorHandler(
 
     const supabase = createAdminClient();
 
+    // TODO(access-v2 §4.0): replace with requireActorSession().schoolId once Phase 1 lands.
+    // classes.school_id was tightened to NOT NULL by mig 20260428222049_phase_0_8b.
+    // Looked up once outside the per-class loop — same teacher owns all classes here.
+    const { data: timetableTeacherRow } = await supabase
+      .from("teachers")
+      .select("school_id")
+      .eq("id", teacherId)
+      .single();
+    if (!timetableTeacherRow?.school_id) {
+      return NextResponse.json(
+        { error: "Teacher missing school context" },
+        { status: 500 }
+      );
+    }
+
     // ── 1. Create all classes ──────────────────────────────────
     const createdClasses: Array<{
       classId: string;
@@ -141,6 +156,7 @@ export const POST = withErrorHandler(
           .from("classes")
           .insert({
             teacher_id: teacherId,
+            school_id: timetableTeacherRow.school_id,
             name: cls.name.trim(),
             code: classCode,
             framework: cls.framework,

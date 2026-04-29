@@ -7,6 +7,7 @@ import { useAISuggestions } from "./useAISuggestions";
 import type { AISuggestion } from "./useAISuggestions";
 import { LessonSidebar } from "./LessonSidebar";
 import LessonHeader from "./LessonHeader";
+import LessonIntroEditor from "./LessonIntroEditor";
 import PhaseSection from "./PhaseSection";
 import ActivityBlock from "./ActivityBlock";
 import { ActivityBlockAdd } from "./ActivityBlockAdd";
@@ -245,59 +246,113 @@ export default function LessonEditor({
     [selectedPageIndex, updatePage]
   );
 
-  // Activity mutations
+  // Phase ordering for activity grouping
+  const PHASE_ORDER = ["opening", "miniLesson", "workTime", "debrief"] as const;
+  type WorkshopPhaseKey = (typeof PHASE_ORDER)[number];
+
+  // Group sections by phase (legacy activities default to workTime)
+  const sectionsByPhase = useMemo(() => {
+    const groups: Record<WorkshopPhaseKey, ActivitySection[]> = {
+      opening: [],
+      miniLesson: [],
+      workTime: [],
+      debrief: [],
+    };
+    (pageContent?.sections || []).forEach((s) => {
+      const p = (s.phase || "workTime") as WorkshopPhaseKey;
+      if (PHASE_ORDER.includes(p)) groups[p].push(s);
+      else groups.workTime.push(s);
+    });
+    return groups;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageContent?.sections]);
+
+  // ── Activity mutations (id-based — phase-scoped rendering needs stable handles) ──
   const handleUpdateActivity = useCallback(
-    (activityIndex: number, partial: Partial<ActivitySection>) => {
+    (activityId: string, partial: Partial<ActivitySection>) => {
       if (!pageContent) return;
+      const idx = pageContent.sections.findIndex((s) => s.activityId === activityId);
+      if (idx < 0) return;
       const newSections = [...pageContent.sections];
-      newSections[activityIndex] = { ...newSections[activityIndex], ...partial };
+      newSections[idx] = { ...newSections[idx], ...partial };
       handleUpdatePageContent({ sections: newSections });
     },
     [pageContent, handleUpdatePageContent]
   );
 
   const handleDeleteActivity = useCallback(
-    (activityIndex: number) => {
+    (activityId: string) => {
       if (!pageContent) return;
       const newSections = pageContent.sections.filter(
-        (_, i) => i !== activityIndex
+        (s) => s.activityId !== activityId
       );
       handleUpdatePageContent({ sections: newSections });
     },
     [pageContent, handleUpdatePageContent]
   );
 
+  // Add activity, optionally targeting a specific phase. Inserts at end of
+  // that phase's slot in the flat array so phase ordering is preserved.
   const handleAddActivity = useCallback(
-    (activity: ActivitySection) => {
+    (activity: ActivitySection, targetPhase?: WorkshopPhaseKey) => {
       if (!pageContent) return;
-      const newActivity = {
+      const phase: WorkshopPhaseKey = targetPhase || (activity.phase as WorkshopPhaseKey) || "workTime";
+      const newActivity: ActivitySection = {
         ...activity,
+        phase,
         activityId: activity.activityId || nanoid(8),
       };
-      handleUpdatePageContent({
-        sections: [...pageContent.sections, newActivity],
-      });
+      const phaseIdx = PHASE_ORDER.indexOf(phase);
+      const sections = pageContent.sections;
+      // Insert before the first activity belonging to a later phase
+      let insertIdx = sections.length;
+      for (let i = 0; i < sections.length; i++) {
+        const sPhase = (sections[i].phase || "workTime") as WorkshopPhaseKey;
+        const sPhaseIdx = PHASE_ORDER.indexOf(sPhase);
+        if (sPhaseIdx > phaseIdx) {
+          insertIdx = i;
+          break;
+        }
+      }
+      const newSections = [...sections];
+      newSections.splice(insertIdx, 0, newActivity);
+      handleUpdatePageContent({ sections: newSections });
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [pageContent, handleUpdatePageContent]
   );
 
-  const handleReorderActivities = useCallback(
-    (newOrder: ActivitySection[]) => {
-      handleUpdatePageContent({ sections: newOrder });
+  // Reorder within a phase. Replaces that phase's slice with newOrder,
+  // preserving the order of items in other phases.
+  const handleReorderPhase = useCallback(
+    (phase: WorkshopPhaseKey, newOrder: ActivitySection[]) => {
+      if (!pageContent) return;
+      const result: ActivitySection[] = [];
+      for (const p of PHASE_ORDER) {
+        if (p === phase) {
+          result.push(...newOrder);
+        } else {
+          result.push(...sectionsByPhase[p]);
+        }
+      }
+      handleUpdatePageContent({ sections: result });
     },
-    [handleUpdatePageContent]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pageContent, sectionsByPhase, handleUpdatePageContent]
   );
 
   const handleDuplicateActivity = useCallback(
-    (activityIndex: number) => {
+    (activityId: string) => {
       if (!pageContent) return;
-      const source = pageContent.sections[activityIndex];
+      const idx = pageContent.sections.findIndex((s) => s.activityId === activityId);
+      if (idx < 0) return;
+      const source = pageContent.sections[idx];
       const duplicate: ActivitySection = {
         ...structuredClone(source),
         activityId: nanoid(8),
       };
       const newSections = [...pageContent.sections];
-      newSections.splice(activityIndex + 1, 0, duplicate);
+      newSections.splice(idx + 1, 0, duplicate);
       handleUpdatePageContent({ sections: newSections });
     },
     [pageContent, handleUpdatePageContent]
@@ -383,16 +438,73 @@ export default function LessonEditor({
       phases.debrief.durationMinutes
     : 0;
 
-  const activityTotalMinutes = (pageContent?.sections || []).reduce(
-    (sum, s) => sum + (s.durationMinutes || 0),
-    0
-  );
+  // --- Per-phase activity render helper ---
+  const renderPhaseActivities = (phase: WorkshopPhaseKey) => {
+    const items = sectionsByPhase[phase];
+    return (
+      <>
+        {items.length > 0 && (
+          <Reorder.Group
+            axis="y"
+            values={items}
+            onReorder={(newOrder) => handleReorderPhase(phase, newOrder)}
+            className="space-y-2"
+          >
+            <AnimatePresence initial={false}>
+              {items.map((section, i) => (
+                <Reorder.Item
+                  key={section.activityId || `${phase}-${i}`}
+                  value={section}
+                  className="list-none"
+                  whileDrag={{
+                    scale: 1.01,
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                    zIndex: 50,
+                  }}
+                  layout
+                  transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                >
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ type: "spring", damping: 20, stiffness: 300 }}
+                  >
+                    <ActivityBlock
+                      activity={section}
+                      index={i}
+                      framework={framework}
+                      udlEnabled={udlEnabled}
+                      onUpdate={(partial) =>
+                        section.activityId &&
+                        handleUpdateActivity(section.activityId, partial)
+                      }
+                      onDelete={() =>
+                        section.activityId && handleDeleteActivity(section.activityId)
+                      }
+                      onDuplicate={() =>
+                        section.activityId &&
+                        handleDuplicateActivity(section.activityId)
+                      }
+                    />
+                  </motion.div>
+                </Reorder.Item>
+              ))}
+            </AnimatePresence>
+          </Reorder.Group>
+        )}
+        <ActivityBlockAdd
+          onAdd={(activity) => handleAddActivity(activity, phase)}
+        />
+      </>
+    );
+  };
 
   // --- Render ---
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="lesson-editor-warm flex items-center justify-center min-h-screen bg-[var(--le-bg)]">
         <div className="text-center">
           <div className="animate-spin w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full mx-auto mb-3" />
           <p className="text-sm text-gray-500">Loading editor...</p>
@@ -403,7 +515,7 @@ export default function LessonEditor({
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="lesson-editor-warm flex items-center justify-center min-h-screen bg-[var(--le-bg)]">
         <div className="text-center">
           <p className="text-red-600 font-medium">{error}</p>
           <button
@@ -421,41 +533,41 @@ export default function LessonEditor({
 
   return (
     <DndProvider>
-    <div className="flex flex-col h-screen bg-white">
-      {/* ─── Sticky Header ─── */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 bg-white/80 backdrop-blur-sm z-30 flex-shrink-0">
+    <div className="lesson-editor-warm flex flex-col h-screen">
+      {/* ─── Sticky Header (warm paper sub-bar) ─── */}
+      <div className="flex items-center justify-between px-4 h-10 border-b border-[var(--le-hair)] bg-[var(--le-bg)] z-30 flex-shrink-0">
         <div className="flex items-center gap-3">
           {onBack && (
             <button
               onClick={onBack}
-              className="text-sm text-gray-500 hover:text-gray-700 transition-colors flex items-center gap-1"
+              className="text-[12px] text-[var(--le-ink-2)] hover:text-[var(--le-ink)] transition-colors flex items-center gap-1"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-              Back
+              ‹ Back
             </button>
           )}
 
-          <h1 className="text-sm font-bold text-gray-900 tracking-tight">Unit Editor</h1>
+          <h1 className="text-[13px] font-extrabold tracking-tight text-[var(--le-ink)]">Unit Editor</h1>
 
-          {/* Edit mode indicator */}
+          {/* Edit mode indicator — warm paper pill */}
           {editMode === "all" ? (
-            <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs font-medium rounded-full border border-blue-200">
-              Editing all classes
+            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-[var(--le-hair)] bg-[var(--le-paper)] text-[11px] font-semibold text-[var(--le-ink-2)]">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--le-accent)]" />
+              All classes
             </span>
           ) : isFork ? (
-            <span className="px-2 py-0.5 bg-amber-50 text-amber-700 text-xs font-medium rounded-full border border-amber-200">
+            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-amber-300 bg-amber-50 text-[11px] font-semibold text-amber-800">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
               This class only
             </span>
           ) : (
-            <span className="px-2 py-0.5 bg-gray-50 text-gray-500 text-xs font-medium rounded-full border border-gray-200">
+            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-[var(--le-hair)] bg-[var(--le-paper)] text-[11px] font-semibold text-[var(--le-ink-2)]">
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
               This class only
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 text-[11.5px]">
           {/* Save status */}
           <AnimatePresence mode="wait">
             {saveLabel.text && (
@@ -464,7 +576,7 @@ export default function LessonEditor({
                 initial={{ opacity: 0, x: 8 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -8 }}
-                className={`text-xs ${saveLabel.color}`}
+                className={`text-[11px] ${saveLabel.color}`}
               >
                 {saveLabel.text}
               </motion.span>
@@ -472,28 +584,24 @@ export default function LessonEditor({
           </AnimatePresence>
 
           {/* Undo/Redo */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center">
             <button
               onClick={undo}
               disabled={!canUndo}
-              className="p-1.5 rounded-md hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="px-2 py-1 rounded-md text-[var(--le-ink-3)] hover:bg-[var(--le-hair-2)] hover:text-[var(--le-ink)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-[14px] leading-none"
               title="Undo (Cmd+Z)"
+              aria-label="Undo"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="1 4 1 10 7 10" />
-                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-              </svg>
+              ↶
             </button>
             <button
               onClick={redo}
               disabled={!canRedo}
-              className="p-1.5 rounded-md hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="px-2 py-1 rounded-md text-[var(--le-ink-3)] hover:bg-[var(--le-hair-2)] hover:text-[var(--le-ink)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-[14px] leading-none"
               title="Redo (Cmd+Shift+Z)"
+              aria-label="Redo"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="23 4 23 10 17 10" />
-                <path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10" />
-              </svg>
+              ↷
             </button>
           </div>
 
@@ -504,7 +612,7 @@ export default function LessonEditor({
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }}
-                className="text-xs text-emerald-600 font-medium"
+                className="text-[11px] text-emerald-700 font-semibold"
               >
                 Saved as v{versionSaved}
               </motion.span>
@@ -518,14 +626,14 @@ export default function LessonEditor({
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }}
-                className="text-xs text-indigo-600 font-medium"
+                className="text-[11px] text-violet-700 font-semibold"
               >
                 ✦ Bloom&apos;s levels auto-detected
               </motion.span>
             )}
           </AnimatePresence>
 
-          {/* AI Suggest button */}
+          {/* AI Suggest button — warm violet outline */}
           <button
             onClick={() => {
               if (!pageContent) return;
@@ -546,35 +654,42 @@ export default function LessonEditor({
               });
             }}
             disabled={!selectedPage || suggestionsLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-md border border-violet-300 bg-violet-50 text-violet-800 text-[11.5px] font-bold hover:bg-violet-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             title="Get AI suggestions for this lesson"
           >
             {suggestionsLoading ? (
-              <div className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full" />
+              <div className="animate-spin w-3 h-3 border-2 border-violet-700 border-t-transparent rounded-full" />
             ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8l-6.2 4.5 2.4-7.4L2 9.4h7.6z" />
-              </svg>
+              <span>✨</span>
             )}
             {suggestionsLoading ? "Thinking..." : "AI Suggest"}
           </button>
 
-          {/* Palette toggle */}
+          {/* View as student — opens preview in new tab */}
+          {selectedPage && (
+            <a
+              href={`/teacher/units/${unitId}/preview/${selectedPage.id}?classId=${classId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2 py-1 rounded-md border border-[var(--le-hair)] bg-[var(--le-paper)] text-[11.5px] font-bold text-[var(--le-ink-3)] hover:text-[var(--le-ink)] hover:border-[var(--le-ink-3)] transition-colors"
+              title="See exactly what students see for this lesson"
+            >
+              👁 View as student
+            </a>
+          )}
+
+          {/* Save / palette toggle — solid ink */}
           <button
             onClick={() => setPaletteOpen(!paletteOpen)}
-            className={`p-1.5 rounded-md transition-colors ${
+            className={`px-2 py-1 rounded-md transition-colors text-[11.5px] font-bold border ${
               paletteOpen
-                ? "bg-indigo-100 text-indigo-600"
-                : "hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+                ? "border-[var(--le-ink)] bg-[var(--le-paper)] text-[var(--le-ink)]"
+                : "border-[var(--le-hair)] bg-[var(--le-paper)] text-[var(--le-ink-3)] hover:text-[var(--le-ink)]"
             }`}
             title={paletteOpen ? "Hide block palette" : "Show block palette"}
+            aria-label={paletteOpen ? "Hide block palette" : "Show block palette"}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="7" height="7" rx="1" />
-              <rect x="14" y="3" width="7" height="7" rx="1" />
-              <rect x="3" y="14" width="7" height="7" rx="1" />
-              <rect x="14" y="14" width="7" height="7" rx="1" />
-            </svg>
+            ▦ Blocks
           </button>
 
           {/* Version management menu */}
@@ -582,26 +697,25 @@ export default function LessonEditor({
             <div className="relative">
               <button
                 onClick={() => setShowMoreMenu(!showMoreMenu)}
-                className="p-1.5 rounded-md hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600"
+                className="px-2 py-1 rounded-md hover:bg-[var(--le-hair-2)] text-[var(--le-ink-3)] hover:text-[var(--le-ink)] transition-colors text-[14px] leading-none"
                 title="Version controls"
+                aria-label="Version controls"
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="5" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="12" cy="19" r="1" />
-                </svg>
+                ⋮
               </button>
               {showMoreMenu && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowMoreMenu(false)} />
-                  <div className="absolute right-0 mt-1 bg-white rounded-xl border border-gray-200 shadow-lg z-50 py-1 w-48">
+                  <div className="absolute right-0 mt-1 bg-[var(--le-paper)] rounded-xl border border-[var(--le-hair)] shadow-lg z-50 py-1 w-48">
                     <button
                       onClick={() => { setShowMoreMenu(false); setShowVersionModal(true); }}
-                      className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"
+                      className="w-full text-left px-3 py-2 text-[12px] text-[var(--le-ink-2)] hover:bg-violet-50 hover:text-violet-800 transition-colors"
                     >
                       Save as Version
                     </button>
                     <button
                       onClick={() => { setShowMoreMenu(false); setShowResetConfirm(true); }}
-                      className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                      className="w-full text-left px-3 py-2 text-[12px] text-rose-600 hover:bg-rose-50 transition-colors"
                     >
                       Reset to Master
                     </button>
@@ -683,7 +797,7 @@ export default function LessonEditor({
       {/* ─── Three-Panel Layout ─── */}
       <div className="flex flex-1 min-h-0">
         {/* Left: Sidebar column (thumbnail + lessons) */}
-        <div className="w-64 min-w-[256px] border-r border-gray-200 bg-gray-50/50 flex flex-col h-full overflow-hidden">
+        <div className="w-64 min-w-[256px] border-r border-[var(--le-hair)] bg-[var(--le-paper)] flex flex-col h-full overflow-hidden">
           {/* Unit thumbnail */}
           <div className="px-3 pt-3 pb-2 flex-shrink-0">
             <UnitThumbnailEditor
@@ -723,9 +837,9 @@ export default function LessonEditor({
             <div className="max-w-5xl mx-auto px-6 py-6">
               {/* ─── Timing Bar (sticky) — or "Add Timing" prompt ─── */}
               {!phases && (
-                <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-gray-50 border border-dashed border-gray-300 rounded-lg">
-                  <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  <span className="text-xs text-gray-500">No Workshop Model timing on this lesson.</span>
+                <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-[var(--le-paper)] border border-dashed border-[var(--le-hair)] rounded-lg">
+                  <svg className="w-4 h-4 text-[var(--le-ink-3)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <span className="text-[11.5px] text-[var(--le-ink-3)]">No Workshop Model timing on this lesson.</span>
                   <button
                     onClick={() => {
                       handleUpdatePageContent({
@@ -737,7 +851,7 @@ export default function LessonEditor({
                         },
                       });
                     }}
-                    className="ml-auto text-xs font-medium text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 px-2 py-1 rounded-md transition-colors"
+                    className="ml-auto text-[11.5px] font-bold text-violet-700 hover:text-violet-900 hover:bg-violet-50 px-2 py-1 rounded-md transition-colors"
                   >
                     + Add Timing
                   </button>
@@ -745,25 +859,27 @@ export default function LessonEditor({
               )}
               {/* Dimensions bar (non-sticky) when no timeline exists */}
               {!phases && pageContent?.sections && pageContent.sections.length > 0 && (
-                <DimensionsSummaryBar sections={pageContent.sections} udlEnabled={udlEnabled} />
+                <DimensionsSummaryBar sections={pageContent.sections} phases={phases} udlEnabled={udlEnabled} />
               )}
               {phases && (
-                <div className="sticky top-0 z-20 bg-white/90 backdrop-blur-sm pb-3 mb-4 -mx-6 px-6 pt-2 border-b border-gray-100">
+                <div className="sticky top-0 z-20 bg-[var(--le-bg)]/95 backdrop-blur-sm pb-3 mb-4 -mx-6 px-6 pt-2 border-b border-[var(--le-hair)]">
                   <div className="flex items-center gap-2 mb-1.5">
-                    <div className="flex-1 flex h-6 rounded-lg overflow-hidden border border-gray-200">
+                    <div className="flex-1 flex h-6 rounded-md overflow-hidden border border-[var(--le-hair)]">
                       {(
                         [
-                          { key: "opening", label: "Opening", color: "bg-indigo-400", dur: phases.opening.durationMinutes },
-                          { key: "miniLesson", label: "Mini-Lesson", color: "bg-blue-400", dur: phases.miniLesson.durationMinutes },
-                          { key: "workTime", label: "Work Time", color: "bg-emerald-400", dur: phases.workTime.durationMinutes },
-                          { key: "debrief", label: "Debrief", color: "bg-amber-400", dur: phases.debrief.durationMinutes },
+                          { key: "opening", label: "Opening", color: "var(--le-phase-opening)", dur: phases.opening.durationMinutes },
+                          { key: "miniLesson", label: "Mini-Lesson", color: "var(--le-phase-miniLesson)", dur: phases.miniLesson.durationMinutes },
+                          { key: "workTime", label: "Work Time", color: "var(--le-phase-workTime)", dur: phases.workTime.durationMinutes },
+                          { key: "debrief", label: "Debrief", color: "var(--le-phase-debrief)", dur: phases.debrief.durationMinutes },
                         ] as const
                       ).map((p) => (
                         <div
                           key={p.key}
-                          className={`${p.color} relative flex items-center justify-center text-[10px] font-semibold text-white cursor-pointer hover:brightness-110 transition-all`}
+                          className="relative flex items-center justify-center text-[9.5px] font-extrabold tracking-widest uppercase text-white cursor-pointer hover:brightness-110 transition-all"
                           style={{
+                            background: p.color,
                             width: totalDuration > 0 ? `${(p.dur / totalDuration) * 100}%` : "25%",
+                            opacity: p.dur === 0 ? 0.45 : 1,
                           }}
                           onClick={() => {
                             const el = document.getElementById(`phase-${p.key}`);
@@ -775,21 +891,35 @@ export default function LessonEditor({
                         </div>
                       ))}
                     </div>
-                    <span
-                      className={`text-xs font-medium tabular-nums min-w-[60px] text-right ${
-                        totalDuration > 50
-                          ? "text-red-500"
-                          : totalDuration > 45
-                          ? "text-amber-500"
-                          : "text-gray-500"
-                      }`}
-                    >
-                      {totalDuration} min
-                    </span>
+                    {(() => {
+                      const TARGET = 60;
+                      const delta = totalDuration - TARGET;
+                      const tag =
+                        delta > 0
+                          ? `+${delta}m over`
+                          : delta < -5
+                          ? `${-delta}m under`
+                          : "on target";
+                      const tagTone =
+                        delta > 0
+                          ? "text-rose-600"
+                          : delta < -5
+                          ? "text-amber-600"
+                          : "text-emerald-600";
+                      return (
+                        <div className="flex items-baseline gap-2 min-w-[140px] justify-end">
+                          <span className="text-[11px] font-extrabold le-tnum text-[var(--le-ink-2)]">
+                            {totalDuration}
+                            <span className="font-bold text-[var(--le-ink-3)]"> / {TARGET}m</span>
+                          </span>
+                          <span className={`text-[10px] font-extrabold ${tagTone}`}>{tag}</span>
+                        </div>
+                      );
+                    })()}
                   </div>
                   {/* ─── Dimensions Summary Bar (sticky with timeline) ─── */}
                   {pageContent?.sections && pageContent.sections.length > 0 && (
-                    <DimensionsSummaryBar sections={pageContent.sections} udlEnabled={udlEnabled} />
+                    <DimensionsSummaryBar sections={pageContent.sections} phases={phases} udlEnabled={udlEnabled} />
                   )}
                 </div>
               )}
@@ -826,6 +956,12 @@ export default function LessonEditor({
               {/* ─── Lesson Header ─── */}
               <LessonHeader
                 page={selectedPage}
+                onUpdate={handleUpdatePageContent}
+              />
+
+              {/* ─── Lesson Intro (success criteria, "Why this matters", hero video) ─── */}
+              <LessonIntroEditor
+                pageContent={pageContent}
                 onUpdate={handleUpdatePageContent}
               />
 
@@ -881,7 +1017,7 @@ export default function LessonEditor({
                       {/* Drop zone for opening phase */}
                       <DropZone
                         zoneId="opening"
-                        onDrop={handleAddActivity}
+                        onDrop={(activity) => handleAddActivity(activity, "opening")}
                         label="Drop block into Opening"
                         accentColor="indigo"
                       />
@@ -897,13 +1033,14 @@ export default function LessonEditor({
                               icon={suggestion.icon}
                               reason={suggestion.reason}
                               onAccept={(activity) => {
-                                handleAddActivity(activity);
+                                handleAddActivity(activity, "opening");
                                 acceptSuggestion(suggestion.id);
                               }}
                               onDismiss={() => dismissSuggestion(suggestion.id)}
                             />
                           ))}
                       </AnimatePresence>
+                      {renderPhaseActivities("opening")}
                     </div>
                   </PhaseSection>
                 </div>
@@ -942,7 +1079,7 @@ export default function LessonEditor({
                       {/* Drop zone for miniLesson phase */}
                       <DropZone
                         zoneId="miniLesson"
-                        onDrop={handleAddActivity}
+                        onDrop={(activity) => handleAddActivity(activity, "miniLesson")}
                         label="Drop block into Mini-Lesson"
                         accentColor="blue"
                       />
@@ -958,13 +1095,14 @@ export default function LessonEditor({
                               icon={suggestion.icon}
                               reason={suggestion.reason}
                               onAccept={(activity) => {
-                                handleAddActivity(activity);
+                                handleAddActivity(activity, "miniLesson");
                                 acceptSuggestion(suggestion.id);
                               }}
                               onDismiss={() => dismissSuggestion(suggestion.id)}
                             />
                           ))}
                       </AnimatePresence>
+                      {renderPhaseActivities("miniLesson")}
                     </div>
                   </PhaseSection>
                 </div>
@@ -985,7 +1123,7 @@ export default function LessonEditor({
                     {/* Drop zone for workTime phase */}
                     <DropZone
                       zoneId="workTime"
-                      onDrop={handleAddActivity}
+                      onDrop={(activity) => handleAddActivity(activity, "workTime")}
                       label="Drop block into Work Time"
                       accentColor="emerald"
                     />
@@ -1001,7 +1139,7 @@ export default function LessonEditor({
                             icon={suggestion.icon}
                             reason={suggestion.reason}
                             onAccept={(activity) => {
-                              handleAddActivity(activity);
+                              handleAddActivity(activity, "workTime");
                               acceptSuggestion(suggestion.id);
                             }}
                             onDismiss={() => dismissSuggestion(suggestion.id)}
@@ -1009,78 +1147,25 @@ export default function LessonEditor({
                         ))}
                     </AnimatePresence>
 
-                    {/* Activities with drag-and-drop */}
-                    <Reorder.Group
-                      axis="y"
-                      values={pageContent.sections}
-                      onReorder={handleReorderActivities}
-                      className="space-y-2"
-                    >
-                      <AnimatePresence initial={false}>
-                        {pageContent.sections.map((section, index) => (
-                          <Reorder.Item
-                            key={section.activityId || `section-${index}`}
-                            value={section}
-                            className="list-none"
-                            whileDrag={{
-                              scale: 1.01,
-                              boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-                              zIndex: 50,
-                            }}
-                            layout
-                            transition={{
-                              type: "spring",
-                              damping: 25,
-                              stiffness: 300,
-                            }}
-                          >
-                            <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: "auto" }}
-                              exit={{ opacity: 0, height: 0 }}
-                              transition={{
-                                type: "spring",
-                                damping: 20,
-                                stiffness: 300,
-                              }}
-                            >
-                              <ActivityBlock
-                                activity={section}
-                                index={index}
-                                framework={framework}
-                                udlEnabled={udlEnabled}
-                                onUpdate={(partial) =>
-                                  handleUpdateActivity(index, partial)
-                                }
-                                onDelete={() => handleDeleteActivity(index)}
-                                onDuplicate={() =>
-                                  handleDuplicateActivity(index)
-                                }
-                              />
-                            </motion.div>
-                          </Reorder.Item>
-                        ))}
-                      </AnimatePresence>
-                    </Reorder.Group>
+                    {renderPhaseActivities("workTime")}
 
                     {/* Activity duration summary + timeWeight distribution */}
-                    {pageContent.sections.length > 0 && (
-                      <div className="text-xs text-gray-400 text-right py-1 space-y-0.5">
+                    {sectionsByPhase.workTime.length > 0 && (
+                      <div className="text-[11px] text-[var(--le-ink-3)] text-right py-1 space-y-0.5">
                         <div>
-                          Activities total: {activityTotalMinutes} min
-                          {phases?.workTime.durationMinutes &&
-                            activityTotalMinutes > phases.workTime.durationMinutes && (
-                              <span className="text-red-500 ml-1">
-                                (over by{" "}
-                                {activityTotalMinutes -
-                                  phases.workTime.durationMinutes}{" "}
-                                min)
+                          Activities total: {sectionsByPhase.workTime.reduce((s, a) => s + (a.durationMinutes || 0), 0)} min
+                          {phases?.workTime.durationMinutes && (() => {
+                            const wt = sectionsByPhase.workTime.reduce((s, a) => s + (a.durationMinutes || 0), 0);
+                            return wt > phases.workTime.durationMinutes ? (
+                              <span className="text-rose-600 ml-1">
+                                (over by {wt - phases.workTime.durationMinutes} min)
                               </span>
-                            )}
+                            ) : null;
+                          })()}
                         </div>
                         {/* TimeWeight distribution */}
                         {(() => {
-                          const weights = pageContent.sections.reduce((acc, s) => {
+                          const weights = sectionsByPhase.workTime.reduce((acc, s) => {
                             if (s.timeWeight) acc[s.timeWeight] = (acc[s.timeWeight] || 0) + 1;
                             return acc;
                           }, {} as Record<string, number>);
@@ -1099,9 +1184,6 @@ export default function LessonEditor({
                         })()}
                       </div>
                     )}
-
-                    {/* Add activity */}
-                    <ActivityBlockAdd onAdd={handleAddActivity} />
                   </div>
                 </PhaseSection>
               </div>
@@ -1156,7 +1238,7 @@ export default function LessonEditor({
                       {/* Drop zone for debrief phase */}
                       <DropZone
                         zoneId="debrief"
-                        onDrop={handleAddActivity}
+                        onDrop={(activity) => handleAddActivity(activity, "debrief")}
                         label="Drop block into Debrief"
                         accentColor="amber"
                       />
@@ -1172,13 +1254,14 @@ export default function LessonEditor({
                               icon={suggestion.icon}
                               reason={suggestion.reason}
                               onAccept={(activity) => {
-                                handleAddActivity(activity);
+                                handleAddActivity(activity, "debrief");
                                 acceptSuggestion(suggestion.id);
                               }}
                               onDismiss={() => dismissSuggestion(suggestion.id)}
                             />
                           ))}
                       </AnimatePresence>
+                      {renderPhaseActivities("debrief")}
                     </div>
                   </PhaseSection>
                 </div>
@@ -1186,53 +1269,54 @@ export default function LessonEditor({
 
               {/* ─── Extensions ─── */}
               <div className="mt-6 mb-12">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
-                    <span className="text-base">🚀</span>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[14px]">🚀</span>
+                  <div className="text-[12.5px] font-extrabold text-[var(--le-ink)]">
                     Extensions
-                    <span className="text-xs font-normal text-gray-400">
-                      for early finishers
-                    </span>
-                  </h3>
-                </div>
-
-                <div className="space-y-2">
-                  <AnimatePresence initial={false}>
-                    {(pageContent.extensions || []).map((ext, index) => (
-                      <motion.div
-                        key={`ext-${index}`}
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{
-                          type: "spring",
-                          damping: 20,
-                          stiffness: 300,
-                        }}
-                      >
-                        <ExtensionBlock
-                          extension={ext}
-                          index={index}
-                          framework={framework}
-                          onUpdate={(partial) =>
-                            handleUpdateExtension(index, partial)
-                          }
-                          onDelete={() => handleDeleteExtension(index)}
-                        />
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-
+                  </div>
+                  <div className="text-[10.5px] text-[var(--le-ink-3)] italic">
+                    for early finishers · optional
+                  </div>
                   <button
                     onClick={handleAddExtension}
-                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border-2 border-dashed border-gray-200 text-sm text-gray-400 hover:border-emerald-300 hover:text-emerald-500 hover:bg-emerald-50/30 transition-all"
+                    className="ml-auto text-[11px] font-bold text-[var(--le-ink-3)] hover:text-[var(--le-ink)] transition-colors"
                   >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <line x1="12" y1="5" x2="12" y2="19" />
-                      <line x1="5" y1="12" x2="19" y2="12" />
-                    </svg>
-                    Add Extension
+                    + Add extension
                   </button>
+                </div>
+
+                <div className="rounded-lg border border-[var(--le-hair)] bg-amber-50/30 overflow-hidden">
+                  <AnimatePresence initial={false}>
+                    {(pageContent.extensions || []).length === 0 ? (
+                      <div className="px-3 py-3 text-[11.5px] italic text-[var(--le-ink-3)]">
+                        No extensions yet.
+                      </div>
+                    ) : (
+                      (pageContent.extensions || []).map((ext, index) => (
+                        <motion.div
+                          key={`ext-${index}`}
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{
+                            type: "spring",
+                            damping: 20,
+                            stiffness: 300,
+                          }}
+                        >
+                          <ExtensionBlock
+                            extension={ext}
+                            index={index}
+                            framework={framework}
+                            onUpdate={(partial) =>
+                              handleUpdateExtension(index, partial)
+                            }
+                            onDelete={() => handleDeleteExtension(index)}
+                          />
+                        </motion.div>
+                      ))
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
             </div>
@@ -1259,7 +1343,7 @@ export default function LessonEditor({
               animate={{ width: 300, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="border-l border-gray-200 bg-gray-50/80 overflow-hidden flex-shrink-0"
+              className="border-l border-[var(--le-hair)] bg-[var(--le-paper)] overflow-hidden flex-shrink-0"
             >
               <div className="w-[300px] h-full overflow-y-auto">
                 <BlockPalette

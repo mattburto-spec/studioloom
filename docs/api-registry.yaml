@@ -2249,9 +2249,11 @@ routes:
   file: src/app/api/teacher/convert-lesson/route.ts
   auth: teacher
   tables_read:
+  - teachers
   - units
   tables_written:
   - knowledge_chunks
+  - teachers
   - units
   ai_call_sites: []
   cost_ceiling_usd: null
@@ -3965,6 +3967,7 @@ routes:
   - teachers
   - units
   tables_written:
+  - teachers
   - units
   ai_call_sites: []
   cost_ceiling_usd: null
@@ -3978,6 +3981,7 @@ routes:
   - teachers
   - units
   tables_written:
+  - teachers
   - units
   ai_call_sites: []
   cost_ceiling_usd: null
@@ -4072,6 +4076,7 @@ routes:
   auth: teacher
   tables_read:
   - classes
+  - teachers
   tables_written:
   - classes
   - teacher_profiles
@@ -4085,6 +4090,7 @@ routes:
   tables_read:
   - classes
   - school_timetable
+  - teachers
   tables_written:
   - class_meetings
   - classes

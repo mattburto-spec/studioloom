@@ -9,12 +9,10 @@ interface LessonHeaderProps {
 }
 
 /**
- * LessonHeader — Top section of editor for lesson title and learning goal
+ * LessonHeader — Editorial display of lesson title + learning goal.
  *
- * Shows:
- * - Title (h2, inline editable)
- * - Learning Goal (p, inline editable)
- * - Page type badge
+ * Warm-paper aesthetic: small all-caps eyebrow with the page-type label,
+ * extrabold display title, soft-ink summary paragraph beneath.
  */
 export default function LessonHeader({
   page,
@@ -22,7 +20,6 @@ export default function LessonHeader({
 }: LessonHeaderProps) {
   const { content } = page;
 
-  // Page type label
   const typeLabels: Record<string, string> = {
     strand: "Strand",
     context: "Context",
@@ -35,29 +32,24 @@ export default function LessonHeader({
   const typeLabel = typeLabels[page.type] || "Page";
 
   return (
-    <div className="border-b border-gray-200 pb-4 mb-6">
-      <div className="flex items-start justify-between gap-4 mb-3">
-        <div className="flex-1">
-          <InlineEdit
-            value={content.title}
-            onChange={(newTitle) => onUpdate({ title: newTitle })}
-            placeholder="Lesson title"
-            as="h2"
-            className="text-2xl font-bold text-gray-900"
-          />
-        </div>
-        <span className="inline-block px-2.5 py-0.5 rounded-full text-sm font-medium bg-gray-100 text-gray-700">
-          {typeLabel}
-        </span>
-      </div>
-
+    <div className="pb-4 mb-4 border-b border-[var(--le-hair)]">
+      <div className="le-cap text-[var(--le-ink-3)] mb-1">{typeLabel}</div>
       <InlineEdit
-        value={content.learningGoal}
-        onChange={(newGoal) => onUpdate({ learningGoal: newGoal })}
-        placeholder="Learning goal for this lesson..."
-        as="p"
-        className="text-gray-600"
+        value={content.title}
+        onChange={(newTitle) => onUpdate({ title: newTitle })}
+        placeholder="Lesson title"
+        as="h2"
+        className="le-display text-[26px] leading-[1.1] text-[var(--le-ink)]"
       />
+      <div className="mt-2 max-w-[640px]">
+        <InlineEdit
+          value={content.learningGoal}
+          onChange={(newGoal) => onUpdate({ learningGoal: newGoal })}
+          placeholder="Learning goal for this lesson..."
+          as="p"
+          className="text-[12.5px] leading-relaxed text-[var(--le-ink-2)]"
+        />
+      </div>
     </div>
   );
 }

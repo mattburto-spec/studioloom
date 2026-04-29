@@ -149,11 +149,28 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // TODO(access-v2 §4.0): replace with requireActorSession().schoolId once Phase 1 lands.
+      // units.school_id was tightened to NOT NULL by mig 20260428222049_phase_0_8b; without
+      // this lookup the insert below 500s. Direct lookup keeps blast radius minimal — full
+      // 14-site audit (units + classes + students writers) belongs in access-v2 Phase 1.
+      const { data: teacherRow } = await adminClient
+        .from("teachers")
+        .select("school_id")
+        .eq("id", user.id)
+        .single();
+      if (!teacherRow?.school_id) {
+        return NextResponse.json(
+          { error: "Teacher missing school context" },
+          { status: 500 }
+        );
+      }
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const insertPayload: Record<string, any> = {
         title,
         description: description || null,
         content_data: contentData,
+        school_id: teacherRow.school_id,
         author_teacher_id: user.id,
         teacher_id: user.id,
         grade_level: gradeLevel || null,
@@ -291,6 +308,20 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // TODO(access-v2 §4.0): replace with requireActorSession().schoolId once Phase 1 lands.
+      // units.school_id was tightened to NOT NULL by mig 20260428222049_phase_0_8b.
+      const { data: forkTeacherRow } = await adminClient
+        .from("teachers")
+        .select("school_id")
+        .eq("id", user.id)
+        .single();
+      if (!forkTeacherRow?.school_id) {
+        return NextResponse.json(
+          { error: "Teacher missing school context" },
+          { status: 500 }
+        );
+      }
+
       // Create a copy for this teacher
       const { data: newUnit, error: insertError } = await adminClient
         .from("units")
@@ -300,6 +331,7 @@ export async function POST(request: NextRequest) {
           content_data: source.content_data,
           thumbnail_url: source.thumbnail_url,
           is_published: false,
+          school_id: forkTeacherRow.school_id,
           author_teacher_id: user.id,
           grade_level: source.grade_level,
           duration_weeks: source.duration_weeks,
