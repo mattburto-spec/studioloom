@@ -7,6 +7,7 @@ import { useAISuggestions } from "./useAISuggestions";
 import type { AISuggestion } from "./useAISuggestions";
 import { LessonSidebar } from "./LessonSidebar";
 import LessonHeader from "./LessonHeader";
+import LessonIntroEditor from "./LessonIntroEditor";
 import PhaseSection from "./PhaseSection";
 import ActivityBlock from "./ActivityBlock";
 import { ActivityBlockAdd } from "./ActivityBlockAdd";
@@ -941,6 +942,12 @@ export default function LessonEditor({
               {/* ─── Lesson Header ─── */}
               <LessonHeader
                 page={selectedPage}
+                onUpdate={handleUpdatePageContent}
+              />
+
+              {/* ─── Lesson Intro (success criteria, "Why this matters", hero video) ─── */}
+              <LessonIntroEditor
+                pageContent={pageContent}
                 onUpdate={handleUpdatePageContent}
               />
 
