@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import * as Sentry from "@sentry/nextjs";
+import { toPng } from "html-to-image";
 
 const CATEGORIES = [
   { value: "broken", label: "Something's broken", icon: "🔴" },
@@ -30,6 +32,65 @@ const MAX_EVENT_LEN = 500;
 
 function clip(s: string, max = MAX_EVENT_LEN): string {
   return s.length > max ? s.slice(0, max) + "…" : s;
+}
+
+/**
+ * Parse the current path to extract the active StudioLoom route context —
+ * which unit/lesson/class/activity the user was looking at when they hit
+ * the bug button. Lets admins filter "all reports against unit X".
+ *
+ * Routes we care about:
+ *   /unit/:unitId
+ *   /unit/:unitId/L:lessonNumber
+ *   /unit/:unitId/L:lessonNumber/A:activityNumber
+ *   /class/:classId
+ *   /class/:classId/...
+ *   /teacher/units/:unitId
+ *   /admin/...
+ */
+function extractRouteContext(pathname: string): {
+  pathname: string;
+  routeKind: string | null;
+  unitId?: string;
+  lessonNumber?: number;
+  activityNumber?: number;
+  classId?: string;
+} {
+  const ctx: ReturnType<typeof extractRouteContext> = { pathname, routeKind: null };
+
+  // /unit/:unitId(/L\d+(/A\d+)?)?
+  const unitMatch = pathname.match(/\/unit\/([0-9a-f-]{36})(?:\/L(\d+))?(?:\/A(\d+))?/i);
+  if (unitMatch) {
+    ctx.routeKind = "unit";
+    ctx.unitId = unitMatch[1];
+    if (unitMatch[2]) ctx.lessonNumber = Number(unitMatch[2]);
+    if (unitMatch[3]) ctx.activityNumber = Number(unitMatch[3]);
+    return ctx;
+  }
+
+  // /class/:classId/...
+  const classMatch = pathname.match(/\/class\/([0-9a-f-]{36})/i);
+  if (classMatch) {
+    ctx.routeKind = "class";
+    ctx.classId = classMatch[1];
+    return ctx;
+  }
+
+  // /teacher/units/:unitId
+  const teacherUnitMatch = pathname.match(/\/teacher\/units\/([0-9a-f-]{36})/i);
+  if (teacherUnitMatch) {
+    ctx.routeKind = "teacher-unit";
+    ctx.unitId = teacherUnitMatch[1];
+    return ctx;
+  }
+
+  // Best-effort label for everything else
+  if (pathname.startsWith("/teacher/")) ctx.routeKind = "teacher";
+  else if (pathname.startsWith("/admin/")) ctx.routeKind = "admin";
+  else if (pathname.startsWith("/dashboard")) ctx.routeKind = "dashboard";
+  else if (pathname === "/" || pathname === "") ctx.routeKind = "landing";
+
+  return ctx;
 }
 
 function buildClientContext(role: "teacher" | "student") {
@@ -72,7 +133,41 @@ function buildClientContext(role: "teacher" | "student") {
     timeOnPageMs: Math.round(performance.now()),
     submittedAt: new Date().toISOString(),
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
+    route: extractRouteContext(window.location.pathname),
   };
+}
+
+/**
+ * Capture the current page as a PNG data-URL using html-to-image. Returns
+ * null on failure (some pages have CORS-tainted images that block canvas
+ * export — we'd rather submit without a screenshot than fail the whole
+ * report).
+ */
+async function capturePageScreenshot(): Promise<string | null> {
+  try {
+    // Hide the bug-report panel itself so it doesn't appear in the shot.
+    const panel = document.querySelector<HTMLElement>("[data-bug-report-panel]");
+    const prevDisplay = panel?.style.display;
+    if (panel) panel.style.display = "none";
+
+    const dataUrl = await toPng(document.body, {
+      cacheBust: true,
+      // Cap at 1600px wide; downscale on retina to keep payload small.
+      pixelRatio: Math.min(window.devicePixelRatio || 1, 1.5),
+      quality: 0.85,
+      filter: (node) => {
+        // Skip the bug button itself
+        if (node instanceof HTMLElement && node.dataset.bugReportButton === "true") return false;
+        return true;
+      },
+    });
+
+    if (panel && prevDisplay !== undefined) panel.style.display = prevDisplay;
+    return dataUrl;
+  } catch (e) {
+    console.warn("Bug report: screenshot capture failed", e);
+    return null;
+  }
 }
 
 export function BugReportButton({ role, classId, enabled = true }: BugReportButtonProps) {
@@ -83,6 +178,8 @@ export function BugReportButton({ role, classId, enabled = true }: BugReportButt
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [screenshotDataUrl, setScreenshotDataUrl] = useState<string | null>(null);
+  const [capturingScreenshot, setCapturingScreenshot] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const eventsRef = useRef<CapturedEvent[]>([]);
 
@@ -156,6 +253,20 @@ export function BugReportButton({ role, classId, enabled = true }: BugReportButt
     setDescription("");
     setError(null);
     setSubmitted(false);
+    setScreenshotDataUrl(null);
+    setCapturingScreenshot(false);
+  };
+
+  const handleAttachScreenshot = async () => {
+    setCapturingScreenshot(true);
+    setError(null);
+    const dataUrl = await capturePageScreenshot();
+    setCapturingScreenshot(false);
+    if (dataUrl) {
+      setScreenshotDataUrl(dataUrl);
+    } else {
+      setError("Couldn't capture screenshot — submit without it?");
+    }
   };
 
   const handleCategoryPick = (cat: string) => {
@@ -167,6 +278,40 @@ export function BugReportButton({ role, classId, enabled = true }: BugReportButt
     if (!category || !description.trim()) return;
     setSubmitting(true);
     setError(null);
+
+    const ctx = {
+      ...buildClientContext(role),
+      events: eventsRef.current,
+    };
+
+    // Mirror the report into Sentry so triage gets stack traces, breadcrumbs,
+    // and any session replay alongside the user's text. We do NOT block on
+    // Sentry — if it fails, the report still submits without an event id.
+    let sentryEventId: string | null = null;
+    try {
+      sentryEventId = Sentry.captureMessage(
+        `Bug report (${category}): ${description.trim().slice(0, 80)}`,
+        {
+          level: category === "broken" ? "error" : "info",
+          tags: {
+            bug_report: "true",
+            bug_category: category,
+            reporter_role: role,
+            class_id: classId || "none",
+            route_kind: ctx.route?.routeKind || "unknown",
+          },
+          contexts: {
+            bug_report: {
+              description: description.trim(),
+              page_url: window.location.href,
+              recent_events: eventsRef.current.length,
+            },
+          },
+        }
+      );
+    } catch {
+      // Non-fatal — keep going.
+    }
 
     try {
       const res = await fetch("/api/bug-reports", {
@@ -183,10 +328,9 @@ export function BugReportButton({ role, classId, enabled = true }: BugReportButt
             .map((e) => e.message),
           class_id: classId || null,
           role_hint: role,
-          client_context: {
-            ...buildClientContext(role),
-            events: eventsRef.current,
-          },
+          client_context: ctx,
+          sentry_event_id: sentryEventId,
+          screenshot_data_url: screenshotDataUrl,
         }),
       });
 
@@ -209,6 +353,7 @@ export function BugReportButton({ role, classId, enabled = true }: BugReportButt
       {/* Floating trigger button */}
       <button
         onClick={() => setOpen(!open)}
+        data-bug-report-button="true"
         className="fixed bottom-6 right-6 z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95"
         style={{
           background: open ? "#DC2626" : "#7B2FF2",
@@ -233,6 +378,7 @@ export function BugReportButton({ role, classId, enabled = true }: BugReportButt
       {open && (
         <div
           ref={panelRef}
+          data-bug-report-panel
           className="fixed bottom-20 right-6 z-40 w-80 bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden"
         >
           {submitted ? (
@@ -285,6 +431,35 @@ export function BugReportButton({ role, classId, enabled = true }: BugReportButt
               <p className="text-[10px] text-gray-400 mt-1">
                 Auto-captures: page URL, browser, viewport, release{eventsRef.current.length > 0 ? `, ${eventsRef.current.length} recent error${eventsRef.current.length === 1 ? "" : "s"}` : ""}
               </p>
+
+              {/* Screenshot attach */}
+              <div className="mt-3">
+                {screenshotDataUrl ? (
+                  <div className="relative rounded-lg border border-gray-200 overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={screenshotDataUrl} alt="Attached screenshot" className="w-full h-auto block" />
+                    <button
+                      onClick={() => setScreenshotDataUrl(null)}
+                      className="absolute top-1 right-1 px-2 py-0.5 text-[10px] bg-black/60 text-white rounded hover:bg-black/80"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleAttachScreenshot}
+                    disabled={capturingScreenshot}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs text-gray-600 border border-dashed border-gray-300 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                      <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                      <polyline points="21 15 16 10 5 21"></polyline>
+                    </svg>
+                    {capturingScreenshot ? "Capturing..." : "Attach screenshot of this page"}
+                  </button>
+                )}
+              </div>
 
               {error && (
                 <p className="text-xs text-red-600 mt-2">{error}</p>

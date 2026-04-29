@@ -21,6 +21,7 @@
     "docx": "^9.6.1",
     "exceljs": "^4.4.0",
     "framer-motion": "^12.38.0",
+    "html-to-image": "^1.11.13",
     "jspdf": "^4.2.0",
     "jszip": "^3.10.1",
     "mammoth": "^1.11.0",

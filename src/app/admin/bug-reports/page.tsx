@@ -10,14 +10,31 @@ interface BugReport {
   category: string;
   description: string;
   screenshot_url: string | null;
+  screenshot_signed_url?: string | null;
   page_url: string | null;
   console_errors: unknown[] | null;
   client_context: Record<string, unknown> | null;
+  sentry_event_id: string | null;
   status: string;
   admin_notes: string | null;
   response: string | null;
   created_at: string;
   updated_at: string;
+}
+
+const SENTRY_ORG_SLUG = process.env.NEXT_PUBLIC_SENTRY_ORG_SLUG || "";
+const SENTRY_PROJECT_SLUG = process.env.NEXT_PUBLIC_SENTRY_PROJECT_SLUG || "";
+
+function buildSentryUrl(eventId: string): string | null {
+  // Without org/project slugs configured, link to the org-wide search;
+  // with both, link straight to the project events search.
+  if (SENTRY_ORG_SLUG && SENTRY_PROJECT_SLUG) {
+    return `https://${SENTRY_ORG_SLUG}.sentry.io/issues/?project=${SENTRY_PROJECT_SLUG}&query=event_id%3A${eventId}`;
+  }
+  if (SENTRY_ORG_SLUG) {
+    return `https://${SENTRY_ORG_SLUG}.sentry.io/issues/?query=event_id%3A${eventId}`;
+  }
+  return `https://sentry.io/issues/?query=event_id%3A${eventId}`;
 }
 
 const STATUS_OPTIONS = ["new", "investigating", "fixed", "closed"];
@@ -40,8 +57,30 @@ type ClientContext = {
   timezone?: string | null;
   submittedAt?: string;
   role?: string;
+  route?: {
+    pathname?: string;
+    routeKind?: string | null;
+    unitId?: string;
+    lessonNumber?: number;
+    activityNumber?: number;
+    classId?: string;
+  };
   events?: Array<{ kind: string; message: string; source?: string | null; ts: number }>;
 } | null;
+
+/**
+ * Fingerprint a report for grouping. Two reports with the same category +
+ * route kind + first event message likely point at the same bug. Description
+ * text is intentionally NOT in the fingerprint — different students will
+ * describe the same bug differently.
+ */
+function fingerprintReport(r: BugReport): string {
+  const ctx = (r.client_context as ClientContext) || {};
+  const routeKind = ctx.route?.routeKind || "unknown";
+  const firstEvent = (ctx.events || [])[0];
+  const eventKey = firstEvent ? `${firstEvent.kind}:${firstEvent.message.slice(0, 80)}` : "no-event";
+  return `${r.category}|${routeKind}|${eventKey}`;
+}
 
 function summarizeUserAgent(ua: string | undefined): { browser: string; os: string } {
   if (!ua) return { browser: "?", os: "?" };
@@ -229,14 +268,17 @@ export default function BugReportsPage() {
     }
   };
 
-  const { filtered, statusCounts, categoryCounts, roleCounts } = useMemo(() => {
+  const { filtered, statusCounts, categoryCounts, roleCounts, fingerprintCounts } = useMemo(() => {
     const sc: Record<string, number> = {};
     const cc: Record<string, number> = {};
     const rc: Record<string, number> = {};
+    const fc: Record<string, number> = {};
     for (const r of reports) {
       sc[r.status] = (sc[r.status] || 0) + 1;
       cc[r.category] = (cc[r.category] || 0) + 1;
       if (r.reporter_role) rc[r.reporter_role] = (rc[r.reporter_role] || 0) + 1;
+      const fp = fingerprintReport(r);
+      fc[fp] = (fc[fp] || 0) + 1;
     }
     const q = search.trim().toLowerCase();
     const f = reports.filter((r) => {
@@ -249,7 +291,7 @@ export default function BugReportsPage() {
       }
       return true;
     });
-    return { filtered: f, statusCounts: sc, categoryCounts: cc, roleCounts: rc };
+    return { filtered: f, statusCounts: sc, categoryCounts: cc, roleCounts: rc, fingerprintCounts: fc };
   }, [reports, filterStatus, filterCategory, filterRole, search]);
 
   if (loading) return <div className="max-w-7xl mx-auto px-6 py-8"><p className="text-sm text-gray-500">Loading bug reports...</p></div>;
@@ -299,7 +341,10 @@ export default function BugReportsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map((r) => (
+          {filtered.map((r) => {
+            const fp = fingerprintReport(r);
+            const dupCount = fingerprintCounts[fp] || 1;
+            return (
             <div key={r.id} className="bg-white rounded-xl border border-gray-200 p-4">
               <div
                 className="flex items-start justify-between cursor-pointer"
@@ -320,6 +365,20 @@ export default function BugReportsPage() {
                       "bg-gray-100 text-gray-600"
                     }`}>{r.reporter_role}</span>
                   )}
+                  {dupCount > 1 && (
+                    <span
+                      className="px-2 py-0.5 rounded-full text-xs bg-rose-50 text-rose-700 font-medium"
+                      title="Reports with the same category, route, and first error are grouped"
+                    >
+                      ×{dupCount} similar
+                    </span>
+                  )}
+                  {r.screenshot_url && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-100 text-gray-600" title="Screenshot attached">📷</span>
+                  )}
+                  {r.sentry_event_id && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-indigo-50 text-indigo-700" title="Linked to Sentry event">⚡</span>
+                  )}
                   <p className="text-sm text-gray-900">{r.description.slice(0, 100)}{r.description.length > 100 ? "..." : ""}</p>
                 </div>
                 <span className="text-xs text-gray-400 whitespace-nowrap ml-4">
@@ -336,6 +395,80 @@ export default function BugReportsPage() {
                   )}
                   {r.reporter_role && (
                     <p className="text-xs text-gray-500">Reporter: {r.reporter_role} ({r.reporter_id?.slice(0, 8)}...)</p>
+                  )}
+
+                  {/* Route context — surfaces unit/lesson IDs for triage */}
+                  {(() => {
+                    const ctx = r.client_context as ClientContext;
+                    const route = ctx?.route;
+                    if (!route?.routeKind) return null;
+                    return (
+                      <div className="flex flex-wrap gap-1.5 text-[11px]">
+                        <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded font-mono">
+                          <span className="text-blue-400">route=</span>{route.routeKind}
+                        </span>
+                        {route.unitId && (
+                          <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded font-mono">
+                            <span className="text-blue-400">unit=</span>{route.unitId.slice(0, 8)}
+                          </span>
+                        )}
+                        {route.classId && (
+                          <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded font-mono">
+                            <span className="text-blue-400">class=</span>{route.classId.slice(0, 8)}
+                          </span>
+                        )}
+                        {route.lessonNumber != null && (
+                          <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded font-mono">
+                            <span className="text-blue-400">lesson=</span>L{route.lessonNumber}
+                          </span>
+                        )}
+                        {route.activityNumber != null && (
+                          <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded font-mono">
+                            <span className="text-blue-400">activity=</span>A{route.activityNumber}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Sentry deep-link */}
+                  {r.sentry_event_id && (
+                    <div className="text-xs">
+                      {(() => {
+                        const url = buildSentryUrl(r.sentry_event_id);
+                        if (!url) return null;
+                        return (
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition"
+                          >
+                            <span>⚡</span>
+                            View in Sentry
+                            <span className="font-mono text-[10px] opacity-70">{r.sentry_event_id.slice(0, 8)}</span>
+                          </a>
+                        );
+                      })()}
+                    </div>
+                  )}
+
+                  {/* Screenshot */}
+                  {r.screenshot_signed_url && (
+                    <details className="text-xs" open>
+                      <summary className="text-gray-500 cursor-pointer">Screenshot</summary>
+                      <a href={r.screenshot_signed_url} target="_blank" rel="noopener noreferrer" className="block mt-1">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={r.screenshot_signed_url}
+                          alt="Bug report screenshot"
+                          className="w-full max-w-2xl rounded-lg border border-gray-200 hover:opacity-95 transition"
+                        />
+                      </a>
+                    </details>
+                  )}
+                  {r.screenshot_url && !r.screenshot_signed_url && (
+                    <p className="text-xs text-gray-400 italic">Screenshot upload exists but signed URL is unavailable.</p>
                   )}
 
                   {r.client_context && Object.keys(r.client_context).length > 0 && (() => {
@@ -408,7 +541,8 @@ export default function BugReportsPage() {
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

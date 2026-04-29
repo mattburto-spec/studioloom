@@ -7,6 +7,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/require-admin";
 
+const SCREENSHOT_BUCKET = "bug-report-screenshots";
+const SCREENSHOT_URL_TTL_SECONDS = 60 * 30; // 30 min — admins triage in one sitting
+
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (auth.error) return auth.error;
@@ -27,7 +30,29 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
     if (error) throw error;
 
-    return NextResponse.json({ reports: data || [] });
+    // Mint signed URLs for any reports with a screenshot. Bucket is private,
+    // so the raw screenshot_url is just a storage path — UI needs a signed
+    // URL to render the image. createSignedUrls is one round-trip per batch.
+    const reports = data || [];
+    const screenshotPaths = reports
+      .map((r) => r.screenshot_url)
+      .filter((p): p is string => typeof p === "string" && p.length > 0);
+
+    if (screenshotPaths.length > 0) {
+      const { data: signed } = await supabase.storage
+        .from(SCREENSHOT_BUCKET)
+        .createSignedUrls(screenshotPaths, SCREENSHOT_URL_TTL_SECONDS);
+      const byPath = new Map(
+        (signed || []).map((s) => [s.path, s.signedUrl] as const)
+      );
+      for (const r of reports) {
+        if (r.screenshot_url && byPath.has(r.screenshot_url)) {
+          (r as Record<string, unknown>).screenshot_signed_url = byPath.get(r.screenshot_url);
+        }
+      }
+    }
+
+    return NextResponse.json({ reports });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Failed to load bug reports" },
