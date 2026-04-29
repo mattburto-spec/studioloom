@@ -29,8 +29,7 @@ export async function GET(request: NextRequest) {
   // Phase 1.4b — explicit Supabase Auth via requireStudentSession.
   const session = await requireStudentSession(request);
   if (session instanceof NextResponse) return session;
-  // Alias to keep downstream `auth.studentId` references compatible.
-  const auth = { studentId: session.studentId };
+  const studentId = session.studentId;
 
   const unitId = request.nextUrl.searchParams.get("unitId") || undefined;
   if (!unitId) {
@@ -41,7 +40,7 @@ export async function GET(request: NextRequest) {
   }
 
   const classId = await resolveStudentClassId({
-    studentId: auth.studentId,
+    studentId: studentId,
     unitId,
   });
 

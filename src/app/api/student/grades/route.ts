@@ -8,13 +8,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
  */
 export async function GET(request: NextRequest) {
   // Phase 1.4b — explicit Supabase Auth via requireStudentSession.
-  // Dual-mode fallback to legacy still works automatically (Phase 1.4a wrapper)
-  // for any client that hasn't switched to the new login route yet.
+  // Dual-mode fallback to legacy still works automatically (Phase 1.4a wrapper).
   const session = await requireStudentSession(request);
   if (session instanceof NextResponse) return session;
-  // Note: alias to studentId to keep downstream code compatible without
-  // ripping out the old `auth.studentId` references inline.
-  const auth = { studentId: session.studentId };
+  const studentId = session.studentId;
 
   const unitId = request.nextUrl.searchParams.get("unitId");
   if (!unitId) {
@@ -34,7 +31,7 @@ export async function GET(request: NextRequest) {
   const { data: classUnit } = await db
     .from("class_students")
     .select("class_id")
-    .eq("student_id", auth.studentId)
+    .eq("student_id", studentId)
     .limit(10);
 
   const classIds = (classUnit || []).map((r: { class_id: string }) => r.class_id);
@@ -46,7 +43,7 @@ export async function GET(request: NextRequest) {
     const { data } = await db
       .from("assessment_records")
       .select("data, overall_grade, is_draft")
-      .eq("student_id", auth.studentId)
+      .eq("student_id", studentId)
       .eq("unit_id", unitId)
       .in("class_id", classIds)
       .eq("is_draft", false)
@@ -68,7 +65,7 @@ export async function GET(request: NextRequest) {
     const { data } = await db
       .from("assessment_records")
       .select("data, overall_grade, is_draft")
-      .eq("student_id", auth.studentId)
+      .eq("student_id", studentId)
       .eq("unit_id", unitId)
       .eq("is_draft", false)
       .order("assessed_at", { ascending: false })

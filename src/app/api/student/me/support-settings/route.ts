@@ -30,8 +30,7 @@ export async function GET(request: NextRequest) {
   // Phase 1.4b — explicit Supabase Auth via requireStudentSession.
   const session = await requireStudentSession(request);
   if (session instanceof NextResponse) return session;
-  // Alias to keep downstream `auth.studentId` references compatible.
-  const auth = { studentId: session.studentId };
+  const studentId = session.studentId;
 
   const rawClassId = request.nextUrl.searchParams.get("classId") || undefined;
   const rawUnitId = request.nextUrl.searchParams.get("unitId") || undefined;
@@ -39,12 +38,12 @@ export async function GET(request: NextRequest) {
   // Bug 2: server-derive classId from (classId | unitId). resolveStudentClassId
   // verifies enrollment + handles UUID validation defensively.
   const classId = await resolveStudentClassId({
-    studentId: auth.studentId,
+    studentId: studentId,
     classId: rawClassId,
     unitId: rawUnitId,
   });
 
-  const resolved = await resolveStudentSettings(auth.studentId, classId);
+  const resolved = await resolveStudentSettings(studentId, classId);
 
   return NextResponse.json(resolved, { headers: CACHE_HEADERS });
 }
