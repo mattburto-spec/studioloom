@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStudentSession } from "@/lib/access-v2/actor-session";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { resolveStudentClassId } from "@/lib/student-support/resolve-class-id";
 
 /**
@@ -27,6 +27,8 @@ const CACHE_HEADERS = { "Cache-Control": "private, no-cache, no-store, must-reva
 
 export async function GET(request: NextRequest) {
   // Phase 1.4b — explicit Supabase Auth via requireStudentSession.
+  // Phase 1.4 CS-2 (30 Apr 2026) — RLS-respecting SSR client. CS-1
+  // policies activate the canonical chain on classes + class_students.
   const session = await requireStudentSession(request);
   if (session instanceof NextResponse) return session;
   const studentId = session.studentId;
@@ -39,16 +41,18 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const supabase = await createServerSupabaseClient();
+
   const classId = await resolveStudentClassId({
     studentId: studentId,
     unitId,
+    supabase,
   });
 
   if (!classId) {
     return NextResponse.json({ class: null }, { headers: CACHE_HEADERS });
   }
 
-  const supabase = createAdminClient();
   const { data: cls } = await supabase
     .from("classes")
     .select("id, name, code, framework")

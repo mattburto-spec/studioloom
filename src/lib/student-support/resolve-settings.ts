@@ -29,6 +29,7 @@
  * apply.
  */
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   mapLanguageToCode,
@@ -61,11 +62,24 @@ export function defaultTapAWordEnabled(
   return ell <= 2 || l1Target !== "en";
 }
 
+/**
+ * Phase 1.4 CS-2 (30 Apr 2026) — accepts an optional `supabase` client.
+ *
+ * When omitted, defaults to `createAdminClient()` (legacy admin-bypass
+ * behaviour, used by teacher routes + the student `word-lookup` route).
+ *
+ * When provided (e.g. `createServerSupabaseClient()` from a CS-2/CS-3
+ * student route), reads respect RLS — the canonical Phase-1 chain
+ * `auth.uid() → students.user_id → students.id` filters which `students`
+ * + `class_students` rows the resolver can see. CS-1's policy migrations
+ * pre-positioned the supporting policies; this opt-in flag activates
+ * them per-caller.
+ */
 export async function resolveStudentSettings(
   studentId: string,
-  classId?: string
+  classId?: string,
+  supabase: SupabaseClient = createAdminClient()
 ): Promise<ResolvedSupportSettings> {
-  const supabase = createAdminClient();
 
   // Per-student row: support_settings + learning_profile + ell_level
   // (the ell_level is needed to compute the smart default for

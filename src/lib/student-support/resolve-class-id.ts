@@ -28,6 +28,7 @@
  * goes away. Until then, this is the bridge.
  */
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -38,6 +39,14 @@ export interface ResolveClassIdInput {
   classId?: string;
   /** Caller-supplied unitId — server derives classId via class_units JOIN. */
   unitId?: string;
+  /**
+   * Phase 1.4 CS-2 (30 Apr 2026) — optional Supabase client. Defaults to
+   * `createAdminClient()` (admin-bypass, used by teacher routes + the
+   * student word-lookup route). When `createServerSupabaseClient()` is
+   * passed (CS-2/CS-3 student routes), reads respect RLS — Phase 1.5/1.5b
+   * + CS-1 policies enforce the canonical chain.
+   */
+  supabase?: SupabaseClient;
 }
 
 /**
@@ -61,7 +70,7 @@ export interface ResolveClassIdInput {
  * Returns [] when input is empty (no extra round-trip).
  */
 async function filterOutArchivedClasses(
-  supabase: ReturnType<typeof createAdminClient>,
+  supabase: SupabaseClient,
   classIds: string[]
 ): Promise<string[]> {
   if (classIds.length === 0) return [];
@@ -76,7 +85,7 @@ async function filterOutArchivedClasses(
 export async function resolveStudentClassId(
   input: ResolveClassIdInput
 ): Promise<string | undefined> {
-  const supabase = createAdminClient();
+  const supabase: SupabaseClient = input.supabase ?? createAdminClient();
 
   // Path 1: caller-supplied classId — verify enrollment AND non-archived.
   if (input.classId && UUID_RE.test(input.classId)) {
