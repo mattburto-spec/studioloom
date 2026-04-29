@@ -2662,3 +2662,52 @@ Following the saveme commit `64d2afc` that flipped Access Model v2 to "PHASE 0 S
 **Branch state:** `access-model-v2` at HEAD (commit added during this session). 53+ commits ahead of `main`. Tree clean. Ready to merge to main via PR. Worktree cleanup deferred — Matt can `git worktree remove ../questerra-access-v2` after merge OR keep for Phase 1.
 
 **Session context:** This was the prod apply + A1 close-out session. Multi-step walkthrough one migration at a time. Two mid-apply hiccups (Lesson #61 SQL bug + orphan data); both diagnosed + fixed inline; both informed Lesson #61 + the data-fix patterns. Now Phase 1 (Auth Unification — every student → auth.users + getStudentSession() helper + route migration) is the next milestone.
+
+---
+
+### 29 April 2026 (later) — Hygiene + Phase 1 brief drafted on branch + registry-consultation discipline codified
+
+**Systems affected:** repository hygiene, admin tooling (bug-reports), build-phase-prep skill, governance (registry consultation discipline), Access Model v2 (Phase 1 brief on feature branch).
+
+**What shipped to main today:**
+
+1. **Bug-report screenshot signed URL TTL** (`d97decd`) — bumped 30 min → 4 hr. Single-admin internal use; URL-leakage trade-off acceptable for the realistic triage workflow.
+
+2. **Repo hygiene Tier 1** (`9b83a71`) — relocated 247 MB of tracked reference material (`3delements/`, `docs/safety/`, `docs/newmetrics/`, `comic/`, `docs/newlook/`, `docs/lesson plans/`) to `/Users/matt/CWORK/_studioloom-reference/` (sibling, not in git). `.gitignore` blocks re-add. 5,307 files removed; 488,798 line deletions. Every future `git worktree add` skips the bulk. Recovered ~3 GiB free across 7 worktrees.
+
+3. **Test fixture relocation** (`5ce589b`) — restored `mburton packaging redesign unit.docx` + `Under Pressure...pdf` from the relocated reference folder to `tests/fixtures/ingestion/`. CI caught they were genuinely needed by `tests/e2e/checkpoint-1-2-ingestion.test.ts`. Net hygiene saving drops from 247 MB → ~230 MB. Lesson logged in decisions-log: my grep audit needs to cover `tests/` not just `src/` + `scripts/`.
+
+4. **FU-REGISTRY-DRIFT-CI filed** (`3007f38`) — P2 follow-up tracking the gap that `build-phase-prep` skill consulted only `WIRING.yaml`, leaving 5 other registries blind. 3-layer recommendation: L1 skill update (done — see #5), L2 pre-commit warn, L3 CI gate.
+
+5. **`build-phase-prep` skill — Step 5c added** — registry consultation now MANDATORY for any phase touching ≥3 files. Lists the 7 registries, requires spot-check against code, requires registry-sync sub-phase in commit plan. Master `CLAUDE.md` "Non-negotiables per phase" gets a 9th item codifying it.
+
+**What landed on `access-model-v2-phase-1` feature branch (NOT pushed to main):**
+
+- `42b2cf7` — Phase 1 brief draft (475 lines) covering 6 sub-phases of auth unification: backfill students → auth.users, custom Supabase classcode+name flow, `getStudentSession()`/`getActorSession()` polymorphic helpers, 3-batch route migration (A: 21 read-only, B: 21 mutation, C: 17 student-touching teacher routes), RLS simplification on 7 tables, negative control + cleanup. Synthetic email format locked: `student-<uuid>@students.studioloom.local`.
+- `5be1599` — Registry cross-check amendment. Added §3.7 with 10 verified gaps (numbers grep-confirmed), §4.7 Registry hygiene sub-phase (12 update steps that must land before A2 sign-off), risk #5 covering `student_sessions` RLS-no-policy promotion to load-bearing during the grace period (closes FU-FF P3), Checkpoint A2 extended with explicit registry-sync gate items.
+
+Branch state: `access-model-v2-phase-1` at `5be1599`, 2 commits ahead of `main`, not pushed. Awaiting Matt sign-off on synthetic email format + grace period decisions before §4.1 code starts.
+
+**Registries (this saveme):**
+
+| File | Action | Result |
+|---|---|---|
+| `api-registry.yaml` | Rerun scanner — applied | +2 routes (393 → 395; `/api/student/search` newly registered + `bug-reports` tables_read/written shape correction) |
+| `ai-call-sites.yaml` | Rerun scanner — applied | No drift |
+| `feature-flags.yaml` | Rerun scanner | Drift: `SENTRY_AUTH_TOKEN` orphaned (pre-existing FU-CC P3), `RUN_E2E` missing (test/CI env var, classification question — leave for now) |
+| `vendors.yaml` | Rerun scanner | No drift |
+| `rls-coverage.json` | Rerun scanner | 7 `rls_enabled_no_policy` (3 known: `ai_model_config*`, `student_sessions` per FU-FF; `fabricator_sessions`, `fabrication_scan_jobs`, `admin_audit_log`, `teacher_access_requests`). Phase 1 §4.5 closes 2 of these |
+| `schema-registry.yaml` | Manual review | No new migrations on main this session (Phase 1 migrations come on its own branch) |
+| `data-classification-taxonomy.md` | Manual review | No drift. Phase 1 brief §4.7 will add the Synthetic/Opaque Identifiers rule when Phase 1 ships |
+
+**Lessons + decisions:**
+- New decision: registry cross-check is a hard gate on phase briefs (logged)
+- New decision: repo hygiene Tier 1 (logged)
+- New decision: bug-report TTL 30→4hr (logged)
+- No new lessons — the WIRING `key_files` drift was Lesson #54 already, applied; the test-grep gap is captured in a decision.
+
+**Commits to main this session window:** `c3c6457..3007f38` so far (bug-reports fix, hygiene, fixtures, FU added). This saveme commit lands next.
+
+**Branch state at saveme:** `main` clean, all today's work pushed. `access-model-v2-phase-1` 2 ahead, local-only, awaiting Phase 1 sign-off.
+
+**Next:** Phase 1 of Access Model v2 (Auth Unification, ~3.5 days incl. registry hygiene). Pre-flight + research spike when Matt says "go" on the brief.
