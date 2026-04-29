@@ -48,3 +48,13 @@ supabase/.temp/
 
 # Migration script outputs (regen via scripts/)
 outputs/
+
+# Reference materials moved out of repo (29 Apr 2026)
+# Sit at /Users/matt/CWORK/_studioloom-reference/ — not tracked here.
+# Block re-add: any future drag-drop into these paths is silently ignored.
+/3delements/
+/comic/
+/docs/safety/
+/docs/newmetrics/
+/docs/newlook/
+/docs/lesson plans/
