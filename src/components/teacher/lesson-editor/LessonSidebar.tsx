@@ -90,23 +90,10 @@ export function LessonSidebar({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Unit cover + title (warm paper) */}
+      {/* Unit title strip — cover lives in UnitThumbnailEditor above this component */}
       {unitTitle && (
-        <div className="px-3 py-3 border-b border-[var(--le-hair)] flex-shrink-0">
-          <div className="aspect-[4/3] rounded-lg overflow-hidden bg-gradient-to-br from-lime-200 via-emerald-300 to-emerald-500 relative">
-            {thumbnailUrl ? (
-              <img
-                src={thumbnailUrl}
-                alt=""
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center text-emerald-900/40 text-[48px]">
-                🌿
-              </div>
-            )}
-          </div>
-          <div className="mt-2 flex items-center gap-1.5">
+        <div className="px-3 pt-2 pb-2 border-b border-[var(--le-hair)] flex-shrink-0">
+          <div className="flex items-center gap-1.5">
             <span className="text-[12px]">🎒</span>
             <div className="text-[11.5px] font-extrabold truncate text-[var(--le-ink)]">
               {unitTitle}
