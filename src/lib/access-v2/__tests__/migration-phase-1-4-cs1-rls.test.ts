@@ -149,8 +149,10 @@ describe("Migration: 20260429231130_phase_1_4_cs1_student_badges_rewrite", () =>
     expect(sql).toMatch(
       /CREATE POLICY student_badges_read_own ON student_badges\s+FOR SELECT/
     );
+    // Note: ::text cast on RHS — student_badges.student_id is TEXT (column-type
+    // drift from migration 035; see FU-AV2-STUDENT-BADGES-COLUMN-TYPE).
     expect(sql).toMatch(
-      /student_id IN \(\s*SELECT id FROM students WHERE user_id = auth\.uid\(\)/
+      /student_id IN \(\s*SELECT id::text FROM students WHERE user_id = auth\.uid\(\)/
     );
   });
 

@@ -1504,3 +1504,45 @@ Equivalent jobs for ai-call-sites and rls-coverage. Hard fail = forces saveme be
 - `ai-call-sites.yaml`: 29 Apr — fresh (auto-generated)
 - `data-classification-taxonomy.md`: **14 Apr (15d old)** — stable enums
 - `scanner-reports/rls-coverage.json`: 29 Apr — fresh (auto-generated)
+
+## FU-AV2-STUDENT-BADGES-COLUMN-TYPE — `student_badges.student_id` is TEXT not UUID, no FK (P3)
+**Surfaced:** 30 Apr 2026 — Access Model v2 Phase 1.4 CS-1 prod apply
+**Captured in:** `docs/projects/access-model-v2-phase-14-client-switch-brief.md` (CS-1 column-type quirk note in migration 3)
+
+**Issue:** Migration 035 created `student_badges.student_id` as `TEXT NOT NULL` (with the comment "nanoid from student_sessions"), NOT as `UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE`. In practice, production stores text-formatted UUIDs in this column — the teacher-side policy `student_badges_teacher_read` uses `::text` casts on both sides and has worked since 035 shipped. But the schema is still wrong.
+
+This surfaced when the Phase 1.4 CS-1 student-side rewrite migration tried `student_id IN (SELECT id FROM students WHERE user_id = auth.uid())` — Postgres rejected with `operator does not exist: text = uuid`. Fixed by mirroring the teacher policy's `::text` cast in the new policy. The fix works but propagates the column-type drift.
+
+**Why P3:** the workaround (`::text` cast on RHS) works correctly. No data integrity issue today — production rows hold text-formatted UUIDs that compare correctly. The cleanup is hygiene, not security or correctness.
+
+**Recommended approach:**
+
+1. **Pre-flight audit** — query prod to verify all `student_badges.student_id` values can cast to UUID (no leftover nanoid session tokens). One row that fails the cast blocks the migration.
+   ```sql
+   SELECT student_id FROM student_badges
+   WHERE student_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+   ```
+   Expected: 0 rows.
+
+2. **Migration:**
+   ```sql
+   ALTER TABLE student_badges
+     ALTER COLUMN student_id TYPE UUID USING student_id::uuid;
+
+   ALTER TABLE student_badges
+     ADD CONSTRAINT student_badges_student_id_fkey
+       FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE;
+   ```
+
+3. **Drop the `::text` casts** in both `student_badges_read_own` (CS-1's policy) and `student_badges_teacher_read` (migration 035's policy). Rewrite both via DROP+CREATE migrations using the clean column type.
+
+4. **Test:** existing student_badges shape tests + add one asserting the FK exists via `pg_catalog.pg_constraint` (Lesson #62).
+
+**Definition of done:**
+- `student_badges.student_id` is `UUID` with FK to `students(id)`.
+- Both policies use `student_id IN (SELECT id FROM students WHERE ...)` without casts.
+- `pg_catalog.pg_constraint` query confirms the FK exists with `ON DELETE CASCADE`.
+
+**Sequence:** ship after Phase 1.4 client-switch closes (this is a hygiene cleanup; not blocking pilot or any in-flight phase). Could pair with similar audit of other `*_id TEXT` columns if any exist (likely audit reveals more).
+
+**Related:** FU-FF (P3 — RLS-as-deny-all on 3 tables, similar "documented in registry but actual SQL diverges" class), Phase 1.4 CS-1 brief (where this surfaced).

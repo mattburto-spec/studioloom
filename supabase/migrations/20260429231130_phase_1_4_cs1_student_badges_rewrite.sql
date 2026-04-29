@@ -42,13 +42,30 @@
 -- filenames + table comments. Annotation drift goes unflagged.
 --
 -- ───────────────────────────────────────────────────────────────────────────
+-- COLUMN-TYPE QUIRK
+-- ───────────────────────────────────────────────────────────────────────────
+--
+-- Migration 035 created `student_badges.student_id` as TEXT (the comment
+-- says "nanoid from student_sessions") — NOT UUID with an FK to students.id.
+-- In practice, production stores text-formatted UUIDs in this column (the
+-- teacher-side policy `student_badges_teacher_read` uses `::text` casts on
+-- both sides and works), but the column is still TEXT.
+--
+-- This is technical debt that should be cleaned up — change the column to
+-- UUID + add FK + drop the casts in BOTH policies. Filed as a P3 follow-up
+-- (FU-AV2-STUDENT-BADGES-COLUMN-TYPE) to be tackled separately. For CS-1's
+-- immediate need, this migration mirrors the teacher policy's cast pattern:
+-- `id::text` on the RHS so the comparison is text = text.
+--
+-- ───────────────────────────────────────────────────────────────────────────
 -- FIX
 -- ───────────────────────────────────────────────────────────────────────────
 --
 -- DROP the broken policy. CREATE a new one using the canonical chain
--- auth.uid() → students.user_id → students.id = student_badges.student_id.
--- Indexed via idx_students_user_id (Phase 1.1a partial index) — fast
--- subquery.
+-- auth.uid() → students.user_id → students.id::text = student_badges.student_id.
+-- The `::text` cast on `students.id` matches the existing teacher policy's
+-- pattern and works around the column-type drift. Indexed via
+-- idx_students_user_id (Phase 1.1a partial index) — fast subquery.
 --
 -- Existing teacher policies (`student_badges_teacher_read`,
 -- `student_badges_teacher_insert`) are untouched. They use a DIFFERENT
@@ -64,13 +81,14 @@
 -- ───────────────────────────────────────────────────────────────────────────
 --
 -- - One DROP POLICY (broken `student_badges_read_own`)
--- - One CREATE POLICY (canonical-chain replacement)
+-- - One CREATE POLICY (canonical-chain replacement, with `::text` cast on RHS)
 -- - Existing `student_badges_teacher_read` + `student_badges_teacher_insert`
 --   policies untouched
 -- - No data change
 --
 -- POST-MIGRATION NOTE for schema-registry hygiene: the registry
--- annotation `student_badges_read_own (their)` is finally truthful.
+-- annotation `student_badges_read_own (their)` is finally truthful (modulo
+-- the column-type cast — see FU-AV2-STUDENT-BADGES-COLUMN-TYPE).
 
 DROP POLICY IF EXISTS student_badges_read_own ON student_badges;
 
@@ -78,7 +96,7 @@ CREATE POLICY student_badges_read_own ON student_badges
   FOR SELECT
   USING (
     student_id IN (
-      SELECT id FROM students WHERE user_id = auth.uid()
+      SELECT id::text FROM students WHERE user_id = auth.uid()
     )
   );
 
