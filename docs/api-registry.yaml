@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 393
+# Total routes: 396
 
 routes:
 - path: /api/admin/ai-model
@@ -386,7 +386,22 @@ routes:
   - students
   - teacher_integrations
   tables_written:
+  - classes
   - student_sessions
+  - students
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/auth/student-classcode-login
+  method: POST
+  file: src/app/api/auth/student-classcode-login/route.ts
+  auth: teacher
+  tables_read:
+  - class_students
+  - classes
+  - students
+  tables_written:
+  - audit_events
   - students
   ai_call_sites: []
   cost_ceiling_usd: null
@@ -440,11 +455,9 @@ routes:
   file: src/app/api/bug-reports/route.ts
   auth: teacher
   tables_read:
-  - bug_reports
   - student_sessions
   tables_written:
   - bug_reports
-  - student_sessions
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
@@ -1507,6 +1520,20 @@ routes:
   - student_badges
   - students
   - unit_badge_requirements
+  - units
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/student/search
+  method: GET
+  file: src/app/api/student/search/route.ts
+  auth: student
+  tables_read:
+  - class_students
+  - class_units
+  - classes
+  - students
   - units
   tables_written: []
   ai_call_sites: []
@@ -3436,6 +3463,18 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/teacher/search
+  method: GET
+  file: src/app/api/teacher/search/route.ts
+  auth: teacher
+  tables_read:
+  - class_students
+  - class_units
+  - classes
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/teacher/skills/ai/generate-quiz
   method: POST
   file: src/app/api/teacher/skills/ai/generate-quiz/route.ts
@@ -4007,6 +4046,7 @@ routes:
   file: src/app/api/teacher/welcome/add-roster/route.ts
   auth: teacher
   tables_read:
+  - classes
   - students
   tables_written:
   - class_students
