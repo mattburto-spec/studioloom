@@ -15,7 +15,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import type { CardType, SkillTier } from "@/types/skills";
 
 type CardTile = {
@@ -48,9 +48,9 @@ const VALID_CARD_TYPES = new Set<CardType>(["lesson", "routine"]);
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireStudentAuth(request);
-    if (auth.error) return auth.error;
-    const studentId = auth.studentId;
+    const session = await requireStudentSession(request);
+    if (session instanceof NextResponse) return session;
+    const studentId = session.studentId;
 
     const url = new URL(request.url);
     const ageBand = url.searchParams.get("age_band");

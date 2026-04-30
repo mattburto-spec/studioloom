@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 
 /**
  * Student Safety Certifications API
@@ -11,15 +11,15 @@ import { requireStudentAuth } from "@/lib/auth/student";
  */
 
 export async function GET(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
 
   const db = createAdminClient();
 
   const { data: certs, error } = await db
     .from("safety_certifications")
     .select("cert_type, granted_at, expires_at, notes")
-    .eq("student_id", auth.studentId)
+    .eq("student_id", session.studentId)
     .order("granted_at", { ascending: true });
 
   if (error) {

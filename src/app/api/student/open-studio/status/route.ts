@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 
 /**
  * GET /api/student/open-studio/status?unitId={id}
@@ -8,9 +8,9 @@ import { requireStudentAuth } from "@/lib/auth/student";
  * Used by the OpenStudioBanner and Design Assistant to determine AI mode.
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   const supabase = createAdminClient();
 

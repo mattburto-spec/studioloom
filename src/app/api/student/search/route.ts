@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { withErrorHandler } from "@/lib/api/error-handler";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { getPageList } from "@/lib/unit-adapter";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
 import type { UnitContentData, UnitPage } from "@/types";
@@ -54,9 +54,9 @@ function pageSearchText(page: UnitPage): string {
 }
 
 export const GET = withErrorHandler("student/search:GET", async (request: NextRequest) => {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   const url = new URL(request.url);
   const rawQ = (url.searchParams.get("q") ?? "").trim();
