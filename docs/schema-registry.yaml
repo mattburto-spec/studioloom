@@ -1408,7 +1408,7 @@ tables:
   readers:
   - src/app/api/student/grades/route.ts
   - src/app/api/teacher/grading/past-feedback/route.ts
-  spec_drift: []
+  spec_drift:
   - date: 2026-04-30
     note: "Phase 1.4 CS-1 — applied 20260429231124_phase_1_4_cs1_assessment_records_student_self_read.sql. Additive `Students read own published assessments` policy USING (is_draft = false AND student_id IN (SELECT id FROM students WHERE user_id = auth.uid())). Drafts remain teacher-only. Pre-positioned for CS-3 `grades` route switch."
   classification:
@@ -2332,13 +2332,13 @@ tables:
   - src/lib/fabrication/orchestration.ts
   - src/lib/student-support/__tests__/resolve-class-id.test.ts
   - src/lib/student-support/resolve-class-id.ts
-  spec_drift: []
+  spec_drift:
+  - date: 2026-04-30
+    note: "Phase 1.4 CS-1 — applied 20260429231118_phase_1_4_cs1_classes_student_self_read.sql. Additive `Students read own enrolled classes` policy USING (id IN (SELECT cs.class_id FROM class_students cs WHERE cs.student_id IN (SELECT id FROM students WHERE user_id = auth.uid()))). Closes the no-student-policy gap that would have silently 0-rowed every CS-2 route reading classes."
   changes_in_phase_7a:
   - migration: 076_bug_reports.sql
     add_column: bug_reporting_enabled BOOLEAN NOT NULL DEFAULT false
     purpose: Per-class toggle for bug reporter visibility. Default OFF.
-  - date: 2026-04-30
-    note: "Phase 1.4 CS-1 — applied 20260429231118_phase_1_4_cs1_classes_student_self_read.sql. Additive `Students read own enrolled classes` policy USING (id IN (SELECT cs.class_id FROM class_students cs WHERE cs.student_id IN (SELECT id FROM students WHERE user_id = auth.uid()))). Closes the no-student-policy gap that would have silently 0-rowed every CS-2 route reading classes."
   classification:
     id:
       pii: false
@@ -8087,7 +8087,7 @@ tables:
   - src/app/api/teacher/student-snapshot/route.ts
   - src/app/teacher/classes/[classId]/page.tsx
   - src/app/teacher/students/page.tsx
-  spec_drift: []
+  spec_drift:
   - date: 2026-04-30
     note: "Phase 1.4 CS-1 — applied 20260429231130_phase_1_4_cs1_student_badges_rewrite.sql. DROP+CREATE student_badges_read_own. Original (mig 035) used current_setting(\"app.student_id\") OR jwt.claims->>sub — never matched any auth path. Rewritten with canonical chain student_id IN (SELECT id::text FROM students WHERE user_id = auth.uid()). Note: `::text` cast is a workaround for student_badges.student_id being TEXT not UUID (FU-AV2-STUDENT-BADGES-COLUMN-TYPE P3)."
   classification:
@@ -9714,7 +9714,9 @@ tables:
   - src/lib/admin/monitors/usage-analytics.ts
   - src/lib/auth/verify-teacher-unit.ts
   - src/lib/design-assistant/conversation.ts
-  spec_drift: []
+  spec_drift:
+  - date: 2026-04-30
+    note: "Phase 1.4 CS-3 hotfix — applied 20260430030419_phase_1_4_cs3_units_student_self_read.sql. Additive `Students read own assigned units` policy USING (id IN (SELECT cu.unit_id FROM class_units cu WHERE cu.class_id IN (SELECT cs.class_id FROM class_students cs WHERE cs.student_id IN (SELECT id FROM students WHERE user_id = auth.uid())))). Closes the gap that would have silently 0-rowed CS-3 routes for unpublished units assigned to students' classes (only `Teachers read own or published units` existed before, students could only see is_published=true)."
   classification:
     id:
       pii: false

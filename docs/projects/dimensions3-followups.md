@@ -1582,6 +1582,32 @@ The first cycle (`students` ↔ `class_students`) was hit by CS-2 and fixed via 
 
 **Related:** `FU-HH` (no live RLS test harness — would catch this class of bug pre-prod), Phase 1.4 CS-2 brief (where this surfaced), Phase 1.5/1.5b prod-apply session (where the latent bug was authored).
 
+## FU-AV2-UNITS-ROUTE-CLASS-DISPLAY — `/api/student/units` shows wrong class for multi-class units + doesn't filter archived (P3)
+**Surfaced:** 30 Apr 2026 — Phase 1.4 CS-3 prod smoke
+**Captured in:** This entry (the route works under RLS post-CS-3; the display issue is pre-existing).
+
+**Issue:** `/api/student/units/route.ts` returns each unit with a `class_id` / `class_name` for display in the dashboard card. Two pre-existing bugs in the picker logic, surfaced when CS-3 smoke test inspected the response shape:
+
+1. **Adds `students.class_id` (legacy column) as a fallback to the enrollment set.** This pulls in classes the student is no longer actively enrolled in via `class_students`. Combined with the second bug, this can pick an archived class as the display class when a unit is shared between an active class and an archived legacy class.
+
+2. **Doesn't filter archived classes from the candidate list.** Picks the first matching `class_units` row regardless of whether the class is archived. Same fix as the 28 Apr 2026 archive filter in `resolveStudentClassId` — needs applying here too.
+
+**Symptom:** test2 is in `Service LEEDers` (active) but `students.class_id` legacy column points at `g9 design` (archived). The unit `Arcade Machine Project` exists in BOTH classes via `class_units`. The route picks `g9 design` for display, not `Service LEEDers`. Notably, `progress.class_id` inside the unit DOES correctly resolve to the active class — the bug is in the outer display field only.
+
+**Why P3:** Pre-existing behavior unchanged by CS-3. Display-layer bug, not a security/data-integrity issue. RLS correctly allows test2 to read both classes (she IS in both via class_students junction, just one with `is_active=false`). The fix is route-layer logic, not a policy change.
+
+**Recommended fix:**
+1. Drop the `students.class_id` fallback (legacy column scheduled for Phase 6 cutover anyway).
+2. Filter `class_students` to `is_active = true` (already done).
+3. Filter classes by `is_archived IS NULL OR is_archived = false` when building the display map.
+4. When a unit appears in multiple of the student's active enrollments, prefer the most-recently-enrolled class (matches the deterministic tie-break in `resolveStudentClassId`).
+
+**Definition of done:** test2's `/api/student/units` response shows `class_id: "a7afd4f3-..."` and `class_name: "Service LEEDers"` for the Arcade Machine Project, NOT `82d7fb45-... "g9 design"`.
+
+**Sequence:** ship anytime. Self-contained route fix. Could pair with the eventual full CS-N migration (when the 18 unmigrated GET routes from FU-AV2-PHASE-14B-2 ship) since this is logic the route owns directly.
+
+**Related:** Phase 6 cutover removes `students.class_id` legacy column entirely, which auto-fixes this.
+
 ## FU-AV2-STUDENT-BADGES-COLUMN-TYPE — `student_badges.student_id` is TEXT not UUID, no FK (P3)
 **Surfaced:** 30 Apr 2026 — Access Model v2 Phase 1.4 CS-1 prod apply
 **Captured in:** `docs/projects/access-model-v2-phase-14-client-switch-brief.md` (CS-1 column-type quirk note in migration 3)

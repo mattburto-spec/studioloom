@@ -4,6 +4,44 @@
 
 ---
 
+## 30 Apr 2026 (latest) — Phase 1.4 client-switch CS-3 SHIPPED + comprehensive RLS audit closed ✅
+
+**Context:** Continued from "CS-1 + CS-2" earlier this session. Picked Option B (comprehensive RLS audit before CS-3) to avoid per-route diagnostic surprises.
+
+**Audit (FU-AV2-RLS-SECURITY-DEFINER-AUDIT closed ✅ RESOLVED):**
+- Queried pg_policies for every cross-table-subquery pattern across the 21 tables CS-3 routes touch.
+- Mapped each: does the subqueried table have a policy that back-references the calling table?
+- Verdict: **zero remaining cycles.** The two CS-2 SECURITY DEFINER hotfixes (`students↔class_students`, `classes↔class_students`) closed the only two recursion-prone policy pairs in the system.
+- Findings table preserved in the (now-resolved) FU entry as the safety proof.
+
+**CS-3 (4 routes switched to SSR client):**
+- `grades` — assessment_records read under "Students read own published assessments" (CS-1).
+- `units` — multi-table read across students/class_students/classes/class_units/units/student_progress.
+- `safety/pending` — cross-table chain through class_units → unit_badge_requirements → student_badges.
+- `insights` — biggest surface (10+ tables). RLS-enforced.
+
+**CS-3 hotfix (1 migration applied to prod): `units` student-read policy.**
+- Smoke surfaced empty results from 3 of 4 routes — `units` table only had `Teachers read own or published units`. Students could read only published units. Unpublished assigned units were RLS-blocked.
+- Fix: additive `Students read own assigned units` USING `id IN (class_units → class_students → students)`.
+- Migration `20260430030419` applied + verified.
+- Re-smoke: `grades` returns real `unitTitle: "Arcade Machine Project"`, `units` returns full unit data, `safety/pending` shows real `unit_title`, `insights` unchanged.
+
+**Total Phase 1.4 client-switch state at end of session:**
+- 6/6 Phase 1.4b routes use SSR client. Phase 1.5/1.5b/CS-1/CS-3 student-side policies are load-bearing across the entire surface.
+- 4 RLS migrations applied to prod (3 CS-1 + 1 CS-3 hotfix). 2 SECURITY DEFINER hotfixes from CS-2 still in place.
+
+**Schema-registry YAML hygiene fix:** earlier today's CS-1 saveme had a Python script that appended spec_drift entries AFTER `spec_drift: []` instead of replacing it — produced invalid YAML at 3 locations (assessment_records, classes, student_badges). Caught when api-scanner failed to parse. Fixed via regex substitution + manual restructure for the `classes` entry (had a separate `changes_in_phase_7a` field interleaved). All scanners now run clean.
+
+**Pre-existing finding documented:** `/api/student/units` route shows wrong class for multi-class units (picks legacy `students.class_id` archived class over active enrollment). Filed FU-AV2-UNITS-ROUTE-CLASS-DISPLAY (P3). Display-layer bug, not a CS-3 regression — pre-existed under admin client.
+
+**Commits this segment:** `e44e883..a958a2b..a958a2b` (CS-3 timestamp claim + units RLS hotfix) + saveme.
+
+**State of working tree:** clean (post-saveme). Tests 2806 passed | 11 skipped. Typecheck 0 errors. Migration collision gate clean.
+
+**Next:** CS-4 (negative control) is now informational only — already verified RLS enforcement via earlier debug instrumentation. CS-5 close-out covered by this saveme. **Phase 1.4 client-switch effectively complete for the 6 Phase 1.4b routes.** Remaining work: 18 GET routes (FU-AV2-PHASE-14B-2 P3 — cosmetic, dual-mode wrapper covers them), Batch B mutation routes, Batch C teacher routes, eventual Phase 6 cutover.
+
+---
+
 ## 30 Apr 2026 (later) — Phase 1.4 client-switch CS-1 + CS-2 SHIPPED: RLS load-bearing in prod for the first time ✅
 
 **Context:** Continued from earlier "Phase 1 CLOSED" session. Picked up Phase 1.4 client-switch (FU-AV2-PHASE-14-CLIENT-SWITCH P2) — switch the 6 Phase 1.4b routes from `createAdminClient()` (admin bypass) → `createServerSupabaseClient()` (RLS-respecting). First time RLS would actually carry weight in production traffic; revealed multiple latent bugs from Phase 1.5/1.5b/CS-1 that admin-client testing had masked.
