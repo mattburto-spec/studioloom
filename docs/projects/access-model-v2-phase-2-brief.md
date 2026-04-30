@@ -48,30 +48,32 @@ These are one-time setup tasks. The brief assumes Matt does them as part of sub-
 
 ## 3. Sub-phases
 
-### Phase 2.1 — Google OAuth (~3-4 hours)
+### Phase 2.1 — Microsoft (Azure AD) OAuth (~3-4 hours)
+
+**Order rationale:** NIS uses Microsoft 365. Doing Microsoft first means Matt dogfoods his own login flow on day one — every subsequent sub-phase can be smoked against his real account. Google second.
 
 **External (Matt, in dashboards):**
-1. Google Cloud Console → Create OAuth 2.0 client ID. Authorized redirect URI: `https://cxxbfmnbwihuskaaltlk.supabase.co/auth/v1/callback`.
-2. Supabase dashboard → Authentication → Providers → Google → enable, paste client ID + secret.
+1. Azure AD → app registration. Redirect URI: `https://cxxbfmnbwihuskaaltlk.supabase.co/auth/v1/callback`. Single-tenant (NIS's Azure tenant) for tighter scope, or multi-tenant if planning to onboard other Microsoft schools.
+2. Supabase dashboard → Authentication → Providers → Azure → enable, paste tenant + client ID + secret.
 
 **Code:**
-1. Add "Sign in with Google" button to `/teacher/login` (calls `supabase.auth.signInWithOAuth({ provider: "google" })`).
+1. Add "Sign in with Microsoft" button to `/teacher/login` (calls `supabase.auth.signInWithOAuth({ provider: "azure" })`).
 2. Extend `/auth/callback/route.ts` to handle OAuth code exchange (already does PKCE — verify it works for OAuth too) and redirect to `/teacher/welcome` on first-time login (no teacher row yet) or `/teacher/dashboard` otherwise.
-3. **First-login teacher provisioning:** when an OAuth user lands at the callback and has no `teachers` row, create one. Mirrors what Phase 1.2's classcode-login does for students. Trigger or callback-side INSERT — design call to make.
+3. **First-login teacher provisioning:** when an OAuth user lands at the callback and has no `teachers` row, create one + set `app_metadata.user_type = 'teacher'` via admin client. Mirrors what Phase 1.2's classcode-login does for students. Lives in callback route (NOT a trigger — trigger can't set app_metadata).
 4. Tests: callback route exchange + provisioning logic.
 
-**Stop trigger:** Google sign-in succeeds end-to-end → user lands on /teacher/welcome (new) or /teacher/dashboard (returning).
+**Stop trigger:** Matt signs in to studioloom.org with his NIS Microsoft account end-to-end → lands on /teacher/dashboard (returning, since he already has a teacher row) without any user-visible errors.
 
-### Phase 2.2 — Microsoft (Azure AD) OAuth (~2 hours)
+### Phase 2.2 — Google OAuth (~2 hours)
 
-Same shape as 2.1, different provider. Smaller because the route + provisioning code is already written for Google.
+Same shape as 2.1, different provider. Smaller because the callback + provisioning code is already written for Microsoft.
 
 **External (Matt):**
-1. Azure AD → app registration. Redirect URI same pattern as Google.
-2. Supabase dashboard → enable Microsoft provider, paste tenant + client ID + secret.
+1. Google Cloud Console → Create OAuth 2.0 client ID. Same redirect URI pattern.
+2. Supabase dashboard → enable Google provider, paste client ID + secret.
 
 **Code:**
-1. Add "Sign in with Microsoft" button to `/teacher/login`.
+1. Add "Sign in with Google" button to `/teacher/login`.
 2. Verify the OAuth callback handler works for both providers (no provider-specific branching expected).
 3. Tests: provider-tagged callback exchange.
 
@@ -242,9 +244,26 @@ Originally master spec said ~3 days. Reduced because email/password and PKCE cal
 
 **Pre-flight + audit complete (30 Apr 2026 evening).** Brief drafted with smaller-than-spec scope (1.5-2 days) because existing PKCE callback + email-password flow + teacher login page are already shipped from earlier work.
 
-**STOP — awaiting Matt's sign-off on:**
-- Sub-phase order (Google → Microsoft → allowlist UI → Apple flag → smoke).
-- Apple OAuth deferral (master spec already says skip; brief carries that forward).
-- Schema shape: `TEXT[]` for `allowed_auth_modes` vs JSONB. (Default: TEXT[] for indexability + simpler validation.)
-- First-login teacher provisioning location: callback route vs Supabase database trigger. (Default: callback — explicit, testable, matches student lazy-provision pattern from Phase 1.2.)
-- Any prerequisite work (Google Cloud Console + Azure AD app registration setup) — Matt does these before Phase 2.1 starts.
+**Decisions locked (sub-phase order driven by Matt's call: NIS uses Microsoft):**
+
+1. **Sub-phase order:** Microsoft (NIS dogfood) → Google → allowlist schema/UI → Apple flag → smoke.
+
+2. **Apple OAuth deferral:** scaffold the feature flag only, no integration. Per master spec resolved decisions §1.
+
+3. **Schema shape:** `TEXT[]` for `allowed_auth_modes` (indexable, CHECK-constraintable). Per-provider config (Microsoft tenant restriction, Google `hd`, etc.) goes in a future separate column or table when actually needed — not Phase 2.
+
+4. **Provisioning location:** callback route (NOT trigger). Trigger can't set `app_metadata.user_type` because Supabase sets app_metadata AFTER the trigger fires; trigger also can't call admin.updateUserById. Architecturally forced.
+
+5. **External prereqs:** Matt configures Azure AD + Google Cloud Console + Supabase dashboard providers in parallel with code, must be done before sub-phase smoke.
+
+6. **Same-email account linking** (Supabase setting): **YES, enable.** Auto-link new OAuth signups with existing email-password accounts when the email matches. UX expectation: signing in via Google with the same email should reuse the account, not error out.
+
+7. **Email/password sign-up flow:** **stays invite-only** for the pilot. OAuth is the self-service path; email-password keeps the existing "Request access" admin-approval flow. Cleaner permission story (Google/Microsoft already verify the user). Revisit when school registration (Phase 4) ships with domain validation.
+
+8. **Email verification on email-password:** **deferred post-pilot.** Master spec doesn't require. File a follow-up note.
+
+---
+
+**Ready to start Phase 2.1 — Microsoft OAuth.**
+
+Matt can do the Azure AD setup in parallel with code work. Sub-phase 2.1 ships when Matt successfully signs in with his NIS Microsoft account end-to-end on prod.
