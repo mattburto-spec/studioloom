@@ -1,35 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SESSION_COOKIE_NAME } from "@/lib/constants";
+import { getStudentSession } from "@/lib/access-v2/actor-session";
 
 // GET: Validate current student session and return student data
+//
+// Phase 1.4 CS-2 (30 Apr 2026) — DUAL-MODE auth path. Tries Supabase
+// Auth via getStudentSession() FIRST (Phase 1.2 sb-* cookies); falls
+// back to the legacy questerra_student_session cookie + student_sessions
+// table lookup. Same pattern as Phase 1.4a's requireStudentAuth wrapper.
+//
+// Originally legacy-only; missed during Phase 1.4 and broke the
+// (student)/layout.tsx session check when the frontend login swapped to
+// the new endpoint (sb-* cookies set, no legacy cookie → 401 → bounce
+// to login loop).
 export async function GET(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const supabase = createAdminClient();
+  let studentId: string | null = null;
 
-  if (!token) {
-    const response = NextResponse.json({ error: "No session" }, { status: 401 });
-    response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
-    return response;
+  // Path A: Supabase Auth (Phase 1.2 + later)
+  try {
+    const newSession = await getStudentSession(request);
+    if (newSession) studentId = newSession.studentId;
+  } catch {
+    // Defensive — fall through to legacy.
   }
 
-  const supabase = createAdminClient();
+  // Path B: Legacy cookie + student_sessions table lookup
+  if (!studentId) {
+    const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+    if (!token) {
+      const response = NextResponse.json({ error: "No session" }, { status: 401 });
+      response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
+      return response;
+    }
 
-  // Step 1: Find the session by token (no joins — isolate from FK issues)
-  const { data: session, error: sessionError } = await supabase
-    .from("student_sessions")
-    .select("id, student_id, expires_at")
-    .eq("token", token)
-    .gt("expires_at", new Date().toISOString())
-    .maybeSingle();
+    const { data: session, error: sessionError } = await supabase
+      .from("student_sessions")
+      .select("id, student_id, expires_at")
+      .eq("token", token)
+      .gt("expires_at", new Date().toISOString())
+      .maybeSingle();
 
-  if (sessionError || !session) {
-    const response = NextResponse.json(
-      { error: "Invalid or expired session" },
-      { status: 401 }
-    );
-    // Don't delete cookie here — it may just be a DB hiccup
-    response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
-    return response;
+    if (sessionError || !session) {
+      const response = NextResponse.json(
+        { error: "Invalid or expired session" },
+        { status: 401 }
+      );
+      // Don't delete cookie here — it may just be a DB hiccup
+      response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
+      return response;
+    }
+
+    studentId = session.student_id;
   }
 
   // Step 2: Get the student (try with new columns, fall back if migration 050 not applied)
@@ -39,7 +62,7 @@ export async function GET(request: NextRequest) {
   const { data: s1, error: e1 } = await supabase
     .from("students")
     .select("id, username, display_name, ell_level, class_id, learning_profile, mentor_id, theme_id")
-    .eq("id", session.student_id)
+    .eq("id", studentId)
     .single();
 
   if (!e1 && s1) {
@@ -49,7 +72,7 @@ export async function GET(request: NextRequest) {
     const { data: s2, error: e2 } = await supabase
       .from("students")
       .select("id, username, display_name, ell_level, class_id, learning_profile")
-      .eq("id", session.student_id)
+      .eq("id", studentId)
       .single();
     student = s2;
     studentError = e2;
