@@ -18,7 +18,15 @@ export default function StudentLoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/auth/student-login", {
+      // Phase 1.4 CS-2 (30 Apr 2026) — switched from legacy
+      // /api/auth/student-login (sets questerra_student_session cookie) to
+      // the Phase 1.2 classcode-login route (sets sb-* Supabase Auth
+      // cookies). Required for Phase 1.4b routes (grades, units, insights,
+      // safety/pending, me/support-settings, me/unit-context) which call
+      // requireStudentSession directly and don't accept the legacy cookie.
+      // Identical request payload + response shape; swap is the URL only.
+      // Phase 6 cutover removes the legacy route entirely.
+      const res = await fetch("/api/auth/student-classcode-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ classCode, username }),
