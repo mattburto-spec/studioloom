@@ -93,37 +93,51 @@ export async function getStudentsForTeacher(
 
 /**
  * Create a new student belonging to a teacher (not enrolled in any class yet).
+ *
+ * FU-AV2-UI-STUDENT-INSERT-REFACTOR (30 Apr 2026): now a thin wrapper over
+ * `POST /api/teacher/students`. The route handles auth + INSERT +
+ * auth.users provisioning atomically. The `supabase` parameter is kept
+ * for backwards compatibility (and may still be useful for offline / test
+ * contexts) but is unused in the network path.
  */
 export async function createStudent(
-  supabase: SupabaseClient,
-  teacherId: string,
+  _supabase: SupabaseClient,
+  _teacherId: string,
   data: { username: string; display_name?: string; ell_level?: number }
 ): Promise<{ student: Student | null; error: string | null }> {
-  const { data: student, error } = await supabase
-    .from("students")
-    .insert({
-      username: data.username.trim().toLowerCase(),
-      display_name: data.display_name?.trim() || null,
-      ell_level: data.ell_level || 3,
-      author_teacher_id: teacherId,
-      class_id: null, // No class — independent student
-    })
-    .select()
-    .single();
-
-  if (error) {
-    if (error.code === "23505") {
-      return { student: null, error: "A student with this username already exists." };
+  try {
+    const res = await fetch("/api/teacher/students", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: data.username,
+        displayName: data.display_name,
+        ellLevel: data.ell_level,
+      }),
+    });
+    const body = await res.json();
+    if (!res.ok) {
+      return { student: null, error: body?.error || "Failed to create student" };
     }
-    return { student: null, error: error.message };
+    return { student: body.student as Student, error: null };
+  } catch (e: unknown) {
+    return {
+      student: null,
+      error: e instanceof Error ? e.message : "Network error creating student",
+    };
   }
-
-  return { student: student as Student, error: null };
 }
 
 /**
  * Create a student AND enroll them in a class in one step.
- * (Replaces the old single-insert pattern.)
+ *
+ * FU-AV2-UI-STUDENT-INSERT-REFACTOR (30 Apr 2026): now a thin wrapper over
+ * `POST /api/teacher/students` with `classId` in the payload. The route
+ * handles INSERT + provisioning + class_students enrollment atomically.
+ *
+ * Returns the existing student (with the new enrollment) if the username
+ * already exists in this teacher's roster — preserves the original
+ * "exists → enroll" behaviour.
  */
 export async function createAndEnroll(
   supabase: SupabaseClient,
@@ -131,43 +145,59 @@ export async function createAndEnroll(
   classId: string,
   data: { username: string; display_name?: string; ell_level?: number }
 ): Promise<{ student: Student | null; error: string | null }> {
-  // Check if student already exists for this teacher
-  const { data: existing } = await supabase
-    .from("students")
-    .select("id")
-    .eq("author_teacher_id", teacherId)
-    .eq("username", data.username.trim().toLowerCase())
-    .maybeSingle();
+  try {
+    const res = await fetch("/api/teacher/students", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: data.username,
+        displayName: data.display_name,
+        ellLevel: data.ell_level,
+        classId,
+      }),
+    });
+    const body = await res.json();
 
-  if (existing) {
-    // Student exists — just enroll them
-    const enrollResult = await enrollStudent(supabase, existing.id, classId);
-    if (enrollResult.error) return { student: null, error: enrollResult.error };
+    if (res.ok) {
+      return { student: body.student as Student, error: null };
+    }
 
-    // Fetch full student record
-    const { data: student } = await supabase
-      .from("students")
-      .select("*")
-      .eq("id", existing.id)
-      .single();
+    // 409 with existingStudentId means the username already belongs to this
+    // teacher's roster — preserve original behaviour by enrolling the
+    // existing student instead of erroring.
+    if (res.status === 409 && body?.existingStudentId) {
+      const enrollResult = await enrollStudent(
+        supabase,
+        body.existingStudentId,
+        classId
+      );
+      if (enrollResult.error) {
+        return { student: null, error: enrollResult.error };
+      }
 
-    return { student: student as Student, error: null };
+      // Fetch full student record
+      const { data: student } = await supabase
+        .from("students")
+        .select("*")
+        .eq("id", body.existingStudentId)
+        .single();
+
+      return { student: student as Student, error: null };
+    }
+
+    // Defensive: keep the param eslint-clean for the success path above.
+    void teacherId;
+
+    return {
+      student: null,
+      error: body?.error || "Failed to create student",
+    };
+  } catch (e: unknown) {
+    return {
+      student: null,
+      error: e instanceof Error ? e.message : "Network error",
+    };
   }
-
-  // Create new student
-  const { student, error } = await createStudent(supabase, teacherId, data);
-  if (error || !student) return { student: null, error };
-
-  // Also set legacy class_id for backward compat
-  await supabase
-    .from("students")
-    .update({ class_id: classId })
-    .eq("id", student.id);
-
-  // Enroll in class
-  await enrollStudent(supabase, student.id, classId);
-
-  return { student: { ...student, class_id: classId }, error: null };
 }
 
 /**

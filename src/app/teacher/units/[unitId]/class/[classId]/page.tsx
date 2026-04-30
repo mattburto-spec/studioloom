@@ -1761,27 +1761,40 @@ function StudentsTab({
     setSaving(true);
     setError("");
     try {
-      const supabase = createClient();
-      // Create student record
-      const { data: newStudent, error: insertErr } = await supabase
-        .from("students")
-        .insert({
-          display_name: newDisplayName.trim(),
-          username: newUsername.trim() || newDisplayName.trim().toLowerCase().replace(/\s+/g, "_"),
-          class_id: classId,
-        })
-        .select("id, display_name, username, graduation_year")
-        .single();
-
-      if (insertErr) throw insertErr;
-      if (!newStudent) throw new Error("Failed to create student");
-
-      // Enroll in class
-      await supabase.from("class_students").insert({
-        student_id: newStudent.id,
-        class_id: classId,
-        is_active: true,
+      // FU-AV2-UI-STUDENT-INSERT-REFACTOR (30 Apr 2026): create + enroll
+      // via POST /api/teacher/students. Atomic INSERT + auth.users
+      // provision + class_students enrollment.
+      const res = await fetch("/api/teacher/students", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username:
+            newUsername.trim() ||
+            newDisplayName.trim().toLowerCase().replace(/\s+/g, "_"),
+          displayName: newDisplayName.trim(),
+          classId,
+        }),
       });
+      const body = await res.json();
+      if (!res.ok) {
+        throw new Error(body?.error || "Failed to create student");
+      }
+      // Coerce route response (display_name: string|null, graduation_year:
+      // number|null) to the local state's expected shape.
+      const routeStudent = body.student as {
+        id: string;
+        display_name: string | null;
+        username: string;
+        graduation_year: number | null;
+      };
+      const newStudent = {
+        id: routeStudent.id,
+        display_name: routeStudent.display_name ?? "",
+        username: routeStudent.username,
+        graduation_year: routeStudent.graduation_year != null
+          ? String(routeStudent.graduation_year)
+          : null,
+      };
 
       setStudents((prev) => [...prev, newStudent].sort((a, b) => (a.display_name || a.username).localeCompare(b.display_name || b.username)));
       setNewDisplayName("");

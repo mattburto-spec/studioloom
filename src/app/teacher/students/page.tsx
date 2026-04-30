@@ -368,37 +368,48 @@ export default function TeacherStudentsPage() {
               <button
                 disabled={adding || !newUsername.trim()}
                 onClick={async () => {
+                  // FU-AV2-UI-STUDENT-INSERT-REFACTOR (30 Apr 2026):
+                  // moved from direct supabase.from("students").insert()
+                  // to POST /api/teacher/students. Route handles auth +
+                  // INSERT + auth.users provisioning atomically.
                   setAdding(true);
                   setAddError("");
-                  const supabase = createClient();
-                  const { data: { user } } = await supabase.auth.getUser();
-                  if (!user) { setAddError("Not authenticated"); setAdding(false); return; }
 
-                  const { data: student, error } = await supabase
-                    .from("students")
-                    .insert({
-                      username: newUsername.trim().toLowerCase(),
-                      display_name: newDisplayName.trim() || null,
-                      ell_level: 3,
-                      author_teacher_id: user.id,
-                      class_id: null,
-                      graduation_year: newYearLevel ? yearLevelToGraduationYear(newYearLevel as number) : null,
-                    })
-                    .select()
-                    .single();
+                  try {
+                    const res = await fetch("/api/teacher/students", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        username: newUsername.trim().toLowerCase(),
+                        displayName: newDisplayName.trim() || null,
+                        ellLevel: 3,
+                        gradYear: newYearLevel
+                          ? yearLevelToGraduationYear(newYearLevel as number)
+                          : null,
+                      }),
+                    });
+                    const body = await res.json();
 
-                  if (error) {
-                    setAddError(error.code === "23505" ? "A student with this username already exists." : error.message);
+                    if (!res.ok) {
+                      setAddError(
+                        body?.code === "DUPLICATE_USERNAME"
+                          ? "A student with this username already exists."
+                          : body?.error || "Failed to add student"
+                      );
+                      setAdding(false);
+                      return;
+                    }
+
+                    setShowAddStudent(false);
+                    setNewUsername("");
+                    setNewDisplayName("");
+                    setNewYearLevel("");
                     setAdding(false);
-                    return;
+                    loadData();
+                  } catch (e: unknown) {
+                    setAddError(e instanceof Error ? e.message : "Network error");
+                    setAdding(false);
                   }
-
-                  setShowAddStudent(false);
-                  setNewUsername("");
-                  setNewDisplayName("");
-                  setNewYearLevel("");
-                  setAdding(false);
-                  loadData();
                 }}
                 className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition disabled:opacity-50"
                 style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
@@ -1002,37 +1013,48 @@ function BulkImportModal({
       const s = updated[i];
       if (s.status === "duplicate") { skipped++; continue; }
 
-      const insertPayload: Record<string, unknown> = {
-        username: s.username,
-        display_name: s.displayName,
-        ell_level: 3,
-        author_teacher_id: user.id,
-        class_id: null,
-        graduation_year: s.yearLevel ? yearLevelToGraduationYear(s.yearLevel) : null,
-      };
+      // FU-AV2-UI-STUDENT-INSERT-REFACTOR (30 Apr 2026): per-row POST to
+      // /api/teacher/students. Route handles INSERT + auth.users
+      // provisioning + optional class_students enrollment atomically.
+      try {
+        const res = await fetch("/api/teacher/students", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: s.username,
+            displayName: s.displayName,
+            ellLevel: 3,
+            gradYear: s.yearLevel
+              ? yearLevelToGraduationYear(s.yearLevel)
+              : null,
+            classId: assignClassId || null,
+          }),
+        });
+        const body = await res.json();
 
-      const { data: student, error } = await supabase
-        .from("students")
-        .insert(insertPayload)
-        .select("id")
-        .single();
+        if (!res.ok) {
+          const dup = body?.code === "DUPLICATE_USERNAME";
+          updated[i] = {
+            ...s,
+            status: "error",
+            errorMsg: dup ? "Username already exists" : body?.error || "Insert failed",
+          };
+          if (dup) skipped++;
+          else errors++;
+          continue;
+        }
 
-      if (error) {
-        updated[i] = { ...s, status: "error", errorMsg: error.code === "23505" ? "Username already exists" : error.message };
-        if (error.code === "23505") skipped++; else errors++;
+        updated[i] = { ...s, status: "ok" };
+        added++;
+      } catch (e: unknown) {
+        updated[i] = {
+          ...s,
+          status: "error",
+          errorMsg: e instanceof Error ? e.message : "Network error",
+        };
+        errors++;
         continue;
       }
-
-      // Enroll in selected class if chosen
-      if (assignClassId && student?.id) {
-        await supabase.from("class_students").insert({
-          class_id: assignClassId,
-          student_id: student.id,
-        }).then(() => {});
-      }
-
-      updated[i] = { ...s, status: "ok" };
-      added++;
     }
 
     setParsedStudents(updated);
