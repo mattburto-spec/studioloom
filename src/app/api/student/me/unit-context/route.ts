@@ -43,52 +43,21 @@ export async function GET(request: NextRequest) {
 
   const supabase = await createServerSupabaseClient();
 
-  // TEMP DEBUG (Phase 1.4 CS-2 smoke) — reveal each resolver step. Remove after diagnosis.
-  const debug: Record<string, unknown> = { studentId, unitId };
-
-  // Direct probe: can the SSR client see class_units rows?
-  const { data: classUnitsProbe, error: classUnitsErr } = await supabase
-    .from("class_units")
-    .select("class_id")
-    .eq("unit_id", unitId)
-    .eq("is_active", true);
-  debug.classUnits = { rows: classUnitsProbe, error: classUnitsErr?.message };
-
-  // Direct probe: can SSR client see classes for those candidates?
-  const candidateIds = (classUnitsProbe ?? []).map((r) => r.class_id as string);
-  const { data: classesProbe, error: classesErr } =
-    candidateIds.length > 0
-      ? await supabase
-          .from("classes")
-          .select("id, name, is_archived")
-          .in("id", candidateIds)
-      : { data: [], error: null };
-  debug.classes = { rows: classesProbe, error: classesErr?.message };
-
-  // Direct probe: can SSR client see test2's class_students rows?
-  const { data: enrollmentsProbe, error: enrollmentsErr } = await supabase
-    .from("class_students")
-    .select("class_id, is_active")
-    .eq("student_id", studentId);
-  debug.classStudents = { rows: enrollmentsProbe, error: enrollmentsErr?.message };
-
   const classId = await resolveStudentClassId({
     studentId: studentId,
     unitId,
     supabase,
   });
-  debug.resolverReturned = classId;
 
   if (!classId) {
-    return NextResponse.json({ class: null, _debug: debug }, { headers: CACHE_HEADERS });
+    return NextResponse.json({ class: null }, { headers: CACHE_HEADERS });
   }
 
-  const { data: cls, error: clsErr } = await supabase
+  const { data: cls } = await supabase
     .from("classes")
     .select("id, name, code, framework")
     .eq("id", classId)
     .maybeSingle();
-  debug.classQuery = { row: cls, error: clsErr?.message };
 
-  return NextResponse.json({ class: cls ?? null, _debug: debug }, { headers: CACHE_HEADERS });
+  return NextResponse.json({ class: cls ?? null }, { headers: CACHE_HEADERS });
 }
