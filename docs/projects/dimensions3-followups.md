@@ -1613,7 +1613,10 @@ The first cycle (`students` ↔ `class_students`) was hit by CS-2 and fixed via 
 
 **Related:** Phase 6 cutover removes `students.class_id` legacy column entirely, which auto-fixes this.
 
-## FU-AV2-STUDENT-BADGES-COLUMN-TYPE — `student_badges.student_id` is TEXT not UUID, no FK (P3)
+## FU-AV2-STUDENT-BADGES-COLUMN-TYPE — `student_badges.student_id` is TEXT not UUID, no FK (P3) ✅ RESOLVED
+**Resolved:** 30 Apr 2026 PM — fixed via commit `40a14c5` (migration `20260430042051_student_badges_column_type_uuid_with_fk.sql`). Pre-flight verified 4 rows total, all UUID-shaped, zero orphans against students(id). Migration applied to prod: ALTER COLUMN student_id TEXT → UUID, ADD CONSTRAINT FOREIGN KEY ... ON DELETE CASCADE, DROP+CREATE all 3 policies (`student_badges_read_own` + `student_badges_teacher_read` + `student_badges_teacher_insert`) without `::text` casts. Semantic preserved exactly. Verified post-apply: column type is `uuid`, FK exists with ON DELETE CASCADE, all 3 policies recreated cleanly. Code callers unchanged — postgres-js + supabase-js auto-coerce string UUIDs at the wire format.
+
+
 **Surfaced:** 30 Apr 2026 — Access Model v2 Phase 1.4 CS-1 prod apply
 **Captured in:** `docs/projects/access-model-v2-phase-14-client-switch-brief.md` (CS-1 column-type quirk note in migration 3)
 
