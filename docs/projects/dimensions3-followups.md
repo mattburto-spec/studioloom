@@ -1505,7 +1505,37 @@ Equivalent jobs for ai-call-sites and rls-coverage. Hard fail = forces saveme be
 - `data-classification-taxonomy.md`: **14 Apr (15d old)** — stable enums
 - `scanner-reports/rls-coverage.json`: 29 Apr — fresh (auto-generated)
 
-## FU-AV2-RLS-SECURITY-DEFINER-AUDIT — Sweep all student-side policies for cross-table recursion (P2)
+## FU-AV2-RLS-SECURITY-DEFINER-AUDIT — Sweep all student-side policies for cross-table recursion (P2) ✅ RESOLVED
+**Resolved:** 30 Apr 2026 — comprehensive audit completed. **No remaining cycles** beyond the two already fixed.
+
+**Audit methodology:** For every table T with policies that subquery another table T', checked whether T' has a policy that back-references T (directly or transitively). A cycle requires both ends to subquery into the other; neither was found beyond the two already-fixed cases.
+
+**Audit findings (table-by-table):**
+
+| Table | Subqueries to | Verdict |
+|---|---|---|
+| `students` | (own column only) | ✅ Direct + SECURITY DEFINER (`is_teacher_of_student` — fixed earlier today) |
+| `class_students` | students | ✅ students has SECURITY DEFINER teacher policy — no back-ref |
+| `classes` | class_students → students | ✅ class_students teacher policy is SECURITY DEFINER (`is_teacher_of_class` — fixed earlier today) |
+| `class_units` | classes | ✅ classes student policy → class_students → students. No back-ref to class_units. |
+| `assessment_records` | students, classes | ✅ Neither back-references assessment_records |
+| `competency_assessments` | students, class_students, classes | ✅ Triple joins in teacher policy, but no back-ref |
+| `design_conversations/_turns` | students, classes | ✅ No back-ref |
+| `quest_journeys/_milestones/_evidence` | students (via journey chain) | ✅ No back-ref |
+| `student_progress` | students, class_students, classes | ✅ UNION query in teacher policy, but no back-ref |
+| `student_badges` | students, classes | ✅ No back-ref |
+| `fabrication_jobs/_scan_jobs/_revisions` | students, classes (via own chain) | ✅ Self-contained chain, no back-ref |
+| `unit_badge_requirements` | units | ✅ units has only direct policies |
+| `gallery_*`, `units`, `class_units` (read) | (permissive) | ✅ No subqueries |
+
+**Why most tables are safe even without rewrites:** A cycle requires policies on BOTH ends to subquery into the other. The teacher-side policies on most tables subquery into `classes` or `students`. Those tables' policies are now either direct comparisons (`auth.uid() = teacher_id`) or SECURITY DEFINER. The student-side policies subquery only "downstream" into students/class_students/classes; nothing on those upstream tables' policies subqueries back into the downstream tables. The `students↔class_students` and `classes↔class_students` cycles were dangerous specifically because `Teachers manage students` had `id IN (SELECT cs.student_id FROM class_students cs ...)` — `students` was upstream-of-itself via `class_students`. Same shape for the second cycle. Both fixed.
+
+**Conclusion:** Phase 1.4 client-switch CS-3 + CS-N can ship without further RLS migration work. The audit IS the safety proof. Lesson #64's operational rule (every future RLS-shipping phase must include an SSR-client smoke as a Checkpoint criterion) still applies — not because of latent recursion, but to catch any new policies introduced in those phases that themselves create cycles with existing ones.
+
+**Optional hygiene follow-up (not filed — captured here):** Introduce `public.current_student_id()` SECURITY DEFINER helper and refactor ~9 student-side policies to use it instead of inlining `(SELECT id FROM students WHERE user_id = auth.uid())`. Pure code-cleanliness, no behavioral change. Can be picked up later as a single hygiene migration if anyone wants the centralization.
+
+**Original (pre-audit) issue text below:**
+
 **Surfaced:** 30 Apr 2026 — Access Model v2 Phase 1.4 CS-2 prod smoke
 **Captured in:** `supabase/migrations/20260430010922_phase_1_4_cs2_fix_students_rls_recursion.sql` (the immediate hotfix), this brief
 

@@ -21,7 +21,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -64,7 +64,12 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const db = createAdminClient();
+    // Phase 1.4 CS-3 (30 Apr 2026) — RLS-respecting SSR client. Reads
+    // students/class_students/class_units/units/student_progress/
+    // student_badges/unit_badge_requirements/competency_assessments/
+    // gallery_* under their respective student-side policies. Recursion-
+    // safe per FU-AV2-RLS-SECURITY-DEFINER-AUDIT findings.
+    const db = await createServerSupabaseClient();
     const insights: InsightItem[] = [];
     const now = new Date();
 

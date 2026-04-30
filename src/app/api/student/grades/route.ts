@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStudentSession } from "@/lib/access-v2/actor-session";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 /**
  * GET /api/student/grades?unitId={id}
@@ -8,7 +8,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
  */
 export async function GET(request: NextRequest) {
   // Phase 1.4b — explicit Supabase Auth via requireStudentSession.
-  // Dual-mode fallback to legacy still works automatically (Phase 1.4a wrapper).
+  // Phase 1.4 CS-3 (30 Apr 2026) — RLS-respecting SSR client. Reads
+  // assessment_records under "Students read own published assessments"
+  // (CS-1) + class_students under Phase 1.5b self-read + units (public
+  // read). Recursion-safe per FU-AV2-RLS-SECURITY-DEFINER-AUDIT findings.
   const session = await requireStudentSession(request);
   if (session instanceof NextResponse) return session;
   const studentId = session.studentId;
@@ -18,7 +21,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "unitId required" }, { status: 400 });
   }
 
-  const db = createAdminClient();
+  const db = await createServerSupabaseClient();
 
   // Get unit title
   const { data: unit } = await db

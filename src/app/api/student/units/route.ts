@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
 
@@ -13,11 +13,16 @@ const NUMBER_TO_PAGE_ID: Record<number, string> = {
 
 export async function GET(request: NextRequest) {
   // Phase 1.4b — explicit Supabase Auth via requireStudentSession.
+  // Phase 1.4 CS-3 (30 Apr 2026) — RLS-respecting SSR client. Reads
+  // students/class_students/classes/class_units/units/student_progress
+  // under their respective student-side policies. Recursion-safe per
+  // FU-AV2-RLS-SECURITY-DEFINER-AUDIT findings (no cycles remaining
+  // after the two CS-2 SECURITY DEFINER hotfixes).
   const session = await requireStudentSession(request);
   if (session instanceof NextResponse) return session;
   const studentId = session.studentId;
 
-  const supabase = createAdminClient();
+  const supabase = await createServerSupabaseClient();
 
   // Get ALL classes this student is enrolled in (junction table + legacy fallback)
   const { data: student } = await supabase
