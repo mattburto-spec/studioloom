@@ -4,6 +4,51 @@
 
 ---
 
+## 30 Apr 2026 (end-of-day) — All 5 Access-Model-v2 follow-ups closed + UI-INSERT atomic create route shipped ✅
+
+**Context:** Continued from "CS-3 + audit closed" earlier. Cleared the Phase 1.4 follow-up backlog — 4 P3s + 1 P2 closed. Day total: Phase 1 close → Phase 1.4 client-switch (CS-1+CS-2+CS-3) → 5 follow-ups → fully clean state for Phase 2.
+
+**Follow-ups closed this segment:**
+
+- **FU-AV2-UNITS-ROUTE-CLASS-DISPLAY (P3) ✅** — `cf37901`. Three fixes to `/api/student/units` class-picker logic: dropped `students.class_id` legacy fallback, filtered archived classes, recency-ordered enrollments. Smoke verified live: test2's response now shows `class_id: a7afd4f3` (Service LEEDers, active) instead of `82d7fb45` (g9 design, archived).
+
+- **FU-AV2-PHASE-14B-2 (P3) ✅** — `77ad01e`. Mechanical auth-helper swap across 18 GET-only student routes. Replaced `requireStudentAuth` (legacy) with `requireStudentSession` (Supabase Auth). Zero data-path changes — all 18 routes still use admin client for queries. 3 test files updated for the new mock target.
+
+- **FU-AV2-STUDENT-BADGES-COLUMN-TYPE (P3) ✅** — `40a14c5`. Pre-flight verified 4 rows total, all UUID-shaped, zero orphans. ALTER COLUMN TEXT → UUID, ADD FK to students(id) with ON DELETE CASCADE, DROP+CREATE all 3 student_badges policies without `::text` casts. Code callers unchanged (postgres-js auto-coerces string UUIDs).
+
+- **FU-AV2-UI-STUDENT-INSERT-REFACTOR (P2) ✅** — `b35979d`. Built new `POST /api/teacher/students` route: auth + class-ownership check + students INSERT + provisionStudentAuthUserOrThrow + optional class_students enrollment, atomic-ish (rolls back student INSERT on auth failure). Migrated all 5 client-side INSERT call sites + the createStudent/createAndEnroll helpers to use the route via fetch. 11 new route tests. Smoke verified: test student `newtest` created with `user_id` populated immediately + correct school_id + correct author_teacher_id.
+
+- **CS-2 SECURITY DEFINER WITH CHECK fix** — `9c35682`. Surfaced during UI-INSERT smoke that `Teachers manage students` (FOR ALL) was broken for INSERT — `is_teacher_of_student(NEW.id)` returns false for new rows because they're not in the table when WITH CHECK fires. Split FOR ALL into 4 cmd-specific policies: SELECT/UPDATE/DELETE use the SECURITY DEFINER helper (existing-row context); INSERT uses direct `author_teacher_id = auth.uid()` column check (recursion-safe, INSERT-safe). Latent bug from earlier today's CS-2 hotfix; fixed before any real student creation hit it.
+
+**Migrations applied to prod this segment (3):**
+- `20260430030419` — units student-read (was applied earlier today, not yet captured in this changelog entry; was part of CS-3)
+- `20260430042051` — student_badges TEXT→UUID + FK + policy cleanup
+- `20260430053105` — students Teachers WITH CHECK split (4 policies replace 1 FOR ALL)
+
+**State of working tree:** clean (post-saveme commit). Tests 2817 passed | 11 skipped. Typecheck 0 errors.
+
+**Lessons surfaced (not added — observed):** SECURITY DEFINER policies on FOR ALL break INSERT WITH CHECK because the function's internal SELECT runs against pre-INSERT table state. Mitigation: split FOR ALL into per-cmd policies when the policy needs different logic for INSERT vs S/U/D. Captured in the migration's WHY block; consider whether to elevate to formal Lesson #65 if this pattern recurs.
+
+**Day total (3 sessions, one continuous workflow):**
+- Phase 1 closed under Option A
+- Phase 1.4 client-switch CS-1/CS-2/CS-3 (6/6 Phase 1.4b routes load-bearing under RLS)
+- Frontend login swap + student-session dual-mode
+- 2 SECURITY DEFINER recursion hotfixes + 1 WITH CHECK split
+- Comprehensive RLS audit (zero cycles)
+- 18 GET routes auth helper swap
+- 1 column type cleanup (TEXT → UUID + FK)
+- New atomic POST /api/teacher/students route
+- 5 follow-ups closed
+- 10 RLS/schema migrations applied to prod
+- ~30 commits to main
+- Tests: 2792 → 2817 (+25)
+- Lesson #64 added
+- 0 production regressions
+
+**Next session:** Phase 2 (OAuth Google/Microsoft + email/password for teachers, ~3-4 days). All Phase 1 hygiene closed. Polymorphic `getActorSession()` from Phase 1.3 is the seam Phase 2 plugs into.
+
+---
+
 ## 30 Apr 2026 (latest) — Phase 1.4 client-switch CS-3 SHIPPED + comprehensive RLS audit closed ✅
 
 **Context:** Continued from "CS-1 + CS-2" earlier this session. Picked Option B (comprehensive RLS audit before CS-3) to avoid per-route diagnostic surprises.

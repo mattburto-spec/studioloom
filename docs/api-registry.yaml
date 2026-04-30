@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 396
+# Total routes: 397
 
 routes:
 - path: /api/admin/ai-model
@@ -1713,7 +1713,6 @@ routes:
   - class_units
   - classes
   - student_progress
-  - students
   - units
   tables_written: []
   ai_call_sites: []
@@ -3772,6 +3771,20 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: Reference to unknown table 'assessments' — not in schema-registry
+- path: /api/teacher/students
+  method: POST
+  file: src/app/api/teacher/students/route.ts
+  auth: teacher
+  tables_read:
+  - classes
+  - students
+  - teachers
+  tables_written:
+  - class_students
+  - students
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/teacher/students/[studentId]/support-settings
   method: GET
   file: src/app/api/teacher/students/[studentId]/support-settings/route.ts
