@@ -1288,7 +1288,10 @@ The 4 client-side sites use the browser Supabase client (`createClient()`). They
 
 ---
 
-## FU-AV2-PHASE-14B-2 — Migrate remaining 18 GET-only student routes to requireStudentSession (P3)
+## FU-AV2-PHASE-14B-2 — Migrate remaining 18 GET-only student routes to requireStudentSession (P3) ✅ RESOLVED
+**Resolved:** 30 Apr 2026 PM — fixed via commit `77ad01e`. Mechanical auth-helper swap across all 18 routes via Python script. 3 test files updated to mock `requireStudentSession` instead of `requireStudentAuth`. Tests + typecheck clean. Routes still use `createAdminClient()` for data queries (full SSR client switch is a separate piece of work tracked under different scope). All 18 now grant access to `session.userId` + `session.schoolId` per FU's stated benefit.
+
+
 **Surfaced:** 29 Apr 2026 PM, Access Model v2 Phase 1.4b
 **Captured in:** `docs/projects/access-model-v2-phase-1-brief.md` §4.4
 
