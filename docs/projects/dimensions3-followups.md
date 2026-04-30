@@ -1582,7 +1582,9 @@ The first cycle (`students` ↔ `class_students`) was hit by CS-2 and fixed via 
 
 **Related:** `FU-HH` (no live RLS test harness — would catch this class of bug pre-prod), Phase 1.4 CS-2 brief (where this surfaced), Phase 1.5/1.5b prod-apply session (where the latent bug was authored).
 
-## FU-AV2-UNITS-ROUTE-CLASS-DISPLAY — `/api/student/units` shows wrong class for multi-class units + doesn't filter archived (P3)
+## FU-AV2-UNITS-ROUTE-CLASS-DISPLAY — `/api/student/units` shows wrong class for multi-class units + doesn't filter archived (P3) ✅ RESOLVED
+**Resolved:** 30 Apr 2026 PM — fixed via commit `cf37901`. Three changes to the class-picking logic in `src/app/api/student/units/route.ts`: (1) drop the legacy `students.class_id` fallback; (2) filter classes to non-archived BEFORE the class_units lookup; (3) order enrollments by `enrolled_at DESC` and pick the most-recently-enrolled match for each unit. Tests + typecheck clean. Smoke verified test2's response now shows `class_id: a7afd4f3` (Service LEEDers) instead of `82d7fb45` (g9 design archived). Behavior change: archived-class-only units stop appearing — correct since students shouldn't work on units from classes they've been removed from.
+
 **Surfaced:** 30 Apr 2026 — Phase 1.4 CS-3 prod smoke
 **Captured in:** This entry (the route works under RLS post-CS-3; the display issue is pre-existing).
 
