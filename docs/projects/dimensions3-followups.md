@@ -1246,7 +1246,9 @@ Edge cases to handle in the query helper (when written):
 
 ---
 
-## FU-AV2-UI-STUDENT-INSERT-REFACTOR — 4 client-side student INSERT sites need server-side route + auth.users provisioning (P2)
+## FU-AV2-UI-STUDENT-INSERT-REFACTOR — 4 client-side student INSERT sites need server-side route + auth.users provisioning (P2) ✅ RESOLVED
+**Resolved:** 30 Apr 2026 PM — fixed via commit `b35979d`. Built new `POST /api/teacher/students` route with auth + class-ownership check + students INSERT + provisionStudentAuthUserOrThrow + optional class_students enrollment, atomic-ish (rolls back student INSERT on auth provisioning failure). Migrated all 5 INSERT call sites (count was 5 not 4 — re-audit found the additional bulk path in `teacher/students/page.tsx:1015`). Helper `createStudent` + `createAndEnroll` in `src/lib/students/class-enrollment.ts` rewritten as fetch wrappers preserving original "username exists → enroll existing" behavior via the route's 409 response code. 11 new route tests (401/400/403/409 + 2 happy paths + rollback + scrubbing + defaults). Tests: 2806 → 2817 passing. **Architectural impact:** every UI-created student now has auth.users provisioned at create time, not on first login — closes the NULL user_id security window that was only mitigated by Phase 1.2's lazy-provision fallback.
+
 **Surfaced:** 29 Apr 2026 PM, Access Model v2 Phase 1.1d preflight audit
 **Captured in:** `docs/projects/access-model-v2-phase-1-brief.md` §4.4 (Phase 1.4 route migration)
 
