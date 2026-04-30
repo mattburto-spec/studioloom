@@ -48,6 +48,31 @@ export default function TeacherLoginPage() {
     }
   }
 
+  // Phase 2.1 (30 Apr 2026) — Microsoft (Azure AD) OAuth.
+  // signInWithOAuth redirects the browser to login.microsoftonline.com,
+  // which redirects back to Supabase's `/auth/v1/callback`, which finally
+  // redirects to our `/auth/callback?code=...&next=/teacher/dashboard`.
+  // Our callback handler exchanges the code, provisions the teachers row
+  // if first-login, and lands the user on /teacher/welcome (new) or
+  // /teacher/dashboard (returning).
+  async function handleMicrosoftSignIn() {
+    setError("");
+    setLoading(true);
+    const supabase = createClient();
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: "azure",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=/teacher/dashboard`,
+        scopes: "openid email profile",
+      },
+    });
+    if (oauthError) {
+      setError(oauthError.message);
+      setLoading(false);
+    }
+    // On success the browser is redirected — this code path doesn't return.
+  }
+
   async function handleRequestSubmit(e: React.FormEvent) {
     e.preventDefault();
     setReqError("");
@@ -101,6 +126,37 @@ export default function TeacherLoginPage() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl p-6">
+          {/* Phase 2.1 — Microsoft OAuth button. Sits above email/password
+              form because OAuth is the preferred path for new teachers
+              (school Microsoft 365 accounts auto-provision). Email/password
+              remains for invite-only legacy accounts. */}
+          <button
+            type="button"
+            onClick={handleMicrosoftSignIn}
+            disabled={loading}
+            className="w-full py-3 mb-2 bg-[#2F2F2F] text-white rounded-full font-medium hover:bg-black transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {/* Microsoft 4-square logo */}
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+              <rect x="0" y="0" width="7" height="7" fill="#F25022" />
+              <rect x="9" y="0" width="7" height="7" fill="#7FBA00" />
+              <rect x="0" y="9" width="7" height="7" fill="#00A4EF" />
+              <rect x="9" y="9" width="7" height="7" fill="#FFB900" />
+            </svg>
+            <span>Sign in with Microsoft</span>
+          </button>
+
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-border" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="px-2 bg-white text-text-tertiary uppercase tracking-wider">
+                or
+              </span>
+            </div>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1.5">
