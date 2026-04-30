@@ -730,3 +730,78 @@ Example: `studioloom-git-access-model-v2-phase-1-mattburto-specs-projects.vercel
 - **Verify the URL hits the expected commit** by adding a temporary version marker (e.g., `console.log("v" + COMMIT_SHA)`) if you suspect URL drift. Or — cheapest — temporarily add a `_debug: { commit: ... }` field in a response body to confirm.
 
 **Why this is a Lesson #38 sibling:** Lesson #38 was "verify expected values, not just non-null." This is "verify expected DEPLOYMENT, not just success-once." Both are about the gap between "the test didn't error" and "the test verified the thing you thought it did."
+
+---
+
+### Lesson #64 — Cross-table RLS subqueries silently recurse; use SECURITY DEFINER for any policy that joins through another RLS-protected table
+
+**Date:** 30 April 2026
+**Surfaced in:** Access Model v2 Phase 1.4 client-switch CS-2 — first time SSR client engaged Phase 1.5/1.5b/CS-1 student-side RLS policies in production. Hit two distinct recursion cycles in the same session.
+
+**The bug shape:** A "canonical chain" RLS policy of the form:
+
+```sql
+USING (target_id IN (SELECT some_col FROM other_table WHERE other_filter))
+```
+
+is fine in isolation. But the moment `other_table` ALSO has an RLS policy that subqueries back through the original table (or any table in the chain), Postgres throws:
+
+```
+ERROR: 42P17: infinite recursion detected in policy for relation "<table>"
+```
+
+This **never surfaces under admin client** (`createAdminClient()` bypasses RLS). It only triggers when the SSR client reads any table whose policies form the cycle. Phase 1.5/1.5b/CS-1 wrote ~14 student-side policies using this canonical chain pattern; every one is a latent recursion candidate, depending on what other policies exist on the joined tables.
+
+**Two cycles hit in one session, same pattern:**
+
+1. **`students` ↔ `class_students`.** `Teachers manage students` (since Phase 0) had `id IN (SELECT cs.student_id FROM class_students cs ...)`. Phase 1.5b's `class_students_self_read_authuid` had `student_id IN (SELECT id FROM students WHERE user_id = auth.uid())`. The instant SSR client touched students, recursion fired.
+
+2. **`classes` ↔ `class_students`.** `Teachers manage class_students` (since migration 041) had `class_id IN (SELECT id FROM classes WHERE teacher_id = auth.uid())`. CS-1's `Students read own enrolled classes` had `id IN (SELECT cs.class_id FROM class_students cs ...)`. Same cycle shape, different tables.
+
+**The fix:** SECURITY DEFINER helper function. Wrap the recursive subquery in a function that runs as the function's owner (typically `postgres`), bypassing RLS on tables it queries internally. The cycle breaks because the inner lookups don't re-enter RLS.
+
+```sql
+CREATE OR REPLACE FUNCTION public.is_teacher_of_class(class_uuid uuid)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM classes WHERE id = class_uuid AND teacher_id = auth.uid()
+  )
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.is_teacher_of_class(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_teacher_of_class(uuid) TO authenticated;
+
+-- Then in the policy:
+DROP POLICY "Teachers manage class_students" ON class_students;
+CREATE POLICY "Teachers manage class_students"
+  ON class_students FOR ALL
+  USING (public.is_teacher_of_class(class_id))
+  WITH CHECK (public.is_teacher_of_class(class_id));
+```
+
+The function is `STABLE` (deterministic for the same auth.uid() within a transaction), `SECURITY DEFINER` (runs as owner), `SET search_path` (locks the search path so the body can't be hijacked by a malicious user-set search_path).
+
+**Wider applicability:** ANY policy where a subquery hits a different RLS-protected table. Several un-audited policies still pending (FU-AV2-RLS-SECURITY-DEFINER-AUDIT P2):
+- `competency_assessments` student-read policy → `students` (potential cycle if competency_assessments has a teacher policy that reads students)
+- `quest_journeys/_milestones/_evidence` student policies → `students`
+- `student_progress` self-read → `students`
+- `fabrication_jobs/_scan_jobs` self-read → `students`
+- CS-1's `Students read own published assessments` on `assessment_records` → `students`
+- CS-1's `student_badges_read_own` → `students`
+
+Any of these will recurse the moment a route under SSR client reads them in a way that triggers the joined table's RLS.
+
+**Rules:**
+- **Default to SECURITY DEFINER for any policy that subqueries another table.** Direct column comparisons (`user_id = auth.uid()`) are fine. Cross-table subqueries are not — wrap them.
+- **Lock the search_path** in every SECURITY DEFINER function: `SET search_path = public, pg_temp`. Without this, a caller can manipulate search_path to inject malicious objects (CVE-class issue in older Postgres).
+- **REVOKE then GRANT to `authenticated` only.** PUBLIC has execute by default; explicit GRANT scope tightens the surface.
+- **The `STABLE` volatility marker** is correct for these helpers (not `IMMUTABLE` — auth.uid() can change across transactions, but is constant within one). Lesson #61 sibling: volatility markers matter for both indexes and SECURITY DEFINER.
+- **Add migration shape tests** that assert the policy USING clause references the function name, NOT an inlined subquery (Lesson #38). Catches regressions where someone re-inlines the recursive pattern.
+- **Smoke under SSR client** before declaring an RLS policy "done." Admin-client tests prove nothing about RLS evaluation.
+
+**Why this is a Lesson #38 + #54 sibling:** Lesson #38 — "verify expected values, not just non-null." Lesson #54 — "registries can claim 'complete' features that don't exist." This is the third in the family: **policies can claim correctness based on tests that never exercised them.** Schema-registry annotated `student_badges_read_own` as `(their)` (canonical chain) because the migration filename matched, but the actual SQL was broken (Phase 1.4 CS-1 finding). Phase 1.5/1.5b "completed" with shape tests that never ran under SSR client. CS-2 is the first time these policies actually evaluated, and they all needed work.
+
+**Operational rule:** Any future Access-Model-v2 phase that ships RLS policies must include at least one route in the same phase that reads under SSR client and validates the policy fires correctly. Not as a follow-up — in the same phase, as a Checkpoint criterion. Otherwise we accumulate latent recursion bombs that fire one at a time in production.

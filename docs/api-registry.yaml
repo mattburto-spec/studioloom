@@ -423,7 +423,7 @@ routes:
 - path: /api/auth/student-session
   method: GET
   file: src/app/api/auth/student-session/route.ts
-  auth: service-role
+  auth: student
   tables_read:
   - class_students
   - classes
@@ -438,7 +438,7 @@ routes:
 - path: /api/auth/student-session
   method: DELETE
   file: src/app/api/auth/student-session/route.ts
-  auth: service-role
+  auth: student
   tables_read:
   - class_students
   - classes

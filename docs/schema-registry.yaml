@@ -1409,6 +1409,8 @@ tables:
   - src/app/api/student/grades/route.ts
   - src/app/api/teacher/grading/past-feedback/route.ts
   spec_drift: []
+  - date: 2026-04-30
+    note: "Phase 1.4 CS-1 — applied 20260429231124_phase_1_4_cs1_assessment_records_student_self_read.sql. Additive `Students read own published assessments` policy USING (is_draft = false AND student_id IN (SELECT id FROM students WHERE user_id = auth.uid())). Drafts remain teacher-only. Pre-positioned for CS-3 `grades` route switch."
   classification:
     id:
       pii: true
@@ -1981,6 +1983,8 @@ tables:
   spec_drift:
   - date: 2026-04-30
     note: "Phase 1.5b — applied 20260429133359_phase_1_5b_class_students_self_read_authuid.sql. Additive parallel auth.uid() path: `class_students_self_read_authuid` USING (EXISTS (SELECT 1 FROM students WHERE id = class_students.student_id AND user_id = auth.uid())). Pre-positioned for Phase 1.4 client-switch; coexists with existing teacher-side policies."
+  - date: 2026-04-30
+    note: "Phase 1.4 CS-2 hotfix #2 — applied 20260430015239_phase_1_4_cs2_fix_class_students_classes_recursion.sql. DROP+CREATE `Teachers manage class_students` to use SECURITY DEFINER helper public.is_teacher_of_class(class_id) instead of inlined `class_id IN (SELECT id FROM classes WHERE teacher_id = auth.uid())` subquery. Breaks classes↔class_students RLS recursion cycle (Lesson #64). Same semantic, no inline subquery."
   classification:
     student_id:
       pii: true
@@ -2333,6 +2337,8 @@ tables:
   - migration: 076_bug_reports.sql
     add_column: bug_reporting_enabled BOOLEAN NOT NULL DEFAULT false
     purpose: Per-class toggle for bug reporter visibility. Default OFF.
+  - date: 2026-04-30
+    note: "Phase 1.4 CS-1 — applied 20260429231118_phase_1_4_cs1_classes_student_self_read.sql. Additive `Students read own enrolled classes` policy USING (id IN (SELECT cs.class_id FROM class_students cs WHERE cs.student_id IN (SELECT id FROM students WHERE user_id = auth.uid()))). Closes the no-student-policy gap that would have silently 0-rowed every CS-2 route reading classes."
   classification:
     id:
       pii: false
@@ -8082,6 +8088,8 @@ tables:
   - src/app/teacher/classes/[classId]/page.tsx
   - src/app/teacher/students/page.tsx
   spec_drift: []
+  - date: 2026-04-30
+    note: "Phase 1.4 CS-1 — applied 20260429231130_phase_1_4_cs1_student_badges_rewrite.sql. DROP+CREATE student_badges_read_own. Original (mig 035) used current_setting(\"app.student_id\") OR jwt.claims->>sub — never matched any auth path. Rewritten with canonical chain student_id IN (SELECT id::text FROM students WHERE user_id = auth.uid()). Note: `::text` cast is a workaround for student_badges.student_id being TEXT not UUID (FU-AV2-STUDENT-BADGES-COLUMN-TYPE P3)."
   classification:
     id:
       pii: true
@@ -8866,6 +8874,8 @@ tables:
     note: "Phase 1.1a — added students.user_id NULLABLE FK to auth.users(id) (migration 20260429073552_phase_1_1a_student_user_id_column.sql). Establishes canonical chain auth.uid() → students.user_id → students.id. NULL until lazy-provisioned at first Phase-1.2 login."
   - date: 2026-04-30
     note: "Phase 1.5 — applied 20260429130730_phase_1_5_students_self_read.sql. Additive policy `students_self_read` USING (user_id = auth.uid()) lets a student read their own row. Pre-positioned for Phase 1.4 client-switch (FU-AV2-PHASE-14-CLIENT-SWITCH); not load-bearing yet because routes still use createAdminClient()."
+  - date: 2026-04-30
+    note: "Phase 1.4 CS-2 hotfix #1 — applied 20260430010922_phase_1_4_cs2_fix_students_rls_recursion.sql. DROP+CREATE `Teachers manage students` to use SECURITY DEFINER helper public.is_teacher_of_student(id) instead of inlined `id IN (SELECT cs.student_id FROM class_students cs JOIN classes c ON ...)` subquery. Breaks students↔class_students RLS recursion cycle that fired the moment SSR client first read students (Lesson #64). Same semantic; no inline subquery."
   classification:
     id:
       pii: true

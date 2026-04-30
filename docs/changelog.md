@@ -4,6 +4,61 @@
 
 ---
 
+## 30 Apr 2026 (later) — Phase 1.4 client-switch CS-1 + CS-2 SHIPPED: RLS load-bearing in prod for the first time ✅
+
+**Context:** Continued from earlier "Phase 1 CLOSED" session. Picked up Phase 1.4 client-switch (FU-AV2-PHASE-14-CLIENT-SWITCH P2) — switch the 6 Phase 1.4b routes from `createAdminClient()` (admin bypass) → `createServerSupabaseClient()` (RLS-respecting). First time RLS would actually carry weight in production traffic; revealed multiple latent bugs from Phase 1.5/1.5b/CS-1 that admin-client testing had masked.
+
+**Pre-flight findings (3 audit findings drove CS-1):**
+1. `classes` had no student-side RLS policy. Routes would silently 0-row post-switch.
+2. `assessment_records` had no student-side RLS policy. Same.
+3. `student_badges_read_own` policy used the **never-functional** `current_setting('app.student_id')` + `request.jwt.claims->>'sub'` pattern. Schema-registry annotated it as canonical chain (`(their)`) but the SQL was broken — Lesson #54 in action. Has been returning 0 rows for every student under every auth path that has ever existed; app-level filtering masked it.
+
+**Sub-phases shipped (all on `main`, no working branch — given no real users):**
+
+- **CS-1 (3 migrations applied to prod):** `classes_student_self_read`, `assessment_records_student_self_read` (draft-filtered), `student_badges_rewrite` (DROP + CREATE with canonical chain). Migration 3 hit a `text = uuid` operator error: `student_badges.student_id` is TEXT not UUID (technical debt from migration 035 — the column was created as `TEXT NOT NULL "nanoid from student_sessions"`, never converted to UUID + FK). Fix: `::text` cast on RHS to mirror the existing teacher policy. Filed FU-AV2-STUDENT-BADGES-COLUMN-TYPE P3 for proper cleanup. 14 shape tests added.
+
+- **CS-2 (2 routes switched + helper refactor):** `me/support-settings`, `me/unit-context` switched to SSR client. Helpers `resolveStudentSettings` + `resolveStudentClassId` refactored with optional `supabase: SupabaseClient` parameter (default `createAdminClient()` — backwards-compatible additive change, same shape as Phase 1.4a's dual-mode wrapper). 5 existing callers (4 teacher routes + 1 student word-lookup) unchanged.
+
+- **Frontend login swap:** `(auth)/login/page.tsx:21` was still POSTing to legacy `/api/auth/student-login`. Phase 1.4b's `requireStudentSession` switch had been **silently 401-ing 6 routes for every browser-based student** since it shipped (because legacy login set only `questerra_student_session` cookie, no sb-* cookies; Phase 1.4 prod-preview tests used cURL with new endpoint directly, never browser→legacy-page→API). One-line swap to `/api/auth/student-classcode-login`. Closes the regression.
+
+- **`student-session` route dual-mode:** When the frontend swap shipped, students bounced back to login. Cause: `(student)/layout.tsx:48` calls `/api/auth/student-session` which was legacy-only — read `questerra_student_session` cookie, 401'd on missing. Same dual-mode pattern as Phase 1.4a's `requireStudentAuth` wrapper applied: try `getStudentSession()` first, fall back to legacy. Bounce loop closed.
+
+- **Two emergency RLS recursion hotfixes (SECURITY DEFINER pattern):**
+  - **`students ↔ class_students` cycle.** Teachers manage students subqueries class_students; class_students self-read subqueries students; recursion. Fixed via `public.is_teacher_of_student(uuid)` SECURITY DEFINER helper (migration `20260430010922`).
+  - **`classes ↔ class_students` cycle.** CS-1's "Students read own enrolled classes" subqueries class_students; class_students teacher policy (since migration 041) subqueries classes; recursion. Fixed via `public.is_teacher_of_class(uuid)` (migration `20260430015239`).
+
+  Both ran as admin-client-bypassed for years; the moment SSR client touched them, they fired. Filed FU-AV2-RLS-SECURITY-DEFINER-AUDIT P2 for the comprehensive sweep — 6+ Phase 1.5/1.5b/CS-1 policies still have latent recursion potential, will surface as more routes switch.
+
+- **End-to-end smoke verified live in prod:**
+  - test2 logs in via classcode-login → sb-* cookies set ✅
+  - Dashboard loads + STAYS loaded (no bounce) ✅
+  - `me/support-settings`: `{"l1Target":"zh","l1Source":"intake","tapASource":"default"}` — REAL data, not defaults ✅
+  - `me/unit-context`: `{"class":{"id":"a7afd4f3","name":"Service LEEDers","code":"QKKL4Q","framework":"IB_MYP"}}` ✅
+  - Debug instrumentation confirmed: `classes` query returns 2 rows (test2's enrollments), correctly filtering out `Grade 8 Design` (not enrolled). RLS is enforcing.
+
+**Lessons added: #64 — Cross-table RLS subqueries silently recurse; SECURITY DEFINER for any policy that joins through another RLS-protected table.** Sibling to #38 (verify expected values) + #54 (registries can claim things that aren't true). The new operational rule: every future Access-Model-v2 phase that ships RLS policies must include at least one SSR-client smoke test in the same phase, as a Checkpoint criterion.
+
+**Systems affected:** `auth-system` (still v2; behavior changed under SSR client), `student-experience` (login flow + dashboard render path), `student-pm` (me/support-settings), `unit-system` (me/unit-context).
+
+**Migrations applied to prod (5 across the day):**
+- `20260429231118` — classes_student_self_read (CS-1)
+- `20260429231124` — assessment_records_student_self_read (CS-1)
+- `20260429231130` — student_badges_rewrite (CS-1, with column-type cast workaround)
+- `20260430010922` — students↔class_students recursion fix (CS-2 hotfix #1)
+- `20260430015239` — classes↔class_students recursion fix (CS-2 hotfix #2)
+
+**Commits to main this session window (~15 commits):** `b2082dc..4ad144e`. Includes both the productive shipping (CS-1 SQL bodies, CS-2 route + helper changes, frontend swap, dual-mode student-session) and the diagnostic detours (debug instrumentation pushed + reverted, emergency hotfix migrations).
+
+**State of working tree:** clean. Tests 2806 passed | 11 skipped (no regression). Typecheck 0 errors. CI green throughout.
+
+**Follow-ups filed today:**
+- FU-AV2-STUDENT-BADGES-COLUMN-TYPE (P3) — column should be UUID + FK to students(id), not TEXT
+- FU-AV2-RLS-SECURITY-DEFINER-AUDIT (P2) — comprehensive sweep of 6+ remaining cross-table-subquery policies
+
+**Next:** CS-3 (4 routes — grades, units, safety/pending, insights). Will surface more recursion cycles (probably in `assessment_records`, `competency_assessments`, etc.). Each cycle is ~30 min to fix once the pattern is known. Or do the comprehensive SECURITY DEFINER audit pre-emptively (P2 follow-up) and then ship CS-3 cleanly.
+
+---
+
 ## 30 Apr 2026 — Access Model v2 Phase 1 CLOSED (Option A): auth path live, RLS pre-positioned, client-switch deferred ✅
 
 **Context:** Two-day session continuing from the Day-1 saveme that shipped Phases 1.1a/1.1b/1.1d/1.2/1.3/1.4a/1.4b/1.5/1.5b on branch. Day 2 applied 8 RLS migrations to prod, then closed Phase 1 with Phase 1.6 cleanup + Phase 1.7 registry hygiene under "Option A" scope (full client-switch deferred to a follow-up rather than absorbed into Phase 1).
