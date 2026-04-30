@@ -1505,6 +1505,53 @@ Equivalent jobs for ai-call-sites and rls-coverage. Hard fail = forces saveme be
 - `data-classification-taxonomy.md`: **14 Apr (15d old)** — stable enums
 - `scanner-reports/rls-coverage.json`: 29 Apr — fresh (auto-generated)
 
+## FU-AV2-RLS-SECURITY-DEFINER-AUDIT — Sweep all student-side policies for cross-table recursion (P2)
+**Surfaced:** 30 Apr 2026 — Access Model v2 Phase 1.4 CS-2 prod smoke
+**Captured in:** `supabase/migrations/20260430010922_phase_1_4_cs2_fix_students_rls_recursion.sql` (the immediate hotfix), this brief
+
+**Issue:** Phase 1.5/1.5b/CS-1 shipped 14+ student-side RLS policies using subqueries of the shape `... IN (SELECT id FROM students WHERE user_id = auth.uid())` (or similar across `class_students`, `student_progress`, etc.). When called from a context where `students` (or any other table on the path) ALSO has a teacher-side policy that subqueries back into the table being queried, Postgres throws:
+
+```
+ERROR: 42P17: infinite recursion detected in policy for relation "students"
+```
+
+The first cycle (`students` ↔ `class_students`) was hit by CS-2 and fixed via `is_teacher_of_student()` SECURITY DEFINER helper. **Other potential cycles are still latent** — they'll surface as more routes switch to SSR client.
+
+**Why P2:** The latent cycles are blocked-on-discovery, not load-bearing yet. App-level filtering + admin-client paths still work everywhere. Each new SSR-client route is a smoke surface that may or may not surface a cycle.
+
+**Suspected potential cycles (un-audited):**
+- `competency_assessments` student policy (Phase 1.5 rewrite) ↔ teacher policies on competency_assessments + students
+- `quest_journeys/_milestones/_evidence` student policies (Phase 1.5) ↔ their teacher policies
+- `design_conversations/_turns` (Phase 1.5) ↔ teacher policies
+- `student_progress_self_read` (Phase 1.5b) — does student_progress have a teacher policy that subqueries students?
+- `fabrication_jobs/_scan_jobs` (Phase 1.5b) — same question
+- `Students read own enrolled classes` (CS-1) ↔ `Teachers manage own classes`
+
+**Comprehensive fix approach:**
+
+1. **Build a generic `current_student_id()` SECURITY DEFINER helper:**
+   ```sql
+   CREATE OR REPLACE FUNCTION public.current_student_id()
+   RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER
+   SET search_path = public, pg_temp
+   AS $$
+     SELECT id FROM students WHERE user_id = auth.uid() LIMIT 1
+   $$;
+   ```
+2. **Audit each Phase 1.5/1.5b/CS-1 policy** — is the subquery into `students` necessary, or can it be replaced with `current_student_id()`?
+3. **Rewrite policies one table at a time**, prioritizing tables that have CS-2/CS-3 routes touching them. Document each rewrite as a spec_drift entry on the table.
+4. **Add migration shape tests** for each rewrite (Lesson #38 — assert exact USING clause shape).
+5. **Define test coverage:** for each rewritten policy, write a SQL impersonation test (`SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.sub TO '<student-uuid>'; SELECT ...`) that proves no recursion under SSR client semantics.
+
+**Definition of done:**
+- Every student-side policy that recurses through students/class_students/etc. either uses a SECURITY DEFINER helper OR uses a column-level comparison that can't recurse.
+- All Phase 1.4b + CS-2/CS-3/eventual-CS-N routes return real data, not all-defaults or null, when called via SSR client for an authenticated student.
+- A live RLS test harness (FU-HH partial) covers the known-bad patterns.
+
+**Sequence:** ship after CS-2's hotfix lands and CS-3 begins. The first CS-3 route that hits a different cycle dictates which policy gets fixed next.
+
+**Related:** `FU-HH` (no live RLS test harness — would catch this class of bug pre-prod), Phase 1.4 CS-2 brief (where this surfaced), Phase 1.5/1.5b prod-apply session (where the latent bug was authored).
+
 ## FU-AV2-STUDENT-BADGES-COLUMN-TYPE — `student_badges.student_id` is TEXT not UUID, no FK (P3)
 **Surfaced:** 30 Apr 2026 — Access Model v2 Phase 1.4 CS-1 prod apply
 **Captured in:** `docs/projects/access-model-v2-phase-14-client-switch-brief.md` (CS-1 column-type quirk note in migration 3)
