@@ -16,74 +16,76 @@ export async function GET(request: NextRequest) {
   // Phase 1.4 CS-3 (30 Apr 2026) — RLS-respecting SSR client. Reads
   // students/class_students/classes/class_units/units/student_progress
   // under their respective student-side policies. Recursion-safe per
-  // FU-AV2-RLS-SECURITY-DEFINER-AUDIT findings (no cycles remaining
-  // after the two CS-2 SECURITY DEFINER hotfixes).
+  // FU-AV2-RLS-SECURITY-DEFINER-AUDIT findings.
+  //
+  // FU-AV2-UNITS-ROUTE-CLASS-DISPLAY (30 Apr 2026 PM):
+  //   - Drop legacy `students.class_id` fallback. Phase 0's backfill
+  //     populated `class_students` from `students.class_id`, so every
+  //     active enrollment is in the junction. The legacy column is
+  //     scheduled for Phase 6 cutover.
+  //   - Filter classes to non-archived BEFORE the class_units lookup.
+  //     Without this, a unit shared between an active class and an
+  //     archived legacy class could be attributed to the archived one
+  //     for display.
+  //   - Order enrollments by `enrolled_at DESC` so the most recently-
+  //     enrolled active class wins on ties (deterministic; matches the
+  //     tie-break in `resolveStudentClassId` per Bug 2 28 Apr 2026).
   const session = await requireStudentSession(request);
   if (session instanceof NextResponse) return session;
   const studentId = session.studentId;
 
   const supabase = await createServerSupabaseClient();
 
-  // Get ALL classes this student is enrolled in (junction table + legacy fallback)
-  const { data: student } = await supabase
-    .from("students")
-    .select("class_id")
-    .eq("id", studentId)
-    .single();
-
-  if (!student) {
-    return NextResponse.json({ error: "Student not found" }, { status: 404 });
-  }
-
-  // Collect class IDs from junction table
+  // 1. Get active enrollments ordered by recency (newest first).
+  //    Drops the legacy `students.class_id` fallback (FU-AV2-UNITS-ROUTE-
+  //    CLASS-DISPLAY). Junction is canonical post-Phase-0 backfill.
   const { data: enrollments } = await supabase
     .from("class_students")
-    .select("class_id")
+    .select("class_id, enrolled_at")
     .eq("student_id", studentId)
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .order("enrolled_at", { ascending: false });
 
-  const classIds = new Set<string>();
-  // Add junction table enrollments
-  if (enrollments) {
-    for (const e of enrollments) {
-      classIds.add(e.class_id);
-    }
-  }
-  // Add legacy class_id as fallback
-  if (student.class_id) {
-    classIds.add(student.class_id);
-  }
-
-  if (classIds.size === 0) {
+  if (!enrollments || enrollments.length === 0) {
     return NextResponse.json({ units: [] });
   }
 
-  const classIdArray = Array.from(classIds);
+  const candidateClassIds = enrollments.map((e) => e.class_id as string);
 
-  // Get class names + subjects for display
+  // 2. Filter classes to non-archived. RLS-respecting under Phase 1.4
+  //    CS-1's `Students read own enrolled classes` policy.
   const { data: classRows } = await supabase
     .from("classes")
     .select("id, name, subject, grade_level")
-    .in("id", classIdArray);
+    .in("id", candidateClassIds)
+    .or("is_archived.is.null,is_archived.eq.false");
+
   const classMap = new Map<string, { name: string; subject: string | null; grade_level: string | null }>();
   for (const c of classRows || []) {
     classMap.set(c.id, { name: c.name, subject: c.subject, grade_level: c.grade_level });
   }
 
-  // Get active units from ALL enrolled classes
+  // Re-order to enrollment-recency order, dropping any archived classes.
+  const orderedClassIds = candidateClassIds.filter((id) => classMap.has(id));
+
+  if (orderedClassIds.length === 0) {
+    return NextResponse.json({ units: [] });
+  }
+
+  // 3. Get active class_units for the live (non-archived) enrollments.
   let classUnits: Record<string, unknown>[] | null = null;
 
   const { data: cuNew, error: cuError } = await supabase
     .from("class_units")
     .select("unit_id, class_id, locked_page_ids, page_due_dates, content_data")
-    .in("class_id", classIdArray)
+    .in("class_id", orderedClassIds)
     .eq("is_active", true);
 
   if (cuError && (cuError.message?.includes("does not exist") || cuError.message?.includes("Could not find"))) {
     const { data: cuOld } = await supabase
       .from("class_units")
       .select("unit_id, class_id, locked_pages, page_due_dates, content_data")
-      .in("class_id", classIdArray)
+      .in("class_id", orderedClassIds)
       .eq("is_active", true);
     classUnits = cuOld as Record<string, unknown>[] | null;
   } else {
@@ -96,6 +98,20 @@ export async function GET(request: NextRequest) {
 
   // Deduplicate unit IDs (same unit may appear in multiple classes)
   const unitIds = [...new Set(classUnits.map((cu) => cu.unit_id as string))];
+
+  // FU-AV2-UNITS-ROUTE-CLASS-DISPLAY: when a unit appears in multiple of
+  // the student's enrollments (e.g. unit reused across two classes the
+  // student is in), pick the class_units row from the most-recently-
+  // enrolled class. orderedClassIds is sorted by enrolled_at DESC.
+  const cuByUnitId = new Map<string, Record<string, unknown>>();
+  for (const classId of orderedClassIds) {
+    for (const cu of classUnits) {
+      const unitId = cu.unit_id as string;
+      if (!cuByUnitId.has(unitId) && cu.class_id === classId) {
+        cuByUnitId.set(unitId, cu);
+      }
+    }
+  }
 
   // Get units
   const { data: units } = await supabase
@@ -121,7 +137,10 @@ export async function GET(request: NextRequest) {
 
   // Combine units with progress
   const unitsWithProgress = (units || []).map((unit) => {
-    const cu = classUnits!.find((c) => c.unit_id === unit.id);
+    // FU-AV2-UNITS-ROUTE-CLASS-DISPLAY: use the recency-ordered map
+    // instead of .find() (which previously returned an arbitrary class
+    // when a unit was in multiple of the student's enrollments).
+    const cu = cuByUnitId.get(unit.id);
     const lockedPages =
       (cu?.locked_page_ids as string[]) ||
       (cu?.locked_pages as string[]) ||
