@@ -201,6 +201,36 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL("/teacher/welcome", origin));
     }
 
+    // Existing teacher — backfill app_metadata.user_type if it's missing.
+    // Phase 0's backfill set user_type for students but not for teachers,
+    // so existing teachers signing in via OAuth (or even via email/
+    // password after Phase 1.3 helpers shipped) need this top-up. The
+    // updateUserById call is idempotent — safe to run on every login,
+    // and only does work when the claim is actually missing or wrong.
+    const currentUserType = (user.app_metadata as Record<string, unknown> | undefined)
+      ?.user_type;
+    if (currentUserType !== "teacher") {
+      const adminMeta = createAdminClient();
+      const { error: metaErr } = await adminMeta.auth.admin.updateUserById(
+        user.id,
+        {
+          app_metadata: {
+            ...(user.app_metadata ?? {}),
+            user_type: "teacher",
+          },
+        }
+      );
+      if (metaErr) {
+        // Non-fatal — log but proceed. The session works for legacy
+        // requireTeacherAuth call sites; only Phase 1.3 polymorphic
+        // dispatch is affected and that path will retry on next login.
+        console.error(
+          "[/auth/callback] Failed to backfill app_metadata.user_type for existing teacher:",
+          metaErr.message
+        );
+      }
+    }
+
     // Existing teacher — route to the requested next (or default dashboard).
     return NextResponse.redirect(new URL(routeFor(type, next), origin));
   } catch (err) {
