@@ -1246,6 +1246,16 @@ Edge cases to handle in the query helper (when written):
 
 ---
 
+## FU-DASHBOARD-HERO-NULL-UNIT-TITLE — Teacher dashboard NowHero renders giant "—" when no unit is assigned (P3) ✅ RESOLVED
+**Surfaced:** 30 Apr 2026 PM — during Phase 2.1 Microsoft OAuth smoke, Matt's hero showed colored placeholder bars where the unit title would render.
+**Resolved:** 30 Apr 2026 PM — fixed via commit `3cbd273`. Two-part fix:
+1. `resolveCurrentPeriod()` (in `src/components/teacher-dashboard-v2/current-period.ts`) now falls back to `cls.units[0]` when the `/api/teacher/schedule/today` entry has `unitId: null` but the class has class_units assigned. Mirrors the today endpoint's own "first unit per class" choice.
+2. `NowHero` (in `src/components/teacher-dashboard-v2/NowHero.tsx`) renders an explicit empty state ("No unit assigned. / Pick a unit to teach this class — the hero will fill in.") at smaller typography when `vm.unitId` is null. Previously the component just rendered `vm.unitTitle` (which fell back to `"—"`) inside an h1 sized 100-108px → the giant em-dash looked like colored bars.
+
+**Why this surfaced now:** the bug existed pre-Phase-2 but was invisible because Matt's earlier dashboard always showed a class with assigned units (CO2 Dragster on 7 Design). The Microsoft OAuth smoke happened on a day where Period 1 = 9 Design, which has no class_units rows. Phase 2.1 didn't introduce the bug — it just exercised a code path that hadn't been tripped before.
+
+**Tests:** 2817 passing, no regression. **Verified live in prod:** Matt's hero now renders the new empty state correctly.
+
 ## FU-AV2-UI-STUDENT-INSERT-REFACTOR — 4 client-side student INSERT sites need server-side route + auth.users provisioning (P2) ✅ RESOLVED
 **Resolved:** 30 Apr 2026 PM — fixed via commit `b35979d`. Built new `POST /api/teacher/students` route with auth + class-ownership check + students INSERT + provisionStudentAuthUserOrThrow + optional class_students enrollment, atomic-ish (rolls back student INSERT on auth provisioning failure). Migrated all 5 INSERT call sites (count was 5 not 4 — re-audit found the additional bulk path in `teacher/students/page.tsx:1015`). Helper `createStudent` + `createAndEnroll` in `src/lib/students/class-enrollment.ts` rewritten as fetch wrappers preserving original "username exists → enroll existing" behavior via the route's 409 response code. 11 new route tests (401/400/403/409 + 2 happy paths + rollback + scrubbing + defaults). Tests: 2806 → 2817 passing. **Architectural impact:** every UI-created student now has auth.users provisioned at create time, not on first login — closes the NULL user_id security window that was only mitigated by Phase 1.2's lazy-provision fallback.
 
