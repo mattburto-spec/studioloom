@@ -268,6 +268,35 @@ chip rendering happens in the `dashboard-v2-build` worktree.
 
 ---
 
+## FU-AV2-PHASE-3-COLUMN-CLASSIFICATION
+**Priority:** P3
+**Surfaced:** Phase 3.6 close-out (1 May 2026)
+**Target gate:** Next GOV pass
+
+**Symptom:** The 4 schema-registry entries fixed in Phase 3.6 (audit_events,
+class_members, school_responsibilities, student_mentors) don't yet have
+per-column classification metadata (pii, student_voice, safety_sensitive,
+ai_exportable, retention_days, basis). All 4 entries currently carry
+table-level metadata (purpose, columns, indexes, rls, spec_drift) but
+column-level classification was scope-trimmed for Phase 3 close.
+
+**Cause:** Phase 3 brief originally said "data-classification entries
+for 3 tables (~15 columns total)." Adding correct classifications
+requires careful per-column judgment (e.g. mentor_user_id is a polymorphic
+auth.users FK — pii basis pseudonymous; programme is metadata not student
+voice — legitimate_interest, etc). Column-level work is a meaningful
+chunk and not blocking the can() helper / co-teacher capability that
+Phase 3 ships.
+
+**Done when:**
+1. audit_events, class_members, school_responsibilities, student_mentors
+   each have per-column classification fields populated in
+   docs/schema-registry.yaml.
+2. Validate against docs/data-classification-taxonomy.md enum rules.
+3. RLS coverage scanner stays clean (no new no_policy entries).
+
+---
+
 ## FU-MENTOR-SCOPE ✅ RESOLVED
 **Priority:** P1 (was)
 **Surfaced:** dashboard-v2-build session (26 Apr 2026)

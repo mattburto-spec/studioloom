@@ -1494,11 +1494,39 @@ tables:
       basis: pseudonymous
 - name: audit_events
   source_migration: 20260428215923_class_members_and_audit_events.sql
-  status: dropped
-  applied_date: null
-  purpose: null
-  columns: {}
-  spec_drift: []
+  status: applied
+  applied_date: '2026-04-29'
+  purpose: 'Phase 0.7a — immutable append-only audit log. Phase 5 wires logAuditEvent() wrapper into every mutation route. Service-role insert; RLS controls SELECT. NO UPDATE/DELETE policies (immutability enforced by absence).'
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    actor_id: UUID NULL REFERENCES auth.users(id) ON DELETE SET NULL
+    actor_type: TEXT NOT NULL CHECK (actor_type IN ('student','teacher','fabricator','platform_admin','community_member','guardian','system'))
+    impersonated_by: UUID NULL REFERENCES auth.users(id) ON DELETE SET NULL
+    action: TEXT NOT NULL
+    target_table: TEXT NULL
+    target_id: UUID NULL
+    school_id: UUID NULL REFERENCES schools(id) ON DELETE SET NULL
+    class_id: UUID NULL REFERENCES classes(id) ON DELETE SET NULL
+    payload_jsonb: JSONB NOT NULL DEFAULT '{}'
+    ip_address: INET NULL
+    user_agent: TEXT NULL
+    severity: TEXT NOT NULL DEFAULT 'info' CHECK (severity IN ('info','warn','critical'))
+    school_subscription_tier_at_event: TEXT NULL CHECK (NULL OR IN ('pilot','free','starter','pro','school'))
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  indexes:
+  - idx_audit_events_created ON (created_at DESC)
+  - idx_audit_events_actor_created ON (actor_id, created_at DESC) WHERE actor_id IS NOT NULL
+  - idx_audit_events_school_created ON (school_id, created_at DESC) WHERE school_id IS NOT NULL
+  - idx_audit_events_action_created ON (action, created_at DESC)
+  - idx_audit_events_severity_created ON (severity, created_at DESC) WHERE severity != 'info'
+  rls:
+    enabled: true
+    policies:
+      read: audit_events_actor_self_read (actor_id = auth.uid()); audit_events_school_teacher_read (same-school teachers)
+      write: deny-by-default (service role only — Phase 5 logAuditEvent wrapper)
+  spec_drift:
+  - date: '2026-05-01'
+    note: 'Phase 3.6 — entry rewritten from status:dropped/columns:{} to applied. Scanner mis-parsed compound multi-table CREATE TABLE migration; FU-DD class drift. Manual rebuild from migration source.'
 - name: badges
   source_migration: 035_safety_badges.sql
   status: applied
@@ -1900,11 +1928,35 @@ tables:
       basis: pseudonymous
 - name: class_members
   source_migration: 20260428215923_class_members_and_audit_events.sql
-  status: dropped
-  applied_date: null
-  purpose: null
-  columns: {}
-  spec_drift: []
+  status: applied
+  applied_date: '2026-04-29'
+  purpose: 'Phase 0.7a — class-level role assignments. Replaces classes.teacher_id direct ownership in Phase 6 cutover. Phase 0.8a backfilled lead_teacher rows for every active class (NIS prod handled the 3-Matts case as 3 distinct rows). Phase 3.4b trigger seeds lead_teacher on every classes INSERT going forward. Phase 3 can() helper consults via has_class_role(class_id, role?).'
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    class_id: UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE
+    member_user_id: UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE
+    role: TEXT NOT NULL CHECK (role IN ('lead_teacher','co_teacher','dept_head','mentor','lab_tech','observer'))
+    invited_at: TIMESTAMPTZ NULL
+    invited_by: UUID NULL REFERENCES teachers(id) ON DELETE SET NULL
+    accepted_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    removed_at: TIMESTAMPTZ NULL
+    removed_by: UUID NULL REFERENCES teachers(id) ON DELETE SET NULL
+    removal_reason: TEXT NULL
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  indexes:
+  - idx_class_members_unique_active UNIQUE ON (class_id, member_user_id, role) WHERE removed_at IS NULL
+  - idx_class_members_class_role ON (class_id, role) WHERE removed_at IS NULL
+  - idx_class_members_user ON (member_user_id) WHERE removed_at IS NULL
+  rls:
+    enabled: true
+    policies:
+      read: class_members_self_read (member_user_id = auth.uid()); class_members_school_teacher_read (same-school teachers via teachers.school_id = classes.school_id)
+      write: deny-by-default (service role + Phase 4 invite UI)
+  triggers:
+  - seed_lead_teacher_on_class_insert (Phase 3.4b — AFTER INSERT ON classes; auto-creates lead_teacher class_members row from NEW.teacher_id; SECURITY DEFINER + idempotent NOT EXISTS guard)
+  spec_drift:
+  - date: '2026-05-01'
+    note: 'Phase 3.6 — entry rewritten from status:dropped/columns:{} to applied. Scanner mis-parsed compound multi-table CREATE TABLE migration; FU-DD class drift. Manual rebuild from migration source. Trigger from Phase 3.4b applied 2026-05-01.'
 - name: class_students
   source_migration: 041_student_class_junction.sql
   status: applied
@@ -7525,11 +7577,30 @@ tables:
   spec_drift: []
 - name: school_responsibilities
   source_migration: 20260428214735_school_responsibilities_and_student_mentors.sql
-  status: dropped
-  applied_date: null
-  purpose: null
-  columns: {}
-  spec_drift: []
+  status: applied
+  applied_date: '2026-04-29'
+  purpose: 'Phase 0.6c — programme-coordinator seam. Captures (school_id, teacher_id, responsibility_type, scope_jsonb). responsibility_type enum: pp_coordinator | pyp_coordinator | cas_coordinator | myp_coordinator | dp_coordinator | service_coordinator | safeguarding_lead. Multiple coordinators per programme allowed. Phase 3 can() helper consults via has_school_responsibility(school_id, type?).'
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    school_id: UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE
+    teacher_id: UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE
+    responsibility_type: TEXT NOT NULL CHECK (IN ('pp_coordinator','pyp_coordinator','cas_coordinator','myp_coordinator','dp_coordinator','service_coordinator','safeguarding_lead'))
+    scope_jsonb: JSONB NOT NULL DEFAULT '{}'
+    granted_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    granted_by: UUID NULL REFERENCES teachers(id) ON DELETE SET NULL
+    deleted_at: TIMESTAMPTZ NULL
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  indexes:
+  - idx_school_responsibilities_active_lookup ON (school_id, responsibility_type) WHERE deleted_at IS NULL
+  - idx_school_responsibilities_teacher ON (teacher_id) WHERE deleted_at IS NULL
+  rls:
+    enabled: true
+    policies:
+      read: school_responsibilities_school_read (same-school teachers read all)
+      write: deny-by-default (service role + Phase 4 admin UI)
+  spec_drift:
+  - date: '2026-05-01'
+    note: 'Phase 3.6 — entry rewritten from status:dropped/columns:{} to applied. Scanner mis-parsed compound multi-table CREATE TABLE migration; FU-DD class drift. Manual rebuild from migration source. 0 rows seeded in prod; first consumers: Open Studio v2 PP supervisor approval, PYP Exhibition mentor coordination.'
 - name: school_timetable
   source_migration: 038_timetable.sql
   status: applied
@@ -8401,11 +8472,30 @@ tables:
   spec_drift: []
 - name: student_mentors
   source_migration: 20260428214735_school_responsibilities_and_student_mentors.sql
-  status: dropped
-  applied_date: null
-  purpose: null
-  columns: {}
-  spec_drift: []
+  status: applied
+  applied_date: '2026-04-29'
+  purpose: 'Phase 0.6c — student-specific mentorship seam (polymorphic mentor via auth.users). Resolves FU-MENTOR-SCOPE — cross-program mentorship case (MYP teacher mentoring a PP student in another teacher class). Phase 3.4a verifyTeacherCanManageStudent shim consults has_student_mentorship for this resolution.'
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    mentor_user_id: UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE
+    programme: TEXT NOT NULL CHECK (IN ('pp','pypx','cas','service','myp_personal_project','open'))
+    scope_jsonb: JSONB NOT NULL DEFAULT '{}'
+    granted_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    granted_by: UUID NULL REFERENCES teachers(id) ON DELETE SET NULL
+    deleted_at: TIMESTAMPTZ NULL
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  indexes:
+  - idx_student_mentors_student_programme ON (student_id, programme) WHERE deleted_at IS NULL
+  - idx_student_mentors_mentor ON (mentor_user_id) WHERE deleted_at IS NULL
+  rls:
+    enabled: true
+    policies:
+      read: student_mentors_mentor_self_read (mentor_user_id = auth.uid()); student_mentors_school_teacher_read (same-school teachers via students.school_id)
+      write: deny-by-default (service role + Phase 3+ can() helper write paths)
+  spec_drift:
+  - date: '2026-05-01'
+    note: 'Phase 3.6 — entry rewritten from status:dropped/columns:{} to applied. Scanner mis-parsed compound multi-table CREATE TABLE migration; FU-DD class drift. Manual rebuild from migration source. 0 rows seeded in prod; mentor_user_id polymorphic via auth.users (teachers + community_members + guardians once Phase 1 + §8.7 + §8.6 lands). Resolves FU-MENTOR-SCOPE via has_student_mentorship() reader.'
 - name: student_progress
   source_migration: 001_initial_schema.sql
   status: applied

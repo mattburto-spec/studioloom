@@ -82,6 +82,20 @@ flags:
       - src/types/admin.ts                       # AdminSettingKey.STARTER_PATTERNS_ENABLED
       - supabase/migrations/077_admin_settings.sql  # seed row
 
+  - name: auth.permission_helper_rollout
+    kind: flag
+    source: db
+    public: false
+    required: false
+    type: boolean
+    scope: runtime
+    default: true
+    description: 'Phase 3.0 kill-switch for the can() permission helper rollout. When true (default), verifyTeacherOwnsClass / verifyTeacherHasUnit / verifyTeacherCanManageStudent shims delegate to can() — opening up co_teacher / dept_head / mentor capability via class_members + student_mentors. When false, helpers fall back to legacy classes.teacher_id direct reads — used as kill-switch if a regression surfaces. Removed in Phase 6 cutover.'
+    consumers:
+      - src/lib/access-v2/can.ts                                            # isPermissionHelperRolloutEnabled reader
+      - src/lib/auth/verify-teacher-unit.ts                                 # 3 deprecated shims gate on this
+      - supabase/migrations/20260501123351_phase_3_0_permission_helper_rollout_flag.sql  # seed row
+
   # ── Env-sourced flags (process.env, set in .env.local or Vercel) ──────────
 
   - name: NEXT_PUBLIC_AUTH_OAUTH_APPLE_ENABLED

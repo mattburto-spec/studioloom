@@ -1800,10 +1800,85 @@ systems:
       - src/lib/fab/auth.ts
       - src/lib/fab/token.ts
       - src/middleware.ts
-    future_needs: Phase 1.4 client-switch (FU-AV2-PHASE-14-CLIENT-SWITCH P2) — switch student routes from createAdminClient() to RLS-respecting SSR client to activate Phase 1.5 + 1.5b policies in real route traffic. Phase 6 cutover — drop dual-mode fallback, drop questerra_student_session cookie + student_sessions table, drop /api/auth/student-login route. LMS SSO integration. QR code login. Fabricator email verification column + weekly digest. Unified loominary.org-only sender story.
+    future_needs: Phase 6 cutover — drop dual-mode fallback, drop questerra_student_session cookie + student_sessions table, drop /api/auth/student-login route. LMS SSO integration. QR code login. Fabricator email verification column + weekly digest. Unified loominary.org-only sender story.
     adrs: ["003"]
     os_seam: ready
     change_impacts: Changes to user_type claim semantics affect every actor-session call site. Changes to dual-mode fallback in src/lib/auth/student.ts affect all 63 /api/student/* routes. Changes to is_setup session semantics affect both /fab/set-password flow and normal /fab/* routing. Removing the legacy fallback before Phase 6 will break logged-in users on the legacy cookie path.
+
+  - id: permission-helper
+    name: Permission Helper (can() + role tables)
+    category: Platform Core
+    status: complete
+    currentVersion: 1
+    summary: "Phase 3 — Access Model v2 class roles & permissions. The can(actor, action, resource, options?) helper at src/lib/access-v2/can.ts replaces direct .eq('classes.teacher_id', X) ownership reads with a 6-branch resolution: tier gate → platform admin → class scope (has_class_role) → student mentor (has_student_mentorship) → programme coordinator (has_school_responsibility) → plain-teacher fallback (Decision 7 line 140 — preserves verifyTeacherCanManageStudent semantics). Three Postgres helpers (SECURITY DEFINER + STABLE + search_path locked) consult class_members + school_responsibilities + student_mentors. Phase 0.6c + 0.7a created the seam tables; Phase 0.8a backfilled lead_teacher rows; Phase 3.4b trigger seeds new class INSERTs. Kill-switch flag auth.permission_helper_rollout in admin_settings."
+    depends_on: [auth-system, class-management]
+    affects: [class-management, student-data, student-progress, fabrication-pipeline, nm-assessment, dashboard-v2]
+    docs:
+      - path: docs/projects/access-model-v2.md
+        purpose: Master spec — Phase 3 Class Roles & Permissions (§4 line 245)
+      - path: docs/projects/access-model-v2-phase-3-brief.md
+        purpose: Phase 3 build brief (Class Roles & Permissions, ~4 days)
+    data_fields:
+      - table: class_members
+        columns: [id, class_id, member_user_id, role, removed_at, accepted_at]
+        notes: 6-role enum (lead_teacher / co_teacher / dept_head / mentor / lab_tech / observer). Phase 0.8a backfill + Phase 3.4b trigger ensure every active class has a lead_teacher row.
+      - table: school_responsibilities
+        columns: [id, school_id, teacher_id, responsibility_type, deleted_at, scope_jsonb]
+        notes: 7-type enum (PP/PYP/CAS/MYP/DP/Service coordinator + safeguarding_lead). 0 rows seeded; Phase 4 admin UI populates.
+      - table: student_mentors
+        columns: [id, student_id, mentor_user_id, programme, deleted_at, scope_jsonb]
+        notes: Polymorphic mentor_user_id (FK auth.users). Closes FU-MENTOR-SCOPE — cross-program mentorship via has_student_mentorship() reader.
+      - table: admin_settings
+        columns: [auth.permission_helper_rollout]
+        notes: Kill-switch flag. Default true. Flip to false rolls back the can() shim path without code revert.
+    key_files:
+      - src/lib/access-v2/can.ts
+      - src/lib/access-v2/permissions/actions.ts
+      - src/lib/auth/verify-teacher-unit.ts (3 deprecated shims delegating to can())
+      - src/app/api/teacher/me/scope/route.ts
+      - supabase/migrations/20260501123401_phase_3_1_permission_helpers.sql (Postgres helpers)
+      - supabase/migrations/20260501130842_phase_3_4b_classes_seed_lead_teacher_trigger.sql
+    future_needs: Phase 3.4 callsite migration (FU-AV2-PHASE-3-CALLSITES-REMAINING P3) — ~40 inline .eq("teacher_id", X) gates remain; canonical pattern proven in Phase 3.4d. Phase 6 cutover deletes 3 deprecated helper shims (FU-AV2-PHASE-6-DELETE-SHIMS) + kill-switch flag. dept_head auto-tag-into-classes-of-department (FU-AV2-DEPT-HEAD-DEPARTMENT-MODEL P2 — needs Phase 4 department concept). Phase 5 wires logAuditEvent on permission denials.
+    adrs: []
+    os_seam: ready
+    change_impacts: Changes to the 6-role enum in class_members CHECK require migration. Changes to CLASS_ROLE_ACTIONS matrix in permissions/actions.ts affect the entire teacher-route surface — verify each action assignment via the 33 unit tests + smoke a co_teacher flow before deploy. Disabling the kill-switch flag falls back to legacy classes.teacher_id direct reads — used as defense-in-depth.
+
+  - id: class-management
+    name: Class Management
+    category: Platform Core
+    status: complete
+    currentVersion: 2
+    summary: "Class CRUD, enrollment, and membership. Phase 3 (v2) introduced class_members table replacing classes.teacher_id direct ownership reads. Every class has a lead_teacher class_members row (Phase 0.8a backfill + Phase 3.4b INSERT trigger). Co-teachers, dept_heads, mentors, lab_techs, observers can join via class_members. Phase 3.4c expanded /api/teacher/dashboard to read class_members instead of classes.teacher_id, surfacing co-taught classes."
+    depends_on: [auth-system, permission-helper]
+    affects: [student-data, student-progress, nm-assessment, fabrication-pipeline, dashboard-v2, teacher-dashboard]
+    docs:
+      - path: docs/projects/access-model-v2.md
+        purpose: Master spec §2.7 Decision 7 — class_members + 6-role enum
+      - path: docs/projects/access-model-v2-phase-3-brief.md
+        purpose: Phase 3 build brief
+    data_fields:
+      - table: classes
+        columns: [id, teacher_id, school_id, name, code, framework, default_lab_id, allowed_auth_modes, is_archived]
+        notes: classes.teacher_id retained as legacy column during Phase 3-5 grace window; can() reads via class_members. Phase 6 cutover drops the column.
+      - table: class_members
+        columns: [class_id, member_user_id, role, removed_at]
+        notes: Phase 0.7a — 6-role enum. Auto-seeded by Phase 3.4b trigger on classes INSERT.
+      - table: class_students
+        columns: [class_id, student_id, is_active]
+        notes: Junction table — student enrollment in a class.
+      - table: class_units
+        columns: [class_id, unit_id, is_active, content_data]
+        notes: Junction table — unit assignment to a class. Optional per-class content fork.
+    key_files:
+      - src/app/api/teacher/dashboard/route.ts (Phase 3.4c — class_members expansion)
+      - src/app/api/teacher/welcome/create-class/route.ts
+      - src/app/api/teacher/welcome/setup-from-timetable/route.ts
+      - src/app/api/teacher/class-units/route.ts
+      - src/app/api/teacher/class-students/route.ts
+    future_needs: Phase 4 co-teacher invite UI / email flow / school registration. Phase 6 drops classes.teacher_id column. Department-scoped dept_head auto-tagging (FU-AV2-DEPT-HEAD-DEPARTMENT-MODEL P2).
+    adrs: []
+    os_seam: ready
+    change_impacts: New classes INSERT triggers class_members.lead_teacher seeding; if the trigger is dropped, has_class_role(?, 'lead_teacher') regresses to false for new owners. Routes that filter by classes.teacher_id are gradually being migrated to class_members joins (FU-AV2-PHASE-3-CALLSITES-REMAINING).
 
   - id: journey-engine
     name: Journey Engine (Interactive Sequences)

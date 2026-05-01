@@ -4,6 +4,66 @@
 
 ---
 
+## 1 May 2026 (PM) — Access Model v2 Phase 3 SHIPPED + APPLIED TO PROD (Class Roles & Permissions)
+
+**Context:** Continued from "Phase 2 CLOSED" earlier today. Picked up the next master-spec phase: Phase 3 Class Roles & Permissions. Pre-flight audit revealed Phase 0.6c + 0.7a schema seams (`class_members`, `school_responsibilities`, `student_mentors`, `audit_events`) were already live in prod from 29 April with RLS scoped reads — Phase 3 is helpers + UI plumbing + callsite migration, not new schema. Drafted 594-line brief end-to-end with 8 §3.8 open questions; Matt signed off all 8 plus picked Compressed scope for the 50-callsite migration.
+
+**Shipped (9 commits on `access-model-v2-phase-3`, all pushed to origin, NOT merged to main):**
+
+- **Phase 3.0 — kill-switch flag (`6dfbae5`)** — Migration `20260501123351_phase_3_0_permission_helper_rollout_flag.sql` adds `auth.permission_helper_rollout` to admin_settings (default true). When false, the can() shim path falls back to legacy helpers — kill-switch for emergency rollback without code revert. Applied to prod 1 May.
+
+- **Phase 3.1 — 3 SECURITY DEFINER Postgres helpers (`3a2e014`)** — Migration `20260501123401_phase_3_1_permission_helpers.sql` adds `has_class_role(uuid, text?)`, `has_school_responsibility(uuid, text?)`, `has_student_mentorship(uuid, text?)`. All STABLE + SECURITY DEFINER + search_path locked + REVOKE FROM PUBLIC + GRANT TO authenticated, service_role. Sanity DO block asserts Phase 0.8a backfill: every active class with teacher_id has a lead_teacher class_members row (returned 0 missing in prod). 15 shape tests pass. Lesson #64 pre-emptive — these helpers will eventually be called from RLS policies on adjacent tables; SECURITY DEFINER avoids the recursion class that bit Phase 1.4 CS-2. Applied to prod 1 May.
+
+- **Phase 3.2 — can() helper + Action enum + 33 unit tests (`864e369`)** — `src/lib/access-v2/permissions/actions.ts` defines Action union (5 scopes — class/unit/student/school/programme), Resource discriminated union, SubscriptionTier, CanOptions. CLASS_ROLE_ACTIONS matrix (6 roles × 14 actions). STUDENT_MENTOR_ACTIONS, PROGRAMME_COORDINATOR_ACTIONS, PLAIN_TEACHER_FALLBACK_ACTIONS sets. `src/lib/access-v2/can.ts` implements the 6-branch resolution: tier gate → platform admin → class scope → student mentor → programme coordinator → plain-teacher fallback (Decision 7 line 140 preserved exactly). 33 unit tests pass first run, covering all 6 branches + cross-cutting (student-actor short-circuit, kill-switch reader, actionScope detection).
+
+- **Phase 3.3 — `/api/teacher/me/scope` endpoint + 8 tests (`7688f97`)** — Returns the union of class-membership / student-mentorship / school-responsibility "hats" the teacher wears. Chip-shaped JSON for dashboard-v2-build to consume. Cache-Control: private, max-age=30 (Lesson #11). PostgREST embed shape normalised (handles both object + array forms).
+
+- **Phase 3.4a — verify-teacher helpers shim through can() (`0cb2371`)** — `verifyTeacherOwnsClass` / `verifyTeacherHasUnit` / `verifyTeacherCanManageStudent` now delegate to can() when the kill-switch flag is true (default). Each maps to its '.edit' action variant — preserves legacy "can this teacher mutate" semantics exactly. Marked @deprecated. New private helper `buildTeacherSessionForShim(teacherId)` synthesizes a TeacherSession from teacherId via teachers + user_profiles lookup. Closes FU-MENTOR-SCOPE on every route that uses these helpers (cross-class mentor scope via has_student_mentorship).
+
+- **Phase 3.4b — classes INSERT trigger (`c3948f5`)** — Migration `20260501130842_phase_3_4b_classes_seed_lead_teacher_trigger.sql` adds AFTER-INSERT trigger on classes that auto-creates a class_members.lead_teacher row from NEW.teacher_id. SECURITY DEFINER + idempotent NOT EXISTS guard. Applied to prod 1 May. Establishes the structural invariant: every classes row with teacher_id IS NOT NULL has a matching active lead_teacher class_members row. Pairs with Phase 0.8a backfill which seeded historical rows.
+
+- **Phase 3.4c — teacher dashboard expansion (`c88d8cf`)** — `/api/teacher/dashboard` GET reads `class_members` instead of `classes.teacher_id`. Co_teacher / dept_head / mentor / lab_tech / observer of a class now see that class on /teacher dashboard. ClassRow shape gains optional `role` field for chip UI. Sort preserves newest-first by classes.created_at via embed. **First user-visible co-teacher capability gain.**
+
+- **Phase 3.4d — units content PATCH uses can()-backed gate (`d01ce1d`)** — Replaces inline `.eq("author_teacher_id", auth.teacherId)` filter with `verifyTeacherHasUnit` pre-check (which delegates to can() via 3.4a). Co_teacher / dept_head can now edit master unit content. Demonstrates the canonical migration pattern for the deferred ~40 mutation gates.
+
+- **Phase 3.4 followups (`e315cd5`)** — 5 followups filed in `access-model-v2-followups.md`:
+  - FU-AV2-PHASE-3-CALLSITES-REMAINING P3 (~40 mutation gates)
+  - FU-AV2-PHASE-6-DELETE-SHIMS P3 (3 deprecated helpers + flag)
+  - FU-AV2-DEPT-HEAD-DEPARTMENT-MODEL P2 (Phase 4 auto-tag)
+  - FU-AV2-PHASE-3-CHIP-UI P2 (dashboard-v2-build consumer)
+  - FU-MENTOR-SCOPE ✅ RESOLVED (closed by 3.4a)
+  - FU-AV2-PHASE-3-COLUMN-CLASSIFICATION P3 (added later in this session)
+
+- **Phase 3.6 close-out (this saveme):**
+  - schema-registry.yaml: 4 Phase 0 entries (audit_events, class_members, school_responsibilities, student_mentors) rewritten from `status: dropped` + `columns: {}` to `status: applied` + full columns + indexes + RLS metadata. FU-DD class drift fix (compound multi-table CREATE TABLE migration confused the scanner; manual rebuild from migration source).
+  - WIRING.yaml: `auth-system.future_needs` trimmed (Phase 1.4 client-switch line removed — already shipped 30 Apr). Two new systems added: `class-management` v2 (with class_members data field + Phase 3.4b trigger note) + `permission-helper` v1 (can() helper + 3 Postgres readers + kill-switch flag).
+  - feature-flags.yaml: registered `auth.permission_helper_rollout` (16 → 17 flags).
+  - api-registry.yaml: rerun scanner — `/api/teacher/me/scope` registered, `/api/teacher/dashboard` tables_read updated to include `class_members` (was `classes`). Total routes: 397 → 398.
+  - rls-coverage.json: rerun scanner — 0 no_rls, 5 pre-existing FU-FF rls_enabled_no_policy entries (unchanged from baseline).
+  - decisions-log.md: 5 new Phase 3 entries (scope-trim rationale, SECURITY DEFINER pre-emptive, shim-mapping rationale, trigger over callsite seeding, kill-switch default-true, column-classification deferral).
+
+**Tests:** 2830 → 2886 (+56). tsc strict 0 errors throughout. 11 skipped unchanged.
+
+**Migrations applied to prod 1 May:**
+- 20260501123351_phase_3_0_permission_helper_rollout_flag.sql
+- 20260501123401_phase_3_1_permission_helpers.sql
+- 20260501130842_phase_3_4b_classes_seed_lead_teacher_trigger.sql
+
+**Smoke status:** Phase 3.5 deferred to Matt's prod-preview run on `studioloom-git-access-model-v2-phase-3-...vercel.app`. Smoke playbook in this saveme.
+
+**Branch state:** `access-model-v2-phase-3` 13 commits ahead of `origin/main`. NOT merged to main per methodology rule 8 — feature branch holds until Checkpoint A4 sign-off. Ready for merge once smoke passes.
+
+**Capability live in prod (subject to feature branch deploy):**
+- Co_teacher / dept_head / mentor / lab_tech / observer see shared classes on `/teacher` dashboard
+- Co_teacher / dept_head can edit master unit content
+- Cross-class mentors (`student_mentors` rows) can manage their mentees on every route using verify-teacher helpers — closes FU-MENTOR-SCOPE
+- `/api/teacher/me/scope` returns role chips ready for dashboard-v2-build to consume
+- Every new class auto-gets a class_members.lead_teacher row via the trigger
+
+**Next:** Checkpoint A4 sign-off → merge to main. Then Phase 4 — School Registration, Settings & Governance (~3 days, master spec §4 line 253).
+
+---
+
 ## 1 May 2026 (later) — Phase 2 CLOSED ✅ + Apple scaffold + admin Cache-Control + Phase 1 trigger leak fix
 
 **Context:** Continued from Phase 2.3 saveme. Closed out the remaining Phase 2 sub-phases (2.4 Apple flag scaffold + 2.5 Checkpoint A3) and fixed a pre-existing Phase 1 bug that surfaced during the admin-side smoke.
