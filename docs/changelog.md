@@ -4,6 +4,58 @@
 
 ---
 
+## 1 May 2026 (later) — Phase 2 CLOSED ✅ + Apple scaffold + admin Cache-Control + Phase 1 trigger leak fix
+
+**Context:** Continued from Phase 2.3 saveme. Closed out the remaining Phase 2 sub-phases (2.4 Apple flag scaffold + 2.5 Checkpoint A3) and fixed a pre-existing Phase 1 bug that surfaced during the admin-side smoke.
+
+**Phase 2.4 — Apple OAuth scaffold (`6dd4bb4`):**
+- Apple sign-in button + `handleAppleSignIn` handler added to `LoginForm.tsx`, gated by `allowedModes.includes("apple")`.
+- 3 layers off by default: env var `NEXT_PUBLIC_AUTH_OAUTH_APPLE_ENABLED=false`, no school has 'apple' in allowed_auth_modes, Supabase provider not configured.
+- 2 new helper tests (apple in school allowlist + apple stripped when global flag off).
+
+**Phase 2.5 — Checkpoint A3 ✅ PASS (`700c040` + `6e768cc`):**
+- All 8 functional smoke criteria green. Email/password sign-in + teacher invite flow verified during admin smoke.
+- Sole open follow-up: `FU-OAUTH-LANDING-FLASH` (P2, cosmetic, deferred).
+- Report: `docs/projects/access-model-v2-phase-2-checkpoint-a3.md`.
+
+**/api/admin/* Cache-Control fix (`41e7f3c`):**
+- Closed a Lesson #11 gap. `/api/auth/*`, `/api/student/*`, `/api/fab/*` were already `private`; admin routes were missed in Phase 1B-2 hardening.
+- `requireAdmin()` calls `supabase.auth.getUser()` which can trigger session refresh + Set-Cookie write-back. Without `private`, Vercel CDN strips Set-Cookie → breaks subsequent auth.
+
+**Phase 1 spillover — handle_new_teacher trigger fix (`7bc19ea` + `2a34191`):**
+- During /admin/teachers smoke, ~7 phantom rows with synthetic emails `student-<uuid>@students.studioloom.local` appeared in the teacher list.
+- Root cause: `handle_new_teacher` trigger from `001_initial_schema.sql` (~18 months old) blindly inserted into `teachers` on every `auth.users` insert. Phase 1.1d (29 Apr 2026) started provisioning student auth.users — trigger fired and leaked phantom teacher rows.
+- Migration `20260501103415_fix_handle_new_teacher_skip_students.sql` applied to prod 1 May 2026:
+  - Updated trigger to skip when `raw_app_meta_data->>'user_type' = 'student'`.
+  - Backfill DELETE with safety assertion (refused to delete if any leaked row had FK references in classes/units/students — none did).
+  - Notice log: `7 leaked teacher rows found`, `0 leaked rows have FK references`, `deleted 7 leaked teacher rows`.
+- **Security audit clean** — `buildTeacherSession` routes only on `user_type='teacher'`; `requireAdmin` checks `is_admin=true` which was false on phantoms. Cosmetic only.
+- **Lesson #65 logged** — old triggers don't know about new user types; audit auth.users triggers before introducing a new user role.
+
+**Tests:** 2828 → 2830 (+2 from Phase 2.4). tsc strict 0 errors.
+
+**Commits on main:**
+- `6dd4bb4` — feat(auth): Phase 2.4 — Apple OAuth feature flag scaffold
+- `700c040` — docs(access-v2): Phase 2 Checkpoint A3 report — PARTIAL PASS
+- `41e7f3c` — fix(security): /api/admin/* needs Cache-Control: private (Lesson #11)
+- `7bc19ea` — claim(migrations): reserve fix_handle_new_teacher_skip_students timestamp
+- `2a34191` — fix(migration): handle_new_teacher skips student user_type + cleans leaks
+- `6e768cc` — docs(access-v2): Phase 2 Checkpoint A3 ✅ PASS — all 8 criteria green
+
+**Files touched:** `src/app/teacher/login/LoginForm.tsx`, `src/lib/auth/__tests__/allowed-auth-modes.test.ts`, `next.config.ts`, `supabase/migrations/20260501103415_fix_handle_new_teacher_skip_students.{sql,down.sql}`, `docs/projects/access-model-v2-phase-2-checkpoint-a3.md`, `docs/decisions-log.md` (+5 entries), `docs/lessons-learned.md` (+Lesson #65), `docs/changelog.md` (this entry).
+
+**Outstanding:**
+- `FU-OAUTH-LANDING-FLASH` P2 — cosmetic, deferred.
+- `FU-AZURE-MPN-VERIFICATION` P3 — gated on second-school pilot.
+- `FU-LEGAL-LAWYER-REVIEW` P2 — pre-pilot expansion.
+- `FU-CUSTOM-AUTH-DOMAIN` P3 — Supabase Pro custom auth domain.
+- Google Cloud Console branding fields — Matt to fill in for Google consent screen polish.
+- `mattburto@gmail.com` smoke teacher row in prod — still there, soft-delete or label optionally.
+
+**Next:** Phase 3 — Auth Unification (every student → `auth.users`). ~3 days per master spec. Will need its own brief + pre-flight before code.
+
+---
+
 ## 1 May 2026 — Phase 2.2 OAuth + Phase 2.3 allowlist BOTH SHIPPED + APPLIED TO PROD ✅
 
 **Context:** Picked up from Phase 2.2 mid-flight handoff (Matt was configuring Google Cloud Console). Closed out 2.2 with Google sign-in button, OAuth consent screen branding (legal pages + Microsoft publisher domain verification), then went straight into Phase 2.3 — the auth-mode allowlist that lets China-locked schools restrict to email_password.

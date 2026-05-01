@@ -805,3 +805,39 @@ Any of these will recurse the moment a route under SSR client reads them in a wa
 **Why this is a Lesson #38 + #54 sibling:** Lesson #38 — "verify expected values, not just non-null." Lesson #54 — "registries can claim 'complete' features that don't exist." This is the third in the family: **policies can claim correctness based on tests that never exercised them.** Schema-registry annotated `student_badges_read_own` as `(their)` (canonical chain) because the migration filename matched, but the actual SQL was broken (Phase 1.4 CS-1 finding). Phase 1.5/1.5b "completed" with shape tests that never ran under SSR client. CS-2 is the first time these policies actually evaluated, and they all needed work.
 
 **Operational rule:** Any future Access-Model-v2 phase that ships RLS policies must include at least one route in the same phase that reads under SSR client and validates the policy fires correctly. Not as a follow-up — in the same phase, as a Checkpoint criterion. Otherwise we accumulate latent recursion bombs that fire one at a time in production.
+
+---
+
+### Lesson #65 — Old triggers don't know about new user types
+
+**Surfaced:** 1 May 2026, Phase 2.5 Checkpoint A3 smoke (access-model-v2 Phase 2 close-out). Matt opened `/admin/teachers` and saw ~7 phantom rows with synthetic emails like `student-<uuid>@students.studioloom.local`.
+
+**Root cause:** `001_initial_schema.sql` (the very first schema migration, ~18 months old) defined a trigger:
+```sql
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION handle_new_teacher();
+```
+The function blindly inserted into `teachers` for every auth.users row, on the (then-true) assumption that every auth user was a teacher.
+
+Phase 1.1d access-v2 (29 Apr 2026) introduced student auth.users rows via `provision-student-auth-user.ts` — synthetic-email pattern, `app_metadata.user_type='student'`, no teacher-side data. The 18-month-old trigger fired anyway, creating phantom teacher rows for every student.
+
+**Why pre-flight didn't catch it:** Phase 1.1d's pre-flight audit looked at FK callers + downstream queries that consume `students.user_id`, but didn't audit auth.users-side triggers. There was no obvious reason to — the new code wrote auth.users via the admin API, and the admin API doesn't surface triggers in its return value.
+
+**Fix:** migration `20260501103415_fix_handle_new_teacher_skip_students.sql`:
+```sql
+IF (NEW.raw_app_meta_data->>'user_type') = 'student' THEN
+  RETURN NEW;
+END IF;
+```
+Plus a backfill DELETE with safety assertion (refuse to delete if any leaked row had FK references — none did).
+
+**Operational rule:** When introducing a new user_type / role / actor class into auth.users, audit ALL triggers on `auth.users` AND on any side-table that gets auto-populated from auth.users (`teachers`, `user_profiles`, etc). The audit checklist:
+1. `SELECT * FROM information_schema.triggers WHERE event_object_table = 'users'`
+2. For each trigger function, read the SQL — does it assume a single user_type?
+3. If yes — guard the function on user_type before the new role's first insert lands in prod.
+
+**Lesson #54 sibling:** "Old code makes assumptions that aren't documented anywhere." The trigger had no comment explaining "this assumes every user is a teacher." Future-proofing tip: when writing assumption-baked schema, add a comment in SQL referencing the assumption AND a test that asserts the assumption still holds.
+
+**Security audit:** clean. `buildTeacherSession` only routes when `user_type='teacher'` (set explicitly via app_metadata, not derived from teachers row existence); `requireAdmin` checks `is_admin=true` which is `false` on phantom rows. Leak was purely cosmetic in admin UI. **Document this in security audits as the exemplar of "wrong but not exploitable" — not every data integrity issue is a security issue, but every one of them needs a paper trail.**
