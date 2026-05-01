@@ -82,6 +82,16 @@ const nextConfig: NextConfig = {
           { key: "Cache-Control", value: "private, no-cache, no-store, must-revalidate" },
         ],
       },
+      // Admin routes use Supabase Auth cookies + may trigger session refresh
+      // inside requireAdmin's getUser() call. Same Lesson #11 risk applies:
+      // a public response would let Vercel strip Set-Cookie on the refresh
+      // write-back, breaking subsequent requests' auth.
+      {
+        source: "/api/admin/:path*",
+        headers: [
+          { key: "Cache-Control", value: "private, no-cache, no-store, must-revalidate" },
+        ],
+      },
     ];
   },
   // Keep heavy server-only packages out of the webpack bundle
