@@ -1,0 +1,12 @@
+-- Migration: phase_3_4e_classes_class_members_read_policy
+-- Created: 20260501141142 UTC
+--
+-- WHY: <one paragraph — what problem does this migration solve?>
+-- IMPACT: <which tables/columns/indexes/RLS policies change?>
+-- ROLLBACK: paired .down.sql undoes this migration.
+--
+-- Claim discipline: commit + push this stub IMMEDIATELY (before writing
+-- the SQL body) so the timestamp is reserved on origin. See
+-- scripts/migrations/new-migration.sh for the full ritual.
+
+-- TODO: write SQL here
