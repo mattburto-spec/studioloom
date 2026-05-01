@@ -4,6 +4,52 @@
 
 ---
 
+## 30 Apr 2026 (very late) — Phase 2.1 Microsoft OAuth SHIPPED + VERIFIED LIVE + 2 bonus fixes ✅
+
+**Context:** Continued from "All 5 follow-ups closed" earlier. Started Phase 2 (OAuth + email/password for teachers). Phase 2.1 (Microsoft) shipped end-to-end + verified live with Matt's NIS account. Two bugs surfaced + fixed in the same segment.
+
+**Phase 2.1 — Microsoft OAuth (commit `539a173`):**
+
+- `/teacher/login/page.tsx` — added "Sign in with Microsoft" button calling `supabase.auth.signInWithOAuth({ provider: "azure" })`.
+- `/auth/callback/route.ts` — extended to handle OAuth code exchange (was previously PKCE-only for password reset). Routes:
+  - `type=recovery` → `/teacher/set-password`
+  - `type=invite` → `/teacher/set-password?next=/teacher/welcome`
+  - First-login OAuth (no teacher row) → provision teachers row + set `app_metadata.user_type='teacher'` → `/teacher/welcome`
+  - Existing teacher → `/teacher/dashboard` (or `next` param)
+- `provisionTeacherFromOAuth()` helper inside callback. Idempotent (23505 unique-violation = success).
+- External setup (Matt did in dashboards): Azure AD app registration as multi-tenant ("Multiple Entra ID tenants" / "Allow all tenants"), client secret minted, Supabase Azure provider configured with `https://login.microsoftonline.com/common`, "Allow same email logins" enabled for identity linking.
+
+**Bug 1 — Phase 0 user_type backfill gap (commit `eb866a7`):**
+
+Phase 0's backfill set `app_metadata.user_type` for students but NOT teachers. So existing teachers (Matt + every other backfilled teacher) had `user_type: null` in their JWT. Phase 1.3's `getActorSession()` returned null → routes using `requireTeacherSession`/`requireStudentSession` would 401. Dashboard rendered because legacy `requireTeacherAuth` only checks `user.id`, but post-CS-2/CS-3 routes that use polymorphic dispatch would silently fail.
+
+**Two-part fix:**
+1. **Prod backfill via SQL** — `UPDATE auth.users SET raw_app_meta_data = raw_app_meta_data || '{"user_type":"teacher"}'::jsonb WHERE id IN (SELECT id FROM teachers) AND user_type missing.` Result: `teachers_missing_user_type: 0` post-update.
+2. **Callback patched** to be idempotent — every OAuth login now checks `app_metadata.user_type` and sets it if missing. Future teachers signing in via OAuth (or any auth path that hits the callback) get the claim set automatically.
+
+**Bug 2 — Dashboard hero rendered giant em-dash for classes with no units (commit `3cbd273`):**
+
+`NowHero` rendered `vm.unitTitle` at 100-108px — when `unitTitle` was the fallback `"—"`, the giant em-dash + period looked like colored placeholder bars. Surfaced when Matt's hero showed Period 1 = 9 Design (a class with no class_units rows). Pre-existing bug, not Phase-2-introduced; just exercised for the first time.
+
+**Two-part fix:**
+1. `resolveCurrentPeriod()` — falls back to `cls.units[0]` when `entry.unitId` is null but the class has class_units assigned. Mirrors the today endpoint's "first unit per class" choice.
+2. `NowHero` — when `vm.unitId` is null, renders explicit empty state ("No unit assigned. / Pick a unit to teach this class — the hero will fill in.") at smaller typography. No more giant em-dash.
+
+**FU-DASHBOARD-HERO-NULL-UNIT-TITLE** filed as ✅ RESOLVED (`b000fcc`).
+
+**State of working tree:** clean (post-saveme). Tests 2817 passed | 11 skipped. Typecheck 0 errors.
+
+**Smoke verified live in prod:**
+- Sign in with Microsoft from incognito → `/teacher/dashboard` (existing teacher path)
+- DevTools cookies show `sb-cxxbfmnbwihuskaaltlk-auth-token.0/.1` set
+- After backfill + re-login: `auth.users.raw_app_meta_data->>'user_type' = 'teacher'`
+- Hero now shows "No unit assigned." empty state for 9 Design (correct, since 9 Design has no units assigned)
+- Same-email linking confirmed: 1 row per teacher email, `auth_users_id = teacher_id`
+
+**Next:** Phase 2.2 (Google OAuth, ~30 min once Google Cloud Console + Supabase Google provider are configured). Same callback infrastructure; just adds the second button + provider.
+
+---
+
 ## 30 Apr 2026 (end-of-day) — All 5 Access-Model-v2 follow-ups closed + UI-INSERT atomic create route shipped ✅
 
 **Context:** Continued from "CS-3 + audit closed" earlier. Cleared the Phase 1.4 follow-up backlog — 4 P3s + 1 P2 closed. Day total: Phase 1 close → Phase 1.4 client-switch (CS-1+CS-2+CS-3) → 5 follow-ups → fully clean state for Phase 2.
