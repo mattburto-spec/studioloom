@@ -20,7 +20,7 @@ export default function PrivacyPage() {
       <h2>1. Who we are</h2>
       <p>
         StudioLoom (&ldquo;we&rdquo;, &ldquo;us&rdquo;) is operated by the StudioLoom team. You can reach us at{" "}
-        <a href="mailto:hello@studioloom.org">hello@studioloom.org</a>.
+        <a href="mailto:hello@loominary.org">hello@loominary.org</a>.
       </p>
 
       <h2>2. Who uses StudioLoom</h2>
@@ -104,7 +104,7 @@ export default function PrivacyPage() {
         <li><strong>Objection / withdrawal of consent:</strong> stop a specific use of your data.</li>
       </ul>
       <p>
-        Email <a href="mailto:hello@studioloom.org">hello@studioloom.org</a> with the subject line &ldquo;Privacy request&rdquo;.
+        Email <a href="mailto:hello@loominary.org">hello@loominary.org</a> with the subject line &ldquo;Privacy request&rdquo;.
         We respond within 30 days.
       </p>
 
@@ -144,7 +144,7 @@ export default function PrivacyPage() {
 
       <h2>14. Contact</h2>
       <p>
-        Questions or requests: <a href="mailto:hello@studioloom.org">hello@studioloom.org</a>.
+        Questions or requests: <a href="mailto:hello@loominary.org">hello@loominary.org</a>.
       </p>
     </>
   );

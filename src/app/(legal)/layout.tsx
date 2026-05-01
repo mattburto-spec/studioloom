@@ -43,7 +43,7 @@ export default function LegalLayout({ children }: { children: ReactNode }) {
       <footer className="border-t border-gray-200 mt-16">
         <div className="max-w-3xl mx-auto px-6 py-6 text-xs text-gray-400 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
           <span>© {new Date().getFullYear()} StudioLoom</span>
-          <span>Questions? <a href="mailto:hello@studioloom.org" className="text-gray-500 hover:text-gray-800">hello@studioloom.org</a></span>
+          <span>Questions? <a href="mailto:hello@loominary.org" className="text-gray-500 hover:text-gray-800">hello@loominary.org</a></span>
         </div>
       </footer>
     </div>

@@ -27,7 +27,7 @@ export default function TermsPage() {
       <p>
         Keep your account credentials secure. You&rsquo;re responsible for activity on your
         account. Tell us if you suspect unauthorised access:{" "}
-        <a href="mailto:hello@studioloom.org">hello@studioloom.org</a>.
+        <a href="mailto:hello@loominary.org">hello@loominary.org</a>.
       </p>
 
       <h2>3. Acceptable use</h2>
@@ -129,7 +129,7 @@ export default function TermsPage() {
 
       <h2>15. Contact</h2>
       <p>
-        Questions about these terms: <a href="mailto:hello@studioloom.org">hello@studioloom.org</a>.
+        Questions about these terms: <a href="mailto:hello@loominary.org">hello@loominary.org</a>.
       </p>
     </>
   );
