@@ -1,6 +1,8 @@
 # Access Model v2 Phase 2 — Checkpoint A3 Report
 
-**Status:** 🟡 PARTIAL PASS — code-side complete + 4 of 8 smoke criteria already verified during 2.2 + 2.3 sub-phase work. 4 remaining + 1 follow-up diagnosis (FU-OAUTH-LANDING-FLASH) need a clean Matt-driven smoke pass.
+**Status:** ✅ PASS — all 8 functional smoke criteria green. 1 cosmetic follow-up (`FU-OAUTH-LANDING-FLASH`) explicitly deferred by Matt; sign-in succeeds despite the flash so it's non-blocking.
+
+**Bonus:** during smoke, an unrelated pre-existing Phase 1 bug surfaced: the `handle_new_teacher` trigger from `001_initial_schema.sql` was creating phantom teacher rows for every student auth.users insert. Fixed in migration `20260501103415_fix_handle_new_teacher_skip_students.sql` (applied to prod 1 May 2026). 7 leaked rows cleaned up. See §8.
 
 **Date drafted:** 1 May 2026
 **Branch:** `main` (sub-phase commits all merged + applied to prod)
@@ -18,12 +20,12 @@ Per `access-model-v2-phase-2-brief.md` §7 + §3 sub-phase 2.5 smoke checklist (
 |---|-----------|--------|----------|
 | 1 | Sign in via Microsoft → lands on /teacher/welcome (new) or /teacher/dashboard (returning) | ✅ | Phase 2.1 prod smoke 30 Apr 2026 with `mattburton@nanjing-school.com`. Returning teacher → /teacher/dashboard. |
 | 2 | Sign in via Google → same | ✅ | Phase 2.2 prod smoke 1 May 2026 with `mattburto@gmail.com`. New teacher row provisioned, landed on /teacher/welcome. |
-| 3 | Sign in via email/password (already shipped) → same | ⏸️ | Pre-Phase-2 functionality, not re-verified in this checkpoint. Phase 2.3 login-page split preserved the email/password code path unchanged. **Recommended re-verification — see §2.** |
+| 3 | Sign in via email/password (already shipped) → same | ✅ | Verified 1 May 2026 prod. Matt logged out + back in via email/password during checkpoint smoke; lands on /admin/teachers cleanly post-login. |
 | 4 | Apple button is hidden (feature flag false) | ✅ | Phase 2.4 default state. `NEXT_PUBLIC_AUTH_OAUTH_APPLE_ENABLED` defaults to `false`; `globallyEnabledModes()` excludes apple; no school's `allowed_auth_modes` contains 'apple'. Three layers off — button never renders. |
 | 5 | Class scope: `allowed_auth_modes = ['email_password']` → only email/password renders | ✅ | Phase 2.3 prod smoke 1 May 2026 with a test class. Buttons hidden + amber restriction banner visible. |
 | 6 | School scope: `allowed_auth_modes = ['email_password']` → all classes inherit; only email/password renders | ✅ | Phase 2.3 prod smoke 1 May 2026 — tested via `/teacher/login?school=<nis-uuid>` after `UPDATE schools SET allowed_auth_modes = ARRAY['email_password']`. Reset post-smoke. |
-| 7 | Existing email-password teachers can still sign in | ⏸️ | Code path unchanged from pre-Phase-2 (the form sits inside `LoginForm.tsx` after the split, identical handler). **Recommended re-verification — see §2.** |
-| 8 | Teacher invite flow (existing) still works | ⏸️ | Code path unchanged from pre-Phase-2. The /teacher/login "Request access" modal + /api/teacher/request-access route are untouched. **Recommended re-verification — see §2.** |
+| 7 | Existing email-password teachers can still sign in | ✅ | Same evidence as criterion 3 — Matt's existing legacy account signed in successfully. |
+| 8 | Teacher invite flow (existing) still works | ✅ | Verified 1 May 2026. Matt submitted the "Request access" form (Shiqi Burton, Test). Row visible in /admin/teachers as a pending access request. End-to-end form → API → DB → admin display all confirmed. |
 | 9 | All sub-phase tests passing | ✅ | `npm test` 2830/11. tsc strict 0 errors. CI green on `6dd4bb4`. |
 | 10 | Migration applied to prod | ✅ | `20260501045136_allowed_auth_modes.sql` applied 1 May 2026. Both columns present in prod. |
 | 11 | Decisions logged | ✅ | 10 entries in `docs/decisions-log.md` from Phase 2.2 + 2.3 work. |
@@ -127,6 +129,20 @@ All four are in `docs/projects/access-model-v2-followups.md`.
 
 ## 7. Sign-off
 
-Phase 2 is functionally complete. The remaining ⏸️ items in §1 are existing pre-Phase-2 code paths that the Phase 2.3 split preserved unchanged — re-verification is cautious paranoia rather than load-bearing. FU-OAUTH-LANDING-FLASH is cosmetic only; sign-in succeeds.
+✅ **Phase 2 PASS.** All 8 functional criteria green. Sole open follow-up is `FU-OAUTH-LANDING-FLASH` (P2, cosmetic — Matt deferred). Phase 3 (Auth Unification — every student → `auth.users`) unlocks.
 
-**Recommendation:** Matt runs §2 (~5 min) + §3 (~3 min) → if all green, mark this checkpoint ✅ PASS + move to Phase 3.
+---
+
+## 8. Phase 1 spillover — handle_new_teacher trigger fix
+
+During checkpoint smoke, /admin/teachers showed ~7 phantom rows with synthetic emails like `student-<uuid>@students.studioloom.local`. Investigation traced these to `handle_new_teacher` trigger from `001_initial_schema.sql` — predates Phase 1 access-v2, blindly created a teachers row on every auth.users INSERT. Phase 1.1d (29 Apr 2026) started provisioning auth.users for students; old trigger fired and leaked phantom teacher rows.
+
+**Security audit:** clean. `buildTeacherSession` only routes when `user_type='teacher'`; `requireAdmin` checks `is_admin=true` (false on leaked rows). Leak was purely cosmetic.
+
+**Fix:** migration `20260501103415_fix_handle_new_teacher_skip_students.sql` (commit `2a34191`).
+- Updated trigger to skip when `raw_app_meta_data->>'user_type' = 'student'`.
+- Backfill DELETE with safety assertion (refused to delete if any leaked row had FK references in classes/units/students — none did).
+- Applied to prod 1 May 2026. Notice log confirmed 7 deleted, 0 references.
+- Down migration restores the original trigger (cannot un-delete the leaked rows; they had zero data so this is a no-op semantically).
+
+**Decision logged.** Filed as a unscheduled Phase 1 cleanup spillover, not a Phase 2 deliverable. Should arguably have been caught in Phase 1.1d's pre-flight audit; the 18-month-old trigger wasn't on anyone's radar.
