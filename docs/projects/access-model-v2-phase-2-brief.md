@@ -48,7 +48,7 @@ These are one-time setup tasks. The brief assumes Matt does them as part of sub-
 
 ## 3. Sub-phases
 
-### Phase 2.1 — Microsoft (Azure AD) OAuth (~3-4 hours)
+### Phase 2.1 — Microsoft (Azure AD) OAuth (~3-4 hours) ✅ SHIPPED 30 Apr 2026
 
 **Order rationale:** NIS uses Microsoft 365. Doing Microsoft first means Matt dogfoods his own login flow on day one — every subsequent sub-phase can be smoked against his real account. Google second.
 
@@ -64,7 +64,13 @@ These are one-time setup tasks. The brief assumes Matt does them as part of sub-
 
 **Stop trigger:** Matt signs in to studioloom.org with his NIS Microsoft account end-to-end → lands on /teacher/dashboard (returning, since he already has a teacher row) without any user-visible errors.
 
-### Phase 2.2 — Google OAuth (~2 hours)
+### Phase 2.2 — Google OAuth (~2 hours) ✅ SHIPPED 1 May 2026
+
+**Smoke result:** signed in via Google with `mattburto@gmail.com` (added as Test User). New teacher row provisioned through `/auth/callback`. One UX glitch noted: 1-2s landing-page flash mid-redirect chain — filed as `FU-OAUTH-LANDING-FLASH` (P2, target Phase 2.5).
+
+**Branding follow-ups completed:** privacy + terms pages live at `/privacy` and `/terms`; Microsoft Azure publisher domain verified on `www.studioloom.org`; Microsoft consent screen no longer shows "Unverified" label.
+
+**Branding follow-ups outstanding (deferred):** Google Cloud Console branding fields (logo, privacy + terms URLs, authorized domain) need to be filled in to remove the Supabase URL from the Google consent screen — Matt to do; Microsoft Partner Network publisher verification (`FU-AZURE-MPN-VERIFICATION` P3, gated on second-school pilot).
 
 Same shape as 2.1, different provider. Smaller because the callback + provisioning code is already written for Microsoft.
 
@@ -77,7 +83,19 @@ Same shape as 2.1, different provider. Smaller because the callback + provisioni
 2. Verify the OAuth callback handler works for both providers (no provider-specific branching expected).
 3. Tests: provider-tagged callback exchange.
 
-### Phase 2.3 — Auth-mode allowlist schema + UI (~5-6 hours)
+### Phase 2.3 — Auth-mode allowlist schema + UI (~5-6 hours) ✅ SHIPPED 1 May 2026
+
+**Migration applied to prod Supabase 1 May 2026** — `20260501045136_allowed_auth_modes.sql`.
+
+**Final scope** (per `access-model-v2-phase-2-3-brief.md`):
+- Schema: `schools.allowed_auth_modes TEXT[] NOT NULL DEFAULT [email_password,google,microsoft]` + `classes.allowed_auth_modes TEXT[] NULL` (NULL inherits). CHECK includes `'apple'` for Phase 2.4 forward-compat. `array_length >= 1` enforced.
+- Helper: `src/lib/auth/allowed-auth-modes.ts` exports `getAllowedAuthModes` (DB) + `resolveAllowedAuthModes` (pure). 11 unit tests covering 4 scope cases + safety-net + apple.
+- Login page: split into server `page.tsx` (reads `searchParams`) + client `LoginForm.tsx`. Buttons render conditionally per resolved modes. Amber restriction banner when scope is supplied AND OAuth is unavailable.
+- Settings UI deferred to Phase 4 (school settings hub) — admin edits via Supabase SQL editor for v1.
+- Tests: 2817 → 2828 (+11). tsc strict 0 errors.
+- Smoke (1 May 2026): unscoped login renders all 3 modes; school-scoped to `[email_password]` + class-scoped both verified end-to-end on prod.
+
+**Commits:** `756267a` (Phase 2.3 implementation), `0ec0db4` (legal email fix that landed alongside).
 
 **Migration:**
 - `schools.allowed_auth_modes TEXT[] NOT NULL DEFAULT ARRAY['email_password', 'google', 'microsoft']` — set of auth modes the school accepts. China-locked schools can be set to `['email_password']` only.

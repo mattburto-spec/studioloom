@@ -4,6 +4,53 @@
 
 ---
 
+## 1 May 2026 — Phase 2.2 OAuth + Phase 2.3 allowlist BOTH SHIPPED + APPLIED TO PROD ✅
+
+**Context:** Picked up from Phase 2.2 mid-flight handoff (Matt was configuring Google Cloud Console). Closed out 2.2 with Google sign-in button, OAuth consent screen branding (legal pages + Microsoft publisher domain verification), then went straight into Phase 2.3 — the auth-mode allowlist that lets China-locked schools restrict to email_password.
+
+**Phase 2.2 closure:**
+- Google sign-in button shipped (`58a442d`) — mirrors Phase 2.1 Microsoft button, calls `signInWithOAuth({ provider: 'google' })`, reuses provider-agnostic `/auth/callback` route.
+- Smoke passed with `mattburto@gmail.com` (added to Google Cloud Test Users). New teacher row provisioned.
+- Privacy + Terms pages drafted at `/privacy` and `/terms` (`4ae2f0f`) for OAuth consent screen branding requirements. Stamped "Last updated 1 May 2026"; flagged `FU-LEGAL-LAWYER-REVIEW` P2 — not lawyer-vetted yet.
+- Microsoft Azure publisher domain verified on `www.studioloom.org` (`27f43c9`) — `studioloom.org` apex 307-redirects to www, Azure refuses to follow redirects during verification, so verification field set to `www`. File hosted at `/public/.well-known/microsoft-identity-association.json`.
+- Microsoft consent screen now shows StudioLoom branding (no more "Unverified" label).
+- Email correction: `hello@studioloom.org` → `hello@loominary.org` (`0ec0db4`) — Loominary is the umbrella entity, mailbox lives there.
+- 4 follow-ups filed: `FU-AZURE-MPN-VERIFICATION` P3, `FU-LEGAL-LAWYER-REVIEW` P2, `FU-CUSTOM-AUTH-DOMAIN` P3, `FU-OAUTH-LANDING-FLASH` P2 (1-2s landing-page flash mid-OAuth, sign-in succeeds, cosmetic).
+
+**Phase 2.3 SHIPPED + APPLIED TO PROD:**
+- Migration `20260501045136_allowed_auth_modes.sql` applied to prod Supabase by Matt 1 May 2026.
+- `schools.allowed_auth_modes TEXT[] NOT NULL DEFAULT [email_password,google,microsoft]`.
+- `classes.allowed_auth_modes TEXT[] NULL` — NULL means inherit from school.
+- CHECK constraints include `'apple'` for Phase 2.4 forward-compat. `array_length >= 1` so admins can't write empty allowlists.
+- Helper `src/lib/auth/allowed-auth-modes.ts` — `getAllowedAuthModes` (DB) + `resolveAllowedAuthModes` (pure). 11 unit tests covering 4 scope cases + safety-net + apple. Always returns non-empty (email_password fallback).
+- Login page split into server `page.tsx` (reads `searchParams`) + client `LoginForm.tsx`. Buttons render conditionally per resolved modes. Amber restriction banner when scope is supplied AND OAuth is unavailable.
+- Settings UI deferred to Phase 4 — admin edits via Supabase SQL editor for v1.
+- Schema-registry synced. Feature-flags.yaml updated with `NEXT_PUBLIC_AUTH_OAUTH_APPLE_ENABLED`.
+
+**Smoke (1 May 2026 prod):**
+- Unscoped login renders all 3 modes (Microsoft, Google, email/password). ✅
+- School-scoped (`UPDATE schools SET allowed_auth_modes = ARRAY['email_password']` + load `?school=<uuid>`) → only email/password renders + amber banner shows. ✅
+- Class-scoped (same pattern with classes.code) → only email/password renders. ✅
+
+**Tests:** 2817 → 2828 (+11). tsc strict 0 errors throughout.
+
+**Commits on main:**
+- `58a442d` — feat(auth): Phase 2.2 — Google OAuth sign-in button
+- `4ae2f0f` — feat(legal): privacy + terms pages
+- `27f43c9` — chore(azure): host microsoft-identity-association.json
+- `e251b80` — docs(access-v2): file Phase 2.2 follow-ups + draft Phase 2.3 sub-brief
+- `6698670` — claim(migrations): reserve allowed_auth_modes timestamp
+- `756267a` — feat(auth): Phase 2.3 — allowed_auth_modes allowlist (schema + login filtering)
+- `0ec0db4` — fix(legal): contact email is hello@loominary.org
+
+**Outstanding from Phase 2:**
+- Phase 2.4 — Apple OAuth feature flag scaffold (~1h, no real Apple integration).
+- Phase 2.5 — Checkpoint A3 verification + smoke.
+
+**Files touched:** `src/app/teacher/login/page.tsx` (refactored to server component) + `LoginForm.tsx` (new client component); `src/app/(legal)/{layout,privacy,terms}.tsx` (new); `src/lib/auth/allowed-auth-modes.ts` (new) + tests; `public/.well-known/microsoft-identity-association.json` (new); `supabase/migrations/20260501045136_allowed_auth_modes{,.down}.sql` (new); `docs/projects/access-model-v2-phase-2-brief.md` (status updates) + `access-model-v2-phase-2-3-brief.md` (new) + `access-model-v2-followups.md` (new); `docs/feature-flags.yaml` (added apple flag entry); `docs/decisions-log.md` (+10 decisions); `docs/api-registry.yaml` + `docs/ai-call-sites.yaml` + `docs/schema-registry.yaml` (synced).
+
+---
+
 ## 30 Apr 2026 (very late) — Phase 2.1 Microsoft OAuth SHIPPED + VERIFIED LIVE + 2 bonus fixes ✅
 
 **Context:** Continued from "All 5 follow-ups closed" earlier. Started Phase 2 (OAuth + email/password for teachers). Phase 2.1 (Microsoft) shipped end-to-end + verified live with Matt's NIS account. Two bugs surfaced + fixed in the same segment.

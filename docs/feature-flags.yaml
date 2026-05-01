@@ -84,6 +84,18 @@ flags:
 
   # ── Env-sourced flags (process.env, set in .env.local or Vercel) ──────────
 
+  - name: NEXT_PUBLIC_AUTH_OAUTH_APPLE_ENABLED
+    kind: flag
+    source: env
+    public: true
+    required: false
+    type: boolean
+    scope: runtime
+    default: false
+    description: 'Phase 2.3 forward-compat flag — when true, Apple is added to the globally-enabled auth modes that the login page filter starts from. Phase 2.4 wires the actual Apple OAuth integration; until then, even setting this true is effectively no-op because no Apple button exists.'
+    consumers:
+      - src/lib/auth/allowed-auth-modes.ts
+
   - name: NEXT_PUBLIC_NSFW_BLOCK_THRESHOLD
     kind: flag
     source: env
