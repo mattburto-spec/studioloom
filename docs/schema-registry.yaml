@@ -1400,7 +1400,8 @@ tables:
   - idx_assessment_records_teacher ON (teacher_id)
   - idx_assessment_records_draft ON (is_draft) WHERE is_draft = true
   rls:
-    read: Teachers manage assessments for their students (unknown); Service role full access assessments (unknown)
+    read: Teachers manage assessments for their students (unknown); Service role full access assessments (unknown); Students
+      read own published assessments (unknown)
     write: Teachers manage assessments for their students (unknown); Service role full access assessments (unknown)
   writers:
   - src/app/api/teacher/assessments/route.ts
@@ -1410,7 +1411,9 @@ tables:
   - src/app/api/teacher/grading/past-feedback/route.ts
   spec_drift:
   - date: 2026-04-30
-    note: "Phase 1.4 CS-1 — applied 20260429231124_phase_1_4_cs1_assessment_records_student_self_read.sql. Additive `Students read own published assessments` policy USING (is_draft = false AND student_id IN (SELECT id FROM students WHERE user_id = auth.uid())). Drafts remain teacher-only. Pre-positioned for CS-3 `grades` route switch."
+    note: Phase 1.4 CS-1 — applied 20260429231124_phase_1_4_cs1_assessment_records_student_self_read.sql. Additive `Students
+      read own published assessments` policy USING (is_draft = false AND student_id IN (SELECT id FROM students WHERE user_id
+      = auth.uid())). Drafts remain teacher-only. Pre-positioned for CS-3 `grades` route switch.
   classification:
     id:
       pii: true
@@ -1701,6 +1704,8 @@ tables:
     response: TEXT
     created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
     updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    client_context: JSONB NOT NULL DEFAULT '{}'::jsonb
+    sentry_event_id: TEXT
   indexes:
   - idx_bug_reports_status ON (status, created_at DESC)
   - idx_bug_reports_class ON (class_id, created_at DESC)
@@ -1924,21 +1929,24 @@ tables:
   - idx_class_students_term ON (term_id) WHERE term_id IS NOT NULL
   - idx_class_students_class_term ON (class_id, term_id)
   rls:
-    read: Teachers manage class_students (unknown); Students read own enrollments (include)
-    write: Teachers manage class_students (unknown)
+    read: Teachers manage class_students (unknown); Students read own enrollments (include); Students read own enrollments
+      via auth.uid (the); Teachers manage class_students (unknown); Teachers manage class_students (classes)
+    write: Teachers manage class_students (unknown); Teachers manage class_students (unknown); Teachers manage class_students
+      (classes)
   writers:
   - src/app/api/teacher/class-students/route.ts
   - src/app/api/teacher/classes/[classId]/students/[studentId]/support-settings/route.ts
   - src/app/api/teacher/classes/[classId]/students/support-settings/route.ts
+  - src/app/api/teacher/students/route.ts
   - src/app/api/teacher/welcome/add-roster/route.ts
   - src/app/teacher/classes/[classId]/page.tsx
   - src/app/teacher/students/[studentId]/page.tsx
-  - src/app/teacher/students/page.tsx
   - src/app/teacher/units/[unitId]/class/[classId]/page.tsx
   - src/lib/students/class-enrollment.ts
   readers:
   - src/app/api/admin/schools/route.ts
   - src/app/api/admin/students/route.ts
+  - src/app/api/auth/student-classcode-login/route.ts
   - src/app/api/auth/student-login/route.ts
   - src/app/api/auth/student-session/route.ts
   - src/app/api/student/design-assistant/route.ts
@@ -1955,6 +1963,7 @@ tables:
   - src/app/api/student/open-studio/check-in/route.ts
   - src/app/api/student/progress/route.ts
   - src/app/api/student/safety/pending/route.ts
+  - src/app/api/student/search/route.ts
   - src/app/api/student/unit/route.ts
   - src/app/api/student/units/route.ts
   - src/app/api/teacher/badges/[id]/results/route.ts
@@ -1966,6 +1975,7 @@ tables:
   - src/app/api/teacher/nm-results/route.ts
   - src/app/api/teacher/open-studio/status/route.ts
   - src/app/api/teacher/pypx-cohort/route.ts
+  - src/app/api/teacher/search/route.ts
   - src/app/api/teacher/skills/cards/[id]/demonstrations/route.ts
   - src/app/api/teacher/student-projects/route.ts
   - src/app/api/teacher/students/[studentId]/support-settings/route.ts
@@ -1974,6 +1984,7 @@ tables:
   - src/app/teacher/classes/[classId]/progress/[unitId]/page.tsx
   - src/app/teacher/classes/page.tsx
   - src/app/teacher/marking/page.tsx
+  - src/app/teacher/students/page.tsx
   - src/app/teacher/units/[unitId]/page.tsx
   - src/lib/auth/verify-teacher-unit.ts
   - src/lib/design-assistant/conversation.ts
@@ -1982,9 +1993,14 @@ tables:
   - src/lib/student-support/resolve-settings.ts
   spec_drift:
   - date: 2026-04-30
-    note: "Phase 1.5b — applied 20260429133359_phase_1_5b_class_students_self_read_authuid.sql. Additive parallel auth.uid() path: `class_students_self_read_authuid` USING (EXISTS (SELECT 1 FROM students WHERE id = class_students.student_id AND user_id = auth.uid())). Pre-positioned for Phase 1.4 client-switch; coexists with existing teacher-side policies."
+    note: 'Phase 1.5b — applied 20260429133359_phase_1_5b_class_students_self_read_authuid.sql. Additive parallel auth.uid()
+      path: `class_students_self_read_authuid` USING (EXISTS (SELECT 1 FROM students WHERE id = class_students.student_id
+      AND user_id = auth.uid())). Pre-positioned for Phase 1.4 client-switch; coexists with existing teacher-side policies.'
   - date: 2026-04-30
-    note: "Phase 1.4 CS-2 hotfix #2 — applied 20260430015239_phase_1_4_cs2_fix_class_students_classes_recursion.sql. DROP+CREATE `Teachers manage class_students` to use SECURITY DEFINER helper public.is_teacher_of_class(class_id) instead of inlined `class_id IN (SELECT id FROM classes WHERE teacher_id = auth.uid())` subquery. Breaks classes↔class_students RLS recursion cycle (Lesson #64). Same semantic, no inline subquery."
+    note: 'Phase 1.4 CS-2 hotfix #2 — applied 20260430015239_phase_1_4_cs2_fix_class_students_classes_recursion.sql. DROP+CREATE
+      `Teachers manage class_students` to use SECURITY DEFINER helper public.is_teacher_of_class(class_id) instead of inlined
+      `class_id IN (SELECT id FROM classes WHERE teacher_id = auth.uid())` subquery. Breaks classes↔class_students RLS recursion
+      cycle (Lesson #64). Same semantic, no inline subquery.'
   classification:
     student_id:
       pii: true
@@ -2104,6 +2120,7 @@ tables:
   - src/app/api/student/open-studio/check-in/route.ts
   - src/app/api/student/progress/route.ts
   - src/app/api/student/safety/pending/route.ts
+  - src/app/api/student/search/route.ts
   - src/app/api/student/unit/route.ts
   - src/app/api/student/units/route.ts
   - src/app/api/teacher/dashboard/route.ts
@@ -2111,6 +2128,7 @@ tables:
   - src/app/api/teacher/nm-results/route.ts
   - src/app/api/teacher/pypx-cohort/route.ts
   - src/app/api/teacher/schedule/today/route.ts
+  - src/app/api/teacher/search/route.ts
   - src/app/api/teacher/student-snapshot/route.ts
   - src/app/api/teacher/units/versions/route.ts
   - src/app/teacher/classes/[classId]/exhibition/page.tsx
@@ -2123,6 +2141,8 @@ tables:
   - src/app/teacher/teach/[unitId]/projector/page.tsx
   - src/app/teacher/units/[unitId]/class/[classId]/page.tsx
   - src/app/teacher/units/[unitId]/edit/page.tsx
+  - src/app/teacher/units/[unitId]/preview/[pageId]/page.tsx
+  - src/app/teacher/units/[unitId]/preview/layout.tsx
   - src/app/teacher/units/page.tsx
   - src/lib/auth/verify-teacher-unit.ts
   - src/lib/design-assistant/conversation.ts
@@ -2263,6 +2283,7 @@ tables:
     bug_reporting_enabled: BOOLEAN NOT NULL DEFAULT false
     school_id: UUID NULL REFERENCES schools(id) ON DELETE SET NULL
     default_lab_id: UUID NULL REFERENCES fabrication_labs(id) ON DELETE SET NULL
+    allowed_auth_modes: TEXT[] NULL
   indexes:
   - idx_classes_code ON (code)
   - idx_classes_teacher ON (teacher_id)
@@ -2274,7 +2295,7 @@ tables:
   - idx_classes_school_id ON (school_id) WHERE school_id IS NOT NULL
   - idx_classes_default_lab ON (default_lab_id)
   rls:
-    read: Teachers manage own classes (unknown)
+    read: Teachers manage own classes (unknown); Students read own enrolled classes (unknown)
     write: Teachers manage own classes (unknown)
   writers:
   - src/app/api/teacher/fabrication/classes/[classId]/default-lab/route.ts
@@ -2292,10 +2313,12 @@ tables:
   - src/app/api/admin/teachers/[id]/route.ts
   - src/app/api/admin/teachers/route.ts
   - src/app/api/auth/lti/launch/route.ts
+  - src/app/api/auth/student-classcode-login/route.ts
   - src/app/api/auth/student-login/route.ts
   - src/app/api/auth/student-session/route.ts
   - src/app/api/student/me/unit-context/route.ts
   - src/app/api/student/open-studio/check-in/route.ts
+  - src/app/api/student/search/route.ts
   - src/app/api/student/units/route.ts
   - src/app/api/teacher/assessments/route.ts
   - src/app/api/teacher/badges/[id]/results/route.ts
@@ -2312,11 +2335,14 @@ tables:
   - src/app/api/teacher/own-time/approve/route.ts
   - src/app/api/teacher/safety-certs/route.ts
   - src/app/api/teacher/schedule/today/route.ts
+  - src/app/api/teacher/search/route.ts
   - src/app/api/teacher/skills/cards/[id]/demonstrations/route.ts
   - src/app/api/teacher/student-snapshot/route.ts
+  - src/app/api/teacher/students/route.ts
   - src/app/api/teacher/teach/live-status/route.ts
   - src/app/api/teacher/timetable/import-ical/route.ts
   - src/app/api/teacher/units/versions/route.ts
+  - src/app/api/teacher/welcome/add-roster/route.ts
   - src/app/teacher/classes/[classId]/exhibition/page.tsx
   - src/app/teacher/classes/[classId]/grading/[unitId]/page.tsx
   - src/app/teacher/classes/[classId]/progress/[unitId]/page.tsx
@@ -2327,6 +2353,7 @@ tables:
   - src/app/teacher/students/page.tsx
   - src/app/teacher/units/[unitId]/class/[classId]/page.tsx
   - src/app/teacher/units/[unitId]/page.tsx
+  - src/lib/auth/allowed-auth-modes.ts
   - src/lib/auth/verify-teacher-unit.ts
   - src/lib/design-assistant/conversation.ts
   - src/lib/fabrication/orchestration.ts
@@ -2334,7 +2361,10 @@ tables:
   - src/lib/student-support/resolve-class-id.ts
   spec_drift:
   - date: 2026-04-30
-    note: "Phase 1.4 CS-1 — applied 20260429231118_phase_1_4_cs1_classes_student_self_read.sql. Additive `Students read own enrolled classes` policy USING (id IN (SELECT cs.class_id FROM class_students cs WHERE cs.student_id IN (SELECT id FROM students WHERE user_id = auth.uid()))). Closes the no-student-policy gap that would have silently 0-rowed every CS-2 route reading classes."
+    note: Phase 1.4 CS-1 — applied 20260429231118_phase_1_4_cs1_classes_student_self_read.sql. Additive `Students read own
+      enrolled classes` policy USING (id IN (SELECT cs.class_id FROM class_students cs WHERE cs.student_id IN (SELECT id FROM
+      students WHERE user_id = auth.uid()))). Closes the no-student-policy gap that would have silently 0-rowed every CS-2
+      route reading classes.
   changes_in_phase_7a:
   - migration: 076_bug_reports.sql
     add_column: bug_reporting_enabled BOOLEAN NOT NULL DEFAULT false
@@ -2461,9 +2491,9 @@ tables:
   - idx_competency_assessments_student_unit_source ON (student_id, unit_id, source)
   rls:
     read: teachers_manage_observations (unknown); students_read_own (unknown); teachers_manage_observations (unknown); students_read_own
-      (unknown)
+      (unknown); students_read_own (unknown); students_read_own (unknown)
     write: teachers_manage_observations (unknown); students_create_self (units); teachers_manage_observations (unknown); students_create_self
-      (unknown)
+      (unknown); students_create_self (unknown); students_create_self (use)
   writers:
   - src/app/api/student/nm-assessment/route.ts
   - src/app/api/teacher/nm-observation/route.ts
@@ -2473,7 +2503,10 @@ tables:
   - src/app/api/teacher/student-snapshot/route.ts
   spec_drift:
   - date: 2026-04-30
-    note: "Phase 1.5 — applied 20260429130731_phase_1_5_competency_assessments_student_rewrite.sql. Dropped 2 broken policies (used `student_id = auth.uid()` which was always wrong post-Phase-1.1a — those are different UUIDs). Replaced with canonical chain `EXISTS (SELECT 1 FROM students WHERE id = competency_assessments.student_id AND user_id = auth.uid())`. Pre-positioned for Phase 1.4 client-switch; not load-bearing yet."
+    note: Phase 1.5 — applied 20260429130731_phase_1_5_competency_assessments_student_rewrite.sql. Dropped 2 broken policies
+      (used `student_id = auth.uid()` which was always wrong post-Phase-1.1a — those are different UUIDs). Replaced with canonical
+      chain `EXISTS (SELECT 1 FROM students WHERE id = competency_assessments.student_id AND user_id = auth.uid())`. Pre-positioned
+      for Phase 1.4 client-switch; not load-bearing yet.
   classification:
     id:
       pii: true
@@ -3131,14 +3164,18 @@ tables:
   indexes:
   - idx_design_conversation_turns_conversation ON (conversation_id, turn_number)
   rls:
-    read: Students can manage own conversation turns (unknown); Teachers can read conversation turns (unknown)
-    write: Students can manage own conversation turns (unknown)
+    read: Students can manage own conversation turns (unknown); Teachers can read conversation turns (unknown); Students can
+      manage own conversation turns (unknown); Students can manage own conversation turns (use)
+    write: Students can manage own conversation turns (unknown); Students can manage own conversation turns (unknown); Students
+      can manage own conversation turns (use)
   writers:
   - src/lib/design-assistant/conversation.ts
   readers: []
   spec_drift:
   - date: 2026-04-30
-    note: "Phase 1.5 — applied 20260429130733_phase_1_5_design_conversations_student_rewrite.sql. Dropped broken self-read policy. Replaced with canonical chain via design_conversations → students.user_id. Pre-positioned for Phase 1.4 client-switch; not load-bearing yet."
+    note: Phase 1.5 — applied 20260429130733_phase_1_5_design_conversations_student_rewrite.sql. Dropped broken self-read
+      policy. Replaced with canonical chain via design_conversations → students.user_id. Pre-positioned for Phase 1.4 client-switch;
+      not load-bearing yet.
   classification:
     id:
       pii: false
@@ -3217,15 +3254,19 @@ tables:
   - idx_design_conversations_student ON (student_id, unit_id)
   - idx_design_conversations_page ON (unit_id, page_id)
   rls:
-    read: Students can manage own conversations (unknown); Teachers can read student conversations (unknown)
-    write: Students can manage own conversations (unknown)
+    read: Students can manage own conversations (unknown); Teachers can read student conversations (unknown); Students can
+      manage own conversations (unknown); Students can manage own conversations (unknown)
+    write: Students can manage own conversations (unknown); Students can manage own conversations (unknown); Students can
+      manage own conversations (unknown)
   writers:
   - src/lib/design-assistant/conversation.ts
   readers:
   - src/app/api/student/design-assistant/route.ts
   spec_drift:
   - date: 2026-04-30
-    note: "Phase 1.5 — applied 20260429130733_phase_1_5_design_conversations_student_rewrite.sql. Dropped broken self-read policy (used `student_id = auth.uid()`). Replaced with canonical chain via students.user_id. Pre-positioned for Phase 1.4 client-switch; not load-bearing yet."
+    note: Phase 1.5 — applied 20260429130733_phase_1_5_design_conversations_student_rewrite.sql. Dropped broken self-read
+      policy (used `student_id = auth.uid()`). Replaced with canonical chain via students.user_id. Pre-positioned for Phase
+      1.4 client-switch; not load-bearing yet.
   classification:
     id:
       pii: false
@@ -3511,7 +3552,7 @@ tables:
   - idx_fabrication_jobs_lab_category ON (lab_id, machine_category)
   - idx_fabrication_jobs_unassigned ON (lab_id, machine_category) WHERE machine_profile_id IS NULL
   rls:
-    read: fabrication_jobs_select_teacher (unknown)
+    read: fabrication_jobs_select_teacher (unknown); fabrication_jobs_select_student (unknown)
     write: fabrication_jobs_update_teacher (unknown)
   writers:
   - src/lib/fabrication/fab-orchestration.ts
@@ -3522,7 +3563,9 @@ tables:
   - src/lib/fabrication/machine-orchestration.ts
   spec_drift:
   - date: 2026-04-30
-    note: "Phase 1.5b — applied 20260429133401_phase_1_5b_fabrication_jobs_and_scan_jobs_student_read.sql. Additive `fabrication_jobs_student_self_read` USING canonical chain via students.user_id → auth.uid(). Pre-positioned for Phase 1.4 client-switch; not load-bearing yet."
+    note: Phase 1.5b — applied 20260429133401_phase_1_5b_fabrication_jobs_and_scan_jobs_student_read.sql. Additive `fabrication_jobs_student_self_read`
+      USING canonical chain via students.user_id → auth.uid(). Pre-positioned for Phase 1.4 client-switch; not load-bearing
+      yet.
   notes: 'lab_tech_picked_up_by intentionally has no FK to fabricators(id) — table not yet existed at migration time. FK hardening
     deferred. Dual-visibility RLS uses direct teacher_id fallback rather than Lesson #29 junction UNION because teacher_id
     column covers the NULL class_id case cleanly.'
@@ -3568,14 +3611,16 @@ tables:
   - idx_fabrication_scan_jobs_running_leases ON (locked_at) WHERE status = 'running'
   - uq_fabrication_scan_jobs_active_per_revision ON (job_revision_id) WHERE status IN ('pending', 'running')
   rls:
-    read: RLS enabled but no policies found in migrations
-    write: RLS enabled but no policies found in migrations
+    read: fabrication_scan_jobs_select_student (unknown)
+    write: RLS enabled, no write policy
   writers:
   - src/lib/fabrication/orchestration.ts
   readers: []
   spec_drift:
   - date: 2026-04-30
-    note: "Phase 1.5b — applied 20260429133401_phase_1_5b_fabrication_jobs_and_scan_jobs_student_read.sql. Additive `fabrication_scan_jobs_student_self_read` USING triple-nested chain (fabrication_scan_jobs → fabrication_jobs → students.user_id → auth.uid()). Closes scan_jobs side of the fabrication self-read story. Pre-positioned for Phase 1.4 client-switch."
+    note: Phase 1.5b — applied 20260429133401_phase_1_5b_fabrication_jobs_and_scan_jobs_student_read.sql. Additive `fabrication_scan_jobs_student_self_read`
+      USING triple-nested chain (fabrication_scan_jobs → fabrication_jobs → students.user_id → auth.uid()). Closes scan_jobs
+      side of the fabrication self-read story. Pre-positioned for Phase 1.4 client-switch.
   notes: scan-rls-coverage scanner will flag this as rls_enabled_no_policy — that is intentional and documented in-migration.
     Not drift.
 - name: fabricator_machines
@@ -6484,8 +6529,8 @@ tables:
   - idx_quest_evidence_milestone ON (milestone_id)
   - idx_quest_evidence_type ON (type)
   rls:
-    read: quest_evidence_student (unknown)
-    write: quest_evidence_student (unknown)
+    read: quest_evidence_student (unknown); quest_evidence_student (unknown); quest_evidence_student (use)
+    write: quest_evidence_student (unknown); quest_evidence_student (unknown); quest_evidence_student (use)
   writers:
   - src/app/api/student/quest/evidence/route.ts
   - src/app/api/student/quest/sharing/route.ts
@@ -6496,7 +6541,9 @@ tables:
   - src/app/api/student/quest/route.ts
   spec_drift:
   - date: 2026-04-30
-    note: "Phase 1.5 — applied 20260429130732_phase_1_5_quest_journeys_student_rewrite.sql. Dropped broken self-read policy. Replaced with canonical chain quest_evidence → quest_milestones → quest_journeys → students.user_id → auth.uid(). Pre-positioned for Phase 1.4 client-switch; not load-bearing yet."
+    note: Phase 1.5 — applied 20260429130732_phase_1_5_quest_journeys_student_rewrite.sql. Dropped broken self-read policy.
+      Replaced with canonical chain quest_evidence → quest_milestones → quest_journeys → students.user_id → auth.uid(). Pre-positioned
+      for Phase 1.4 client-switch; not load-bearing yet.
   classification:
     id:
       pii: true
@@ -6644,8 +6691,10 @@ tables:
   - idx_quest_journeys_class ON (class_id)
   - idx_quest_journeys_phase ON (phase)
   rls:
-    read: quest_journeys_student_select (unknown)
-    write: quest_journeys_student_update (unknown)
+    read: quest_journeys_student_select (unknown); quest_journeys_student_select (unknown); quest_journeys_student_select
+      (unknown)
+    write: quest_journeys_student_update (unknown); quest_journeys_student_update (unknown); quest_journeys_student_update
+      (unknown)
   writers:
   - src/app/api/student/quest/contract/route.ts
   - src/app/api/student/quest/discovery/route.ts
@@ -6661,7 +6710,9 @@ tables:
   - src/app/api/teacher/quest/detail/route.ts
   spec_drift:
   - date: 2026-04-30
-    note: "Phase 1.5 — applied 20260429130732_phase_1_5_quest_journeys_student_rewrite.sql. Dropped broken self-read policy (used `student_id = auth.uid()` — wrong post-Phase-1.1a). Replaced with canonical chain via students.user_id. Pre-positioned for Phase 1.4 client-switch; not load-bearing yet."
+    note: Phase 1.5 — applied 20260429130732_phase_1_5_quest_journeys_student_rewrite.sql. Dropped broken self-read policy
+      (used `student_id = auth.uid()` — wrong post-Phase-1.1a). Replaced with canonical chain via students.user_id. Pre-positioned
+      for Phase 1.4 client-switch; not load-bearing yet.
   classification:
     id:
       pii: true
@@ -6923,8 +6974,8 @@ tables:
   - idx_quest_milestones_journey ON (journey_id)
   - idx_quest_milestones_status ON (status)
   rls:
-    read: quest_milestones_student (unknown)
-    write: quest_milestones_student (unknown)
+    read: quest_milestones_student (unknown); quest_milestones_student (unknown); quest_milestones_student (unknown)
+    write: quest_milestones_student (unknown); quest_milestones_student (unknown); quest_milestones_student (unknown)
   writers:
   - src/app/api/student/quest/milestones/[id]/route.ts
   - src/app/api/student/quest/milestones/route.ts
@@ -6936,7 +6987,9 @@ tables:
   - src/app/api/teacher/quest/detail/route.ts
   spec_drift:
   - date: 2026-04-30
-    note: "Phase 1.5 — applied 20260429130732_phase_1_5_quest_journeys_student_rewrite.sql. Dropped broken self-read/write policies (used `student_id = auth.uid()` — wrong post-Phase-1.1a). Replaced with canonical chain via quest_journeys.student_id → students.user_id → auth.uid(). Pre-positioned for Phase 1.4 client-switch; not load-bearing yet."
+    note: Phase 1.5 — applied 20260429130732_phase_1_5_quest_journeys_student_rewrite.sql. Dropped broken self-read/write
+      policies (used `student_id = auth.uid()` — wrong post-Phase-1.1a). Replaced with canonical chain via quest_journeys.student_id
+      → students.user_id → auth.uid(). Pre-positioned for Phase 1.4 client-switch; not load-bearing yet.
   classification:
     id:
       pii: true
@@ -7652,6 +7705,7 @@ tables:
     subscription_tier: TEXT NOT NULL DEFAULT 'pilot' CHECK (subscription_tier IN ('pilot','free','starter','pro','school'))
     timezone: TEXT NOT NULL DEFAULT 'Asia/Shanghai'
     default_locale: TEXT NOT NULL DEFAULT 'en'
+    allowed_auth_modes: TEXT[] NOT NULL DEFAULT ARRAY['email_password', 'google', 'microsoft']::TEXT[]
   indexes:
   - idx_schools_name_trgm ON USING gin (name gin_trgm_ops)
   - idx_schools_country ON (country)
@@ -7670,6 +7724,7 @@ tables:
   - src/app/api/teacher/school/route.ts
   - src/app/api/teacher/welcome/complete/route.ts
   - src/app/teacher/welcome/page.tsx
+  - src/lib/auth/allowed-auth-modes.ts
   spec_drift: []
   classification:
     id:
@@ -8070,8 +8125,11 @@ tables:
   - idx_student_badges_status ON (status)
   - idx_student_badges_awarded_at ON (awarded_at)
   rls:
-    read: student_badges_read_own (their); student_badges_teacher_read (unknown)
-    write: student_badges_teacher_insert (unknown)
+    read: student_badges_read_own (their); student_badges_teacher_read (unknown); student_badges_read_own (unknown); student_badges_read_own
+      (students); student_badges_read_own (the); student_badges_read_own (unknown); student_badges_teacher_read (unknown);
+      student_badges_read_own (unknown); student_badges_teacher_read (unknown)
+    write: student_badges_teacher_insert (unknown); student_badges_teacher_insert (unknown); student_badges_teacher_insert
+      (students)
   writers:
   - src/app/api/student/safety/badges/[badgeId]/submit/route.ts
   - src/app/api/teacher/badges/[id]/assign/route.ts
@@ -8089,7 +8147,10 @@ tables:
   - src/app/teacher/students/page.tsx
   spec_drift:
   - date: 2026-04-30
-    note: "Phase 1.4 CS-1 — applied 20260429231130_phase_1_4_cs1_student_badges_rewrite.sql. DROP+CREATE student_badges_read_own. Original (mig 035) used current_setting(\"app.student_id\") OR jwt.claims->>sub — never matched any auth path. Rewritten with canonical chain student_id IN (SELECT id::text FROM students WHERE user_id = auth.uid()). Note: `::text` cast is a workaround for student_badges.student_id being TEXT not UUID (FU-AV2-STUDENT-BADGES-COLUMN-TYPE P3)."
+    note: 'Phase 1.4 CS-1 — applied 20260429231130_phase_1_4_cs1_student_badges_rewrite.sql. DROP+CREATE student_badges_read_own.
+      Original (mig 035) used current_setting("app.student_id") OR jwt.claims->>sub — never matched any auth path. Rewritten
+      with canonical chain student_id IN (SELECT id::text FROM students WHERE user_id = auth.uid()). Note: `::text` cast is
+      a workaround for student_badges.student_id being TEXT not UUID (FU-AV2-STUDENT-BADGES-COLUMN-TYPE P3).'
   classification:
     id:
       pii: true
@@ -8378,7 +8439,7 @@ tables:
   - idx_student_progress_integrity ON (student_id, unit_id) WHERE integrity_metadata IS NOT NULL
   - idx_student_progress_class ON (class_id, student_id)
   rls:
-    read: Teachers read student progress (unknown); Teachers read student progress (unknown)
+    read: Teachers read student progress (unknown); Teachers read student progress (unknown); Students read own progress (unknown)
     write: RLS enabled, no write policy
   writers:
   - src/app/api/student/progress/route.ts
@@ -8405,7 +8466,9 @@ tables:
   - src/lib/jobs/usage-analytics.ts
   spec_drift:
   - date: 2026-04-30
-    note: "Phase 1.5b — applied 20260429133400_phase_1_5b_student_progress_self_read.sql. Additive `student_progress_self_read` USING canonical chain via students.user_id → auth.uid(). Pre-positioned for Phase 1.4 client-switch; not load-bearing yet."
+    note: Phase 1.5b — applied 20260429133400_phase_1_5b_student_progress_self_read.sql. Additive `student_progress_self_read`
+      USING canonical chain via students.user_id → auth.uid(). Pre-positioned for Phase 1.4 client-switch; not load-bearing
+      yet.
   classification:
     id:
       pii: false
@@ -8556,8 +8619,8 @@ tables:
   - idx_student_sessions_token ON (token)
   - idx_student_sessions_expires ON (expires_at)
   rls:
-    read: RLS enabled but no policies found in migrations
-    write: RLS enabled but no policies found in migrations
+    read: student_sessions_deny_all (RLS)
+    write: student_sessions_deny_all (RLS)
   writers:
   - src/app/api/auth/lti/launch/route.ts
   - src/app/api/auth/student-login/route.ts
@@ -8570,7 +8633,9 @@ tables:
   - src/lib/auth/student.ts
   spec_drift:
   - date: 2026-04-30
-    note: "Phase 1.5b — applied 20260429133402_phase_1_5b_student_sessions_deny_all.sql. Explicit deny-all RLS via USING (false) WITH CHECK (false). Closes FU-FF (was implicit deny via no-policy state, now scanner-clean). Service role still bypasses RLS as expected. Table will be dropped at Phase 6 cutover."
+    note: Phase 1.5b — applied 20260429133402_phase_1_5b_student_sessions_deny_all.sql. Explicit deny-all RLS via USING (false)
+      WITH CHECK (false). Closes FU-FF (was implicit deny via no-policy state, now scanner-clean). Service role still bypasses
+      RLS as expected. Table will be dropped at Phase 6 cutover.
   classification:
     id:
       pii: true
@@ -8810,22 +8875,31 @@ tables:
   - idx_students_school_id ON (school_id) WHERE school_id IS NOT NULL
   - idx_students_user_id ON (user_id) WHERE user_id IS NOT NULL
   rls:
-    read: Teachers manage students in their classes (unknown); Teachers manage students (unknown); students_self_read auth.uid() (Phase 1.5)
-    write: Teachers manage students in their classes (unknown); Teachers manage students (unknown)
+    read: Teachers manage students in their classes (unknown); Teachers manage students (unknown); Students read own row (auth);
+      Teachers manage students (unknown); Teachers manage students (original); Teachers manage students (unknown); Teachers
+      SELECT students (unknown)
+    write: Teachers manage students in their classes (unknown); Teachers manage students (unknown); Teachers manage students
+      (unknown); Teachers manage students (original); Teachers manage students (unknown); Teachers UPDATE students (unknown);
+      Teachers DELETE students (unknown); Teachers INSERT students (find)
   writers:
   - src/app/api/auth/lti/launch/route.ts
+  - src/app/api/auth/student-classcode-login/route.ts
   - src/app/api/auth/student-login/route.ts
   - src/app/api/student/avatar/route.ts
   - src/app/api/student/learning-profile/route.ts
   - src/app/api/student/studio-preferences/route.ts
   - src/app/api/teacher/integrations/sync/route.ts
   - src/app/api/teacher/students/[studentId]/support-settings/route.ts
+  - src/app/api/teacher/students/__tests__/route.test.ts
+  - src/app/api/teacher/students/route.ts
   - src/app/api/teacher/welcome/add-roster/route.ts
   - src/app/teacher/classes/[classId]/page.tsx
   - src/app/teacher/students/[studentId]/page.tsx
   - src/app/teacher/students/page.tsx
   - src/app/teacher/units/[unitId]/class/[classId]/page.tsx
+  - src/lib/access-v2/__tests__/provision-student-auth-user.test.ts
   - src/lib/access-v2/__tests__/rls-harness/setup.ts
+  - src/lib/access-v2/provision-student-auth-user.ts
   - src/lib/integrity/remove-student-data.ts
   - src/lib/students/class-enrollment.ts
   readers:
@@ -8848,8 +8922,8 @@ tables:
   - src/app/api/student/open-studio/check-in/route.ts
   - src/app/api/student/progress/route.ts
   - src/app/api/student/safety/pending/route.ts
+  - src/app/api/student/search/route.ts
   - src/app/api/student/unit/route.ts
-  - src/app/api/student/units/route.ts
   - src/app/api/teacher/badges/[id]/results/route.ts
   - src/app/api/teacher/class-profiles/route.ts
   - src/app/api/teacher/class-students/route.ts
@@ -8866,16 +8940,24 @@ tables:
   - src/app/teacher/safety/alerts/page.tsx
   - src/app/teacher/units/[unitId]/page.tsx
   - src/lib/access-v2/__tests__/rls-harness/students.live.test.ts
+  - src/lib/access-v2/actor-session.ts
   - src/lib/admin/monitors/usage-analytics.ts
   - src/lib/design-assistant/conversation.ts
   - src/lib/student-support/resolve-settings.ts
   spec_drift:
   - date: 2026-04-29
-    note: "Phase 1.1a — added students.user_id NULLABLE FK to auth.users(id) (migration 20260429073552_phase_1_1a_student_user_id_column.sql). Establishes canonical chain auth.uid() → students.user_id → students.id. NULL until lazy-provisioned at first Phase-1.2 login."
+    note: Phase 1.1a — added students.user_id NULLABLE FK to auth.users(id) (migration 20260429073552_phase_1_1a_student_user_id_column.sql).
+      Establishes canonical chain auth.uid() → students.user_id → students.id. NULL until lazy-provisioned at first Phase-1.2
+      login.
   - date: 2026-04-30
-    note: "Phase 1.5 — applied 20260429130730_phase_1_5_students_self_read.sql. Additive policy `students_self_read` USING (user_id = auth.uid()) lets a student read their own row. Pre-positioned for Phase 1.4 client-switch (FU-AV2-PHASE-14-CLIENT-SWITCH); not load-bearing yet because routes still use createAdminClient()."
+    note: Phase 1.5 — applied 20260429130730_phase_1_5_students_self_read.sql. Additive policy `students_self_read` USING
+      (user_id = auth.uid()) lets a student read their own row. Pre-positioned for Phase 1.4 client-switch (FU-AV2-PHASE-14-CLIENT-SWITCH);
+      not load-bearing yet because routes still use createAdminClient().
   - date: 2026-04-30
-    note: "Phase 1.4 CS-2 hotfix #1 — applied 20260430010922_phase_1_4_cs2_fix_students_rls_recursion.sql. DROP+CREATE `Teachers manage students` to use SECURITY DEFINER helper public.is_teacher_of_student(id) instead of inlined `id IN (SELECT cs.student_id FROM class_students cs JOIN classes c ON ...)` subquery. Breaks students↔class_students RLS recursion cycle that fired the moment SSR client first read students (Lesson #64). Same semantic; no inline subquery."
+    note: 'Phase 1.4 CS-2 hotfix #1 — applied 20260430010922_phase_1_4_cs2_fix_students_rls_recursion.sql. DROP+CREATE `Teachers
+      manage students` to use SECURITY DEFINER helper public.is_teacher_of_student(id) instead of inlined `id IN (SELECT cs.student_id
+      FROM class_students cs JOIN classes c ON ...)` subquery. Breaks students↔class_students RLS recursion cycle that fired
+      the moment SSR client first read students (Lesson #64). Same semantic; no inline subquery.'
   classification:
     id:
       pii: true
@@ -9349,6 +9431,7 @@ tables:
   - src/app/api/teacher/profile/route.ts
   - src/app/api/teacher/school/route.ts
   - src/app/api/teacher/welcome/complete/route.ts
+  - src/app/auth/callback/route.ts
   - src/lib/access-v2/__tests__/rls-harness/setup.ts
   - src/lib/fabrication/lab-orchestration.ts
   - src/lib/teacher-style/profile-service.ts
@@ -9357,14 +9440,20 @@ tables:
   - src/app/api/admin/teachers/[id]/route.ts
   - src/app/api/admin/teachers/invite/route.ts
   - src/app/api/admin/teachers/route.ts
+  - src/app/api/teacher/convert-lesson/route.ts
   - src/app/api/teacher/fabricators/route.ts
   - src/app/api/teacher/pypx-cohort/route.ts
   - src/app/api/teacher/request-access/route.ts
+  - src/app/api/teacher/students/route.ts
   - src/app/api/teacher/teachers/list/route.ts
+  - src/app/api/teacher/units/__tests__/route.test.ts
   - src/app/api/teacher/units/route.ts
+  - src/app/api/teacher/welcome/create-class/route.ts
+  - src/app/api/teacher/welcome/setup-from-timetable/route.ts
   - src/app/teacher/dashboard-legacy/page.tsx
   - src/app/teacher/layout.tsx
   - src/app/teacher/welcome/page.tsx
+  - src/lib/access-v2/actor-session.ts
   - src/lib/auth/require-admin.ts
   - src/lib/fabrication/fab-orchestration.ts
   - src/lib/fabrication/orchestration.ts
@@ -9659,7 +9748,7 @@ tables:
   - idx_units_school_id ON (school_id) WHERE school_id IS NOT NULL
   rls:
     read: Anyone can read units (unknown); Service role manages units (unknown); Teachers read published units (unknown);
-      Anyone can read units (read); Teachers read own or published units (unknown)
+      Anyone can read units (read); Teachers read own or published units (unknown); Students read own assigned units (their)
     write: Service role manages units (unknown); Teachers insert units (unknown); Authors update own units (unknown); Authors
       delete own units (unknown)
   writers:
@@ -9688,6 +9777,7 @@ tables:
   - src/app/api/student/open-studio/check-in/route.ts
   - src/app/api/student/open-studio/discovery/route.ts
   - src/app/api/student/safety/pending/route.ts
+  - src/app/api/student/search/route.ts
   - src/app/api/student/unit/route.ts
   - src/app/api/student/units/route.ts
   - src/app/api/teacher/badges/unit-requirements/route.ts
@@ -9716,7 +9806,11 @@ tables:
   - src/lib/design-assistant/conversation.ts
   spec_drift:
   - date: 2026-04-30
-    note: "Phase 1.4 CS-3 hotfix — applied 20260430030419_phase_1_4_cs3_units_student_self_read.sql. Additive `Students read own assigned units` policy USING (id IN (SELECT cu.unit_id FROM class_units cu WHERE cu.class_id IN (SELECT cs.class_id FROM class_students cs WHERE cs.student_id IN (SELECT id FROM students WHERE user_id = auth.uid())))). Closes the gap that would have silently 0-rowed CS-3 routes for unpublished units assigned to students' classes (only `Teachers read own or published units` existed before, students could only see is_published=true)."
+    note: Phase 1.4 CS-3 hotfix — applied 20260430030419_phase_1_4_cs3_units_student_self_read.sql. Additive `Students read
+      own assigned units` policy USING (id IN (SELECT cu.unit_id FROM class_units cu WHERE cu.class_id IN (SELECT cs.class_id
+      FROM class_students cs WHERE cs.student_id IN (SELECT id FROM students WHERE user_id = auth.uid())))). Closes the gap
+      that would have silently 0-rowed CS-3 routes for unpublished units assigned to students' classes (only `Teachers read
+      own or published units` existed before, students could only see is_published=true).
   classification:
     id:
       pii: false
