@@ -136,3 +136,159 @@ school and the polish-vs-cost tradeoff flips.
 
 ---
 
+## FU-AV2-PHASE-3-CALLSITES-REMAINING
+**Priority:** P3
+**Surfaced:** Phase 3.4 audit (1 May 2026)
+**Target gate:** Phase 6 cutover
+
+**Symptom:** Phase 3.4 (Compressed) shipped the high-leverage subset of
+the ~50 teacher-ownership callsite migrations:
+- Helper shim updates (3.4a) → 5 callsites get can()-backed expansion
+- classes INSERT trigger (3.4b) → forward-compat invariant
+- Dashboard list expansion (3.4c) → first user-visible co-teacher gain
+- 1 demonstrative mutation gate (3.4d, units content PATCH)
+
+That leaves **~40 mutation-gate callsites** that still use the inline
+`.eq("author_teacher_id", user.id)` / `.eq("teacher_id", user.id)`
+patterns. They're functional today (defense-in-depth via the existing
+filter) but they don't grant co_teacher / dept_head expansion until
+migrated.
+
+**Examples (non-exhaustive):**
+- `src/app/api/teacher/units/route.ts` POST → unpublish, publish, fork
+  branches all gate via `.eq("author_teacher_id", user.id)`
+- `src/app/api/teacher/class-units/route.ts` — class-unit CRUD
+- `src/app/api/teacher/quest/route.ts` — quest CRUD
+- `src/app/api/teacher/nm-observation/route.ts` — observation CRUD
+- `src/app/api/teacher/student-snapshot/route.ts` — snapshot reads
+- `src/app/api/teacher/safety-certs/route.ts` — cert management
+- `src/app/api/teacher/badges/unit-requirements/route.ts` — badge CRUD
+- `src/app/api/teacher/timetable/import-ical/route.ts` — calendar import
+- `src/app/api/teacher/teach/quick-edit/route.ts` — Teaching Mode quick edits
+- `src/app/api/teacher/skills/cards/[id]/demonstrations/route.ts`
+- `src/app/api/teacher/welcome/add-roster/route.ts` (post-creation paths)
+
+**Why deferred:** Each callsite is an independent ~5-line edit but
+the cumulative volume is ~15 hours of mechanical work that doesn't
+change capability beyond what 3.4a-d already deliver. The pattern is
+proven by 3.4d (use `verifyTeacherHasUnit` / `verifyTeacherOwnsClass` /
+`verifyTeacherCanManageStudent` shim, OR call `can()` directly).
+
+**Done when:**
+1. All ~40 callsites migrated to the can()-backed gate pattern.
+2. `grep -rln '\.eq("teacher_id", user.id)' src/app/api/teacher/`
+   returns only legitimate filters (e.g., teacher_profiles self-read),
+   not access gates.
+3. The 5 deprecation-marked helpers can be deleted (FU-AV2-PHASE-6-DELETE-SHIMS).
+
+**Pattern reference:** `src/app/api/teacher/units/[unitId]/content/route.ts`
+post-Phase-3.4d shows the canonical migration shape.
+
+---
+
+## FU-AV2-PHASE-6-DELETE-SHIMS
+**Priority:** P3
+**Surfaced:** Phase 3.4 (1 May 2026)
+**Target gate:** Phase 6 cutover
+
+**Symptom:** Three helper functions in `src/lib/auth/verify-teacher-unit.ts`
+are marked `@deprecated` after Phase 3.4a:
+- `verifyTeacherHasUnit`
+- `verifyTeacherOwnsClass`
+- `verifyTeacherCanManageStudent`
+
+Each delegates to `can()` when the kill-switch flag is on, but keeps
+the legacy implementation as fallback.
+
+**Why deferred:** The shims preserve backward compat during the
+Phase 3 → Phase 6 transition. Phase 6 cutover deletes:
+1. The legacy `else` branches in each helper.
+2. The kill-switch flag (`auth.permission_helper_rollout`).
+3. The shim functions themselves, once all ~40 callsites
+   (FU-AV2-PHASE-3-CALLSITES-REMAINING) have migrated to direct
+   `can()` calls.
+
+**Done when:**
+1. FU-AV2-PHASE-3-CALLSITES-REMAINING resolved (no callsites use
+   the helpers).
+2. The 3 helper functions deleted from `verify-teacher-unit.ts`.
+3. Kill-switch admin_settings row deleted.
+4. Phase 6 ADR / cutover doc references the cleanup.
+
+---
+
+## FU-AV2-DEPT-HEAD-DEPARTMENT-MODEL
+**Priority:** P2
+**Surfaced:** Phase 3 brief (1 May 2026)
+**Target phase:** Phase 4 (school registration UI)
+
+**Symptom:** Master spec §2.7 Decision 7 says "dept head sees all
+classes in their department." Phase 3 wires `dept_head` as a
+class-scope role (one row per class the dept_head is tagged on),
+which works manually but doesn't scale — schools want to designate
+"Sarah is the Head of Design Tech" once and have her auto-tagged
+into every Design Tech class.
+
+**Cause:** The *department* concept doesn't exist as a first-class
+entity yet. classes have a `subject` field but not a department
+linkage; teachers don't have a primary-department tag.
+
+**Why deferred:** Phase 3 ships the role enum + plain `has_class_role(?, 'dept_head')`
+reader. The auto-tag-into-classes-of-department logic depends on
+school registration UI surfacing department concepts (Phase 4).
+
+**Done when:**
+1. Phase 4 introduces a `department` concept on schools (likely a
+   nullable `department` field on `classes` + a `school_responsibilities`-like
+   `department_responsibilities` table OR extension of existing
+   responsibility_type enum).
+2. Adding `dept_head` to a department auto-creates `class_members`
+   rows for every existing class in that department + a trigger
+   keeps it in sync as new classes are added.
+3. Removing or transferring dept_head propagates correctly.
+
+---
+
+## FU-AV2-PHASE-3-CHIP-UI
+**Priority:** P2
+**Surfaced:** Phase 3.3 (1 May 2026)
+**Target gate:** Next dashboard-v2-build sync
+
+**Symptom:** `GET /api/teacher/me/scope` (Phase 3.3) returns the
+union of class-membership / student-mentorship / school-responsibility
+"hats" the teacher wears, but no UI consumes it yet. The dashboard
+chip rendering happens in the `dashboard-v2-build` worktree.
+
+**Done when:**
+1. `dashboard-v2-build` syncs in main + adds a `RoleChip` component
+   that reads from `/api/teacher/me/scope`.
+2. Class cards render the role chip when role !== 'lead_teacher'.
+3. Mentor chip on student detail pages.
+4. Programme coordinator chip on school settings pages.
+
+---
+
+## FU-MENTOR-SCOPE ✅ RESOLVED
+**Priority:** P1 (was)
+**Surfaced:** dashboard-v2-build session (26 Apr 2026)
+**Resolved:** Phase 3.4a (1 May 2026)
+
+**Was:** MYP teacher mentoring a PP student in another teacher's class
+got 403 when trying to load that PP student's cohort. The row exists
+in `student_projects.mentor_teacher_id` but no API/RLS read it for
+scope.
+
+**Resolution:** Phase 3.4a's `verifyTeacherCanManageStudent` shim
+delegates to `can(actor, 'student.edit', ...)` which checks
+`has_student_mentorship` via the Phase 3.1 SECURITY DEFINER helper.
+A teacher with a non-deleted `student_mentors` row for the student
+now passes the helper. Every route that uses the helper inherits
+the fix automatically.
+
+The remaining work (migrate `student_projects.mentor_teacher_id`
+into `student_mentors` rows for the existing prod data) is a Phase
+4+ concern — no rows exist in either table today since the cross-
+program mentorship case hasn't shipped UX.
+
+---
+
