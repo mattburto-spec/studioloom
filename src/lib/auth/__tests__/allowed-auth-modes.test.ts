@@ -119,5 +119,31 @@ describe("resolveAllowedAuthModes", () => {
       });
       expect(result).toEqual(["email_password", "apple"]);
     });
+
+    it("strips apple when global flag is off (Phase 2.4 default)", () => {
+      // School wants apple, but the global env-var flag is off.
+      // Class is NULL (inherits from school). School with apple in its
+      // allowlist still passes through — globalModes only gates the
+      // unscoped + class-when-school-empty paths.
+      const result = resolveAllowedAuthModes({
+        schoolModes: ["email_password", "apple"],
+        classModes: null,
+        globalModes: ["email_password", "google", "microsoft"], // no apple
+      });
+      // Documentation: school's allowlist wins when set. Global is the
+      // floor for the no-school-allowlist case, not a ceiling.
+      expect(result).toEqual(["email_password", "apple"]);
+    });
+
+    it("excludes apple from globally-resolved set when flag is off", () => {
+      // No school + no class — falls back to global. Apple is NOT in
+      // globalModes, so it must not appear.
+      const result = resolveAllowedAuthModes({
+        schoolModes: null,
+        classModes: null,
+        globalModes: ["email_password", "google", "microsoft"],
+      });
+      expect(result).not.toContain("apple");
+    });
   });
 });

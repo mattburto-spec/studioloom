@@ -16,8 +16,9 @@ export interface LoginFormProps {
 export default function LoginForm({ allowedModes, restrictedScope }: LoginFormProps) {
   const showMicrosoft = allowedModes.includes("microsoft");
   const showGoogle = allowedModes.includes("google");
+  const showApple = allowedModes.includes("apple");
   const showEmailPassword = allowedModes.includes("email_password");
-  const showOAuth = showMicrosoft || showGoogle;
+  const showOAuth = showMicrosoft || showGoogle || showApple;
   const showDivider = showOAuth && showEmailPassword;
   // Restriction banner: scope was supplied AND OAuth is unavailable. Tells
   // the teacher their school/class has narrowed sign-in to email/password
@@ -99,6 +100,37 @@ export default function LoginForm({ allowedModes, restrictedScope }: LoginFormPr
       options: {
         redirectTo: `${window.location.origin}/auth/callback?next=/teacher/dashboard`,
         scopes: "openid email profile",
+      },
+    });
+    if (oauthError) {
+      setError(oauthError.message);
+      setLoading(false);
+    }
+  }
+
+  // Phase 2.4 (1 May 2026) — Apple OAuth scaffold.
+  // The button is gated server-side: it only renders when 'apple' is in
+  // allowedModes, which requires NEXT_PUBLIC_AUTH_OAUTH_APPLE_ENABLED=true
+  // (env var, default false) AND the school/class allowlist permits it.
+  //
+  // TODO when actually enabling Apple sign-in:
+  //  1. Apple Developer Program → create a Services ID for studioloom.org.
+  //  2. Configure Sign in with Apple — return URL must be Supabase callback:
+  //     https://cxxbfmnbwihuskaaltlk.supabase.co/auth/v1/callback
+  //  3. Generate a private key + JWT for client-secret rotation.
+  //  4. Supabase Dashboard → Authentication → Providers → Apple → enable +
+  //     paste Services ID + Team ID + Key ID + private-key JWT.
+  //  5. Flip NEXT_PUBLIC_AUTH_OAUTH_APPLE_ENABLED=true in Vercel env vars.
+  //  6. Smoke + add to Phase 2.5 Checkpoint A3 criteria.
+  async function handleAppleSignIn() {
+    setError("");
+    setLoading(true);
+    const supabase = createClient();
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: "apple",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=/teacher/dashboard`,
+        scopes: "name email",
       },
     });
     if (oauthError) {
@@ -203,6 +235,21 @@ export default function LoginForm({ allowedModes, restrictedScope }: LoginFormPr
                 <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" />
               </svg>
               <span>Sign in with Google</span>
+            </button>
+          )}
+
+          {showApple && (
+            <button
+              type="button"
+              onClick={handleAppleSignIn}
+              disabled={loading}
+              className="w-full py-3 mb-2 bg-black text-white rounded-full font-medium hover:bg-gray-900 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {/* Apple logo (single-path, monochrome) */}
+              <svg width="14" height="16" viewBox="0 0 14 16" fill="currentColor" aria-hidden="true">
+                <path d="M11.624 8.522c-.02-2.045 1.673-3.025 1.749-3.073-.954-1.395-2.437-1.586-2.967-1.609-1.265-.128-2.467.745-3.106.745-.65 0-1.638-.726-2.694-.706-1.387.02-2.665.806-3.378 2.046C-.225 7.461.847 11.04 2.214 13.012c.667.965 1.461 2.05 2.502 2.011 1.005-.04 1.385-.65 2.598-.65 1.213 0 1.554.65 2.617.629 1.08-.02 1.766-.984 2.428-1.952.766-1.122 1.082-2.21 1.103-2.266-.024-.013-2.118-.815-2.138-3.234m-2.04-5.939C10.137 1.91 10.51.984 10.405.06 9.611.094 8.65.59 8.078 1.249c-.514.586-.962 1.523-.842 2.43.886.069 1.79-.452 2.348-1.096"/>
+              </svg>
+              <span>Sign in with Apple</span>
             </button>
           )}
 
