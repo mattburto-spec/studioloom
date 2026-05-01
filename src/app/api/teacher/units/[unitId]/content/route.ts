@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
+import {
+  requireTeacherAuth,
+  verifyTeacherHasUnit,
+} from "@/lib/auth/verify-teacher-unit";
 import { trackEdits } from "@/lib/feedback/edit-tracker";
 import type { UnitContentData } from "@/types";
 
@@ -35,12 +38,20 @@ async function PATCH(
 
     const supabase = createAdminClient();
 
-    // Verify teacher owns this unit
+    // Phase 3.4d — replace the inline `.eq("author_teacher_id", auth.teacherId)`
+    // gate with verifyTeacherHasUnit which (post Phase 3.4a) delegates to
+    // can(actor, 'unit.edit', ...). Author still passes; class_members
+    // co_teacher / dept_head of any class with this unit assigned now also
+    // passes. Closes the co-teacher capability gap on master content edits.
+    const access = await verifyTeacherHasUnit(auth.teacherId, unitId);
+    if (!access.hasAccess) {
+      return NextResponse.json({ error: "Unit not found" }, { status: 404 });
+    }
+
     const { data: unit, error: unitErr } = await supabase
       .from("units")
       .select("id, author_teacher_id, content_data")
       .eq("id", unitId)
-      .eq("author_teacher_id", auth.teacherId)
       .single();
 
     if (unitErr || !unit) {
