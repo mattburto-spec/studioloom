@@ -1,6 +1,6 @@
 # Access Model v2 Phase 2 — Checkpoint A3 Report
 
-**Status:** ✅ PASS — all 8 functional smoke criteria green. 1 cosmetic follow-up (`FU-OAUTH-LANDING-FLASH`) explicitly deferred by Matt; sign-in succeeds despite the flash so it's non-blocking.
+**Status:** ✅ PASS — all 8 functional smoke criteria green. ALL Phase-2-flow follow-ups now resolved: `FU-OAUTH-LANDING-FLASH` closed 1 May 2026 via Supabase URL Configuration alignment (Site URL set to www form + www auth paths added to Redirect URLs allow list).
 
 **Bonus:** during smoke, an unrelated pre-existing Phase 1 bug surfaced: the `handle_new_teacher` trigger from `001_initial_schema.sql` was creating phantom teacher rows for every student auth.users insert. Fixed in migration `20260501103415_fix_handle_new_teacher_skip_students.sql` (applied to prod 1 May 2026). 7 leaked rows cleaned up. See §8.
 
@@ -129,7 +129,7 @@ All four are in `docs/projects/access-model-v2-followups.md`.
 
 ## 7. Sign-off
 
-✅ **Phase 2 PASS.** All 8 functional criteria green. Sole open follow-up is `FU-OAUTH-LANDING-FLASH` (P2, cosmetic — Matt deferred). Phase 3 (Auth Unification — every student → `auth.users`) unlocks.
+✅ **Phase 2 PASS.** All 8 functional criteria green. All Phase-2-flow follow-ups closed (`FU-OAUTH-LANDING-FLASH` resolved 1 May 2026 via Supabase URL Configuration fix). Phase 3 (Auth Unification — every student → `auth.users`) unlocks.
 
 ---
 

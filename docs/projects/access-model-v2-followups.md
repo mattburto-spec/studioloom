@@ -111,46 +111,28 @@ school and the polish-vs-cost tradeoff flips.
 
 ---
 
-## FU-OAUTH-LANDING-FLASH
-**Priority:** P2
+## FU-OAUTH-LANDING-FLASH ✅ RESOLVED 1 May 2026
+**Priority:** P2 (was)
 **Surfaced:** Phase 2.2 OAuth smoke (1 May 2026)
-**Target phase:** Before Phase 2.5 Checkpoint A3
+**Resolved:** Phase 2.5 close-out, same day
 
-**Symptom:** When a teacher signs in via Microsoft or Google OAuth, the
-StudioLoom landing page (`/`) flashes for 1-2 seconds before the user
-lands on `/teacher/dashboard` or `/teacher/welcome`. Sign-in still
-succeeds — the flash is a UX glitch, not a functional bug.
+**Root cause confirmed:** Supabase URL Configuration mismatch.
+- Site URL was `https://studioloom.org` (apex, no www).
+- Redirect URLs allow list had only apex entries: `https://studioloom.org`, `https://studioloom.org/auth/callback`, plus localhost + Vercel preview alias.
+- The OAuth button passed `redirectTo: https://www.studioloom.org/auth/callback?next=/teacher/dashboard` (origin-derived from the www-canonical Vercel deploy), which didn't match any allow list entry.
+- Supabase fell back to Site URL → browser landed at `https://studioloom.org/?code=...` (apex root) → Vercel 307 → `https://www.studioloom.org/?code=...` (www landing page rendered = the flash).
 
-**Cause (suspected, not yet confirmed):** Likely a Supabase URL
-configuration issue. Site URL may be set to apex `https://studioloom.org`
-without the `/auth/callback` path; if the `redirectTo` from the OAuth
-button isn't in the Redirect URLs allow list, Supabase falls back to
-Site URL, which renders the landing page momentarily before some
-client-side recovery completes the flow.
+**Fix applied:** Supabase Dashboard → Authentication → URL Configuration changes by Matt:
+1. Site URL changed apex → `https://www.studioloom.org`.
+2. 3 www entries added to Redirect URLs allow list:
+   - `https://www.studioloom.org/auth/callback`
+   - `https://www.studioloom.org/auth/confirm`
+   - `https://www.studioloom.org/teacher/set-password`
+3. Existing apex entries left in the allow list as a safety net (harmless; can prune in Phase 3).
 
-**Could also be:**
-- Apex → www 307 redirect adding latency to the callback chain.
-- Cookie not propagating to the first `/teacher/dashboard` middleware
-  check, causing an intermediate redirect.
-- Misconfigured Site URL hitting a Vercel rewrite chain.
+**Smoke result:** sign-in via Microsoft + Google both go directly from the provider consent screen to `/teacher/dashboard` — no landing page flash. Verified by Matt 1 May 2026.
 
-**Investigation steps:**
-1. Open DevTools Network tab + Preserve Log during sign-in. Capture the
-   full redirect chain.
-2. Note the URL in the address bar at the moment the landing page
-   flashes (and whether `?code=...` is present).
-3. Check Supabase Dashboard → Authentication → URL Configuration:
-   - Site URL value.
-   - Redirect URLs allow list (whether `https://www.studioloom.org/auth/callback*` is present).
-4. Check Vercel domain config: which is the primary (apex or www).
-
-**Why deferred:** Sign-in completes successfully; this is cosmetic. Matt
-chose to revisit later.
-
-**Done when:**
-1. Network-tab trace captured.
-2. Root cause identified.
-3. Sign-in lands on dashboard with no intermediate landing-page render.
-4. Confirmed in incognito for both Microsoft and Google.
+**Lesson learned:** Supabase URL Configuration must align with Vercel's canonical hostname. When apex 307-redirects to www, putting only apex entries in the allow list forces fallback chains that surface as cosmetic UX glitches (and could surface as actual auth failures under different conditions). Future projects: set Site URL to the www form on day one when Vercel canonical is www.
 
 ---
+
