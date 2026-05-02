@@ -546,6 +546,46 @@ SELECT * FROM lookup_school_by_domain('gmail.com');     -- should return 0 rows 
 
 **Stop trigger:** Concurrent-confirmer race produces inconsistent state → STOP, transaction logic bug. Cron expiry skips a row → STOP, query bug.
 
+---
+
+#### Phase 4.3 — COMPLETED (2 May 2026, ~partial — see deferrals)
+
+Migration `20260502034114_phase_4_3_school_setting_changes` minted, claimed, and SQL body written. Two tables + two enums + four indexes + four RLS policies + one SECURITY DEFINER helper, all tested.
+
+**Brief refinements vs scope:**
+- **Cron route deferred** to next pass within §4.3 (or fold into §4.4 settings page work). The MIGRATION + helper + tier-resolvers + governance helpers (propose/confirm/revert) are the load-bearing pieces. Cron handles bookkeeping (expire pending past 48h, dormant downgrade after 90d, bootstrap auto-close on 2nd-teacher join) — important but not blocking the §4.4 UI build. Filed as **Phase 4.3.x cron pass** (~0.5 day) to land before §4.10 smoke.
+- **Bootstrap auto-close trigger deferred** to §4.4 (where the schools-membership write surface lives). Trigger fires on `INSERT INTO teachers WITH school_id = X` when count goes 1→2; sets `bootstrap_expires_at = now()`.
+- **Audit-events instrumentation deferred to §4.5** (per master spec — Phase 5 wires `logAuditEvent()` everywhere). Phase 4.3 helpers do NOT emit audit_events rows; the `school_setting_changes` table itself IS the audit trail for governance changes.
+- **Routes that consume governance** (e.g. PATCH /api/school/[id]/settings) land in §4.4. The §4.2-deferred DELETE for school_domains shipped here using the `proposeSchoolSettingChange` helper.
+
+**4 new TS files:**
+- `governance/tier-resolvers.ts` — context-aware classifier (§3.8 Q2). 32 tests.
+- `governance/setting-change.ts` — propose / confirm / revert helpers. Discriminated-union return types. 17 tests.
+- `app/api/school/[id]/domains/[domainId]/route.ts` — DELETE wired through governance. 12 tests.
+- (existing) `governance/types.ts` + `governance/rollout-flag.ts` from §4.0 are now consumed by these files.
+
+**Bootstrap grace built into helper:** `proposeSchoolSettingChange` reads `schools.bootstrap_expires_at`; if `NULL` or `> now()`, downgrades `effectiveTier` from `high_stakes` to `low_stakes` (auto-confirms). Records the override in `payload.scope.bootstrap_grace_applied=true` for audit clarity. Once bootstrap closes, never reopens (per §3.8 Q6).
+
+**Tests added (84):**
+- Migration shape: 23
+- Tier resolvers: 32 (per-resolver edge cases + 13 always-high + 14 always-low + unknown fallback)
+- Governance helpers: 17 (kill-switch, archived guard, rate limit, tier resolution, bootstrap grace, version stamp, forcedTier, confirm 5 paths, revert 4 paths)
+- DELETE route: 12 (auth, UUIDs, cross-school, missing-domain, low-stakes happy, high-stakes pending, rate-limited, archived, governance-disabled, payload shape, delete-failed-after-propose)
+
+**Tests:** 2987 → 3080 (+93). 0 regressions. tsc strict clean.
+
+**Commits on `access-model-v2-phase-4`** (pushed to origin as WIP backup):
+- `54d7f71` claim(migrations): reserve phase_4_3_school_setting_changes timestamp
+- `230215c` feat: Phase 4.3 — school_setting_changes governance schema
+- `2b35292` test: Phase 4.3 — schema migration shape test (23 tests)
+- `e1f810d` feat: Phase 4.3 — context-aware tier resolvers (§3.8 Q2 upgrade)
+- `3d8f515` feat: Phase 4.3 — proposeSchoolSettingChange / confirm / revert helpers
+- `a97c401` feat: Phase 4.3 — DELETE /api/school/[id]/domains/[domainId] via governance
+
+**Migration NOT YET APPLIED to prod.** Schema-only, idempotent. Apply when ready — the helper is also gated by `school.governance_engine_rollout` admin_settings flag (Phase 4.0), so even if migration applies before settings UI is live, no behaviour leaks.
+
+**Sub-phase status: ✅ COMPLETE — minus deferred cron + audit-events instrumentation (tracked, not blocking).** Next: Phase 4.4 — `/school/[id]/settings` page + activity feed + multi-campus + archived banner + i18n + bootstrap auto-close trigger (~1.5 days).
+
 ### Phase 4.4 — `/school/[id]/settings` page + activity feed + multi-campus + archived guard + i18n (~1.5 day)
 
 **Output:**
