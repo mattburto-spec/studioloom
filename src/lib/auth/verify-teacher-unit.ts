@@ -96,7 +96,11 @@ async function buildTeacherSessionForShim(
 ): Promise<ActorSession> {
   const db = createAdminClient();
   const [teacherResult, profileResult] = await Promise.all([
-    db.from("teachers").select("school_id").eq("id", teacherId).maybeSingle(),
+    db
+      .from("teachers")
+      .select("school_id, subscription_tier")
+      .eq("id", teacherId)
+      .maybeSingle(),
     db
       .from("user_profiles")
       .select("is_platform_admin")
@@ -104,12 +108,44 @@ async function buildTeacherSessionForShim(
       .maybeSingle(),
   ]);
 
+  // Phase 4.8b — resolve effective subscription tier. Cascade:
+  //   teacher tier (Pro Teacher self-serve) → school tier → 'free'
+  let plan: "pilot" | "free" | "starter" | "pro" | "school" = "free";
+  const teacherTier = teacherResult.data?.subscription_tier as
+    | "pilot"
+    | "free"
+    | "starter"
+    | "pro"
+    | "school"
+    | undefined;
+  if (
+    teacherTier &&
+    teacherTier !== "free" &&
+    ["pilot", "free", "starter", "pro", "school"].includes(teacherTier)
+  ) {
+    plan = teacherTier;
+  } else if (teacherResult.data?.school_id) {
+    const { data: schoolRow } = await db
+      .from("schools")
+      .select("subscription_tier")
+      .eq("id", teacherResult.data.school_id)
+      .maybeSingle();
+    const schoolTier = schoolRow?.subscription_tier;
+    if (
+      schoolTier &&
+      ["pilot", "free", "starter", "pro", "school"].includes(schoolTier)
+    ) {
+      plan = schoolTier as typeof plan;
+    }
+  }
+
   return {
     type: "teacher",
     teacherId,
     userId: teacherId,
     schoolId: teacherResult.data?.school_id ?? null,
     isPlatformAdmin: profileResult.data?.is_platform_admin ?? false,
+    plan,
   };
 }
 

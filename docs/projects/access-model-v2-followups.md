@@ -711,3 +711,32 @@ would expose them. Defensive gate worthwhile pre-pilot expansion.
 2. /admin/school/[id] route is exempt (platform admin path).
 3. Smoke test: as a free-tier teacher attached to a multi-teacher
    legacy seed school, /school/[id]/settings shows only their own row.
+
+---
+
+## FU-FREEMIUM-FLAGS-PLAN-ANNOTATION
+**Priority:** P3
+**Surfaced:** Phase 4.8b freemium-seam bake-in (3 May 2026)
+**Target gate:** Pre-freemium-build kickoff
+
+**Symptom:** Phase 4.8b added the `requires_plan` schema field to
+`docs/feature-flags-taxonomy.md` but only annotated 1 exemplar flag
+(`pipeline.stage_enabled` → `requires_plan: free`). The other 14
+flag-kind entries in `docs/feature-flags.yaml` lack the field.
+
+**Why deferred:** Per-flag annotation is mechanical but requires a
+real product call on each — should `pipeline.starter_patterns_enabled`
+be free or pro? Should `auth.permission_helper_rollout` be school?
+The freemium build will iterate on these; trying to do it in 4.8b
+without the tier-feature matrix decisions risks landing wrong defaults.
+
+**Done when:**
+1. Tier-feature matrix decisions signed off (PRODUCT call before
+   freemium build).
+2. Each flag-kind entry annotated with `requires_plan` matching the
+   matrix.
+3. The flag-reading wrapper (Phase 5+ when wired) consumes the field
+   and returns the safe-fallback default when caller's tier is below.
+
+**Why P3:** field exists today as schema-only; freemium build can
+add via sed once matrix lands. Not blocking access-v2 close.

@@ -70,6 +70,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // Types
 // ─────────────────────────────────────────────────────────────────────────
 
+export type SubscriptionTier =
+  | "pilot"
+  | "free"
+  | "starter"
+  | "pro"
+  | "school";
+
 export interface StudentSession {
   type: "student";
   /** students.id — the student PK (UUID; distinct from auth.users.id) */
@@ -78,6 +85,12 @@ export interface StudentSession {
   userId: string;
   /** students.school_id — denormalised from Phase 0.3; required for school-scoped reads */
   schoolId: string | null;
+  /**
+   * Phase 4.8b — effective subscription tier. Resolved from
+   * schools.subscription_tier of student's school; 'free' fallback
+   * when no school. Students don't have personal subscription_tier.
+   */
+  plan: SubscriptionTier;
 }
 
 export interface TeacherSession {
@@ -90,6 +103,16 @@ export interface TeacherSession {
   schoolId: string | null;
   /** user_profiles.is_platform_admin — gates Matt's super-admin views */
   isPlatformAdmin: boolean;
+  /**
+   * Phase 4.8b — effective subscription tier. Cascade resolution:
+   *   teachers.subscription_tier (Pro Teacher self-serve)
+   *   → schools.subscription_tier (school-tier inheritance)
+   *   → 'free' fallback
+   * Pre-resolved at session build time so downstream gating doesn't
+   * pay a round-trip cost. The freemium build later wraps this with
+   * the can(...){requiresTier} chokepoint.
+   */
+  plan: SubscriptionTier;
 }
 
 export type ActorSession = StudentSession | TeacherSession;
@@ -133,11 +156,21 @@ async function buildStudentSession(
     return null;
   }
 
+  // Phase 4.8b — resolve subscription tier from student's school.
+  // Students don't have a personal subscription_tier; they inherit
+  // from school. 'free' fallback when no school.
+  const plan = await resolveTier({
+    teacherId: null,
+    schoolId: row.school_id ?? null,
+    db: supabaseAdmin,
+  });
+
   return {
     type: "student",
     studentId: row.id,
     userId: user.id,
     schoolId: row.school_id ?? null,
+    plan,
   };
 }
 
@@ -154,9 +187,10 @@ async function buildTeacherSession(
   supabaseAdmin: SupabaseClient
 ): Promise<TeacherSession | null> {
   const [teacherResult, profileResult] = await Promise.all([
+    // Phase 4.8b extends the select to include subscription_tier
     supabaseAdmin
       .from("teachers")
-      .select("id, school_id")
+      .select("id, school_id, subscription_tier")
       .eq("id", user.id)
       .maybeSingle(),
     supabaseAdmin
@@ -171,13 +205,78 @@ async function buildTeacherSession(
     return null;
   }
 
+  // Phase 4.8b — cascade tier resolution. teacher tier wins; else
+  // school inherits; else 'free' fallback.
+  const teacherTier =
+    (teacherResult.data.subscription_tier as SubscriptionTier | undefined) ??
+    null;
+  const plan = await resolveTier({
+    teacherId: user.id,
+    schoolId: teacherResult.data.school_id ?? null,
+    teacherTier,
+    db: supabaseAdmin,
+  });
+
   return {
     type: "teacher",
     teacherId: teacherResult.data.id,
     userId: user.id,
     schoolId: teacherResult.data.school_id ?? null,
     isPlatformAdmin: profileResult.data?.is_platform_admin ?? false,
+    plan,
   };
+}
+
+/**
+ * Phase 4.8b — cascade tier resolution helper.
+ *
+ *   teacher tier (Pro Teacher self-serve, if set on teachers row)
+ *   → school tier (inherited from schools.subscription_tier)
+ *   → 'free' fallback
+ *
+ * Called inline from session-build functions. No round-trip cost
+ * beyond what's already happening (tier joins via the same admin
+ * client; the student path adds one schools query when school_id
+ * is set). The freemium build later replaces this with admin_settings
+ * tier-default lookups.
+ */
+async function resolveTier(args: {
+  teacherId: string | null;
+  schoolId: string | null;
+  teacherTier?: SubscriptionTier | null;
+  db: SupabaseClient;
+}): Promise<SubscriptionTier> {
+  // Teacher tier wins (Pro Teacher self-serve)
+  if (
+    args.teacherTier &&
+    args.teacherTier !== "free" &&
+    isValidTier(args.teacherTier)
+  ) {
+    return args.teacherTier;
+  }
+
+  // School-tier inheritance
+  if (args.schoolId) {
+    const { data } = await args.db
+      .from("schools")
+      .select("subscription_tier")
+      .eq("id", args.schoolId)
+      .maybeSingle();
+    if (data?.subscription_tier && isValidTier(data.subscription_tier)) {
+      return data.subscription_tier as SubscriptionTier;
+    }
+  }
+
+  // Fallback — covers (a) no school context, (b) school lookup failed,
+  // (c) teacher.subscription_tier was 'free' (fall through to school
+  // inheritance, which may also be 'free'/'pilot').
+  return args.teacherTier && isValidTier(args.teacherTier)
+    ? args.teacherTier
+    : "free";
+}
+
+function isValidTier(value: string): value is SubscriptionTier {
+  return ["pilot", "free", "starter", "pro", "school"].includes(value);
 }
 
 // ─────────────────────────────────────────────────────────────────────────

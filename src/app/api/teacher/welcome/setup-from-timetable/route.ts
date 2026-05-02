@@ -26,6 +26,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
+import { enforceClassCreateLimit } from "@/lib/access-v2/plan-gates";
 import { generateClassCode } from "@/lib/utils";
 
 // Multiple class inserts + timetable save — unlikely to hit this but be safe
@@ -134,6 +135,22 @@ export const POST = withErrorHandler(
       return NextResponse.json(
         { error: "Teacher missing school context" },
         { status: 500 }
+      );
+    }
+
+    // Phase 4.8b — plan-gate chokepoint (pass-through today; freemium
+    // build wires real per-tier max_active_classes count).
+    const planGate = await enforceClassCreateLimit(teacherId);
+    if (!planGate.ok) {
+      return NextResponse.json(
+        {
+          error: `Class create limit reached for your plan (${planGate.tier}): ${planGate.current}/${planGate.cap}.`,
+          reason: planGate.reason,
+          tier: planGate.tier,
+          cap: planGate.cap,
+          current: planGate.current,
+        },
+        { status: 422 }
       );
     }
 

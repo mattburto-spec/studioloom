@@ -24,6 +24,7 @@ flags:
     required: false
     type: json
     scope: runtime
+    requires_plan: free   # Phase 4.8b — exemplar; full annotation pass via FU-FREEMIUM-FLAGS-PLAN-ANNOTATION
     default: '{"retrieve": true, "assemble": true, "gap_fill": true, "polish": true, "timing": true, "score": true}'
     description: Per-stage on/off toggles for the generation pipeline
     consumers:

@@ -28,6 +28,7 @@
 | `default` | string \| number \| bool \| object | The fallback value used when the flag is unset |
 | `type` | `boolean` \| `number` \| `string` \| `json` \| `email_list` | Data type for validation |
 | `scope` | `runtime` \| `build` \| `test` | When this flag is read — runtime (request-time), build (compile-time), test (CI only) |
+| `requires_plan` | `public` \| `free` \| `pro` \| `school` | **Phase 4.8b** — minimum subscription tier required to use the gated feature. The flag-reading wrapper consults this when present; absence = `free` (universally available). Used by the post-access-v2 freemium build for tier-gated UX. NOT applicable to secrets. |
 
 ### Secret-only fields
 
@@ -54,3 +55,10 @@ When adding a new flag:
 2. Verify at least one consumer file path exists.
 3. If the flag has a default, ensure the default matches the fallback in code.
 4. If the flag is a secret, add it to `.env.example` with a placeholder value.
+5. **Phase 4.8b** — for `kind: flag`, decide the minimum tier required and set `requires_plan`. If the feature should work universally, omit the field (treated as `free`). Examples: `pipeline.starter_patterns_enabled` → `free` (everyone gets starters); `school.library_browse` (future) → `school` (school-tier only).
+
+## Tier ordering for `requires_plan`
+
+`public < free < pro < school`. A flag with `requires_plan: pro` is satisfied by both `pro` and `school` plans. A flag with `requires_plan: public` is universally available (including unauthenticated requests).
+
+Flag-reader wrappers (Phase 5+ when wired into routes / UI) should consult the user's resolved tier (via ActorSession.plan) and refuse the feature when below `requires_plan`. Today the field is schema-only — no consumer reads it; the freemium build adds the gate.

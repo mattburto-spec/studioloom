@@ -35,8 +35,14 @@ interface MockState {
     | null;
   authError: { message: string } | null;
   studentRow: { id: string; school_id: string | null } | null;
-  teacherRow: { id: string; school_id: string | null } | null;
+  teacherRow: {
+    id: string;
+    school_id: string | null;
+    subscription_tier?: string;
+  } | null;
   profileRow: { is_platform_admin: boolean } | null;
+  // Phase 4.8b — schools row consumed by resolveTier()
+  schoolRow?: { subscription_tier: string } | null;
 }
 
 let state: MockState;
@@ -48,6 +54,7 @@ beforeEach(() => {
     studentRow: null,
     teacherRow: null,
     profileRow: null,
+    schoolRow: null,
   };
 });
 
@@ -99,6 +106,21 @@ vi.mock("@/lib/supabase/admin", () => ({
             eq: () => ({
               maybeSingle: async () => ({
                 data: state.profileRow,
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === "schools") {
+        // Phase 4.8b — resolveTier looks up schools.subscription_tier.
+        // Default to 'free' if test doesn't override; tests can stamp
+        // state.schoolRow to inject a school-tier school.
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: state.schoolRow ?? { subscription_tier: "free" },
                 error: null,
               }),
             }),
@@ -170,6 +192,8 @@ describe("getActorSession", () => {
       studentId: "students-pk-1",
       userId: "auth-stu-1",
       schoolId: "school-1",
+      // Phase 4.8b — plan resolved from school's tier (mock returns 'free' default)
+      plan: "free",
     });
   });
 
@@ -201,6 +225,8 @@ describe("getActorSession", () => {
       userId: "auth-tch-1",
       schoolId: "school-1",
       isPlatformAdmin: false,
+      // Phase 4.8b — plan resolved from school (mock returns 'free' default)
+      plan: "free",
     });
   });
 

@@ -55,6 +55,7 @@ import {
   requireTeacherAuth,
   verifyTeacherOwnsClass,
 } from "@/lib/auth/verify-teacher-unit";
+import { enforceEnrollmentLimit } from "@/lib/access-v2/plan-gates";
 import { provisionStudentAuthUserOrThrow } from "@/lib/access-v2/provision-student-auth-user";
 
 interface CreateStudentBody {
@@ -122,6 +123,22 @@ export const POST = withErrorHandler(
         return NextResponse.json(
           { error: "Class not found or not yours" },
           { status: 403 }
+        );
+      }
+
+      // Phase 4.8b — plan-gate chokepoint for enrollment (pass-through
+      // today; freemium build wires per-tier max_students_per_class).
+      const enrollmentGate = await enforceEnrollmentLimit(classId);
+      if (!enrollmentGate.ok) {
+        return NextResponse.json(
+          {
+            error: `Enrollment limit reached for your plan (${enrollmentGate.tier}): ${enrollmentGate.current}/${enrollmentGate.cap}.`,
+            reason: enrollmentGate.reason,
+            tier: enrollmentGate.tier,
+            cap: enrollmentGate.cap,
+            current: enrollmentGate.current,
+          },
+          { status: 422 }
         );
       }
     }
