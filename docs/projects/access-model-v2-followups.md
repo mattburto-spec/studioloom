@@ -664,3 +664,50 @@ in a new tab with as_token set.
 3. Auth.users existing-as-student check added to teacher signup path.
 4. Smoke test: student email cannot complete teacher signup at flagged domain.
 
+
+---
+
+## FU-AV2-TEACHER-DIRECTORY-ROUTE-GATE
+**Priority:** P3
+**Surfaced:** Phase 4.7b-3 tier-gate work (3 May 2026 PM)
+**Target gate:** Pre-pilot expansion to 2nd school
+
+**Symptom:** The 4.7b-3 RLS migration tier-gates 4 leak surfaces that
+expose school-wide reads to non-school-tier teachers (`audit_events`,
+`student_mentors`, `school_resources`, `guardians`). It does NOT tier-gate
+the **teacher directory** because:
+
+1. There is no teachers RLS policy for school-wide reads (mig 001 only
+   has `Teachers read own profile` USING `auth.uid() = id`). The
+   /admin/school/[id] super-admin route fetches the school's teacher
+   list via service role + `requirePlatformAdmin` gate.
+2. The /school/[id]/settings page also fetches teacher list server-side.
+
+So the leak isn't via RLS but via routes that query teachers via service
+role. Today both surfaces are tier-blind — they'd return the teacher
+list for ANY school regardless of tier.
+
+**Why deferred to FU vs included in 4.7b-3:**
+The two consuming routes are:
+- `/api/admin/school/[id]` — already platform-admin only, so the
+  "tier check" would just be defensive. Platform admin sees everything
+  by design.
+- `/school/[id]/settings` (server component) — this fetches teachers
+  for display. Currently tier-blind.
+
+For the second route, the question is whether non-school-tier teachers
+should see a teacher list at all. Under tier-aware membership, free/pro
+teachers are in personal schools (single member) — there's nothing to
+list. So the route already returns 1 row (themselves). No leak today.
+
+If a non-school-tier school somehow gets multiple teachers (e.g. legacy
+seed schools that get teachers added directly via SQL), the route
+would expose them. Defensive gate worthwhile pre-pilot expansion.
+
+**Done when:**
+1. /school/[id]/settings server component checks the school's tier
+   before fetching the teacher list. If tier != 'school', show only
+   `auth.uid()` row.
+2. /admin/school/[id] route is exempt (platform admin path).
+3. Smoke test: as a free-tier teacher attached to a multi-teacher
+   legacy seed school, /school/[id]/settings shows only their own row.
