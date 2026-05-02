@@ -321,3 +321,97 @@ program mentorship case hasn't shipped UX.
 
 ---
 
+
+## FU-AV2-PHASE-4-4D-NEXT-INTL
+**Priority:** P3
+**Surfaced:** Phase 4.4d (2 May 2026)
+**Target gate:** When 2nd-locale demand arrives (no current need)
+
+**Symptom:** §3.9 item 18 specced bringing `next-intl` into `/school/[id]/settings`
+on day 1 so second-locale ships as a config addition. In execution, the
+required infrastructure (next.config.js changes, middleware locale routing,
+`[locale]` dynamic segment, message-file scaffolding, all-strings extraction)
+is ~2 hours of work for ZERO user-visible benefit in v1 (English-only).
+
+**Decision:** Defer per methodology default — "don't add infrastructure for
+hypothetical future requirements." All Phase 4.4 settings page strings stay
+inline English. When a 2nd-locale request lands (any pilot school requesting
+zh-CN, or NIS internal demand), this FU is the entry point.
+
+**Done when:**
+1. `next-intl` installed + `next.config.js` configured
+2. `[locale]` dynamic segment added to app routes (or per-route locale
+   prefix per Next.js 15 conventions)
+3. `messages/en.json` extracted from `/school/[id]/settings` strings (and
+   any other 4.4 settings UI by then)
+4. Settings page strings replaced with `useTranslations('school.settings')`
+   calls
+5. Smoke: locale=`zh-CN` URL serves Chinese strings (paste at least 5
+   placeholder Chinese translations to prove it routes)
+
+**Why deferred:** No user-visible value in v1. English-only meets pilot
+need. Adding now would 2x the §4.4 PR diff for zero ship value.
+
+---
+
+## FU-AV2-PHASE-4-3WAY-LIVE-DIFF
+**Priority:** P3
+**Surfaced:** Phase 4.4d (2 May 2026)
+**Target phase:** Phase 4 polish (post-A5a)
+
+**Symptom:** Per master spec §3.9 item 14, the confirm flow should show a
+3-way diff (proposed-before → CURRENT-NOW → after) so the 2nd teacher can
+spot staleness if the value moved during the 48h pending window. Phase
+4.4d ships a 2-way preview (proposed-before → after) with Confirm/Cancel
+buttons — a real review-before-confirm UX win, but not the full live diff.
+
+**Cause:** The full 3-way diff requires a client-layer mapping from
+`change_type` → `schools` column so the modal can fetch the live
+current value to compare against `payload.before_at_propose`. The
+applier registry already has this mapping server-side; replicating it
+client-side OR exposing it via the route is its own pass.
+
+**Done when:**
+1. Mapping `change_type → schools.column` available client-side (probably
+   exposed via a new `GET /api/school/[id]/settings/diff?changeType=X&proposedBefore=Y`
+   endpoint that returns the live value, or via an inline server-component
+   pre-fetch)
+2. Confirm dialog renders 3 columns: proposed-before / current-now / after
+3. Stale-value warning rendered when `current ≠ proposed-before`
+4. Test asserts: when current value differs, dialog shows ⚠ Stale banner
+
+**Why deferred:** 4.4d's 2-way preview already gives the confirmer a review
+moment (the material UX win). Live 3-way is polish for the staleness edge
+case (rare in practice — most proposals get confirmed within hours of the
+48h window).
+
+---
+
+## FU-AV2-PHASE-4-PER-FIELD-INHERITANCE-BADGES
+**Priority:** P3
+**Surfaced:** Phase 4.4d (2 May 2026)
+**Target phase:** Phase 4.8 (when JSONB columns land) OR Phase 4 polish
+
+**Symptom:** §3.9 item 13 specced per-field "↑ inherited from {parent name}"
+badges on the settings UI for inheritable columns when `parent_school_id`
+is set. Phase 4.4d ships the campus breadcrumb in the page header but NOT
+per-field badges — because all `INHERITABLE_COLUMNS` per
+`parent-precedence.ts` (academic_calendar_jsonb, timetable_skeleton_jsonb,
+frameworks_in_use_jsonb, default_grading_scale,
+notification_branding_jsonb, safeguarding_contacts_jsonb,
+default_student_ai_budget) are Phase 4.8 columns that don't exist yet.
+
+**Cause:** Per-field badges have nothing to mark today.
+
+**Done when:**
+1. Phase 4.8 ships the JSONB columns
+2. Settings page calls `resolveSchoolSettings()` (already implemented) to
+   compute inherited values
+3. Each settings section renders an "↑ inherited from {parent name}" badge
+   next to fields where `result.source === 'inherited'`
+4. Editing a field overrides locally; clearing falls back to parent
+
+**Why deferred:** No fields to mark until 4.8 ships. Infrastructure is
+already in place (resolveSchoolSettings helper from §4.0); badges are
+plug-and-play once columns exist.
+
