@@ -123,28 +123,9 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // Phase 3.5 smoke diagnostic — surface any per-query errors so we can
-  // see why a query returned empty (e.g. RLS, schema cache, embed fail).
-  // TODO: remove after Phase 3 close-out. Tracked: FU-AV2-PHASE-3-DEBUG-CLEANUP.
-  const debug = {
-    class_members: {
-      count: classRes.data?.length ?? 0,
-      error: classRes.error?.message ?? null,
-    },
-    student_mentors: {
-      count: mentorRes.data?.length ?? 0,
-      error: mentorRes.error?.message ?? null,
-    },
-    school_responsibilities: {
-      count: respRes.data?.length ?? 0,
-      error: respRes.error?.message ?? null,
-    },
-  };
-
   return NextResponse.json(
     {
       scopes,
-      _debug: debug,
       fetched_at: new Date().toISOString(),
     },
     {
