@@ -740,3 +740,58 @@ without the tier-feature matrix decisions risks landing wrong defaults.
 
 **Why P3:** field exists today as schema-only; freemium build can
 add via sed once matrix lands. Not blocking access-v2 close.
+
+---
+
+## FU-AV2-DEPT-HEAD-UI
+**Priority:** P2
+**Surfaced:** Phase 4.9 dept_head triggers (3 May 2026)
+**Target gate:** Pre-pilot expansion to 2nd school
+
+**Symptom:** Phase 4.9 ships the data model + auto-tag triggers for
+the dept_head role, but no UI surface to grant/revoke or display the
+role. Today the only way to attach a dept_head responsibility is via
+service-role SQL INSERT (which fires the auto-tag trigger correctly).
+
+**What's needed:**
+
+1. **Settings page Section J (school-tier only): Departments + dept_heads**
+   - List existing departments at the school (distinct values from
+     `classes.department`).
+   - Per-department: list current dept_heads (school_responsibilities
+     rows of type='dept_head' for that department).
+   - "Grant dept_head" button → modal: pick teacher (filtered to
+     school's teachers) → confirm → POST creates responsibility →
+     trigger auto-grants class_members.
+
+2. **RoleChip variant for dept_head**
+   - `class_members.role = 'dept_head'` should render as a distinct
+     coloured chip (vs lead_teacher / co_teacher) on the class hub
+     teacher list. Shows that this person was auto-tagged as a
+     department coordinator (vs explicitly invited as a co-teacher).
+
+3. **Department picker on class settings**
+   - When creating/editing a class, expose a `department` dropdown
+     populated from `classes.department` distinct values + manual
+     entry. Setting it triggers the resync trigger (auto-add dept_head
+     class_members for the new department's coordinators).
+
+4. **/admin/school/[id] surfacing**
+   - Roles tab in the super-admin view shows all
+     school_responsibilities rows (academic + governance). Already
+     hinted at by the existing tab nav; just needs the list rendered.
+
+**Why deferred:** Phase 4.9 closed FU-AV2-DEPT-HEAD-DEPARTMENT-MODEL
+on the data side. UI surface is real product work (~1 day) that
+doesn't block the pilot — NIS today has 0 dept_head responsibilities
+and the auto-tag triggers fire correctly when added via SQL Editor.
+P2 because it's needed before any 2nd school onboarding (where
+multiple departments are likely).
+
+**Done when:**
+1. Settings Section J renders + grant flow works end-to-end.
+2. RoleChip variant shows on class teacher lists.
+3. Class settings has a department picker.
+4. /admin/school/[id] Roles tab populated.
+5. Smoke: grant dept_head via UI → class_members rows auto-tagged →
+   teacher sees the relevant classes in their dashboard.
