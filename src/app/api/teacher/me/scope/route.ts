@@ -54,15 +54,22 @@ export async function GET(request: NextRequest) {
   // Fan out three reads in parallel. Each one is RLS-respecting via the
   // SSR client. Phase 0 RLS lets a teacher read their own class_members /
   // student_mentors (mentor self-read) / school_responsibilities (same-school).
+  // Explicit !fkname syntax on embeds — PostgREST auto-aliases relationships
+  // as `<table>_1`, `<table>_2` when the embed is even mildly ambiguous, which
+  // surfaced as `column students_1.name does not exist` on the
+  // student_mentors → students embed during Phase 3.5 smoke. Pinning the FK
+  // by constraint name avoids the alias and is forward-safe.
   const [classRes, mentorRes, respRes] = await Promise.all([
     db
       .from("class_members")
-      .select("class_id, role, classes(name)")
+      .select("class_id, role, classes!class_members_class_id_fkey(name)")
       .eq("member_user_id", auth.teacherId)
       .is("removed_at", null),
     db
       .from("student_mentors")
-      .select("student_id, programme, students(name)")
+      .select(
+        "student_id, programme, students!student_mentors_student_id_fkey(name)"
+      )
       .eq("mentor_user_id", auth.teacherId)
       .is("deleted_at", null),
     db
