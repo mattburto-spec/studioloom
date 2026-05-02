@@ -1,0 +1,12 @@
+-- Migration: phase_4_3_x_fix_handle_new_teacher_search_path
+-- Created: 20260502102745 UTC
+--
+-- WHY: <one paragraph — what problem does this migration solve?>
+-- IMPACT: <which tables/columns/indexes/RLS policies change?>
+-- ROLLBACK: paired .down.sql undoes this migration.
+--
+-- Claim discipline: commit + push this stub IMMEDIATELY (before writing
+-- the SQL body) so the timestamp is reserved on origin. See
+-- scripts/migrations/new-migration.sh for the full ritual.
+
+-- TODO: write SQL here
