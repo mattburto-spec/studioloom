@@ -125,6 +125,19 @@ async function loadAuthState() {
   };
 }
 
+async function loadParentSchool(
+  parentId: string | null,
+  admin: ReturnType<typeof createAdminClient>
+): Promise<{ id: string; name: string } | null> {
+  if (!parentId) return null;
+  const { data } = await admin
+    .from("schools")
+    .select("id, name")
+    .eq("id", parentId)
+    .maybeSingle();
+  return (data as { id: string; name: string } | null) ?? null;
+}
+
 async function loadPageData(schoolId: string) {
   const admin = createAdminClient();
   const guard = await enforceArchivedReadOnly(schoolId, admin);
@@ -189,8 +202,15 @@ async function loadPageData(schoolId: string) {
 
   if (!school) return null;
 
+  const schoolRow = school as unknown as SchoolRow;
+  const parentSchool = await loadParentSchool(
+    schoolRow.parent_school_id,
+    admin
+  );
+
   return {
-    school: school as unknown as SchoolRow,
+    school: schoolRow,
+    parentSchool,
     teacherCount: teacherCount ?? 0,
     pendingProposals: (pending ?? []) as unknown as SettingChangeRow[],
     recentChanges: (recent ?? []) as unknown as SettingChangeRow[],
@@ -221,8 +241,14 @@ export default async function SchoolSettingsPage({ params }: PageProps) {
     notFound();
   }
 
-  const { school, teacherCount, pendingProposals, recentChanges, readOnly } =
-    data;
+  const {
+    school,
+    parentSchool,
+    teacherCount,
+    pendingProposals,
+    recentChanges,
+    readOnly,
+  } = data;
 
   const bootstrapExpiry = school.bootstrap_expires_at
     ? new Date(school.bootstrap_expires_at)
@@ -239,6 +265,17 @@ export default async function SchoolSettingsPage({ params }: PageProps) {
           School Settings
         </div>
         <h1 className="text-2xl font-bold text-gray-900">{school.name}</h1>
+        {/* Phase 4.4d — multi-campus relationship breadcrumb. When this
+            school has a parent_school_id set, surface the parent campus
+            so teachers understand the inheritance chain. Per-field
+            inheritance badges land when Phase 4.8 adds the inheritable
+            JSONB columns (academic_calendar, timetable, etc.). */}
+        {parentSchool && (
+          <div className="text-xs text-purple-700">
+            🏛 Campus of <span className="font-semibold">{parentSchool.name}</span> —
+            settings without a local value inherit from the parent.
+          </div>
+        )}
         <div className="text-sm text-gray-500 flex flex-wrap items-center gap-2">
           <span>
             {school.city ? `${school.city}, ` : ""}
