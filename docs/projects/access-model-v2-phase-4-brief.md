@@ -730,6 +730,47 @@ The plumbing pass. After this lands, ANY school setting becomes editable via the
 
 **Sub-phase status: ✅ COMPLETE.** 4.4c next: confirm/dismiss buttons on pending proposals + revert buttons on activity feed + 3-way diff confirm modal. After 4.4c, the governance UX is fully interactive end-to-end.
 
+---
+
+#### Phase 4.4c — confirm + revert (interactive governance UI) (COMPLETED 2 May 2026)
+
+The interactivity pass. After this lands, the full governance lifecycle works end-to-end: propose → confirm (or expire) → apply → revert. The settings page IS the governance surface — not a placeholder anymore.
+
+**Phase 4.4c deliverables:**
+
+- **`POST /api/school/[id]/proposals/[changeId]/confirm`** — 2nd-teacher confirms a high-stakes pending proposal. Reads change row, calls `confirmHighStakesChange` (handles self-confirm-forbidden, not-pending, expired, optimistic concurrency), then `applyChange` with payload.after. Status mapping: 200 / 404 / 409 / 500 (apply_failed preserves changeId for retry via PATCH).
+
+- **`POST /api/school/[id]/changes/[changeId]/revert`** — same-school teacher reverts an applied change within 7 days. Calls `revertChange` (governance flip), then `applyChange` with `payload.before_at_propose` as newValue. Status mapping: 200 / 404 / 409 / 500. Special 500 with reason='missing_before_value' if payload schema integrity check fails.
+
+- **`PendingProposalsList`** client component (replaces §4.4a static list) — per-row Confirm button; self-proposed rows show a "Your proposal" badge instead of button (client UX nicety; server still enforces self_confirm_forbidden). Inline before/after value preview (`old → new`) on each row. Loading state + inline errors. `router.refresh()` on success.
+
+- **`ActivityFeed`** client component (replaces §4.4a static feed) — per-row status pill; Revert button on 'applied' rows within 7-day window; "revert window closed" note on older applied rows; no button for reverted/expired rows. Loading state + inline errors. `router.refresh()` on success.
+
+- **Page wire:** PendingProposalsList rendered when `!readOnly` (archived schools see no confirm UI; route also 403s regardless). ActivityFeed always rendered. `recentChanges` narrowed at the prop boundary via type-predicate filter (excludes 'pending'; SQL already filters but the type system hygiene matters).
+
+**Architectural pattern (load-bearing for future polish):**
+
+Both routes follow `governance flip → column write` order. If the column write fails after the audit-ledger flip, the route surfaces `apply_failed` with `changeId` preserved so the caller can re-apply via PATCH. This is the right tradeoff vs. rolling back the proposal — the audit trail of "intent + failure" is more useful than silently swallowing.
+
+**Phase 4.4d remaining work:**
+
+- 3-way diff modal on Confirm (proposed-before → current-now → after) to surface staleness when current value moved during the 48h window — the data is already in `payload.before_at_propose`; just needs a modal render
+- Multi-campus parent_school_id inheritance badges ("↑ inherited from {parent name}") on settings UI
+- Timezone smart-default in welcome wizard (`Intl.DateTimeFormat()` for fresh-school creation)
+- next-intl primitive bootstrap in `/school/[id]/settings` (English-only `messages/en.json`; second-locale ships as config addition)
+
+**Tests added (19):**
+- Confirm + revert routes: 19 (auth/validation/cross-school/missing/happy paths/governance failure modes/apply failures/missing-before-value)
+
+**Tests:** 3170 → 3189 (+19). 0 regressions. tsc strict clean (one type-narrowing fix at the ActivityFeed prop boundary).
+
+**Commits on `access-model-v2-phase-4`** (pushed to origin):
+- `425b867` feat: Phase 4.4c — POST confirm + revert routes
+- `6cafaac` test: Phase 4.4c — confirm + revert route tests (19 tests)
+- `395f6c9` feat: Phase 4.4c — interactive confirm + revert UI on settings page
+
+**Sub-phase status: ✅ COMPLETE.** Governance UX fully interactive end-to-end. 4.4d adds polish (3-way diff modal + multi-campus badges + timezone + i18n).
+
 ### Phase 4.4 — `/school/[id]/settings` page + activity feed + multi-campus + archived guard + i18n (~1.5 day)
 
 **Output:**
