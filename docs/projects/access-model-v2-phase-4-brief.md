@@ -268,6 +268,34 @@ Each sub-phase is a separate commit (Lesson #45 surgical changes; methodology ru
 
 **Stop trigger:** Any pre-flight Lesson re-read surfaces a contradiction with the brief that wasn't caught in audit → STOP, update brief.
 
+---
+
+#### Phase 4.0 — COMPLETED (2 May 2026)
+
+Active-sessions row claimed at `2026-05-02T10:30Z` for branch `access-model-v2-phase-4`. Migration timestamp `20260502024657_phase_4_0_governance_engine_rollout_flag` minted, claimed on origin (empty stub pushed before SQL body), then SQL body written + sanity DO-block.
+
+**4 scaffolds shipped + tested:**
+- `src/lib/access-v2/school/archived-guard.ts` — §3.9 item 16. 8 tests.
+- `src/lib/access-v2/school/parent-precedence.ts` — §3.9 item 13. 11 tests.
+- `src/lib/access-v2/governance/types.ts` — §3.9 item 14 (`PayloadV1` with `before_at_propose`/`after`/`scope`). + `TierResolver` signature for §3.8 Q2. No tests (types-only).
+- `src/lib/access-v2/governance/rollout-flag.ts` — §3.8 Q4 reader for `school.governance_engine_rollout` admin_settings flag. 4 tests.
+
+**i18n primitive verification (§3.9 item 18):** ZERO matches across `src/` and `package.json` for `next-intl`, `next-i18next`, `useTranslation`, `<Trans>`, `i18next`, `react-intl`. **Finding: the codebase has no i18n primitive yet.** Decision: §4.4's `/school/[id]/settings` page introduces `next-intl` (Next.js 15 App Router native; works with server components + middleware locale routing). Strings extracted via `useTranslations('school.settings')` namespace; English-only `messages/en.json` shipped in v1; second-locale ships as a config addition (new `messages/zh-CN.json` + `i18n/request.ts` resolver). **Adds ~0.5 day to §4.0 → 4.4 transition** (i18n bootstrap install + config), already absorbed in §9 buffer.
+
+**Tests:** 2895 → 2917 (+22, all passing). `npx tsc --noEmit --project tsconfig.check.json` clean. 0 regressions.
+
+**Commits on `access-model-v2-phase-4`** (pushed to origin as WIP backup):
+- `20ad9cd` claim(migrations): reserve phase_4_0_governance_engine_rollout_flag timestamp (stub)
+- `3698b02` feat: Phase 4.0 — school.governance_engine_rollout flag SQL body
+- `ec5aef4` feat: Phase 4.0 — archived-school read-only guard helper
+- `c621253` feat: Phase 4.0 — multi-campus parent-precedence helper
+- `4357f17` feat: Phase 4.0 — governance type contracts + rollout-flag accessor
+- (this commit) docs: Phase 4.0 completion notes + i18n primitive finding
+
+**Migration NOT YET APPLIED to prod.** Per the §4.3 plan, the rollout flag migration applies alongside the governance-engine schema (school_setting_changes + school_setting_changes_rate_state) so the flag-reader and the table that depends on it land together. Phase 4.1 (seed schools dataset) starts next.
+
+**Sub-phase status: ✅ COMPLETE.**
+
 ### Phase 4.1 — Seed schools dataset extension (~0.5 day)
 
 **Output:** 1 migration timestamped `<UTC>_phase_4_1_seed_schools_extension.sql` (data only, no schema). Adds ~120 schools across 6 markets to the existing 18 (mig 085_schools_seed). **Curation criteria (per §3.8 Q11): the seed exists so first-keystroke typeahead finds Matt's pilot prospects, NOT so the directory is "complete."** Each candidate passes 2 of 3 filters: (a) publicly lists D&T or Innovation faculty / makerspace / design-thinking programme on their site, (b) Matt has a connection or viable on-the-ground intro path (Mandarin colleagues, AustCham network, IB conference attendees), (c) teaches a framework Matt can demo (MYP / GCSE / IGCSE / PYP / A-Level / ACARA / PLTW). Distribution:
