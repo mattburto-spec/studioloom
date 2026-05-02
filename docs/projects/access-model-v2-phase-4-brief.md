@@ -701,6 +701,35 @@ First-pass scaffolding for the teacher-facing school settings page. Phase 4.4 wa
 
 **Sub-phase status: ✅ COMPLETE.** Foundation laid. 4.4b adds the meat (editable sections).
 
+---
+
+#### Phase 4.4b — universal PATCH endpoint + Identity editable section (COMPLETED 2 May 2026)
+
+The plumbing pass. After this lands, ANY school setting becomes editable via the same PATCH endpoint — adding a new section is a UI change + maybe a column. The governance / tier resolution / bootstrap grace / rate limit / version stamping / audit ledger all work transparently for any change_type the resolver + applier registries know about.
+
+**Phase 4.4b deliverables:**
+
+- **`src/lib/access-v2/governance/applier.ts`** — maps change_type → actual column update on schools (or insert/delete on school_domains for domain ops). 22 change_types registered across 9 setting categories. Many target Phase 4.8 columns that don't exist yet (academic_calendar_jsonb, timetable_skeleton_jsonb, etc.) — registry pre-wires them so when 4.8 ships, no PATCH-route code change needed. Unknown change_type returns explicit `reason='unknown_change_type'` (no silent no-ops).
+
+- **`PATCH /api/school/[id]/settings`** — universal settings endpoint. Accepts `{ changeType, currentValue, newValue, scope? }`. Composes the version-stamped PayloadV1, calls `proposeSchoolSettingChange`, and (if applied) calls `applyChange`. Returns ProposeResult mapped to HTTP status (200 applied / 202 pending / 429 rate-limited / 403 archived / 404 cross-school / 501 governance-disabled / 500 apply-failed). Same status-mapping pattern as §4.3 DELETE.
+
+- **`IdentitySection`** client component on the settings page — 6 editable fields (name, city, country, region, timezone, default_locale). Per-field Save with loading state + inline errors. Tier-aware UI: high-stakes fields show a tier badge that flips between "needs 2 teachers" (post-bootstrap) and "single-teacher: instant" (during bootstrap), and the Save button labels correspondingly ("Save" vs "Propose"). 200 → "Saved ✓"; 202 → "Pending — needs another teacher to confirm by {expiresAt}".
+
+**Pattern proven:** Adding the next 8 sections (Calendar, Timetable, Frameworks, Auth Policy, AI Policy, Branding, Safeguarding, Content Sharing) is now mostly a UI exercise — copy IdentitySection's pattern, change field list, point at the corresponding change_types. The governance flow is identical for every section.
+
+**Tests added (33):**
+- Applier: 17 (every column update + insert + delete + invalid payloads + db_error + unknown change_type + registry coverage)
+- PATCH route: 16 (auth + validation + happy paths + version-stamped payload + applyChange called + high-stakes pending + 5 failure-status mappings + Cache-Control on 200/202)
+
+**Tests:** 3137 → 3170 (+33). 0 regressions. tsc strict clean.
+
+**Commits on `access-model-v2-phase-4`** (pushed to origin):
+- `18eb400` feat: Phase 4.4b — governance applier (change_type → column update)
+- `e03f030` feat: Phase 4.4b — PATCH /api/school/[id]/settings (universal settings endpoint)
+- `c277971` feat: Phase 4.4b — editable Identity section on /school/[id]/settings
+
+**Sub-phase status: ✅ COMPLETE.** 4.4c next: confirm/dismiss buttons on pending proposals + revert buttons on activity feed + 3-way diff confirm modal. After 4.4c, the governance UX is fully interactive end-to-end.
+
 ### Phase 4.4 — `/school/[id]/settings` page + activity feed + multi-campus + archived guard + i18n (~1.5 day)
 
 **Output:**
