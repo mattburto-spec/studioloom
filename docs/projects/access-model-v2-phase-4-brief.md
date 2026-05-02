@@ -771,6 +771,92 @@ Both routes follow `governance flip → column write` order. If the column write
 
 **Sub-phase status: ✅ COMPLETE.** Governance UX fully interactive end-to-end. 4.4d adds polish (3-way diff modal + multi-campus badges + timezone + i18n).
 
+---
+
+#### Phase 4.4d — polish + Checkpoint A5a (COMPLETED 2 May 2026)
+
+The polish pass that closes Phase 4.4 entirely. Three deliverables shipped + three deferred to follow-ups, leaving a coherent shippable settings UX surface.
+
+**Phase 4.4d shipped:**
+
+- **Timezone smart-default for fresh school creation.** `POST /api/schools` accepts an optional `timezone` field (IANA string, validated). SchoolPicker's "Add your school" fallback auto-detects browser timezone via `Intl.DateTimeFormat().resolvedOptions().timeZone` and includes it in the POST body. Teacher-invisible at create-time; editable later via `/school/[id]/settings` Identity section. Existing schools opt-in only (per Q10 sign-off). Defensive guards on both server and client.
+
+- **Multi-campus parent breadcrumb on settings header.** `loadParentSchool()` server-side helper fetches parent's id+name when `school.parent_school_id IS NOT NULL`. Page header conditionally renders "🏛 Campus of {parent name} — settings without a local value inherit from the parent." Per-field inheritance badges defer to Phase 4.8 (when JSONB inheritable columns land); infrastructure (`resolveSchoolSettings` from §4.0) is already in place — badges plug in when columns exist.
+
+- **Confirm dialog modal (2-way before/after preview).** Click "Review & confirm" on any pending proposal → modal opens with change_type, proposer + timestamps + expires_at, before/after value preview in code blocks, Cancel/Confirm buttons. ARIA-labelled. Backdrop-click dismisses. On 200: dialog closes + router.refresh(). On error: red banner inside dialog. Material UX win (review-before-confirm) at fraction of full 3-way live-diff cost.
+
+**Phase 4.4d deferred (3 FUs filed):**
+
+- **`FU-AV2-PHASE-4-4D-NEXT-INTL` P3** — next-intl primitive bootstrap deferred until 2nd-locale demand arrives. ~2 hours infrastructure for zero v1 ship value (English-only meets pilot need). Methodology default applied: "don't add infrastructure for hypothetical future requirements."
+
+- **`FU-AV2-PHASE-4-3WAY-LIVE-DIFF` P3** — full 3-way diff (proposed-before → CURRENT-NOW → after with stale-value warning) needs a client-layer `change_type → schools.column` mapping to fetch live current value. The 4.4d 2-way preview already gives the confirmer the material review-before-confirm UX win; live 3-way is polish for the staleness edge case (rare in practice).
+
+- **`FU-AV2-PHASE-4-PER-FIELD-INHERITANCE-BADGES` P3** — per-field "↑ inherited from {parent}" badges have nothing to mark today; all `INHERITABLE_COLUMNS` are Phase 4.8 JSONB columns. Header breadcrumb (this commit) is the visible-now substitute. Badges plug in trivially when 4.8 columns exist.
+
+**Tests:** 3189 (unchanged from §4.4c — UI changes don't add new test cases; existing route + applier tests cover backend). 0 regressions. tsc strict clean.
+
+**Commits on `access-model-v2-phase-4`** (pushed to origin):
+- `b698b9e` feat: Phase 4.4d — timezone smart-default for fresh school creation
+- `1ae835d` feat: Phase 4.4d — multi-campus parent breadcrumb on settings header
+- `55bcbe5` feat: Phase 4.4d — confirm dialog modal (2-way before/after preview)
+- `772f5d5` docs: Phase 4.4d — file 3 polish FUs
+
+**Sub-phase status: ✅ COMPLETE.** Phase 4.4 done in full (a/b/c/d).
+
+---
+
+## Checkpoint A5a — Settings UX Coherent Subset (READY 2 May 2026)
+
+Phase 4 brief originally specified one Checkpoint A5 covering all 12 sub-items. Mid-execution, Phase 4.4 was specced as one ~1.5-day sub-phase but split cleanly into 4.4a/b/c/d passes. After 4.4d closes, the **settings UX is a coherent shippable surface** — not all of Phase 4 (4.5/4.6/4.7/4.8/4.9 still ahead), but the part teachers will actually see and use.
+
+**Per master spec §3.8 Q1 sign-off** ("no split, one Checkpoint A5") this was originally rejected. Re-introducing as **Checkpoint A5a** post-execution because the accumulated diff (~46 commits) has organic stopping point at end of 4.4 — keeping that all on a feature branch through 4.5–4.9 (likely 5-7 more days) creates merge-conflict + drift risk. Master spec methodology rule 8 ("don't push to main until checkpoint signed off") is satisfied if we declare A5a here as a formal checkpoint and merge.
+
+### A5a sub-criteria
+
+**Code:**
+- [x] Settings page renders for same-school teacher (200) + 404 cross-school + archived banner
+- [x] Identity section editable: name / city / country / region / timezone / default_locale with low/high-stakes tier UI
+- [x] Universal `PATCH /api/school/[id]/settings` endpoint via `proposeSchoolSettingChange` + `applyChange`
+- [x] Confirm dialog modal (2-way preview) wires through `POST .../proposals/[changeId]/confirm`
+- [x] Activity feed Revert buttons wire through `POST .../changes/[changeId]/revert`
+- [x] Banner conditional: archived / bootstrap grace / lone-teacher post-bootstrap / multi-campus breadcrumb
+- [x] Welcome wizard banner + auto-suggest + timezone smart-default
+- [x] Free-email blocklist enforced + governance rate-limit returns 429
+- [x] Bootstrap auto-close trigger fires when count goes 1→2 (never reopens after close per Q6)
+- [x] Three-Matts consolidation applied to prod (Admin / Matt Burton / Loominary deactivated)
+
+**Migrations applied to prod (verified by Matt 2 May):**
+- [x] 20260502024657 phase_4_0_governance_engine_rollout_flag
+- [x] 20260502025737 phase_4_1_seed_schools_extension (~101 schools)
+- [x] 20260502031121 phase_4_2_school_domains
+- [x] 20260502034114 phase_4_3_school_setting_changes (governance ledger + rate state)
+- [x] 20260502102745 phase_4_3_x_fix_handle_new_teacher_search_path (Lesson #66)
+- [x] 20260502105711 phase_4_3_y_handle_new_teacher_auto_personal_school
+- [x] 20260502122024 phase_4_4a_bootstrap_auto_close_trigger
+
+**Tests:**
+- [x] 3189 passed | 11 skipped (was 2895 at Phase 4 start; +294 new tests)
+- [x] tsc strict clean (`tsconfig.check.json`)
+- [x] 0 regressions on existing test surface
+
+**End-to-end verification on prod / branch-preview:**
+- [x] Banner test: 3 NIS domains (`nis.org.cn`, `nischina.org`, `nanjing-school.com`) all return NIS via `lookup_school_by_domain` ✓
+- [x] Bug A: fresh teacher (banner-test-3) gets personal school auto-created via trigger ✓
+- [x] Bug B: welcome wizard PATCH `/api/teacher/school` fires immediately on banner click ✓
+- [x] Free-email blocklist: gmail.com returns NULL via `lookup_school_by_domain` ✓
+- [x] Three-Matts consolidation: Admin / Matt Burton / Loominary (deactivated) verified post-apply ✓
+
+### Deferred to Checkpoint A5b (Phase 4 part 2 work)
+
+- Phase 4.5 — `school_merge_requests` + 90-day redirect cascade + per-table audit
+- Phase 4.6 — School Library browse + Request-to-Use flow (the curriculum-library moat)
+- Phase 4.7 — Platform super-admin `/admin/school/[id]` + view-as URL
+- Phase 4.8 — Settings bubble-up columns (academic_calendar_jsonb, timetable_skeleton_jsonb, etc.) + AI budget column
+- Phase 4.9 — Department concept + dept_head auto-tag triggers
+- 3 polish FUs from 4.4d (next-intl, 3-way live diff, per-field inheritance badges)
+
+**Checkpoint A5a status: ✅ READY for merge.** All sub-criteria satisfied. Awaiting Matt's explicit sign-off + fast-forward merge `access-model-v2-phase-4` → `main`. Phase 4 part 2 (4.5-4.9) starts on fresh branch `access-model-v2-phase-4-part-2` post-merge.
+
 ### Phase 4.4 — `/school/[id]/settings` page + activity feed + multi-campus + archived guard + i18n (~1.5 day)
 
 **Output:**
