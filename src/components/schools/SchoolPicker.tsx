@@ -118,6 +118,17 @@ export function SchoolPicker({
 
     setAdding(true);
     try {
+      // Phase 4.4d — timezone smart-default per master spec §3.8 Q10.
+      // Read browser timezone from Intl.DateTimeFormat; the API accepts
+      // IANA strings and falls back to schema default (Asia/Shanghai)
+      // if absent. Teacher invisible at create-time; editable later via
+      // /school/[id]/settings page.
+      const detectedTimezone =
+        typeof Intl !== "undefined" &&
+        typeof Intl.DateTimeFormat === "function"
+          ? Intl.DateTimeFormat().resolvedOptions().timeZone
+          : null;
+
       const res = await fetch("/api/schools", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -125,6 +136,7 @@ export function SchoolPicker({
           name: trimmedName,
           city: addCity.trim() || null,
           country: trimmedCountry,
+          ...(detectedTimezone ? { timezone: detectedTimezone } : {}),
         }),
       });
       const data = await res.json();
