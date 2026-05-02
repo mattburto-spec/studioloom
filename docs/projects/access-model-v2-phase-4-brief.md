@@ -315,6 +315,28 @@ Source `'curated'` (NEW source enum value? OR reuse `'imported'` per existing CH
 
 **Stop trigger:** If post-seed search returns garbled UTF-8 (mig 085 had no encoding issue but new entries with Latin-1 names like "École" need verification) → STOP, fix encoding.
 
+---
+
+#### Phase 4.1 — COMPLETED (2 May 2026)
+
+Migration `20260502025737_phase_4_1_seed_schools_extension` minted, claimed on origin (empty stub pushed before SQL body), then SQL body written with ~101 entries across 6 markets.
+
+**Audit-finding refinement:** the existing 085_schools_seed.sql shipped ~85 schools (denser than brief assumed); Phase 4.1's value is **framework diversity** (UK GCSE/A-Level indies, Australia AHIGS/GPS, US NAIS PLTW), not raw IB count. Distribution: 20 UK + 20 AU + 20 US + 15 Asia non-CN fills + 10 Europe non-UK + 8 MEA + 8 NZ/CA = **101 entries**. Marquee entries verified by test: Westminster, Eton, Wycombe Abbey, St Paul's, Sydney Grammar, Knox, Scotch Melbourne, MLC Sydney, Phillips Exeter, Sidwell, Lakeside, Punahou.
+
+**Source-enum decision documented in migration WHY:** chose `source='imported'` over adding a new `'curated'` enum value to keep this a data-only migration (avoids ALTER CONSTRAINT). DOWN script bounds DELETE by `created_at >= '2026-05-02' AND < '2026-05-03'` to protect any future `source='imported'` rows.
+
+**UTF-8 preservation verified by test:** École Active Bilingue (Paris), International School of Düsseldorf, Aiglon College Chesières-Villars all assert their non-ASCII characters round-trip cleanly.
+
+**Tests:** 2917 → 2933 (+16, all passing). `npx tsc --noEmit --project tsconfig.check.json` clean. 0 regressions.
+
+**Commits on `access-model-v2-phase-4`** (pushed to origin as WIP backup):
+- `7f07d9e` claim(migrations): reserve phase_4_1_seed_schools_extension timestamp
+- `10bbf97` feat: Phase 4.1 — schools seed extension (~100 multi-framework entries)
+
+**Migration NOT YET APPLIED to prod.** Batched with §4.3's governance migrations to apply together when schema lands. Idempotent — safe to apply at any point.
+
+**Sub-phase status: ✅ COMPLETE.** Next: Phase 4.2 — `school_domains` table + signup auto-suggest + free-email blocklist.
+
 ### Phase 4.2 — `school_domains` table + signup auto-suggest (~0.75 day)
 
 **Output:**
