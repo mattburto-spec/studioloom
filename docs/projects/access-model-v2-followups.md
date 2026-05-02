@@ -504,3 +504,114 @@ strategy. Pre-pilot priority but post-Phase-4. Filed at P2 because the
 current copy actively misleads new teachers about the platform's
 direction.
 
+---
+
+## FU-FREEMIUM-CAN-PATTERN-ADR
+**Priority:** P3
+**Surfaced:** Phase 4.8b freemium-seam audit (2 May 2026)
+**Target gate:** Post-Phase-4 ADR pass (before freemium build starts)
+
+**Symptom:** `can(actor, action, resource, { requiresTier })` exists in
+`src/lib/access-v2/can.ts:80-88` and is the documented chokepoint for
+plan-aware capability gating. But there's no ADR explaining the pattern,
+so the second consumer (the freemium build) might re-roll its own gate
+helper rather than passing `requiresTier:` through `can()`.
+
+**Cause:** Phase 3 shipped the `requiresTier` option as a forward-compat
+seam without writing it up. Phase 4.8b confirms the seam works; the
+documentation gap remains.
+
+**Decision required:** Write a short ADR (`docs/adr/014-freemium-tier-gating-via-can.md`):
+1. Single rule — all plan-aware gating goes through `can(...)` with `requiresTier`.
+2. Anti-pattern — never inline `if (school.subscription_tier === 'pro')` outside `can()`.
+3. Free-tier defaults — `requiresTier` is optional; absence = free-tier accessible.
+4. Tier ordering — `pilot ≥ school ≥ pro ≥ starter ≥ free` (pilot is "anything goes" admin/dev mode; school is the highest paid tier).
+
+**Done when:**
+1. ADR-014 written and accepted.
+2. ADR-001 (OS extraction strategy) cross-referenced.
+3. Freemium build kickoff brief references ADR-014 explicitly.
+
+**Why deferred:** Mechanism is in code; documentation is the gap. Not
+blocking; pure hygiene before the second consumer arrives.
+
+---
+
+## FU-FREEMIUM-CALLSITE-PLAN-AUDIT
+**Priority:** P3
+**Surfaced:** Phase 4.8b freemium-seam audit (2 May 2026)
+**Target gate:** Pre-freemium-build (after Phase 4.8b lands; before Stripe project starts)
+
+**Symptom:** Cannot confirm without a sweep that no callsite gates
+behaviour on `school.subscription_tier` outside `can()`. If even one
+callsite inlines the check, freemium-tier rollouts will produce
+inconsistent gating (some surfaces respect plan changes, others don't)
+until that callsite is found.
+
+**Cause:** `schools.subscription_tier` was added pre-Phase-3 (mig
+20260428125547_schools_v2_columns) for forward-compat. There was no
+discipline at the time about routing reads through `can()`.
+
+**Decision required:** Run the audit:
+1. `grep -rn "subscription_tier" src/ --include="*.ts" --include="*.tsx"` — expected hits: schema-defining files (types/constants), the `can()` helper, the new `actor-session.ts` plan resolver (Phase 4.8b), and possibly admin views.
+2. For every hit NOT in those expected sites: refactor through `can(...)` with `requiresTier:` OR file a follow-up if the use case doesn't fit (e.g. admin debug surface that genuinely wants raw tier display).
+3. Document the canonical reader list in the ADR-014 (FU-FREEMIUM-CAN-PATTERN-ADR).
+
+**Done when:**
+1. Grep audit run; all non-canonical readers refactored or explicitly exempted.
+2. Reader list documented in ADR-014.
+
+**Why deferred:** Today there are zero plan-gated features beyond the
+forward-compat `requiresTier` option. The audit only matters when the
+freemium build starts wiring real `requiresTier:` flags. P3 hygiene step
+to run as the first action of the freemium build, not Phase 4.
+
+---
+
+## FU-FREEMIUM-SCHOOL-DOWNGRADE-OWNERSHIP
+**Priority:** P2
+**Surfaced:** Phase 4.7b tier-aware membership amendment (2 May 2026 PM, Gemini Q2 review)
+**Target gate:** Post-pilot; design when a real downgrade happens
+
+**Symptom:** Phase 4.7b establishes that `school`-tier schools are flat-membership shared workspaces, while `free` and `pro` tiers are siloed personal schools. The amendment specs the UPGRADE path (free-tier-personal → school-tier shared, with `merged_into_id` + invite flow). The DOWNGRADE path (school-tier lapses → split back into personal silos) is highly complex and has no design.
+
+**Open ownership questions:**
+- Who retains ownership of shared students that belonged to multiple teachers?
+- Who retains classes that were co-taught (multiple `class_members` lead_teacher rows)?
+- What happens to `school_responsibilities` (programme coords, dept_heads)?
+- What happens to school-library units shared by departed teachers?
+- Does the school entity dissolve, or stay as a tombstone in `archived` status?
+- How are guardians + `school_resources` (parent contacts, community members) split?
+
+**Design sketch:**
+1. Decision 8 corollary already says "authored content stays with the school" on individual teacher departure. Downgrade is the multi-departure case at once.
+2. Probably: school stays in `archived` status (already in Phase 0 lifecycle enum) with all data attached; individual teachers' `teachers.school_id` rewrites to a fresh personal school created on downgrade; classes/students they authored migrate to the new personal school.
+3. Co-taught classes need a designated owner — possibly the `school_admin` who triggered downgrade keeps them, or first-`lead_teacher`-by-accepted_at wins.
+4. Stripe webhook trigger: `customer.subscription.deleted` → downgrade flow; needs grace period (~30 days) before data splits to allow reactivation.
+
+**Why deferred:** Zero downgrade events in v1 — NIS is the only school-tier school and a downgrade there is unlikely. Designing this before a real case forces premature decisions on edge cases (single-teacher-school edge case + 30-day grace + Stripe-payment-retry logic) that experience will clarify. P2 because if a real downgrade happens before this is designed, the data-split ambiguity blocks the customer's offboarding and risks data loss.
+
+---
+
+## FU-WELCOME-WIZARD-STUDENT-EMAIL-GUARD
+**Priority:** P2
+**Surfaced:** Phase 4.7b tier-aware membership audit (2 May 2026 PM, CWORK outside-Q1-Q6)
+**Target gate:** Pre-pilot expansion to 2nd school; should land alongside or shortly after Phase 4.7b
+
+**Symptom:** `/teacher/welcome` accepts ANY email as a teacher signup, including a STUDENT email at a school domain (students at NIS have `@nis.org.cn` mailboxes, same domain as teacher accounts). Phase 4.7b's tier-aware membership fixes the auto-join leak for `school`-tier schools but does NOT prevent a student from completing teacher signup and landing in a personal school of their own — they then have a teacher dashboard, can create classes, can invite students of their own, and the platform has no signal that they're not a teacher.
+
+**Cause:** Welcome wizard has no role-claim gate. Email-domain alone is insufficient (same domain = teachers + students). The signup flow trusts the user's claim of "I am a teacher."
+
+**Design sketch (3 layers, defense-in-depth):**
+1. **Domain-level role hint** on `school_domains` row — boolean `students_use_this_domain BOOLEAN DEFAULT false`. When true, welcome wizard surfaces "If you're a student at this school, please use the student login link your teacher gave you" prominently AND requires explicit "I am a teacher / school staff" attestation checkbox before continuing.
+2. **`school` tier flag** — for `subscription_tier='school'` schools, signup is invite-only by Phase 4.7b design. Student can't accidentally sign up as teacher because no invite token = no signup path.
+3. **Existing email check** — if `auth.users` already has a row with the same email tagged `user_type='student'`, block teacher signup with that email entirely (prompt: "this email is registered as a student account; contact your school admin to convert to teacher").
+
+**Why deferred to FU**: 4.7b protects the high-risk path (`school`-tier schools) by removing auto-join. Free-tier schools at unknown domains where students happen to use the same email pattern are a tail risk pre-pilot — NIS is the only school today and is going `school` tier in 4.7b-0. Filing as P2 because it should land before 2nd-school onboarding (which may have a free trial period at `free` tier before the school upgrades).
+
+**Done when:**
+1. `school_domains.students_use_this_domain` column added.
+2. Welcome wizard surfaces the warning + checkbox when domain has the flag.
+3. Auth.users existing-as-student check added to teacher signup path.
+4. Smoke test: student email cannot complete teacher signup at flagged domain.
+

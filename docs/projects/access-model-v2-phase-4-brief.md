@@ -228,6 +228,8 @@ All 12 originally-open questions resolved in the same chat session that produced
 
 12. **School Library — browse-only PLUS request-to-use flow.** v1 ships browse + a "Request to use this unit" button. Sends in-app message to author → author approves/denies in their notifications → on approval, fork happens with attribution preserved (`units.forked_from_unit_id` + `units.forked_from_author_id`). Adds ~1.5 days but **this is the curriculum-library moat** — Khan/MagicSchool are one-author so they sidestep this; making it work is what differentiates StudioLoom for actual school adoption.
 
+13. **Decision 8 amendment — tier-aware membership** (signed off 2 May 2026 PM, post-A5a). Original Decision 8 (master spec line 336) specced FLAT membership with no `school_admin` role for ALL schools. Audit + 2nd-pass review (Gemini + CWORK) surfaced a verification gap on free tier: anyone signing up with a school-domain email (real or typosquat) auto-joins and gains read access to school-wide RLS surfaces (6 leak surfaces — settings, audit log, library, teacher directory, `student_mentors`, `school_resources+guardians`). FERPA / GDPR / PIPL liability the moment the platform scales beyond Matt-as-sole-pilot. **Amendment:** flat governance with 2-teacher confirm applies WITHIN `school`-tier schools that have ≥2 verified `school_admin` members; single-`school_admin` schools follow bootstrap rules indefinitely (no auto-close at day 7 — otherwise a school with one IT admin gets stuck pending-forever for high-stakes changes). For `free` and `pro` tiers, every teacher gets a personal school (single member, governance trivially flat). `school_admin` role implementation = a value in `school_responsibilities.responsibility_type` (no new table). First `school_admin` is auto-granted on Stripe upgrade-to-school-tier webhook (or manual SQL flip during Phase 4.7b-0 for NIS); within bootstrap-grace window, that admin can add a 2nd `school_admin` without 2-confirm. **Teacher-leaves-school content rule (corollary):** authored content stays with the school (mirrors Google Workspace); the departing teacher's personal school remains intact but does not inherit school-tier assets — full export/offboarding flow is FU-T territory. **Multi-school out of scope for v1:** `teachers.school_id` is singular FK; multi-school deferred to FU-O `school_memberships` join table. **Implementation in Phase 4.7b** (4 sub-sub-phases + Matt-checkpoint, ~3.75 days). Phase 4 estimate: ~13 → ~17 days.
+
 ### 3.9 Future-proofing additions (signed off 2 May 2026)
 
 Six items added to the brief to avoid painting Phase 4 schema/UX into corners. Each maps to an existing sub-phase rather than creating new ones.
@@ -1048,6 +1050,194 @@ This is the curriculum-library moat. Khan / MagicSchool are one-author so they s
 
 **Stop trigger:** Admin endpoint returns row to non-admin → STOP, severe.
 
+### Phase 4.7b — Tier-aware membership + `school_admin` role (~3.75 days)
+
+**Why here:** 9-seam freemium audit + 2nd-pass review (Gemini + CWORK, 2 May 2026 PM) surfaced a verification gap on free tier: anyone signing up with a school-domain email auto-joins the school and gains read access to school-wide RLS surfaces (settings governance + audit log JSON payload PII + future library + teacher directory + `student_mentors_school_teacher_read` direct student-ID enumeration + `school_resources_school_read` / `guardians_school_read` for parent PII when populated by Mentor Manager — **6 leak surfaces**, not 4 as initially scoped). Closes the gap by amending Decision 8 to tier-aware membership: free/pro = personal school (single member, siloed by RLS), school-tier = invite-only via `school_admin` role with flat governance applying only WITHIN the school after invite.
+
+**EXECUTION-ORDER NOTE:** 4.7b ships **BEFORE** 4.6 (school library) per Option A reorder. Library at free tier exposes other teachers' unit titles + content — bigger leak than the existing 6 surfaces. Build it gated from day one. Brief section ordering preserved (4.5 → 4.6 → 4.7 → 4.7b → 4.8 → ...) but execution is **4.5 → 4.7 → 4.7b → 4.6 → 4.8 → 4.8b → 4.9**.
+
+#### Phase 4.7b-0 — Operations: NIS tier flip (~0.25 day)
+
+**Pre-requisite — must complete before any 4.7b code work touches main.** NIS is currently `subscription_tier='pilot'`. Tier-aware membership only protects schools at `'school'` tier; until NIS is flipped, any new `@nis.org.cn` signup (including a STUDENT email — students at NIS have school-domain mailboxes) will go through the auto-join path. Operational, not engineering.
+
+**Output:**
+
+- SQL Editor flip: `UPDATE schools SET subscription_tier = 'school' WHERE id = '636ff4fc-4413-4a8e-a3cd-c6f1e17bd5a1';`
+- Audit existing NIS-attached teacher rows — confirm only Matt (NIS-Matt) is attached. Document the audit query + result in the changelog.
+- Verify `is_platform_admin = true` on `mattburto@gmail.com` (Phase 4.3.z confirmed); confirm Gmail-Matt is NOT NIS-attached so super-admin separation holds.
+
+**Stop trigger:** Audit reveals an unexpected teacher attached to NIS → STOP. Investigate before flipping tier.
+
+#### Phase 4.7b-1 — Schema + role matrices (~1 day)
+
+**Output:**
+
+- 1 migration `<UTC>_phase_4_7b_1_school_admin_role.sql`:
+
+  ```sql
+  -- Add 'school_admin' to school_responsibilities.responsibility_type CHECK enum.
+  -- DUAL-PURPOSE NOTE: responsibility_type value space now spans:
+  --   - Academic roles: pyp_coord / cas_coord / safeguarding_lead / etc.
+  --   - Governance roles: school_admin (NEW)
+  -- New values must declare which category in this comment block.
+  ALTER TABLE school_responsibilities
+    DROP CONSTRAINT IF EXISTS school_responsibilities_responsibility_type_check;
+  ALTER TABLE school_responsibilities
+    ADD CONSTRAINT school_responsibilities_responsibility_type_check
+    CHECK (responsibility_type IN (
+      'pyp_coord','myp_coord','dp_coord','cas_coord',
+      'service_lead','safeguarding_lead','dept_head',
+      'school_admin'  -- NEW (governance role, not academic)
+    ));
+
+  -- INSERT-policy hardening: prevent self-promotion to school_admin.
+  -- Allowed inserters:
+  --   1. is_platform_admin (Matt — bootstrap, support)
+  --   2. existing school_admin of same school (governance ladder)
+  --   3. inserter is the bootstrap grantee (school just upgraded to school-tier
+  --      via Stripe webhook, no school_admin exists yet, AND
+  --      schools.bootstrap_expires_at > now())
+  CREATE POLICY "school_responsibilities_admin_insert_gate"
+    ON school_responsibilities FOR INSERT
+    WITH CHECK (
+      responsibility_type != 'school_admin'  -- non-admin roles unaffected
+      OR (SELECT is_platform_admin FROM user_profiles WHERE id = auth.uid()) = true
+      OR EXISTS (
+        SELECT 1 FROM school_responsibilities sr
+        WHERE sr.school_id = NEW.school_id
+          AND sr.responsibility_type = 'school_admin'
+          AND sr.teacher_id = auth.uid()
+          AND sr.removed_at IS NULL
+      )
+      OR EXISTS (
+        SELECT 1 FROM schools s
+        WHERE s.id = NEW.school_id
+          AND s.subscription_tier = 'school'
+          AND s.bootstrap_expires_at > now()
+          AND NOT EXISTS (
+            SELECT 1 FROM school_responsibilities sr2
+            WHERE sr2.school_id = s.id
+              AND sr2.responsibility_type = 'school_admin'
+              AND sr2.removed_at IS NULL
+          )
+      )
+    );
+
+  -- New SECURITY DEFINER helper for can.ts to call.
+  CREATE OR REPLACE FUNCTION public.is_school_admin(p_user_id UUID, p_school_id UUID)
+  RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER
+  SET search_path = public, pg_temp AS $$
+    SELECT EXISTS (
+      SELECT 1 FROM school_responsibilities
+      WHERE teacher_id = p_user_id
+        AND school_id = p_school_id
+        AND responsibility_type = 'school_admin'
+        AND removed_at IS NULL
+    );
+  $$;
+  ```
+
+- New `SCHOOL_ADMIN_ACTIONS` set in `src/lib/access-v2/permissions/actions.ts` — superset of `PROGRAMME_COORDINATOR_ACTIONS` plus `school.invite_teacher`, `school.remove_teacher`, `school.settings.edit_high_stakes` (the existing PROGRAMME set deliberately excluded high-stakes).
+- New action enum values: `school.invite_teacher`, `school.remove_teacher`.
+- Thread `is_school_admin()` through `can.ts` resolution chain — slot into existing `PROGRAMME_COORDINATOR_ACTIONS` branch (step 5) with priority over plain-teacher fallback.
+- **Initial school_admin grant rule** (per G-Q3 + Gemini's bootstrap concern): when a school upgrades to `'school'` tier (Stripe webhook in the future freemium build; manual SQL flip during Phase 4.7b-0 for NIS), the upgrading teacher automatically gets a `school_responsibilities.responsibility_type='school_admin'` row inserted by webhook handler / ops script. Within the existing 7-day bootstrap-grace window, that admin can add a 2nd `school_admin` without 2-confirm. After bootstrap closes, adding a 2nd `school_admin` requires the standard 2-teacher governance rule.
+- **Frontend tier exclusion** (per G-Q6): tier-selection UI components and pricing copy explicitly enumerate `'free' | 'pro' | 'school'`; never iterate the `SubscriptionTier` enum (which still contains `'pilot'` + `'starter'`). Add a one-line comment + lint rule if convenient.
+
+**Tests:** ~10 — `is_school_admin()` returns expected; INSERT-policy denies non-admin self-promotion; INSERT-policy allows platform_admin; INSERT-policy allows existing school_admin; INSERT-policy allows bootstrap-grace inserter when no admin exists yet; INSERT-policy denies bootstrap-grace inserter when an admin already exists; can() resolves school_admin correctly for `school.settings.edit_high_stakes`.
+
+**Stop trigger:** Self-promotion to school_admin succeeds in any test → STOP, severe.
+
+#### Phase 4.7b-2 — Invite flow + auto-join dismantle (~1.5 day)
+
+**Output:**
+
+- 1 migration `<UTC>_phase_4_7b_2_school_invitations.sql`:
+  - **Decision in pre-flight:** augment existing `teacher_access_requests` (mig 089) OR create new `school_invitations` table. Existing 089 is a waitlist (TEXT `school` field, no `school_id` FK, no token, no `invited_by`) — **insufficient as-is**. Audit cost: ~30 min. Recommend new table to keep semantics clean (`teacher_access_requests` = "I want access," `school_invitations` = "Admin granted access").
+  - New table:
+    ```sql
+    CREATE TABLE school_invitations (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+      invited_email TEXT NOT NULL,
+      invited_role TEXT NOT NULL DEFAULT 'lead_teacher'
+        CHECK (invited_role IN ('lead_teacher','co_teacher','dept_head','school_admin')),
+      invited_by UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+      token TEXT NOT NULL UNIQUE,  -- 32-byte URL-safe random
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + INTERVAL '14 days'),
+      accepted_at TIMESTAMPTZ NULL,
+      accepted_by_user_id UUID NULL REFERENCES auth.users(id) ON DELETE SET NULL,
+      revoked_at TIMESTAMPTZ NULL,
+      revoked_by UUID NULL REFERENCES teachers(id) ON DELETE SET NULL,
+      CHECK (accepted_at IS NULL OR accepted_at <= expires_at),
+      CHECK (accepted_at IS NULL OR revoked_at IS NULL)  -- mutually exclusive
+    );
+    CREATE INDEX idx_school_invitations_token ON school_invitations(token) WHERE accepted_at IS NULL AND revoked_at IS NULL;
+    CREATE INDEX idx_school_invitations_school ON school_invitations(school_id, created_at DESC);
+    CREATE INDEX idx_school_invitations_email ON school_invitations(lower(invited_email)) WHERE accepted_at IS NULL AND revoked_at IS NULL;
+    ```
+  - RLS: school_admin reads + inserts for their school; invited teacher reads by token (anon path); platform_admin reads all.
+
+- **Domain-match banner rewrite** (`src/lib/access-v2/school/domain-suggest.ts` + welcome-wizard banner client component):
+  - Resolution: lookup `schools.subscription_tier` for the matched school.
+  - Target tier `'school'` → banner says "Your school has Loominary — ask your IT to invite you" + button POSTs to `/api/teacher/welcome/request-invite` (creates `teacher_access_requests` row tagged with `school_id`). **No auto-join button.**
+  - Target tier `'free' | 'pro'` → no banner (target is someone's personal school; not joinable).
+  - Target school does not exist → existing "create new school" flow preserved (lands free-tier personal school via `handle_new_teacher` trigger).
+
+- **Auto-join code-path dismantle** (per G-blind-spot 1 — active rollback, not behavior change):
+  - `handle_new_teacher` trigger (`20260502105711_phase_4_3_y_handle_new_teacher_auto_personal_school.sql`): keep the personal-school branch; remove ANY remaining auto-join branch that uses domain match. Trigger creates personal school for every new teacher unconditionally; school-tier joins go through the invite flow ONLY.
+  - Phase 4.2 banner code path that auto-joined matching schools → deleted (not commented out — rip out per master CLAUDE.md "Avoid backwards-compatibility hacks"). Search for `auto_join` / `auto-join` references and burn down.
+
+- **Invite-acceptance endpoint** `POST /api/auth/accept-school-invitation`:
+  - Reads `?token=` from URL.
+  - Validates token unrevoked + unaccepted + unexpired.
+  - If acting user is authenticated: bind invitation to `auth.uid()` + insert `class_members` (lead_teacher) for any default class OR `school_responsibilities` (school_admin) row for invited_role.
+  - If acting user is anonymous: redirect to signup with token preserved; signup form pre-fills `invited_email`.
+  - On accept: `accepted_at = now()`, `accepted_by_user_id = auth.uid()`. Insert `audit_events` row.
+
+- **Upgrade-path flow reusing `schools.merged_into_id`** (per G-Q2 + C-Q2):
+  - When a school upgrades free-tier-personal → school-tier (Stripe webhook in future freemium build; manual SQL flip during 4.7b-0 for NIS), existing free teachers on the same domain do NOT auto-merge. They receive an email invitation to join the new school-tier school. On accept, their personal school's `merged_into_id = <new school_id>` AND their `teachers.school_id = <new school_id>` AND classes/students cascade per existing §4.5 machinery. Personal school stays in DB as a tombstone for 90-day redirect (per §4.5).
+  - Multi-school deferred (per C-Q2(b)): `teachers.school_id` is singular FK; multi-school teacher (Matt teaches at 2 schools) needs FU-O `school_memberships` join table — out of scope for v1.
+
+**Stop triggers:**
+- Invite-acceptance flow leaves a teacher in pending state with no clear resolution path → STOP (per G-Q4 risk).
+- Token leaks across schools (token reused on different `school_id`) → STOP, severe.
+- `auto_join` / `auto-join` references remaining anywhere in codebase post-dismantle → STOP (incomplete rollback).
+
+**Tests:** ~14 — banner shows ask-IT for school-tier; banner suppressed for free/pro; invite token validated; invite expiry enforced; invite revocation enforced; accept-invitation creates the right `class_members` / `school_responsibilities` row; double-accept blocked; cross-school token reuse blocked; upgrade-path migrates classes via merged_into_id.
+
+#### Matt-checkpoint — invite-flow smoke (between 4.7b-2 and 4.7b-3)
+
+Smoke test invite-flow end-to-end before sweeping policies:
+1. Matt-as-platform-admin manually inserts a `school_admin` row for a fresh test school.
+2. school_admin generates an invitation for `banner-test-3@nis.org.cn`.
+3. Token email arrives; clicking accepts the invite + creates `class_members` row.
+4. Confirm new teacher reads exactly the school-scoped data they should (and nothing more).
+5. Try the invite from a fake-domain address — confirm it works (invitations are role-gated, not domain-gated).
+
+If the smoke fails, do NOT proceed to 4.7b-3. The leak-surface gating sweep in 4.7b-3 will be wasted work if the invite mechanism itself is broken.
+
+#### Phase 4.7b-3 — Tier-gate the 6 leak surfaces (~1 day)
+
+**Output — RLS amendments to add tier gate:**
+
+For each of the 6 surfaces below, the read policy must become "school-wide read iff target school is `'school'` tier; otherwise siloed to row-owner / class-member / mentor-of-student."
+
+1. **Settings governance** — `school_setting_changes` reads. Already scoped by Phase 4.3; tier-gate adds an OR branch: free/pro school = author-only read; school-tier school = existing flat read.
+2. **Audit log** — `audit_events_school_teacher_read` (mig `20260428215923`). Tier-gate: school-wide read only when teacher's school is `'school'` tier. Free/pro teachers see their own actor-read events only.
+3. **School library** — Phase 4.6 RLS will be authored gated from day one (per Option A reorder).
+4. **Teacher directory** — `/api/admin/school/[id]` route (Phase 4.7) + class-management directory APIs. Tier-gate at route layer via `can(actor, 'school.view', { type:'school', id }, { requiresTier: ['school'] })`.
+5. **`student_mentors_school_teacher_read`** (mig `20260428214735`) — tier-gate: school-wide enumeration only when teacher's school is `'school'` tier. Free/pro mentor reads scoped to mentor's own students.
+6. **`school_resources_school_read` + `guardians_school_read` + `school_resource_relations_via_resource`** (mig `20260428214009`) — tier-gate: school-wide guardian/community-resource read only when school is `'school'` tier. Free/pro guardian reads scoped to teacher's own students' guardians.
+
+**Note:** `school_responsibilities_school_read` (low-sensitivity org-structure leak per CWORK) intentionally stays open — the role mechanism itself depends on members seeing who's been assigned what role. Documented as accepted exposure in mig comment.
+
+**Note (FU-T cross-reference per G-blind-spot 3):** Boundary between school-owned IP and teacher-owned personal-school data is tracked in [`docs/projects/dimensions3-followups.md`](dimensions3-followups.md) FU-T (content ownership transfer). When a teacher leaves a school-tier school and downgrades to free-tier personal school, the export/offboarding flow consumes FU-T's design. Default rule per Decision 8 amendment: authored content stays with school; personal school remains intact but does not inherit school-tier assets.
+
+**Tests:** ~12 — for each of the 6 surfaces, 2 tests (school-tier teacher reads expected; free/pro teacher 0 rows OR own-only).
+
+**Stop trigger:** Any tier-gate test returns rows to a free/pro teacher that the policy should silo → STOP, severe.
+
 ### Phase 4.8 — Migrate scattered school-level settings up (~0.5 day)
 
 **Output:**
@@ -1090,6 +1280,111 @@ This is the curriculum-library moat. Khan / MagicSchool are one-author so they s
 **Tests:** ~12 — backfill correctness for single-teacher school; backfill chooses most-recently-edited for multi-teacher school; legacy fallback fires when `academic_calendar_jsonb IS NULL`; settings UI binds.
 
 **Stop trigger:** Backfill creates duplicate rows OR loses term data → STOP.
+
+### Phase 4.8b — Freemium seams bake-in (~0.75 day)
+
+**Why here:** The 4.8 migration already touches `schools` with 8 column adds. Freemium-build foundations land in the same migration so `teachers.subscription_tier` + `*.stripe_customer_id` aren't their own deploy cycle later. This sub-phase is engineering-only — **no Stripe integration, no UI gating logic, no billing code**. It bakes seams that make the post-access-v2 freemium build a fill-in (~6.75 eng days) instead of a rewrite. Audit signed off 2 May 2026 — see §11 entry.
+
+**Scope (6 items, in order):**
+
+1. **`teachers.subscription_tier` column** — fold into the §4.8 migration:
+
+   ```sql
+   ALTER TABLE teachers
+     ADD COLUMN subscription_tier TEXT NOT NULL DEFAULT 'free'
+     CHECK (subscription_tier IN ('pilot','free','starter','pro','school'));
+   CREATE INDEX IF NOT EXISTS idx_teachers_subscription_tier
+     ON teachers(subscription_tier);
+   ```
+
+   CHECK enum mirrors `schools.subscription_tier` exactly so the `SubscriptionTier` type in `src/lib/access-v2/permissions/actions.ts` works for both.
+
+2. **`stripe_customer_id` columns on both entities** — fold into the §4.8 migration:
+
+   ```sql
+   ALTER TABLE schools  ADD COLUMN stripe_customer_id TEXT NULL;
+   ALTER TABLE teachers ADD COLUMN stripe_customer_id TEXT NULL;
+   CREATE UNIQUE INDEX IF NOT EXISTS idx_schools_stripe_customer  ON schools(stripe_customer_id)  WHERE stripe_customer_id IS NOT NULL;
+   CREATE UNIQUE INDEX IF NOT EXISTS idx_teachers_stripe_customer ON teachers(stripe_customer_id) WHERE stripe_customer_id IS NOT NULL;
+   ```
+
+   Nullable + unique-when-set so the future Stripe webhook can `UPDATE … WHERE stripe_customer_id = ?` without ambiguity.
+
+3. **Thread `plan` into ActorSession** — `src/lib/access-v2/actor-session.ts`:
+   - Add `plan: SubscriptionTier` to both `StudentSession` and `TeacherSession`.
+   - For `TeacherSession`: resolve as `teacher.subscription_tier ?? school.subscription_tier ?? 'free'` (teacher Pro Teacher tier wins; otherwise inherit school; otherwise free fallback).
+   - For `StudentSession`: resolve as `school.subscription_tier ?? 'free'` (students don't have personal plans).
+   - Single extra column on each side query — no new round-trips.
+   - Tests: ~6 — TeacherSession with school-tier-only, with teacher-tier override, with no school; StudentSession with school-tier, with no school.
+
+4. **`src/lib/access-v2/plan-gates.ts`** — pass-through helpers:
+
+   ```ts
+   export type PlanGateResult =
+     | { ok: true }
+     | { ok: false; reason: 'plan_limit'; cap: number; current: number; tier: SubscriptionTier };
+
+   export async function enforceClassCreateLimit(
+     actor: TeacherSession,
+     supabase?: SupabaseClient
+   ): Promise<PlanGateResult> {
+     // v1: pass-through. Freemium build replaces this with a count query.
+     return { ok: true };
+   }
+
+   export async function enforceEnrollmentLimit(
+     classId: string,
+     supabase?: SupabaseClient
+   ): Promise<PlanGateResult> {
+     return { ok: true };
+   }
+   ```
+
+   Wire into 3 chokepoints (no behaviour change today):
+   - `src/app/api/teacher/welcome/create-class/route.ts:113` — call `enforceClassCreateLimit` before the INSERT loop.
+   - `src/app/api/teacher/welcome/setup-from-timetable/route.ts` — same.
+   - `src/app/api/teacher/students/route.ts` — call `enforceEnrollmentLimit` before the `class_students` INSERT (when `classId` is present in the body).
+
+   Tests: ~8 — 2 unit tests per helper (both arms) + 4 integration smokes confirming the routes pass through unchanged today.
+
+5. **`requires_plan` field on feature-flags.yaml**:
+   - Add field to `docs/feature-flags-taxonomy.md` with enum `public | free | pro | school` and decision rules.
+   - Add `requires_plan: free` to all 15 existing flags.
+   - Update `scripts/registry/scan-feature-flags.py` to preserve the field on rewrite (defends against Lesson #FU-DD scanner-strip).
+   - **No code change to flag-reading wrapper** — schema-only.
+
+6. **Public-route boundary doc** — new file `docs/projects/access-v2-public-route-boundary.md`:
+   - One-page rule: "If a route is in `middleware.ts` public-routes block AND/OR under `/api/public/*`, it ships with no auth context AND no audit log entry."
+   - Lists the current public surface (`/`, `/login`, `/teacher/login`, `/admin/login`, `/api/auth/*`, `/api/tools/*`, `/tools`, `/toolkit`, `/safety/projector`, `/api/public/*`).
+   - Rule: Phase 5 audit-log scanner skips this list when checking for missing `logAuditEvent()` calls.
+   - Rule: Phase 4 part 2 does NOT open new public surface — additions need a written decision in the changelog.
+
+**Out of scope for 4.8b** (deferred to their natural homes):
+- `withAIBudget()` middleware → Phase 5 (master spec line 269)
+- `hasCapability` ADR → post-Phase-4 ADR pass (just needs documentation, mechanism already in `can.ts`)
+- Plan-limit constants table / count queries → freemium build
+- Stripe SDK / webhooks / pricing UI → freemium build
+- Tier-feature matrix decisions → product call before freemium build (do NOT ship Stripe checkout until matrix is signed)
+
+**Files touched (estimate):**
+- 1 SQL migration (folds 6 column adds into the existing §4.8 migration; net +20 lines)
+- `src/lib/access-v2/actor-session.ts` (+30 lines)
+- `src/lib/access-v2/plan-gates.ts` (NEW, ~80 lines)
+- 3 route call-sites (~3 × 5 lines = 15 lines)
+- `docs/feature-flags.yaml` (+15 lines yaml)
+- `docs/feature-flags-taxonomy.md` (+25 lines)
+- `scripts/registry/scan-feature-flags.py` (+5 lines preservation)
+- `docs/projects/access-v2-public-route-boundary.md` (NEW, ~50 lines)
+
+Total: ~270 lines code/docs/yaml/SQL across 8 files. ~14 new tests.
+
+**Stop triggers:**
+- `teachers.subscription_tier` CHECK enum drifts from `schools.subscription_tier` → STOP (single source of truth on the type).
+- Plan-gate helper accidentally returns `{ ok: false }` in pass-through mode → STOP (silent regression on existing class create).
+- Adding `plan` to ActorSession adds an extra round-trip → STOP (must be on the existing query).
+- Anyone tries to add tier-feature matrix decisions in this sub-phase → STOP (separate product call).
+
+**Tests:** ~14 (helpers + ActorSession + integration smoke).
 
 ### Phase 4.9 — Department concept + dept_head auto-tag (~0.75 day)
 
@@ -1399,14 +1694,20 @@ Phase 4 closes when ALL pass:
 | 4.5: school_merge_requests + 90-day redirect + per-table audit cascade | 0.75 day |
 | 4.6: School Library browse + Request-to-Use flow (the differentiator) | 2 days |
 | 4.7: Platform super-admin /admin/school/[id] + view-as URL + campus tree | 0.75 day |
+| **4.7b-0: Ops — flip NIS to `'school'` tier (pre-requisite, before any 4.7b code)** | **0.25 day** |
+| **4.7b-1: `'school_admin'` enum + INSERT-policy hardening + `is_school_admin()` helper + role matrices + can.ts threading + frontend tier exclusion** | **1 day** |
+| **4.7b-2: `school_invitations` table + domain-match banner rewrite + auto-join dismantle + invite-acceptance endpoint + upgrade-path via `merged_into_id`** | **1.5 day** |
+| **Matt-checkpoint — invite-flow smoke (between 4.7b-2 and 4.7b-3)** | **—** |
+| **4.7b-3: Tier-gate 6 leak surfaces (settings / audit / library / directory / student_mentors / school_resources+guardians) + tests** | **1 day** |
 | 4.8: Bubble-up scattered settings (calendar / timetable / frameworks / branding / safeguarding / AI budget col) | 0.5 day |
+| **4.8b: Freemium seams bake-in (teachers.subscription_tier + stripe_customer_id × 2 + ActorSession.plan + plan-gates pass-through + feature-flags.requires_plan + public-route boundary doc)** | **0.75 day** |
 | 4.9: Department + dept_head auto-tag triggers + chip variant | 0.75 day |
 | 4.10: Smoke run (10 scenarios — added request-to-use scenario) | 0.5 day |
 | 4.11: Registry hygiene + close-out | 0.5 day |
 | Buffer (Lesson #59 — estimates lie; bumped from 1 → 1.5 day for dept_head trigger surprises) | 1.5 day |
-| **Total** | **~12.25 days** (call it **~10–12 day band; aim 11**) |
+| **Total** | **~17 days** (call it **~15–18 day band; aim 17**) |
 
-This is +8–9 days over master-spec's 3-day estimate. The delta is real and tracked:
+This is +12–14 days over master-spec's 3-day estimate. The delta is real and tracked:
 - 12 sub-items vs Phase 3's tighter scope.
 - ~150-school seed (curation-criteria-driven) adds 0.5 day.
 - Dept_head trigger work (FU-AV2-DEPT-HEAD-DEPARTMENT-MODEL fold-in) adds 0.75 day.
@@ -1417,7 +1718,7 @@ This is +8–9 days over master-spec's 3-day estimate. The delta is real and tra
 - **§3.9 future-proofing items 13–18** add ~1.5 days combined: multi-campus precedence (0.25), version stamping (0.1), per-table audit (0.1, folded into 4.5), archived-school guard (0.5), rate limiting (0.1, folded into 4.3), i18n primitive (0.1, mostly 4.0 + scattered).
 - Lesson-#59 buffer at 1.5 day (raised from 1 day per §3.8 Q1 sign-off) for dept_head trigger surprises.
 
-**No split** (§3.8 Q1 sign-off) — one Checkpoint A5, one prod-apply window. Phase 4 expected close: ~13–14 May 2026.
+**Mid-phase Checkpoint A5a SHIPPED 2 May 2026** (covering 4.0–4.4d) — see §11 sign-off addendum. Phase 4 part 2 (4.5/4.7/4.7b/4.6/4.8/4.8b/4.9) continues toward Checkpoint A5b. **Execution-order reorder under Option A**: 4.6 ships AFTER 4.7b (library opens with tier gate built-in; otherwise free-tier teachers see other teachers' unit titles + content — bigger leak than the existing 6 surfaces). Phase 4 expected close: ~17–18 May 2026.
 
 ---
 
@@ -1475,3 +1776,31 @@ This is +8–9 days over master-spec's 3-day estimate. The delta is real and tra
 - Settings changes are rate-limited at 10/hr/teacher (Postgres-backed counter, no Redis).
 - Setting-change confirms show 3-way diff (proposed-before → current → confirmed-after).
 - Merge cascade emits one audit_events row per table touched (12+ rows per merge).
+
+**Addendum — Phase 4.8b freemium-seam audit (signed off 2 May 2026 PM):**
+
+- 9-seam audit run after Checkpoint A5a ship. 5 seams already in (`schools.subscription_tier`, `audit_events.action TEXT`, `ai_budgets`/`ai_budget_state` cascade, `can(actor, action, resource, { requiresTier })`, `/api/public/*` boundary). 1 deferred to natural home (`withAIBudget()` → Phase 5 per master spec). 1 doc-only follow-up filed (`hasCapability` ADR — mechanism in `can.ts`).
+- Remaining 6 seams folded into Phase 4.8b (~0.75 day, total Phase 4 estimate goes 12.25 → 13 days):
+  1. `teachers.subscription_tier` CHECK enum (mirrors schools).
+  2. `stripe_customer_id` nullable on schools + teachers (unique-when-set indexes).
+  3. `actor.plan` resolved on ActorSession (teacher tier → school tier → free).
+  4. `plan-gates.ts` pass-through helpers wired into 3 chokepoints (welcome/create-class, welcome/setup-from-timetable, teacher/students enrollment).
+  5. `requires_plan` field on feature-flags.yaml (schema-only, all 15 flags default `free`).
+  6. Public-route boundary one-pager doc (Phase 5 audit-log scanner needs the rule).
+- Out of scope for 4.8b — deferred to post-access-v2 freemium build: Stripe SDK/webhook/Checkout UI, plan-limit count queries + constants, tier-feature matrix decisions (product call), trial / grace-period state machine. Foundations make freemium build a ~6.75-eng-day fill-in.
+- Hard rule: do NOT ship Stripe checkout in the freemium build until tier-feature matrix is signed by Matt. A subscription that doesn't unlock anything is the worst freemium failure mode.
+
+**Addendum — Phase 4.7b tier-aware membership (signed off 2 May 2026 PM, post-A5a + 4.8b):**
+
+- 2nd-pass review (Gemini + CWORK independent audit reports) surfaced 18 line-items across 6 questions. Net result: Decision 8 amendment + new sub-phase 4.7b (3.75 days, 4 sub-sub-phases + Matt-checkpoint).
+- **6 RLS leak surfaces** identified (was 4 in initial scope): settings governance, audit log, school library, teacher directory, `student_mentors_school_teacher_read` (mig `20260428214735` — student-ID enumeration), `school_resources_school_read` + `guardians_school_read` (mig `20260428214009` — parent PII surface populated by future Mentor Manager). `school_responsibilities_school_read` intentionally stays open — role mechanism depends on visibility (low-sensitivity org-structure leak is accepted).
+- **`teacher_access_requests` (mig 089) is INSUFFICIENT** as invite infra (waitlist with TEXT `school` field, no `school_id` FK / token / `invited_by`). Phase 4.7b-2 ships a NEW `school_invitations` table — keeps "I want access" (mig 089) semantically separate from "Admin granted access."
+- **Phase 4.7b-0 ops prerequisite**: NIS `subscription_tier` flipped `'pilot'` → `'school'` BEFORE any other staff onboard. Without this, tier-aware membership doesn't protect NIS — student `@nis.org.cn` emails would still flow through auto-join. **Run before any 4.7b-1 code.**
+- **Execution-order reorder under Option A**: 4.6 ships AFTER 4.7b. Library at free tier exposes other teachers' unit titles + content — bigger leak than the existing 6 surfaces. Build it gated from day one. **Trade-off** (per Gemini Q5): reduces school-library QA window before pilot. **Mitigation**: 4.6 ships gated from day one (no ungated test surface); QA = invite-flow + library together rather than library-then-gate.
+- **Initial school_admin grant rule** (per Gemini Q3 + bootstrap concern): Stripe webhook auto-grants `school_admin` to upgrading teacher (or ops script for NIS pre-Stripe). Within 7-day bootstrap-grace window, that admin can add a 2nd `school_admin` without 2-confirm. After bootstrap closes, standard 2-teacher governance rule applies. INSERT-policy hardening prevents self-promotion.
+- **Multi-school deferred to FU-O** (`teachers.school_id` singular FK preserved for v1).
+- **2 new FUs filed**: `FU-FREEMIUM-SCHOOL-DOWNGRADE-OWNERSHIP` P2 (school-tier lapse → free split: ownership of shared students/classes/library — design when a real downgrade happens, not now); `FU-WELCOME-WIZARD-STUDENT-EMAIL-GUARD` P2 (welcome wizard accepts STUDENT @school-domain emails as teacher signup; tier-aware membership fixes only after target school is `'school'` tier — needs role gate even after 4.7b lands).
+- **Decision 8 amendment language locked**: "flat governance with 2-teacher confirm applies WITHIN school-tier schools that have ≥2 verified school_admin members; single-school_admin schools follow bootstrap rules indefinitely (no auto-close at day 7)." Captured in §3.8 item 13 and master spec line 336 amendment.
+- **Stripe downgrade preserves personal school** (per Gemini blind-spot 2 — relevant to freemium build, not 4.7b): Pro → free downgrade locks paid features but the teacher's personal school + assets remain intact. Documented here so the freemium build doesn't accidentally delete personal-school data on tier-down.
+- **`starter` tier stays dormant** (per Gemini Q6 + CWORK Q6): Test-rewrite ripple risk if collapsed (`school_subscription_tier_at_event` CHECK in `audit_events` mig `20260428215923` would need narrowing; immutable audit log surgery). Keep dormant in CHECK enum; revisit post-pilot.
+- Phase 4 total: ~13 → **~17 days**. Phase 4 expected close: ~13–14 May → **~17–18 May 2026**.

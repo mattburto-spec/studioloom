@@ -3273,3 +3273,44 @@ Branch state: `access-model-v2-phase-1` at `5be1599`, 2 commits ahead of `main`,
 
 **RLS coverage:** clean. 108 → 111 tables (+3 from Phase 4); all 3 new tables have RLS + policies. 5 pre-existing rls_no_policy entries unchanged.
 
+
+
+## 2026-05-02 PM — Access Model v2 Phase 4 part 2 PLAN UPDATE (4.8b freemium seams + 4.7b tier-aware membership + Decision 8 amendment)
+
+**Worktree:** `/Users/matt/CWORK/questerra-access-v2`
+**Branch:** `access-model-v2-phase-4-part-2`
+**Session type:** Plan-only — no code touched, no migrations applied. Pure spec/decision work after Checkpoint A5a ship + 4.8b mid-phase freemium seam audit.
+
+**What changed**
+
+Two audits ran post-A5a, two sub-phase additions approved:
+
+1. **4.8b freemium-build seam bake-in** (~0.75 day, slot between 4.8 and 4.9). 9-seam audit confirmed 5 seams already in place (`schools.subscription_tier` 5-tier enum, `audit_events.action TEXT` open string, `ai_budgets`/`ai_budget_state` cascade, `can(actor, action, resource, { requiresTier })`, `/api/public/*` boundary). 1 deferred to Phase 5 (`withAIBudget()` middleware per master spec line 269). Remaining 6 seams folded into 4.8b: `teachers.subscription_tier` enum (mirrors schools), `stripe_customer_id` × 2 nullable cols, `actor.plan` on ActorSession with cascade resolution (teacher tier → school tier → free), `plan-gates.ts` pass-through helpers wired into 3 chokepoints (welcome/create-class, welcome/setup-from-timetable, teacher/students enrollment), `requires_plan` field on feature-flags.yaml schema, public-route boundary one-pager doc. Out of scope: Stripe SDK/webhook/UI, plan-limit count queries, tier-feature matrix decisions, trial state machine — defer to post-access-v2 freemium build (~6.75 eng days because foundations are baked here). Hard rule: no Stripe checkout until tier-feature matrix is signed.
+
+2. **4.7b tier-aware membership amendment** (~3.75 days, 4 sub-sub-phases + Matt-checkpoint, slot between 4.7 and 4.8). 2nd-pass review (Gemini + CWORK independent reports) surfaced verification gap on free tier: anyone signing up with school-domain email auto-joins → reads 6 RLS leak surfaces. CWORK audit caught 2 surfaces missed in initial scope: `student_mentors_school_teacher_read` (mig `20260428214735` — direct student-ID enumeration via mentor↔student joins) and `school_resources_school_read` + `guardians_school_read` (mig `20260428214009` — parent PII when populated by Mentor Manager). Decision 8 amended: flat governance with 2-teacher confirm applies WITHIN school-tier schools that have ≥2 verified school_admin members; single-school_admin schools follow bootstrap rules indefinitely. `school_admin` role implementation = a value in `school_responsibilities.responsibility_type` (no new table). Free/pro = personal school siloed; school-tier = invite-only. Sub-sub-phases:
+   - **4.7b-0 ops** (~0.25d): flip NIS `subscription_tier` `'pilot'` → `'school'` BEFORE any 4.7b code.
+   - **4.7b-1** (~1d): `'school_admin'` enum value + `SCHOOL_ADMIN_ACTIONS` matrix + `is_school_admin()` SECURITY DEFINER helper + INSERT-policy hardening (prevent self-promotion; allow during bootstrap-grace OR existing admin OR platform admin).
+   - **4.7b-2** (~1.5d): NEW `school_invitations` table (mig 089 `teacher_access_requests` is INSUFFICIENT — waitlist with TEXT `school` field, no `school_id` FK / token / `invited_by`). Domain-match banner rewrite (target school-tier → "ask IT" + request POST, never auto-join). Auto-join code path actively dismantled. Invite-acceptance endpoint. Upgrade-path reusing `schools.merged_into_id` from §4.5.
+   - **Matt-checkpoint**: smoke invite-flow end-to-end before sweeping policies.
+   - **4.7b-3** (~1d): tier-gate 6 leak surfaces (settings governance / audit log / library / teacher directory / student_mentors / school_resources+guardians).
+
+**Execution-order reorder under Option A**: 4.6 ships AFTER 4.7b. Library at free tier exposes other teachers' unit titles + content — bigger leak than the 6 existing surfaces. Build it gated from day one. Trade-off: reduces school-library QA window pre-pilot; mitigated by gated-from-day-one design.
+
+**2 new FUs filed**:
+- `FU-FREEMIUM-SCHOOL-DOWNGRADE-OWNERSHIP` P2 — school-tier-lapse split flow (ownership of shared students/classes/library when school downgrades free). Defer until real downgrade case arrives.
+- `FU-WELCOME-WIZARD-STUDENT-EMAIL-GUARD` P2 — student `@school-domain` emails can teacher-signup at flagged domains; tier-aware membership fixes only AFTER target school is `'school'` tier; needs role gate even after 4.7b lands. Should land before 2nd-school onboarding.
+
+**Estimate impact**: Phase 4 ~12.25 → ~17 days. Close ~13–14 May → ~17–18 May 2026.
+
+**Files modified** (5 plan docs, ~520 lines added):
+- `docs/projects/access-model-v2-phase-4-brief.md` — §3.8 item 13 (Decision 8 amendment), §4.7b spec (4 sub-sub-phases + Matt-checkpoint with full SQL/RLS/stop-triggers), §4.8b spec (added in earlier turn), §9 Estimate table updated, §11 sign-off addendums (4.8b + 4.7b)
+- `docs/projects/access-model-v2.md` — Decision 8 line 336 amended with full text + teacher-leaves-school content rule corollary
+- `docs/decisions-log.md` — 2 new entries (4.8b + Decision 8 amendment)
+- `docs/projects/access-model-v2-followups.md` — 4 new FUs (FU-FREEMIUM-CAN-PATTERN-ADR P3, FU-FREEMIUM-CALLSITE-PLAN-AUDIT P3, FU-FREEMIUM-SCHOOL-DOWNGRADE-OWNERSHIP P2, FU-WELCOME-WIZARD-STUDENT-EMAIL-GUARD P2)
+- `docs/handoff/main.md` — refreshed for next-session pickup with new execution order + 4.7b-0 ops prerequisite
+
+**Registries**: scanner sweep no-op (no new code/migrations/routes/AI-calls/vendors this session). JSON report timestamps refreshed.
+
+**Tests**: unchanged (3189/11). tsc strict: unchanged (0 errors). Vercel: no deploys this session.
+
+**Next session pickup**: handoff/main.md is the entry point. Phase 4 part 2 begins with 4.5 (school_merge_requests). 4.7b-0 ops flip can run any time after 4.5 lands — before 4.7b-1 code.
