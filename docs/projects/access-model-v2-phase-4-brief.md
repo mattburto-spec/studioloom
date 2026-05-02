@@ -427,17 +427,22 @@ Migration `20260502031121_phase_4_2_school_domains` minted, claimed, and SQL bod
 **To pre-seed NIS post-apply** (Matt-runnable in Supabase SQL Editor):
 
 ```sql
--- Replace <NIS_SCHOOL_ID> with the actual UUID
+-- NIS uses 3 domains: legacy nanjing-school.com, the .cn variant, and the
+-- current public-facing nischina.org (https://www.nischina.org/). Pre-seed
+-- all three so any Matt account or NIS-staff invite hits the auto-suggest.
+-- Replace <NIS_SCHOOL_ID> with the actual UUID.
 INSERT INTO school_domains (school_id, domain, verified, added_by)
 VALUES
   ('<NIS_SCHOOL_ID>', 'nis.org.cn', true, NULL),
-  ('<NIS_SCHOOL_ID>', 'nanjing-school.com', true, NULL)
+  ('<NIS_SCHOOL_ID>', 'nanjing-school.com', true, NULL),
+  ('<NIS_SCHOOL_ID>', 'nischina.org', true, NULL)
 ON CONFLICT (lower(domain)) DO NOTHING;
 
 -- Verify
 SELECT * FROM school_domains WHERE school_id = '<NIS_SCHOOL_ID>';
-SELECT * FROM lookup_school_by_domain('nis.org.cn'); -- should return NIS row
-SELECT * FROM lookup_school_by_domain('gmail.com');  -- should return 0 rows (blocklist)
+SELECT * FROM lookup_school_by_domain('nis.org.cn');    -- should return NIS row
+SELECT * FROM lookup_school_by_domain('nischina.org');  -- should return NIS row
+SELECT * FROM lookup_school_by_domain('gmail.com');     -- should return 0 rows (blocklist)
 ```
 
 **Sub-phase status: ✅ COMPLETE.** Next: Phase 4.3 — Governance engine (`school_setting_changes` + `proposeSchoolSettingChange()` helper + cron + rate limiter + tier resolvers + version stamping). The big one — ~1.5 days estimate.
