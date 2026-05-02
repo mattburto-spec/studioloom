@@ -568,6 +568,55 @@ to run as the first action of the freemium build, not Phase 4.
 
 ---
 
+## FU-AV2-IMPERSONATION-RENDER-WIRING
+**Priority:** P3
+**Surfaced:** Phase 4.7 super-admin view shipped (3 May 2026)
+**Target gate:** Pre-pilot expansion to 2nd school (or first time Matt
+needs to genuinely "see what teacher X sees" to debug a complaint)
+
+**Symptom:** Phase 4.7 ships the full view-as URL machinery — signed
+HMAC token, /api/admin/school/[id]/impersonate route, middleware
+mutation-block when `?as_token=` is present, verifyImpersonationToken
+helper. The "View as" button in /admin/school/[id] generates a working
+URL that opens /teacher/dashboard?as_token=... in a new tab.
+
+But the consuming side — actually rendering the target teacher's data
+when `?as_token=` is present — is NOT wired. Matt will see his own
+dashboard with the URL param dangling, not the target teacher's view.
+
+**What's needed for full impersonation:**
+1. Layout-level `as_token` consumer that calls `verifyImpersonationToken`,
+   logs an `audit_events` row of type `platform_admin.impersonation_used`
+   (paired with the `_url_issued` row from §4.7), and threads the
+   resolved `target_teacher_id` into a request-scoped context.
+2. Teacher-side data fetchers (`getTeacherSession()`, dashboard loaders)
+   read the impersonation context and substitute `target_teacher_id` for
+   `auth.uid()` when present.
+3. Visual banner: "You are viewing as <teacher_name>. This is a
+   read-only support session. Token expires in <countdown>."
+4. RLS implications: SECURITY DEFINER helpers like
+   `is_teacher_of_class()` need to honor the impersonated identity OR
+   the consuming page needs to query via service role + manual filtering.
+   Pick one and document in the impersonation helper.
+
+**Why deferred:** The hard security work (signing, expiry, mutation
+block, audit log) shipped in 4.7. The render-wiring is product UX —
+useful but not blocking the super-admin's primary jobs (audit log,
+change history, teacher list, settings snapshot, merge approval).
+Phase 4.7 verified by smoke if Matt clicks "View as" and the URL opens
+in a new tab with as_token set.
+
+**Done when:**
+1. Layout consumes `as_token`, audit-logs use, threads context.
+2. Teacher dashboard renders target teacher's data.
+3. Visible banner with countdown.
+4. RLS path documented (impersonate-as-uid OR service-role with
+   manual filter).
+5. Smoke: Matt views as a real test teacher, sees their actual classes
+   + students, attempts a mutation, gets 403.
+
+---
+
 ## FU-FREEMIUM-SCHOOL-DOWNGRADE-OWNERSHIP
 **Priority:** P2
 **Surfaced:** Phase 4.7b tier-aware membership amendment (2 May 2026 PM, Gemini Q2 review)

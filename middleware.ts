@@ -6,6 +6,30 @@ import { isAdminUser } from "@/lib/auth/require-admin";
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Phase 4.7 — view-as (impersonation) is read-only. If a request carries
+  // `as_token=...` AND the method is anything but GET/HEAD, refuse the
+  // request before downstream handlers see it. Per master-spec Decision 9:
+  // view-as is "URL param only, NEVER session-spoof." This middleware
+  // guard enforces the "read-only" half. Sig verification happens at the
+  // route layer (see verifyImpersonationToken in src/lib/auth/impersonation.ts).
+  if (request.nextUrl.searchParams.has("as_token")) {
+    const method = request.method.toUpperCase();
+    if (method !== "GET" && method !== "HEAD") {
+      return new NextResponse(
+        JSON.stringify({
+          error: "View-as impersonation is read-only — mutation blocked",
+        }),
+        {
+          status: 403,
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store, private",
+          },
+        }
+      );
+    }
+  }
+
   // Public routes — no auth required
   if (
     pathname === "/" ||
