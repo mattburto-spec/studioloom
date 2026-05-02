@@ -114,6 +114,15 @@ export default function TeacherWelcomePage() {
   // School (migration 085 — picker + add-your-own)
   const [selectedSchool, setSelectedSchool] = useState<PickerSchool | null>(null);
 
+  // Phase 4.2 — domain-based auto-suggest. Populated from lookup-by-domain
+  // call when the teacher's email maps to a verified school_domains row.
+  // Banner above SchoolPicker offers "Use this school" or "Search instead."
+  const [domainSuggestion, setDomainSuggestion] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [domainSuggestionDismissed, setDomainSuggestionDismissed] = useState(false);
+
   // Timetable (step 2)
   const [timetableMethod, setTimetableMethod] = useState<
     null | "photo" | "ical" | "skip"
@@ -196,6 +205,33 @@ export default function TeacherWelcomePage() {
             .maybeSingle();
           if (school) {
             setSelectedSchool(school as PickerSchool);
+          }
+        } else if (user.email) {
+          // Phase 4.2 — domain-based auto-suggest. Only fires when the
+          // teacher hasn't already attached to a school. Free-email
+          // domains are blocklisted at the DB level, so we don't filter
+          // here — just trust the API response.
+          const emailDomain = user.email.split("@")[1]?.toLowerCase();
+          if (emailDomain) {
+            try {
+              const lookupRes = await fetch(
+                `/api/schools/lookup-by-domain?domain=${encodeURIComponent(
+                  emailDomain
+                )}`
+              );
+              if (lookupRes.ok) {
+                const json = await lookupRes.json();
+                if (json?.match?.id && json?.match?.name) {
+                  setDomainSuggestion({
+                    id: json.match.id,
+                    name: json.match.name,
+                  });
+                }
+              }
+            } catch {
+              // Silent — suggestion is a nice-to-have; falling back to
+              // the regular search picker is fine.
+            }
           }
         }
       } catch (err) {
@@ -738,6 +774,57 @@ export default function TeacherWelcomePage() {
                   Which school are you at?{" "}
                   <span className="text-gray-400 font-normal">(optional)</span>
                 </label>
+
+                {/* Phase 4.2 — domain auto-suggest banner */}
+                {domainSuggestion &&
+                  !selectedSchool &&
+                  !domainSuggestionDismissed && (
+                    <div className="mb-3 flex items-start gap-3 rounded-xl border border-purple-200 bg-purple-50/60 p-3">
+                      <div className="text-xl leading-none">🎯</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900">
+                          We found your school: {domainSuggestion.name}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Based on your email domain. You can search instead if
+                          that&apos;s not right.
+                        </p>
+                        <div className="mt-2 flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // Re-fetch full school row for the picker shape
+                              const supabase = createClient();
+                              supabase
+                                .from("schools")
+                                .select(
+                                  "id, name, city, country, ib_programmes, verified, source"
+                                )
+                                .eq("id", domainSuggestion.id)
+                                .maybeSingle()
+                                .then(({ data }) => {
+                                  if (data) {
+                                    setSelectedSchool(data as PickerSchool);
+                                  }
+                                  setDomainSuggestionDismissed(true);
+                                });
+                            }}
+                            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition-colors"
+                          >
+                            Use this school
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDomainSuggestionDismissed(true)}
+                            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            Search instead
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                 <SchoolPicker
                   value={selectedSchool}
                   onChange={setSelectedSchool}
