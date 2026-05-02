@@ -186,3 +186,50 @@ Then file an issue + report. Phase 3.5 status: blocked until resolved.
 1. Reply to Claude with "Checkpoint A4 PASS" + which scenarios passed.
 2. Claude merges `access-model-v2-phase-3` → `main` via fast-forward (after running `verify-no-collision.sh`).
 3. Phase 3 closed. Phase 4 (School Registration, Settings & Governance) is the next master-spec phase.
+
+---
+
+## OUTCOME — 1–2 May 2026
+
+**Checkpoint A4: PASS** with 3 mid-smoke hotfix migrations + 2 route fixes captured.
+
+### Per-scenario results
+
+| Scenario | Result | Notes |
+|---|---|---|
+| 1. lead_teacher baseline (regression check) | ✅ PASS | Teacher 1 saw 7 active classes — Phase 3.4c dashboard expansion preserved baseline |
+| 2. co_teacher dashboard visibility | ✅ PASS *after Phase 3.4e* | Teacher 2 saw only 6 classes initially (PostgREST `classes!inner` embed dropped Class A because `classes` RLS only had `teacher_id = auth.uid()`); after 3.4e added `"Class members read their classes"` SELECT policy via `has_class_role()`, Teacher 2 saw 7 classes (6 own + Class A as co_teacher) |
+| 3. cross-class mentor student access | ✅ PASS *after Phase 3.4f* | Teacher 2 hit "Student not found" on Student S profile initially (`is_teacher_of_student()` checked only legacy `classes.teacher_id` chain); after 3.4f rewrote the function to add `has_class_role` + `has_student_mentorship` branches, profile loaded correctly. **Closes FU-MENTOR-SCOPE P1** |
+| 4. non-member 404 isolation | ⏭️ SKIPPED | NIS prod has no different-school class fixture for the negative control. Covered analytically by the 33 Phase 3.2 unit tests + the structural fact that `has_class_role` / `has_student_mentorship` return false for non-members |
+| 5. `/api/teacher/me/scope` shape | ✅ PASS *after Phase 3.4g v2* | Initial response had 7 scopes (missing mentor); `_debug` payload surfaced `column students_1.name does not exist` — students table has no `name` column (display_name + username). v1 fix (pin embed FK by name) didn't shake the auto-alias loose; v2 dropped the embed entirely + did a follow-up `students` lookup by ID. All 8 scopes returned (6 lead_teacher + 1 co_teacher + 1 mentor) with correct `display_name` fallback to `username` |
+
+### Mid-smoke hotfixes (3 migrations + 2 route fixes)
+
+All applied to prod between Scenario 2 and Scenario 5 close:
+
+- **`20260501141142_phase_3_4e_classes_class_members_read_policy.sql`** — adds `"Class members read their classes"` SELECT policy on `classes` via `public.has_class_role(id)`. Closes the PostgREST `classes!inner` embed gap surfaced in Scenario 2.
+
+- **`20260501142442_phase_3_4f_is_teacher_of_student_includes_class_members_and_mentors.sql`** — rewrites `is_teacher_of_student(student_uuid)` to add 2 OR branches: `has_class_role(cs.class_id)` for any class_members role + `has_student_mentorship(s.id)` for direct mentor row. All 3 students RLS policies (SELECT/UPDATE/DELETE) inherit the fix automatically. Closes FU-MENTOR-SCOPE on every route gating via this helper.
+
+- **Phase 3.4g (route, no migration)** — `/api/teacher/me/scope` route fixed in two pushes. v1 pinned the FK by constraint name (`students!student_mentors_student_id_fkey`); v2 dropped the embed entirely + did a follow-up `db.from("students").select("display_name, username").in("id", studentIds)` lookup. The original `students(name)` embed was actually invalid because `students` has no `name` column — `display_name` + `username` are the actual fields.
+
+- **Mid-smoke `_debug` payload** — temporarily added per-query count + error to `/api/teacher/me/scope` response to diagnose the silent embed failure. Removed on close-out (commit `0755d20`).
+
+### Test fixtures (cleaned up after smoke)
+
+Seeded:
+- `class_members(class_id=bcfd122e..., member_user_id=e59fb92f..., role=co_teacher)`
+- `student_mentors(student_id=544a0b46..., mentor_user_id=e59fb92f..., programme=pp)`
+
+Both DELETEd post-smoke. Phase 0.8a-backfilled lead_teacher rows preserved (they're load-bearing for production teachers).
+
+### Lesson captured
+
+The 3 hotfixes all share Lesson #64's recursion class: the seam table exists but the consuming RLS doesn't know to use it. Phase 3.5 smoke surfaced 3 instances of this pattern that the Phase 3 brief's audit didn't catch:
+
+1. `classes` had no policy that consulted `class_members` (3.4e fixes)
+2. `is_teacher_of_student()` had no path through `class_members` or `student_mentors` (3.4f fixes)
+3. Phase 3.3 `/me/scope` embed was syntactically wrong (no `name` column on students) but PostgREST's auto-aliasing made the error message confusing (3.4g fixes)
+
+**Generalisation:** when a phase introduces a new junction table + helper functions that read it, audit every existing RLS policy + helper function on adjacent tables for "do they consult the new junction?" — not just the writers + readers of the new table itself. Filed as candidate Lesson #66 in `lessons-learned.md` (TODO during saveme).
+
