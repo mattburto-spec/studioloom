@@ -31,6 +31,8 @@ import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enforceArchivedReadOnly } from "@/lib/access-v2/school/archived-guard";
 import { IdentitySection } from "./IdentitySection";
+import { PendingProposalsList } from "./PendingProposalsList";
+import { ActivityFeed } from "./ActivityFeed";
 
 export const dynamic = "force-dynamic";
 
@@ -302,36 +304,13 @@ export default async function SchoolSettingsPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* Pending proposals — Phase 4.4c will make these confirm/dismiss interactive */}
-      {pendingProposals.length > 0 && (
-        <section className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-3">
-          <div className="text-sm font-semibold text-blue-900">
-            🔔 {pendingProposals.length} proposal
-            {pendingProposals.length === 1 ? "" : "s"} pending confirm
-          </div>
-          <ul className="space-y-2 text-xs text-blue-900">
-            {pendingProposals.map((p) => (
-              <li
-                key={p.id}
-                className="rounded-lg bg-white border border-blue-200 px-3 py-2"
-              >
-                <div className="font-medium">{p.change_type}</div>
-                <div className="text-blue-700">
-                  Proposed{" "}
-                  {new Date(p.created_at).toLocaleString()} ·{" "}
-                  {p.expires_at && (
-                    <>
-                      expires {new Date(p.expires_at).toLocaleString()}
-                    </>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-          <p className="text-[11px] text-blue-700">
-            Confirm/dismiss actions land in Phase 4.4c.
-          </p>
-        </section>
+      {/* Phase 4.4c — interactive pending proposals (Confirm buttons) */}
+      {!readOnly && (
+        <PendingProposalsList
+          schoolId={school.id}
+          currentUserId={auth.userId}
+          proposals={pendingProposals}
+        />
       )}
 
       {/* Phase 4.4b — editable Identity section */}
@@ -406,65 +385,20 @@ export default async function SchoolSettingsPage({ params }: PageProps) {
         </p>
       </section>
 
-      {/* Activity feed (read-only in 4.4a; revert buttons in 4.4c) */}
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 space-y-3">
-        <h2 className="text-base font-semibold text-gray-900">
-          Recent Activity (last 30 days)
-        </h2>
-        {recentChanges.length === 0 ? (
-          <p className="text-xs text-gray-500">
-            No settings changes yet. The feed will fill in as teachers update
-            settings.
-          </p>
-        ) : (
-          <ul className="space-y-2 text-sm">
-            {recentChanges.map((c) => (
-              <li
-                key={c.id}
-                className="flex items-start justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium text-gray-900">
-                    {c.change_type}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {c.status === "applied" && c.applied_at && (
-                      <>
-                        Applied {new Date(c.applied_at).toLocaleString()}
-                      </>
-                    )}
-                    {c.status === "reverted" && c.reverted_at && (
-                      <>
-                        Reverted {new Date(c.reverted_at).toLocaleString()}
-                      </>
-                    )}
-                    {c.status === "expired" && (
-                      <>
-                        Expired {new Date(c.created_at).toLocaleString()}
-                      </>
-                    )}
-                  </div>
-                </div>
-                <span
-                  className={
-                    "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold " +
-                    (c.status === "applied"
-                      ? "bg-green-100 text-green-800"
-                      : c.status === "reverted"
-                        ? "bg-orange-100 text-orange-800"
-                        : "bg-gray-200 text-gray-700")
-                  }
-                >
-                  {c.status}
-                </span>
-              </li>
-            ))}
-          </ul>
+      {/* Phase 4.4c — interactive activity feed (Revert buttons).
+          SQL filters to status IN ('applied', 'reverted', 'expired') so
+          we narrow at the boundary — pending shouldn't appear here, the
+          ActivityFeed prop type rejects pending. */}
+      <ActivityFeed
+        schoolId={school.id}
+        changes={recentChanges.filter(
+          (
+            c
+          ): c is SettingChangeRow & {
+            status: "applied" | "reverted" | "expired";
+          } => c.status !== "pending"
         )}
-        <p className="text-[11px] text-gray-400">
-          Revert / confirm actions land in Phase 4.4c.
-        </p>
-      </section>
+      />
 
       {/* Domains link */}
       <section className="rounded-2xl border border-gray-200 bg-white p-5 space-y-3">
