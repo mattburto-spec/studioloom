@@ -630,6 +630,38 @@ Copy change: "What's your first class called?" → "Let's add a class". The "fir
 
 **Sub-phase status: ✅ COMPLETE.** All 3 side bugs from banner-test smoke resolved. Phase 4.2 verification ✅ (banner working). Phase 4 main path now clear to Phase 4.4.
 
+---
+
+#### Phase 4.3.z — Three-Matts prod-data consolidation (COMPLETED 2 May 2026)
+
+Mid-Phase-4 prod-data hygiene. Surfaced when the banner-test smoke confirmed the §4.2 wiring works end-to-end + Matt asked about the "random users" in his Supabase dashboard. Diagnostic showed three Matt accounts each holding real test data (26 classes / 11 units / 7 students total) — the "Multi-Matt-teacher-account prod data" risk row from the master spec (line 319). Per Matt: "all test data, nothing precious, fresh curriculum coming after Phase 4."
+
+**Resolves master-spec risk:** "Multi-Matt-teacher-account prod data — three teacher rows for 'Matt' in prod ... Matt manually decides whether to merge his three accounts as a Phase 6 cutover step." Pulled forward from Phase 6 to Phase 4.3.z while we were already in the area + nothing live to disrupt (students arrive Wednesday).
+
+**Consolidation outcome:**
+
+| Account | Role | Admin tier | Status |
+|---|---|---|---|
+| `mattburto@gmail.com` | renamed → **"Admin"** | `legacy_is_admin` + `is_platform_admin` (both) | Active; pure admin, no teaching content |
+| `mattburton@nanjing-school.com` | renamed → **"Matt Burton"** | Neither (pure teacher) | Active; clean slate for pilot teaching |
+| `hello@loominary.org` | renamed → **"Loominary (deactivated)"** | Neither | `teachers.deleted_at = now()`, `auth.users.banned_until = '2099-01-01'` |
+
+**Data wiped (all 3 accounts):** 26 classes, 11 units, 7 students, 8 student-shape auth.users rows (including 1 stale ghost from earlier banner-test cleanup). Plus competency_assessments cascade-pre-delete + units.forked_from NULL-out for the Loominary "(forked)" unit referencing Gmail's CO2 Racer parent.
+
+**FK behaviors leveraged:** the FK enumeration query (every constraint on classes / units / students / teachers) revealed only TWO real blockers:
+- `competency_assessments.class_id` → `classes(id)` — NO ACTION (pre-deleted)
+- `units.forked_from` → `units(id)` — NO ACTION (NULL-out before parent delete)
+
+All other FKs either CASCADE (auto-delete) or SET NULL (orphan the reference, preserving audit context — e.g., audit_events with NULL class_id stays in the immutable audit trail with class scope erased; machine_profiles with NULL creator stays in school inventory). Master-spec §8 governance treats these as correct outcomes for user-merge cleanup.
+
+**Apply discipline (Lesson learned):** Supabase SQL Editor runs in autocommit mode — `BEGIN`/`COMMIT` doesn't reliably wrap multi-statement scripts unless the entire script runs as ONE statement (e.g., DO block). Temp tables created in one statement vanish before subsequent statements can use them. Workaround: avoid temp tables across multi-statement scripts; use idempotent statement chains so partial failures don't strand state. The recovery script ran fully idempotent (no-op DELETEs if already done; renames / admin flips run fresh) — that's now the pattern for prod-data work in SQL Editor.
+
+**Master-spec changes:** the `is_platform_admin=true` annotation that was on `mattburton@nanjing-school.com` (1 May) is now on `mattburto@gmail.com` instead. Master CLAUDE.md needs the swap on next saveme.
+
+**FU-AV2-CONSOLIDATE-MULTI-MATT — RESOLVED.** No longer a Phase 6 follow-up.
+
+**Sub-phase status: ✅ COMPLETE.** Now: clean prod state for Phase 4.4 onward.
+
 ### Phase 4.4 — `/school/[id]/settings` page + activity feed + multi-campus + archived guard + i18n (~1.5 day)
 
 **Output:**
