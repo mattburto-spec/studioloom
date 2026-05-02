@@ -14,7 +14,16 @@
 
 ## 1. Goal
 
-Stand up the **school as a first-class entity with flat-membership self-governance**. After Checkpoint A5: a new teacher signing up sees their real school auto-suggested via email domain match; teachers in the same school see a `/school/[id]/settings` page where any of them can edit low-stakes settings (instant-apply, 7-day revert) or propose high-stakes settings (require a 2nd teacher's confirm within 48h or expire); a platform super-admin (`is_platform_admin = true`, Matt only) has a separate `/admin/school/[id]` view with merge-request controls and impersonation; school-level settings that lived on `teachers` (academic calendar) bubble up into `schools` with per-class override windows preserved; the School Library lets same-school teachers browse each other's units read-only via the Phase 0 `units.school_id` seam; and `dept_head` becomes a department-aware role that auto-tags into all classes of its department (closes FU-AV2-DEPT-HEAD-DEPARTMENT-MODEL).
+Stand up the **school as a first-class entity with flat-membership self-governance, the curriculum-library moat that no competitor has, and forward-compatible architecture for multi-campus + archived schools + i18n + governance auditability.**
+
+After Checkpoint A5:
+- A new teacher signing up sees their real school auto-suggested via email-domain match (with free-email-provider blocklist to avoid "did you mean Google?" false positives).
+- Same-school teachers see `/school/[id]/settings` where any of them can edit low-stakes settings (instant-apply, 7-day revert) or propose high-stakes (2-teacher confirm within 48h or expire). **Tier resolution is context-aware** — a `school_domains` row added by a teacher whose email matches the domain auto-confirms; a 51% AI-budget jump escalates to high-stakes; safeguarding contacts always require 2-teacher confirm.
+- Platform super-admin (Matt only, gated on `is_platform_admin`) has a separate `/admin/school/[id]` view with merge-request approval, view-as URL impersonation (read-only, audit-logged), and campus tree visualization for multi-campus schools.
+- School-level settings that lived on `teachers` (academic calendar, timetable skeleton, frameworks, default grading scale) bubble up to `schools` with most-recently-edited-wins backfill + activity-feed notification.
+- **School Library ships with Request-to-Use flow** — same-school teachers see each other's published units, click "Request to use" → in-app message to author → author approves/denies → fork happens with full attribution preserved (`forked_from_unit_id` + `forked_from_author_id`). This is the curriculum-library moat.
+- `dept_head` becomes department-aware: `school_responsibilities` rows of type `dept_head` + `department` auto-tag the holder into every existing class with matching `school_id + department`, and stay synced via INSERT/UPDATE triggers (closes FU-AV2-DEPT-HEAD-DEPARTMENT-MODEL).
+- **Forward-compat:** multi-campus inheritance via `parent_school_id` self-join (schema turned on, no UI v1); archived schools are read-only via `enforceArchivedReadOnly()` middleware (not 404 — preserves "what units did NIS make 5 years ago?"); settings changes are rate-limited 10/hr/teacher; high-stakes confirms render 3-way diffs (proposed-before → current → confirmed-after) so confirmers see if anything moved during the 48h window; merge cascades emit one audit_events row per table touched; `/school/[id]/settings` strings are extracted via the codebase's i18n primitive from day 1 (English-only v1, second-locale ships as config).
 
 **This is mostly NEW schema + UI on top of strong Phase 0 seams.** The `schools` table already has `bootstrap_expires_at`, `subscription_tier`, `status` lifecycle, `region`, `timezone`, `default_locale`, `allowed_auth_modes` (Phase 0 + Phase 2.3); `is_platform_admin` already lives on `user_profiles` (Phase 0 mig `20260428142618_user_profiles.sql:55`); `audit_events.actor_type` already includes `'platform_admin'` (Phase 0). What's missing is (a) three NEW tables (`school_domains`, `school_setting_changes`, `school_merge_requests`), (b) the governance engine + cron + helper, (c) the teacher-facing `/school/[id]/settings` UI, (d) the super-admin `/admin/school/[id]` UI (replacing the paper-only `/admin/schools` page that currently lists classes-by-teacher per its own comment "No schools entity exists yet (FU-P)"), (e) the School Library browse view, (f) the school-calendar bubble-up, and (g) the department concept on classes + dept_head auto-tag trigger.
 
@@ -187,33 +196,55 @@ Two architectural options, **§3.8 Q7**:
 - WIRING `teacher-school-settings.data_fields` → claims `teachers.school_profile` only. Grep confirmed: that's correct as written; the WIRING **summary** is what overstates ("calendar/terms structure" — calendar lives elsewhere).
 - api-registry `/api/teacher/school-calendar` entry → confirmed route exists at `src/app/api/teacher/school-calendar/route.ts`. Reads `school_calendar_terms` filtered by `teacher_id`. Calendar bubble-up audit start point.
 
-### 3.8 Open questions (must resolve before §4)
+### 3.8 Resolved decisions (signed off by Matt 2 May 2026)
 
-These are the §1 STOP-and-report items. Each one is signed off by Matt before code lands.
+All 12 originally-open questions resolved in the same chat session that produced this brief. Listed here for traceability + decisions-log entry. Where my default proposal was upgraded by Matt's call, the upgrade is documented inline.
 
-1. **Phase 4 estimate delta — is ~7–8 days acceptable?** Master spec says 3 days, written before this audit. The 12 sub-items × audit + governance + bubble-up + dept-head trigger work expand it considerably. **Proposal:** carry the realistic ~7–8 day estimate; if too long, propose splitting Phase 4 into 4A (registration + governance + library, ~5 days) and 4B (super-admin + dept_head + calendar bubble-up, ~3 days) with separate Checkpoints A5a / A5b. **Acceptable?**
+1. **Phase 4 estimate delta — accepted at ~9–10 days, no split.** A5a-without-merge-or-super-admin would be an incomplete story; the governance engine in 4.3 is what makes 4.4–4.9 internally coherent. Buffer raised from 1 → 1.5 days to absorb dept_head trigger surprises. **One Checkpoint A5, one prod-apply window.**
 
-2. **Stake-tier classification — exactly which fields are low-stakes vs high-stakes?** Master spec §8.3 gives 5 + 6 examples; reality has ~25 settings. **Proposal:** the brief enumerates each setting in §3.5 + assigns tier. Bubble up the table in §3.8 sign-off; Matt edits inline. **Default:** identity (name/logo/region) = high-stakes; auth modes = high-stakes; deleting historical data = high-stakes; all others (calendar dates, period names, machine list, framework edits, AI budget, content sharing toggle, notification footer) = low-stakes.
+2. **Stake-tier classification — context-aware, NOT a flat list.** Default proposal upgraded:
+   - **High-stakes** (require 2-teacher confirm within 48h): identity (name, logo, region, country) · auth policy changes · removing a teacher · deleting historical data · school merge approval · **safeguarding contacts** (security boundary — adding a fake recipient bypasses safeguards) · **subscription tier change** (changes which features turn on) · **default AI budget changes >50% of current value** (cost blast radius)
+   - **High-stakes UNLESS self-verifying:** **adding a `school_domains` row** — auto-confirms (low-stakes) when the requesting teacher's email matches the domain being added; otherwise high-stakes (mirrors Phase 2.3 allowlist + email_password safety net pattern)
+   - **Low-stakes** (instant apply, audit-logged, 7-day revert): all calendar/term dates · period names + bell times · machine list additions · scanner ack defaults · framework list edits · content sharing default · notification footer · **AI budget changes ≤50% delta** · lab hours · pickup SLAs · fabricator invites
+   - **Implementation:** `proposeSchoolSettingChange()` helper resolves tier *based on payload + actor context*, not a static enum. Specifically: domain-add auto-verify path checks `actor.email LIKE '%@'+domain`; AI-budget-delta computes `abs(new - old) / old > 0.5`. Each setting documents its tier resolver in code comments.
 
-3. **`schools.default_student_ai_budget` column — Phase 4 or Phase 5?** Phase 5 reads it. Phase 4 needs it for the settings UI to surface "this school's default daily token budget." **Proposal:** add the column in Phase 4 §4.8 (no resolver yet, just the column + UI). Phase 5 wires the resolver. **Acceptable?**
+3. **`schools.default_student_ai_budget` — added in Phase 4 §4.8.** Column-only (~5 minutes); UI in §4.4 binds to it; Phase 5 wires the resolver.
 
-4. **Kill-switch flag for governance engine?** Phase 3 added `auth.permission_helper_rollout`. Phase 4 governance is a similar high-blast-radius change. **Proposal:** YES — `school.governance_engine_rollout` boolean flag in `admin_settings`, default `true`. Every governance route wraps `if (!flag) return legacyOrFallback`. The fallback for "schools haven't onboarded yet" reads/writes pass-through. Removed in Phase 6 cutover. **OK?** (If NO, skip §4.0 flag; ship unconditionally.)
+4. **Kill-switch flag — YES.** `school.governance_engine_rollout` boolean in `admin_settings`, default `true`. Removed in Phase 6 cutover.
 
-5. **Merge redirect column — reuse `schools.parent_school_id` (Phase 0) or add `merged_into_id`?** `parent_school_id` was reserved for the multi-campus / consortium pattern (e.g., NIS → IB regional federation). Re-using it for merge redirects conflates two semantics. **Proposal:** add `schools.merged_into_id UUID NULL` (NEW column, FK to schools); leave `parent_school_id` for federation use. **Acceptable?**
+5. **Merge redirect — separate `schools.merged_into_id` column.** `parent_school_id` stays reserved for federation/multi-campus (a school can simultaneously be in a federation AND be the survivor of a merge). Two columns, two clean semantics.
 
-6. **Bootstrap grace edge case — what if a 2nd teacher joins BEFORE the 7-day window closes?** Master spec line 395 says "the column is set to `now()` on the 2nd teacher's insert." But what if the 2nd teacher leaves the same day? Reset window? Auto-extend? **Proposal:** ONCE the window closes (whether by 7 days OR 2nd teacher join), it stays closed. If the 2nd teacher leaves and the school becomes single-teacher again, the school enters single-teacher mode but does NOT reopen the bootstrap window — too easy to game ("invite-then-fire"). The lone teacher CAN make high-stakes proposals, they just sit in `pending` forever (or until a 2nd teacher joins to confirm). **OK?**
+6. **Bootstrap grace — once closed, never reopens.** Closes by EITHER 7-day expiry OR 2nd teacher join. If 2nd teacher leaves later, school enters single-teacher mode but bootstrap does NOT reopen (prevents invite-fire gaming). Lone teacher can still propose high-stakes changes; they sit in `pending` indefinitely with a "waiting for 2nd teacher" badge — social pressure to recruit a colleague is the right UX.
 
-7. **Department concept — Option A or Option B?** (§3.6 above.) **Proposal:** Option A. **Acceptable?**
+7. **Department concept — Option A.** `classes.department TEXT NULL` + `school_responsibilities.department TEXT NULL`. TEXT (not enum) for now — premature optimization. **`FU-AV2-DEPT-HIERARCHY` P3 filed** for hierarchy support (Faculty → Dept → sub-discipline) when a pilot school asks; most international schools live with 5–10 flat departments fine.
 
-8. **Dept_head auto-tag retroactivity — when feature ships, should existing schools auto-populate?** Today (1 May 2026) NIS has 0 `school_responsibilities` rows. So retroactive backfill is null-op for prod. But the migration applies to ALL schools (~150 seeded in §4.1). **Proposal:** auto-populate runs as a one-shot `INSERT … FROM …` in `4.9_classes_department.sql` after the trigger lands. Dry-run logged; backfill runs. **Acceptable?**
+8. **Retroactive dept_head backfill — runs.** Idempotent `INSERT ON CONFLICT DO NOTHING` in `4.9_classes_department.sql`. NIS prod = null-op (0 responsibility rows today); load-bearing for 2nd-school onboarding.
 
-9. **Super-admin impersonate-as-teacher — Phase 4 or Phase 5?** Master spec §8.4 lists impersonation as a deliverable. Implementing it requires either session-spoofing (security risk, audit trail subtle) or a "view-as" UI mode (less risky, no auth change). **Proposal:** Phase 4 ships a "view-as" UI mode (read-only `?as_teacher_id=...` query param on teacher pages, gated on `is_platform_admin`). NO session-spoofing. NO write. The `/api/admin/school/[id]/impersonate` route returns a signed URL with the `as_teacher_id` param, logged to `audit_events`. **Acceptable?** (If too much for Phase 4, defer to Phase 5.)
+9. **Impersonation — view-as URL param only. NEVER session-spoof.** `?as_teacher_id=...` on teacher pages, gated on `is_platform_admin`, signed URL with 5-minute expiry, audit_events row per use. Read-only forced via middleware (any mutation route 403s when `as_teacher_id` is present). Stripe + Linear support tooling pattern. **No FU filed for session-spoof in Phase 5** — let the URL param prove its limits in pilot first; only revisit if a real "support engineer must write on teacher's behalf" use case emerges.
 
-10. **`schools.timezone` migration — multi-teacher schools may have conflicting timezones today (NIS = `Asia/Shanghai`, hypothetical other-school co-teacher = `Australia/Sydney`).** When backfilling, what wins? **Proposal:** the schools table already defaults to `Asia/Shanghai`. The Phase 4 settings UI lets one teacher set the school's timezone explicitly (low-stakes); until then, the default holds. **Acceptable?**
+10. **Timezone — keep `Asia/Shanghai` default + smart browser-detect for fresh schools.** When a teacher creates a brand-new school (still in bootstrap, single-teacher), the welcome wizard pre-fills timezone from `Intl.DateTimeFormat().resolvedOptions().timeZone`. Override available, defaults to detected value. Existing schools opt-in only — no mass-set. ~10 lines of code; massive UX win for 2nd-school onboarding.
 
-11. **Schools seed scope — how many entries per market?** §4.1 ships ~150 entries spanning IB / GCSE / IGCSE / A-Level / ACARA / US-independent. **Proposal:** ~30 per market = ~150 total. Hand-curated. NOT 5–10k. NOT scraped. **Acceptable?**
+11. **Seed scope — ~150 entries, curation-criteria-driven.** Target schools where (a) they publicly list a D&T or Innovation faculty, (b) they're in cities where Matt has a connection or viable on-the-ground intro, (c) they teach a framework Matt can demo (MYP/GCSE/PYP/A-Level/ACARA). NOT alphabetical IBO directory sample. NOT 5–10k automated scrape. The seed exists so first-keystroke typeahead finds Matt's pilot prospects, not so the directory is "complete."
 
-12. **School Library scope in Phase 4 — read-only across same-school, or also forkable?** Master spec §8.1 line 358 says "browseable + forkable." But forking touches `unit-forking` system v1 (Phase 0.10) which is class-scoped today. **Proposal:** Phase 4 ships **browse-only**. Forking from school library = follow-up `FU-AV2-PHASE-4-LIBRARY-FORK` P3, scheduled when a 2nd teacher actually wants to fork (post-pilot reality check). **Acceptable?**
+12. **School Library — browse-only PLUS request-to-use flow.** v1 ships browse + a "Request to use this unit" button. Sends in-app message to author → author approves/denies in their notifications → on approval, fork happens with attribution preserved (`units.forked_from_unit_id` + `units.forked_from_author_id`). Adds ~1.5 days but **this is the curriculum-library moat** — Khan/MagicSchool are one-author so they sidestep this; making it work is what differentiates StudioLoom for actual school adoption.
+
+### 3.9 Future-proofing additions (signed off 2 May 2026)
+
+Six items added to the brief to avoid painting Phase 4 schema/UX into corners. Each maps to an existing sub-phase rather than creating new ones.
+
+13. **Multi-campus pattern via `parent_school_id` self-join (§4.4 + §4.7).** NIS has primary + secondary campuses; Sydney Grammar has 3. Today there's no schema differentiation. `parent_school_id` was reserved for this — Phase 4 turns it on as a **read-precedence pattern**: when reading a child school's settings, fall back through parent for unset values (`COALESCE(child.academic_calendar_jsonb, parent.academic_calendar_jsonb)`). No UI in v1; super-admin view at `/admin/school/[id]` shows campus tree if `parent_school_id` is set. Adds ~0.25 day to §4.4.
+
+14. **Setting-change versioning at proposal time (§4.3).** When Sarah proposes "rename school" at 09:00 with current value "NIS" and Bob confirms at 22:00 — Bob sees the value as it was when Sarah proposed it, not as it is right now. **`school_setting_changes.payload_jsonb` carries `{ before_at_propose, after }`**, and confirm UI shows a 3-way diff (proposed-before → current → confirmed-after) so Bob can see if anything else moved. Avoids confused-Bob class of bugs. ~30 mins extra in §4.3 helper.
+
+15. **Audit per merge-cascade table (§4.5).** When Matt approves a merge touching 12 tables, log ONE `audit_events` row per table + row count, not one for the whole merge. Forensic trail. ~10 extra inserts in helper.
+
+16. **Read-only mode for archived schools (§4.0 helper + threaded through §4.4–§4.7).** `schools.status = 'archived'` makes every read return `{ data, read_only: true }` rather than 404. UI shows banner; mutation routes 403 with reason. Preserves "what units did NIS make in 2026?" five years later. Implemented via shared `enforceArchivedReadOnly()` middleware helper at `src/lib/access-v2/school/archived-guard.ts`. Adds ~0.5 day spread across sub-phases.
+
+17. **API rate limiting on settings changes (§4.3).** Mitigates master-spec risk row "rogue teacher spams settings changes." 10 settings changes per hour per teacher; returns 429 with `Retry-After` header. Implemented in `proposeSchoolSettingChange()` helper using a Postgres-backed counter (no Redis dep) — `school_setting_changes_rate_state (actor_user_id, window_start, count)` upsert + check. ~1 hour of work.
+
+18. **i18n hooks in `/school/[id]/settings` (§4.4).** Schools have `default_locale`. Don't ship the new settings UI in English-only-strings-baked-into-JSX form — wire `next-intl` (or whatever the codebase uses; verify in §4.0) into the new page from day 1. All strings English in v1, but extractable via the i18n primitives so the second-school onboarding doesn't need a retrofit. ~1 hour of work; 0 visible behaviour change in v1.
+
+**Net estimate impact:** items 13 + 14 + 15 + 17 + 18 add ~1 day combined; item 16 adds ~0.5 day; Q12 request-flow adds ~1.5 days; total +3 days over the original 8-day estimate. New target: **~10–11 days** (with 1.5-day buffer already absorbed). See updated §9.
 
 ---
 
@@ -221,24 +252,32 @@ These are the §1 STOP-and-report items. Each one is signed off by Matt before c
 
 Each sub-phase is a separate commit (Lesson #45 surgical changes; methodology rule 7 separate commits no squashing). Stop triggers documented per phase. Total ~7–8 days; see §9.
 
-### Phase 4.0 — Pre-flight + decisions (~0.5 day)
+### Phase 4.0 — Pre-flight + scaffolds (~0.75 day)
 
-**Output:** Matt-signed-off answers to §3.8 question 1–12. Active-sessions row claimed for new branch. Optional `school.governance_engine_rollout` flag added to `admin_settings` if §3.8 Q4 = YES.
+§3.8 + §3.9 already signed off (2 May 2026). This sub-phase produces:
 
-**Migrations:** 0 (or 1 if flag added).
+- Active-sessions row claimed for `access-model-v2-phase-4` branch in `/Users/matt/CWORK/.active-sessions.txt`.
+- 1 migration adding `school.governance_engine_rollout` boolean to `admin_settings` (§3.8 Q4 = YES, default `true`).
+- **§3.9 item 16 archived-school guard helper** at `src/lib/access-v2/school/archived-guard.ts` — `enforceArchivedReadOnly(schoolId)` returns `{ readOnly, status, reason }`. Stub-tested in this sub-phase; threaded through every mutation route in 4.4–4.7.
+- **§3.9 item 18 i18n primitive verification** — grep `next-intl` / `next-i18next` / `useTranslation` / `<Trans>` across `src/`; document which primitive the codebase already uses (or document "no i18n primitive yet, settings page introduces it"). This decision tags every string in §4.4 page.
+- **§3.9 item 13 multi-campus parent-precedence helper** at `src/lib/access-v2/school/parent-precedence.ts` — `resolveSchoolSettings(schoolId)` reads `parent_school_id` chain with COALESCE for inheritable columns. Stub-tested; consumed by §4.4 + §4.7.
+- **§3.9 item 14 — version-stamping shape contract** documented in `src/lib/access-v2/governance/types.ts` (`PayloadV1` type with `before_at_propose / after / scope`).
+- Re-read pre-flight Lessons (#43, #45, #47, #54, #59, #60, #61, #62, #64, #65, candidate #66) — checkbox per Lesson.
 
-**Stop trigger:** Any §3.8 answer NOT received → STOP.
+**Migrations:** 1 (rollout flag).
+
+**Stop trigger:** Any pre-flight Lesson re-read surfaces a contradiction with the brief that wasn't caught in audit → STOP, update brief.
 
 ### Phase 4.1 — Seed schools dataset extension (~0.5 day)
 
-**Output:** 1 migration timestamped `<UTC>_phase_4_1_seed_schools_extension.sql` (data only, no schema). Adds ~120 schools across 6 markets to the existing 18 (mig 085_schools_seed):
+**Output:** 1 migration timestamped `<UTC>_phase_4_1_seed_schools_extension.sql` (data only, no schema). Adds ~120 schools across 6 markets to the existing 18 (mig 085_schools_seed). **Curation criteria (per §3.8 Q11): the seed exists so first-keystroke typeahead finds Matt's pilot prospects, NOT so the directory is "complete."** Each candidate passes 2 of 3 filters: (a) publicly lists D&T or Innovation faculty / makerspace / design-thinking programme on their site, (b) Matt has a connection or viable on-the-ground intro path (Mandarin colleagues, AustCham network, IB conference attendees), (c) teaches a framework Matt can demo (MYP / GCSE / IGCSE / PYP / A-Level / ACARA / PLTW). Distribution:
 
-- **UK:** ~25 entries spanning state-funded (LSE Academy Network), independent (Westminster, Eton, Wycombe Abbey), MAT trusts (Harris, Ark, GLF). Subject mix: GCSE / A-Level / IB.
-- **Australia:** ~20 entries from ACARA-listed (Sydney Grammar, MLC, Wesley, Knox, Newington, public selective). NSW/VIC/QLD distribution.
-- **US independent:** ~25 entries (NAIS member schools — Phillips Exeter, Andover, Sidwell, Lakeside, Punahou, etc.).
-- **Asia non-China expansion:** ~15 entries (Singapore American, UWC SEA, Hong Kong International, Tokyo American, Yokohama International, Bangkok Patana, Jakarta Intercultural, Mumbai American School).
-- **Europe non-UK:** ~15 entries (International School of Geneva, Vienna International, Munich International, Frankfurt International, École Active Bilingue Paris).
-- **Middle East / Africa starter set:** ~10 entries (American Community School Beirut, Cairo American, Dubai American Academy, AISJ Johannesburg).
+- **UK:** ~25 entries — independents with established D&T (Westminster, Eton, Wycombe Abbey, Sevenoaks); MYP-running internationals (ACS Hillingdon, Southbank); MAT trusts with maker programmes (Harris federation flagship sites only).
+- **Australia:** ~20 entries — Sydney Grammar, MLC Sydney, Wesley Melbourne, Knox, Newington, Trinity, Scotch (Matt's mum's network surface area). NSW/VIC density; SA/QLD/WA token coverage. ACARA + IB MYP overlap.
+- **US independent:** ~25 entries — NAIS members with documented innovation labs (Phillips Exeter, Andover, Sidwell, Lakeside, Punahou, Dalton, Riverdale, Castilleja). PLTW-running mid-market (San Diego Jewish Academy etc.).
+- **Asia non-China expansion:** ~15 entries — Singapore American, UWC SEA, Hong Kong International, ISB Bangkok, Jakarta Intercultural, ASIJ Tokyo, Yokohama International, KIS Seoul, Mumbai American (Matt's existing AustCham + IB Asia conference connections).
+- **Europe non-UK:** ~15 entries — International School of Geneva, Vienna International, Munich International, Frankfurt International, ISH Hilversum, ASB Belgium (MYP density Matt can warm-intro into).
+- **Middle East / Africa starter set:** ~10 entries — ACS Beirut, Cairo American, Dubai American Academy, AISJ Johannesburg, IS Kenya (token coverage; outreach handle for if a request lands).
 
 Source `'curated'` (NEW source enum value? OR reuse `'imported'` per existing CHECK constraint — see §3.8 Q11 sub-decision). All `verified=true`, `created_by=NULL`. ON CONFLICT DO NOTHING (relies on `idx_schools_unique_name_country`).
 
@@ -293,9 +332,9 @@ Source `'curated'` (NEW source enum value? OR reuse `'imported'` per existing CH
 
 - New routes:
   - `GET /api/school/[id]/domains` — list (same-school teacher only)
-  - `POST /api/school/[id]/domains` — add. Auto-verifies if requester's email matches the domain.
-  - `DELETE /api/school/[id]/domains/[domainId]` — remove (low-stakes change, wraps `school_setting_changes`).
-  - `GET /api/schools/lookup-by-domain?domain=foo.org` — public, calls `lookup_school_by_domain` SECURITY DEFINER.
+  - `POST /api/school/[id]/domains` — add. **Tier resolves dynamically per §3.8 Q2:** if requester's email domain matches the domain being added, auto-verifies as low-stakes (instant apply); otherwise high-stakes (requires 2-teacher confirm). Implemented via `proposeSchoolSettingChange()` with `change_type='add_school_domain'` — the helper inspects payload + actor email to compute tier.
+  - `DELETE /api/school/[id]/domains/[domainId]` — remove. **Always high-stakes** (removing a verified domain locks teachers out of auto-suggest path; 2-teacher confirm).
+  - `GET /api/schools/lookup-by-domain?domain=foo.org` — public, calls `lookup_school_by_domain` SECURITY DEFINER. Free-email blocklist (gmail.com, outlook.com, yahoo.com, qq.com, 163.com, hotmail.com, icloud.com, proton.me, protonmail.com, fastmail.com) returns NULL — prevents "did you mean Google?" false positives.
 
 - Welcome wizard wiring: `src/app/teacher/welcome/page.tsx` — on email field blur, call `/api/schools/lookup-by-domain` with the email's domain. If a match is returned, prefill the school picker with the suggestion AND a "use this school" button. Teacher can override to free-search.
 
@@ -305,7 +344,7 @@ Source `'curated'` (NEW source enum value? OR reuse `'imported'` per existing CH
 
 **Stop trigger:** SECURITY DEFINER lookup returns more than 1 row → STOP, schema bug. RLS read returns cross-school rows → STOP.
 
-### Phase 4.3 — Governance engine: `school_setting_changes` + helper + cron (~1 day)
+### Phase 4.3 — Governance engine: `school_setting_changes` + helper + cron + rate limit + version stamping (~1.5 day)
 
 **Output:**
 
@@ -337,6 +376,33 @@ Source `'curated'` (NEW source enum value? OR reuse `'imported'` per existing CH
   CREATE POLICY ssc_school_teacher_rw ON school_setting_changes FOR ALL TO authenticated
     USING (school_id = current_teacher_school_id())
     WITH CHECK (school_id = current_teacher_school_id());
+
+  -- §3.9 item 17: rate limiting state. Postgres-backed (no Redis).
+  CREATE TABLE school_setting_changes_rate_state (
+    actor_user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    window_start TIMESTAMPTZ NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (actor_user_id, window_start)
+  );
+  CREATE INDEX idx_ssrs_actor_recent ON school_setting_changes_rate_state(actor_user_id, window_start DESC);
+  ALTER TABLE school_setting_changes_rate_state ENABLE ROW LEVEL SECURITY;
+  CREATE POLICY ssrs_self_read ON school_setting_changes_rate_state FOR SELECT TO authenticated
+    USING (actor_user_id = auth.uid());
+  -- Writes only via SECURITY DEFINER helper.
+  ```
+
+  **§3.9 item 14 — payload shape with version stamping:**
+
+  ```jsonc
+  // payload_jsonb shape:
+  {
+    "before_at_propose": <serialized current value at propose time>,
+    "after": <proposed new value>,
+    "scope": { /* setting-specific extra context */ }
+  }
+  // Confirm UI reads payload + queries the live current value, renders 3-way diff:
+  //   before_at_propose → current (right now) → after (if confirmed)
+  // If current ≠ before_at_propose, show "⚠ This proposal is stale — value changed since proposed" warning.
   ```
 
 - TypeScript helper at `src/lib/access-v2/governance/setting-change.ts`:
@@ -357,6 +423,9 @@ Source `'curated'` (NEW source enum value? OR reuse `'imported'` per existing CH
   export async function revertChange(args: { changeId: string; revoker: string }): Promise<void> { … }
   ```
 
+  - **Tier resolution (per §3.8 Q2 — context-aware):** the helper inspects `changeType + payload + actor` to compute tier dynamically, NOT a static enum lookup. Resolver functions per change_type live in `src/lib/access-v2/governance/tier-resolvers.ts`. Examples: `add_school_domain` checks `actor.email LIKE '%@'+domain` → low_stakes if match else high_stakes; `default_student_ai_budget` checks `abs(after - before) / before > 0.5` → high_stakes if true else low_stakes; `safeguarding_contacts` always high_stakes; `period_bells` always low_stakes.
+  - **Rate limit (§3.9 item 17):** before insert, call `enforceSettingChangeRateLimit(actor_user_id)` SECURITY DEFINER helper. Sliding 1-hour window: count rows in `school_setting_changes_rate_state` for `(actor, window_start ≥ now() - 1h)`. If count ≥ 10, raise + return `429 { code: 'rate_limited', retry_after_seconds: <until oldest window expires> }`. Increment counter on success.
+  - **Version stamp (§3.9 item 14):** at insert time, snapshot the current value into `payload.before_at_propose`. On confirm, the UI computes `current value` live + shows 3-way diff so confirmer sees if anything else moved since proposal.
   - Low-stakes path: INSERT row with `applied_at = now()`, `status = 'applied'`. Apply the actual change to `schools` (or wherever) in the same transaction. Insert `audit_events` row.
   - High-stakes path: INSERT row with `applied_at = NULL`, `status = 'pending'`, `expires_at = now() + interval '48 hours'`. **Bootstrap grace exception:** if `schools.bootstrap_expires_at IS NULL OR bootstrap_expires_at > now()`, treat as low-stakes (single-teacher mode auto-confirms).
 
@@ -374,12 +443,19 @@ Source `'curated'` (NEW source enum value? OR reuse `'imported'` per existing CH
 
 **Stop trigger:** Concurrent-confirmer race produces inconsistent state → STOP, transaction logic bug. Cron expiry skips a row → STOP, query bug.
 
-### Phase 4.4 — `/school/[id]/settings` page + activity feed (~1 day)
+### Phase 4.4 — `/school/[id]/settings` page + activity feed + multi-campus + archived guard + i18n (~1.5 day)
 
 **Output:**
 
+- **§3.9 item 16 archived-school guard helper** at `src/lib/access-v2/school/archived-guard.ts` (added in 4.0 actually, used here): `enforceArchivedReadOnly(schoolId)` returns `{ readOnly: boolean, status: 'active'|'dormant'|'archived'|'merged_into' }`. Reads `schools.status`. Settings page banner: "This school is archived. View only." Mutation routes 403 with reason `archived_school` when `readOnly === true`. Threaded through every §4.4 + §4.5 + §4.6 + §4.7 mutation route.
+
+- **§3.9 item 13 multi-campus precedence helper** at `src/lib/access-v2/school/parent-precedence.ts`: `resolveSchoolSettings(schoolId)` returns settings using `COALESCE(child.col, parent.col)` for inheritable columns (`academic_calendar_jsonb`, `timetable_skeleton_jsonb`, `frameworks_in_use_jsonb`, `default_grading_scale`, `notification_branding_jsonb`, `safeguarding_contacts_jsonb`, `default_student_ai_budget`). Identity columns (name, logo, region, country, timezone, default_locale, status, subscription_tier) NEVER inherit — each campus owns these. Read-precedence depth limit = 3 hops (campus → school → federation root); raises if cycle.
+
+- **§3.9 item 18 i18n wiring:** verify which i18n primitive the codebase uses (`next-intl`, `next-i18next`, or hand-rolled string-table) in §4.0. Settings page strings extracted via that primitive — all v1 strings English, but the structure makes second-locale ship a config change not a refactor. Includes the bootstrap banner, all section headers, action labels, error messages.
+
 - New page at `src/app/school/[id]/settings/page.tsx` (server component):
-  - Header: school name, country, status, `currentVersion` of `subscription_tier`.
+  - Header: school name, country, status, `currentVersion` of `subscription_tier`. **If `parent_school_id IS NOT NULL`, header shows breadcrumb "Parent School › This Campus."**
+  - **Archived banner if `status='archived'`:** "This school is archived. Settings are view-only. Contact your platform admin to reactivate."
   - Section A: Identity (name, logo, region, country, timezone) — high-stakes panel; pending banner pinned to top if any active.
   - Section B: Academic Calendar (terms, holidays) — low-stakes; uses `schools.academic_calendar_jsonb` (NEW from §4.8) once that ships.
   - Section C: Timetable Skeleton (period names, bell times) — low-stakes.
@@ -391,7 +467,11 @@ Source `'curated'` (NEW source enum value? OR reuse `'imported'` per existing CH
   - Section I: Content Sharing Default (school-visible vs private) — low-stakes.
   - Activity Feed (right rail or bottom): 30-day window. "Bob updated period bells 2h ago [Revert]." "Alice proposed renaming the school → [Confirm] [Dismiss] (expires 40h)."
   - **Bootstrap banner** when `schools.bootstrap_expires_at > now()`: "You're the only teacher in this school. While in single-teacher mode, all settings apply instantly. Once a 2nd teacher joins, high-stakes changes (school name, region, etc.) require a 2nd confirm. Window closes at: 2026-MM-DD HH:MM."
+  - **Lone-teacher post-bootstrap banner** when `bootstrap_expires_at < now()` AND school has only 1 active teacher (per §3.8 Q6): "You're currently the only active teacher. High-stakes proposals will sit pending until a 2nd teacher joins to confirm. [Invite a colleague →]"
+  - **Inheritance badges (§3.9 item 13)** when `parent_school_id IS NOT NULL` and a value resolves from parent: small "↑ inherited from <parent name>" badge next to the field. Editing locally overrides; clearing falls back to parent.
   - **No save button.** Each field has its own Apply / Propose button per tier. Aligns with the governance model — these are individual changes, not a form submission.
+
+- **§3.8 Q10 timezone smart-default in welcome wizard:** edit `src/app/teacher/welcome/page.tsx` to detect `Intl.DateTimeFormat().resolvedOptions().timeZone` on mount + pre-fill the school timezone field when creating a new school (single-teacher / bootstrap mode). User can override before submit. Existing schools (joining via search or domain) inherit the school's existing timezone unchanged.
 
 - New page at `src/app/school/[id]/proposals/[changeId]/page.tsx` — full detail view of a pending high-stakes proposal with confirm + dismiss controls.
 
@@ -443,6 +523,7 @@ Source `'curated'` (NEW source enum value? OR reuse `'imported'` per existing CH
 - Helper `src/lib/access-v2/governance/school-merge.ts`:
   - `proposeMergeRequest({fromSchoolId, intoSchoolId, requesterId, reason})` — same-school teacher only.
   - `approveMergeRequest({changeId, approverId})` — platform admin only. Cascades `school_id` updates across `teachers`, `classes`, `students`, `units`, `class_members`, `school_responsibilities`, `student_mentors`, `school_resources`, `consents`, `audit_events`, `school_setting_changes`, `school_merge_requests`. Sets `from_school.status = 'merged_into'` + `from_school.merged_into_id = into_school.id`. Schedules 90-day redirect by leaving the row intact (no auto-delete cron — manual cleanup post-90d via super-admin).
+  - **§3.9 item 15 — per-table audit:** the cascade helper logs ONE `audit_events` row PER TABLE TOUCHED (12+ rows per merge), each with `actor_type='platform_admin'`, `event_type='school_merge_cascade_table'`, `metadata={ table_name, rows_updated, merge_request_id }`. Plus one summary row `event_type='school_merge_completed'` with the total. Forensic trail.
   - `resolveSchoolId(_schoolId)` — follow `merged_into_id` chain (max depth 5; raise if cycle).
 
 - Routes:
@@ -456,20 +537,80 @@ Source `'curated'` (NEW source enum value? OR reuse `'imported'` per existing CH
 
 **Stop trigger:** Cascade leaves orphan rows → STOP, FK ON DELETE missed somewhere. Cycle detection misses → STOP.
 
-### Phase 4.6 — School Library browse view (~0.5 day)
+### Phase 4.6 — School Library browse view + Request-to-Use flow (~2 days, was 0.5)
 
 **Output:**
+
+**Part A — Browse view (~0.5 day):**
 
 - New route: `GET /api/school/[id]/library?q=&grade=&type=&cursor=`. Returns same-school teachers' published units + master units (read-only).
 - Reads from existing `units.school_id` (Phase 0). Filters: `units.school_id = X AND units.is_published = true AND units.deleted_at IS NULL`.
 - Tags fetched from `units.tags` array (existing).
 - Cursor pagination (limit 30, cursor on `units.updated_at, id`).
-- New page at `src/app/school/[id]/library/page.tsx` (server component) — grid of unit cards using existing `<UnitCard>` component, "Browse only" badge.
-- "Browse only" — no fork action in v1 per §3.8 Q12. Card click → read-only unit view at `/teacher/units/[unitId]?source=library` (which the existing teacher unit detail page handles via the `source` query param to suppress edit controls — verify this page handles cross-author read; if not, add `?as=read_only` flag).
+- New page at `src/app/school/[id]/library/page.tsx` (server component) — grid of unit cards using existing `<UnitCard>` component, "Browse only" badge + "Request to use" CTA.
+- Card click → read-only unit view at `/teacher/units/[unitId]?source=library` (which the existing teacher unit detail page handles via the `source` query param to suppress edit controls — verify this page handles cross-author read; if not, add `?as=read_only` flag).
 
-**Tests:** ~10 — list shape; cross-school teacher gets 404; pagination cursor; deleted unit excluded; published filter respected; only same-school surfaces (RLS via SECURITY DEFINER `is_school_teacher`).
+**Part B — Request-to-Use flow (~1.5 days, §3.8 Q12 differentiator):**
 
-**Stop trigger:** Cross-school unit appears in list → STOP, RLS leak.
+This is the curriculum-library moat. Khan / MagicSchool are one-author so they sidestep author consent; making this work for multi-author schools is what differentiates StudioLoom.
+
+- 1 migration `<UTC>_phase_4_6_unit_use_requests.sql`:
+
+  ```sql
+  CREATE TYPE unit_use_request_status AS ENUM ('pending', 'approved', 'denied', 'withdrawn');
+
+  CREATE TABLE unit_use_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    unit_id UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE,
+    requester_user_id UUID NOT NULL REFERENCES auth.users(id),
+    author_user_id UUID NOT NULL REFERENCES auth.users(id),
+    school_id UUID NOT NULL REFERENCES schools(id),
+    message TEXT NULL,                       -- requester's note (max 500 chars)
+    status unit_use_request_status NOT NULL DEFAULT 'pending',
+    decided_at TIMESTAMPTZ NULL,
+    decision_note TEXT NULL,                 -- author's note on approve/deny (max 500 chars)
+    forked_unit_id UUID NULL REFERENCES units(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE INDEX idx_uur_author_pending ON unit_use_requests(author_user_id, status) WHERE status = 'pending';
+  CREATE INDEX idx_uur_requester ON unit_use_requests(requester_user_id, created_at DESC);
+  CREATE UNIQUE INDEX idx_uur_unique_pending ON unit_use_requests(unit_id, requester_user_id) WHERE status = 'pending';
+
+  ALTER TABLE unit_use_requests ENABLE ROW LEVEL SECURITY;
+  -- Author + requester can read their side; same-school teachers can read aggregate counts (not message text)
+  CREATE POLICY uur_author_read ON unit_use_requests FOR SELECT TO authenticated
+    USING (author_user_id = auth.uid());
+  CREATE POLICY uur_requester_read ON unit_use_requests FOR SELECT TO authenticated
+    USING (requester_user_id = auth.uid());
+  CREATE POLICY uur_requester_insert ON unit_use_requests FOR INSERT TO authenticated
+    WITH CHECK (requester_user_id = auth.uid() AND school_id = current_teacher_school_id());
+  CREATE POLICY uur_author_decide ON unit_use_requests FOR UPDATE TO authenticated
+    USING (author_user_id = auth.uid())
+    WITH CHECK (author_user_id = auth.uid());
+
+  -- Add forking provenance to units
+  ALTER TABLE units ADD COLUMN IF NOT EXISTS forked_from_unit_id UUID REFERENCES units(id) ON DELETE SET NULL;
+  ALTER TABLE units ADD COLUMN IF NOT EXISTS forked_from_author_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+  CREATE INDEX IF NOT EXISTS idx_units_forked_from ON units(forked_from_unit_id) WHERE forked_from_unit_id IS NOT NULL;
+  ```
+
+- New routes:
+  - `POST /api/school/[id]/library/[unitId]/request-use` — requester creates request. Body: `{ message?: string }`. Auto-rejects duplicate pending. Triggers in-app notification to author (via existing `teacher-notifications` system).
+  - `GET /api/teacher/me/unit-use-requests/inbox` — author lists pending requests against their units.
+  - `GET /api/teacher/me/unit-use-requests/sent` — requester lists their sent requests + statuses.
+  - `POST /api/teacher/me/unit-use-requests/[requestId]/approve` — author approves. Performs fork via existing `unit-forking` system; sets `forked_from_unit_id` + `forked_from_author_id` on the new unit. Sets request `status='approved'`, `forked_unit_id`, `decided_at`. Triggers in-app notification to requester.
+  - `POST /api/teacher/me/unit-use-requests/[requestId]/deny` — author denies with optional `decision_note`. Triggers in-app notification.
+  - `POST /api/teacher/me/unit-use-requests/[requestId]/withdraw` — requester withdraws own pending request.
+
+- UI:
+  - **Library card:** "Request to use" button below "Browse only" badge. Click → modal with optional 500-char message field + submit. Post-submit: button changes to "Requested 2h ago" w/ status pill.
+  - **Author inbox:** new section on `/teacher/dashboard` ("3 colleagues want to use your units →") + dedicated `/teacher/notifications/use-requests` page with approve/deny inline.
+  - **Requester sent list:** `/teacher/me/library-requests` showing pending / approved / denied tabs.
+  - **Attribution UI on forked units:** when `forked_from_unit_id IS NOT NULL`, show "Forked from [unit name] by [author display name]" in the unit detail header. Link to original (read-only via library if same-school still).
+
+**Tests:** ~22 — Part A list shape (8); Part B request lifecycle (request → approve → fork created with attribution; deny path; withdraw path; double-request blocked; cross-school request blocked; same-school + same-author auto-rejects "you can't request your own unit"; archived-school 403 via §3.9 item 16 guard) (14).
+
+**Stop trigger:** Cross-school unit appears in list OR forked unit lacks `forked_from_unit_id` → STOP. Author's `decision_note` leaks to non-requester non-author teachers via RLS → STOP, RLS gap.
 
 ### Phase 4.7 — Platform super-admin view at `/admin/school/[id]` (~0.75 day)
 
@@ -658,19 +799,20 @@ Source `'curated'` (NEW source enum value? OR reuse `'imported'` per existing CH
 
 **Stop trigger:** Trigger firing pattern leaves orphan rows OR removes manual rows → STOP, fix.
 
-### Phase 4.10 — Co-teacher / dept_head / governance smoke (~0.5 day)
+### Phase 4.10 — Co-teacher / dept_head / governance / library smoke (~0.5 day)
 
-**Output:** Smoke run report `docs/projects/access-model-v2-phase-4-smoke.md` documenting scenarios:
+**Output:** Smoke run report `docs/projects/access-model-v2-phase-4-smoke.md` documenting 10 scenarios:
 
-1. **New teacher signup with email domain** — domain auto-suggests real school; teacher accepts; lands on welcome with school prefilled.
+1. **New teacher signup with email domain** — domain auto-suggests real school; free-email domain (gmail.com) returns NULL; teacher accepts; lands on welcome with school prefilled.
 2. **Same-school teacher edits low-stakes setting** — change applies instantly; second teacher sees activity feed; revert button works for both.
-3. **Same-school teacher proposes high-stakes change** — pending banner appears for both teachers; second teacher confirms; applies; activity feed shows confirmation.
+3. **Same-school teacher proposes high-stakes change** — pending banner appears for both teachers; second teacher's confirm UI shows 3-way diff (proposed-before → current → after); confirms; applies; activity feed shows confirmation.
 4. **High-stakes proposal expires** — without confirm, status flips to `expired` after 48h (cron tested at compressed interval). Settings field still on old value.
-5. **Bootstrap grace** — fresh single-teacher school shows banner; high-stakes apply instantly; 2nd teacher joins; bootstrap_expires_at set to now(); next high-stakes is 2-tier.
-6. **Department auto-tag** — Matt (logged-in as a NIS teacher) sets himself as `dept_head` of `design_tech`; lands as auto-tagged on every DT class; revokes; auto-tags removed; manual dept_head row preserved.
-7. **School Library browse** — Matt sees own school's units; cross-school request returns empty.
-8. **Super-admin school detail** — Matt navigates to `/admin/school/<NIS-id>`; sees teachers + classes + audit feed; "view as teacher" navigates to teacher dashboard with `?as_teacher_id` param + read-only banner.
-9. **Merge request flow** — Matt creates a 2nd "test" school; opens merge request; approves as super-admin; verifies `from_school.status='merged_into'` + `merged_into_id` set; verifies a route reading by old school_id resolves to new ID via `resolveSchoolId`.
+5. **Bootstrap grace + lone-teacher post-bootstrap** — fresh single-teacher school shows bootstrap banner; high-stakes apply instantly; 2nd teacher joins; bootstrap_expires_at set to now(); next high-stakes is 2-tier. 2nd teacher leaves: lone-teacher banner appears; bootstrap does NOT reopen; high-stakes proposals sit pending.
+6. **Department auto-tag** — Matt (logged-in as a NIS teacher) sets himself as `dept_head` of `design_tech`; lands as auto-tagged on every DT class; revokes; auto-tags removed; manual `class_members.dept_head` rows preserved (source='manual').
+7. **School Library browse + Request-to-Use** — Matt sees own school's units; cross-school request returns empty; clicks "Request to use" on a colleague's unit; colleague sees inbox notification; colleague approves; fork appears in Matt's units list with attribution badge "Forked from <unit> by <colleague>"; deny path also tested.
+8. **Super-admin school detail + view-as URL** — Matt navigates to `/admin/school/<NIS-id>`; sees teachers + classes + audit feed; "view as teacher" navigates to teacher dashboard with `?as_teacher_id` param + read-only banner; mutation route attempted with the param returns 403.
+9. **Merge request flow + per-table audit** — Matt creates a 2nd "test" school; opens merge request; approves as super-admin; verifies `from_school.status='merged_into'` + `merged_into_id` set; verifies a route reading by old school_id resolves to new ID via `resolveSchoolId`; verifies `audit_events` has 12+ rows of `event_type='school_merge_cascade_table'` + 1 summary row.
+10. **Rate limit + archived guard + multi-campus precedence** — burn through 10 settings changes in <1 hour, 11th returns 429; archive a test school via super-admin, verify settings page renders banner + 403 on mutation; create a child school with `parent_school_id` pointing to NIS, verify child page shows "↑ inherited" badge for unset values.
 
 Manual prod-preview smoke — branch alias URL (Lesson #63 — not deployment-pinned URL).
 
@@ -748,31 +890,40 @@ Phase 4 closes when ALL pass:
 
 ### Code
 
-- [ ] `school_domains`, `school_setting_changes`, `school_merge_requests` tables created with full RLS + indexes per §3.2.
-- [ ] `src/lib/access-v2/governance/setting-change.ts` exists + propose/confirm/revert helpers per §4.3.
-- [ ] `src/lib/access-v2/governance/school-merge.ts` exists + cascade helper per §4.5.
+- [ ] `school_domains`, `school_setting_changes` (+ `school_setting_changes_rate_state`), `school_merge_requests`, `unit_use_requests` tables created with full RLS + indexes per §3.2 + §4.6.
+- [ ] `src/lib/access-v2/governance/setting-change.ts` exists + propose/confirm/revert helpers per §4.3 (tier-resolver dispatch + rate limiter + version stamping).
+- [ ] `src/lib/access-v2/governance/tier-resolvers.ts` exists per §3.8 Q2 (context-aware classifier per change_type).
+- [ ] `src/lib/access-v2/governance/school-merge.ts` exists + cascade helper with per-table audit per §4.5 + §3.9 item 15.
 - [ ] `src/lib/access-v2/school/calendar.ts` precedence resolver exists per §4.8.
+- [ ] `src/lib/access-v2/school/archived-guard.ts` exists per §3.9 item 16 + threaded through every mutation route.
+- [ ] `src/lib/access-v2/school/parent-precedence.ts` exists per §3.9 item 13.
 - [ ] `src/lib/auth/require-platform-admin.ts` helper exists.
-- [ ] All 10–11 new routes per §3.4 ship + tested.
-- [ ] All 5 new pages per §3.4 ship.
-- [ ] Welcome wizard auto-suggest wired per §4.2.
+- [ ] All ~14 new routes per §3.4 + §4.6 ship + tested.
+- [ ] All 5 new pages + author-inbox + requester-sent-list per §3.4 + §4.6 ship.
+- [ ] Welcome wizard auto-suggest + timezone smart-default per §4.2 + §4.4.
 - [ ] Department + dept_head trigger machinery per §4.9.
-- [ ] Tests updated; **2895 → ≥2980 (≥85 new)**, 0 regressions.
+- [ ] i18n primitive wired into `/school/[id]/settings` page per §3.9 item 18.
+- [ ] Free-email blocklist enforced in `lookup_school_by_domain` per §4.2.
+- [ ] Rate-limit (10/hr/teacher) returns 429 with `Retry-After` per §3.9 item 17.
+- [ ] Forked units carry `forked_from_unit_id` + `forked_from_author_id` + attribution UI per §4.6 Part B.
+- [ ] Tests updated; **2895 → ≥3010 (≥115 new)**, 0 regressions.
 - [ ] `npx tsc --noEmit --project tsconfig.check.json` 0 errors.
 
 ### Migrations
 
-- [ ] Phase 4.1 (seeds), 4.2 (school_domains), 4.3 (school_setting_changes), 4.5 (school_merge_requests + schools.merged_into_id), 4.8 (schools settings columns), 4.9 (classes.department + dept_head trigger) — 6 migrations applied to prod.
-- [ ] Optional 4.0 admin_settings flag if §3.8 Q4 = YES.
+- [ ] Phase 4.0 (governance rollout flag), 4.1 (seeds), 4.2 (school_domains + lookup fn), 4.3 (school_setting_changes + rate_state), 4.5 (school_merge_requests + schools.merged_into_id), 4.6 (unit_use_requests + units.forked_from_*), 4.8 (schools settings columns), 4.9 (classes.department + dept_head triggers) — 8 migrations applied to prod.
 - [ ] `pg_proc` verification per helper confirms `SECURITY DEFINER` + `STABLE` + `search_path = public, pg_temp` + `REVOKE FROM PUBLIC, anon` + `GRANT TO authenticated, service_role`.
 - [ ] `bash scripts/migrations/verify-no-collision.sh` exits 0 against `origin/main`.
 
 ### Smoke (prod-preview, branch-alias URL — Lesson #63)
 
-- [ ] All 9 §4.10 scenarios PASS.
+- [ ] All 10 §4.10 scenarios PASS (added scenario 10: request-to-use happy path).
 - [ ] Vercel logs: zero `Invalid session` or RLS-policy errors during smoke.
-- [ ] `/school/[id]/settings` renders for same-school teacher; 404 for cross-school.
-- [ ] No regression on existing `/teacher/*` flows under read-as-platform-admin path.
+- [ ] `/school/[id]/settings` renders for same-school teacher; 404 for cross-school; read-only banner for archived school.
+- [ ] No regression on existing `/teacher/*` flows under view-as-platform-admin path.
+- [ ] Rate-limit returns 429 after 11th rapid settings change in same hour.
+- [ ] Free-email domain (e.g. gmail.com) on lookup returns NULL — no false-positive school suggestion.
+- [ ] Multi-campus parent_school_id read precedence: child school setting NULL falls back to parent value (verified against a synthetically-seeded campus pair).
 
 ### Registries (Phase 4.11)
 
@@ -826,33 +977,33 @@ Phase 4 closes when ALL pass:
 
 | Sub-phase | Estimate |
 |---|---|
-| 4.0: Pre-flight + decisions | 0.5 day |
-| 4.1: Seed schools dataset extension (+ ~120 entries) | 0.5 day |
-| 4.2: school_domains + signup auto-suggest | 0.75 day |
-| 4.3: Governance engine + cron | 1 day |
-| 4.4: /school/[id]/settings page + activity feed | 1 day |
-| 4.5: school_merge_requests + 90-day redirect | 0.75 day |
-| 4.6: School Library browse | 0.5 day |
-| 4.7: Platform super-admin /admin/school/[id] | 0.75 day |
-| 4.8: Bubble-up scattered settings (calendar etc.) | 0.5 day |
-| 4.9: Department + dept_head auto-tag triggers | 0.75 day |
-| 4.10: Smoke run | 0.5 day |
+| 4.0: Pre-flight + scaffolds (rollout flag, archived-guard helper, parent-precedence helper, i18n primitive verify) | 0.75 day |
+| 4.1: Seed schools dataset extension (+ ~120 entries, curation-criteria-driven) | 0.5 day |
+| 4.2: school_domains + signup auto-suggest (free-email blocklist; tier-aware POST) | 0.75 day |
+| 4.3: Governance engine + cron + rate limit + version stamping + tier resolvers | 1.5 day |
+| 4.4: /school/[id]/settings page + activity feed + multi-campus + archived banner + timezone smart default + i18n | 1.5 day |
+| 4.5: school_merge_requests + 90-day redirect + per-table audit cascade | 0.75 day |
+| 4.6: School Library browse + Request-to-Use flow (the differentiator) | 2 days |
+| 4.7: Platform super-admin /admin/school/[id] + view-as URL + campus tree | 0.75 day |
+| 4.8: Bubble-up scattered settings (calendar / timetable / frameworks / branding / safeguarding / AI budget col) | 0.5 day |
+| 4.9: Department + dept_head auto-tag triggers + chip variant | 0.75 day |
+| 4.10: Smoke run (10 scenarios — added request-to-use scenario) | 0.5 day |
 | 4.11: Registry hygiene + close-out | 0.5 day |
-| Buffer (Lesson #59 — estimates lie) | 1 day |
-| **Total** | **~9 days** (round to **~7–9 day band; aim 8**) |
+| Buffer (Lesson #59 — estimates lie; bumped from 1 → 1.5 day for dept_head trigger surprises) | 1.5 day |
+| **Total** | **~12.25 days** (call it **~10–12 day band; aim 11**) |
 
-This is +5 days over master-spec's 3-day estimate. The delta is real:
+This is +8–9 days over master-spec's 3-day estimate. The delta is real and tracked:
 - 12 sub-items vs Phase 3's tighter scope.
-- ~150-school seed adds 0.5 day not in the 3-day estimate.
-- Dept_head trigger work adds 0.75 day (FU fold-in).
-- Calendar bubble-up + read precedence adds 0.5 day not in master spec line breakdown.
-- Super-admin view + impersonation adds 0.75 day.
-- Merge cascade adds 0.75 day.
-- Lesson-#59 buffer adds 1 day.
+- ~150-school seed (curation-criteria-driven) adds 0.5 day.
+- Dept_head trigger work (FU-AV2-DEPT-HEAD-DEPARTMENT-MODEL fold-in) adds 0.75 day.
+- Calendar/timetable/framework bubble-up + read precedence adds 0.5 day.
+- Super-admin view + view-as URL adds 0.75 day.
+- Merge cascade + per-table audit adds 0.75 day.
+- **Request-to-Use flow (§3.8 Q12 upgrade)** adds 1.5 day — the curriculum-library moat.
+- **§3.9 future-proofing items 13–18** add ~1.5 days combined: multi-campus precedence (0.25), version stamping (0.1), per-table audit (0.1, folded into 4.5), archived-school guard (0.5), rate limiting (0.1, folded into 4.3), i18n primitive (0.1, mostly 4.0 + scattered).
+- Lesson-#59 buffer at 1.5 day (raised from 1 day per §3.8 Q1 sign-off) for dept_head trigger surprises.
 
-If §3.8 Q1 = SPLIT into 4A + 4B: 4A is 4.1+4.2+4.3+4.4+4.6 (5 days; settings + library + governance) → Checkpoint A5a; 4B is 4.5+4.7+4.8+4.9 (3 days; merge + super-admin + bubble-up + dept-head) → Checkpoint A5b. Net same total but two ship windows.
-
-If §3.8 Q9 = defer impersonation entirely: shave 0.25 day. If Q12 = browse-only library: shave 0 (already assumed). If Q4 = NO governance flag: shave 0.1 day.
+**No split** (§3.8 Q1 sign-off) — one Checkpoint A5, one prod-apply window. Phase 4 expected close: ~13–14 May 2026.
 
 ---
 
@@ -878,23 +1029,35 @@ If §3.8 Q9 = defer impersonation entirely: shave 0.25 day. If Q12 = browse-only
 
 ---
 
-## 11. Sign-off
+## 11. Sign-off — RESOLVED
 
-**Pre-flight + audit complete (2 May 2026 AM).** Brief drafted with:
+**Pre-flight + audit complete (2 May 2026 AM). All 12 originally-open questions + 6 future-proofing additions signed off in the same session.** Decisions captured in §3.8 + §3.9.
 
-- Phase 0 schema seams confirmed live in prod (rich `schools` table; only 3 NEW tables needed).
-- 6 existing routes identified for evolve-or-replace disposition; 10–11 new routes mapped.
-- 12 sub-items decomposed across 11 sub-phases (4.0–4.11).
-- 4 SECURITY DEFINER discipline patterns specified.
-- 3 NEW table designs with full RLS specified.
-- `dept_head` department concept resolved via Option A (extend `school_responsibilities.department` + `classes.department`).
-- 12 open questions surfaced, each with a default proposal awaiting Matt's sign-off.
+**Brief locked-in includes:**
 
-**STOP — awaiting Matt's sign-off on:**
+- Phase 0 schema seams confirmed live in prod (rich `schools` table; only 3 NEW governance tables needed + 1 NEW request-to-use table for §4.6).
+- 6 existing routes identified for evolve-or-replace disposition; ~14 new routes mapped (added 6 for the Request-to-Use flow).
+- 12 sub-items decomposed across 12 sub-phases (4.0–4.11) — 4.6 is now 2 days covering both browse + request flow.
+- SECURITY DEFINER discipline patterns specified for: school_domains lookup, archived-school guard, multi-campus parent-precedence, governance rate-limit counter, dept_head triggers, merge cascade.
+- 4 NEW table designs with full RLS specified: `school_domains`, `school_setting_changes` (+ rate-state side table), `school_merge_requests`, `unit_use_requests`.
+- `dept_head` department concept resolved via Option A.
+- **Context-aware tier classification** (§3.8 Q2 upgrade): tier resolves dynamically from `changeType + payload + actor`, not a flat enum. Resolvers in `governance/tier-resolvers.ts`.
+- **Request-to-Use flow** (§3.8 Q12 upgrade): the curriculum-library moat. ~1.5 day in §4.6.
+- **6 future-proofing items** baked into specific sub-phases: multi-campus precedence (4.0 + 4.4 + 4.7), version stamping (4.3), per-table audit cascade (4.5), archived-school guard (4.0 + threaded), rate limiting (4.3), i18n hooks (4.0 + 4.4).
 
-- All 12 §3.8 open questions (Q1 estimate delta, Q2 stake-tier table, Q3 ai_budget column phase, Q4 rollout flag, Q5 merge redirect column, Q6 bootstrap edge case, Q7 dept Option A vs B, Q8 dept_head retroactive backfill, Q9 impersonation scope, Q10 timezone migration, Q11 seed count, Q12 library forking).
-- §4 sub-phase ordering (4.0 → 4.1 → 4.2 → 4.3 → 4.4 → 4.5 → 4.6 → 4.7 → 4.8 → 4.9 → 4.10 → 4.11) — note 4.5 sequencing AFTER 4.4 deliberately so super-admin work (4.7) has the merge surface to reference.
-- §9 estimate (~8–9 days; flag if too aggressive or too padded; or split into 4A + 4B).
-- Concerns about scope creep — anything in §3.5 (settings to bubble up) that should NOT bubble?
+**Estimate: ~10–12 day band (aim 11). One Checkpoint A5, one prod-apply window. No split.**
 
-When signed off, Phase 4.0 starts with branch-active-sessions row claim + (if Q4 = YES) the rollout flag migration. Phase 4 expected close: ~10–11 May 2026 with Checkpoint A5 PASS (or A5a + A5b if split).
+**Ready for Phase 4.0 start** — next session can proceed directly with active-sessions row claim + rollout-flag migration without needing further sign-off. Phase 4 expected close: ~13–14 May 2026 with Checkpoint A5 PASS.
+
+**Decisions to log into `docs/decisions-log.md` at Phase 4 close (§4.11):**
+
+- Tier classification is context-aware (§3.8 Q2): payload + actor-context drive tier, not static enum.
+- Bootstrap window never reopens after first close (§3.8 Q6).
+- Department concept = Option A: TEXT columns on `classes` + `school_responsibilities`. Hierarchy deferred (FU-AV2-DEPT-HIERARCHY P3).
+- View-as URL is the only impersonation mechanism. Session-spoof not on roadmap.
+- School Library ships with Request-to-Use flow as differentiator (not "browse-only with future fork follow-up").
+- Multi-campus pattern via `parent_school_id` self-join read precedence (no UI in v1, schema turned on).
+- Archived schools are read-only (not 404), surfaced via `enforceArchivedReadOnly()` helper.
+- Settings changes are rate-limited at 10/hr/teacher (Postgres-backed counter, no Redis).
+- Setting-change confirms show 3-way diff (proposed-before → current → confirmed-after).
+- Merge cascade emits one audit_events row per table touched (12+ rows per merge).
