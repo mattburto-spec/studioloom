@@ -841,3 +841,63 @@ Plus a backfill DELETE with safety assertion (refuse to delete if any leaked row
 **Lesson #54 sibling:** "Old code makes assumptions that aren't documented anywhere." The trigger had no comment explaining "this assumes every user is a teacher." Future-proofing tip: when writing assumption-baked schema, add a comment in SQL referencing the assumption AND a test that asserts the assumption still holds.
 
 **Security audit:** clean. `buildTeacherSession` only routes when `user_type='teacher'` (set explicitly via app_metadata, not derived from teachers row existence); `requireAdmin` checks `is_admin=true` which is `false` on phantom rows. Leak was purely cosmetic in admin UI. **Document this in security audits as the exemplar of "wrong but not exploitable" — not every data integrity issue is a security issue, but every one of them needs a paper trail.**
+
+
+---
+
+### Lesson #66 — SECURITY DEFINER function rewrites must re-apply search_path lockdown
+
+**Date:** 2 May 2026
+**Surfaced in:** Phase 4.2 banner-test smoke. Matt tried to create a test teacher via the Supabase Auth dashboard; `Failed to create user: Database error creating new user`. Postgres logs surfaced `ERROR: relation "teachers" does not exist`.
+
+**The bug:** the May-1 rewrite migration (`20260501103415_fix_handle_new_teacher_skip_students.sql`) — which legitimately added the `user_type='student'` guard to fix Lesson #65 — accidentally dropped two safety properties from the function definition:
+
+1. `SET search_path = public, pg_temp`
+2. Schema-qualified table reference (`public.teachers` → `teachers`)
+
+Without (1), the SECURITY DEFINER function inherits the search_path of the calling session. Supabase Auth's INSERT context does NOT include `public` in the default search_path, so `INSERT INTO teachers (...)` failed for every email/password teacher signup since 1 May. Hadn't been caught because no new teachers had signed up via that path between 1 May and 2 May — only the existing accounts (mattburto@gmail.com, mattburton@nanjing-school.com from April) were logging in.
+
+**The fix:** migration `20260502102745_phase_4_3_x_fix_handle_new_teacher_search_path.sql` re-applies both properties:
+
+```sql
+CREATE OR REPLACE FUNCTION public.handle_new_teacher()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp     -- restored
+AS $function$
+BEGIN
+  IF (NEW.raw_app_meta_data->>'user_type') = 'student' THEN
+    RETURN NEW;
+  END IF;
+
+  INSERT INTO public.teachers (id, name, email)  -- schema-qualified
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
+    NEW.email
+  );
+  RETURN NEW;
+END;
+$function$;
+```
+
+Plus a DO-block sanity check that `pg_get_functiondef(oid)` contains both `SET search_path = public, pg_temp` AND `public.teachers` — refuses to apply if either is missing.
+
+**Rules:**
+
+- **Whenever rewriting a SECURITY DEFINER function via CREATE OR REPLACE, audit the existing definition's safety properties before submitting the new body.** `SECURITY DEFINER`, `STABLE`/`IMMUTABLE` volatility markers, `SET search_path`, REVOKE/GRANT lines — all of these are easy to drop accidentally because PG syntax allows them in any order around the body.
+- **Add a regression test** that asserts each safety property by name. The test in `migration-phase-4-3-x-fix-handle-new-teacher.test.ts` does exactly this — `expect(sql).toMatch(/SET search_path = public, pg_temp/)` etc. If a future rewrite drops a property, CI catches it before deploy.
+- **Bake the safety properties into the migration's sanity DO-block.** A DO-block that runs `pg_get_functiondef(oid)` and `RAISE EXCEPTION` when a property is missing is far more durable than a comment saying "remember to set search_path". The migration refuses to apply if the function definition is wrong — the deploy fails loudly, not silently.
+- **For ANY trigger on `auth.users` specifically,** treat search_path lockdown as MANDATORY. Auth schema's INSERT context has tighter default search_path than the public schema's, and the failure mode is "all signups break for X days until someone tries to sign up."
+
+**Why this is a Lesson #64 sibling:** Lesson #64 said `SECURITY DEFINER` policies need search_path locked because the policies subquery into other tables. This is the same rule applied to TRIGGERS: `SECURITY DEFINER` triggers need search_path locked because they `INSERT INTO` other tables. Same family — same fix.
+
+**Why pre-flight didn't catch it:** the May-1 migration shipped with a smoke test that created a row in `auth.users` via the trigger path AND verified the resulting `teachers` row had the `user_type='student'` skip working. But the smoke test ran in a Supabase SQL Editor session where `search_path` was already set to include `public` — same context as the test author. Production's auth-trigger context is different. **Auth-context smoke tests should run via the actual Supabase Auth admin API path (createUser), not via direct SQL Editor INSERT.**
+
+**Operational rule for future migrations touching `handle_new_teacher` (or any auth.users trigger function):**
+1. Read `pg_get_functiondef(oid)` of the existing definition before writing the rewrite
+2. Diff your new body against the old to confirm no safety properties dropped
+3. Migration's DO-block asserts every safety property survived
+4. Smoke test by calling Supabase Auth admin API `createUser`, NOT by direct INSERT INTO auth.users in SQL Editor
+
