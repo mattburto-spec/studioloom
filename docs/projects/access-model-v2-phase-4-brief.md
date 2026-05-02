@@ -394,6 +394,54 @@ Migration `20260502025737_phase_4_1_seed_schools_extension` minted, claimed on o
 
 **Stop trigger:** SECURITY DEFINER lookup returns more than 1 row → STOP, schema bug. RLS read returns cross-school rows → STOP.
 
+---
+
+#### Phase 4.2 — COMPLETED (2 May 2026)
+
+Migration `20260502031121_phase_4_2_school_domains` minted, claimed, and SQL body written. Schema + helper + RLS + 2 functions + 26-provider free-email blocklist all shipped + tested.
+
+**Brief refinements vs scope:**
+- DELETE deferred to §4.3 (always high-stakes per brief, needs `proposeSchoolSettingChange` helper). Original §4.2 scope was 3 routes; shipped 2 (GET + POST). DELETE rolls into §4.3 alongside the governance helper that gates it.
+- POST tier resolution: §4.2 ships **auto-verify-only path**. Non-matching email→domain pairs return `501 { requires: 'phase_4_3_governance_engine' }`. The full tier-aware path (high-stakes via 2-teacher confirm) lands in §4.3 when the helper exists.
+- Free-email blocklist expanded from brief's 10 providers to **26** (added Chinese providers Matt's prospects use: qq.com, 163.com, 126.com, sina.com, foxmail.com — plus mail.ru, yandex.com, GMX, ProtonMail variants for completeness). DB-level enforcement.
+- Welcome wizard banner: clean ~40-line addition above existing SchoolPicker. "Use this school" / "Search instead" controls. Re-fetches full school row from `schools` to populate the existing picker with the proper shape.
+- Routes don't use `withErrorHandler` wrapper — that wrapper drops the second route-context argument so dynamic-segment routes can't extract `params`. Used plain async functions with try/catch instead. Documented in route comment.
+
+**Tests added (54):**
+- Migration shape: 28 (table + RLS + 2 functions + DOWN script)
+- `/api/schools/lookup-by-domain`: 11 (success, free-email, malformed input, length cap, case folding, RPC error, Cache-Control)
+- `/api/school/[id]/domains` GET + POST: 15 (auth, UUID, cross-school 404, 501 deferred path, free-email 400, auto-verify happy path, 409 unique violation, normalisation)
+
+**Tests:** 2933 → 2987 (+54, all passing). `npx tsc --noEmit --project tsconfig.check.json` clean. 0 regressions.
+
+**Commits on `access-model-v2-phase-4`** (pushed to origin as WIP backup):
+- `d97cb27` claim(migrations): reserve phase_4_2_school_domains timestamp
+- `0922ee8` feat: Phase 4.2 — school_domains schema + lookup_school_by_domain helper
+- `766fe0e` test: Phase 4.2 — schema migration shape test (28 tests)
+- `b464dd5` feat: Phase 4.2 — GET /api/schools/lookup-by-domain (public)
+- `f3f41eb` feat: Phase 4.2 — GET/POST /api/school/[id]/domains (auto-verify only)
+- `2633fa3` feat: Phase 4.2 — welcome wizard domain auto-suggest banner
+
+**Migration NOT YET APPLIED to prod.** Schema-only, no data. Idempotent. Apply alongside §4.3 batch OR sooner.
+
+**To pre-seed NIS post-apply** (Matt-runnable in Supabase SQL Editor):
+
+```sql
+-- Replace <NIS_SCHOOL_ID> with the actual UUID
+INSERT INTO school_domains (school_id, domain, verified, added_by)
+VALUES
+  ('<NIS_SCHOOL_ID>', 'nis.org.cn', true, NULL),
+  ('<NIS_SCHOOL_ID>', 'nanjing-school.com', true, NULL)
+ON CONFLICT (lower(domain)) DO NOTHING;
+
+-- Verify
+SELECT * FROM school_domains WHERE school_id = '<NIS_SCHOOL_ID>';
+SELECT * FROM lookup_school_by_domain('nis.org.cn'); -- should return NIS row
+SELECT * FROM lookup_school_by_domain('gmail.com');  -- should return 0 rows (blocklist)
+```
+
+**Sub-phase status: ✅ COMPLETE.** Next: Phase 4.3 — Governance engine (`school_setting_changes` + `proposeSchoolSettingChange()` helper + cron + rate limiter + tier resolvers + version stamping). The big one — ~1.5 days estimate.
+
 ### Phase 4.3 — Governance engine: `school_setting_changes` + helper + cron + rate limit + version stamping (~1.5 day)
 
 **Output:**
