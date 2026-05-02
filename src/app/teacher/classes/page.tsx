@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 
 // ── Class colour palette + gradients (shared) ──
 import { CLASS_COLORS, getClassColor, getClassGradient } from "@/lib/ui/class-colors";
+import { RoleChip } from "@/components/teacher-dashboard-v2/RoleChip";
 
 interface ClassRow {
   id: string;
@@ -31,6 +32,15 @@ interface ClassRow {
 export default function ClassesPage() {
   const [classes, setClasses] = useState<ClassRow[]>([]);
   const [loading, setLoading] = useState(true);
+  /** Phase 3 chip UI — role per class, fetched alongside the classes
+   *  query from /api/teacher/me/scope. Map of class_id → role. Empty
+   *  while the scope endpoint is in flight; chip just doesn't render
+   *  during that window (lead_teacher classes wouldn't show a chip
+   *  anyway — the only visual delta is the brief absence of co_teacher
+   *  / mentor / dept_head badges on first paint). */
+  const [roleByClassId, setRoleByClassId] = useState<Map<string, string>>(
+    new Map()
+  );
   const [showArchived, setShowArchived] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
@@ -130,6 +140,35 @@ export default function ClassesPage() {
   useEffect(() => {
     loadClasses();
   }, [loadClasses]);
+
+  // Phase 3 chip UI — fetch the teacher's role per class via the scope
+  // endpoint. Independent of the main classes query so a hiccup here
+  // doesn't block the page; consumers just see classes without role
+  // chips. Brief: docs/projects/access-model-v2-phase-3-brief.md §3.6.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/teacher/me/scope");
+        if (!res.ok || cancelled) return;
+        const json = (await res.json()) as {
+          scopes?: Array<{ scope: string; role: string }>;
+        };
+        const map = new Map<string, string>();
+        for (const s of json.scopes ?? []) {
+          if (typeof s.scope === "string" && s.scope.startsWith("class:")) {
+            map.set(s.scope.slice("class:".length), s.role);
+          }
+        }
+        if (!cancelled) setRoleByClassId(map);
+      } catch {
+        // Non-blocking — chip just doesn't render on a fetch failure.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function createClass() {
     if (!newName.trim()) return;
@@ -506,6 +545,7 @@ export default function ClassesPage() {
                                 multiple classes with the same display name
                                 (e.g. three "10 Design" classes). 28 Apr 2026
                                 — class-architecture-cleanup §3. */}
+                            <RoleChip role={roleByClassId.get(cls.id)} />
                             {cls.cohortLabel && (
                               <span
                                 className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200"
@@ -721,6 +761,7 @@ export default function ClassesPage() {
                                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">
                                   Archived
                                 </span>
+                                <RoleChip role={roleByClassId.get(cls.id)} />
                                 {cls.cohortLabel && (
                                   <span
                                     className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-50 text-gray-500 border border-gray-200"
