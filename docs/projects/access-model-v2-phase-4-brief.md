@@ -662,6 +662,45 @@ All other FKs either CASCADE (auto-delete) or SET NULL (orphan the reference, pr
 
 **Sub-phase status: ✅ COMPLETE.** Now: clean prod state for Phase 4.4 onward.
 
+---
+
+#### Phase 4.4a — bootstrap trigger + GET school + settings skeleton (COMPLETED 2 May 2026)
+
+First-pass scaffolding for the teacher-facing school settings page. Phase 4.4 was originally specified as one ~1.5-day sub-phase; in execution it splits cleanly into 4 passes (a/b/c/d) — this is the first.
+
+**4 split rationale:** the editable sections (4.4b), proposal lifecycle UI (4.4c), and inheritance/i18n (4.4d) all build on the same foundation: the page rendering + auth + governance-feed read path. Shipping (a) first lets each subsequent pass land independently with end-to-end smoke per pass. Total scope unchanged; passes are bookmarks.
+
+**Phase 4.4a deliverables:**
+
+- **Migration** `20260502122024_phase_4_4a_bootstrap_auto_close_trigger.sql` — AFTER INSERT trigger on `teachers` that closes `schools.bootstrap_expires_at` the moment teacher count goes 1→2. Conditional UPDATE means already-closed windows can't reopen (§3.8 Q6 — never reopens after first closure). SECURITY DEFINER + search_path locked (Lesson #66 preserved). Sanity DO block asserts function + trigger exist + search_path lockdown.
+
+- **Route** `GET /api/school/[id]` — same-school teacher reads school + teacher count + pending proposals + 30-day recent changes. Cross-school 404 (don't leak existence) unless `is_platform_admin`. Archived schools return `readOnly: true` with reason (§3.9 item 16 — preserves historical access; doesn't 403). 9 tests covering auth / UUID / cross-school / platform-admin-bypass / archived / response shape / Cache-Control.
+
+- **Page** `/school/[id]/settings` — server component; first user-visible Phase 4 governance surface. Renders identity section (name/country/region/timezone/locale/status/tier/allowed_auth_modes), conditional banners (archived / bootstrap grace / lone-teacher post-bootstrap), pending proposals list, 30-day recent-activity feed. All editable sections + proposal interactivity are placeholders pointing forward to 4.4b/c/d.
+
+**4.4b sneak preview (next pass):** replace identity placeholder with editable sections (Identity, Calendar, Timetable, Frameworks, Auth Policy, AI Policy, Branding, Safeguarding, Content Sharing). Each section wires through `proposeSchoolSettingChange()` from §4.3. Section-level "Save" buttons fire PATCH/POST routes to land. Bootstrap grace + tier resolution all happen server-side via the helper.
+
+**4.4c sneak preview:** confirm/dismiss buttons on pending proposals (POST `/api/school/[id]/proposals/[changeId]/confirm`); revert buttons on recent activity feed (POST `/api/school/[id]/changes/[changeId]/revert`); 3-way diff UI on confirm modal showing proposed-before → current-now → after; rate-limit toast when 429 fires.
+
+**4.4d sneak preview:** multi-campus parent_school_id inheritance badges ("↑ inherited from {parent name}") on settings UI; archived-school read-only mode threaded through every mutation route (already wired via `enforceArchivedReadOnly` helper from §4.0); timezone smart-default in welcome wizard (`Intl.DateTimeFormat()` for fresh schools); next-intl primitive bootstrap in `/school/[id]/settings` (English-only `messages/en.json`; second-locale ships as config addition).
+
+**Tests added (26):**
+- Migration shape: 17
+- GET /api/school/[id]: 9
+
+**Tests:** 3111 → 3137 (+26). 0 regressions. tsc strict clean.
+
+**Migration NOT YET APPLIED to prod** — bundled with §4.3 governance schema (also not yet applied) for batch apply when 4.4b lands. Both are idempotent + schema-only.
+
+**Commits on `access-model-v2-phase-4`** (pushed to origin):
+- `c3bfe82` claim(migrations): reserve phase_4_4a_bootstrap_auto_close_trigger
+- `934c61e` feat: Phase 4.4a — bootstrap auto-close trigger on teachers
+- `062a092` test: Phase 4.4a — bootstrap trigger migration shape test (17 tests)
+- (next 2) feat: Phase 4.4a — GET /api/school/[id] + read-only settings page skeleton
+- `f0614c0` feat: Phase 4.4a — /school/[id]/settings read-only skeleton
+
+**Sub-phase status: ✅ COMPLETE.** Foundation laid. 4.4b adds the meat (editable sections).
+
 ### Phase 4.4 — `/school/[id]/settings` page + activity feed + multi-campus + archived guard + i18n (~1.5 day)
 
 **Output:**
