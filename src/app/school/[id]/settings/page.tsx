@@ -417,8 +417,9 @@ export default async function SchoolSettingsPage({ params }: PageProps) {
           </div>
         </dl>
         <p className="text-[11px] text-gray-400">
-          Status, subscription tier, and auth-mode editing coming in
-          Phase 4.4b/c (system-managed for now).
+          Status, subscription tier, and auth-mode editing remain
+          system-managed for v1 — these are governance-sensitive fields
+          that flow through admin tooling rather than per-school edits.
         </p>
       </section>
 
@@ -451,7 +452,11 @@ export default async function SchoolSettingsPage({ params }: PageProps) {
           .
         </p>
         <p className="text-[11px] text-gray-400">
-          UI for domain management coming in Phase 4.4b.
+          In-page domain management UI is a follow-up — see
+          FU-AV2-PHASE-4-DOMAIN-UI. The API supports list / add / remove
+          today (POST auto-verifies when the requesting teacher&apos;s
+          email matches the domain; otherwise high-stakes 2-teacher
+          confirm).
         </p>
       </section>
     </div>
