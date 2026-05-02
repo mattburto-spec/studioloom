@@ -3199,3 +3199,77 @@ Branch state: `access-model-v2-phase-1` at `5be1599`, 2 commits ahead of `main`,
 6. **Checkpoint A2** — gate criteria + merge to main.
 
 ~2 days from Checkpoint A2.
+
+---
+
+## 2026-05-02 — Access Model v2 Phase 4 part 1 SHIPPED + Checkpoint A5a + 6 hotfix commits
+
+**Marathon session.** Phase 4.0 → 4.4d shipped end-to-end. 7 migrations applied to prod. Three-Matts prod-data consolidation. ~300 new tests (2895 → 3189). 50+ commits. Checkpoint A5a passed and merged to main. Two follow-up hotfix passes after smoke testing.
+
+### What landed
+
+**Phase 4.0** — Pre-flight + scaffolds. Active-sessions claimed. Migration `20260502024657_phase_4_0_governance_engine_rollout_flag` (admin_settings kill-switch flag, idempotent, default true). 4 scaffolds: archived-school read-only guard (§3.9 item 16), multi-campus parent-precedence helper (§3.9 item 13), governance type contracts (PayloadV1 + TierResolver per §3.9 item 14), rollout-flag accessor. **i18n primitive verification**: zero matches for next-intl/next-i18next/i18next/useTranslation across src — finding logged, deferred to FU-AV2-PHASE-4-4D-NEXT-INTL.
+
+**Phase 4.1** — Schools seed extension. Migration `20260502025737_phase_4_1_seed_schools_extension` shipped 101 schools across 6 markets (UK indies, Australia AHIGS/GPS, US NAIS, Asia non-China fills, Europe non-UK, MEA + NZ + Canada). Curation-criteria-driven (publicly listed D&T faculty / Matt has on-the-ground intro / teaches a demoable framework). source='imported'. UTF-8 verified.
+
+**Phase 4.2** — `school_domains` + welcome wizard auto-suggest. Migration `20260502031121_phase_4_2_school_domains` adds the table + 2 SECURITY DEFINER functions (`is_free_email_domain` IMMUTABLE with 26-provider blocklist including Chinese providers; `lookup_school_by_domain` STABLE narrow projection callable by anon). 4 RLS policies. New routes: `GET /api/schools/lookup-by-domain` (public), `GET /api/school/[id]/domains` (list), `POST /api/school/[id]/domains` (auto-verify path only — non-matching returns 501 with `requires: phase_4_3_governance_engine`). Welcome wizard banner ships above SchoolPicker when domain match found. **Banner verified end-to-end on prod** with all 3 NIS domains (`nis.org.cn`, `nischina.org`, `nanjing-school.com`).
+
+**Phase 4.3** — Governance engine. Migration `20260502034114_phase_4_3_school_setting_changes` adds `school_setting_changes` ledger + `school_setting_changes_rate_state` rate-state side-table + 2 enums (tier, status) + 4 indexes + 4 RLS policies + `enforce_setting_change_rate_limit` SECURITY DEFINER fn (sliding-hour bucket-per-hour storage; atomic check-then-increment). 3 new TS files: `governance/tier-resolvers.ts` (context-aware classification per §3.8 Q2 — domain-match auto-verify, AI-budget delta >50% escalates to high-stakes, 13 always-high + 14 always-low sets), `governance/setting-change.ts` (propose/confirm/revert helpers with bootstrap-grace + version-stamping + rate-limit + archived-guard + kill-switch composition), `app/api/school/[id]/domains/[domainId]/route.ts` (DELETE wired through governance — single-teacher bootstrap immediate-apply vs multi-teacher pending). 84 new tests.
+
+**Phase 4.3.x** — handle_new_teacher search_path hotfix. Migration `20260502102745_phase_4_3_x_fix_handle_new_teacher_search_path` re-applies `SET search_path = public, pg_temp` + schema-qualified `INSERT INTO public.teachers`. The May-1 rewrite (Lesson #65 fix) accidentally dropped both. Failure mode: `ERROR: relation "teachers" does not exist` for every email/password teacher signup since 1 May. Surfaced 2 May during banner-test smoke. **Lesson #66** filed: SECURITY DEFINER function rewrites must re-apply search_path lockdown. Hot-fix applied to prod via SQL Editor first; migration captures fix in audit trail.
+
+**Phase 4.3.y** — Bug A + B + UX-1 fix-pack. Migration `20260502105711_phase_4_3_y_handle_new_teacher_auto_personal_school` extends trigger to atomically INSERT a personal school per Decision 2 (Phase 0 backfilled existing teachers; trigger now extends to new signups). Personal school: `'{Teacher Name}'s School ({user_id[0:8]})'`, country='ZZ', source='user_submitted', verified=false. Welcome wizard `persistSchoolId` helper fires PATCH `/api/teacher/school` immediately on banner-click + Step 1 Next (Bug B fix — was deferred to wizard step 5 / complete). Copy fix: "What's your first class called?" → "Let's add a class". 20 new tests. **Bug A verified end-to-end on prod** (banner-test-3 trigger created NIS personal school).
+
+**Phase 4.3.z** — Three-Matts prod-data consolidation. Pulled forward from Phase 6 cutover plan. Renamed `mattburto@gmail.com` → "Admin" (both `is_admin=true` + `is_platform_admin=true`); `mattburton@nanjing-school.com` → "Matt Burton" pure teacher (admin flags removed); `hello@loominary.org` → "Loominary (deactivated)" with `teachers.deleted_at = now()` + `auth.users.banned_until = '2099-01-01'`. 26 classes / 11 units / 7 students wiped. 8 orphan student auth.users cleaned. Master-spec risk row line 319 ("Multi-Matt-teacher-account prod data") resolved. Apply discipline learned: Supabase SQL Editor runs in autocommit mode — temp tables don't survive across statements; idempotent statement chains required for prod-data work.
+
+**Phase 4.4a** — Bootstrap auto-close trigger + GET school + read-only settings page skeleton. Migration `20260502122024_phase_4_4a_bootstrap_auto_close_trigger` adds AFTER INSERT trigger on teachers — closes `schools.bootstrap_expires_at` when active count goes 1→2 (conditional UPDATE never reopens per §3.8 Q6). New `GET /api/school/[id]` route returns school + teacher count + pending proposals + 30-day activity feed. New `/school/[id]/settings` page (server component) renders identity / status / 3 conditional banners (archived / bootstrap grace / lone-teacher post-bootstrap) / pending proposals list / activity feed. Editable sections placeholder. 26 new tests.
+
+**Phase 4.4b** — Universal PATCH + editable Identity. NEW `governance/applier.ts` registry maps 22 change_types across 9 setting categories to actual schools column updates (or school_domains insert/delete for domain ops). Pre-wires Phase 4.8 JSONB columns (academic_calendar_jsonb, timetable_skeleton_jsonb, etc.) so 4.8 ships without PATCH-route code change. Universal `PATCH /api/school/[id]/settings` endpoint routes through `proposeSchoolSettingChange` + `applyChange` with status-mapped HTTP responses. `IdentitySection` client component with 6 editable fields, tier-aware UI (Save vs Propose label flip, badge text changes by bootstrap state). 33 new tests.
+
+**Phase 4.4c** — Confirm + revert (interactive governance UI). NEW `POST /api/school/[id]/proposals/[changeId]/confirm` (2nd-teacher confirm) + `POST /api/school/[id]/changes/[changeId]/revert` (7-day-window revert with `before_at_propose` written back). `PendingProposalsList` + `ActivityFeed` client components with self-proposed badges, confirm dialog modal (2-way before/after preview with ARIA), Revert buttons on applied rows within window, status pills, `router.refresh()` on success. 19 new tests.
+
+**Phase 4.4d** — Polish: timezone smart-default in welcome-wizard SchoolPicker `Intl.DateTimeFormat()` auto-detect for fresh school creation. Multi-campus parent breadcrumb on settings header (per-field inheritance badges defer to FU-AV2-PHASE-4-PER-FIELD-INHERITANCE-BADGES alongside Phase 4.8 JSONB columns landing). Confirm dialog 2-way preview (ships material UX win; full live 3-way diff filed as FU-AV2-PHASE-4-3WAY-LIVE-DIFF). i18n primitive bootstrap deferred (FU-AV2-PHASE-4-4D-NEXT-INTL).
+
+**Checkpoint A5a** — passed all sub-criteria. Merged to main via fast-forward worktree pattern. `b82f9f2..0bf1aeb` (47 commits to main).
+
+### Post-merge hotfix passes
+
+**Hotfix 1 (5 commits, `0bf1aeb..9ced53e`)** — surfaced via Matt's smoke testing:
+- C1+C2: dirty-check anchor (router.refresh after IdentitySection save) + server-side `.trim()` (prod data hit: NIS schools.city saved as "Nanjing " with trailing space; cleanup SQL ran)
+- C3: `/school/me/settings` redirect helper + TopNav avatar dropdown nav links ("My Settings" + "School Settings")
+- U1: Country / Timezone / Default locale dropdowns (NEW `option-lists.ts` with 39 countries + 47 timezones + 11 locales)
+- U2: Region field hidden from UI (governance-internal scoping; no user-facing purpose v1)
+- D1: stale "coming in 4.4b" copy replaced
+- 3 FUs filed: FU-AV2-PHASE-4-DOMAIN-UI, FU-AV2-WELCOME-CALENDAR-PREVIEW, FU-AV2-WELCOME-STEP5-CTAS (P2 — Matt is moving away from AI-generated units)
+
+**Hotfix 2 (1 commit, `9ced53e..b2b9bed`)** — settings page rendered bare without TopNav (stuck-page UX). NEW `src/app/school/layout.tsx` mirrors `/teacher/layout.tsx` structure (TeacherShell + auth + welcome-wizard guard). Slight duplication; FU-AV2-LAYOUT-DEDUP filed.
+
+### Numbers
+
+- **Tests:** 2895 → 3189 (+294 new, 0 regressions)
+- **tsc strict:** clean throughout
+- **Migrations:** 7 applied to prod (all verified by Matt)
+- **Routes:** ~14 new (Phase 4.2 + 4.3 + 4.4a/b/c)
+- **Commits to main:** 53 (47 from Phase 4.4d branch + 5 hotfix commits + 1 TopNav hotfix commit)
+- **Branch:** access-model-v2-phase-4-part-2 cut from main for Phase 4 part 2 (4.5/4.6/4.7/4.8/4.9)
+
+### Lessons logged this session
+
+- **Lesson #66** — SECURITY DEFINER function rewrites must re-apply search_path lockdown. Sibling of #64 (RLS recursion) and #65 (assumption-baked triggers). Operational rule: read existing `pg_get_functiondef` before rewriting; diff new vs old to confirm safety properties survive; sanity DO-block asserts every property; smoke via Supabase Auth admin API not direct SQL Editor INSERT.
+
+### Decisions logged this session
+
+12 §3.8 sign-offs + 6 §3.9 future-proofing additions + Phase 4.4 4-pass split + 4.4c/4.4d UX scope decisions. See decisions-log entries dated 2026-05-02.
+
+### What's next
+
+**Phase 4 part 2 on `access-model-v2-phase-4-part-2`** — 4.5 (school_merge_requests + 90-day redirect cascade) + 4.6 (School Library browse + Request-to-Use flow) + 4.7 (super-admin /admin/school/[id]) + 4.8 (settings bubble-up JSONB columns) + 4.9 (department + dept_head triggers) → Checkpoint A5b → final Phase 4 close. Estimated 5-7 days.
+
+**Pending hygiene FUs** (from this saveme):
+- `FU-AV2-API-REGISTRY-DYNAMIC-ROUTES` P3 — api-registry.yaml scanner missed Phase 4 dynamic [id] routes (~14 routes); manual sync deferred
+- `FU-AV2-SCHEMA-REGISTRY-PHASE-4-TABLES` P3 — schema-registry.yaml manual entries for 3 new tables (school_domains / school_setting_changes / school_setting_changes_rate_state) + new columns on schools deferred
+- `FU-AV2-WIRING-PHASE-4-SYSTEMS` P3 — WIRING.yaml needs `school-governance` + `school-library` system entries; updates to auth-system + permission-helper + class-management impact lists deferred
+- `FU-AV2-LAYOUT-DEDUP` P3 — `/school/layout.tsx` and `/teacher/layout.tsx` share ~80% logic; refactor when next layout-touching work happens
+
+**RLS coverage:** clean. 108 → 111 tables (+3 from Phase 4); all 3 new tables have RLS + policies. 5 pre-existing rls_no_policy entries unchanged.
+

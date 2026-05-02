@@ -1,6 +1,6 @@
 {
   "registry": "rls-coverage",
-  "timestamp": "2026-05-01T13:46:09.530004+00:00",
+  "timestamp": "2026-05-02T14:11:24.520669+00:00",
   "version": 1,
   "drift": {
     "no_rls": [],
@@ -28,9 +28,9 @@
     ]
   },
   "stats": {
-    "total_tables": 108,
-    "rls_enabled": 108,
-    "with_policies": 103,
+    "total_tables": 111,
+    "rls_enabled": 111,
+    "with_policies": 106,
     "no_rls_count": 0,
     "rls_no_policy_count": 5
   },
