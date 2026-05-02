@@ -54,22 +54,21 @@ export async function GET(request: NextRequest) {
   // Fan out three reads in parallel. Each one is RLS-respecting via the
   // SSR client. Phase 0 RLS lets a teacher read their own class_members /
   // student_mentors (mentor self-read) / school_responsibilities (same-school).
-  // Explicit !fkname syntax on embeds — PostgREST auto-aliases relationships
-  // as `<table>_1`, `<table>_2` when the embed is even mildly ambiguous, which
-  // surfaced as `column students_1.name does not exist` on the
-  // student_mentors → students embed during Phase 3.5 smoke. Pinning the FK
-  // by constraint name avoids the alias and is forward-safe.
+  // Phase 3.4g — drop the PostgREST embeds for the student-mentor query;
+  // do a follow-up students lookup by ID. The embed `students(name)` was
+  // failing with `column students_1.name does not exist` even with explicit
+  // !fkname syntax — PostgREST appears to auto-alias the relationship in
+  // a way the SELECT can't resolve. The class_members → classes embed
+  // works (no aliasing collision there) so we keep it.
   const [classRes, mentorRes, respRes] = await Promise.all([
     db
       .from("class_members")
-      .select("class_id, role, classes!class_members_class_id_fkey(name)")
+      .select("class_id, role, classes(name)")
       .eq("member_user_id", auth.teacherId)
       .is("removed_at", null),
     db
       .from("student_mentors")
-      .select(
-        "student_id, programme, students!student_mentors_student_id_fkey(name)"
-      )
+      .select("student_id, programme")
       .eq("mentor_user_id", auth.teacherId)
       .is("deleted_at", null),
     db
@@ -78,6 +77,23 @@ export async function GET(request: NextRequest) {
       .eq("teacher_id", auth.teacherId)
       .is("deleted_at", null),
   ]);
+
+  // Look up student names for any mentor scopes — single follow-up query.
+  // Empty mentorRes.data → skip the lookup entirely.
+  const mentorStudentIds = (mentorRes.data ?? [])
+    .map((r) => r.student_id as string)
+    .filter(Boolean);
+  let studentNameById: Record<string, string> = {};
+  if (mentorStudentIds.length > 0) {
+    const { data: studentRows } = await db
+      .from("students")
+      .select("id, display_name, username")
+      .in("id", mentorStudentIds);
+    for (const s of studentRows ?? []) {
+      const sRow = s as { id: string; display_name?: string | null; username?: string | null };
+      studentNameById[sRow.id] = sRow.display_name?.trim() || sRow.username || "";
+    }
+  }
 
   const scopes: Scope[] = [];
 
@@ -91,7 +107,7 @@ export async function GET(request: NextRequest) {
   }
 
   for (const row of mentorRes.data ?? []) {
-    const studentName = extractEmbeddedField<string>(row.students, "name");
+    const studentName = studentNameById[row.student_id as string];
     scopes.push({
       scope: `student:${row.student_id}`,
       role: "mentor",
