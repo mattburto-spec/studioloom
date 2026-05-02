@@ -57,9 +57,16 @@ type Applier = (
 
 const applySchoolColumn = (column: string): Applier => {
   return async ({ schoolId, changeType, newValue }, db) => {
+    // Hotfix C2 — defence-in-depth trim. Routes already trim string
+    // inputs at the edge, but the applier is also called from confirm
+    // / revert flows that pass payload values directly. Trimming here
+    // means trailing-whitespace data never lands in the column,
+    // regardless of caller path.
+    const cleanValue =
+      typeof newValue === "string" ? newValue.trim() : newValue;
     const { error, count } = await db
       .from("schools")
-      .update({ [column]: newValue }, { count: "exact" })
+      .update({ [column]: cleanValue }, { count: "exact" })
       .eq("id", schoolId);
     if (error) {
       return {

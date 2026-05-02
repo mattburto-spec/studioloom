@@ -23,6 +23,12 @@
  */
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  COUNTRY_OPTIONS,
+  TIMEZONE_OPTIONS,
+  LOCALE_OPTIONS,
+} from "./option-lists";
 
 type Props = {
   schoolId: string;
@@ -61,6 +67,7 @@ const HIGH_STAKES_FIELDS: ReadonlySet<FieldKey> = new Set([
 ]);
 
 export function IdentitySection({ schoolId, initial, bootstrapActive }: Props) {
+  const router = useRouter();
   const [fields, setFields] = useState<Record<FieldKey, FieldState>>({
     school_name: { value: initial.name, saving: false, error: null, status: null },
     school_city: {
@@ -100,8 +107,18 @@ export function IdentitySection({ schoolId, initial, bootstrapActive }: Props) {
   }
 
   async function save(key: FieldKey, currentValue: string | null) {
-    const newValue = fields[key].value;
-    if (newValue === (currentValue ?? "")) return; // no-op
+    // Hotfix C2 — trim whitespace at the client edge so trailing-space
+    // typos don't sneak through. The server now also trims, but trimming
+    // here means the dirty-check + the saved value are in sync.
+    const trimmed = fields[key].value.trim();
+    // For school_city, "" → null (city is optional); for others, "" is
+    // an empty string (pre-existing behavior, not changed here).
+    const sendValue =
+      key === "school_city" && trimmed === "" ? null : trimmed;
+    const compareValue =
+      key === "school_city" && trimmed === "" ? null : trimmed;
+    if (compareValue === currentValue) return; // no-op after trim
+
     updateField(key, { saving: true, error: null, status: null });
     try {
       const res = await fetch(`/api/school/${schoolId}/settings`, {
@@ -110,7 +127,7 @@ export function IdentitySection({ schoolId, initial, bootstrapActive }: Props) {
         body: JSON.stringify({
           changeType: key,
           currentValue,
-          newValue: key === "school_city" && newValue === "" ? null : newValue,
+          newValue: sendValue,
         }),
       });
       const body = await res.json();
@@ -127,11 +144,20 @@ export function IdentitySection({ schoolId, initial, bootstrapActive }: Props) {
       updateField(key, {
         saving: false,
         error: null,
+        // Reflect the trimmed value back into the input so the user sees
+        // exactly what was saved
+        value: trimmed,
         status:
           body.applied === true
             ? { kind: "applied" }
             : { kind: "pending", expiresAt: body.expiresAt },
       });
+      // Hotfix C1 — refresh server data so the `initial.*` props
+      // re-render with the saved value. Without this, the dirty-check
+      // anchor stays at the page-load value; reverting a saved edit
+      // back to the original input value reads as "not dirty" → Save
+      // disabled → DB and UI desync.
+      router.refresh();
     } catch (err) {
       updateField(key, {
         saving: false,
@@ -144,12 +170,24 @@ export function IdentitySection({ schoolId, initial, bootstrapActive }: Props) {
     key: FieldKey,
     label: string,
     initialValue: string | null,
-    options?: { type?: string; help?: string }
+    options?: {
+      type?: string;
+      help?: string;
+      /** Dropdown options. When provided, renders a <select> instead of <input>. */
+      dropdown?: ReadonlyArray<{ value: string; label: string }>;
+    }
   ) {
     const state = fields[key];
-    const dirty = state.value !== (initialValue ?? "");
+    // Hotfix C1 + C2 — compare trimmed values against the trimmed
+    // initial. "Nanjing " (trailing whitespace) is NOT a meaningful
+    // edit and should not enable Save. After router.refresh, initialValue
+    // re-anchors to the saved value so the dirty check stays correct.
+    const trimmedInput = state.value.trim();
+    const trimmedInitial = (initialValue ?? "").trim();
+    const dirty = trimmedInput !== trimmedInitial;
     const isHighStakes = HIGH_STAKES_FIELDS.has(key);
     const willPropose = isHighStakes && !bootstrapActive;
+    const isDropdown = !!options?.dropdown;
 
     return (
       <div className="space-y-1.5">
@@ -172,14 +210,41 @@ export function IdentitySection({ schoolId, initial, bootstrapActive }: Props) {
           )}
         </label>
         <div className="flex gap-2 items-start">
-          <input
-            id={key}
-            type={options?.type ?? "text"}
-            value={state.value}
-            onChange={(e) => updateField(key, { value: e.target.value })}
-            disabled={state.saving}
-            className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 disabled:opacity-50"
-          />
+          {isDropdown ? (
+            <select
+              id={key}
+              value={state.value}
+              onChange={(e) => updateField(key, { value: e.target.value })}
+              disabled={state.saving}
+              className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 disabled:opacity-50 bg-white"
+            >
+              {/* Include the current value as the first option even if not
+                  in the canonical list, so existing rows with values
+                  outside the v1 dropdown set still render + remain
+                  editable to a listed value. */}
+              {options!.dropdown!.find((o) => o.value === state.value) ===
+                undefined &&
+                state.value !== "" && (
+                  <option value={state.value}>
+                    {state.value} (current)
+                  </option>
+                )}
+              {options!.dropdown!.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              id={key}
+              type={options?.type ?? "text"}
+              value={state.value}
+              onChange={(e) => updateField(key, { value: e.target.value })}
+              disabled={state.saving}
+              className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 disabled:opacity-50"
+            />
+          )}
           <button
             type="button"
             onClick={() => save(key, initialValue)}
@@ -225,18 +290,34 @@ export function IdentitySection({ schoolId, initial, bootstrapActive }: Props) {
         {renderField("school_city", "City", initial.city, {
           help: "Optional. Leave blank if unspecified.",
         })}
+        {/* Hotfix U1 — Country dropdown (ISO 3166 alpha-2) */}
         {renderField("school_country", "Country", initial.country, {
-          help: "ISO 3166 alpha-2 code (e.g., CN, GB, AU, US).",
+          dropdown: COUNTRY_OPTIONS.map((c) => ({
+            value: c.code,
+            label: `${c.name} (${c.code})`,
+          })),
         })}
-        {renderField("school_region", "Region", initial.region, {
-          help: "Free-form region tag for governance scoping (default: 'default').",
-        })}
+        {/* Hotfix U2 — Region intentionally hidden from UI in v1.
+            It's a governance-internal scoping field with no user-facing
+            purpose; defaulting to 'default' is fine for all current
+            schools. Surface in a later phase if/when regional governance
+            policies are introduced. */}
+        {/* Hotfix U1 — Timezone dropdown (IANA) */}
         {renderField("school_timezone", "Timezone", initial.timezone, {
-          help: "IANA timezone (e.g., Asia/Shanghai, Australia/Sydney).",
+          dropdown: TIMEZONE_OPTIONS,
         })}
-        {renderField("default_locale", "Default locale", initial.default_locale, {
-          help: "ISO 639 code (e.g., 'en', 'zh-CN').",
-        })}
+        {/* Hotfix U1 — Default locale dropdown (ISO 639) */}
+        {renderField(
+          "default_locale",
+          "Default locale",
+          initial.default_locale,
+          {
+            dropdown: LOCALE_OPTIONS.map((l) => ({
+              value: l.code,
+              label: `${l.name}`,
+            })),
+          }
+        )}
       </div>
     </section>
   );

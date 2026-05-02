@@ -135,11 +135,21 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
       );
     }
 
-    // Compose the version-stamped PayloadV1
+    // Hotfix C2 — server-side trim. Trailing/leading whitespace on string
+    // values is never meaningful for school settings; trimming at the
+    // edge means the audit ledger + the column write + future reverts
+    // all use the same canonical value. Only string-typed newValue gets
+    // trimmed; objects/arrays/numbers pass through as-is.
+    const trimmedNewValue =
+      typeof newValue === "string" ? newValue.trim() : newValue;
+    const trimmedCurrentValue =
+      typeof currentValue === "string" ? currentValue.trim() : currentValue;
+
+    // Compose the version-stamped PayloadV1 (using trimmed values)
     const payload = {
       version: 1 as const,
-      before_at_propose: currentValue ?? null,
-      after: newValue ?? null,
+      before_at_propose: trimmedCurrentValue ?? null,
+      after: trimmedNewValue ?? null,
       ...(scope && typeof scope === "object"
         ? { scope: scope as Record<string, unknown> }
         : {}),
@@ -190,7 +200,7 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
       const applyResult = await applyChange({
         schoolId,
         changeType,
-        newValue,
+        newValue: trimmedNewValue,
         scope: scope as Record<string, unknown> | undefined,
       });
 
