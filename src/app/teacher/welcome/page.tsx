@@ -122,6 +122,48 @@ export default function TeacherWelcomePage() {
     name: string;
   } | null>(null);
   const [domainSuggestionDismissed, setDomainSuggestionDismissed] = useState(false);
+  // Phase 4.3.y Bug B fix — track in-flight school_id persistence so we can
+  // disable Next while the PATCH is mid-flight + surface failures inline.
+  const [persistingSchool, setPersistingSchool] = useState(false);
+
+  /**
+   * Phase 4.3.y Bug B fix — persist teacher's school selection immediately.
+   *
+   * Without this, schools.school_id stays NULL until the wizard's step-5
+   * /api/teacher/welcome/complete call. But step-3 create-class requires
+   * a school context — every fresh teacher hit "Teacher missing school
+   * context" 500 because the wizard delayed persistence to the end.
+   *
+   * Returns true on success, false on failure. Caller decides how to
+   * surface failures (Next button blocks navigation; banner shows error).
+   */
+  const persistSchoolId = useCallback(
+    async (schoolId: string | null): Promise<boolean> => {
+      setPersistingSchool(true);
+      try {
+        const res = await fetch("/api/teacher/school", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ schoolId }),
+        });
+        if (!res.ok) {
+          console.error(
+            "[welcome] failed to persist school_id:",
+            res.status,
+            await res.text().catch(() => "")
+          );
+          return false;
+        }
+        return true;
+      } catch (err) {
+        console.error("[welcome] school persist error:", err);
+        return false;
+      } finally {
+        setPersistingSchool(false);
+      }
+    },
+    []
+  );
 
   // Timetable (step 2)
   const [timetableMethod, setTimetableMethod] = useState<
@@ -792,26 +834,39 @@ export default function TeacherWelcomePage() {
                         <div className="mt-2 flex gap-2">
                           <button
                             type="button"
-                            onClick={() => {
+                            disabled={persistingSchool}
+                            onClick={async () => {
                               // Re-fetch full school row for the picker shape
                               const supabase = createClient();
-                              supabase
+                              const { data } = await supabase
                                 .from("schools")
                                 .select(
                                   "id, name, city, country, ib_programmes, verified, source"
                                 )
                                 .eq("id", domainSuggestion.id)
-                                .maybeSingle()
-                                .then(({ data }) => {
-                                  if (data) {
-                                    setSelectedSchool(data as PickerSchool);
-                                  }
-                                  setDomainSuggestionDismissed(true);
-                                });
+                                .maybeSingle();
+                              if (!data) {
+                                setError(
+                                  "Couldn't load that school. Please pick from the search instead."
+                                );
+                                return;
+                              }
+                              // Phase 4.3.y Bug B fix — persist school_id NOW
+                              // so step-3 create-class has a school context.
+                              const ok = await persistSchoolId(data.id);
+                              if (!ok) {
+                                setError(
+                                  "Couldn't save your school. Please try again or use the search picker."
+                                );
+                                return;
+                              }
+                              setSelectedSchool(data as PickerSchool);
+                              setDomainSuggestionDismissed(true);
+                              setError(null);
                             }}
-                            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition-colors"
+                            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:hover:bg-purple-600 transition-colors"
                           >
-                            Use this school
+                            {persistingSchool ? "Saving…" : "Use this school"}
                           </button>
                           <button
                             type="button"
@@ -839,15 +894,29 @@ export default function TeacherWelcomePage() {
 
             <div className="flex items-center gap-3">
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (!name.trim()) {
                     setError("Please enter a name.");
                     return;
                   }
+                  // Phase 4.3.y Bug B fix — if the teacher picked a school
+                  // via SchoolPicker but didn't go through the banner path,
+                  // persist their selection now (Next button is the moment
+                  // of commit). Skip if school_id is already in sync (e.g.
+                  // banner click already persisted) — but cheap to retry.
+                  if (selectedSchool) {
+                    const ok = await persistSchoolId(selectedSchool.id);
+                    if (!ok) {
+                      setError(
+                        "Couldn't save your school. Please try again."
+                      );
+                      return;
+                    }
+                  }
                   setError(null);
                   setStep("timetable");
                 }}
-                disabled={!name.trim()}
+                disabled={!name.trim() || persistingSchool}
                 className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
                 style={{
                   background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
@@ -1380,7 +1449,7 @@ export default function TeacherWelcomePage() {
           <div className="bg-white rounded-2xl p-6 border border-border shadow-sm space-y-5">
             <div>
               <h2 className="text-lg font-bold text-gray-900 mb-1">
-                What&apos;s your first class called?
+                Let&apos;s add a class
               </h2>
               <p className="text-sm text-gray-500">
                 You can add more classes later. We&apos;ll generate a join
