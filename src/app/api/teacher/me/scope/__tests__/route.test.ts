@@ -25,10 +25,12 @@ const fixtures: {
   class_members: Row[];
   student_mentors: Row[];
   school_responsibilities: Row[];
+  students: Row[];
 } = {
   class_members: [],
   student_mentors: [],
   school_responsibilities: [],
+  students: [],
 };
 
 beforeEach(() => {
@@ -36,6 +38,7 @@ beforeEach(() => {
   fixtures.class_members = [];
   fixtures.student_mentors = [];
   fixtures.school_responsibilities = [];
+  fixtures.students = [];
 });
 
 // requireTeacherAuth reads via @supabase/ssr's createServerClient.
@@ -62,6 +65,10 @@ vi.mock("@/lib/supabase/server", () => ({
         },
         is: (col: string, val: unknown) => {
           filters.push((r) => r[col] === val);
+          return builder;
+        },
+        in: (col: string, vals: unknown[]) => {
+          filters.push((r) => vals.includes(r[col]));
           return builder;
         },
         then(onFulfilled: (v: { data: Row[]; error: null }) => unknown) {
@@ -141,15 +148,17 @@ describe("GET /api/teacher/me/scope", () => {
     });
   });
 
-  it("returns student-mentor scope with programme + student_name", async () => {
+  it("returns student-mentor scope with programme + student_name (display_name preferred)", async () => {
     fixtures.student_mentors = [
       {
         student_id: "stu1",
         mentor_user_id: "teacher-1",
         programme: "pp",
         deleted_at: null,
-        students: { name: "John D." },
       },
+    ];
+    fixtures.students = [
+      { id: "stu1", display_name: "John D.", username: "johnd" },
     ];
     const res = await GET(makeRequest());
     const body = await res.json();
@@ -161,6 +170,26 @@ describe("GET /api/teacher/me/scope", () => {
         student_name: "John D.",
       },
     ]);
+  });
+
+  it("falls back to username when display_name is empty", async () => {
+    fixtures.student_mentors = [
+      {
+        student_id: "stu2",
+        mentor_user_id: "teacher-1",
+        programme: "service",
+        deleted_at: null,
+      },
+    ];
+    fixtures.students = [{ id: "stu2", display_name: null, username: "stu2name" }];
+    const res = await GET(makeRequest());
+    const body = await res.json();
+    expect(body.scopes[0]).toMatchObject({
+      scope: "student:stu2",
+      role: "mentor",
+      programme: "service",
+      student_name: "stu2name",
+    });
   });
 
   it("returns school responsibility scope", async () => {
@@ -195,8 +224,10 @@ describe("GET /api/teacher/me/scope", () => {
         mentor_user_id: "teacher-1",
         programme: "pp",
         deleted_at: null,
-        students: { name: "Alice" },
       },
+    ];
+    fixtures.students = [
+      { id: "s1", display_name: "Alice", username: "alice" },
     ];
     fixtures.school_responsibilities = [
       {

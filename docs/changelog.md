@@ -49,9 +49,18 @@
 - 20260501123401_phase_3_1_permission_helpers.sql
 - 20260501130842_phase_3_4b_classes_seed_lead_teacher_trigger.sql
 
-**Smoke status:** Phase 3.5 deferred to Matt's prod-preview run on `studioloom-git-access-model-v2-phase-3-...vercel.app`. Smoke playbook in this saveme.
+**Smoke status:** Phase 3.5 ran 1-2 May. **Checkpoint A4 PASS** with 3 mid-smoke hotfix migrations + 2 route fixes captured. Outcome report appended to `docs/projects/access-model-v2-phase-3-smoke.md`.
 
-**Branch state:** `access-model-v2-phase-3` 13 commits ahead of `origin/main`. NOT merged to main per methodology rule 8 — feature branch holds until Checkpoint A4 sign-off. Ready for merge once smoke passes.
+  - **Phase 3.4e** (`20260501141142_phase_3_4e_classes_class_members_read_policy.sql`) — adds `"Class members read their classes"` SELECT policy on `classes` via `has_class_role(id)`. Closes the PostgREST `classes!inner` embed gap surfaced in Scenario 2 (Teacher 2 saw 6 classes instead of 7).
+  - **Phase 3.4f** (`20260501142442_phase_3_4f_is_teacher_of_student_includes_class_members_and_mentors.sql`) — rewrites `is_teacher_of_student(uuid)` to add `has_class_role(cs.class_id)` + `has_student_mentorship(s.id)` OR branches. All 3 students RLS policies inherit fix. Closes FU-MENTOR-SCOPE on every route using the helper.
+  - **Phase 3.4g** (route, no migration) — `/api/teacher/me/scope` mid-smoke fix in two pushes. v1 pinned embed FK by constraint name (didn't shake the auto-alias loose); v2 dropped the embed entirely + follow-up `students` lookup by ID with `display_name` fallback to `username`. Original embed `students(name)` was syntactically invalid because `students` table has no `name` column.
+  - Mid-smoke `_debug` payload added to `/me/scope` for diagnostic surfacing (commit `d16b285`); removed on close-out (commit `0755d20`).
+
+**FU-MENTOR-SCOPE P1 ✅ resolved** by Phase 3.4f rewrite (every route using `is_teacher_of_student` now grants cross-class mentor access).
+
+**Lesson candidate #66** — when a phase introduces a new junction table + helper functions that read it, audit every existing RLS policy + helper function on adjacent tables for "do they consult the new junction?" — not just the writers + readers of the new table itself. Surfaced 3 instances during Phase 3.5 smoke that the Phase 3 brief's audit hadn't caught.
+
+**Branch state:** `access-model-v2-phase-3` 17 commits ahead of `origin/main`. NOT merged to main per methodology rule 8 — feature branch holds until explicit Checkpoint A4 merge command. Ready for fast-forward.
 
 **Capability live in prod (subject to feature branch deploy):**
 - Co_teacher / dept_head / mentor / lab_tech / observer see shared classes on `/teacher` dashboard
