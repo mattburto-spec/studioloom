@@ -276,7 +276,18 @@ export function TopNav({
                 onClick={() => setMenuOpen(false)}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[13px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg)]"
               >
-                <I name="gear" size={14} /> Settings
+                <I name="gear" size={14} /> My Settings
+              </Link>
+              {/* Phase 4.4 hotfix C3 — School Settings entry point. Resolves
+                  via the /school/me/settings redirect helper so we don't
+                  need to thread the teacher's school_id through this
+                  client component. */}
+              <Link
+                href="/school/me/settings"
+                onClick={() => setMenuOpen(false)}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-[13px] font-semibold text-[var(--ink-2)] hover:bg-[var(--bg)]"
+              >
+                <I name="gear" size={14} /> School Settings
               </Link>
               {/* Parked secondary items (Toolkit / Badges / Library) —
                *  mirrors the shipped legacy dropdown. Moves back into
