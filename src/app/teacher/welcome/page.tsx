@@ -116,12 +116,23 @@ export default function TeacherWelcomePage() {
 
   // Phase 4.2 — domain-based auto-suggest. Populated from lookup-by-domain
   // call when the teacher's email maps to a verified school_domains row.
-  // Banner above SchoolPicker offers "Use this school" or "Search instead."
+  //
+  // Phase 4.7b-2 — banner is now TIER-AWARE:
+  //   - subscription_tier='school' → "ask IT to invite you" (no auto-join);
+  //     button creates a teacher_access_requests row + shows "request sent"
+  //   - subscription_tier='free'|'pro' → no banner (target is someone's
+  //     personal school; not joinable). UI never sees this case because
+  //     personal schools don't have school_domains rows, but defence-in-depth.
+  //   - subscription_tier='pilot'|'starter' → fall through to legacy
+  //     "Use this school" auto-join behaviour (pre-tier-aware seed schools)
   const [domainSuggestion, setDomainSuggestion] = useState<{
     id: string;
     name: string;
+    subscription_tier: string;
   } | null>(null);
   const [domainSuggestionDismissed, setDomainSuggestionDismissed] = useState(false);
+  const [accessRequestSent, setAccessRequestSent] = useState(false);
+  const [accessRequestSending, setAccessRequestSending] = useState(false);
   // Phase 4.3.y Bug B fix — track in-flight school_id persistence so we can
   // disable Next while the PATCH is mid-flight + surface failures inline.
   const [persistingSchool, setPersistingSchool] = useState(false);
@@ -264,10 +275,17 @@ export default function TeacherWelcomePage() {
               if (lookupRes.ok) {
                 const json = await lookupRes.json();
                 if (json?.match?.id && json?.match?.name) {
-                  setDomainSuggestion({
-                    id: json.match.id,
-                    name: json.match.name,
-                  });
+                  // Phase 4.7b-2 — only surface the banner for school-tier
+                  // and legacy seed (pilot/starter) targets. free/pro
+                  // schools are personal schools; not joinable.
+                  const tier = json.match.subscription_tier ?? "pilot";
+                  if (tier !== "free" && tier !== "pro") {
+                    setDomainSuggestion({
+                      id: json.match.id,
+                      name: json.match.name,
+                      subscription_tier: tier,
+                    });
+                  }
                 }
               }
             } catch {
@@ -817,10 +835,101 @@ export default function TeacherWelcomePage() {
                   <span className="text-gray-400 font-normal">(optional)</span>
                 </label>
 
-                {/* Phase 4.2 — domain auto-suggest banner */}
+                {/* Phase 4.2 + 4.7b-2 — tier-aware domain auto-suggest banner */}
                 {domainSuggestion &&
                   !selectedSchool &&
-                  !domainSuggestionDismissed && (
+                  !domainSuggestionDismissed &&
+                  domainSuggestion.subscription_tier === "school" && (
+                    <div className="mb-3 flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50/60 p-3">
+                      <div className="text-xl leading-none">🏫</div>
+                      <div className="flex-1 min-w-0">
+                        {accessRequestSent ? (
+                          <>
+                            <p className="text-sm font-medium text-gray-900">
+                              Access request sent to {domainSuggestion.name}.
+                            </p>
+                            <p className="text-xs text-gray-600 mt-0.5">
+                              Your school admin will review your request. You
+                              can continue setting up a personal workspace
+                              while you wait — they can transfer your work
+                              into the school account once approved.
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm font-medium text-gray-900">
+                              {domainSuggestion.name} uses Loominary
+                            </p>
+                            <p className="text-xs text-gray-600 mt-0.5">
+                              Your school is on a Loominary School plan.
+                              Joining requires an invitation from your school
+                              admin (usually IT). Request access below, or
+                              continue with a personal workspace for now.
+                            </p>
+                            <div className="mt-2 flex gap-2">
+                              <button
+                                type="button"
+                                disabled={accessRequestSending}
+                                onClick={async () => {
+                                  setAccessRequestSending(true);
+                                  setError(null);
+                                  try {
+                                    const res = await fetch(
+                                      "/api/teacher/welcome/request-school-access",
+                                      {
+                                        method: "POST",
+                                        headers: {
+                                          "Content-Type": "application/json",
+                                        },
+                                        body: JSON.stringify({
+                                          school_id: domainSuggestion.id,
+                                        }),
+                                      }
+                                    );
+                                    if (!res.ok && res.status !== 409) {
+                                      const txt = await res.text();
+                                      throw new Error(
+                                        `Request failed (${res.status}): ${txt}`
+                                      );
+                                    }
+                                    // 409 (duplicate) is fine — already sent
+                                    setAccessRequestSent(true);
+                                  } catch (e) {
+                                    setError(
+                                      `Couldn't send request: ${e instanceof Error ? e.message : "unknown"}`
+                                    );
+                                  } finally {
+                                    setAccessRequestSending(false);
+                                  }
+                                }}
+                                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                              >
+                                {accessRequestSending
+                                  ? "Sending…"
+                                  : "Request access"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setDomainSuggestionDismissed(true)
+                                }
+                                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+                              >
+                                Continue without
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                {/* Legacy auto-join banner — pilot/starter tier only.
+                    Will be retired when all seed schools are tier-flipped. */}
+                {domainSuggestion &&
+                  !selectedSchool &&
+                  !domainSuggestionDismissed &&
+                  domainSuggestion.subscription_tier !== "school" && (
                     <div className="mb-3 flex items-start gap-3 rounded-xl border border-purple-200 bg-purple-50/60 p-3">
                       <div className="text-xl leading-none">🎯</div>
                       <div className="flex-1 min-w-0">

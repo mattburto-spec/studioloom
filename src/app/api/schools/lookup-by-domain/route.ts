@@ -1,17 +1,24 @@
 /**
  * GET /api/schools/lookup-by-domain?domain=foo.org
  *
- * Phase 4.2 — public, unauthenticated. Used by the welcome wizard to
- * auto-suggest a teacher's school based on their email domain.
+ * Phase 4.2 (extended Phase 4.7b-2) — public, unauthenticated. Used by
+ * the welcome wizard to auto-suggest a teacher's school based on their
+ * email domain.
  *
  * Calls the SECURITY DEFINER function public.lookup_school_by_domain
  * which (a) bakes in the free-email-provider blocklist (gmail.com,
  * outlook.com, qq.com, 163.com, etc. — see migration 4.2 for full list),
- * and (b) returns a NARROW projection (school_id, school_name only —
- * never added_by, verified flag, or created_at).
+ * and (b) returns a NARROW projection (school_id, school_name,
+ * subscription_tier only — never added_by, verified flag, or created_at).
  *
  * Response shape:
- *   { match: { id, name } | null }
+ *   { match: { id, name, subscription_tier } | null }
+ *
+ * The subscription_tier field is consumed by the welcome wizard to
+ * route the banner: target tier 'school' → "ask IT to invite you"
+ * (no auto-join button); target tier 'free'/'pro' → no banner at all
+ * (target is someone's personal school; not joinable). Phase 4.7b-2
+ * extension.
  *
  * Always 200; absent match returns `match: null`. Free-email domains
  * never return a match (DB-level guard, not just app-level).
@@ -63,7 +70,11 @@ export const GET = withErrorHandler(
     // RPC returning TABLE comes back as an array.
     const row = Array.isArray(data) ? data[0] : null;
     const match = row
-      ? { id: row.school_id as string, name: row.school_name as string }
+      ? {
+          id: row.school_id as string,
+          name: row.school_name as string,
+          subscription_tier: row.subscription_tier as string,
+        }
       : null;
 
     return NextResponse.json(
