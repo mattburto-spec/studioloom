@@ -586,6 +586,50 @@ Migration `20260502034114_phase_4_3_school_setting_changes` minted, claimed, and
 
 **Sub-phase status: ✅ COMPLETE — minus deferred cron + audit-events instrumentation (tracked, not blocking).** Next: Phase 4.4 — `/school/[id]/settings` page + activity feed + multi-campus + archived banner + i18n + bootstrap auto-close trigger (~1.5 days).
 
+---
+
+#### Phase 4.3.x — handle_new_teacher search_path hotfix (COMPLETED 2 May 2026)
+
+Mid-Phase-4 spillover hotfix. Surfaced during Phase 4.2 banner-test smoke when `Failed to create user: Database error creating new user` blocked all email/password teacher signups. Root cause: the May-1 rewrite (`20260501103415_fix_handle_new_teacher_skip_students.sql`) accidentally dropped `SET search_path` and the `public.teachers` qualifier when adding the `user_type='student'` guard. ALL email/password teacher signups in prod failed silently from 1 May → 2 May (~36 hours; nobody noticed because no fresh teachers signed up in that window).
+
+Fix migration `20260502102745_phase_4_3_x_fix_handle_new_teacher_search_path` re-applies both safety properties + DO-block sanity checks both via `pg_get_functiondef`. **Lesson #66** filed: "SECURITY DEFINER function rewrites must re-apply search_path lockdown" (sibling of Lesson #64).
+
+Hot-fix applied to prod via SQL Editor before the migration shipped (Matt unblocked immediately; migration captures the fix in the audit trail).
+
+**Tests:** 3080 → 3091 (+11 regression coverage). Migration + DOWN script tests assert the fix shape.
+
+---
+
+#### Phase 4.3.y — fix-pack: auto-personal-school + wizard persistence + copy (COMPLETED 2 May 2026)
+
+Three side bugs surfaced during Phase 4.2 banner-test smoke. Bundled as Phase 4.3.y mini-fix-pack to land before Phase 4.4 (which builds on top of `teachers.school_id` being reliably set):
+
+**Bug A (P2) — `FU-AV2-AUTO-CREATE-PERSONAL-SCHOOL` resolved:**
+Decision 2 (master spec, signed off 25 Apr) said every teacher gets `school_id` populated from day one. Phase 0 backfill did this for existing teachers. The May-1 / May-2 rewrites of `handle_new_teacher` did NOT extend the pattern to NEW teachers — Decision 2 was paper-only for fresh signups. Migration `20260502105711_phase_4_3_y_handle_new_teacher_auto_personal_school` extends the trigger to INSERT a personal school + INSERT teacher with `school_id` set, atomically. Personal school: `'{Teacher Name}'s School ({user_id[0:8]})'`, country `'ZZ'`, source `'user_submitted'`, verified `false`. The 8-char user_id suffix avoids `(normalized_name, country)` unique-constraint collisions. Sanity DO block asserts ALL FOUR safety properties (search_path, public.teachers, public.schools, user_type guard).
+
+**Bug B (P1) — `FU-AV2-WIZARD-SCHOOL-PERSIST` resolved:**
+`/teacher/welcome` step 1 stored `selectedSchool` only in client state until `/api/teacher/welcome/complete` (step 5). But step-3 create-class required `school_id` on the teachers row. Fix: PATCH `/api/teacher/school` immediately at two trigger points — (1) "Use this school" click on the domain-suggestion banner, (2) Step 1 Next button when `selectedSchool` is set. New `persistSchoolId` helper wraps the fetch + loading state. Both trigger points disable their button + show "Saving…" during in-flight PATCH. PATCH failure surfaces inline error and blocks navigation.
+
+Bug B is partly belt-and-braces with Bug A (since fresh teachers now get a personal school via the trigger), but it's load-bearing when a teacher picks a REAL school via the banner — without it, `teachers.school_id` stays pinned to the personal school.
+
+**UX-1 (P3) — `FU-AV2-WELCOME-WIZARD-COPY` resolved:**
+Copy change: "What's your first class called?" → "Let's add a class". The "first class" wording falsely assumed the teacher hadn't taught before. Body copy "You can add more classes later" stays.
+
+**Migrations applied to prod:** Phase 4.3.x (search_path hotfix) applied via SQL Editor 2 May. Phase 4.3.y (auto-personal-school) NOT YET APPLIED — apply when ready; idempotent.
+
+**Tests:** 3091 → 3111 (+20). 0 regressions. tsc strict clean.
+
+**Commits on `access-model-v2-phase-4`** (pushed to origin):
+- `beed962` claim(migrations): reserve phase_4_3_x_fix_handle_new_teacher_search_path
+- `e9035c6` fix: Phase 4.3.x — restore search_path lockdown on handle_new_teacher
+- `8415c1d` test: Phase 4.3.x — regression test + Lesson #66 captured
+- `61294a9` claim(migrations): reserve phase_4_3_y_handle_new_teacher_auto_personal_school
+- `6ce55a6` fix: Phase 4.3.y Bug A — handle_new_teacher auto-creates personal school
+- `55969fa` test: Phase 4.3.y Bug A — regression test (20 tests)
+- `20faa91` fix: Phase 4.3.y Bug B + UX-1 — welcome wizard persists school_id at step 1 + copy fix
+
+**Sub-phase status: ✅ COMPLETE.** All 3 side bugs from banner-test smoke resolved. Phase 4.2 verification ✅ (banner working). Phase 4 main path now clear to Phase 4.4.
+
 ### Phase 4.4 — `/school/[id]/settings` page + activity feed + multi-campus + archived guard + i18n (~1.5 day)
 
 **Output:**
