@@ -30,6 +30,7 @@ import { headers } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enforceArchivedReadOnly } from "@/lib/access-v2/school/archived-guard";
+import { IdentitySection } from "./IdentitySection";
 
 export const dynamic = "force-dynamic";
 
@@ -333,30 +334,51 @@ export default async function SchoolSettingsPage({ params }: PageProps) {
         </section>
       )}
 
-      {/* Identity (read-only in 4.4a; editable in 4.4b) */}
+      {/* Phase 4.4b — editable Identity section */}
+      {!readOnly ? (
+        <IdentitySection
+          schoolId={school.id}
+          initial={{
+            name: school.name,
+            city: school.city,
+            country: school.country,
+            region: school.region,
+            timezone: school.timezone,
+            default_locale: school.default_locale,
+          }}
+          bootstrapActive={bootstrapActive}
+        />
+      ) : (
+        // Read-only fallback when school is archived
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 space-y-3">
+          <h2 className="text-base font-semibold text-gray-900">Identity</h2>
+          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+            <div>
+              <dt className="text-xs font-medium text-gray-500">Name</dt>
+              <dd className="text-gray-900">{school.name}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium text-gray-500">Country</dt>
+              <dd className="text-gray-900">{school.country}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium text-gray-500">Region</dt>
+              <dd className="text-gray-900">{school.region}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium text-gray-500">Timezone</dt>
+              <dd className="text-gray-900">{school.timezone}</dd>
+            </div>
+          </dl>
+        </section>
+      )}
+
+      {/* Other settings sections — Phase 4.4b continues */}
       <section className="rounded-2xl border border-gray-200 bg-white p-5 space-y-3">
-        <h2 className="text-base font-semibold text-gray-900">Identity</h2>
+        <h2 className="text-base font-semibold text-gray-900">
+          Status &amp; Subscription
+        </h2>
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-          <div>
-            <dt className="text-xs font-medium text-gray-500">Name</dt>
-            <dd className="text-gray-900">{school.name}</dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium text-gray-500">Country</dt>
-            <dd className="text-gray-900">{school.country}</dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium text-gray-500">Region</dt>
-            <dd className="text-gray-900">{school.region}</dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium text-gray-500">Timezone</dt>
-            <dd className="text-gray-900">{school.timezone}</dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium text-gray-500">Locale</dt>
-            <dd className="text-gray-900">{school.default_locale}</dd>
-          </div>
           <div>
             <dt className="text-xs font-medium text-gray-500">Status</dt>
             <dd className="text-gray-900 capitalize">{school.status}</dd>
@@ -369,7 +391,7 @@ export default async function SchoolSettingsPage({ params }: PageProps) {
               {school.subscription_tier}
             </dd>
           </div>
-          <div>
+          <div className="sm:col-span-2">
             <dt className="text-xs font-medium text-gray-500">
               Allowed auth modes
             </dt>
@@ -379,9 +401,8 @@ export default async function SchoolSettingsPage({ params }: PageProps) {
           </div>
         </dl>
         <p className="text-[11px] text-gray-400">
-          Editable sections coming in Phase 4.4b — Identity, Calendar,
-          Timetable, Frameworks, Auth Policy, AI Policy, Branding,
-          Safeguarding, Content Sharing.
+          Status, subscription tier, and auth-mode editing coming in
+          Phase 4.4b/c (system-managed for now).
         </p>
       </section>
 
