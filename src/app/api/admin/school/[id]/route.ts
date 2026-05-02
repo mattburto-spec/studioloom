@@ -113,7 +113,7 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
         .from("classes")
         .select("teacher_id, school_id")
         .eq("school_id", schoolId)
-        .is("deleted_at", null),
+        .eq("is_archived", false),
       supabase
         .from("audit_events")
         .select("actor_id, created_at")

@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
           .from("classes")
           .select("school_id")
           .in("school_id", schoolIds)
-          .is("deleted_at", null),
+          .eq("is_archived", false),
         supabase
           .from("students")
           .select("school_id")
