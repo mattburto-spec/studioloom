@@ -415,3 +415,92 @@ default_student_ai_budget) are Phase 4.8 columns that don't exist yet.
 already in place (resolveSchoolSettings helper from §4.0); badges are
 plug-and-play once columns exist.
 
+
+## FU-AV2-PHASE-4-DOMAIN-UI
+**Priority:** P3
+**Surfaced:** Phase 4.4 hotfix smoke (2 May 2026)
+**Target phase:** Phase 4 polish OR Phase 4 part 2
+
+**Symptom:** `/school/[id]/settings` has a "School Domains" section that
+points teachers at the API instead of providing UI. The Phase 4.2 routes
+(GET / POST / DELETE) all work; the gap is the in-page UI for managing
+domains.
+
+**Done when:**
+1. Inline domain list under the "School Domains" section
+2. "Add domain" form (auto-verifies if requester email matches domain)
+3. "Remove domain" button per row → high-stakes propose flow (or instant
+   for single-teacher bootstrap mode)
+4. "Verified" / "Pending" pill per row
+5. Smoke: same-school teacher add → list refreshes; remove → list refreshes;
+   non-matching domain add returns "needs 2-teacher confirm" with link to
+   the pending proposal
+
+**Why deferred:** The settings page editing (4.4b/c/d) shipped without
+domain management because the API supports the workflow today via curl.
+Pre-pilot urgency is teacher-facing settings, not domain management.
+NIS prod has the 3 NIS domains pre-seeded; expansion is rare.
+
+---
+
+## FU-AV2-WELCOME-CALENDAR-PREVIEW
+**Priority:** P3
+**Surfaced:** Phase 4.4 hotfix smoke (2 May 2026)
+**Target phase:** Welcome wizard polish (post-pilot)
+
+**Symptom:** Welcome wizard step 3 imports an iCal calendar and reports
+"Calendar linked — 8 holidays imported." Teacher has no way to verify
+WHICH 8 days were imported. Could be school holidays correctly, or
+personal calendar entries that happened to look like holidays (e.g.,
+"Sick day", "Conference"). No trust signal.
+
+**Done when:**
+1. Below the "Calendar linked" success banner, render a collapsible
+   list of the imported holiday dates with their summaries
+2. Each row shows: date / day-of-week / event summary
+3. Optional "Remove" button per row to exclude a misclassified entry
+   before continuing
+4. Persists user-side exclusions when continuing to step 4
+
+**Why deferred:** Pre-pilot trust risk is real but not urgent (Matt's
+own NIS calendar has standard staff-room holidays, low chance of
+misclassification). Worth landing pre-pilot-expansion to second school.
+
+---
+
+## FU-AV2-WELCOME-STEP5-CTAS
+**Priority:** P2
+**Surfaced:** Phase 4.4 hotfix smoke (2 May 2026)
+**Target phase:** Pre-pilot product decision
+
+**Symptom:** Welcome wizard step 5 ("You're all set!") shows 3 CTA
+cards:
+  - **Recommended:** "Create a unit with AI / Describe what you want
+    to teach and we'll draft a full unit in minutes"
+  - "Upload existing unit"
+  - "Explore the dashboard"
+
+Matt's 2 May product direction: **moving away from AI-generated units**
+toward a different unit-creation strategy (TBD, post-Phase-4). The
+"Create a unit with AI" CTA is wrong direction. The 3-card layout
+itself is fine; the recommended path needs to change.
+
+**Decision required (Matt):** what should the "first thing to do" CTA
+be in the new direction? Suggestions captured during smoke:
+  - "Set up your first unit" (non-AI flow)
+  - "Take a tour"
+  - "Explore on your own"
+  - "Configure more options"
+
+**Done when:**
+1. Matt picks the canonical replacement CTA(s) for step 5
+2. Welcome wizard updated with the new options
+3. Underlying unit-creation flow exists for the new "Set up your first
+   unit" path (depending on which direction Matt chooses for the unit
+   creator rebuild)
+
+**Why deferred:** Product decision blocked on the broader unit-creation
+strategy. Pre-pilot priority but post-Phase-4. Filed at P2 because the
+current copy actively misleads new teachers about the platform's
+direction.
+
