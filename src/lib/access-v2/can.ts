@@ -12,7 +12,10 @@
  *   2. Platform admin (actor.isPlatformAdmin)
  *   3. Class scope    — has_class_role(class_id, ?) + CLASS_ROLE_ACTIONS
  *   4. Student mentor — has_student_mentorship(student_id, ?) + STUDENT_MENTOR_ACTIONS
- *   5. Programme coord — has_school_responsibility(school_id, ?) + PROGRAMME_COORDINATOR_ACTIONS
+ *   5a. School admin (Phase 4.7b-1) — is_school_admin(user, school) +
+ *       SCHOOL_ADMIN_ACTIONS (governance role, superset of 5b)
+ *   5b. Programme coord — has_school_responsibility(school_id, ?) +
+ *       PROGRAMME_COORDINATOR_ACTIONS (academic role)
  *   6. Plain-teacher fallback — verifyTeacherCanManageStudent semantics
  *      (Decision 7 line 140: preserve shipped UX exactly).
  *
@@ -37,6 +40,7 @@ import {
   CLASS_ROLE_ACTIONS,
   PLAIN_TEACHER_FALLBACK_ACTIONS,
   PROGRAMME_COORDINATOR_ACTIONS,
+  SCHOOL_ADMIN_ACTIONS,
   STUDENT_MENTOR_ACTIONS,
   type Action,
   type CanOptions,
@@ -199,7 +203,16 @@ async function canOnSchool(
   // Same-school flat-membership grants school.view by default.
   if (action === "school.view" && actor.schoolId === resource.id) return true;
 
-  // Programme coordinators get the responsibility-tier set.
+  // Phase 4.7b-1 — school_admin governance role grants the wider
+  // SCHOOL_ADMIN_ACTIONS set (superset of programme coordinator).
+  // Check this BEFORE programme coordinator so the broader matrix wins
+  // when the actor holds both roles (rare but possible).
+  if (SCHOOL_ADMIN_ACTIONS.has(action)) {
+    const isSchoolAdmin = await rpcIsSchoolAdmin(db, actor.userId, resource.id);
+    if (isSchoolAdmin) return true;
+  }
+
+  // Programme coordinators get the (narrower) responsibility-tier set.
   if (PROGRAMME_COORDINATOR_ACTIONS.has(action)) {
     const isCoordinator = await rpcHasSchoolResponsibility(db, resource.id);
     if (isCoordinator) return true;
@@ -278,6 +291,26 @@ async function rpcHasSchoolResponsibility(
   const { data, error } = await db.rpc("has_school_responsibility", {
     _school_id: schoolId,
     _required_type: responsibilityType ?? null,
+  });
+  if (error) return false;
+  return data === true;
+}
+
+/**
+ * Phase 4.7b-1 — `is_school_admin(p_user_id, p_school_id)` SECURITY
+ * DEFINER helper. Distinct from rpcHasSchoolResponsibility because it
+ * takes the user_id explicitly (rather than reading auth.uid() inside
+ * the function), which lets call sites pass any user id (e.g. when the
+ * caller is platform admin checking impersonation context).
+ */
+async function rpcIsSchoolAdmin(
+  db: SupabaseClient,
+  userId: string,
+  schoolId: string
+): Promise<boolean> {
+  const { data, error } = await db.rpc("is_school_admin", {
+    p_user_id: userId,
+    p_school_id: schoolId,
   });
   if (error) return false;
   return data === true;

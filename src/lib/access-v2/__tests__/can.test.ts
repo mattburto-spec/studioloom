@@ -88,6 +88,7 @@ type Fixtures = {
     has_class_role: boolean;
     has_school_responsibility: boolean;
     has_student_mentorship: boolean;
+    is_school_admin: boolean;
   }>;
 };
 
@@ -516,13 +517,123 @@ describe("can() — school scope", () => {
 
   it("PYP coordinator → school.settings.edit_high_stakes → false (Phase 4 owns)", async () => {
     const db = buildMockDb({
-      rpc: { has_school_responsibility: true },
+      rpc: { has_school_responsibility: true, is_school_admin: false },
     });
     expect(
       await can(
         teacherSession(),
         "school.settings.edit_high_stakes",
         { type: "school", id: SCHOOL_ID },
+        undefined,
+        db
+      )
+    ).toBe(false);
+  });
+
+  // ─── Phase 4.7b-1 — school_admin governance role ──────────────────
+
+  it("school_admin → school.settings.edit_high_stakes → true (governance role)", async () => {
+    const db = buildMockDb({
+      rpc: { is_school_admin: true, has_school_responsibility: false },
+    });
+    expect(
+      await can(
+        teacherSession(),
+        "school.settings.edit_high_stakes",
+        { type: "school", id: SCHOOL_ID },
+        undefined,
+        db
+      )
+    ).toBe(true);
+  });
+
+  it("school_admin → school.invite_teacher → true", async () => {
+    const db = buildMockDb({
+      rpc: { is_school_admin: true, has_school_responsibility: false },
+    });
+    expect(
+      await can(
+        teacherSession(),
+        "school.invite_teacher",
+        { type: "school", id: SCHOOL_ID },
+        undefined,
+        db
+      )
+    ).toBe(true);
+  });
+
+  it("school_admin → school.remove_teacher → true", async () => {
+    const db = buildMockDb({
+      rpc: { is_school_admin: true, has_school_responsibility: false },
+    });
+    expect(
+      await can(
+        teacherSession(),
+        "school.remove_teacher",
+        { type: "school", id: SCHOOL_ID },
+        undefined,
+        db
+      )
+    ).toBe(true);
+  });
+
+  it("school_admin → school.settings.edit_low_stakes → true (superset of programme coord)", async () => {
+    const db = buildMockDb({
+      rpc: { is_school_admin: true, has_school_responsibility: false },
+    });
+    expect(
+      await can(
+        teacherSession(),
+        "school.settings.edit_low_stakes",
+        { type: "school", id: SCHOOL_ID },
+        undefined,
+        db
+      )
+    ).toBe(true);
+  });
+
+  it("non-admin (no school_admin row, no programme coord) → school.invite_teacher → false", async () => {
+    const db = buildMockDb({
+      rpc: { is_school_admin: false, has_school_responsibility: false },
+    });
+    expect(
+      await can(
+        teacherSession(),
+        "school.invite_teacher",
+        { type: "school", id: SCHOOL_ID },
+        undefined,
+        db
+      )
+    ).toBe(false);
+  });
+
+  it("programme coordinator (not school_admin) → school.invite_teacher → false", async () => {
+    const db = buildMockDb({
+      rpc: { is_school_admin: false, has_school_responsibility: true },
+    });
+    expect(
+      await can(
+        teacherSession(),
+        "school.invite_teacher",
+        { type: "school", id: SCHOOL_ID },
+        undefined,
+        db
+      )
+    ).toBe(false);
+  });
+
+  it("school_admin in OTHER school → school.invite_teacher on this school → false", async () => {
+    // The mock RPC returns a single fixture value regardless of args, so
+    // we model the "wrong school" case by setting is_school_admin: false
+    // (since that's what the real helper would return for the other school).
+    const db = buildMockDb({
+      rpc: { is_school_admin: false, has_school_responsibility: false },
+    });
+    expect(
+      await can(
+        teacherSession(),
+        "school.invite_teacher",
+        { type: "school", id: OTHER_SCHOOL_ID },
         undefined,
         db
       )

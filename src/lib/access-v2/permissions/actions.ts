@@ -56,7 +56,10 @@ export type StudentAction =
 export type SchoolAction =
   | "school.view"
   | "school.settings.edit_low_stakes"
-  | "school.settings.edit_high_stakes";
+  | "school.settings.edit_high_stakes"
+  // Phase 4.7b-1 — governance actions, school_admin only
+  | "school.invite_teacher"
+  | "school.remove_teacher";
 
 export type ProgrammeAction = "programme.coordinate";
 
@@ -227,6 +230,12 @@ export const STUDENT_MENTOR_ACTIONS: ReadonlySet<Action> = new Set<Action>([
  * Actions a school_responsibilities row grants for the school + programme
  * scope. v1: any responsibility type grants the same set; refinement
  * (e.g. safeguarding_lead extra alert reads) is Phase 4+.
+ *
+ * Phase 4.7b-1 NOTE: this set applies to ACADEMIC roles only
+ * (pp_coordinator / pyp_coordinator / cas_coordinator / myp_coordinator /
+ * dp_coordinator / service_coordinator / safeguarding_lead). The
+ * GOVERNANCE role `school_admin` gets the wider SCHOOL_ADMIN_ACTIONS set
+ * below (which is a superset of this one).
  */
 export const PROGRAMME_COORDINATOR_ACTIONS: ReadonlySet<Action> = new Set<Action>([
   "school.view",
@@ -234,6 +243,33 @@ export const PROGRAMME_COORDINATOR_ACTIONS: ReadonlySet<Action> = new Set<Action
   "programme.coordinate",
   // school.settings.edit_high_stakes deliberately excluded — Phase 4
   // school governance owns the high-stakes 2-teacher-confirm flow.
+]);
+
+// ─────────────────────────────────────────────────────────────────────
+// School-admin (governance) matrix — Phase 4.7b-1
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Actions a `school_admin` row in `school_responsibilities` grants for
+ * the school. Superset of PROGRAMME_COORDINATOR_ACTIONS plus:
+ *   - school.settings.edit_high_stakes  (governance — admins ARE the
+ *     2-teacher-confirm side per Decision 8 amendment)
+ *   - school.invite_teacher / school.remove_teacher  (invite-only
+ *     membership for school-tier schools per Phase 4.7b-2)
+ *
+ * NOTE: `school_admin` is a GOVERNANCE role, distinct from academic
+ * coordinators in school_responsibilities. The CHECK enum value is
+ * documented in mig 20260502215604_phase_4_7b_1_school_admin_role.sql.
+ */
+export const SCHOOL_ADMIN_ACTIONS: ReadonlySet<Action> = new Set<Action>([
+  // All programme-coordinator actions
+  "school.view",
+  "school.settings.edit_low_stakes",
+  "programme.coordinate",
+  // Plus governance-tier actions
+  "school.settings.edit_high_stakes",
+  "school.invite_teacher",
+  "school.remove_teacher",
 ]);
 
 // ─────────────────────────────────────────────────────────────────────
