@@ -1774,3 +1774,46 @@ If none of these are pressing, leave it. The cost is the same later.
 **Sequence:** opportunistic. No deadline. Same cost whenever done.
 
 **Related:** `next.config.ts` API versioning seam comment, ADR-013 (api-versioning).
+
+---
+
+## FU-AV2-CROSS-TAB-ROLE-COLLISION — single Supabase Auth cookie can't hold teacher + student simultaneously (P2)
+
+**Status:** OPEN — surfaced 4 May 2026 during Phase 6 prod testing.
+
+**Issue:** Supabase Auth uses a single `sb-<projectref>-auth-token` cookie scoped to the studioloom.org domain. Teacher login and student-classcode-login both write to the SAME cookie. If a teacher is logged in in one tab and the user opens another tab and logs in as a student (e.g. for QA), the student session **overwrites** the teacher cookie. The teacher tab then makes its next request, the cookies return the student user, and the page either renders broken (no teacher data) or — worst case before Phase 6.3b — kicks off destructive flows like the teacher onboarding wizard.
+
+This was introduced by **Phase 1** (when students moved onto Supabase Auth from the legacy `student_sessions` table). Phase 6.1 dropped the legacy fallback but didn't materially change the collision behaviour — even pre-6.1, the second login would have stomped the first.
+
+Phase 6.3b (this same session) closed the worst hole by adding a `user_type` guard to middleware: `/teacher/*` redirects student sessions to `/dashboard?wrong_role=1`, and `/dashboard /unit /etc` redirects teacher sessions to `/teacher/dashboard?wrong_role=1`. So the wrong-role tab now lands on the right area instead of triggering destructive UI.
+
+**Why P2 (not P1):**
+- P1 mitigation already shipped (the user_type middleware guard prevents the worst-case onboarding-wizard scenario).
+- Real users hit this almost never (a teacher rarely needs to be logged in as a student in the same browser profile).
+- The workaround is trivial: use an incognito window for student testing.
+
+**Recommended fix paths (pick one or layer):**
+
+1. **Wrong-role toast UX (FU-AV2-WRONG-ROLE-TOAST P3):** when `?wrong_role=1` is in the URL, dashboard surfaces a banner: "You're logged in as a student. Sign out to switch to your teacher account." Already supported by the redirect query param.
+
+2. **Tab-scoped session ID (medium effort):** generate a tab-id in sessionStorage on first load; pass it to every auth fetch as a header; server keeps a per-tab session map keyed on that ID. Lets teacher+student coexist in the same browser profile across tabs. Requires a server-side store (Supabase table) and middleware integration.
+
+3. **Browser profile separation (zero effort, doc-only):** publish a "for QA, use a separate browser profile or incognito for student testing" pattern in the team docs. Ships nothing. Probably the right answer for the solo-dev pre-pilot phase.
+
+**Definition of done:** decide which path is worth pursuing. For a pilot of 1 school, path 3 is sufficient. For multi-school + cross-school admins (FU-AV2-PHASE-7), path 2 may be necessary.
+
+**Sequence:** post-pilot. Phase 6.3b's middleware guard makes this no longer pilot-blocking.
+
+---
+
+## FU-AV2-WRONG-ROLE-TOAST — surface "wrong role logged in" banner when `?wrong_role=1` (P3)
+
+**Status:** OPEN — filed 4 May 2026 alongside FU-AV2-CROSS-TAB-ROLE-COLLISION.
+
+**Issue:** Phase 6.3b's middleware redirects wrong-role sessions with `?wrong_role=1` query param. The dashboard pages don't currently consume this — the user lands silently and might not realise their session got switched.
+
+**Recommended approach:** in the student dashboard layout (`src/app/(student)/layout.tsx` or equivalent) and teacher dashboard layout, read the `wrong_role` search param and render a dismissable toast: "You were redirected because you're logged in as a [role]. [Sign out] to switch accounts." Sign-out link goes to the appropriate logout route.
+
+**Definition of done:** users hitting a wrong-role redirect see a clear explanation + path to recover.
+
+**Sequence:** opportunistic UX polish.
