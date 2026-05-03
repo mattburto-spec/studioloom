@@ -7742,6 +7742,90 @@ tables:
       ai_exportable: full
       retention_days: indefinite
       basis: pseudonymous
+- name: scheduled_deletions
+  source_migration: 20260503143034_phase_5_4_scheduled_deletions.sql
+  status: applied
+  applied_date: null
+  purpose: 'Phase 5.4 — soft-delete + 30-day hard-delete queue (Q5 resolution).
+    Two writers: /api/v1/student/[id] DELETE endpoint (Phase 5.4) writes pending
+    rows on DSR delete + retention-enforcement cron (Phase 5.5) writes pending
+    rows for expired data. One reader: scheduled-hard-delete cron (Phase 5.5)
+    processes WHERE status=pending AND scheduled_for < now() AND status != held.
+    Legal-hold path: UPDATE status=held + hold_reason. Unique partial index on
+    (target_type, target_id) WHERE status=pending prevents duplicate queueing.
+    RLS: SELECT for platform_admin + same-school teachers (CASE on target_type);
+    NO INSERT/UPDATE/DELETE policies (service role only by design).'
+  writers:
+    - src/lib/access-v2/data-subject/delete-student.ts
+    - src/lib/jobs/retention-enforcement.ts
+    - src/lib/jobs/scheduled-hard-delete-cron.ts (status='completed')
+  readers:
+    - src/lib/jobs/scheduled-hard-delete-cron.ts
+  columns:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    target_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    target_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    scheduled_for:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    status:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    scheduled_by:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: legitimate_interest
+    hold_reason:
+      pii: false
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: indefinite
+      basis: legal_obligation
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    completed_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+  spec_drift: []
 - name: schools
   source_migration: 085_schools.sql
   status: applied

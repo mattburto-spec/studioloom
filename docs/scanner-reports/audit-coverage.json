@@ -1,11 +1,11 @@
 {
   "registry": "audit-coverage",
-  "timestamp": "2026-05-03T01:21:03.175268+00:00",
+  "timestamp": "2026-05-03T18:27:57.349927+00:00",
   "version": 1,
   "stats": {
-    "total_mutation_routes": 232,
+    "total_mutation_routes": 233,
     "covered": 4,
-    "skipped": 0,
+    "skipped": 1,
     "missing": 228
   },
   "covered": [
@@ -34,7 +34,15 @@
       ]
     }
   ],
-  "skipped": [],
+  "skipped": [
+    {
+      "file": "src/app/api/v1/student/[id]/route.ts",
+      "methods": [
+        "DELETE"
+      ],
+      "reason": "audit row emitted inside softDeleteStudent lib helper at src/lib/access-v2/data-subject/delete-student.ts"
+    }
+  ],
   "missing": [
     {
       "file": "src/app/api/admin/ai-model/route.ts",

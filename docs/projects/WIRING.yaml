@@ -1843,6 +1843,114 @@ systems:
     os_seam: ready
     change_impacts: Changes to the 6-role enum in class_members CHECK require migration. Changes to CLASS_ROLE_ACTIONS matrix in permissions/actions.ts affect the entire teacher-route surface — verify each action assignment via the 33 unit tests + smoke a co_teacher flow before deploy. Disabling the kill-switch flag falls back to legacy classes.teacher_id direct reads — used as defense-in-depth.
 
+  - id: audit-log
+    name: Audit Log Infrastructure
+    category: Platform Core
+    status: complete
+    currentVersion: 1
+    summary: "Phase 5.1 — single typed entry point logAuditEvent() for the audit_events table (mig 20260428215923). 3-mode failure semantics (Q2 resolution): 'throw' (default; atomic with action), 'soft-warn' (auth-flow only — student-classcode-login), 'soft-sentry' (action shouldn't break BUT silent gaps unacceptable; default for non-auth retrofits). Auto-resolves school_subscription_tier_at_event from schools.subscription_tier (denormalised analytics seam per §8.6 item 6). Phase 5.1 retrofitted 12 pre-existing direct .insert() callsites + Phase 5.1d added scan-api-routes.py audit-coverage CI gate (visibility-only; 228 inherited routes tracked as FU-AV2-AUDIT-MISSING-PHASE-6-CATCHUP P2). Phase 5.4 + 5.5 + 5.6 use the wrapper for data-subject endpoints + retention crons + teacher audit-log view."
+    depends_on: [auth-system]
+    affects: [school-governance, ai-budget, data-subject-rights, permission-helper, class-management, fabrication-pipeline, monetisation]
+    docs:
+      - path: docs/projects/access-model-v2.md
+        purpose: Master spec — Decision 3 (audit log append-only, immutable, route-layer)
+      - path: docs/projects/access-model-v2-phase-5-brief.md
+        purpose: Phase 5 brief — §5.1 wrapper + §5.1d CI gate
+      - path: docs/scanner-reports/audit-coverage.json
+        purpose: Live coverage report — emitted by nightly.yml via scan-api-routes.py --check-audit-coverage
+    data_fields:
+      - table: audit_events
+        columns: [id, actor_id, actor_type, impersonated_by, action, target_table, target_id, school_id, class_id, payload_jsonb, ip_address, user_agent, severity, school_subscription_tier_at_event, created_at]
+        notes: Immutable append-only. NO INSERT/UPDATE/DELETE policies (service role only via wrapper). 7-value actor_type enum (student/teacher/fabricator/platform_admin/community_member/guardian/system). 5 indexes (created/actor/school/action/severity).
+    key_files:
+      - src/lib/access-v2/audit-log.ts
+      - src/lib/access-v2/__tests__/audit-log.test.ts
+      - scripts/registry/scan-api-routes.py (--check-audit-coverage gate)
+      - .github/workflows/nightly.yml (Audit-coverage scanner step)
+    future_needs: Phase 6 cutover catchup of 228 missing routes (FU-AV2-AUDIT-MISSING-PHASE-6-CATCHUP P2). Audit-event grouping via parent_event_id column (FU-AV2-AUDIT-EVENT-GROUPING P2 — defer until 2nd multi-row cascade pattern surfaces). Monthly partitioning when row count justifies (FU-AV2-AUDIT-EVENTS-PARTITION P3).
+    adrs: []
+    os_seam: ready
+    change_impacts: Adding a new actor_type or severity value requires a CHECK constraint migration. Changing failureMode defaults breaks the 'soft-warn' auth-flow guarantee — verify student-classcode-login still uses 'soft-warn' explicitly. Removing the school_subscription_tier_at_event population breaks monetisation analytics retroactivity.
+
+  - id: ai-budget
+    name: Per-Student AI Budget
+    category: Platform Core
+    status: complete
+    currentVersion: 1
+    summary: "Phase 5.2 + 5.3 — per-student daily token caps with 5-layer cascade resolution (student override > class override [lowest] > school override > schools.default_student_ai_budget column > tier default). Atomic increment via SECURITY DEFINER `atomic_increment_ai_budget(student_id, tokens)` SQL helper that handles past-horizon zero+bump in one statement (Postgres serialises the row-level upsert; no read-then-write race). Reset rolls over at midnight in school's IANA timezone. withAIBudget(supabase, studentId, fn) middleware wraps the AI call: pre-check → fn() → if stop_reason=max_tokens DON'T bill (Lesson #39) → atomic bill → post-bill audit if cap crossed. Phase 5.3 wired 3 student-AI routes (word-lookup, quest/mentor, design-assistant); Phase 5.3d scan-ai-calls budget-coverage CI gate enforces the wrapper on every future student route under src/app/api/student/."
+    depends_on: [auth-system, audit-log, school-governance]
+    affects: [student-pm, student-open-studio, design-assistant, monetisation]
+    docs:
+      - path: docs/projects/access-model-v2.md
+        purpose: Master spec — Decision 6 (per-student AI budgets cascade)
+      - path: docs/projects/access-model-v2-phase-5-brief.md
+        purpose: Phase 5 brief — §5.2 cascade + atomic helper, §5.3 middleware, §5.3d gate
+      - path: docs/scanner-reports/ai-budget-coverage.json
+        purpose: Live coverage report — emitted by nightly.yml via --check-budget-coverage
+    data_fields:
+      - table: ai_budgets
+        columns: [id, subject_id, subject_type, daily_token_cap, set_by, set_at, reason]
+        notes: Polymorphic subject_type IN (student, class, school). Tighter overrides win in cascade.
+      - table: ai_budget_state
+        columns: [student_id, tokens_used_today, reset_at, last_warning_sent_at, updated_at]
+        notes: Per-student running counter. last_warning_sent_at throttles over_cap audit emit to once per 24h per student.
+      - table: schools
+        columns: [default_student_ai_budget, subscription_tier, timezone]
+        notes: Cascade layer 4 (column) + layer 5 (tier default) + reset-window timezone lookup.
+      - table: admin_settings
+        columns: [ai.budget.tier_default.{pilot,free,starter,pro,school}]
+        notes: Runtime override of TIER_DEFAULTS code constants. Constants are the FLOOR; admin_settings wins when set (Q1 resolution).
+    key_files:
+      - src/lib/access-v2/ai-budget/tier-defaults.ts
+      - src/lib/access-v2/ai-budget/cascade-resolver.ts
+      - src/lib/access-v2/ai-budget/middleware.ts
+      - supabase/migrations/20260503012514_phase_5_2_atomic_ai_budget_increment.sql
+      - scripts/registry/scan-api-routes.py (--check-budget-coverage gate)
+      - src/app/api/student/word-lookup/route.ts (wired)
+      - src/app/api/student/quest/mentor/route.ts (wired)
+      - src/app/api/student/design-assistant/route.ts (wired via generateResponse)
+    future_needs: Email send on over_cap (FU-AV2-AI-BUDGET-EXHAUSTED-EMAIL P3). Wire remaining student AI routes surfaced by scan-ai-calls scanner (FU-AV2-AI-BUDGET-WIRE-TOOL-SESSIONS-AND-OTHER-AI P2). Tier-feature gating signed off by Matt before any Stripe wiring (per Decision 8 amendment).
+    adrs: []
+    os_seam: ready
+    change_impacts: Changes to TIER_DEFAULTS values affect every school whose admin_settings override is unset. Changes to cascade order in cascade-resolver.ts affect every student AI call's effective cap. Changes to atomic_increment_ai_budget signature require dependent route updates + a sanity DO-block re-pass (Lesson #66 search_path lockdown).
+
+  - id: data-subject-rights
+    name: Data Subject Rights (Export + Soft-Delete)
+    category: Compliance & Privacy
+    status: complete
+    currentVersion: 1
+    summary: "Phase 5.4 + 5.5 + 5.6 — FERPA / GDPR / PIPL right-to-access + right-to-erasure + retention enforcement. Three endpoints under /api/v1/: GET /student/[id]/export (full JSON dump of student-owned data per a static 12-section manifest with 10MB soft cap; manual SQL runbook stopgap covers the v1 deferral set), DELETE /student/[id]?confirm=true (soft-delete + queues 30-day hard-delete via scheduled_deletions, Q5 resolution), GET /teacher/students/[id]/audit-log (paginated audit trail). Two crons consume scheduled_deletions: retention-enforcement (monthly soft-delete by horizon; manifest empty in v1) + scheduled-hard-delete (daily processor, defensive held-row skip). Auth gate parity across all three: isPlatformAdmin OR verifyTeacherCanManageStudent."
+    depends_on: [auth-system, audit-log, permission-helper]
+    affects: [student-data, student-pm, monetisation]
+    docs:
+      - path: docs/projects/access-model-v2.md
+        purpose: Master spec — §3 items 33 (manual runbook), 34 (retention cron); Decisions 3 + 6
+      - path: docs/projects/access-model-v2-phase-5-brief.md
+        purpose: Phase 5 brief — §5.4 endpoints, §5.5 crons, §5.6 audit-log view
+      - path: docs/security/student-data-export-runbook.md
+        purpose: Manual SQL stopgap (audit F32) — full queries + assembly + post-export
+    data_fields:
+      - table: scheduled_deletions
+        columns: [id, target_type, target_id, scheduled_for, status, scheduled_by, hold_reason, completed_at]
+        notes: 3-target-type enum (student/teacher/unit). Status pending/completed/held. Unique partial index on (target_type, target_id) WHERE status='pending'. Two writers (5.4 endpoint + 5.5 retention cron); one reader (5.5 hard-delete cron).
+      - table: students
+        columns: [deleted_at]
+        notes: Soft-delete column populated by /api/v1/student/[id] DELETE.
+    key_files:
+      - src/lib/access-v2/data-subject/export-student.ts
+      - src/lib/access-v2/data-subject/delete-student.ts
+      - src/app/api/v1/student/[id]/export/route.ts
+      - src/app/api/v1/student/[id]/route.ts
+      - src/app/api/v1/teacher/students/[id]/audit-log/route.ts
+      - src/lib/jobs/retention-enforcement.ts
+      - src/lib/jobs/scheduled-hard-delete-cron.ts
+      - supabase/migrations/20260503143034_phase_5_4_scheduled_deletions.sql
+      - docs/security/student-data-export-runbook.md
+    future_needs: Cron scheduling (FU-AV2-CRON-SCHEDULER-WIRE P2 — pre-pilot). Complete export coverage of v2 deferral set (FU-AV2-EXPORT-COMPLETE-COVERAGE P2). Legal-hold UX (UPDATE scheduled_deletions SET status='held' lands when first GDPR/PIPL hold request surfaces). CSV/PDF export formats (when first DSR asks).
+    adrs: []
+    os_seam: ready
+    change_impacts: Adding a new student-data table to the export manifest means updating both src/lib/access-v2/data-subject/export-student.ts STUDENT_DATA_SECTIONS AND docs/security/student-data-export-runbook.md to keep them in lock-step. Changing the soft-delete window (currently 30 days) requires updating delete-student.ts HARD_DELETE_DELAY_DAYS + the runbook.
+
   - id: class-management
     name: Class Management
     category: Platform Core

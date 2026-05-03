@@ -778,8 +778,11 @@ def main():
     if max_reads > 15 or max_writes > 15:
         print(f"\n⛔ GATE FAIL: max tables_read={max_reads}, max tables_written={max_writes} (>15)")
         gate_fail = True
-    if total < 150 or total > 400:
-        print(f"\n⛔ GATE FAIL: total entries {total} outside expected range 150-400")
+    # Bumped 4 May 2026 (Phase 5.8 close-out): 400 → 600. Phase 4 + Phase 5
+    # added ~30 routes; Phase 6 cutover will add the /api/v1/* alias pass.
+    # 600 leaves headroom for ~6 more phase-sized additions.
+    if total < 150 or total > 600:
+        print(f"\n⛔ GATE FAIL: total entries {total} outside expected range 150-600")
         gate_fail = True
 
     if gate_fail:
