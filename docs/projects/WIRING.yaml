@@ -101,28 +101,38 @@ systems:
     name: Student Sign-In
     category: Student Experience
     status: complete
-    currentVersion: 1
-    summary: Class code + student display name authentication. Creates nanoid(48) token sessions with 7-day TTL in student_sessions table.
+    currentVersion: 2
+    summary: |
+      Class code + student username authentication on Supabase Auth.
+      Phase 6.1 (4 May 2026) dropped the legacy nanoid+student_sessions
+      table path. The /api/auth/student-classcode-login route mints
+      a Supabase magiclink session via auth.admin.generateLink({type:'magiclink'})
+      followed by ssrClient.auth.exchangeCodeForSession() — sets sb-*-auth-token
+      cookies (HttpOnly, Secure, SameSite=Lax). Lazy-provisions auth.users
+      + students rows on first login.
     depends_on: [auth-system]
     affects: [student-dashboard, lesson-view, ai-mentor]
     docs:
       - path: docs/projects/school-readiness.md
         purpose: Auth architecture and compliance
+      - path: docs/projects/access-model-v2-phase-6-brief.md
+        purpose: Phase 6.1 cutover — student_sessions table dropped, dual-mode shim deleted
     data_fields:
-      - table: student_sessions
-        columns: [id, student_id, token, class_id, created_at, expires_at]
-        notes: Token-based session storage
       - table: students
-        columns: [id, display_name, class_id, author_teacher_id]
-        notes: Student identity and class linkage
+        columns: [id, user_id, school_id, class_id, username, display_name]
+        notes: Student identity (1:1 with auth.users via user_id)
+      - table: auth.users
+        columns: [id, email, app_metadata.user_type]
+        notes: Supabase Auth canonical user record; user_type='student' discriminates
     key_files:
-      - src/app/api/auth/student-login/route.ts
-      - src/app/api/student/session/route.ts
-      - src/lib/auth/student-session.ts
-    future_needs: QR code login, single sign-on via LMS integrations.
-    adrs: ["003"]
+      - src/app/api/auth/student-classcode-login/route.ts
+      - src/app/api/auth/student-session/route.ts
+      - src/lib/access-v2/actor-session.ts (requireStudentSession helper)
+      - src/lib/access-v2/provision-student-auth-user.ts
+    future_needs: QR code login, single sign-on via LMS integrations (LTI launch route currently 410 stubbed pending Supabase Auth rewrite — see FU-AV2-LTI-PHASE-6-REWORK).
+    adrs: ["011"]  # ADR-011 (school-entity); ADR-003 (student token auth) was superseded by Phase 1 + Phase 6.1
     os_seam: ready
-    change_impacts: Changes to token TTL affect session duration. Changes to student_sessions schema require migration. Multi-class enrollment uses class_students junction with login 3-level fallback.
+    change_impacts: Changes to the classcode-login flow affect every student login. Changes to the requireStudentSession helper affect ~50 student API routes. Phase 6.1 removed the legacy student_sessions table — historic references in older docs are now stale.
 
   - id: gallery
     name: Class Gallery & Peer Review Platform
@@ -1773,7 +1783,7 @@ systems:
       - path: docs/projects/access-model-v2-phase-1-brief.md
         purpose: Phase 1 build brief (auth unification + RLS pre-positioning)
       - path: docs/security/student-auth-cookie-grace-period.md
-        purpose: Dual-auth-path coexistence semantics until Phase 6 cutover
+        purpose: Dual-auth-path coexistence semantics — historic; the grace period CLOSED in Phase 6.1 (4 May 2026, table dropped)
       - path: docs/projects/school-readiness.md
         purpose: Auth architecture and compliance
       - path: docs/projects/preflight-phase-1b-2-brief.md
@@ -1782,9 +1792,10 @@ systems:
       - table: students
         columns: [id, user_id]
         notes: "Phase 1.1a: students.user_id NULLABLE FK → auth.users(id). Canonical chain auth.uid() → students.user_id → students.id. NULL for students who haven't completed first Supabase login yet (lazy-provisioned by Phase 1.2 login route)."
-      - table: student_sessions
-        columns: [id, student_id, token, class_id, created_at, expires_at]
-        notes: Legacy token-based sessions. Still read by Phase 1.4a dual-mode fallback. Will be dropped at Phase 6 cutover. Phase 1.5b added explicit deny-all RLS (closes FU-FF).
+      # student_sessions table DROPPED in Phase 6.1 (mig 20260503203440, applied 4 May 2026).
+      # Dependent RLS policies on class_students + student_projects replaced
+      # with auth.uid() chain equivalents in the same migration. Historic
+      # references in older WIRING comments left intact for archeology.
       - table: fabricators
         columns: [id, email, display_name, password_hash, invited_by_teacher_id, is_active]
         notes: Fabricator (lab tech) accounts. password_hash is Argon2id; sentinel value during INVITE_PENDING until /fab/set-password lands.
@@ -1792,16 +1803,20 @@ systems:
         columns: [id, fabricator_id, token_hash, is_setup, expires_at]
         notes: Opaque 32-byte session tokens (stored as SHA-256 hash). is_setup=true means the session only grants access to /fab/set-password (invite/reset flow). Normal login creates is_setup=false sessions.
     key_files:
-      - src/lib/access-v2/actor-session.ts
+      - src/lib/access-v2/actor-session.ts  # Polymorphic session helpers (Phase 1.3) + Phase 6.3b user_type middleware guard
       - src/lib/access-v2/provision-student-auth-user.ts
-      - src/lib/auth/student.ts
-      - src/lib/auth/verify-teacher-unit.ts
+      - src/lib/auth/verify-teacher-unit.ts  # requireTeacherAuth + verifyTeacherHasUnit/OwnsClass shims (Phase 3.4d, can()-backed)
       - src/app/api/auth/student-classcode-login/route.ts
       - src/lib/fab/auth.ts
       - src/lib/fab/token.ts
-      - src/middleware.ts
-    future_needs: Phase 6 cutover — drop dual-mode fallback, drop questerra_student_session cookie + student_sessions table, drop /api/auth/student-login route. LMS SSO integration. QR code login. Fabricator email verification column + weekly digest. Unified loominary.org-only sender story.
-    adrs: ["003"]
+      - src/middleware.ts  # Phase 6.3b user_type guard (cross-tab role collision mitigation)
+    future_needs: |
+      LMS SSO integration (LTI launch route currently 410 stubbed —
+      FU-AV2-LTI-PHASE-6-REWORK). QR code login. Fabricator email
+      verification column + weekly digest. Unified loominary.org-only
+      sender story. Cross-tab role collision deeper fix
+      (FU-AV2-CROSS-TAB-ROLE-COLLISION P2).
+    adrs: ["011", "012"]  # ADR-011 (school-entity-and-governance) + ADR-012 (audit-log infra). ADR-003 (student token auth) was superseded by Phase 1 + Phase 6.1.
     os_seam: ready
     change_impacts: Changes to user_type claim semantics affect every actor-session call site. Changes to dual-mode fallback in src/lib/auth/student.ts affect all 63 /api/student/* routes. Changes to is_setup session semantics affect both /fab/set-password flow and normal /fab/* routing. Removing the legacy fallback before Phase 6 will break logged-in users on the legacy cookie path.
 
@@ -1898,7 +1913,12 @@ systems:
         columns: [default_student_ai_budget, subscription_tier, timezone]
         notes: Cascade layer 4 (column) + layer 5 (tier default) + reset-window timezone lookup.
       - table: admin_settings
-        columns: [ai.budget.tier_default.{pilot,free,starter,pro,school}]
+        columns:
+          - "ai.budget.tier_default.pilot"
+          - "ai.budget.tier_default.free"
+          - "ai.budget.tier_default.starter"
+          - "ai.budget.tier_default.pro"
+          - "ai.budget.tier_default.school"
         notes: Runtime override of TIER_DEFAULTS code constants. Constants are the FLOOR; admin_settings wins when set (Q1 resolution).
     key_files:
       - src/lib/access-v2/ai-budget/tier-defaults.ts
@@ -2550,6 +2570,47 @@ systems:
     adrs: []
     os_seam: ready
     change_impacts: Changes to framework mapping affect comment generation.
+
+  - id: api-versioning
+    name: API Versioning Seam
+    category: Infrastructure
+    status: complete
+    currentVersion: 1
+    summary: |
+      Phase 6.3 (4 May 2026) — `/api/v1/:path*` URL prefix is now valid
+      for every existing API route via a Next.js `rewrites` rule in
+      next.config.ts. Both `/api/<domain>/X` (legacy) and `/api/v1/<domain>/X`
+      (canonical) serve the same handler. New external integrations and
+      documentation pin to /api/v1/*; future v2 ships under /api/v2/*
+      alongside v1 with a known sunset schedule. ADR-013 documents the
+      Option Z (rewrites) vs Option X (file moves) trade-off — file moves
+      filed as FU-AV2-API-V1-FILESYSTEM-RESHUFFLE for if/when v2 ships.
+    depends_on: []
+    affects: [auth-system, governance-registries]  # every API route is downstream
+    docs:
+      - path: ../Loominary/docs/adr/013-api-versioning.md
+        purpose: ADR — Option Z (rewrites) decision + alternatives
+      - path: docs/projects/access-model-v2-phase-6-brief.md
+        purpose: Phase 6.3 spec
+      - path: next.config.ts
+        purpose: Implementation — rewrites rule + mirrored Cache-Control headers
+    data_fields: []
+    key_files:
+      - next.config.ts
+    future_needs: |
+      When v2 ships with breaking changes: trigger
+      FU-AV2-API-V1-FILESYSTEM-RESHUFFLE — move 318 route files into
+      src/app/api/v1/<domain>/, update internal fetch() callers,
+      update test imports, flip rewrite direction, sunset bare paths.
+    adrs: ["013"]
+    os_seam: ready
+    change_impacts: |
+      Adding a new API route with explicit /api/v1/ prefix is fine.
+      Adding under bare /api/<domain>/ is also fine (the rewrite makes
+      it accessible at both URLs). Removing a route requires a 90-day
+      sunset notice on both URL forms. Cache-Control rules in
+      next.config.ts MUST be mirrored under /api/v1/* for any new
+      auth-cookie-touching domain.
 
   - id: governance-registries
     name: Governance Registries

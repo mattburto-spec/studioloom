@@ -8989,9 +8989,11 @@ tables:
   spec_drift: []
 - name: student_sessions
   source_migration: 001_initial_schema.sql
-  status: applied
-  applied_date: null
-  purpose: null
+  status: dropped
+  applied_date: '2026-05-04'  # original create date unknown; dropped date 2026-05-04 by Phase 6.1
+  dropped_date: '2026-05-04'
+  dropped_by_migration: 20260503203440_phase_6_1_drop_student_sessions.sql
+  purpose: 'DROPPED in Phase 6.1 (4 May 2026). Was the legacy nanoid+bearer-token session table for the student auth domain. Replaced by Supabase Auth sb-* cookies (Phase 1.2 onwards). The DROP migration also replaced two dependent RLS policies (class_students "Students read own enrollments" and student_projects "Students read own student_projects") with auth.uid()-based equivalents.'
   columns:
     id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
     student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE

@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 426
+# Total routes: 425
 
 routes:
 - path: /api/admin/ai-model
@@ -452,18 +452,12 @@ routes:
 - path: /api/auth/lti/launch
   method: POST
   file: src/app/api/auth/lti/launch/route.ts
-  auth: service-role
-  tables_read:
-  - classes
-  - students
-  - teacher_integrations
-  tables_written:
-  - classes
-  - student_sessions
-  - students
+  auth: unknown
+  tables_read: []
+  tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: null
+  notes: Could not infer auth pattern; manual review needed
 - path: /api/auth/student-classcode-login
   method: POST
   file: src/app/api/auth/student-classcode-login/route.ts
@@ -477,47 +471,27 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
-- path: /api/auth/student-login
-  method: POST
-  file: src/app/api/auth/student-login/route.ts
+- path: /api/auth/student-session
+  method: GET
+  file: src/app/api/auth/student-session/route.ts
   auth: service-role
   tables_read:
   - class_students
   - classes
   - students
-  tables_written:
-  - student_sessions
-  - students
-  ai_call_sites: []
-  cost_ceiling_usd: null
-  notes: null
-- path: /api/auth/student-session
-  method: GET
-  file: src/app/api/auth/student-session/route.ts
-  auth: student
-  tables_read:
-  - class_students
-  - classes
-  - student_sessions
-  - students
-  tables_written:
-  - student_sessions
-  - students
+  tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
 - path: /api/auth/student-session
   method: DELETE
   file: src/app/api/auth/student-session/route.ts
-  auth: student
+  auth: service-role
   tables_read:
   - class_students
   - classes
-  - student_sessions
   - students
-  tables_written:
-  - student_sessions
-  - students
+  tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
@@ -525,8 +499,7 @@ routes:
   method: POST
   file: src/app/api/bug-reports/route.ts
   auth: teacher
-  tables_read:
-  - student_sessions
+  tables_read: []
   tables_written:
   - bug_reports
   ai_call_sites: []
@@ -535,7 +508,7 @@ routes:
 - path: /api/discovery/reflect
   method: POST
   file: src/app/api/discovery/reflect/route.ts
-  auth: student
+  auth: service-role
   tables_read:
   - students
   tables_written: []
@@ -545,7 +518,7 @@ routes:
 - path: /api/discovery/session
   method: GET
   file: src/app/api/discovery/session/route.ts
-  auth: student
+  auth: service-role
   tables_read:
   - discovery_sessions
   - students
@@ -557,7 +530,7 @@ routes:
 - path: /api/discovery/session
   method: POST
   file: src/app/api/discovery/session/route.ts
-  auth: student
+  auth: service-role
   tables_read:
   - discovery_sessions
   - students
@@ -569,7 +542,7 @@ routes:
 - path: /api/discovery/session
   method: PATCH
   file: src/app/api/discovery/session/route.ts
-  auth: student
+  auth: service-role
   tables_read:
   - discovery_sessions
   - students
@@ -2360,12 +2333,9 @@ routes:
   auth: teacher
   tables_read:
   - class_students
-  - classes
   - students
   tables_written:
   - class_students
-  - classes
-  - student_sessions
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
@@ -2375,8 +2345,6 @@ routes:
   auth: teacher
   tables_read:
   - class_units
-  - classes
-  - units
   tables_written:
   - class_units
   ai_call_sites: []
@@ -2388,8 +2356,6 @@ routes:
   auth: teacher
   tables_read:
   - class_units
-  - classes
-  - units
   tables_written:
   - class_units
   ai_call_sites: []
@@ -3615,10 +3581,8 @@ routes:
   file: src/app/api/teacher/safety-certs/route.ts
   auth: teacher
   tables_read:
-  - classes
   - safety_certifications
   tables_written:
-  - classes
   - safety_certifications
   ai_call_sites: []
   cost_ceiling_usd: null
@@ -3628,10 +3592,8 @@ routes:
   file: src/app/api/teacher/safety-certs/route.ts
   auth: teacher
   tables_read:
-  - classes
   - safety_certifications
   tables_written:
-  - classes
   - safety_certifications
   ai_call_sites: []
   cost_ceiling_usd: null
@@ -3641,10 +3603,8 @@ routes:
   file: src/app/api/teacher/safety-certs/route.ts
   auth: teacher
   tables_read:
-  - classes
   - safety_certifications
   tables_written:
-  - classes
   - safety_certifications
   ai_call_sites: []
   cost_ceiling_usd: null
@@ -4039,7 +3999,6 @@ routes:
   tables_read:
   - assessments
   - class_units
-  - classes
   - competency_assessments
   - lesson_feedback
   - open_studio_status
@@ -4096,7 +4055,6 @@ routes:
   - class_students
   - classes
   - student_progress
-  - student_sessions
   - students
   tables_written: []
   ai_call_sites: []
