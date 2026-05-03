@@ -40,6 +40,13 @@ jobs:
       - name: WIRING.yaml health check
         run: python3 scripts/check-wiring-health.py
 
+      - name: Audit-coverage scanner (Phase 5.1d — visibility-only until catchup FU closes)
+        # Emits docs/scanner-reports/audit-coverage.json. Currently does NOT
+        # gate the build (228 mutation routes inherited from Phase 4 still
+        # need triage; tracked as FU-AV2-AUDIT-MISSING-PHASE-6-CATCHUP P2).
+        # When that FU closes, swap this for `--check-audit-coverage --fail-on-missing`.
+        run: python3 scripts/registry/scan-api-routes.py --check-audit-coverage
+
       - name: Full build
         run: npm run build
         env:

@@ -4,18 +4,27 @@ API Registry Scanner — walks src/app/api/**/route.ts and produces
 docs/api-registry.yaml with one entry per (path, method) tuple.
 
 Usage:
-  python3 scripts/registry/scan-api-routes.py            # dry-run
-  python3 scripts/registry/scan-api-routes.py --apply    # write
+  python3 scripts/registry/scan-api-routes.py                       # dry-run
+  python3 scripts/registry/scan-api-routes.py --apply               # write yaml
+  python3 scripts/registry/scan-api-routes.py --check-audit-coverage  # write audit-coverage.json (Phase 5.1d)
 
 Extracts: path, method, auth type, tables_read, tables_written.
 Leaves ai_call_sites (7-Pre.3) and cost_ceiling_usd (Phase 7I) empty.
+
+Phase 5.1d audit-coverage gate (added 3 May 2026):
+  Per-file scan for any route exporting POST/PATCH/PUT/DELETE that does NOT
+  contain `logAuditEvent` and is NOT marked `// audit-skip: <reason>`. Emits
+  docs/scanner-reports/audit-coverage.json. Optionally exits non-zero with
+  --fail-on-missing for CI gating.
 """
 
 import argparse
+import json
 import os
 import re
 import sys
 from collections import OrderedDict
+from datetime import datetime, timezone
 
 import yaml
 
@@ -40,6 +49,9 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 API_DIR = os.path.join(REPO_ROOT, "src", "app", "api")
 YAML_PATH = os.path.join(REPO_ROOT, "docs", "api-registry.yaml")
 SCHEMA_REGISTRY_PATH = os.path.join(REPO_ROOT, "docs", "schema-registry.yaml")
+AUDIT_COVERAGE_REPORT_PATH = os.path.join(
+    REPO_ROOT, "docs", "scanner-reports", "audit-coverage.json"
+)
 
 # ---------------------------------------------------------------------------
 # Route discovery
@@ -232,6 +244,149 @@ def extract_rpcs(content):
 
 
 # ---------------------------------------------------------------------------
+# Phase 5.1d — Audit-coverage detection
+# ---------------------------------------------------------------------------
+#
+# A route is "audit-covered" when it exports POST/PATCH/PUT/DELETE AND
+# either calls logAuditEvent in the file, or is annotated with an
+# `// audit-skip: <reason>` comment. Routes with neither are flagged
+# as `missing` and surface in docs/scanner-reports/audit-coverage.json.
+
+MUTATION_METHODS = {"POST", "PATCH", "PUT", "DELETE"}
+
+LOG_AUDIT_RE = re.compile(r"\blogAuditEvent\b")
+AUDIT_SKIP_RE = re.compile(r"//\s*audit-skip:\s*(.+?)\s*$", re.MULTILINE)
+
+
+def classify_audit_coverage(content, methods):
+    """
+    Return a dict describing the audit-coverage status of a route file:
+      { "status": "covered" | "skipped" | "missing" | "n/a",
+        "mutation_methods": [...],   # subset of methods in MUTATION_METHODS
+        "skip_reason": str | None,
+        "has_log_audit": bool }
+    """
+    mutation = sorted(m for m in methods if m in MUTATION_METHODS)
+    if not mutation:
+        return {
+            "status": "n/a",
+            "mutation_methods": [],
+            "skip_reason": None,
+            "has_log_audit": False,
+        }
+
+    has_log_audit = bool(LOG_AUDIT_RE.search(content))
+    skip_match = AUDIT_SKIP_RE.search(content)
+    skip_reason = skip_match.group(1).strip() if skip_match else None
+
+    if has_log_audit:
+        # Coverage wins over skip if both are present (defensive — favour the
+        # real call over a stale skip marker).
+        status = "covered"
+    elif skip_reason:
+        status = "skipped"
+    else:
+        status = "missing"
+
+    return {
+        "status": status,
+        "mutation_methods": mutation,
+        "skip_reason": skip_reason,
+        "has_log_audit": has_log_audit,
+    }
+
+
+def scan_audit_coverage():
+    """
+    Walk every route.ts file and classify its audit coverage. Returns a
+    structured report ready for JSON serialisation.
+    """
+    route_files = find_route_files()
+    covered = []
+    skipped = []
+    missing = []
+
+    for filepath in route_files:
+        with open(filepath) as f:
+            content = f.read()
+        methods = detect_methods(content)
+        result = classify_audit_coverage(content, methods)
+        if result["status"] == "n/a":
+            continue
+        rel_file = os.path.relpath(filepath, REPO_ROOT)
+        entry = {"file": rel_file, "methods": result["mutation_methods"]}
+        if result["status"] == "covered":
+            covered.append(entry)
+        elif result["status"] == "skipped":
+            entry["reason"] = result["skip_reason"]
+            skipped.append(entry)
+        else:
+            missing.append(entry)
+
+    covered.sort(key=lambda e: e["file"])
+    skipped.sort(key=lambda e: e["file"])
+    missing.sort(key=lambda e: e["file"])
+
+    total = len(covered) + len(skipped) + len(missing)
+    return {
+        "registry": "audit-coverage",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "version": 1,
+        "stats": {
+            "total_mutation_routes": total,
+            "covered": len(covered),
+            "skipped": len(skipped),
+            "missing": len(missing),
+        },
+        "covered": covered,
+        "skipped": skipped,
+        "missing": missing,
+    }
+
+
+def write_audit_coverage_report(report):
+    """Write the audit-coverage report to docs/scanner-reports/audit-coverage.json."""
+    os.makedirs(os.path.dirname(AUDIT_COVERAGE_REPORT_PATH), exist_ok=True)
+    with open(AUDIT_COVERAGE_REPORT_PATH, "w") as f:
+        json.dump(report, f, indent=2)
+        f.write("\n")
+
+
+def run_audit_coverage_check(fail_on_missing):
+    """
+    --check-audit-coverage handler. Always emits the JSON report. Exits
+    non-zero only when fail_on_missing is set AND missing list is non-empty.
+    """
+    report = scan_audit_coverage()
+    write_audit_coverage_report(report)
+    stats = report["stats"]
+    print(
+        f"Audit coverage: {stats['covered']} covered, "
+        f"{stats['skipped']} skipped, "
+        f"{stats['missing']} missing "
+        f"(of {stats['total_mutation_routes']} mutation routes)"
+    )
+    if report["skipped"]:
+        print(f"\nSkipped (with reason):")
+        for entry in report["skipped"]:
+            print(f"  {entry['file']} ({','.join(entry['methods'])}) — {entry['reason']}")
+    if report["missing"]:
+        print(f"\nMissing logAuditEvent (top 20):")
+        for entry in report["missing"][:20]:
+            print(f"  {entry['file']} ({','.join(entry['methods'])})")
+        if len(report["missing"]) > 20:
+            print(f"  ... and {len(report['missing']) - 20} more (see {AUDIT_COVERAGE_REPORT_PATH})")
+    print(f"\nReport written to {AUDIT_COVERAGE_REPORT_PATH}")
+    if fail_on_missing and report["missing"]:
+        print(
+            f"\n⛔ GATE FAIL: {len(report['missing'])} mutation route(s) missing logAuditEvent. "
+            f"Wire logAuditEvent OR add `// audit-skip: <reason>` OR file FU-AV2-AUDIT-MISSING-{{ROUTE}} P2."
+        )
+        return 1
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Schema registry cross-validation
 # ---------------------------------------------------------------------------
 
@@ -355,9 +510,22 @@ def build_header(total):
 def main():
     parser = argparse.ArgumentParser(description="Scan API routes and produce api-registry.yaml")
     parser.add_argument("--apply", action="store_true", help="Write changes (default: dry-run)")
+    parser.add_argument(
+        "--check-audit-coverage",
+        action="store_true",
+        help="Phase 5.1d — emit docs/scanner-reports/audit-coverage.json and exit (skips yaml emission).",
+    )
+    parser.add_argument(
+        "--fail-on-missing",
+        action="store_true",
+        help="With --check-audit-coverage: exit non-zero if missing > 0 (CI gate).",
+    )
     args = parser.parse_args()
 
     os.chdir(REPO_ROOT)
+
+    if args.check_audit_coverage:
+        return run_audit_coverage_check(fail_on_missing=args.fail_on_missing)
 
     entries, route_files, unknown_table_refs = scan_all_routes()
 

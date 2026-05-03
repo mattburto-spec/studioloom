@@ -821,3 +821,68 @@ the UI surface lands.
 1. Either: re-run the backfill with `coalesce(subject, name)` source.
 2. Or: bake into the Settings UI department picker logic when
    FU-AV2-DEPT-HEAD-UI ships.
+
+---
+
+## FU-AV2-AUDIT-MISSING-PHASE-6-CATCHUP
+**Priority:** P2
+**Surfaced:** Phase 5.1d audit-coverage scanner first run (3 May 2026)
+**Target gate:** Phase 6 cutover (before pilot)
+
+**Symptom:** `python3 scripts/registry/scan-api-routes.py --check-audit-coverage`
+reports **228 mutation routes** (POST/PATCH/DELETE/PUT) without
+`logAuditEvent` and without an `// audit-skip:` marker. Output written to
+[`docs/scanner-reports/audit-coverage.json`](../scanner-reports/audit-coverage.json).
+
+**Category breakdown (3 May 2026 PM scan):**
+
+| Category | Count | Triage notes |
+|---|---|---|
+| `teacher-app-data` (lesson edits, content writes) | 117 | Mostly low-audit pedagogy ops; selective audit (e.g., `unit.delete`, bulk grade changes) wanted, full coverage probably overkill. |
+| `student-app-data` (progress, tool sessions) | 36 | Routine learner activity; consider `// audit-skip: student-app-data routine writes` bulk + audit only the student-data-export/delete flows shipped in §5.4. |
+| `public-tools` (anonymous free-tools) | 32 | Bulk `// audit-skip: public anonymous tool, no actor identity`. |
+| `fabrication-pipeline` | 9 | Already Sentry-instrumented; selective audit on lab-tech pickup + completion. |
+| `school-governance` | 8 | Includes lib-delegating routes (`accept-school-invitation`, `merge-requests/.../approve|reject`) — audit fires in lib helper. Mark with `// audit-skip: audit emitted in lib helper called by handler` + reference the lib path. The 3 governance routes (propose/confirm/revert) genuinely need inline emits OR a thin wrapper in `setting-change.ts`. |
+| `admin-ops` | 8 | High audit value — `admin/teachers/[id] DELETE`, `admin/teachers/invite POST`, `admin/teacher-requests PATCH` etc. Wire `logAuditEvent` directly. |
+| `admin-sandbox-test` | 8 | Bulk `// audit-skip: ephemeral admin sandbox/test`. |
+| `auth-lifecycle` | 4 | `student-classcode-login` already covered in §5.1; `student-login` / `student-session` need either inline emit or skip with rationale. |
+| `other` | 6 | Per-file triage. |
+| **Total** | **228** | — |
+
+**Why deferred from §5.1d:** The Phase 5.1d brief explicitly allows this
+deferral pattern: "File as FU-AV2-AUDIT-MISSING-{ROUTE} P2 for
+post-Phase-6 catchup." Scanner ships green, JSON visibility lands in
+`nightly.yml`, full triage rolls into Phase 6 cutover (where the
+`/api/v1/*` rename pass touches every route file anyway — natural seam
+for adding `logAuditEvent` calls + `// audit-skip:` markers in the same
+PR).
+
+**Why P2 not P1:** Path B doesn't gate the pilot on full audit
+coverage — pilot can ship with the current 4 covered routes (Phase 5.1
+retrofits) plus the §5.4 export/delete endpoints (added in 5.4) plus
+inline audits in any new mutation route added Phase 5.5 onward. Phase 6
+cutover catches the legacy debt + flips `nightly.yml` from
+visibility-only to `--fail-on-missing` once the count hits 0.
+
+**Done when:**
+1. Every entry in `docs/scanner-reports/audit-coverage.json` `missing` is
+   either:
+   - Wired through `logAuditEvent()` (preferred for sensitive ops), OR
+   - Marked `// audit-skip: <reason>` with an explicit rationale, OR
+   - Documented as "audit emitted in lib helper" with the lib path
+2. `nightly.yml` step `Audit-coverage gate` flipped from
+   `--check-audit-coverage` (visibility) to
+   `--check-audit-coverage --fail-on-missing` (gating).
+3. Scanner returns `missing: 0`.
+4. Phase 6 cutover commit message references this FU as closed.
+
+**Suggested triage order (when picked up):**
+1. Bulk audit-skip the `public-tools`, `admin-sandbox-test`, and
+   lib-delegating routes (~50 routes, 30 min of mechanical edits).
+2. Inline-wire `logAuditEvent` for `admin-ops` (~8 routes, ~2 hr).
+3. Decide governance route pattern (propose/confirm/revert) — lib
+   wrapper vs inline.
+4. Audit-skip OR inline-wire teacher/student/fab routes by category
+   (largest bucket; ~half-day).
+5. Run scanner; iterate until missing == 0.
+6. Flip nightly to `--fail-on-missing`.
