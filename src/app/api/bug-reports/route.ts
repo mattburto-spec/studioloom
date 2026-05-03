@@ -27,7 +27,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { SESSION_COOKIE_NAME } from "@/lib/constants";
+import { getStudentSession } from "@/lib/access-v2/actor-session";
 
 const VALID_CATEGORIES = ["broken", "visual", "confused", "feature_request"];
 const MAX_CLIENT_CONTEXT_BYTES = 32_000;
@@ -43,16 +43,10 @@ async function resolveTeacher(): Promise<Reporter | null> {
   return user ? { id: user.id, role: "teacher" } : null;
 }
 
-async function resolveStudent(request: NextRequest, supabase: ReturnType<typeof createAdminClient>): Promise<Reporter | null> {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (!token) return null;
-  const { data: session } = await supabase
-    .from("student_sessions")
-    .select("student_id")
-    .eq("token", token)
-    .gt("expires_at", new Date().toISOString())
-    .maybeSingle();
-  return session ? { id: session.student_id, role: "student" } : null;
+async function resolveStudent(request: NextRequest, _supabase: ReturnType<typeof createAdminClient>): Promise<Reporter | null> {
+  // Phase 6.1 — read student via Supabase Auth instead of legacy session table.
+  const session = await getStudentSession(request);
+  return session ? { id: session.studentId, role: "student" } : null;
 }
 
 /**

@@ -87,15 +87,20 @@ export const GET = withErrorHandler("teacher/teach/live-status:GET", async (requ
 
   const { data: progressRows } = await progressQuery;
 
-  // Get active sessions (students currently logged in — check student_sessions)
-  const { data: activeSessions } = await db
-    .from("student_sessions")
-    .select("student_id, created_at")
+  // Phase 6.1 (4 May 2026) — derive "online" from student_progress activity
+  // rather than student_sessions (table dropped in 6.1). A student counts as
+  // online if they updated *any* progress row in the last 5 minutes. This is
+  // a better Teach-Mode signal than session-token presence: it tracks actual
+  // engagement, not "logged in 4 hours ago and walked away".
+  const FIVE_MIN_AGO = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  const { data: recentActivity } = await db
+    .from("student_progress")
+    .select("student_id")
     .in("student_id", studentIds)
-    .gte("expires_at", new Date().toISOString());
+    .gte("updated_at", FIVE_MIN_AGO);
 
   const activeSessionSet = new Set(
-    (activeSessions || []).map((s) => s.student_id)
+    (recentActivity || []).map((s) => s.student_id)
   );
 
   // Build per-student status

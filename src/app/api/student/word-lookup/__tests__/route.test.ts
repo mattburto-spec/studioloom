@@ -46,14 +46,18 @@ let sandboxSpy: ReturnType<typeof vi.fn<(word: string, l1Target?: string) => voi
 // Captures every cache-lookup eq() call so tests can assert l1_target was used as key.
 let cacheLookupCalls: Array<{ table: string; eqs: Array<[string, unknown]> }>;
 
-vi.mock("@/lib/auth/student", () => ({
-  requireStudentAuth: async () => {
+vi.mock("@/lib/access-v2/actor-session", () => ({
+  requireStudentSession: async () => {
     if (!mockStudentId) {
-      return {
-        error: new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }),
-      };
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    return { studentId: mockStudentId };
+    return {
+      type: "student" as const,
+      studentId: mockStudentId,
+      userId: "u-test-mock",
+      schoolId: null,
+      plan: "free" as const,
+    };
   },
 }));
 
@@ -118,7 +122,7 @@ vi.mock("@/lib/ai/sandbox/word-lookup-sandbox", () => ({
 }));
 
 import { POST } from "../route";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 function makeRequest(body: unknown): NextRequest {
   return new NextRequest("http://localhost/api/student/word-lookup", {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireStudentAuth } from '@/lib/auth/student';
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { rateLimit } from '@/lib/rate-limit';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -22,9 +22,9 @@ interface UpdateRequest {
 export async function PATCH(request: NextRequest) {
   try {
     // Auth check
-    const auth = await requireStudentAuth(request);
-    if (auth.error) return auth.error;
-    const { studentId } = auth;
+    const session = await requireStudentSession(request);
+    if (session instanceof NextResponse) return session;
+    const { studentId } = session;
 
     // Rate limit
     const rl = rateLimit(`quest-discovery:${studentId}`, [

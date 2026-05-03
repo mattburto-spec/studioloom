@@ -1,6 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE_NAME } from "@/lib/constants";
 import { isAdminUser } from "@/lib/auth/require-admin";
 
 export async function middleware(request: NextRequest) {
@@ -142,15 +141,19 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // Student routes — require student session cookie
+  // Student routes — require Supabase Auth session (sb-* cookies set by
+  // /api/auth/student-classcode-login). Phase 6.1 (4 May 2026) replaced the
+  // legacy questerra_student_session cookie check with a presence check on
+  // any sb-*-auth-token cookie. Full validation runs in the page/API.
   if (pathname.startsWith("/dashboard") || pathname.startsWith("/unit") || pathname.startsWith("/open-studio") || pathname.startsWith("/discovery") || pathname.startsWith("/gallery") || pathname.startsWith("/safety") || pathname.startsWith("/my-tools")) {
-    const sessionToken = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+    const hasSupabaseSession = request.cookies
+      .getAll()
+      .some((c) => c.name.startsWith("sb-") && c.name.endsWith("-auth-token"));
 
-    if (!sessionToken) {
+    if (!hasSupabaseSession) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
 
-    // Token existence check — full validation happens in the page/API
     return NextResponse.next();
   }
 

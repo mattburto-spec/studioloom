@@ -1,59 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { SESSION_COOKIE_NAME } from "@/lib/constants";
 import { getStudentSession } from "@/lib/access-v2/actor-session";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 // GET: Validate current student session and return student data
 //
-// Phase 1.4 CS-2 (30 Apr 2026) — DUAL-MODE auth path. Tries Supabase
-// Auth via getStudentSession() FIRST (Phase 1.2 sb-* cookies); falls
-// back to the legacy questerra_student_session cookie + student_sessions
-// table lookup. Same pattern as Phase 1.4a's requireStudentAuth wrapper.
-//
-// Originally legacy-only; missed during Phase 1.4 and broke the
-// (student)/layout.tsx session check when the frontend login swapped to
-// the new endpoint (sb-* cookies set, no legacy cookie → 401 → bounce
-// to login loop).
+// Phase 6.1 (4 May 2026) — Supabase Auth only. The legacy
+// questerra_student_session cookie + student_sessions table fallback
+// (Path B) was removed when the table was dropped.
 export async function GET(request: NextRequest) {
   const supabase = createAdminClient();
-  let studentId: string | null = null;
 
-  // Path A: Supabase Auth (Phase 1.2 + later)
-  try {
-    const newSession = await getStudentSession(request);
-    if (newSession) studentId = newSession.studentId;
-  } catch {
-    // Defensive — fall through to legacy.
+  const studentSession = await getStudentSession(request);
+  if (!studentSession) {
+    const response = NextResponse.json({ error: "No session" }, { status: 401 });
+    response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
+    return response;
   }
-
-  // Path B: Legacy cookie + student_sessions table lookup
-  if (!studentId) {
-    const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    if (!token) {
-      const response = NextResponse.json({ error: "No session" }, { status: 401 });
-      response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
-      return response;
-    }
-
-    const { data: session, error: sessionError } = await supabase
-      .from("student_sessions")
-      .select("id, student_id, expires_at")
-      .eq("token", token)
-      .gt("expires_at", new Date().toISOString())
-      .maybeSingle();
-
-    if (sessionError || !session) {
-      const response = NextResponse.json(
-        { error: "Invalid or expired session" },
-        { status: 401 }
-      );
-      // Don't delete cookie here — it may just be a DB hiccup
-      response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
-      return response;
-    }
-
-    studentId = session.student_id;
-  }
+  const studentId = studentSession.studentId;
 
   // Step 2: Get the student (try with new columns, fall back if migration 050 not applied)
   let student: Record<string, unknown> | null = null;
@@ -83,7 +47,6 @@ export async function GET(request: NextRequest) {
       { error: "Student not found" },
       { status: 401 }
     );
-    response.cookies.delete(SESSION_COOKIE_NAME);
     response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
     return response;
   }
@@ -175,17 +138,16 @@ export async function GET(request: NextRequest) {
   return response;
 }
 
-// DELETE: Logout — clear session
-export async function DELETE(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-
-  if (token) {
-    const supabase = createAdminClient();
-    await supabase.from("student_sessions").delete().eq("token", token);
-  }
+// DELETE: Logout — sign the student out of Supabase Auth.
+//
+// Phase 6.1 (4 May 2026) — replaces the legacy `student_sessions` row
+// delete + cookie wipe with a Supabase Auth signOut. The SSR client
+// clears the sb-* cookies on the response when signOut succeeds.
+export async function DELETE(_request: NextRequest) {
+  const ssrClient = await createServerSupabaseClient();
+  await ssrClient.auth.signOut();
 
   const response = NextResponse.json({ success: true });
-  response.cookies.delete(SESSION_COOKIE_NAME);
   response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
   return response;
 }

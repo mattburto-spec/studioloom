@@ -18,7 +18,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import type {
   QuizAnswer,
   QuizAnswerResult,
@@ -54,9 +54,9 @@ export async function POST(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    const auth = await requireStudentAuth(request);
-    if (auth.error) return auth.error;
-    const studentId = auth.studentId;
+    const session = await requireStudentSession(request);
+    if (session instanceof NextResponse) return session;
+    const studentId = session.studentId;
     const { slug } = await params;
 
     const body = (await request.json()) as {

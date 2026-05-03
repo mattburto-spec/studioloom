@@ -1,7 +1,6 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { SESSION_COOKIE_NAME } from "@/lib/constants";
+import { getStudentSession } from "@/lib/access-v2/actor-session";
 import { getPageList } from "@/lib/unit-adapter";
 import { buildNarrativeSections } from "@/lib/narrative-utils";
 import { NarrativeView } from "@/components/portfolio/NarrativeView";
@@ -21,28 +20,17 @@ export default async function NarrativePage({
   params: Promise<{ unitId: string }>;
 }) {
   const { unitId } = await params;
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
-  if (!token) redirect("/");
+  // Phase 6.1 — Supabase Auth via sb-* cookies (legacy table dropped).
+  const session = await getStudentSession();
+  if (!session) redirect("/");
 
   const supabase = createAdminClient();
 
-  // Validate session
-  const { data: session } = await supabase
-    .from("student_sessions")
-    .select("student_id")
-    .eq("token", token)
-    .gt("expires_at", new Date().toISOString())
-    .single();
-
-  if (!session) redirect("/");
-
-  // Get student info
   const { data: student } = await supabase
     .from("students")
     .select("class_id, display_name, username")
-    .eq("id", session.student_id)
+    .eq("id", session.studentId)
     .single();
 
   if (!student) redirect("/");
@@ -64,12 +52,12 @@ export default async function NarrativePage({
     supabase
       .from("student_progress")
       .select("*")
-      .eq("student_id", session.student_id)
+      .eq("student_id", session.studentId)
       .eq("unit_id", unitId),
     supabase
       .from("portfolio_entries")
       .select("*")
-      .eq("student_id", session.student_id)
+      .eq("student_id", session.studentId)
       .eq("unit_id", unitId)
       .order("created_at", { ascending: true }),
   ]);

@@ -3,13 +3,18 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 let mockStudentId: string | null = "student-1";
 let acknowledgeSpy: ReturnType<typeof vi.fn>;
 
-vi.mock("@/lib/auth/student", () => ({
-  requireStudentAuth: async () => {
-    if (!mockStudentId)
-      return {
-        error: new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }),
-      };
-    return { studentId: mockStudentId };
+vi.mock("@/lib/access-v2/actor-session", () => ({
+  requireStudentSession: async () => {
+    if (!mockStudentId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    return {
+      type: "student" as const,
+      studentId: mockStudentId,
+      userId: "u-test-mock",
+      schoolId: null,
+      plan: "free" as const,
+    };
   },
 }));
 
@@ -24,7 +29,7 @@ vi.mock("@/lib/fabrication/orchestration", () => ({
 }));
 
 import { POST } from "../route";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 function makeRequest(jobId: string, body: unknown) {
   return {

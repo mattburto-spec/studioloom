@@ -12,16 +12,18 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 let mockStudentId: string | null = "student-f24ff3a8";
 let createUploadJobSpy: ReturnType<typeof vi.fn>;
 
-vi.mock("@/lib/auth/student", () => ({
-  requireStudentAuth: async () => {
+vi.mock("@/lib/access-v2/actor-session", () => ({
+  requireStudentSession: async () => {
     if (!mockStudentId) {
-      return {
-        error: new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401,
-        }),
-      };
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    return { studentId: mockStudentId };
+    return {
+      type: "student" as const,
+      studentId: mockStudentId,
+      userId: "u-test-mock",
+      schoolId: null,
+      plan: "free" as const,
+    };
   },
 }));
 
@@ -40,7 +42,7 @@ vi.mock("@/lib/fabrication/orchestration", async () => {
 });
 
 import { POST } from "../route";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 function makeRequest(body: unknown): NextRequest {
   return new NextRequest("http://localhost/api/student/fabrication/upload", {

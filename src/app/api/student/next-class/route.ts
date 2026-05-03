@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { rateLimit, type RateLimitWindow } from "@/lib/rate-limit";
 import {
   getNextLessons,
@@ -36,11 +36,11 @@ const NEXT_CLASS_LIMITS: RateLimitWindow[] = [
 // ─────────────────────────────────────────────────────────────
 
 async function GET(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
 
   // Rate limit
-  const limitResult = rateLimit(auth.studentId, NEXT_CLASS_LIMITS);
+  const limitResult = rateLimit(session.studentId, NEXT_CLASS_LIMITS);
   if (!limitResult.allowed) {
     return NextResponse.json(
       { error: "Too many requests" },
@@ -66,7 +66,7 @@ async function GET(request: NextRequest) {
     const { data: student } = await supabase
       .from("students")
       .select("class_id")
-      .eq("id", auth.studentId)
+      .eq("id", session.studentId)
       .single();
 
     if (!student?.class_id) {

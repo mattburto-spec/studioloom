@@ -1669,3 +1669,34 @@ This surfaced when the Phase 1.4 CS-1 student-side rewrite migration tried `stud
 **Sequence:** ship after Phase 1.4 client-switch closes (this is a hygiene cleanup; not blocking pilot or any in-flight phase). Could pair with similar audit of other `*_id TEXT` columns if any exist (likely audit reveals more).
 
 **Related:** FU-FF (P3 — RLS-as-deny-all on 3 tables, similar "documented in registry but actual SQL diverges" class), Phase 1.4 CS-1 brief (where this surfaced).
+
+---
+
+## FU-AV2-LTI-PHASE-6-REWORK — `/api/auth/lti/launch` returns 410 pending Supabase Auth rewrite (P2)
+
+**Status:** OPEN — filed 4 May 2026 by Phase 6.1.
+
+**Surfaced:** Phase 6.1 dropped `student_sessions`. The legacy LTI 1.1 launch endpoint created a `student_sessions` row + `questerra_student_session` cookie; with the table gone, the route can't function as written.
+
+**Issue:** `src/app/api/auth/lti/launch/route.ts` was stubbed to return HTTP 410 Gone. NIS pilot does not use LTI launch — the route hadn't been exercised in months — so the 410 is honest about the dead-end without leaving silent breakage.
+
+**Why P2:** any school adopting StudioLoom that wires LTI in their LMS (ManageBac, Canvas, Schoology, Moodle, Toddle, Blackboard) hits the 410. Reinstate before the next school onboarding.
+
+**Recommended approach:** mirror the `/api/auth/student-classcode-login` pattern:
+1. Verify the LTI 1.1 OAuth signature (existing `verifyLtiSignature` helper still valid).
+2. Resolve `consumerKey → lms_integrations.class_id` (existing `findOrCreateStudent` still valid).
+3. Call `provisionStudentAuthUser({...})` to ensure `auth.users` + `students` rows exist (already imported in the original file).
+4. Mint a Supabase Auth session via `supabaseAdmin.auth.admin.generateLink({type:'magiclink', email: syntheticEmailForStudentId(student.id)})`.
+5. Construct an SSR client with the Next.js cookies adapter and `exchangeCodeForSession(linkData.properties.hashed_token)` to set `sb-*` cookies on the redirect response.
+6. Redirect to `/dashboard`.
+
+Reuse the same `syntheticEmail` shape as classcode-login so an existing student logging in via LTI lands on the same `auth.users` row they'd land on via classcode.
+
+**Definition of done:**
+- LTI POST returns a 302 redirect to `/dashboard` with `sb-*` cookies set.
+- A returning student via LTI ends up on the same `students.id` as via classcode-login (no orphan duplicates).
+- Smoke test from a real LMS launch (Canvas test instance or LTI launch simulator) passes once.
+
+**Sequence:** before any school other than NIS adopts. Estimated ~0.5 day if the classcode-login pattern is copy-paste tractable.
+
+**Related:** Phase 6.1 brief §6.1, `src/app/api/auth/student-classcode-login/route.ts` (canonical pattern).

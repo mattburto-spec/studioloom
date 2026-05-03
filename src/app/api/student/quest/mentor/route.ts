@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireStudentAuth } from '@/lib/auth/student';
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { createAdminClient } from '@/lib/supabase/admin';
 import { rateLimit } from '@/lib/rate-limit';
 import { getMentor } from '@/lib/quest/mentors';
@@ -21,9 +21,9 @@ import { withAIBudget } from '@/lib/access-v2/ai-budget/middleware';
  */
 export async function PATCH(request: NextRequest) {
   try {
-    const auth = await requireStudentAuth(request);
-    if (auth.error) return auth.error;
-    const studentId = auth.studentId;
+    const session = await requireStudentSession(request);
+    if (session instanceof NextResponse) return session;
+    const studentId = session.studentId;
 
     const body = await request.json();
     const { journeyId, mentorId } = body as {
@@ -100,9 +100,9 @@ export async function PATCH(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireStudentAuth(request);
-    if (auth.error) return auth.error;
-    const studentId = auth.studentId;
+    const session = await requireStudentSession(request);
+    if (session instanceof NextResponse) return session;
+    const studentId = session.studentId;
 
     // Rate limit: 15 per minute, 100 per hour
     const rl = rateLimit(`quest-mentor:${studentId}`, [

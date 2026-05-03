@@ -93,25 +93,15 @@ export async function DELETE(request: NextRequest) {
   const hasActiveEnrollments =
     (remainingEnrollments && remainingEnrollments.length > 0) || hasLegacyClass;
 
-  // 3. If no remaining enrollments, invalidate ALL sessions (force logout)
-  //    If they still have other classes, leave sessions alive
-  if (!hasActiveEnrollments) {
-    const { error: sessionError } = await supabase
-      .from("student_sessions")
-      .delete()
-      .eq("student_id", studentId);
-
-    if (sessionError) {
-      // Non-fatal — student is already removed from class
-      console.error(
-        "[class-students] Session invalidation error:",
-        sessionError
-      );
-    }
-  }
+  // Phase 6.1 — student_sessions table dropped. Forced sign-out is now
+  // handled by Supabase Auth: deleting the auth.users row (or revoking
+  // refresh tokens via supabase.auth.admin.signOut) is the equivalent.
+  // For "removed from last class" we do NOT auto-revoke the auth session —
+  // the student may still need to access their portfolio. The
+  // `class_students` removal already gates classroom data; auth stays.
 
   return NextResponse.json({
     success: true,
-    sessionsInvalidated: !hasActiveEnrollments,
+    sessionsInvalidated: false,
   });
 }
