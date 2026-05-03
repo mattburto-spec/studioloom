@@ -958,3 +958,74 @@ forcing function for completeness.
    with rationale, OR filed as a follow-up sibling.
 3. Scanner returns `missing: 0` for student-attributed AI routes.
 4. CI gate (`--check-ai-budget-coverage --fail-on-missing`) flipped on.
+
+---
+
+## FU-AV2-CRON-SCHEDULER-WIRE
+**Priority:** P2
+**Surfaced:** Phase 5.5 implementation (4 May 2026)
+**Target gate:** Pre-pilot (cron must run somewhere before first NIS student)
+
+**Symptom:** Phase 5.5 ships two cron implementations + entry-point scripts:
+- `scripts/ops/run-retention-enforcement.ts` (monthly soft-delete sweep)
+- `scripts/ops/run-scheduled-hard-delete.ts` (Q5 hard-delete queue processor)
+
+These exist + are tested + are runnable manually. They are NOT scheduled
+anywhere. nightly.yml is intentionally for code-correctness gates (typecheck,
+tests, scanners), not runtime data jobs — same reason the cost-alert cron
+from Phase 4C exists at `scripts/ops/run-cost-alert.ts` but isn't in
+nightly.yml either.
+
+**Three options to evaluate:**
+
+1. **Vercel cron jobs** (vercel.json `crons` config). Pros: same deployment
+   environment as the app; secret access already configured; "simple". Cons:
+   needs Vercel Pro? + cron scheduling is per-project so visibility is in the
+   Vercel dashboard not GitHub.
+
+2. **GitHub Actions schedule** (separate workflow file at
+   `.github/workflows/access-v2-crons.yml` with `schedule: cron: '0 18 * * *'`).
+   Pros: visible in same place as nightly.yml; logs in GH; easy to trigger
+   manually via `workflow_dispatch`. Cons: needs `SUPABASE_SERVICE_ROLE_KEY`
+   added to repo secrets (governance weight); GitHub Actions cron scheduling
+   is best-effort (can be 15+ min late under load).
+
+3. **External scheduler** (cron-job.org, Supabase Edge Function cron, etc.).
+   Pros: simplest; no GH or Vercel coupling. Cons: another service to
+   monitor; SSO / secret config split across systems.
+
+**Recommendation:** Option 2 (GitHub Actions schedule, dedicated workflow).
+- Matches the cost-alert pattern when that one wires (it'll need the same
+  decision). Doing both at once amortises the SUPABASE_SERVICE_ROLE_KEY
+  setup work.
+- Visibility in the same repo's Actions tab as nightly.
+- `workflow_dispatch` button means manual fire-drill testing is trivial.
+- The 15-minute lateness is acceptable for these cadences (retention is
+  monthly; hard-delete is daily).
+
+**Done when:**
+1. `SUPABASE_SERVICE_ROLE_KEY` added to GitHub repo secrets (Matt + GH
+   admin call).
+2. New workflow at `.github/workflows/access-v2-crons.yml` schedules:
+   - `run-scheduled-hard-delete.ts` — daily at 06:00 UTC (~14:00 NIS).
+   - `run-retention-enforcement.ts` — first day of month at 06:00 UTC.
+   - Both with `workflow_dispatch` for manual fire-drill.
+   - Both with `continue-on-error: true` (a transient cron failure
+     shouldn't fail the workflow conclusion; failures emit critical
+     audit_events that admin queries via the audit-log view from §5.6).
+3. Manual fire-drill: dispatch each workflow via the GH UI; confirm:
+   - retention cron returns success no-op (manifest empty in v1).
+   - hard-delete cron returns success no-op (no pending rows yet).
+   - Run IDs land in audit_events as expected.
+4. Document the cadence in `docs/security/incident-response.md` (or a
+   new `docs/security/ops-runbook.md`).
+5. Same workflow ALSO schedules `run-cost-alert.ts` (closes the dormant
+   cost-alert wiring at the same time — bundle the secret-add cost).
+
+**Why P2 not P1:** Pilot can technically ship without the crons running
+(no soft-deleted rows means nothing to hard-delete; retention enforcement
+only fires when an entry is added to RETENTION_MANIFEST and the v1 manifest
+is empty). But the FIRST student data deletion via `/api/v1/student/[id]`
+DELETE will queue a `scheduled_deletions` row — without the cron running,
+that row sits forever. So this needs to land before any real DSR delete
+happens in production. Pre-pilot is the natural gate.
