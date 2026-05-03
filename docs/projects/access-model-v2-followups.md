@@ -862,3 +862,236 @@ done in a focused follow-up than rushed at saveme.
 behavior. The scanner-side registries (api-registry, ai-call-sites,
 feature-flags, vendors, RLS) ARE clean. Phase 6 cutover (~Phase 5
 complete) is the natural full-registry-sync gate; this FU folds in.
+
+---
+
+## FU-AV2-AUDIT-MISSING-PHASE-6-CATCHUP
+**Priority:** P2
+**Surfaced:** Phase 5.1d audit-coverage scanner first run (3 May 2026)
+**Target gate:** Phase 6 cutover (before pilot)
+
+**Symptom:** `python3 scripts/registry/scan-api-routes.py --check-audit-coverage`
+reports **228 mutation routes** (POST/PATCH/DELETE/PUT) without
+`logAuditEvent` and without an `// audit-skip:` marker. Output written to
+[`docs/scanner-reports/audit-coverage.json`](../scanner-reports/audit-coverage.json).
+
+**Category breakdown (3 May 2026 PM scan):**
+
+| Category | Count | Triage notes |
+|---|---|---|
+| `teacher-app-data` (lesson edits, content writes) | 117 | Mostly low-audit pedagogy ops; selective audit (e.g., `unit.delete`, bulk grade changes) wanted, full coverage probably overkill. |
+| `student-app-data` (progress, tool sessions) | 36 | Routine learner activity; consider `// audit-skip: student-app-data routine writes` bulk + audit only the student-data-export/delete flows shipped in §5.4. |
+| `public-tools` (anonymous free-tools) | 32 | Bulk `// audit-skip: public anonymous tool, no actor identity`. |
+| `fabrication-pipeline` | 9 | Already Sentry-instrumented; selective audit on lab-tech pickup + completion. |
+| `school-governance` | 8 | Includes lib-delegating routes (`accept-school-invitation`, `merge-requests/.../approve|reject`) — audit fires in lib helper. Mark with `// audit-skip: audit emitted in lib helper called by handler` + reference the lib path. The 3 governance routes (propose/confirm/revert) genuinely need inline emits OR a thin wrapper in `setting-change.ts`. |
+| `admin-ops` | 8 | High audit value — `admin/teachers/[id] DELETE`, `admin/teachers/invite POST`, `admin/teacher-requests PATCH` etc. Wire `logAuditEvent` directly. |
+| `admin-sandbox-test` | 8 | Bulk `// audit-skip: ephemeral admin sandbox/test`. |
+| `auth-lifecycle` | 4 | `student-classcode-login` already covered in §5.1; `student-login` / `student-session` need either inline emit or skip with rationale. |
+| `other` | 6 | Per-file triage. |
+| **Total** | **228** | — |
+
+**Why deferred from §5.1d:** The Phase 5.1d brief explicitly allows this
+deferral pattern: "File as FU-AV2-AUDIT-MISSING-{ROUTE} P2 for
+post-Phase-6 catchup." Scanner ships green, JSON visibility lands in
+`nightly.yml`, full triage rolls into Phase 6 cutover (where the
+`/api/v1/*` rename pass touches every route file anyway — natural seam
+for adding `logAuditEvent` calls + `// audit-skip:` markers in the same
+PR).
+
+**Why P2 not P1:** Path B doesn't gate the pilot on full audit
+coverage — pilot can ship with the current 4 covered routes (Phase 5.1
+retrofits) plus the §5.4 export/delete endpoints (added in 5.4) plus
+inline audits in any new mutation route added Phase 5.5 onward. Phase 6
+cutover catches the legacy debt + flips `nightly.yml` from
+visibility-only to `--fail-on-missing` once the count hits 0.
+
+**Done when:**
+1. Every entry in `docs/scanner-reports/audit-coverage.json` `missing` is
+   either:
+   - Wired through `logAuditEvent()` (preferred for sensitive ops), OR
+   - Marked `// audit-skip: <reason>` with an explicit rationale, OR
+   - Documented as "audit emitted in lib helper" with the lib path
+2. `nightly.yml` step `Audit-coverage gate` flipped from
+   `--check-audit-coverage` (visibility) to
+   `--check-audit-coverage --fail-on-missing` (gating).
+3. Scanner returns `missing: 0`.
+4. Phase 6 cutover commit message references this FU as closed.
+
+**Suggested triage order (when picked up):**
+1. Bulk audit-skip the `public-tools`, `admin-sandbox-test`, and
+   lib-delegating routes (~50 routes, 30 min of mechanical edits).
+2. Inline-wire `logAuditEvent` for `admin-ops` (~8 routes, ~2 hr).
+3. Decide governance route pattern (propose/confirm/revert) — lib
+   wrapper vs inline.
+4. Audit-skip OR inline-wire teacher/student/fab routes by category
+   (largest bucket; ~half-day).
+5. Run scanner; iterate until missing == 0.
+6. Flip nightly to `--fail-on-missing`.
+
+---
+
+## FU-AV2-AI-BUDGET-EXHAUSTED-EMAIL
+**Priority:** P3
+**Surfaced:** Phase 5.3 implementation (3 May 2026 PM)
+**Target gate:** Pre-pilot OR first real over-cap event in production
+
+**Symptom:** When a student exhausts their daily AI cap, `withAIBudget` emits
+an `audit_events` row (`action='ai_budget.over_cap'`, `severity='warn'`) and
+returns 429 to the client. The student sees "budget exceeded" in the UI;
+the teacher sees nothing unless they query the audit log explicitly.
+
+**Why P3 not P2:** Path B ships pilot WITHOUT email notifications; the audit
+event is the source-of-truth surface. Real ops experience may show this is
+fine (rare cap hits) or annoying (frequent cap hits get lost in the audit
+feed) — defer to pilot data.
+
+**Done when:**
+1. Build `src/lib/access-v2/ai-budget/over-cap-email.ts` mirroring the
+   `src/lib/preflight/email.ts` Resend-fetch pattern (no SDK dependency,
+   console fallback when RESEND_API_KEY is unset).
+2. Email kinds: `ai_budget.exhausted` (student) + optionally
+   `ai_budget.exhausted.teacher_digest` (daily roll-up to teacher).
+3. Wire into `withAIBudget`'s `maybeEmitOverCapWarning` — same throttle
+   semantics (24h window via `ai_budget_state.last_warning_sent_at`).
+4. Honor student's `students.notification_preferences` JSONB (don't email
+   if opted out — pattern from Preflight phase 1B-2 student email opt-out).
+5. Document the email template + one fire-drill in `docs/security/`.
+
+**Suggested implementation order:** Build the email helper first as a pure
+function (no withAIBudget changes); test against a dev student account; then
+swap the `// TODO: send email` comment in middleware.ts for the real call
+behind a feature flag (`ai.budget.exhaustion_emails_enabled`, default false).
+
+---
+
+## FU-AV2-AI-BUDGET-WIRE-TOOL-SESSIONS-AND-OTHER-AI
+**Priority:** P2
+**Surfaced:** Phase 5.3 implementation (3 May 2026 PM)
+**Target gate:** Phase 5.3d (audit-coverage analog for AI calls)
+
+**Symptom:** Phase 5.3 wired `withAIBudget` into 3 student AI route files
+(word-lookup, quest/mentor, design-assistant). The brief named a 4th —
+`/api/student/safety/check-requirements` — but inspection revealed it's
+GET-only with no AI call (brief drift).
+
+The bigger question: how many OTHER student-attributed AI call sites exist
+that should be wrapped? The §5.3d budget-coverage scanner is the
+mechanism that finds them; until that lands (next sub-phase), the
+de-facto coverage is the 3 explicit wires.
+
+**Categories likely to surface from §5.3d:**
+- Tool-session routes (`/api/student/tool-sessions/*`) — many toolkit tools
+  may call AI through a different proxy path; needs scanner audit.
+- Open Studio routes (mentor variants, evidence reflection) — student
+  context, may not go through generateResponse.
+- Discovery Engine reflect endpoints — student-attributed AI calls.
+- Word-lookup `image_lookup` / `audio_lookup` if/when those ship.
+
+**Why P2 not P1:** Pilot can ship with the 3 wired routes — they cover the
+highest-volume student AI surface (Socratic mentor, vocabulary, quest mentor).
+Other surfaces are lower-volume + less aggressive. §5.3d's CI gate is the
+forcing function for completeness.
+
+**Done when:**
+1. Phase 5.3d scanner runs against current tree.
+2. Each entry in `docs/scanner-reports/ai-budget-coverage.json` `missing` is
+   either wrapped via `withAIBudget()` OR marked `// budget-skip: <reason>`
+   with rationale, OR filed as a follow-up sibling.
+3. Scanner returns `missing: 0` for student-attributed AI routes.
+4. CI gate (`--check-ai-budget-coverage --fail-on-missing`) flipped on.
+
+---
+
+## FU-AV2-CRON-SCHEDULER-WIRE
+**Priority:** P2
+**Surfaced:** Phase 5.5 implementation (4 May 2026)
+**Target gate:** Pre-pilot (cron must run somewhere before first NIS student)
+
+**Symptom:** Phase 5.5 ships two cron implementations + entry-point scripts:
+- `scripts/ops/run-retention-enforcement.ts` (monthly soft-delete sweep)
+- `scripts/ops/run-scheduled-hard-delete.ts` (Q5 hard-delete queue processor)
+
+These exist + are tested + are runnable manually. They are NOT scheduled
+anywhere. nightly.yml is intentionally for code-correctness gates (typecheck,
+tests, scanners), not runtime data jobs — same reason the cost-alert cron
+from Phase 4C exists at `scripts/ops/run-cost-alert.ts` but isn't in
+nightly.yml either.
+
+**Three options to evaluate:**
+
+1. **Vercel cron jobs** (vercel.json `crons` config). Pros: same deployment
+   environment as the app; secret access already configured; "simple". Cons:
+   needs Vercel Pro? + cron scheduling is per-project so visibility is in the
+   Vercel dashboard not GitHub.
+
+2. **GitHub Actions schedule** (separate workflow file at
+   `.github/workflows/access-v2-crons.yml` with `schedule: cron: '0 18 * * *'`).
+   Pros: visible in same place as nightly.yml; logs in GH; easy to trigger
+   manually via `workflow_dispatch`. Cons: needs `SUPABASE_SERVICE_ROLE_KEY`
+   added to repo secrets (governance weight); GitHub Actions cron scheduling
+   is best-effort (can be 15+ min late under load).
+
+3. **External scheduler** (cron-job.org, Supabase Edge Function cron, etc.).
+   Pros: simplest; no GH or Vercel coupling. Cons: another service to
+   monitor; SSO / secret config split across systems.
+
+**Recommendation:** Option 2 (GitHub Actions schedule, dedicated workflow).
+- Matches the cost-alert pattern when that one wires (it'll need the same
+  decision). Doing both at once amortises the SUPABASE_SERVICE_ROLE_KEY
+  setup work.
+- Visibility in the same repo's Actions tab as nightly.
+- `workflow_dispatch` button means manual fire-drill testing is trivial.
+- The 15-minute lateness is acceptable for these cadences (retention is
+  monthly; hard-delete is daily).
+
+**Done when:**
+1. `SUPABASE_SERVICE_ROLE_KEY` added to GitHub repo secrets (Matt + GH
+   admin call).
+2. New workflow at `.github/workflows/access-v2-crons.yml` schedules:
+   - `run-scheduled-hard-delete.ts` — daily at 06:00 UTC (~14:00 NIS).
+   - `run-retention-enforcement.ts` — first day of month at 06:00 UTC.
+   - Both with `workflow_dispatch` for manual fire-drill.
+   - Both with `continue-on-error: true` (a transient cron failure
+     shouldn't fail the workflow conclusion; failures emit critical
+     audit_events that admin queries via the audit-log view from §5.6).
+3. Manual fire-drill: dispatch each workflow via the GH UI; confirm:
+   - retention cron returns success no-op (manifest empty in v1).
+   - hard-delete cron returns success no-op (no pending rows yet).
+   - Run IDs land in audit_events as expected.
+4. Document the cadence in `docs/security/incident-response.md` (or a
+   new `docs/security/ops-runbook.md`).
+5. Same workflow ALSO schedules `run-cost-alert.ts` (closes the dormant
+   cost-alert wiring at the same time — bundle the secret-add cost).
+
+**Why P2 not P1:** Pilot can technically ship without the crons running
+(no soft-deleted rows means nothing to hard-delete; retention enforcement
+only fires when an entry is added to RETENTION_MANIFEST and the v1 manifest
+is empty). But the FIRST student data deletion via `/api/v1/student/[id]`
+DELETE will queue a `scheduled_deletions` row — without the cron running,
+that row sits forever. So this needs to land before any real DSR delete
+happens in production. Pre-pilot is the natural gate.
+
+---
+
+## FU-AV2-COST-ALERT-WIRE-CRON-TO-RESEND
+**Priority:** P2
+**Surfaced:** A6 manual smoke (4 May 2026)
+**Target gate:** Pre-pilot
+
+**Symptom:** `src/lib/jobs/cost-alert.ts:run()` writes a `system_alerts`
+row when thresholds exceeded but never calls `sendCostAlert()` from
+`src/lib/monitoring/cost-alert-delivery.ts`. The Resend email helper
+exists + the cron job exists, but the two aren't connected. Confirmed
+via grep: zero callers of `sendCostAlert` in src/. Originally flagged
+as FU-M (master CLAUDE.md known-follow-ups). A6 fire drill surfaced it.
+
+**Already fixed in same A6 session (4 May 2026):** sender domain bug
+in cost-alert-delivery.ts (`studioloom.app` → `loominary.org`). Resend
+delivery now succeeds when sendCostAlert is invoked directly.
+
+**Done when:** `cost-alert.ts:run()` calls `sendCostAlert()` for each
+threshold in `thresholdsExceeded` (passing the right period + cost +
+threshold + name). Cron entry-point fire-drill produces real Resend
+delivery without the workaround script. Update the runbook to point
+at run-cost-alert.ts again (currently relies on
+scripts/ops/run-cost-alert-fire-drill.ts as the workaround).

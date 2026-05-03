@@ -4,18 +4,35 @@ API Registry Scanner — walks src/app/api/**/route.ts and produces
 docs/api-registry.yaml with one entry per (path, method) tuple.
 
 Usage:
-  python3 scripts/registry/scan-api-routes.py            # dry-run
-  python3 scripts/registry/scan-api-routes.py --apply    # write
+  python3 scripts/registry/scan-api-routes.py                         # dry-run
+  python3 scripts/registry/scan-api-routes.py --apply                 # write yaml
+  python3 scripts/registry/scan-api-routes.py --check-audit-coverage  # write audit-coverage.json (Phase 5.1d)
+  python3 scripts/registry/scan-api-routes.py --check-budget-coverage # write ai-budget-coverage.json (Phase 5.3d)
 
 Extracts: path, method, auth type, tables_read, tables_written.
 Leaves ai_call_sites (7-Pre.3) and cost_ceiling_usd (Phase 7I) empty.
+
+Phase 5.1d audit-coverage gate (added 3 May 2026):
+  Per-file scan for any route exporting POST/PATCH/PUT/DELETE that does NOT
+  contain `logAuditEvent` and is NOT marked `// audit-skip: <reason>`. Emits
+  docs/scanner-reports/audit-coverage.json. Optionally exits non-zero with
+  --fail-on-missing for CI gating.
+
+Phase 5.3d budget-coverage gate (added 3 May 2026):
+  Per-file scan for any route under src/app/api/student/ that calls Anthropic
+  (new Anthropic, messages.create, or imports from @anthropic-ai/sdk) without
+  going through withAIBudget AND without a `// budget-skip: <reason>` marker.
+  Emits docs/scanner-reports/ai-budget-coverage.json. Same --fail-on-missing
+  flag for CI gating (covers both gates when both flags are set).
 """
 
 import argparse
+import json
 import os
 import re
 import sys
 from collections import OrderedDict
+from datetime import datetime, timezone
 
 import yaml
 
@@ -40,6 +57,12 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 API_DIR = os.path.join(REPO_ROOT, "src", "app", "api")
 YAML_PATH = os.path.join(REPO_ROOT, "docs", "api-registry.yaml")
 SCHEMA_REGISTRY_PATH = os.path.join(REPO_ROOT, "docs", "schema-registry.yaml")
+AUDIT_COVERAGE_REPORT_PATH = os.path.join(
+    REPO_ROOT, "docs", "scanner-reports", "audit-coverage.json"
+)
+BUDGET_COVERAGE_REPORT_PATH = os.path.join(
+    REPO_ROOT, "docs", "scanner-reports", "ai-budget-coverage.json"
+)
 
 # ---------------------------------------------------------------------------
 # Route discovery
@@ -232,6 +255,320 @@ def extract_rpcs(content):
 
 
 # ---------------------------------------------------------------------------
+# Phase 5.1d — Audit-coverage detection
+# ---------------------------------------------------------------------------
+#
+# A route is "audit-covered" when it exports POST/PATCH/PUT/DELETE AND
+# either calls logAuditEvent in the file, or is annotated with an
+# `// audit-skip: <reason>` comment. Routes with neither are flagged
+# as `missing` and surface in docs/scanner-reports/audit-coverage.json.
+
+MUTATION_METHODS = {"POST", "PATCH", "PUT", "DELETE"}
+
+LOG_AUDIT_RE = re.compile(r"\blogAuditEvent\b")
+AUDIT_SKIP_RE = re.compile(r"//\s*audit-skip:\s*(.+?)\s*$", re.MULTILINE)
+
+
+def classify_audit_coverage(content, methods):
+    """
+    Return a dict describing the audit-coverage status of a route file:
+      { "status": "covered" | "skipped" | "missing" | "n/a",
+        "mutation_methods": [...],   # subset of methods in MUTATION_METHODS
+        "skip_reason": str | None,
+        "has_log_audit": bool }
+    """
+    mutation = sorted(m for m in methods if m in MUTATION_METHODS)
+    if not mutation:
+        return {
+            "status": "n/a",
+            "mutation_methods": [],
+            "skip_reason": None,
+            "has_log_audit": False,
+        }
+
+    has_log_audit = bool(LOG_AUDIT_RE.search(content))
+    skip_match = AUDIT_SKIP_RE.search(content)
+    skip_reason = skip_match.group(1).strip() if skip_match else None
+
+    if has_log_audit:
+        # Coverage wins over skip if both are present (defensive — favour the
+        # real call over a stale skip marker).
+        status = "covered"
+    elif skip_reason:
+        status = "skipped"
+    else:
+        status = "missing"
+
+    return {
+        "status": status,
+        "mutation_methods": mutation,
+        "skip_reason": skip_reason,
+        "has_log_audit": has_log_audit,
+    }
+
+
+def scan_audit_coverage():
+    """
+    Walk every route.ts file and classify its audit coverage. Returns a
+    structured report ready for JSON serialisation.
+    """
+    route_files = find_route_files()
+    covered = []
+    skipped = []
+    missing = []
+
+    for filepath in route_files:
+        with open(filepath) as f:
+            content = f.read()
+        methods = detect_methods(content)
+        result = classify_audit_coverage(content, methods)
+        if result["status"] == "n/a":
+            continue
+        rel_file = os.path.relpath(filepath, REPO_ROOT)
+        entry = {"file": rel_file, "methods": result["mutation_methods"]}
+        if result["status"] == "covered":
+            covered.append(entry)
+        elif result["status"] == "skipped":
+            entry["reason"] = result["skip_reason"]
+            skipped.append(entry)
+        else:
+            missing.append(entry)
+
+    covered.sort(key=lambda e: e["file"])
+    skipped.sort(key=lambda e: e["file"])
+    missing.sort(key=lambda e: e["file"])
+
+    total = len(covered) + len(skipped) + len(missing)
+    return {
+        "registry": "audit-coverage",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "version": 1,
+        "stats": {
+            "total_mutation_routes": total,
+            "covered": len(covered),
+            "skipped": len(skipped),
+            "missing": len(missing),
+        },
+        "covered": covered,
+        "skipped": skipped,
+        "missing": missing,
+    }
+
+
+def write_audit_coverage_report(report):
+    """Write the audit-coverage report to docs/scanner-reports/audit-coverage.json."""
+    os.makedirs(os.path.dirname(AUDIT_COVERAGE_REPORT_PATH), exist_ok=True)
+    with open(AUDIT_COVERAGE_REPORT_PATH, "w") as f:
+        json.dump(report, f, indent=2)
+        f.write("\n")
+
+
+def run_audit_coverage_check(fail_on_missing):
+    """
+    --check-audit-coverage handler. Always emits the JSON report. Exits
+    non-zero only when fail_on_missing is set AND missing list is non-empty.
+    """
+    report = scan_audit_coverage()
+    write_audit_coverage_report(report)
+    stats = report["stats"]
+    print(
+        f"Audit coverage: {stats['covered']} covered, "
+        f"{stats['skipped']} skipped, "
+        f"{stats['missing']} missing "
+        f"(of {stats['total_mutation_routes']} mutation routes)"
+    )
+    if report["skipped"]:
+        print(f"\nSkipped (with reason):")
+        for entry in report["skipped"]:
+            print(f"  {entry['file']} ({','.join(entry['methods'])}) — {entry['reason']}")
+    if report["missing"]:
+        print(f"\nMissing logAuditEvent (top 20):")
+        for entry in report["missing"][:20]:
+            print(f"  {entry['file']} ({','.join(entry['methods'])})")
+        if len(report["missing"]) > 20:
+            print(f"  ... and {len(report['missing']) - 20} more (see {AUDIT_COVERAGE_REPORT_PATH})")
+    print(f"\nReport written to {AUDIT_COVERAGE_REPORT_PATH}")
+    if fail_on_missing and report["missing"]:
+        print(
+            f"\n⛔ GATE FAIL: {len(report['missing'])} mutation route(s) missing logAuditEvent. "
+            f"Wire logAuditEvent OR add `// audit-skip: <reason>` OR file FU-AV2-AUDIT-MISSING-{{ROUTE}} P2."
+        )
+        return 1
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Phase 5.3d — AI-budget coverage detection
+# ---------------------------------------------------------------------------
+#
+# A student-AI route is "budget-covered" when it lives under
+# src/app/api/student/, calls Anthropic (directly OR transitively via a
+# helper imported from a path containing Anthropic), AND either invokes
+# withAIBudget in the file body OR carries a `// budget-skip: <reason>`
+# annotation. Routes with neither are flagged as `missing` and surface
+# in docs/scanner-reports/ai-budget-coverage.json.
+
+# Direct Anthropic SDK usage
+ANTHROPIC_DIRECT_RE = re.compile(
+    r"""(new\s+Anthropic\b|\bmessages\.create\b|@anthropic-ai/sdk)"""
+)
+
+# Known AI-bearing helper functions imported from libs. When a student route
+# imports any of these, it transitively calls Anthropic through the helper —
+# the route still needs `withAIBudget` wrapping (or a budget-skip marker).
+# Add to this list when a new lib exposes a student-attributed AI proxy.
+AI_BEARING_HELPER_RE = re.compile(
+    r"""\b(generateResponse|callDesignAssistantAI)\b"""
+)
+
+# Wrapper / withAIBudget invocation
+WITH_AI_BUDGET_RE = re.compile(r"\bwithAIBudget\b")
+
+# Skip marker
+BUDGET_SKIP_RE = re.compile(r"//\s*budget-skip:\s*(.+?)\s*$", re.MULTILINE)
+
+
+def is_student_route(filepath):
+    """Return True if a route file lives under src/app/api/student/."""
+    rel_path = os.path.relpath(filepath, REPO_ROOT)
+    return "src/app/api/student/" in rel_path
+
+
+def classify_budget_coverage(content):
+    """
+    Return a dict describing the budget-coverage status of a student-route file:
+      { "status": "covered" | "skipped" | "missing" | "n/a",
+        "skip_reason": str | None,
+        "calls_anthropic": bool,           # direct OR via known helper
+        "has_with_ai_budget": bool }
+
+    "n/a" when the file does not call Anthropic in any form (direct OR via
+    a known AI-bearing helper) so budget enforcement is not relevant.
+    """
+    direct = bool(ANTHROPIC_DIRECT_RE.search(content))
+    via_helper = bool(AI_BEARING_HELPER_RE.search(content))
+    calls_anthropic = direct or via_helper
+    if not calls_anthropic:
+        return {
+            "status": "n/a",
+            "skip_reason": None,
+            "calls_anthropic": False,
+            "has_with_ai_budget": False,
+        }
+
+    has_wrapper = bool(WITH_AI_BUDGET_RE.search(content))
+    skip_match = BUDGET_SKIP_RE.search(content)
+    skip_reason = skip_match.group(1).strip() if skip_match else None
+
+    if has_wrapper:
+        # Coverage wins over skip if both are present (favour the real
+        # wrapper over a stale annotation).
+        status = "covered"
+    elif skip_reason:
+        status = "skipped"
+    else:
+        status = "missing"
+
+    return {
+        "status": status,
+        "skip_reason": skip_reason,
+        "calls_anthropic": True,
+        "has_with_ai_budget": has_wrapper,
+    }
+
+
+def scan_budget_coverage():
+    """
+    Walk every student-route file and classify its budget coverage.
+    Returns a structured report ready for JSON serialisation.
+    """
+    route_files = [f for f in find_route_files() if is_student_route(f)]
+    covered = []
+    skipped = []
+    missing = []
+
+    for filepath in route_files:
+        with open(filepath) as f:
+            content = f.read()
+        result = classify_budget_coverage(content)
+        if result["status"] == "n/a":
+            continue
+        rel_file = os.path.relpath(filepath, REPO_ROOT)
+        entry = {"file": rel_file}
+        if result["status"] == "covered":
+            covered.append(entry)
+        elif result["status"] == "skipped":
+            entry["reason"] = result["skip_reason"]
+            skipped.append(entry)
+        else:
+            missing.append(entry)
+
+    covered.sort(key=lambda e: e["file"])
+    skipped.sort(key=lambda e: e["file"])
+    missing.sort(key=lambda e: e["file"])
+
+    total = len(covered) + len(skipped) + len(missing)
+    return {
+        "registry": "ai-budget-coverage",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "version": 1,
+        "stats": {
+            "total_student_ai_routes": total,
+            "covered": len(covered),
+            "skipped": len(skipped),
+            "missing": len(missing),
+        },
+        "covered": covered,
+        "skipped": skipped,
+        "missing": missing,
+    }
+
+
+def write_budget_coverage_report(report):
+    """Write the budget-coverage report to docs/scanner-reports/ai-budget-coverage.json."""
+    os.makedirs(os.path.dirname(BUDGET_COVERAGE_REPORT_PATH), exist_ok=True)
+    with open(BUDGET_COVERAGE_REPORT_PATH, "w") as f:
+        json.dump(report, f, indent=2)
+        f.write("\n")
+
+
+def run_budget_coverage_check(fail_on_missing):
+    """
+    --check-budget-coverage handler. Always emits the JSON report. Exits
+    non-zero only when fail_on_missing is set AND missing list is non-empty.
+    """
+    report = scan_budget_coverage()
+    write_budget_coverage_report(report)
+    stats = report["stats"]
+    print(
+        f"AI budget coverage: {stats['covered']} covered, "
+        f"{stats['skipped']} skipped, "
+        f"{stats['missing']} missing "
+        f"(of {stats['total_student_ai_routes']} student AI routes)"
+    )
+    if report["skipped"]:
+        print(f"\nSkipped (with reason):")
+        for entry in report["skipped"]:
+            print(f"  {entry['file']} — {entry['reason']}")
+    if report["missing"]:
+        print(f"\nMissing withAIBudget (top 20):")
+        for entry in report["missing"][:20]:
+            print(f"  {entry['file']}")
+        if len(report["missing"]) > 20:
+            print(
+                f"  ... and {len(report['missing']) - 20} more (see {BUDGET_COVERAGE_REPORT_PATH})"
+            )
+    print(f"\nReport written to {BUDGET_COVERAGE_REPORT_PATH}")
+    if fail_on_missing and report["missing"]:
+        print(
+            f"\n⛔ GATE FAIL: {len(report['missing'])} student AI route(s) missing withAIBudget. "
+            f"Wire withAIBudget OR add `// budget-skip: <reason>` OR file FU-AV2-AI-BUDGET-MISSING-{{ROUTE}} P2."
+        )
+        return 1
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Schema registry cross-validation
 # ---------------------------------------------------------------------------
 
@@ -355,9 +692,30 @@ def build_header(total):
 def main():
     parser = argparse.ArgumentParser(description="Scan API routes and produce api-registry.yaml")
     parser.add_argument("--apply", action="store_true", help="Write changes (default: dry-run)")
+    parser.add_argument(
+        "--check-audit-coverage",
+        action="store_true",
+        help="Phase 5.1d — emit docs/scanner-reports/audit-coverage.json and exit (skips yaml emission).",
+    )
+    parser.add_argument(
+        "--check-budget-coverage",
+        action="store_true",
+        help="Phase 5.3d — emit docs/scanner-reports/ai-budget-coverage.json and exit (skips yaml emission).",
+    )
+    parser.add_argument(
+        "--fail-on-missing",
+        action="store_true",
+        help="With --check-audit-coverage OR --check-budget-coverage: exit non-zero if missing > 0 (CI gate).",
+    )
     args = parser.parse_args()
 
     os.chdir(REPO_ROOT)
+
+    if args.check_audit_coverage:
+        return run_audit_coverage_check(fail_on_missing=args.fail_on_missing)
+
+    if args.check_budget_coverage:
+        return run_budget_coverage_check(fail_on_missing=args.fail_on_missing)
 
     entries, route_files, unknown_table_refs = scan_all_routes()
 
@@ -420,8 +778,11 @@ def main():
     if max_reads > 15 or max_writes > 15:
         print(f"\n⛔ GATE FAIL: max tables_read={max_reads}, max tables_written={max_writes} (>15)")
         gate_fail = True
-    if total < 150 or total > 400:
-        print(f"\n⛔ GATE FAIL: total entries {total} outside expected range 150-400")
+    # Bumped 4 May 2026 (Phase 5.8 close-out): 400 → 600. Phase 4 + Phase 5
+    # added ~30 routes; Phase 6 cutover will add the /api/v1/* alias pass.
+    # 600 leaves headroom for ~6 more phase-sized additions.
+    if total < 150 or total > 600:
+        print(f"\n⛔ GATE FAIL: total entries {total} outside expected range 150-600")
         gate_fail = True
 
     if gate_fail:

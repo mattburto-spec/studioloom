@@ -68,6 +68,7 @@ import {
   provisionStudentAuthUserOrThrow,
   syntheticEmailForStudentId,
 } from "@/lib/access-v2/provision-student-auth-user";
+import { logAuditEvent } from "@/lib/access-v2/audit-log";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Rate-limit configuration
@@ -110,32 +111,27 @@ async function logLoginEvent(
   supabaseAdmin: any,
   payload: LoginAuditPayload
 ): Promise<void> {
-  try {
-    const { error } = await supabaseAdmin.from("audit_events").insert({
-      actor_id: payload.actor_id,
-      actor_type: payload.actor_type,
-      action: payload.action,
-      severity: payload.severity,
-      target_table: payload.studentId ? "students" : null,
-      target_id: payload.studentId ?? null,
-      school_id: payload.schoolId ?? null,
-      class_id: payload.classId ?? null,
-      payload_jsonb: {
-        classCode: payload.classCode,
-        ...(payload.failureReason && { failureReason: payload.failureReason }),
-      },
-      ip_address: payload.ip === "unknown" ? null : payload.ip,
-      user_agent: payload.userAgent,
-    });
-    if (error) {
-      // Audit-log failures must NEVER fail the request — we degrade silently
-      // and surface to ops via the warn level. logAuditEvent (Phase 5) will
-      // add Sentry breadcrumb + retry queue.
-      console.warn("[student-classcode-login] audit_events insert failed:", error.message);
-    }
-  } catch (e) {
-    console.warn("[student-classcode-login] audit_events insert threw:", (e as Error).message);
-  }
+  // failureMode 'soft-warn' — auth flow MUST NOT break on audit failure.
+  // (The other retrofits use 'soft-sentry' to capture the gap loudly; the
+  // login path is the lone exception per Q2 resolution — Sentry inside the
+  // auth POST handler can itself fail and we'd cascade.)
+  await logAuditEvent(supabaseAdmin, {
+    actorId: payload.actor_id,
+    actorType: payload.actor_type,
+    action: payload.action,
+    severity: payload.severity,
+    targetTable: payload.studentId ? "students" : null,
+    targetId: payload.studentId ?? null,
+    schoolId: payload.schoolId ?? null,
+    classId: payload.classId ?? null,
+    payload: {
+      classCode: payload.classCode,
+      ...(payload.failureReason && { failureReason: payload.failureReason }),
+    },
+    ip: payload.ip === "unknown" ? null : payload.ip,
+    userAgent: payload.userAgent,
+    failureMode: "soft-warn",
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────

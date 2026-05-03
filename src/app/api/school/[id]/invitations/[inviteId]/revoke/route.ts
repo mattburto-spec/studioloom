@@ -21,6 +21,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revokeInvitation } from "@/lib/access-v2/school/invitations";
 import { isPlatformAdmin } from "@/lib/auth/require-platform-admin";
+import { logAuditEvent } from "@/lib/access-v2/audit-log";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -103,20 +104,22 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       );
     }
 
-    // Audit row
-    await admin.from("audit_events").insert({
-      actor_id: user.id,
-      actor_type: "teacher",
+    // Audit row — failureMode 'soft-sentry': revoke must succeed even on
+    // audit hiccup, but the gap is critical for forensic visibility.
+    await logAuditEvent(admin, {
+      actorId: user.id,
+      actorType: "teacher",
       action: "school_invitation.revoked",
-      target_table: "school_invitations",
-      target_id: inviteId,
-      school_id: schoolId,
+      targetTable: "school_invitations",
+      targetId: inviteId,
+      schoolId: schoolId,
       severity: "info",
-      payload_jsonb: {
+      payload: {
         invitation_id: inviteId,
         revoked_by: user.id,
         revoke_via: platformAdmin ? "platform_admin" : "school_admin",
       },
+      failureMode: "soft-sentry",
     });
 
     return NextResponse.json(

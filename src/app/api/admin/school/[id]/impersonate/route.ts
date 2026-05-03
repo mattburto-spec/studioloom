@@ -31,6 +31,7 @@ import {
   buildImpersonationUrl,
   IMPERSONATION_TOKEN_TTL_MS,
 } from "@/lib/auth/impersonation";
+import { logAuditEvent } from "@/lib/access-v2/audit-log";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SAFE_REDIRECT_RE = /^\/teacher\/[^?#]*$/;
@@ -124,21 +125,24 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     const url = buildImpersonationUrl({ token, redirectPath });
     const expiresAtMs = Date.now() + IMPERSONATION_TOKEN_TTL_MS;
 
-    // Audit row — issuance (the consuming route logs a second row on use)
-    await supabase.from("audit_events").insert({
-      actor_id: auth.userId,
-      actor_type: "platform_admin",
+    // Audit row — issuance (the consuming route logs a second row on use).
+    // failureMode 'soft-sentry' — admin must get the URL even on audit hiccup,
+    // but the gap is critical for forensic visibility so Sentry captures it.
+    await logAuditEvent(supabase, {
+      actorId: auth.userId,
+      actorType: "platform_admin",
       action: "platform_admin.impersonation_url_issued",
-      target_table: "teachers",
-      target_id: targetTeacherId,
-      school_id: schoolId,
-      payload_jsonb: {
+      targetTable: "teachers",
+      targetId: targetTeacherId,
+      schoolId: schoolId,
+      payload: {
         admin_email: auth.email,
         target_teacher_id: targetTeacherId,
         redirect_path: redirectPath ?? "/teacher/dashboard",
         expires_at_ms: expiresAtMs,
       },
       severity: "warn", // visible in admin filtered view
+      failureMode: "soft-sentry",
     });
 
     return NextResponse.json(

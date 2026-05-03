@@ -21,6 +21,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logAuditEvent } from "../audit-log";
 
 export type RequestUseArgs = {
   unitId: string;
@@ -282,21 +283,24 @@ export async function approveRequest(
     .update({ forked_unit_id: newUnit.id })
     .eq("id", args.requestId);
 
-  // 6. Audit row
-  await db.from("audit_events").insert({
-    actor_id: args.authorUserId,
-    actor_type: "teacher",
+  // 6. Audit row — failureMode 'soft-sentry': fork already created, request
+  // already updated; audit hiccup must not undo the share, but the gap is
+  // forensically important so Sentry captures it.
+  await logAuditEvent(db, {
+    actorId: args.authorUserId,
+    actorType: "teacher",
     action: "unit_use_request.approved",
-    target_table: "unit_use_requests",
-    target_id: args.requestId,
-    school_id: req.school_id,
+    targetTable: "unit_use_requests",
+    targetId: args.requestId,
+    schoolId: req.school_id,
     severity: "info",
-    payload_jsonb: {
+    payload: {
       request_id: args.requestId,
       source_unit_id: req.unit_id,
       forked_unit_id: newUnit.id,
       requester: req.requester_user_id,
     },
+    failureMode: "soft-sentry",
   });
 
   return { ok: true, requestId: args.requestId, forkedUnitId: newUnit.id };
@@ -370,18 +374,21 @@ export async function denyRequest(
     return { ok: false, reason: "db_error", message: updErr.message };
   }
 
-  await db.from("audit_events").insert({
-    actor_id: args.authorUserId,
-    actor_type: "teacher",
+  // failureMode 'soft-sentry': deny status already written; audit hiccup
+  // must not block the response.
+  await logAuditEvent(db, {
+    actorId: args.authorUserId,
+    actorType: "teacher",
     action: "unit_use_request.denied",
-    target_table: "unit_use_requests",
-    target_id: args.requestId,
-    school_id: req.school_id,
+    targetTable: "unit_use_requests",
+    targetId: args.requestId,
+    schoolId: req.school_id,
     severity: "info",
-    payload_jsonb: {
+    payload: {
       request_id: args.requestId,
       response_provided: !!args.response,
     },
+    failureMode: "soft-sentry",
   });
 
   return { ok: true, requestId: args.requestId };

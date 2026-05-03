@@ -3378,3 +3378,34 @@ Plus the NIS tier flip + Gmail-Matt detach as ops changes.
 **RLS coverage**: clean. 111 → 114 tables (+3 from part 2: school_merge_requests, school_invitations, unit_use_requests). All have RLS + policies.
 
 **Next**: Phase 5 (Privacy & Compliance — audit log infrastructure + AI budget cascade + data export/delete + retention cron + cost-alert + Sentry PII scrub) → Phase 6 (Cutover & Cleanup) → Checkpoint A7 PILOT-READY. Total to PILOT-READY ~5-6 days.
+
+---
+
+## 2026-05-04 — Access Model v2 Phase 5 SHIPPED + Checkpoint A6 READY (~150 min, 9 commits)
+
+**Branch**: `access-model-v2-phase-5` (10 commits ahead of `v0.4-phase-4-closed`, local-only — awaiting Matt's manual smoke before merge).
+
+**Sub-phases shipped**: 5.0 (scaffolds + runbook skeleton) → 5.1 (logAuditEvent wrapper, 3-mode failure, 12 retrofits) → 5.1d (audit-coverage CI gate, visibility-only) → 5.2 (AI budget cascade resolver + atomic SQL helper) → 5.3 (withAIBudget middleware + 3 student AI routes wired) → 5.3d (budget-coverage CI gate, gating from day one) → 5.4 (data-subject endpoints + scheduled_deletions table) → 5.5 (retention cron + scheduled-hard-delete cron) → 5.6 (teacher audit-log view) → 5.7 (cost-alert + Sentry PII scrub runbooks) → 5.8 (registry sync + close-out).
+
+**Tests**: 3291 → **3495** (+204), 11 skipped. tsc strict 0 errors throughout.
+
+**Migrations**: 2 (`phase_5_2_atomic_ai_budget_increment` applied to prod; `phase_5_4_scheduled_deletions` PENDING apply by Matt).
+
+**Q1–Q7 resolutions** (signed off 3 May 2026 PM): tier defaults code-constants + admin_settings runtime override; 3-mode audit failure semantics ('throw' / 'soft-warn' / 'soft-sentry'); Q3+Q6 collapsed into the budget-coverage scanner; per-table cascade fan-out; `scheduled_deletions` table (not query-based); budget-coverage CI gate gating from day one; strict timestamp-based retention with held-row + indefinite-column guards.
+
+**FUs filed during Phase 5 (4 new)**: FU-AV2-AI-BUDGET-EXHAUSTED-EMAIL P3, FU-AV2-AI-BUDGET-WIRE-TOOL-SESSIONS-AND-OTHER-AI P2, FU-AV2-AUDIT-MISSING-PHASE-6-CATCHUP P2 (228 inherited routes, Phase 6 cutover natural seam), FU-AV2-CRON-SCHEDULER-WIRE P2 (pre-pilot — needed before first DSR delete).
+
+**Brief vs. reality drift recorded**: brief named 4 routes for §5.3; `safety/check-requirements` is GET-only (no AI) → 3 wired. Brief named 9 retrofit sites for §5.1; grep found 12 (Phase 4.6's `unit-use-requests.ts` × 2 missed; folded in per Lesson #60). Brief said `can.ts:96` TODO emits audit; redesigned as no-emit with comment (per-permission-check audit would explode the table).
+
+**Coverage scanners (new)**: `audit-coverage` visibility-only (4 covered + 1 skipped + 228 inherited); `ai-budget-coverage` gating from day one (3/3 covered).
+
+**Lessons applied**: #34/#38/#39/#41/#43-46/#54/#59/#60/#61/#64/#66 throughout. Two NCs caught real test weaknesses (regex breadth in §5.2 migration test, action-string mutation in §5.4 delete-student).
+
+**Pending Matt actions before A6 sign-off + merge**:
+1. Apply migration `20260503143034_phase_5_4_scheduled_deletions.sql` to prod
+2. Smoke-test `/api/v1/student/[id]/export` + DELETE on a test student
+3. Cost-alert fire drill per `docs/security/cost-alert-fire-drill.md`
+4. Sentry PII scrub verification per `docs/security/sentry-pii-scrub-procedure.md`
+5. Sign off Checkpoint A6 + merge to main + tag `v0.5-phase-5-closed`
+
+**Next**: Phase 6 (Cutover & Cleanup — `/api/v1/*` rename pass, ADRs 003/011/012/013, registry sync, RLS-no-policy doc, 3-Matts merge decision, ~2-3 days, Checkpoint A7 PILOT-READY).

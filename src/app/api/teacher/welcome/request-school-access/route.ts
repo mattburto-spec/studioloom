@@ -26,6 +26,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logAuditEvent } from "@/lib/access-v2/audit-log";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -129,20 +130,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Server error" }, { status: 500 });
     }
 
-    // Audit row — surfaces in school_admin's audit feed
-    await admin.from("audit_events").insert({
-      actor_id: user.id,
-      actor_type: "teacher",
+    // Audit row — surfaces in school_admin's audit feed.
+    // failureMode 'soft-sentry': request must succeed even on audit hiccup.
+    await logAuditEvent(admin, {
+      actorId: user.id,
+      actorType: "teacher",
       action: "school.access_requested",
-      target_table: "teacher_access_requests",
-      target_id: created.id,
-      school_id: schoolId,
+      targetTable: "teacher_access_requests",
+      targetId: created.id,
+      schoolId: schoolId,
       severity: "info",
-      payload_jsonb: {
+      payload: {
         request_id: created.id,
         requester_email: user.email.toLowerCase(),
         school_name: school.name,
       },
+      failureMode: "soft-sentry",
     });
 
     return NextResponse.json(

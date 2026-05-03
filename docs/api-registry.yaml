@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 398
+# Total routes: 426
 
 routes:
 - path: /api/admin/ai-model
@@ -260,13 +260,76 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/admin/school/[id]
+  method: GET
+  file: src/app/api/admin/school/[id]/route.ts
+  auth: admin
+  tables_read:
+  - audit_events
+  - classes
+  - fabricators
+  - school_domains
+  - school_merge_requests
+  - school_setting_changes
+  - schools
+  - teachers
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'school_domains' — not in schema-registry; Reference to unknown table 'school_merge_requests'
+    — not in schema-registry; Reference to unknown table 'school_setting_changes' — not in schema-registry
+- path: /api/admin/school/[id]/impersonate
+  method: POST
+  file: src/app/api/admin/school/[id]/impersonate/route.ts
+  auth: admin
+  tables_read:
+  - teachers
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/admin/school/[id]/merge-requests
+  method: GET
+  file: src/app/api/admin/school/[id]/merge-requests/route.ts
+  auth: mixed
+  tables_read:
+  - school_merge_requests
+  - user_profiles
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: 'Multiple auth patterns detected: admin, teacher; Reference to unknown table ''school_merge_requests'' — not in schema-registry'
+- path: /api/admin/school/[id]/merge-requests/[mergeId]/approve
+  method: POST
+  file: src/app/api/admin/school/[id]/merge-requests/[mergeId]/approve/route.ts
+  auth: mixed
+  tables_read:
+  - school_merge_requests
+  - user_profiles
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: 'Multiple auth patterns detected: admin, teacher; Reference to unknown table ''school_merge_requests'' — not in schema-registry'
+- path: /api/admin/school/[id]/merge-requests/[mergeId]/reject
+  method: POST
+  file: src/app/api/admin/school/[id]/merge-requests/[mergeId]/reject/route.ts
+  auth: mixed
+  tables_read:
+  - school_merge_requests
+  - user_profiles
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: 'Multiple auth patterns detected: admin, teacher; Reference to unknown table ''school_merge_requests'' — not in schema-registry'
 - path: /api/admin/schools
   method: GET
   file: src/app/api/admin/schools/route.ts
   auth: admin
   tables_read:
-  - class_students
+  - audit_events
   - classes
+  - schools
+  - students
   - teachers
   tables_written: []
   ai_call_sites: []
@@ -377,6 +440,15 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/auth/accept-school-invitation
+  method: POST
+  file: src/app/api/auth/accept-school-invitation/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/auth/lti/launch
   method: POST
   file: src/app/api/auth/lti/launch/route.ts
@@ -401,7 +473,6 @@ routes:
   - classes
   - students
   tables_written:
-  - audit_events
   - students
   ai_call_sites: []
   cost_ceiling_usd: null
@@ -678,6 +749,153 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/school/[id]
+  method: GET
+  file: src/app/api/school/[id]/route.ts
+  auth: teacher
+  tables_read:
+  - school_setting_changes
+  - schools
+  - teachers
+  - user_profiles
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'school_setting_changes' — not in schema-registry
+- path: /api/school/[id]/changes/[changeId]/revert
+  method: POST
+  file: src/app/api/school/[id]/changes/[changeId]/revert/route.ts
+  auth: teacher
+  tables_read:
+  - school_setting_changes
+  - teachers
+  - user_profiles
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'school_setting_changes' — not in schema-registry
+- path: /api/school/[id]/domains
+  method: GET
+  file: src/app/api/school/[id]/domains/route.ts
+  auth: teacher
+  tables_read:
+  - school_domains
+  - teachers
+  tables_written:
+  - school_domains
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'school_domains' — not in schema-registry
+- path: /api/school/[id]/domains
+  method: POST
+  file: src/app/api/school/[id]/domains/route.ts
+  auth: teacher
+  tables_read:
+  - school_domains
+  - teachers
+  tables_written:
+  - school_domains
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'school_domains' — not in schema-registry
+- path: /api/school/[id]/domains/[domainId]
+  method: DELETE
+  file: src/app/api/school/[id]/domains/[domainId]/route.ts
+  auth: teacher
+  tables_read:
+  - school_domains
+  - teachers
+  - user_profiles
+  tables_written:
+  - school_domains
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'school_domains' — not in schema-registry
+- path: /api/school/[id]/invitations
+  method: GET
+  file: src/app/api/school/[id]/invitations/route.ts
+  auth: teacher
+  tables_read:
+  - school_invitations
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'school_invitations' — not in schema-registry
+- path: /api/school/[id]/invitations
+  method: POST
+  file: src/app/api/school/[id]/invitations/route.ts
+  auth: teacher
+  tables_read:
+  - school_invitations
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'school_invitations' — not in schema-registry
+- path: /api/school/[id]/invitations/[inviteId]/revoke
+  method: POST
+  file: src/app/api/school/[id]/invitations/[inviteId]/revoke/route.ts
+  auth: teacher
+  tables_read:
+  - school_invitations
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'school_invitations' — not in schema-registry
+- path: /api/school/[id]/library
+  method: GET
+  file: src/app/api/school/[id]/library/route.ts
+  auth: teacher
+  tables_read:
+  - teachers
+  - units
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/school/[id]/library/[unitId]/request-use
+  method: POST
+  file: src/app/api/school/[id]/library/[unitId]/request-use/route.ts
+  auth: teacher
+  tables_read:
+  - teachers
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/school/[id]/merge-requests
+  method: POST
+  file: src/app/api/school/[id]/merge-requests/route.ts
+  auth: teacher
+  tables_read:
+  - teachers
+  - user_profiles
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/school/[id]/proposals/[changeId]/confirm
+  method: POST
+  file: src/app/api/school/[id]/proposals/[changeId]/confirm/route.ts
+  auth: teacher
+  tables_read:
+  - school_setting_changes
+  - teachers
+  - user_profiles
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'school_setting_changes' — not in schema-registry
+- path: /api/school/[id]/settings
+  method: PATCH
+  file: src/app/api/school/[id]/settings/route.ts
+  auth: teacher
+  tables_read:
+  - teachers
+  - user_profiles
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/schools
   method: POST
   file: src/app/api/schools/route.ts
@@ -686,6 +904,15 @@ routes:
   - schools
   tables_written:
   - schools
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/schools/lookup-by-domain
+  method: GET
+  file: src/app/api/schools/lookup-by-domain/route.ts
+  auth: service-role
+  tables_read: []
+  tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
@@ -3066,6 +3293,46 @@ routes:
   - class_members
   - school_responsibilities
   - student_mentors
+  - students
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/me/unit-use-requests
+  method: GET
+  file: src/app/api/teacher/me/unit-use-requests/route.ts
+  auth: teacher
+  tables_read:
+  - teachers
+  - unit_use_requests
+  - units
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'unit_use_requests' — not in schema-registry
+- path: /api/teacher/me/unit-use-requests/[requestId]/approve
+  method: POST
+  file: src/app/api/teacher/me/unit-use-requests/[requestId]/approve/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/me/unit-use-requests/[requestId]/deny
+  method: POST
+  file: src/app/api/teacher/me/unit-use-requests/[requestId]/deny/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/me/unit-use-requests/[requestId]/withdraw
+  method: POST
+  file: src/app/api/teacher/me/unit-use-requests/[requestId]/withdraw/route.ts
+  auth: teacher
+  tables_read: []
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
@@ -4108,6 +4375,18 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/teacher/welcome/request-school-access
+  method: POST
+  file: src/app/api/teacher/welcome/request-school-access/route.ts
+  auth: teacher
+  tables_read:
+  - schools
+  - teacher_access_requests
+  tables_written:
+  - teacher_access_requests
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/teacher/welcome/setup-from-timetable
   method: POST
   file: src/app/api/teacher/welcome/setup-from-timetable/route.ts
@@ -4493,6 +4772,36 @@ routes:
   file: src/app/api/tts/route.ts
   auth: public
   tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/v1/student/[id]
+  method: DELETE
+  file: src/app/api/v1/student/[id]/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/v1/student/[id]/export
+  method: GET
+  file: src/app/api/v1/student/[id]/export/route.ts
+  auth: teacher
+  tables_read:
+  - students
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/v1/teacher/students/[id]/audit-log
+  method: GET
+  file: src/app/api/v1/teacher/students/[id]/audit-log/route.ts
+  auth: teacher
+  tables_read:
+  - audit_events
+  - students
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null

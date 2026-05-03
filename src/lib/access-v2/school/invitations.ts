@@ -31,6 +31,7 @@
 import { randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logAuditEvent } from "../audit-log";
 
 export const INVITATION_TOKEN_BYTES = 32;
 export const INVITATION_DEFAULT_EXPIRY_DAYS = 14;
@@ -363,20 +364,23 @@ export async function acceptInvitation(
     }
   }
 
-  // 8. Audit row
-  await db.from("audit_events").insert({
-    actor_id: args.acceptingUserId,
-    actor_type: "teacher",
+  // 8. Audit row — failureMode 'soft-sentry': accept must succeed even on
+  // audit hiccup (user already joined the school per step 6), but the gap
+  // is critical for forensic visibility so Sentry captures it.
+  await logAuditEvent(db, {
+    actorId: args.acceptingUserId,
+    actorType: "teacher",
     action: "school_invitation.accepted",
-    target_table: "school_invitations",
-    target_id: inv.id,
-    school_id: inv.school_id,
-    payload_jsonb: {
+    targetTable: "school_invitations",
+    targetId: inv.id,
+    schoolId: inv.school_id,
+    payload: {
       invitation_id: inv.id,
       invited_role: inv.invited_role,
       previous_school_id: previousSchoolId,
     },
     severity: "info",
+    failureMode: "soft-sentry",
   });
 
   return {

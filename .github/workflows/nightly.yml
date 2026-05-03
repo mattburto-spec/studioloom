@@ -40,6 +40,29 @@ jobs:
       - name: WIRING.yaml health check
         run: python3 scripts/check-wiring-health.py
 
+      - name: Audit-coverage scanner (Phase 5.1d — visibility-only until catchup FU closes)
+        # Emits docs/scanner-reports/audit-coverage.json. Currently does NOT
+        # gate the build (228 mutation routes inherited from Phase 4 still
+        # need triage; tracked as FU-AV2-AUDIT-MISSING-PHASE-6-CATCHUP P2).
+        # When that FU closes, swap this for `--check-audit-coverage --fail-on-missing`.
+        run: python3 scripts/registry/scan-api-routes.py --check-audit-coverage
+
+      - name: AI budget-coverage gate (Phase 5.3d — gating from day one)
+        # Emits docs/scanner-reports/ai-budget-coverage.json. Gates the build
+        # on missing > 0 (current state: 3 covered / 0 skipped / 0 missing).
+        # Any future student AI route added without `withAIBudget()` (or
+        # `// budget-skip: <reason>` annotation) fails this step.
+        run: python3 scripts/registry/scan-api-routes.py --check-budget-coverage --fail-on-missing
+
+      # Phase 5.5 cron entry points exist at:
+      #   scripts/ops/run-retention-enforcement.ts
+      #   scripts/ops/run-scheduled-hard-delete.ts
+      # NOT wired here — nightly.yml is for code gates, not runtime jobs
+      # (cost-alert.ts pattern is the same — script ships, scheduling decided
+      # separately). Tracked as FU-AV2-CRON-SCHEDULER-WIRE P2 — needs a call
+      # on Vercel cron vs GitHub Actions schedule vs external scheduler +
+      # secret-management for SUPABASE_SERVICE_ROLE_KEY.
+
       - name: Full build
         run: npm run build
         env:

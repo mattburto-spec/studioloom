@@ -50,6 +50,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enforceArchivedReadOnly } from "../school/archived-guard";
+import { logAuditEvent } from "../audit-log";
 
 // ─────────────────────────────────────────────────────────────────────
 // Cascade table list
@@ -339,14 +340,15 @@ export async function approveMergeRequest(args: {
     if (updateErr) {
       // Stop on first error. Row stays at 'approved' status — completed_at
       // not set — partial cascade requires manual intervention or retry.
-      // Log a failure audit row.
-      await db.from("audit_events").insert({
-        actor_id: approverId,
-        actor_type: "platform_admin",
+      // Log a failure audit row. failureMode 'throw' — cascade integrity is
+      // non-negotiable; if we can't audit the failure we surface it loudly.
+      await logAuditEvent(db, {
+        actorId: approverId,
+        actorType: "platform_admin",
         action: "school_merge_cascade_failed",
-        target_table: table,
-        school_id: intoId,
-        payload_jsonb: {
+        targetTable: table,
+        schoolId: intoId,
+        payload: {
           merge_request_id: mergeId,
           from_school_id: fromId,
           into_school_id: intoId,
@@ -355,6 +357,7 @@ export async function approveMergeRequest(args: {
           partial_row_counts: cascadeRowCounts,
         },
         severity: "critical",
+        failureMode: "throw",
       });
 
       return {
@@ -371,13 +374,13 @@ export async function approveMergeRequest(args: {
     totalRowsUpdated += rowsUpdated;
 
     // Per §3.9 item 15 — one audit row per table touched
-    await db.from("audit_events").insert({
-      actor_id: approverId,
-      actor_type: "platform_admin",
+    await logAuditEvent(db, {
+      actorId: approverId,
+      actorType: "platform_admin",
       action: "school_merge_cascade_table",
-      target_table: table,
-      school_id: intoId,
-      payload_jsonb: {
+      targetTable: table,
+      schoolId: intoId,
+      payload: {
         merge_request_id: mergeId,
         from_school_id: fromId,
         into_school_id: intoId,
@@ -385,6 +388,7 @@ export async function approveMergeRequest(args: {
         rows_updated: rowsUpdated,
       },
       severity: "info",
+      failureMode: "throw",
     });
   }
 
@@ -397,19 +401,20 @@ export async function approveMergeRequest(args: {
     })
     .eq("id", fromId);
   if (schoolFlipErr) {
-    await db.from("audit_events").insert({
-      actor_id: approverId,
-      actor_type: "platform_admin",
+    await logAuditEvent(db, {
+      actorId: approverId,
+      actorType: "platform_admin",
       action: "school_merge_school_flip_failed",
-      target_table: "schools",
-      target_id: fromId,
-      school_id: intoId,
-      payload_jsonb: {
+      targetTable: "schools",
+      targetId: fromId,
+      schoolId: intoId,
+      payload: {
         merge_request_id: mergeId,
         error: schoolFlipErr.message,
         cascade_completed: cascadeRowCounts,
       },
       severity: "critical",
+      failureMode: "throw",
     });
     return {
       ok: false,
@@ -437,14 +442,14 @@ export async function approveMergeRequest(args: {
   }
 
   // 7. Summary audit row — one per merge
-  await db.from("audit_events").insert({
-    actor_id: approverId,
-    actor_type: "platform_admin",
+  await logAuditEvent(db, {
+    actorId: approverId,
+    actorType: "platform_admin",
     action: "school_merge_completed",
-    target_table: "school_merge_requests",
-    target_id: mergeId,
-    school_id: intoId,
-    payload_jsonb: {
+    targetTable: "school_merge_requests",
+    targetId: mergeId,
+    schoolId: intoId,
+    payload: {
       merge_request_id: mergeId,
       from_school_id: fromId,
       into_school_id: intoId,
@@ -452,6 +457,7 @@ export async function approveMergeRequest(args: {
       per_table_row_counts: cascadeRowCounts,
     },
     severity: "info",
+    failureMode: "throw",
   });
 
   return {
@@ -530,17 +536,18 @@ export async function rejectMergeRequest(args: {
   }
 
   // 4. Audit row
-  await db.from("audit_events").insert({
-    actor_id: approverId,
-    actor_type: "platform_admin",
+  await logAuditEvent(db, {
+    actorId: approverId,
+    actorType: "platform_admin",
     action: "school_merge_rejected",
-    target_table: "school_merge_requests",
-    target_id: mergeId,
-    payload_jsonb: {
+    targetTable: "school_merge_requests",
+    targetId: mergeId,
+    payload: {
       merge_request_id: mergeId,
       rejection_reason: rejectionReason ?? null,
     },
     severity: "info",
+    failureMode: "throw",
   });
 
   return { ok: true, mergeId };
