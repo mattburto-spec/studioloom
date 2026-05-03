@@ -47,6 +47,13 @@ jobs:
         # When that FU closes, swap this for `--check-audit-coverage --fail-on-missing`.
         run: python3 scripts/registry/scan-api-routes.py --check-audit-coverage
 
+      - name: AI budget-coverage gate (Phase 5.3d — gating from day one)
+        # Emits docs/scanner-reports/ai-budget-coverage.json. Gates the build
+        # on missing > 0 (current state: 3 covered / 0 skipped / 0 missing).
+        # Any future student AI route added without `withAIBudget()` (or
+        # `// budget-skip: <reason>` annotation) fails this step.
+        run: python3 scripts/registry/scan-api-routes.py --check-budget-coverage --fail-on-missing
+
       - name: Full build
         run: npm run build
         env:
