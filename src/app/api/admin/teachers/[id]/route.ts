@@ -61,6 +61,9 @@ export async function DELETE(
   }
 
   // Guard: don't delete teachers who still own content.
+  // access-check-skip: not actor-ownership predicates — `id` is the target
+  // teacher being deleted (route is platform-admin gated upstream); these
+  // .eqs count the target's owned resources to prevent orphaning.
   const [{ count: classCount }, { count: unitCount }] = await Promise.all([
     supabase
       .from("classes")

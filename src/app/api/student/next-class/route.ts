@@ -85,6 +85,10 @@ async function GET(request: NextRequest) {
     }
 
     // Load teacher's timetable
+    // access-check-skip: looks up the unit-author teacher's published
+    // timetable for the student's "when's my next class" widget; the
+    // teacher_id here comes from `unit` already resolved against the
+    // student's enrolment, not from the actor.
     const { data: timetable } = await supabase
       .from("school_timetable")
       .select("*")

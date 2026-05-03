@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { verifyTeacherHasUnit } from "@/lib/auth/verify-teacher-unit";
 // Legacy knowledge pipeline helpers removed (Phase 0.4, 10 Apr 2026):
 //   - ingest-unit.ts deleted (was dead code, wrote knowledge_chunks)
 //   - recordFork() still in feedback.ts but not imported here
@@ -59,6 +60,9 @@ export async function GET(request: NextRequest) {
     .eq("is_published", true);
 
   if (authorTeacherId) {
+    // access-check-skip: optional ?authorTeacherId= filter for browsing
+    // published units; the .eq("is_published", true) above is the
+    // published-content public-read scope, this just narrows by author.
     query = query.eq("author_teacher_id", authorTeacherId);
   }
 
@@ -280,11 +284,20 @@ export async function POST(request: NextRequest) {
     }
 
     case "unpublish": {
+      if (!unitId) {
+        return NextResponse.json({ error: "unitId required" }, { status: 400 });
+      }
+      // Phase 6.2 — gate via can()-backed shim before mutation. Replaces
+      // the inline `.eq("author_teacher_id", user.id)` predicate.
+      const access = await verifyTeacherHasUnit(user.id, unitId);
+      if (!access.hasAccess) {
+        return NextResponse.json({ error: "Unit not found" }, { status: 404 });
+      }
+
       const { error } = await adminClient
         .from("units")
         .update({ is_published: false })
-        .eq("id", unitId)
-        .eq("author_teacher_id", user.id);
+        .eq("id", unitId);
 
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });

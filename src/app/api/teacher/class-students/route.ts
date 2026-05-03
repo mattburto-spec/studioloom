@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
+import {
+  requireTeacherAuth,
+  verifyTeacherOwnsClass,
+} from "@/lib/auth/verify-teacher-unit";
 
 /**
  * DELETE /api/teacher/class-students
@@ -38,26 +41,12 @@ export async function DELETE(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  // Verify teacher owns this class
-  const { data: classRow } = await supabase
-    .from("classes")
-    .select("id")
-    .eq("id", classId)
-    .eq("teacher_id", teacherId)
-    .maybeSingle();
-
-  if (!classRow) {
-    // Try author_teacher_id fallback
-    const { data: classRow2 } = await supabase
-      .from("classes")
-      .select("id")
-      .eq("id", classId)
-      .eq("author_teacher_id", teacherId)
-      .maybeSingle();
-
-    if (!classRow2) {
-      return NextResponse.json({ error: "Class not found" }, { status: 404 });
-    }
+  // Phase 6.2 — gate via can()-backed shim. Opens up co_teacher /
+  // dept_head capability + collapses the dual teacher_id/author_teacher_id
+  // dance into one resolved check.
+  const owns = await verifyTeacherOwnsClass(teacherId, classId);
+  if (!owns) {
+    return NextResponse.json({ error: "Class not found" }, { status: 404 });
   }
 
   // 1. Soft-remove from class_students

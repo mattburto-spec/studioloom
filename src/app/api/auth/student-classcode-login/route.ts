@@ -303,6 +303,10 @@ export async function POST(request: NextRequest) {
       .from("students")
       .select("id, username, display_name, ell_level, user_id, school_id")
       .eq("username", normalizedUsername)
+      // access-check-skip: not an ownership predicate — joins by class
+      // teacher to disambiguate orphan student lookup; classData is already
+      // resolved from a verified classCode, so this is a scope filter, not
+      // an actor permission gate.
       .eq("author_teacher_id", classData.teacher_id)
       .maybeSingle();
     if (orphan) {
