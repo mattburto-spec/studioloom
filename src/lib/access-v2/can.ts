@@ -93,7 +93,14 @@ export async function can(
 
   // ─── 2. Platform admin (Matt) ───────────────────────────────────────
   if (actor.isPlatformAdmin) {
-    // TODO Phase 5: emit logAuditEvent({ kind: 'platform_admin.action', ... })
+    // Audit emission lives at the MUTATION ROUTE, not here. can() runs on
+    // every read + every write check (often many times per pageload); auditing
+    // at this layer would explode the audit_events table with read-noise.
+    // Phase 5.1d's audit-coverage CI gate enforces logAuditEvent() at every
+    // POST/PATCH/DELETE/PUT route — that catches platform-admin mutations
+    // through the same surface as every other actor. The Phase 5.1 brief's
+    // original "wire the can.ts:96 TODO" intent was reframed mid-implementation
+    // (3 May 2026): emitting per-check is the wrong layer; per-mutation is right.
     return true;
   }
 
