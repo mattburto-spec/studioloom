@@ -16,37 +16,29 @@ The IT audit (F24) named this as a pre-pilot blocker because cost runaway is a r
 
 ## Pre-conditions
 
-- [ ] `RESEND_API_KEY` set in Vercel prod env (verify via Vercel dashboard → Settings → Environment Variables).
-- [ ] `COST_ALERT_EMAIL` set to a valid inbox you can check (e.g., `hello@loominary.org`).
-- [ ] You have at least one student account on prod with budget headroom (any test/dev student works).
-- [ ] You have `SUPABASE_SERVICE_ROLE_KEY` available locally for running the cron.
+- [ ] `RESEND_API_KEY` available (in Vercel env vars OR your local `.env` — you'll pass it inline).
+- [ ] `SUPABASE_SERVICE_ROLE_KEY` available locally for running the cron.
+- [ ] Some recent (today) Anthropic cost data in `generation_runs` — any AI call landed today qualifies.
+
+**Note:** the cron runs **locally**, not in Vercel. The Vercel-side `COST_ALERT_*` env vars are NOT required for the drill (and don't need to exist) — every threshold + email is passed inline when invoking the script. Skip Vercel changes entirely.
 
 ---
 
 ## The drill
 
-### Step 1 — Lower the daily threshold to $0.01
+### Step 1 — Trigger one billable AI call (if no recent activity)
 
-In Vercel dashboard → Settings → Environment Variables → Production:
+The cron sums `generation_runs` cost for today. If you've made no AI calls today, you'll need at least one — easiest options:
 
-1. Add or edit `COST_ALERT_DAILY_USD` with value `0.01`.
-2. Click "Save".
-3. Trigger a redeploy (Deployments tab → ⋯ → Redeploy without cache) so the env var lands.
+- Hit any free public tool (`https://studioloom.org/tools/report-writer`) and submit a short prompt
+- Or use the admin sandbox at `https://studioloom.org/admin/ai-model/test` (logged in as platform admin)
+- Or let any existing recent activity stand if there was AI usage today
 
-Capture the original value first — you'll restore it at the end.
+Verify the call succeeded.
 
-### Step 2 — Trigger one student AI call
+### Step 2 — Run the cost-alert cron locally
 
-Any student-facing AI call works. The simplest:
-
-1. Open `https://studioloom.org/student/login` in an incognito tab.
-2. Sign in as a test student with classcode + name.
-3. Navigate into a unit with the Design Assistant available.
-4. Send one short message to the AI mentor.
-
-Verify the call succeeded (you got an AI response).
-
-### Step 3 — Run the cost-alert cron locally
+Get `RESEND_API_KEY` + `SUPABASE_SERVICE_ROLE_KEY` + `NEXT_PUBLIC_SUPABASE_URL` from Vercel (Settings → Environment Variables → Production).
 
 In your local checkout of `questerra-access-v2`:
 
@@ -68,7 +60,9 @@ Summary: { ..., severity: "warning", ... }
 
 The script will hit Resend with a POST to `api.resend.com/emails`.
 
-### Step 4 — Confirm Resend delivered the email
+If `severity: "info"` appears (under threshold), make a few more AI calls + retry — needs >$0.01 of cost in `generation_runs` today.
+
+### Step 3 — Confirm Resend delivered the email
 
 Within 5 minutes:
 
@@ -81,16 +75,7 @@ If no email lands within 5 minutes:
 - Check Resend dashboard for the API call attempt — `4xx` indicates auth/config issue.
 - File `FU-AV2-COST-ALERT-DELIVERY-{date}` if pipeline broken.
 
-### Step 5 — Restore production threshold
-
-Vercel dashboard → Settings → Environment Variables → Production:
-
-1. Edit `COST_ALERT_DAILY_USD` back to its original value (or remove the env var if it wasn't set before).
-2. Redeploy.
-
-Confirm the env var is restored before checkpoint signoff.
-
-### Step 6 — Document the drill
+### Step 4 — Document the drill
 
 Append a row to `docs/security/cost-alert-drill-log.md` (create on first run):
 
