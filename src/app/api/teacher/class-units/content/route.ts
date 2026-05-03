@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
+import {
+  requireTeacherAuth,
+  verifyTeacherHasUnit,
+} from "@/lib/auth/verify-teacher-unit";
 import { ensureForked, hasContent } from "@/lib/units/resolve-content";
 import { trackEdits } from "@/lib/feedback/edit-tracker";
 import type { UnitContentData } from "@/types";
@@ -28,30 +31,22 @@ async function GET(request: NextRequest) {
 
     const supabase = createAdminClient();
 
-    // Verify ownership — try without author filter first if needed
-    let unit: Record<string, unknown> | null = null;
-    const { data: unitData, error: unitErr } = await supabase
+    // Phase 6.2 — gate via can()-backed shim. Replaces the
+    // try-with-author-then-fallback dance (which silently leaked any
+    // unit to any teacher when author_teacher_id check failed).
+    const access = await verifyTeacherHasUnit(auth.teacherId, unitId);
+    if (!access.hasAccess) {
+      return NextResponse.json({ error: "Unit not found" }, { status: 404 });
+    }
+
+    const { data: unit } = await supabase
       .from("units")
-      .select("id, content_data, thumbnail_url, title")
+      .select("id, content_data, thumbnail_url, title, current_version")
       .eq("id", unitId)
-      .eq("author_teacher_id", auth.teacherId)
       .single();
 
-    if (unitErr || !unitData) {
-      // Ownership check via author_teacher_id failed — try without filter
-      // (admin client bypasses RLS; this handles edge cases like shared units)
-      const { data: fallbackUnit } = await supabase
-        .from("units")
-        .select("id, content_data, thumbnail_url, title")
-        .eq("id", unitId)
-        .single();
-
-      if (!fallbackUnit) {
-        return NextResponse.json({ error: "Unit not found" }, { status: 404 });
-      }
-      unit = fallbackUnit;
-    } else {
-      unit = unitData;
+    if (!unit) {
+      return NextResponse.json({ error: "Unit not found" }, { status: 404 });
     }
 
     // Fetch class framework (separate resilient query)
@@ -131,29 +126,11 @@ async function PATCH(request: NextRequest) {
 
     const supabase = createAdminClient();
 
-    // Verify ownership — try without author filter if needed (shared units)
-    let unitExists = false;
-    const { data: unit, error: unitErr } = await supabase
-      .from("units")
-      .select("id")
-      .eq("id", unitId)
-      .eq("author_teacher_id", auth.teacherId)
-      .single();
-
-    if (unitErr || !unit) {
-      // Ownership check failed — try without filter (handles shared units)
-      const { data: fallbackUnit } = await supabase
-        .from("units")
-        .select("id")
-        .eq("id", unitId)
-        .single();
-
-      if (!fallbackUnit) {
-        return NextResponse.json({ error: "Unit not found" }, { status: 404 });
-      }
-      unitExists = true;
-    } else {
-      unitExists = true;
+    // Phase 6.2 — gate via can()-backed shim (replaces the silent
+    // author_teacher_id leak path).
+    const access = await verifyTeacherHasUnit(auth.teacherId, unitId);
+    if (!access.hasAccess) {
+      return NextResponse.json({ error: "Unit not found" }, { status: 404 });
     }
 
     // Ensure forked (if not already, this deep-copies master first)

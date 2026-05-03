@@ -18,7 +18,6 @@ const STUDENT_TABLES = [
   // But we anonymize, not delete, so we handle each explicitly.
   "student_content_moderation_log",
   "student_tool_sessions",
-  "student_sessions",
   "student_progress",
   "student_badges",
   "safety_certifications",
@@ -133,7 +132,6 @@ export async function removeStudentData(
 
   const deleteTables = [
     "student_tool_sessions",
-    "student_sessions",
     "student_badges",
     "safety_certifications",
     "quest_journeys",

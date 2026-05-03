@@ -140,7 +140,7 @@ src/lib/access-v2/actor-session.ts               # Phase 1 helper — drops the 
 src/lib/integrity/remove-student-data.ts         # Removes student_sessions DELETE statement
 ```
 
-**Critical decision in §6.1:** `live-status` route uses `student_sessions` to detect "active" students for Teach Mode. Either (a) replace with `auth.users.last_sign_in_at` lookup OR (b) accept feature regression in Phase 6 + file FU-AV2-LIVE-STATUS-REWORK P2. Decide before §6.1 starts.
+**Critical decision in §6.1: RESOLVED 4 May 2026 (§6.0).** `live-status` route uses `student_sessions.expires_at` to detect "active" students for Teach Mode. Replacement: drop the `student_sessions` query entirely; derive `isOnline` from `student_progress.updated_at > now() - 5min` (already-fetched data, one fewer query, better UX signal — "actively working in the last 5 minutes" beats "has a valid auth token from 4 hours ago"). Roll into §6.1 as part of the same commit that deletes the dual-mode auth shim. Net: −1 query, simpler code, no feature regression.
 
 #### 3.3d Routes to RENAME (§6.3 — `/api/v1/*`)
 

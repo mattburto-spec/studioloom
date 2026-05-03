@@ -5,7 +5,7 @@
  * metadata; we create the job + revision rows, mint a Supabase Storage
  * signed-upload URL, and hand the URL back to the client for a direct PUT.
  *
- * Auth: student cookie-token session (requireStudentAuth).
+ * Auth: Supabase Auth student session (requireStudentSession).
  * Cache: private, no-cache (Lesson #11 — signed URLs must not be cached
  *        even by a CDN, even though no cookies are set on this response).
  *
@@ -22,7 +22,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   createUploadJob,
@@ -35,8 +35,8 @@ const NO_CACHE_HEADERS = {
 } as const;
 
 export async function POST(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
 
   let body: unknown;
   try {
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
   const db = createAdminClient();
   const result = await createUploadJob(db, {
     ...validated.data,
-    studentId: auth.studentId,
+    studentId: session.studentId,
   });
 
   if (isUploadJobError(result)) {

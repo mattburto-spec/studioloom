@@ -35,7 +35,7 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  // Rewrites — clean URLs for static HTML in public/
+  // Rewrites — clean URLs for static HTML in public/ + API versioning seam
   async rewrites() {
     return [
       {
@@ -43,6 +43,23 @@ const nextConfig: NextConfig = {
         // Added 19 Apr 2026 for /unitplanner clean URL.
         source: "/unitplanner",
         destination: "/unitplanner.html",
+      },
+      // ─── API versioning seam — Phase 6.3 (Option Z) ──────────────────
+      // /api/v1/* internally serves the existing /api/* handlers. Both
+      // paths are live simultaneously. New internal callers + external
+      // integrations should pin to /api/v1/* so they survive a future v2
+      // break (e.g., a payload restructure or auth model change would ship
+      // under /api/v2/* alongside v1, with v1 sunset on a known schedule).
+      //
+      // INTENTIONAL: the file system stays at src/app/api/<domain>/* (not
+      // src/app/api/v1/<domain>/*) — this is the cheap-but-correct
+      // versioning seam. The literal "move all 318 files into v1/"
+      // refactor (brief §6.3 Option X) is filed as FU-AV2-API-V1-FILESYSTEM-RESHUFFLE
+      // — same cost whether done now or later, only matters if v2 actually
+      // ships. ADR-013 documents this choice.
+      {
+        source: "/api/v1/:path*",
+        destination: "/api/:path*",
       },
     ];
   },
@@ -62,6 +79,8 @@ const nextConfig: NextConfig = {
       // Auth + Student API routes MUST NOT have Cache-Control: public — Vercel CDN
       // strips Set-Cookie headers from "public" responses, breaking session cookies.
       // Student routes read auth cookies so they must also be private.
+      // /api/v1/* mirrors are required because Next.js header rules match the URL the
+      // client requested, NOT the rewrite destination — Phase 6.3 versioning seam.
       {
         source: "/api/auth/:path*",
         headers: [
@@ -69,7 +88,19 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: "/api/v1/auth/:path*",
+        headers: [
+          { key: "Cache-Control", value: "private, no-cache, no-store, must-revalidate" },
+        ],
+      },
+      {
         source: "/api/student/:path*",
+        headers: [
+          { key: "Cache-Control", value: "private, no-cache, no-store, must-revalidate" },
+        ],
+      },
+      {
+        source: "/api/v1/student/:path*",
         headers: [
           { key: "Cache-Control", value: "private, no-cache, no-store, must-revalidate" },
         ],
@@ -82,12 +113,24 @@ const nextConfig: NextConfig = {
           { key: "Cache-Control", value: "private, no-cache, no-store, must-revalidate" },
         ],
       },
+      {
+        source: "/api/v1/fab/:path*",
+        headers: [
+          { key: "Cache-Control", value: "private, no-cache, no-store, must-revalidate" },
+        ],
+      },
       // Admin routes use Supabase Auth cookies + may trigger session refresh
       // inside requireAdmin's getUser() call. Same Lesson #11 risk applies:
       // a public response would let Vercel strip Set-Cookie on the refresh
       // write-back, breaking subsequent requests' auth.
       {
         source: "/api/admin/:path*",
+        headers: [
+          { key: "Cache-Control", value: "private, no-cache, no-store, must-revalidate" },
+        ],
+      },
+      {
+        source: "/api/v1/admin/:path*",
         headers: [
           { key: "Cache-Control", value: "private, no-cache, no-store, must-revalidate" },
         ],

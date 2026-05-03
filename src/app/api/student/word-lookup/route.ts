@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { lookupSandbox } from "@/lib/ai/sandbox/word-lookup-sandbox";
 import { MODELS } from "@/lib/ai/models";
@@ -16,7 +16,7 @@ import { withAIBudget } from "@/lib/access-v2/ai-budget/middleware";
  * Returns: { definition: string, exampleSentence: string | null, l1Translation: string | null, l1Target: 'en'|'zh'|'ko'|'ja'|'es'|'fr' }
  *
  * Resolution path:
- *   1. requireStudentAuth (token cookie → student_sessions)
+ *   1. requireStudentSession (Supabase Auth via sb-* cookies)
  *   2. Validate word (2–50 chars, lowercased + trimmed)
  *   3. Resolve l1Target SERVER-SIDE from `students.learning_profile.languages_at_home[0]`
  *      via `resolveL1Target` mapping. Defaults to 'en' (no translation slot).
@@ -60,8 +60,8 @@ interface WordLookupBody {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
+  const auth = await requireStudentSession(request);
+  if (auth instanceof NextResponse) return auth;
 
   let body: WordLookupBody | null = null;
   try {

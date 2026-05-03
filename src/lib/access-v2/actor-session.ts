@@ -37,16 +37,6 @@
  *     are session-only)
  *
  * ─────────────────────────────────────────────────────────────────────────
- * BACKWARDS COMPAT
- * ─────────────────────────────────────────────────────────────────────────
- *
- * The legacy `requireStudentAuth(request)` from src/lib/auth/student.ts is
- * UNCHANGED in Phase 1.3 — it still reads the legacy `questerra_student_session`
- * cookie + student_sessions table. The 63 student routes will be migrated to
- * `requireStudentSession()` in Phase 1.4 batches. Both auth paths coexist
- * during the grace window. Phase 6 deletes the legacy path.
- *
- * ─────────────────────────────────────────────────────────────────────────
  * PERFORMANCE
  * ─────────────────────────────────────────────────────────────────────────
  *
@@ -54,10 +44,9 @@
  *   - 1× supabase.auth.getUser() — validates JWT against Supabase Auth (~50ms)
  *   - 1× students or teachers lookup by user_id (indexed; ~10ms)
  *
- * Total ~60ms added per request that gates on session. Comparable to the
- * legacy `student_sessions` table lookup in `getStudentId()`. Acceptable for
- * Phase 1; can be optimized in Phase 5+ via session caching if hot-path
- * becomes visible.
+ * Total ~60ms added per request that gates on session. Acceptable for
+ * Phase 1; can be optimized later via session caching if hot-path becomes
+ * visible.
  */
 
 import type { NextRequest } from "next/server";

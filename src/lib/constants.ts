@@ -394,8 +394,9 @@ export const INQUIRY_THEMES = [
   "How the World Works", "How We Organize Ourselves", "Sharing the Planet",
 ] as const;
 
-export const SESSION_COOKIE_NAME = "questerra_student_session";
-export const SESSION_DURATION_DAYS = 7;
+// SESSION_COOKIE_NAME + SESSION_DURATION_DAYS removed in Phase 6.1
+// (legacy student_sessions table dropped; Supabase Auth sb-* cookies
+// replace them). Fabricator constants below are intentionally separate.
 
 // --- Fabricator session (Preflight) ---
 // Separate cookie + duration so Fabricator and student sessions don't collide

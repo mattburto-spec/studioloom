@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -8,14 +8,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * Returns { profile: null } if not yet completed.
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
 
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("students")
     .select("learning_profile")
-    .eq("id", auth.studentId)
+    .eq("id", session.studentId)
     .single();
 
   if (error) {
@@ -47,8 +47,8 @@ export async function GET(request: NextRequest) {
  * - Learning differences → UDL accommodation (optional, never shared with peers)
  */
 export async function POST(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
 
   const body = await request.json();
   const {
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
   const { data: existing } = await supabase
     .from("students")
     .select("learning_profile")
-    .eq("id", auth.studentId)
+    .eq("id", session.studentId)
     .single();
 
   if (existing?.learning_profile) {
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
   const { error } = await supabase
     .from("students")
     .update({ learning_profile: profile })
-    .eq("id", auth.studentId);
+    .eq("id", session.studentId);
 
   if (error) {
     console.error("[learning-profile] Save failed:", error);
@@ -129,8 +129,8 @@ export async function POST(request: NextRequest) {
  * Currently used for: updating learning_differences (student may want to add/remove later).
  */
 export async function PATCH(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
 
   const body = await request.json();
   const supabase = createAdminClient();
@@ -139,7 +139,7 @@ export async function PATCH(request: NextRequest) {
   const { data: existing } = await supabase
     .from("students")
     .select("learning_profile")
-    .eq("id", auth.studentId)
+    .eq("id", session.studentId)
     .single();
 
   if (!existing?.learning_profile) {
@@ -169,7 +169,7 @@ export async function PATCH(request: NextRequest) {
   const { error } = await supabase
     .from("students")
     .update({ learning_profile: updated })
-    .eq("id", auth.studentId);
+    .eq("id", session.studentId);
 
   if (error) {
     console.error("[learning-profile] Update failed:", error);

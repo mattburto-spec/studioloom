@@ -61,7 +61,7 @@ The 28 Apr IT audit (`studioloom-it-audit-2026-04-28.docx`) split deployment req
 4. **Phase 3** (class roles + `class_members` + `can()` permission helper) — ~3 days
 5. **Phase 4** (school registration + settings + governance + library) — ~3 days
 6. **Phase 5** (audit log + per-student AI budgets + export endpoint + delete endpoint + retention cron) — ~3 days
-7. **Phase 6** (cutover + ADRs + registry sync + RLS-no-policy docs + 3-Matts merge decision) — ~2 days
+7. **Phase 6** (cutover + ADRs + registry sync + RLS-no-policy docs) — ~4–5 days (3-Matts resolved in Phase 4.3.z)
 
 **Pilot-readiness milestone:** Phase 6 signed off + parallel pilot-blockers closed (§12). One named gate, not two.
 
@@ -279,11 +279,11 @@ Each phase ends with a named Matt Checkpoint. No phase begins until the previous
 - Deprecate legacy student token system (delete dead code, not just leave with `_unused` rename)
 - Remove `author_teacher_id` direct-ownership reads (everything goes through `class_members`)
 - Update all 6 registries (schema, api, ai-call-sites, feature-flags, vendors, WIRING)
-- Update ADR-003; write ADR-011 (school entity + governance), ADR-012 (audit log), ADR-013 (API versioning convention)
+- Update ADR-003; write ADR-011 (school entity + governance — supersedes the 8 Apr 2026 "schema rework" ADR-011 from the radical-pivot era, which is retired/Superseded per Phase 6 brief §3.7 Q2), ADR-012 (audit log), ADR-013 (API versioning convention)
 - Update `data-classification-taxonomy.md` for new tables
-- **RLS-no-policy documentation (audit F12):** for the 7 tables flagged by `scan-rls-coverage.py`, either add explicit deny-all policies OR write `docs/security/rls-deny-all.md` documenting intent + service-role access paths. Update scanner to zero out the drift report.
-- **Decision on 3-Matts merge (audit F26 / multi-Matt prod data):** Matt manually decides whether to merge his three teacher rows into one canonical account. If yes, write the merge migration. If no, document the per-account separation in `docs/security/multi-account-pattern.md`.
-- **API versioning rename pass (per §3 item 38):** rename all 388 existing unversioned routes to `/api/v1/*` (`/api/teacher/*` → `/api/v1/teacher/*`, etc.). Add legacy-redirect aliases on the old paths with a 90-day expiry comment. Update `api-registry.yaml` accordingly. ~1 focused day; one find-replace PR with full test sweep. Skip if Matt elects to defer (not ideal but defensible if the rename feels too big to absorb pre-pilot).
+- **RLS-no-policy documentation (audit F12):** for the **5 tables** flagged by `scan-rls-coverage.py` (`admin_audit_log`, `ai_model_config`, `ai_model_config_history`, `fabricator_sessions`, `teacher_access_requests` — down from 7; `student_sessions` and `fabrication_scan_jobs` were resolved earlier), either add explicit deny-all policies OR write `docs/security/rls-deny-all.md` documenting intent + service-role access paths. Update scanner to zero out the drift report.
+- **3-Matts merge: DONE in Phase 4.3.z (Three-Matts prod-data consolidation, 2 May 2026).** No Phase 6 work required.
+- **API versioning rename pass (per §3 item 38):** rename **319 existing unversioned routes** (322 total `route.ts` files minus 3 already shipped under `/api/v1/*` in Phase 5.4 + 5.6) to `/api/v1/*` (`/api/teacher/*` → `/api/v1/teacher/*`, etc.). Add legacy-redirect aliases on the old paths with a 90-day expiry comment. Update `api-registry.yaml` accordingly. One PR with per-domain commits per Q3 (admin / teacher / student / fab / public). Skip if Matt elects to defer (not ideal but defensible if the rename feels too big to absorb pre-pilot).
 - Tag pilot baseline as `v0.x-pilot1` so rollback is one git tag away.
 - **Checkpoint A7 — PILOT-READY signoff:** no legacy code paths remain; all registries pass `saveme` cleanly; no tests skipped; production cutover plan written; second-school onboarding unblocked; tagged baseline ready; `/api/v1/` rename complete with legacy aliases live. **Pair with §12 parallel-track closure for full pilot GO.**
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
 
 /**
@@ -8,9 +8,9 @@ import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
  * Upload a new avatar image. Replaces any existing avatar.
  */
 export async function POST(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   const formData = await request.formData();
   const file = formData.get("file") as File | null;
@@ -99,9 +99,9 @@ export async function POST(request: NextRequest) {
  * Remove the avatar and revert to initials.
  */
 export async function DELETE(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   const supabase = createAdminClient();
 

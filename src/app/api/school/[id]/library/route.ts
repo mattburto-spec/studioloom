@@ -102,6 +102,9 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
       );
     }
     if (authorIdParam && UUID_RE.test(authorIdParam)) {
+      // access-check-skip: optional ?authorTeacherId= browse filter; the
+      // route is school-scoped via `id` already so this narrows the result
+      // set, it doesn't gate cross-actor access.
       query = query.eq("author_teacher_id", authorIdParam);
     }
 

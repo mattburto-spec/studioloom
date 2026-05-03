@@ -1669,3 +1669,108 @@ This surfaced when the Phase 1.4 CS-1 student-side rewrite migration tried `stud
 **Sequence:** ship after Phase 1.4 client-switch closes (this is a hygiene cleanup; not blocking pilot or any in-flight phase). Could pair with similar audit of other `*_id TEXT` columns if any exist (likely audit reveals more).
 
 **Related:** FU-FF (P3 — RLS-as-deny-all on 3 tables, similar "documented in registry but actual SQL diverges" class), Phase 1.4 CS-1 brief (where this surfaced).
+
+---
+
+## FU-AV2-LTI-PHASE-6-REWORK — `/api/auth/lti/launch` returns 410 pending Supabase Auth rewrite (P2)
+
+**Status:** OPEN — filed 4 May 2026 by Phase 6.1.
+
+**Surfaced:** Phase 6.1 dropped `student_sessions`. The legacy LTI 1.1 launch endpoint created a `student_sessions` row + `questerra_student_session` cookie; with the table gone, the route can't function as written.
+
+**Issue:** `src/app/api/auth/lti/launch/route.ts` was stubbed to return HTTP 410 Gone. NIS pilot does not use LTI launch — the route hadn't been exercised in months — so the 410 is honest about the dead-end without leaving silent breakage.
+
+**Why P2:** any school adopting StudioLoom that wires LTI in their LMS (ManageBac, Canvas, Schoology, Moodle, Toddle, Blackboard) hits the 410. Reinstate before the next school onboarding.
+
+**Recommended approach:** mirror the `/api/auth/student-classcode-login` pattern:
+1. Verify the LTI 1.1 OAuth signature (existing `verifyLtiSignature` helper still valid).
+2. Resolve `consumerKey → lms_integrations.class_id` (existing `findOrCreateStudent` still valid).
+3. Call `provisionStudentAuthUser({...})` to ensure `auth.users` + `students` rows exist (already imported in the original file).
+4. Mint a Supabase Auth session via `supabaseAdmin.auth.admin.generateLink({type:'magiclink', email: syntheticEmailForStudentId(student.id)})`.
+5. Construct an SSR client with the Next.js cookies adapter and `exchangeCodeForSession(linkData.properties.hashed_token)` to set `sb-*` cookies on the redirect response.
+6. Redirect to `/dashboard`.
+
+Reuse the same `syntheticEmail` shape as classcode-login so an existing student logging in via LTI lands on the same `auth.users` row they'd land on via classcode.
+
+**Definition of done:**
+- LTI POST returns a 302 redirect to `/dashboard` with `sb-*` cookies set.
+- A returning student via LTI ends up on the same `students.id` as via classcode-login (no orphan duplicates).
+- Smoke test from a real LMS launch (Canvas test instance or LTI launch simulator) passes once.
+
+**Sequence:** before any school other than NIS adopts. Estimated ~0.5 day if the classcode-login pattern is copy-paste tractable.
+
+**Related:** Phase 6.1 brief §6.1, `src/app/api/auth/student-classcode-login/route.ts` (canonical pattern).
+
+---
+
+## FU-AV2-STALE-TIMETABLE-LINK — `/teacher/timetable` route doesn't exist; nav prefetches it (P3)
+
+**Status:** OPEN — surfaced 4 May 2026 during Phase 6.2 smoke.
+
+**Issue:** Browser console shows `GET /teacher/timetable?_rs=... → 404 (Not Found)` on every Class Hub / Classes list page load. The `?_rs=` query param identifies it as a Next.js React Server Component **prefetch** (triggered by hovering or rendering a Link). Some component still references `/teacher/timetable` even though that page route doesn't exist.
+
+**Why P3:** silent (prefetch failures don't break user-visible behaviour). Just noisy in the console + wasted server hit.
+
+**Recommended approach:**
+1. Grep for `/teacher/timetable` in `src/app/teacher/layout.tsx`, the top-nav component, and any sidebar/quick-link panel: `grep -rn "/teacher/timetable" src/`
+2. Either (a) remove the dead Link if the timetable feature was scoped out OR (b) restore the route at `src/app/teacher/timetable/page.tsx` if the link is intentional UX.
+3. Verify no other dead Link patterns: `grep -rn 'href="/teacher' src/components/ src/app/teacher/layout.tsx | sort -u`
+
+**Definition of done:** no `/teacher/timetable` 404 in browser console on Class Hub / Classes list page loads.
+
+**Sequence:** opportunistic; pair with next teacher-nav cleanup pass.
+
+---
+
+## FU-STUDENT-PROGRESS-CLIENT-400 — client-side `student_progress` query 400s on Class Hub (P3)
+
+**Status:** OPEN — surfaced 4 May 2026 during Phase 6.2 smoke.
+
+**Issue:** Browser console on `/teacher/classes/[classId]` shows `GET cxxbfmnbwihuskaaltlk.supabase.co/rest/v1/student_progress?select=st…ges%2Ctotal_pages&student_id=in.(...) → 400 (Bad Request)`. The truncated `select=` includes `total_pages`, which likely doesn't exist on `student_progress` (or has been renamed). 400 from PostgREST = malformed query (column not found / bad operator), distinct from 401/403 (RLS).
+
+The query is going direct to Supabase (client-side `supabase-js`), not through a Next.js route — so the bug lives in a frontend component, not in any API route I can see in `src/app/api/`.
+
+**Why P3:** doesn't break the page load (the request fails silently and the affected widget probably renders empty); but the column drift means whatever progress widget this powers shows wrong/no data.
+
+**Recommended approach:**
+1. Find the caller: `grep -rn 'from("student_progress"' src/components/ src/app/teacher/`
+2. Diff its `.select()` against the current `student_progress` schema: `\d student_progress` in psql, or `SELECT column_name FROM information_schema.columns WHERE table_name='student_progress' ORDER BY ordinal_position`.
+3. Pick the right column or remove the stale reference.
+
+**Suspected:** a Class Hub progress-bar / completion-summary widget that was written against an old `student_progress.total_pages` column that's now stored elsewhere (e.g., on `units.content_data` page count, or computed). Audit the column lineage in schema-registry.yaml.
+
+**Definition of done:** no 400 on Class Hub page load; the affected widget renders accurate completion percentages.
+
+**Sequence:** opportunistic; pair with next dashboard polish pass.
+
+---
+
+## FU-AV2-API-V1-FILESYSTEM-RESHUFFLE — move route handlers into `src/app/api/v1/<domain>/` directory tree (P3, optional)
+
+**Status:** OPEN — filed 4 May 2026 by Phase 6.3.
+
+**Surfaced:** Phase 6.3 chose Option Z (Next.js `rewrites` in `next.config.ts`) over Option X (literal file moves) for the API versioning seam. Both achieve the same client-facing outcome — `/api/v1/*` works, external clients can pin to it, future `/api/v2/*` has a place to live. Option Z ships in ~30min, Option X is ~3-4h. ADR-013 documents the decision.
+
+**Issue:** The file-system layout doesn't match the canonical URL. Routes live at `src/app/api/teacher/units/route.ts` but the canonical URL is `/api/v1/teacher/units`. This works (rewrite handles it transparently) but creates a cognitive disconnect for anyone reading the codebase.
+
+**When to do this:**
+- (a) v2 actually needs to ship with breaking changes (would force the issue: v1 needs its own directory so v2 can exist alongside).
+- (b) The cognitive disconnect bothers you when reading code.
+- (c) You want to remove the permanent `next.config.ts` rewrite indirection.
+
+If none of these are pressing, leave it. The cost is the same later.
+
+**Recommended approach (when triggered):**
+1. Move all 318 `src/app/api/<domain>/*/route.ts` → `src/app/api/v1/<domain>/*/route.ts` (preserve directory structure).
+2. Update internal `fetch("/api/<domain>/...")` callers to `/api/v1/<domain>/...` (grep for the patterns, batch-replace per-domain).
+3. Update test imports that reference route handlers directly: `from "@/app/api/<domain>/..."` → `from "@/app/api/v1/<domain>/..."`.
+4. Flip the `next.config.ts` rewrite direction: `/api/<domain>/:path*` → `/api/v1/<domain>/:path*` (legacy bare paths still work via rewrite for 90 days).
+5. Update header rules in `next.config.ts` to mirror the new direction.
+6. Sync `api-registry.yaml` paths.
+7. Per-domain commits for review tractability (admin / teacher / student / fab / public).
+
+**Definition of done:** route files live under `src/app/api/v1/`; canonical URLs match file paths; bare `/api/<domain>/*` paths still work via redirect; api-registry shows v1 as canonical with bare paths flagged as legacy.
+
+**Sequence:** opportunistic. No deadline. Same cost whenever done.
+
+**Related:** `next.config.ts` API versioning seam comment, ADR-013 (api-versioning).

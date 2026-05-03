@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
+import {
+  requireTeacherAuth,
+  verifyTeacherOwnsClass,
+} from "@/lib/auth/verify-teacher-unit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getPageList } from "@/lib/unit-adapter";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
@@ -28,24 +31,12 @@ export async function GET(req: NextRequest) {
 
   const supabase = createAdminClient();
 
-  // Verify teacher owns this class
-  const { data: cls } = await supabase
-    .from("classes")
-    .select("id")
-    .eq("id", classId)
-    .eq("teacher_id", teacherId)
-    .maybeSingle();
-  if (!cls) {
-    // Fallback: try author_teacher_id
-    const { data: cls2 } = await supabase
-      .from("classes")
-      .select("id")
-      .eq("id", classId)
-      .eq("author_teacher_id", teacherId)
-      .maybeSingle();
-    if (!cls2) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
+  // Phase 6.2 — gate via can()-backed shim. Replaces the dual
+  // teacher_id/author_teacher_id dance; opens up co_teacher / dept_head
+  // access to the snapshot drawer.
+  const owns = await verifyTeacherOwnsClass(teacherId, classId);
+  if (!owns) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
   // Parallel fetches

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireStudentAuth } from '@/lib/auth/student';
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { createAdminClient } from '@/lib/supabase/admin';
 import { rateLimit } from '@/lib/rate-limit';
 import { moderateAndLog } from '@/lib/content-safety/moderate-and-log';
@@ -12,9 +12,9 @@ import { moderateAndLog } from '@/lib/content-safety/moderate-and-log';
  */
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireStudentAuth(request);
-    if (auth.error) return auth.error;
-    const studentId = auth.studentId;
+    const session = await requireStudentSession(request);
+    if (session instanceof NextResponse) return session;
+    const studentId = session.studentId;
 
     const rl = rateLimit(`quest-sharing:${studentId}`, [
       { windowMs: 60_000, maxRequests: 10 },
@@ -143,9 +143,9 @@ export async function POST(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   try {
-    const auth = await requireStudentAuth(request);
-    if (auth.error) return auth.error;
-    const studentId = auth.studentId;
+    const session = await requireStudentSession(request);
+    if (session instanceof NextResponse) return session;
+    const studentId = session.studentId;
 
     const rl = rateLimit(`quest-sharing-complete:${studentId}`, [
       { windowMs: 60_000, maxRequests: 5 },

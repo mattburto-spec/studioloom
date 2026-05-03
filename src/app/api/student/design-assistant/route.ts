@@ -8,7 +8,7 @@ import {
   generateResponse,
 } from "@/lib/design-assistant/conversation";
 import { rateLimit, DESIGN_ASSISTANT_LIMITS } from "@/lib/rate-limit";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
 import { withAIBudget } from "@/lib/access-v2/ai-budget/middleware";
 
@@ -33,9 +33,9 @@ import { withAIBudget } from "@/lib/access-v2/ai-budget/middleware";
  */
 export const POST = withErrorHandler("student/design-assistant:POST", async (request: NextRequest) => {
   // Student auth via session token cookie (not Supabase Auth)
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   const body = await request.json();
   const { conversationId, unitId, pageId, message } = body as {
@@ -219,9 +219,9 @@ export const POST = withErrorHandler("student/design-assistant:POST", async (req
  */
 export const GET = withErrorHandler("student/design-assistant:GET", async (request: NextRequest) => {
   // Student auth via session token cookie
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   const { searchParams } = new URL(request.url);
   const conversationId = searchParams.get("conversationId");
