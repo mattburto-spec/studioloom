@@ -1,3 +1,4 @@
+// audit-skip: routine teacher pedagogy ops, low audit value
 /**
  * Teacher-side skill_card_refs API scoped to a unit page.
  *

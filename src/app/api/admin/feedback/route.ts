@@ -1,3 +1,4 @@
+// audit-skip: routine admin operational endpoint, low audit value (read-mostly or content-curation)
 /**
  * Admin Feedback API — Approval Queue CRUD
  *

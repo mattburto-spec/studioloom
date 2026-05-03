@@ -1,3 +1,4 @@
+// audit-skip: routine learner activity, low audit value
 /**
  * POST /api/student/fabrication/jobs/[jobId]/enqueue-scan
  *

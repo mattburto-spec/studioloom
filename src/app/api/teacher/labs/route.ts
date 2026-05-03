@@ -1,3 +1,4 @@
+// audit-skip: routine teacher pedagogy ops, low audit value
 /**
  * /api/teacher/labs
  *   GET  — list every lab at the calling teacher's school (flat

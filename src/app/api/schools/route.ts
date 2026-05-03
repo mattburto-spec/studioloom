@@ -1,3 +1,4 @@
+// audit-skip: school directory operation, audit covered by school_settings_history
 /**
  * POST /api/schools
  *

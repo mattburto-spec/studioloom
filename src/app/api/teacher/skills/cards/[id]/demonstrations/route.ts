@@ -1,3 +1,4 @@
+// audit-skip: routine teacher pedagogy ops, low audit value
 /**
  * Teacher-ack path for skill.demonstrated events.
  *

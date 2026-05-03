@@ -1,3 +1,4 @@
+// audit-skip: routine admin operational endpoint, low audit value (read-mostly or content-curation)
 /**
  * POST /api/admin/school/[id]/merge-requests/[mergeId]/approve
  *

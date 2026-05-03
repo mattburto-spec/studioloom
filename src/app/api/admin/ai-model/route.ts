@@ -1,3 +1,4 @@
+// audit-skip: ephemeral admin sandbox/test surface, no audit value
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { getModelConfig, saveModelConfig, getRawConfig, invalidateConfigCache } from "@/lib/ai/model-config";

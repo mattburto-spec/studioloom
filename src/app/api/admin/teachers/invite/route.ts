@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { logAuditEvent } from "@/lib/access-v2/audit-log";
 
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -77,6 +78,25 @@ export async function POST(request: NextRequest) {
     const status = /already/i.test(error.message) ? 409 : 500;
     return NextResponse.json({ error: error.message }, { status });
   }
+
+  // Phase 6.4 — high-value admin action: inviting a teacher creates an
+  // auth.users row + emails them a magic link. soft-warn so the invitee
+  // isn't blocked by an audit blip; Sentry catches the gap.
+  await logAuditEvent(supabase, {
+    actorId: auth.teacherId,
+    actorType: "platform_admin",
+    action: "admin.teacher.invite",
+    targetTable: "teachers",
+    targetId: data.user?.id ?? null,
+    severity: "info",
+    payload: {
+      invitedEmail: email,
+      invitedName: name,
+    },
+    ip: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+    userAgent: request.headers.get("user-agent"),
+    failureMode: "soft-sentry",
+  });
 
   return NextResponse.json({
     ok: true,

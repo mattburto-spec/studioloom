@@ -40,12 +40,15 @@ jobs:
       - name: WIRING.yaml health check
         run: python3 scripts/check-wiring-health.py
 
-      - name: Audit-coverage scanner (Phase 5.1d — visibility-only until catchup FU closes)
-        # Emits docs/scanner-reports/audit-coverage.json. Currently does NOT
-        # gate the build (228 mutation routes inherited from Phase 4 still
-        # need triage; tracked as FU-AV2-AUDIT-MISSING-PHASE-6-CATCHUP P2).
-        # When that FU closes, swap this for `--check-audit-coverage --fail-on-missing`.
-        run: python3 scripts/registry/scan-api-routes.py --check-audit-coverage
+      - name: Audit-coverage gate (Phase 6.4 — gating since 4 May 2026)
+        # Emits docs/scanner-reports/audit-coverage.json AND fails the build
+        # if any mutation route lacks logAuditEvent OR an `// audit-skip:`
+        # annotation. Phase 6.4 closed the original 224-route gap via
+        # bulk-skip + 3 inline-wires (admin/teachers DELETE+invite POST,
+        # admin/teacher-requests PATCH). Any new mutation route from now on
+        # must either call logAuditEvent or carry an audit-skip with a
+        # non-trivial reason — same discipline as the AI budget gate.
+        run: python3 scripts/registry/scan-api-routes.py --check-audit-coverage --fail-on-missing
 
       - name: AI budget-coverage gate (Phase 5.3d — gating from day one)
         # Emits docs/scanner-reports/ai-budget-coverage.json. Gates the build

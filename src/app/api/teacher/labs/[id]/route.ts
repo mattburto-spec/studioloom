@@ -1,3 +1,4 @@
+// audit-skip: routine teacher pedagogy ops, low audit value
 /**
  * /api/teacher/labs/[id]
  *   PATCH  — rename / edit a lab (any teacher at the school can)

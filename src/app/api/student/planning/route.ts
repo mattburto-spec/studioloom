@@ -1,3 +1,4 @@
+// audit-skip: routine learner activity, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireStudentSession } from "@/lib/access-v2/actor-session";

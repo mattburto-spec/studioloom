@@ -1,3 +1,4 @@
+// audit-skip: routine learner activity, low audit value
 import { NextRequest, NextResponse } from 'next/server';
 import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { rateLimit } from '@/lib/rate-limit';

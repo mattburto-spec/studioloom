@@ -1,3 +1,4 @@
+// audit-skip: ephemeral admin sandbox/test surface, no audit value
 /**
  * POST /api/admin/ingestion-sandbox/commit
  *

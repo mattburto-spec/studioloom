@@ -1,3 +1,4 @@
+// audit-skip: stateless TTS proxy, no audit value
 import { NextRequest, NextResponse } from "next/server";
 
 /**

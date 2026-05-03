@@ -1,3 +1,4 @@
+// audit-skip: routine teacher pedagogy ops, low audit value
 /**
  * Activity Blocks CRUD API — Dimensions2 Phase 1A/1D
  *

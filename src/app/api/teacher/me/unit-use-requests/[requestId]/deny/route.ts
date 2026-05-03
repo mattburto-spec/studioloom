@@ -1,3 +1,4 @@
+// audit-skip: routine teacher pedagogy ops, low audit value
 /**
  * POST /api/teacher/me/unit-use-requests/[requestId]/deny
  * Phase 4.6 — author denies a pending request.

@@ -1,3 +1,4 @@
+// audit-skip: auth-establishment endpoint; no actor identity until session minted
 /**
  * POST /api/auth/accept-school-invitation
  *

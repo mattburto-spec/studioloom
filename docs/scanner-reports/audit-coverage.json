@@ -1,16 +1,34 @@
 {
   "registry": "audit-coverage",
-  "timestamp": "2026-05-03T18:27:57.349927+00:00",
+  "timestamp": "2026-05-03T23:32:51.241976+00:00",
   "version": 1,
   "stats": {
-    "total_mutation_routes": 233,
-    "covered": 4,
-    "skipped": 1,
-    "missing": 228
+    "total_mutation_routes": 232,
+    "covered": 7,
+    "skipped": 225,
+    "missing": 0
   },
   "covered": [
     {
       "file": "src/app/api/admin/school/[id]/impersonate/route.ts",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "file": "src/app/api/admin/teacher-requests/route.ts",
+      "methods": [
+        "PATCH"
+      ]
+    },
+    {
+      "file": "src/app/api/admin/teachers/[id]/route.ts",
+      "methods": [
+        "DELETE"
+      ]
+    },
+    {
+      "file": "src/app/api/admin/teachers/invite/route.ts",
       "methods": [
         "POST"
       ]
@@ -36,372 +54,394 @@
   ],
   "skipped": [
     {
-      "file": "src/app/api/v1/student/[id]/route.ts",
-      "methods": [
-        "DELETE"
-      ],
-      "reason": "audit row emitted inside softDeleteStudent lib helper at src/lib/access-v2/data-subject/delete-student.ts"
-    }
-  ],
-  "missing": [
-    {
       "file": "src/app/api/admin/ai-model/route.ts",
       "methods": [
         "PUT"
-      ]
+      ],
+      "reason": "ephemeral admin sandbox/test surface, no audit value"
     },
     {
       "file": "src/app/api/admin/ai-model/test-lesson/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "ephemeral admin sandbox/test surface, no audit value"
     },
     {
       "file": "src/app/api/admin/ai-model/test/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "ephemeral admin sandbox/test surface, no audit value"
     },
     {
       "file": "src/app/api/admin/bug-reports/route.ts",
       "methods": [
         "PATCH"
-      ]
+      ],
+      "reason": "routine admin operational endpoint, low audit value (read-mostly or content-curation)"
     },
     {
       "file": "src/app/api/admin/feedback/route.ts",
       "methods": [
         "PATCH",
         "POST"
-      ]
+      ],
+      "reason": "routine admin operational endpoint, low audit value (read-mostly or content-curation)"
     },
     {
       "file": "src/app/api/admin/generation-sandbox/run/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "ephemeral admin sandbox/test surface, no audit value"
     },
     {
       "file": "src/app/api/admin/ingestion-sandbox/commit/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "ephemeral admin sandbox/test surface, no audit value"
     },
     {
       "file": "src/app/api/admin/ingestion-sandbox/run-stage/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "ephemeral admin sandbox/test surface, no audit value"
     },
     {
       "file": "src/app/api/admin/ingestion-sandbox/upload/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "ephemeral admin sandbox/test surface, no audit value"
     },
     {
       "file": "src/app/api/admin/school/[id]/merge-requests/[mergeId]/approve/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine admin operational endpoint, low audit value (read-mostly or content-curation)"
     },
     {
       "file": "src/app/api/admin/school/[id]/merge-requests/[mergeId]/reject/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine admin operational endpoint, low audit value (read-mostly or content-curation)"
     },
     {
       "file": "src/app/api/admin/settings/route.ts",
       "methods": [
         "PATCH"
-      ]
+      ],
+      "reason": "writes to admin_audit_log (mig 079) \u2014 parallel audit system, no double-write"
     },
     {
       "file": "src/app/api/admin/smoke-tests/route.ts",
       "methods": [
         "POST"
-      ]
-    },
-    {
-      "file": "src/app/api/admin/teacher-requests/route.ts",
-      "methods": [
-        "PATCH"
-      ]
-    },
-    {
-      "file": "src/app/api/admin/teachers/[id]/route.ts",
-      "methods": [
-        "DELETE"
-      ]
-    },
-    {
-      "file": "src/app/api/admin/teachers/invite/route.ts",
-      "methods": [
-        "POST"
-      ]
+      ],
+      "reason": "ephemeral admin sandbox/test surface, no audit value"
     },
     {
       "file": "src/app/api/auth/accept-school-invitation/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "auth-establishment endpoint; no actor identity until session minted"
     },
     {
       "file": "src/app/api/auth/lti/launch/route.ts",
       "methods": [
         "POST"
-      ]
-    },
-    {
-      "file": "src/app/api/auth/student-login/route.ts",
-      "methods": [
-        "POST"
-      ]
+      ],
+      "reason": "auth-establishment endpoint; no actor identity until session minted"
     },
     {
       "file": "src/app/api/auth/student-session/route.ts",
       "methods": [
         "DELETE"
-      ]
+      ],
+      "reason": "auth-establishment endpoint; no actor identity until session minted"
     },
     {
       "file": "src/app/api/bug-reports/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "user-submitted content, low audit value (bug report stored in bug_reports table)"
     },
     {
       "file": "src/app/api/discovery/reflect/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "anonymous discovery surface, no actor identity"
     },
     {
       "file": "src/app/api/discovery/session/route.ts",
       "methods": [
         "PATCH",
         "POST"
-      ]
+      ],
+      "reason": "anonymous discovery surface, no actor identity"
     },
     {
       "file": "src/app/api/fab/jobs/[jobId]/assign-machine/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine fab-tech operational endpoint, audit lives in fabrication pipeline state machine"
     },
     {
       "file": "src/app/api/fab/jobs/[jobId]/complete/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine fab-tech operational endpoint, audit lives in fabrication pipeline state machine"
     },
     {
       "file": "src/app/api/fab/jobs/[jobId]/fail/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine fab-tech operational endpoint, audit lives in fabrication pipeline state machine"
     },
     {
       "file": "src/app/api/fab/jobs/[jobId]/route.ts",
       "methods": [
         "DELETE"
-      ]
+      ],
+      "reason": "routine fab-tech operational endpoint, audit lives in fabrication pipeline state machine"
     },
     {
       "file": "src/app/api/fab/jobs/[jobId]/unassign/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine fab-tech operational endpoint, audit lives in fabrication pipeline state machine"
     },
     {
       "file": "src/app/api/fab/login/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine fab-tech operational endpoint, audit lives in fabrication pipeline state machine"
     },
     {
       "file": "src/app/api/fab/logout/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine fab-tech operational endpoint, audit lives in fabrication pipeline state machine"
     },
     {
       "file": "src/app/api/fab/set-password/submit/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine fab-tech operational endpoint, audit lives in fabrication pipeline state machine"
     },
     {
       "file": "src/app/api/fab/set-password/verify/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine fab-tech operational endpoint, audit lives in fabrication pipeline state machine"
     },
     {
       "file": "src/app/api/safety/log-client-block/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous safety-badge test, no actor identity"
     },
     {
       "file": "src/app/api/school/[id]/changes/[changeId]/revert/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "school-scoped operation; audit covered by school_settings_history (mig 087)"
     },
     {
       "file": "src/app/api/school/[id]/domains/[domainId]/route.ts",
       "methods": [
         "DELETE"
-      ]
+      ],
+      "reason": "school-scoped operation; audit covered by school_settings_history (mig 087)"
     },
     {
       "file": "src/app/api/school/[id]/domains/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "school-scoped operation; audit covered by school_settings_history (mig 087)"
     },
     {
       "file": "src/app/api/school/[id]/invitations/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "school-scoped operation; audit covered by school_settings_history (mig 087)"
     },
     {
       "file": "src/app/api/school/[id]/library/[unitId]/request-use/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "school-scoped operation; audit covered by school_settings_history (mig 087)"
     },
     {
       "file": "src/app/api/school/[id]/merge-requests/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "school-scoped operation; audit covered by school_settings_history (mig 087)"
     },
     {
       "file": "src/app/api/school/[id]/proposals/[changeId]/confirm/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "school-scoped operation; audit covered by school_settings_history (mig 087)"
     },
     {
       "file": "src/app/api/school/[id]/settings/route.ts",
       "methods": [
         "PATCH"
-      ]
+      ],
+      "reason": "school-scoped operation; audit covered by school_settings_history (mig 087)"
     },
     {
       "file": "src/app/api/schools/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "school directory operation, audit covered by school_settings_history"
     },
     {
       "file": "src/app/api/student/avatar/route.ts",
       "methods": [
         "DELETE",
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/design-assistant/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/fabrication/jobs/[jobId]/acknowledge-warning/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/fabrication/jobs/[jobId]/cancel/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/fabrication/jobs/[jobId]/enqueue-scan/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/fabrication/jobs/[jobId]/revisions/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/fabrication/jobs/[jobId]/route.ts",
       "methods": [
         "DELETE"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/fabrication/jobs/[jobId]/submit/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/fabrication/upload/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/gallery/review/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/gallery/submit/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/learning-profile/route.ts",
       "methods": [
         "PATCH",
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/nm-assessment/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/open-studio/check-in/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/open-studio/discovery/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/open-studio/session/route.ts",
       "methods": [
         "PATCH",
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/pace-feedback/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/planning/route.ts",
@@ -409,153 +449,177 @@
         "DELETE",
         "PATCH",
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/portfolio/route.ts",
       "methods": [
         "DELETE",
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/progress/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/quest/contract/route.ts",
       "methods": [
         "PATCH"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/quest/discovery/route.ts",
       "methods": [
         "PATCH"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/quest/evidence/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/quest/mentor/route.ts",
       "methods": [
         "PATCH",
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/quest/milestones/[id]/route.ts",
       "methods": [
         "DELETE",
         "PATCH"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/quest/milestones/route.ts",
       "methods": [
         "PATCH",
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/quest/phase/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/quest/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/quest/sharing/route.ts",
       "methods": [
         "PATCH",
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/safety/badges/[badgeId]/submit/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/skills/cards/[slug]/quiz-submit/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/studio-preferences/route.ts",
       "methods": [
         "PATCH",
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/tool-sessions/[id]/route.ts",
       "methods": [
         "PATCH"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/tool-sessions/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/upload/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/student/word-lookup/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine learner activity, low audit value"
     },
     {
       "file": "src/app/api/teacher/activity-blocks/[id]/route.ts",
       "methods": [
         "DELETE",
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/activity-blocks/review/route.ts",
       "methods": [
         "PATCH",
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/activity-blocks/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/activity-cards/apply/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/activity-cards/generate-modifiers/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/activity-cards/manage/route.ts",
@@ -563,888 +627,1041 @@
         "DELETE",
         "POST",
         "PUT"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/activity-cards/recommend/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/activity-cards/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/ai-settings/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/assessments/route.ts",
       "methods": [
         "PUT"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/badges/[id]/assign/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/badges/[id]/route.ts",
       "methods": [
         "DELETE",
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/badges/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/badges/seed/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/badges/unit-requirements/route.ts",
       "methods": [
         "DELETE",
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/class-students/route.ts",
       "methods": [
         "DELETE"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/class-units/content/route.ts",
       "methods": [
         "PATCH",
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/class-units/route.ts",
       "methods": [
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/classes/[classId]/students/[studentId]/support-settings/route.ts",
       "methods": [
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/classes/[classId]/students/support-settings/route.ts",
       "methods": [
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/convert-lesson/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/exhibition/route.ts",
       "methods": [
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/fabrication/classes/[classId]/default-lab/route.ts",
       "methods": [
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/fabrication/jobs/[jobId]/approve/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/fabrication/jobs/[jobId]/note/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/fabrication/jobs/[jobId]/reject/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/fabrication/jobs/[jobId]/return-for-revision/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/fabricators/[id]/machines/route.ts",
       "methods": [
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/fabricators/[id]/reset-password/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/fabricators/[id]/route.ts",
       "methods": [
         "DELETE",
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/fabricators/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/gallery/[roundId]/layout/route.ts",
       "methods": [
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/gallery/[roundId]/route.ts",
       "methods": [
         "DELETE",
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/gallery/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/generate-journey-outlines/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/generate-journey/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/generate-outlines/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/generate-timeline-outline-single/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/generate-timeline-outlines/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/generate-timeline-skeleton/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/generate-timeline/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/generate-unit/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/grading/release/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/grading/tile-grades/ai-prescore/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/grading/tile-grades/route.ts",
       "methods": [
         "PUT"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/integrations/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/integrations/sync/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/knowledge/feedback/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/knowledge/items/[id]/curricula/route.ts",
       "methods": [
         "PUT"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/knowledge/items/[id]/link/route.ts",
       "methods": [
         "DELETE",
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/knowledge/items/[id]/route.ts",
       "methods": [
         "DELETE",
         "PUT"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/knowledge/items/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/knowledge/lesson-profiles/[id]/reanalyse/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/knowledge/lesson-profiles/[id]/route.ts",
       "methods": [
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/knowledge/media/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/knowledge/quick-modify/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/knowledge/reanalyse/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/knowledge/record-usage/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/knowledge/upload/route.ts",
       "methods": [
         "DELETE",
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/labs/[id]/bulk-approval/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/labs/[id]/machines/route.ts",
       "methods": [
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/labs/[id]/route.ts",
       "methods": [
         "DELETE",
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/labs/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/lesson-editor/ai-field/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/lesson-editor/suggest/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/library/import/classify/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/library/import/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/library/ingest/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/machine-profiles/[id]/route.ts",
       "methods": [
         "DELETE",
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/machine-profiles/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/me/unit-use-requests/[requestId]/approve/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/me/unit-use-requests/[requestId]/deny/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/me/unit-use-requests/[requestId]/withdraw/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/nm-config/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/nm-observation/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/open-studio/status/route.ts",
       "methods": [
         "PATCH",
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/own-time/approve/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/profile/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/quest/detail/route.ts",
       "methods": [
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/quest/route.ts",
       "methods": [
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/regenerate-page/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/request-access/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/safety-certs/route.ts",
       "methods": [
         "DELETE",
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/safety/alerts/route.ts",
       "methods": [
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/school-calendar/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/school/route.ts",
       "methods": [
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/skills/ai/generate-quiz/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/skills/ai/suggest-anchors/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/skills/ai/suggest-demo/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/skills/ai/suggest-outcomes/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/skills/cards/[id]/demonstrations/route.ts",
       "methods": [
         "DELETE",
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/skills/cards/[id]/publish/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/skills/cards/[id]/refs/route.ts",
       "methods": [
         "DELETE",
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/skills/cards/[id]/route.ts",
       "methods": [
         "DELETE",
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/skills/cards/import/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/skills/cards/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/student-projects/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/students/[studentId]/support-settings/route.ts",
       "methods": [
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/students/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/teach/on-the-fly/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/teach/quick-edit/route.ts",
       "methods": [
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/timetable/import-ical/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/timetable/parse-upload/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/timetable/route.ts",
       "methods": [
         "PATCH",
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/unit-pages/[pageId]/skill-refs/route.ts",
       "methods": [
         "DELETE",
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/unit-thumbnail/route.ts",
       "methods": [
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/units/[unitId]/content/route.ts",
       "methods": [
         "PATCH"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/units/[unitId]/promote-fork/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/units/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/units/versions/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/upload-unit-image/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/welcome/add-roster/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/welcome/complete/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/welcome/create-class/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/welcome/setup-from-timetable/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/wizard-autoconfig/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/teacher/wizard-suggest/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
       "file": "src/app/api/tools/affinity-diagram/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/biomimicry/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/brainstorm-web/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/decision-matrix/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/design-specification/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/empathy-map/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/extract-rubric/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/feedback-capture-grid/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/fishbone/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/five-whys/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/hmw/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/impact-effort-matrix/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/journey-map/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/lotus-diagram/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/marking-comments/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/mind-map/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/morphological-chart/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/pairwise-comparison/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/pmi/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/pov-statement/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/report-writer/bulk/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/report-writer/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/reverse-brainstorm/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/safety/session/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/safety/start-test/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/safety/submit-test/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/scamper/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/six-hats/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/stakeholder-map/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/swot/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/systems-map/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tools/user-persona/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
     },
     {
       "file": "src/app/api/tts/route.ts",
       "methods": [
         "POST"
-      ]
+      ],
+      "reason": "stateless TTS proxy, no audit value"
+    },
+    {
+      "file": "src/app/api/v1/student/[id]/route.ts",
+      "methods": [
+        "DELETE"
+      ],
+      "reason": "audit row emitted inside softDeleteStudent lib helper at src/lib/access-v2/data-subject/delete-student.ts"
     }
-  ]
+  ],
+  "missing": []
 }

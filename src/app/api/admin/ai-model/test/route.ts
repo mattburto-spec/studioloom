@@ -1,3 +1,4 @@
+// audit-skip: ephemeral admin sandbox/test surface, no audit value
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { resolveConfigFromOverrides } from "@/lib/ai/model-config";

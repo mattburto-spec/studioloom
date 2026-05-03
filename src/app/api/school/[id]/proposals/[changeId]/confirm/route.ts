@@ -1,3 +1,4 @@
+// audit-skip: school-scoped operation; audit covered by school_settings_history (mig 087)
 /**
  * POST /api/school/[id]/proposals/[changeId]/confirm
  *

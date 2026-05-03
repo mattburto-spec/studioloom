@@ -1,3 +1,4 @@
+// audit-skip: ephemeral admin sandbox/test surface, no audit value
 import { NextRequest, NextResponse } from "next/server";
 import { extractBlocks } from "@/lib/ingestion/extract";
 import { requireAdmin } from "@/lib/auth/require-admin";
