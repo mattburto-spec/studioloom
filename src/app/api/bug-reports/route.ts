@@ -1,3 +1,4 @@
+// audit-skip: user-submitted content, low audit value (bug report stored in bug_reports table)
 /**
  * POST /api/bug-reports — submit a bug report (teacher or student)
  *

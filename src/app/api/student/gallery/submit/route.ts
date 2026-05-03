@@ -1,3 +1,4 @@
+// audit-skip: routine learner activity, low audit value
 /**
  * Student Gallery Submit API
  *

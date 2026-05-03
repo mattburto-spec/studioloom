@@ -1,3 +1,4 @@
+// audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
 import Anthropic from "@anthropic-ai/sdk";

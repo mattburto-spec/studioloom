@@ -1,3 +1,4 @@
+// audit-skip: public anonymous free-tool, no actor identity
 /**
  * Six Thinking Hats Toolkit AI API
  *

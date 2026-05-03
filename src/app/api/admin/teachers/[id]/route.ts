@@ -19,6 +19,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { logAuditEvent } from "@/lib/access-v2/audit-log";
 
 const PROTECTED_EMAILS = new Set([
   "system@studioloom.internal",
@@ -95,6 +96,25 @@ export async function DELETE(
   if (deleteErr) {
     return NextResponse.json({ error: deleteErr.message }, { status: 500 });
   }
+
+  // Phase 6.4 — high-value admin action: deleting a teacher cascades through
+  // all their owned data. soft-warn so a transient audit failure doesn't
+  // surface a 500 after the user is already gone, but Sentry catches the gap.
+  await logAuditEvent(supabase, {
+    actorId: auth.teacherId,
+    actorType: "platform_admin",
+    action: "admin.teacher.delete",
+    targetTable: "teachers",
+    targetId: teacher.id,
+    severity: "warn",
+    payload: {
+      deletedEmail: teacher.email,
+      deletedName: teacher.name,
+    },
+    ip: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+    userAgent: request.headers.get("user-agent"),
+    failureMode: "soft-sentry",
+  });
 
   return NextResponse.json({
     ok: true,

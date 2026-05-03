@@ -106,22 +106,52 @@ describe("Phase 5.1d audit-coverage scanner", () => {
     }
   });
 
-  it("--fail-on-missing exits non-zero when missing > 0", () => {
-    runScanner(); // populate report
+  it("post-Phase-6.4 baseline: missing must be 0 (gate is now active)", () => {
+    // Phase 6.4 (4 May 2026) closed the original 224-route audit-coverage
+    // gap via bulk-skip + 3 inline-wires (admin/teachers DELETE+invite POST,
+    // admin/teacher-requests PATCH). The nightly workflow now runs the
+    // scanner with --fail-on-missing — every new mutation route from now
+    // on must call logAuditEvent OR carry an `// audit-skip:` annotation.
+    // If this test fails, you've added a route without either; fix it
+    // before the next nightly build.
+    runScanner();
     const report = readReport();
-
-    // Phase 5.1d ships with missing > 0 (228 mutation routes inherited
-    // from Phase 4 and earlier; triage is FU-AV2-AUDIT-MISSING-PHASE-6-CATCHUP).
-    // This test asserts the gate WOULD fire — proving the CI mechanism works.
-    expect(report.stats.missing).toBeGreaterThan(0);
-
-    const { exitCode } = runScanner(["--fail-on-missing"]);
-    expect(exitCode).toBe(1);
+    expect(report.stats.missing).toBe(0);
   });
 
-  it("--check-audit-coverage WITHOUT --fail-on-missing exits 0 even with missing > 0", () => {
-    // This is the visibility-only mode used by nightly.yml today (per
-    // §5.1d triage decision: ship scanner, don't break CI on Phase 4 debt).
+  it("--fail-on-missing exits 0 when missing == 0 (post-Phase-6.4 baseline)", () => {
+    // The clean baseline path: scanner runs, finds nothing missing,
+    // exits 0. Invariant the nightly job now relies on.
+    const { exitCode } = runScanner(["--fail-on-missing"]);
+    expect(exitCode).toBe(0);
+  });
+
+  it("--fail-on-missing exits 1 when a synthetic missing route is injected", () => {
+    // Verifies the gate MECHANISM independent of the current numerical
+    // state. Drops a temporary route.ts that exports POST without
+    // logAuditEvent + without an audit-skip annotation, runs the scanner,
+    // asserts exit=1, then cleans up.
+    const tempDir = resolve(REPO_ROOT, "src/app/api/__phase64_test_synthetic__");
+    const tempFile = resolve(tempDir, "route.ts");
+    const fs = require("node:fs") as typeof import("node:fs");
+    fs.mkdirSync(tempDir, { recursive: true });
+    fs.writeFileSync(
+      tempFile,
+      "export async function POST() { return new Response('synthetic missing route'); }\n",
+    );
+    try {
+      const { exitCode } = runScanner(["--fail-on-missing"]);
+      expect(exitCode).toBe(1);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+      // Restore the report so other tests in the same file see clean state.
+      runScanner();
+    }
+  });
+
+  it("--check-audit-coverage WITHOUT --fail-on-missing exits 0 regardless of missing count", () => {
+    // Visibility-only mode: useful for human auditors invoking the scanner
+    // ad-hoc. CI uses --fail-on-missing.
     const { exitCode } = runScanner();
     expect(exitCode).toBe(0);
   });

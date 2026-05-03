@@ -1,3 +1,4 @@
+// audit-skip: routine teacher pedagogy ops, low audit value
 /**
  * POST /api/teacher/fabrication/jobs/[jobId]/note
  *

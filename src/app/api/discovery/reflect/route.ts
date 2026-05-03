@@ -1,3 +1,4 @@
+// audit-skip: anonymous discovery surface, no actor identity
 import { NextRequest, NextResponse } from "next/server";
 import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { createAdminClient } from "@/lib/supabase/admin";

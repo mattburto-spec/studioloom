@@ -1,3 +1,4 @@
+// audit-skip: public anonymous free-tool, no actor identity
 import { NextRequest, NextResponse } from "next/server";
 import { extractDocument } from "@/lib/ingestion/document-extract";
 

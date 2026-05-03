@@ -1,3 +1,4 @@
+// audit-skip: public anonymous safety-badge test, no actor identity
 // POST /api/safety/log-client-block
 // Logs anonymized client-side block events to student_content_moderation_log.
 // No student content is stored — only flag type, severity, source, and lang.

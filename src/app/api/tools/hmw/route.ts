@@ -1,3 +1,4 @@
+// audit-skip: public anonymous free-tool, no actor identity
 /**
  * How Might We (HMW) Toolkit AI API
  *

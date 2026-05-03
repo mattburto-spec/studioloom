@@ -1,3 +1,4 @@
+// audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
 
 // Quarantined 10 Apr 2026 (Phase 0.4). Legacy knowledge pipeline.

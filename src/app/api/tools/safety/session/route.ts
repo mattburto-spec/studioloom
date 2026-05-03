@@ -1,3 +1,4 @@
+// audit-skip: public anonymous free-tool, no actor identity
 /**
  * POST /api/tools/safety/session — Create teacher session (free tool)
  * GET  /api/tools/safety/session?code=ABC123 — Retrieve session by class code

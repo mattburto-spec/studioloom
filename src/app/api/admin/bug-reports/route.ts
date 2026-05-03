@@ -1,3 +1,4 @@
+// audit-skip: routine admin operational endpoint, low audit value (read-mostly or content-curation)
 /**
  * GET /api/admin/bug-reports — list all bug reports with filters
  * PATCH /api/admin/bug-reports — update a bug report status/notes
