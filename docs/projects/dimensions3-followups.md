@@ -1742,3 +1742,35 @@ The query is going direct to Supabase (client-side `supabase-js`), not through a
 **Definition of done:** no 400 on Class Hub page load; the affected widget renders accurate completion percentages.
 
 **Sequence:** opportunistic; pair with next dashboard polish pass.
+
+---
+
+## FU-AV2-API-V1-FILESYSTEM-RESHUFFLE — move route handlers into `src/app/api/v1/<domain>/` directory tree (P3, optional)
+
+**Status:** OPEN — filed 4 May 2026 by Phase 6.3.
+
+**Surfaced:** Phase 6.3 chose Option Z (Next.js `rewrites` in `next.config.ts`) over Option X (literal file moves) for the API versioning seam. Both achieve the same client-facing outcome — `/api/v1/*` works, external clients can pin to it, future `/api/v2/*` has a place to live. Option Z ships in ~30min, Option X is ~3-4h. ADR-013 documents the decision.
+
+**Issue:** The file-system layout doesn't match the canonical URL. Routes live at `src/app/api/teacher/units/route.ts` but the canonical URL is `/api/v1/teacher/units`. This works (rewrite handles it transparently) but creates a cognitive disconnect for anyone reading the codebase.
+
+**When to do this:**
+- (a) v2 actually needs to ship with breaking changes (would force the issue: v1 needs its own directory so v2 can exist alongside).
+- (b) The cognitive disconnect bothers you when reading code.
+- (c) You want to remove the permanent `next.config.ts` rewrite indirection.
+
+If none of these are pressing, leave it. The cost is the same later.
+
+**Recommended approach (when triggered):**
+1. Move all 318 `src/app/api/<domain>/*/route.ts` → `src/app/api/v1/<domain>/*/route.ts` (preserve directory structure).
+2. Update internal `fetch("/api/<domain>/...")` callers to `/api/v1/<domain>/...` (grep for the patterns, batch-replace per-domain).
+3. Update test imports that reference route handlers directly: `from "@/app/api/<domain>/..."` → `from "@/app/api/v1/<domain>/..."`.
+4. Flip the `next.config.ts` rewrite direction: `/api/<domain>/:path*` → `/api/v1/<domain>/:path*` (legacy bare paths still work via rewrite for 90 days).
+5. Update header rules in `next.config.ts` to mirror the new direction.
+6. Sync `api-registry.yaml` paths.
+7. Per-domain commits for review tractability (admin / teacher / student / fab / public).
+
+**Definition of done:** route files live under `src/app/api/v1/`; canonical URLs match file paths; bare `/api/<domain>/*` paths still work via redirect; api-registry shows v1 as canonical with bare paths flagged as legacy.
+
+**Sequence:** opportunistic. No deadline. Same cost whenever done.
+
+**Related:** `next.config.ts` API versioning seam comment, ADR-013 (api-versioning).
