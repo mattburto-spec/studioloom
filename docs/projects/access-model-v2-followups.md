@@ -1029,3 +1029,28 @@ is empty). But the FIRST student data deletion via `/api/v1/student/[id]`
 DELETE will queue a `scheduled_deletions` row — without the cron running,
 that row sits forever. So this needs to land before any real DSR delete
 happens in production. Pre-pilot is the natural gate.
+
+---
+
+## FU-AV2-COST-ALERT-WIRE-CRON-TO-RESEND
+**Priority:** P2
+**Surfaced:** A6 manual smoke (4 May 2026)
+**Target gate:** Pre-pilot
+
+**Symptom:** `src/lib/jobs/cost-alert.ts:run()` writes a `system_alerts`
+row when thresholds exceeded but never calls `sendCostAlert()` from
+`src/lib/monitoring/cost-alert-delivery.ts`. The Resend email helper
+exists + the cron job exists, but the two aren't connected. Confirmed
+via grep: zero callers of `sendCostAlert` in src/. Originally flagged
+as FU-M (master CLAUDE.md known-follow-ups). A6 fire drill surfaced it.
+
+**Already fixed in same A6 session (4 May 2026):** sender domain bug
+in cost-alert-delivery.ts (`studioloom.app` → `loominary.org`). Resend
+delivery now succeeds when sendCostAlert is invoked directly.
+
+**Done when:** `cost-alert.ts:run()` calls `sendCostAlert()` for each
+threshold in `thresholdsExceeded` (passing the right period + cost +
+threshold + name). Cron entry-point fire-drill produces real Resend
+delivery without the workaround script. Update the runbook to point
+at run-cost-alert.ts again (currently relies on
+scripts/ops/run-cost-alert-fire-drill.ts as the workaround).
