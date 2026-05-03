@@ -1,38 +1,40 @@
 {
   "registry": "rls-coverage",
-  "timestamp": "2026-05-03T18:19:16.399458+00:00",
+  "timestamp": "2026-05-03T23:38:55.645688+00:00",
   "version": 1,
   "drift": {
     "no_rls": [],
-    "rls_enabled_no_policy": [
-      {
-        "table": "admin_audit_log",
-        "source_migration": "079_admin_audit_log.sql"
-      },
-      {
-        "table": "ai_model_config",
-        "source_migration": "024_ai_model_config.sql"
-      },
-      {
-        "table": "ai_model_config_history",
-        "source_migration": "024_ai_model_config.sql"
-      },
-      {
-        "table": "fabricator_sessions",
-        "source_migration": "097_fabricators.sql"
-      },
-      {
-        "table": "teacher_access_requests",
-        "source_migration": "089_teacher_access_requests.sql"
-      }
-    ]
+    "rls_enabled_no_policy": []
   },
+  "intentional_deny_all": [
+    {
+      "table": "admin_audit_log",
+      "source_migration": "079_admin_audit_log.sql"
+    },
+    {
+      "table": "ai_model_config",
+      "source_migration": "024_ai_model_config.sql"
+    },
+    {
+      "table": "ai_model_config_history",
+      "source_migration": "024_ai_model_config.sql"
+    },
+    {
+      "table": "fabricator_sessions",
+      "source_migration": "097_fabricators.sql"
+    },
+    {
+      "table": "teacher_access_requests",
+      "source_migration": "089_teacher_access_requests.sql"
+    }
+  ],
   "stats": {
     "total_tables": 115,
     "rls_enabled": 115,
     "with_policies": 110,
     "no_rls_count": 0,
-    "rls_no_policy_count": 5
+    "rls_no_policy_count": 0,
+    "intentional_deny_all_count": 5
   },
-  "status": "drift_detected"
+  "status": "clean"
 }

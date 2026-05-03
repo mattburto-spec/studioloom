@@ -623,9 +623,15 @@ Same silent-data-loss pattern as FU-GG: the FK rejection error is swallowed by t
 
 ---
 
-## FU-FF — Undocumented RLS-as-deny-all pattern on 3 tables (P3)
+## FU-FF — Undocumented RLS-as-deny-all pattern on 3 tables (P3) ✅ RESOLVED
 
 **Filed:** 14 Apr 2026
+**Resolved:** 4 May 2026 (Phase 6.5a)
+
+Phase 6.5 shipped `docs/security/rls-deny-all.md` documenting all 5 tables with the RLS-enabled-no-policy pattern (the original 3 plus `fabricator_sessions` and `teacher_access_requests`; `student_sessions` was dropped entirely in Phase 6.1). `scripts/registry/scan-rls-coverage.py` now reads the doc at scan time and classifies these tables as `intentional_deny_all` rather than drift. `docs/scanner-reports/rls-coverage.json` shows `rls_no_policy_count: 0, intentional_deny_all_count: 5, status: clean`.
+
+Original issue text preserved below for history.
+
 **Target phase:** Next governance pass
 **Priority:** P3 (documentation gap, not a security bug)
 

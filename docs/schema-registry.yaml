@@ -1093,18 +1093,130 @@ tables:
       basis: pseudonymous
 - name: ai_budget_state
   source_migration: 20260428220303_ai_budgets_and_state.sql
-  status: dropped
-  applied_date: null
-  purpose: null
-  columns: {}
-  spec_drift: []
+  status: applied
+  applied_date: '2026-04-29'
+  purpose: 'Phase 0.7b — per-student running token counter for the AI budget cascade. Phase 5.2 added the atomic_increment_ai_budget() SECURITY DEFINER function; Phase 5.3 withAIBudget() middleware writes here on every AI call. Reset cron zeros tokens_used_today at midnight in schools.timezone.'
+  writers:
+    - src/lib/access-v2/ai-budget/middleware.ts (via atomic_increment_ai_budget RPC)
+    - src/lib/jobs/ai-budget-reset-cron.ts (Phase 5.3 reset cron)
+  readers:
+    - src/lib/access-v2/ai-budget/cascade-resolver.ts
+  columns:
+    student_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    tokens_used_today:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    reset_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    last_warning_sent_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+  spec_drift:
+  - date: '2026-05-04'
+    note: 'Phase 6.5 — entry rebuilt from status:dropped/columns:{} to applied. Scanner mis-parsed the compound multi-table CREATE TABLE migration; FU-DD class drift. Manual rebuild from migration source.'
 - name: ai_budgets
   source_migration: 20260428220303_ai_budgets_and_state.sql
-  status: dropped
-  applied_date: null
-  purpose: null
-  columns: {}
-  spec_drift: []
+  status: applied
+  applied_date: '2026-04-29'
+  purpose: 'Phase 0.7b — per-subject AI token cap overrides (polymorphic subject_type: student/class/school). Phase 5.3 cascade-resolver reads the most-specific override; falls back through class → school → schools.default_student_ai_budget → tier_default.'
+  writers:
+    - src/app/api/admin/ai-budget/route.ts (admin overrides)
+    - src/app/api/school/[id]/settings/route.ts (school-tier defaults)
+  readers:
+    - src/lib/access-v2/ai-budget/cascade-resolver.ts
+  columns:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    subject_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: legitimate_interest
+    subject_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    daily_token_cap:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    set_by:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: legitimate_interest
+    set_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    reason:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+  spec_drift:
+  - date: '2026-05-04'
+    note: 'Phase 6.5 — entry rebuilt from status:dropped/columns:{} to applied. Scanner mis-parsed the compound multi-table CREATE TABLE migration; FU-DD class drift. Manual rebuild from migration source.'
 - name: ai_model_config
   source_migration: 024_ai_model_config.sql
   status: applied
@@ -1497,22 +1609,117 @@ tables:
   status: applied
   applied_date: '2026-04-29'
   purpose: 'Phase 0.7a — immutable append-only audit log. Phase 5 wires logAuditEvent() wrapper into every mutation route. Service-role insert; RLS controls SELECT. NO UPDATE/DELETE policies (immutability enforced by absence).'
+  writers:
+    - src/lib/access-v2/audit-log.ts (logAuditEvent wrapper — single insert path)
+  readers:
+    - src/app/api/v1/teacher/students/[id]/audit-log/route.ts
+    - src/app/api/admin/audit-log/route.ts
   columns:
-    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
-    actor_id: UUID NULL REFERENCES auth.users(id) ON DELETE SET NULL
-    actor_type: TEXT NOT NULL CHECK (actor_type IN ('student','teacher','fabricator','platform_admin','community_member','guardian','system'))
-    impersonated_by: UUID NULL REFERENCES auth.users(id) ON DELETE SET NULL
-    action: TEXT NOT NULL
-    target_table: TEXT NULL
-    target_id: UUID NULL
-    school_id: UUID NULL REFERENCES schools(id) ON DELETE SET NULL
-    class_id: UUID NULL REFERENCES classes(id) ON DELETE SET NULL
-    payload_jsonb: JSONB NOT NULL DEFAULT '{}'
-    ip_address: INET NULL
-    user_agent: TEXT NULL
-    severity: TEXT NOT NULL DEFAULT 'info' CHECK (severity IN ('info','warn','critical'))
-    school_subscription_tier_at_event: TEXT NULL CHECK (NULL OR IN ('pilot','free','starter','pro','school'))
-    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    actor_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: legitimate_interest
+    actor_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    impersonated_by:
+      pii: true
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: legal_obligation
+    action:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    target_table:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    target_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: legitimate_interest
+    school_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    class_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    payload_jsonb:
+      pii: true
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: legal_obligation
+    ip_address:
+      pii: true
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: hash_only
+      retention_days: 90
+      basis: legitimate_interest
+    user_agent:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 90
+      basis: legitimate_interest
+    severity:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    school_subscription_tier_at_event:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   indexes:
   - idx_audit_events_created ON (created_at DESC)
   - idx_audit_events_actor_created ON (actor_id, created_at DESC) WHERE actor_id IS NOT NULL
@@ -1527,6 +1734,8 @@ tables:
   spec_drift:
   - date: '2026-05-01'
     note: 'Phase 3.6 — entry rewritten from status:dropped/columns:{} to applied. Scanner mis-parsed compound multi-table CREATE TABLE migration; FU-DD class drift. Manual rebuild from migration source.'
+  - date: '2026-05-04'
+    note: 'Phase 6.5b — added per-column classification block (pii/student_voice/safety_sensitive/ai_exportable/retention_days/basis) per data-classification-taxonomy.md. ip_address + user_agent at 90-day retention; payload_jsonb + impersonated_by + actor_id + target_id at 2555-day retention (compliance audit window). The columns: SQL-types format was replaced with the canonical classification-only format used by scheduled_deletions.'
 - name: badges
   source_migration: 035_safety_badges.sql
   status: applied
