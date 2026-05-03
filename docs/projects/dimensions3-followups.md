@@ -1700,3 +1700,45 @@ Reuse the same `syntheticEmail` shape as classcode-login so an existing student 
 **Sequence:** before any school other than NIS adopts. Estimated ~0.5 day if the classcode-login pattern is copy-paste tractable.
 
 **Related:** Phase 6.1 brief §6.1, `src/app/api/auth/student-classcode-login/route.ts` (canonical pattern).
+
+---
+
+## FU-AV2-STALE-TIMETABLE-LINK — `/teacher/timetable` route doesn't exist; nav prefetches it (P3)
+
+**Status:** OPEN — surfaced 4 May 2026 during Phase 6.2 smoke.
+
+**Issue:** Browser console shows `GET /teacher/timetable?_rs=... → 404 (Not Found)` on every Class Hub / Classes list page load. The `?_rs=` query param identifies it as a Next.js React Server Component **prefetch** (triggered by hovering or rendering a Link). Some component still references `/teacher/timetable` even though that page route doesn't exist.
+
+**Why P3:** silent (prefetch failures don't break user-visible behaviour). Just noisy in the console + wasted server hit.
+
+**Recommended approach:**
+1. Grep for `/teacher/timetable` in `src/app/teacher/layout.tsx`, the top-nav component, and any sidebar/quick-link panel: `grep -rn "/teacher/timetable" src/`
+2. Either (a) remove the dead Link if the timetable feature was scoped out OR (b) restore the route at `src/app/teacher/timetable/page.tsx` if the link is intentional UX.
+3. Verify no other dead Link patterns: `grep -rn 'href="/teacher' src/components/ src/app/teacher/layout.tsx | sort -u`
+
+**Definition of done:** no `/teacher/timetable` 404 in browser console on Class Hub / Classes list page loads.
+
+**Sequence:** opportunistic; pair with next teacher-nav cleanup pass.
+
+---
+
+## FU-STUDENT-PROGRESS-CLIENT-400 — client-side `student_progress` query 400s on Class Hub (P3)
+
+**Status:** OPEN — surfaced 4 May 2026 during Phase 6.2 smoke.
+
+**Issue:** Browser console on `/teacher/classes/[classId]` shows `GET cxxbfmnbwihuskaaltlk.supabase.co/rest/v1/student_progress?select=st…ges%2Ctotal_pages&student_id=in.(...) → 400 (Bad Request)`. The truncated `select=` includes `total_pages`, which likely doesn't exist on `student_progress` (or has been renamed). 400 from PostgREST = malformed query (column not found / bad operator), distinct from 401/403 (RLS).
+
+The query is going direct to Supabase (client-side `supabase-js`), not through a Next.js route — so the bug lives in a frontend component, not in any API route I can see in `src/app/api/`.
+
+**Why P3:** doesn't break the page load (the request fails silently and the affected widget probably renders empty); but the column drift means whatever progress widget this powers shows wrong/no data.
+
+**Recommended approach:**
+1. Find the caller: `grep -rn 'from("student_progress"' src/components/ src/app/teacher/`
+2. Diff its `.select()` against the current `student_progress` schema: `\d student_progress` in psql, or `SELECT column_name FROM information_schema.columns WHERE table_name='student_progress' ORDER BY ordinal_position`.
+3. Pick the right column or remove the stale reference.
+
+**Suspected:** a Class Hub progress-bar / completion-summary widget that was written against an old `student_progress.total_pages` column that's now stored elsewhere (e.g., on `units.content_data` page count, or computed). Audit the column lineage in schema-registry.yaml.
+
+**Definition of done:** no 400 on Class Hub page load; the affected widget renders accurate completion percentages.
+
+**Sequence:** opportunistic; pair with next dashboard polish pass.
