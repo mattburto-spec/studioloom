@@ -17,7 +17,7 @@ Final pre-pilot phase. Removes the legacy code paths that Phases 1–5 made obso
 
 When this phase closes:
 
-1. **No legacy student-token code paths remain.** `student_sessions` table dropped, `requireStudentAuth` shim deleted, `/api/auth/student-login` + `/api/auth/student-session` Path B gone, `questerra_student_session` cookie reads stripped from middleware. All 46 callsites use the Phase 1 `requireStudentSession` helper directly. Q1 resolution: **clean-slate students wiped first** (test data only), so no migration risk.
+1. **No legacy student-token code paths remain.** `student_sessions` table dropped, `requireStudentAuth` shim deleted, `/api/auth/student-login` + `/api/auth/student-session` Path B gone, `questerra_student_session` cookie reads stripped from middleware. All 46 callsites use the Phase 1 `requireStudentSession` helper directly. Q1 resolution: **clean-slate ALREADY DONE** — prod has 0 students (verified 4 May 2026; 3-Matts Phase 4.3.z cleanup hard-deleted all 7 test students on 2 May). No migration risk.
 2. **No `author_teacher_id` direct-ownership reads remain.** All 105 `.eq("teacher_id"|"author_teacher_id")` callsites route through the Phase 3 `can()` helper. FU-AV2-PHASE-3-CALLSITES-REMAINING P3 absorbs here.
 3. **Every existing route lives under `/api/v1/*`.** 319-route rename pass (admin 34 + auth 5 + fab 13 + school 11 + schools 3 + student 63 + teacher 146 + tools 36 + misc 5 = 319 — `/api/v1/student/*` + `/api/v1/teacher/*` already shipped in §5.4 + §5.6, 3 routes total). Legacy aliases live with 90-day expiry comments.
 4. **Audit-coverage CI gate flips from visibility-only to gating** (`--fail-on-missing` enabled in nightly.yml). 228 inherited routes triaged: ~50 bulk-skipped (public-tools, admin-sandbox, lib-delegating), ~8 inline-wired (admin-ops), the rest filed as per-route follow-ups OR marked.
@@ -206,9 +206,9 @@ src/lib/integrity/remove-student-data.ts         # Removes student_sessions DELE
 
 ### 3.7 Resolved decisions (signed off by Matt 4 May 2026 PM)
 
-**Q1 — Legacy student token cleanup strategy: clean-slate students.**
+**Q1 — Legacy student token cleanup strategy: clean-slate students (ALREADY DONE).**
 
-- `DELETE FROM students; DELETE FROM student_sessions;` (one-off SQL Editor in §6.1).
+- ~~`DELETE FROM students; DELETE FROM student_sessions;`~~ — **already done by Phase 4.3.z 2 May 2026** (3-Matts hard-deleted 7 test students; verified 4 May: 0 rows in `students` total, including soft-deleted). §6.1 only needs to verify clean state before DROP.
 - DROP TABLE `student_sessions` via thin migration (§6.1).
 - DELETE `requireStudentAuth` shim (`src/lib/auth/student.ts`) entirely.
 - Mechanical sweep of 46 callsite files: import + call swap to `requireStudentSession`.
@@ -259,20 +259,21 @@ Eight sub-phases (6.0 → 6.7). Each ends with a sub-phase commit on `access-mod
   - `../Loominary/docs/adr/013-api-versioning.md` (§6.6)
 - Commit: `chore(phase-6.0): pre-flight + spec amendments + scaffolds`.
 
-### Phase 6.1 — Legacy student token deprecation + clean-slate (~0.5 day)
+### Phase 6.1 — Legacy student token deprecation (~0.5 day)
 
-**Per Q1 resolution:** existing students are test data; full delete + clean-slate avoids dual-path coexistence work.
+**Per Q1 resolution (UPDATED 4 May):** clean-slate already done — Phase 4.3.z hard-deleted all 7 test students on 2 May. Verified 4 May: prod has 0 rows in `students` (active + soft-deleted). §6.1 just verifies clean state before DROP, then deletes the legacy code paths.
 
 Sequence:
-1. **Operations FIRST (one-off SQL Editor):**
+1. **Verify clean state (Matt runs in SQL Editor):**
    ```sql
-   -- One-off cleanup. Test data only. Idempotent.
-   DELETE FROM student_sessions;
-   DELETE FROM students WHERE deleted_at IS NULL;
-   -- (any FK-cascade dependents auto-clean; verify via Supabase Storage manual sweep
-   -- if storage buckets hold student-uploaded artefacts)
+   -- Pre-DROP sanity check. Both should return 0.
+   SELECT
+     (SELECT COUNT(*) FROM students) AS students_count,
+     (SELECT COUNT(*) FROM student_sessions) AS sessions_count;
    ```
-2. **Migration `phase_6_1_drop_student_sessions`** — one-line `DROP TABLE IF EXISTS student_sessions;` + sanity DO-block + paired down (`-- intentional: no rollback; data was wiped`).
+   If either is non-zero, STOP — the 3-Matts cleanup didn't fully resolve OR new test data appeared between A6 and §6.1. Investigate before DROP.
+
+2. **Migration `phase_6_1_drop_student_sessions`** — one-line `DROP TABLE IF EXISTS student_sessions;` + sanity DO-block + paired down (`-- intentional: no rollback; data was already wiped by Phase 4.3.z`).
 3. **Code cleanup:**
    - Delete `src/lib/auth/student.ts` (the `requireStudentAuth` shim).
    - Delete `src/app/api/auth/student-login/route.ts`.
