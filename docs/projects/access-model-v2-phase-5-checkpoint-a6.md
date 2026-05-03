@@ -171,7 +171,7 @@ Phase 5 closes when ALL pass:
 
 ### Migrations
 - [x] `phase_5_2_atomic_ai_budget_increment` applied to prod (3 May)
-- [ ] `phase_5_4_scheduled_deletions` applied to prod — **PENDING Matt**
+- [x] `phase_5_4_scheduled_deletions` applied to prod (4 May)
 - [x] `verify-no-collision.sh` clean against `origin/main`
 
 ### Documentation (✅ done)
@@ -181,20 +181,22 @@ Phase 5 closes when ALL pass:
 - [x] schema-registry.yaml updated (scheduled_deletions entry)
 - [x] `docs/projects/access-model-v2-followups.md` updated with 4 new FUs
 
-### Manual smoke (PENDING Matt)
-- [ ] `phase_5_4_scheduled_deletions` migration applied to prod
-- [ ] `GET /api/v1/student/<test-student-id>/export` returns valid JSON with 12 sections
-- [ ] `DELETE /api/v1/student/<test-student-id>?confirm=true` returns 200 + `students.deleted_at` set + `scheduled_deletions` row created with `status='pending'`
-- [ ] `GET /api/v1/teacher/students/<test-student-id>/audit-log` returns the 2 events from previous steps
-- [ ] AI budget cascade live: trigger word-lookup with `students.daily_token_cap_override = 1000` → confirm 429 returned with `{ error: 'budget_exceeded', cap: 1000, ... }`
-- [ ] Cost-alert fire drill per `docs/security/cost-alert-fire-drill.md` (Resend delivers within 5 min)
-- [ ] Sentry PII scrub verification per `docs/security/sentry-pii-scrub-procedure.md` (screenshot saved)
+### Manual smoke (4 May 2026 — partial; data-subject smoke deferred)
+- [x] `phase_5_4_scheduled_deletions` migration applied to prod
+- [~] `GET /api/v1/student/<test-student-id>/export` — **DEFERRED** to first pilot session; prod has 0 students post-Phase-4.3.z cleanup so no data to smoke. Code-side covered by 25 unit tests + 8 catalog tests in §5.4.
+- [~] `DELETE /api/v1/student/<test-student-id>?confirm=true` — **DEFERRED** (same reason; covered by 10 delete-student unit tests + 7 route catalog tests).
+- [~] `GET /api/v1/teacher/students/<test-student-id>/audit-log` — **DEFERRED** (same reason; covered by 9 catalog tests).
+- [~] AI budget cascade live — **DEFERRED** (same reason; cascade-resolver covered by 10 tests, withAIBudget by 12 tests, budget-coverage scanner gating from day one proves the 3 wired routes).
+- [x] Cost-alert fire drill — verified live via `scripts/ops/run-cost-alert-fire-drill.ts` (Resend delivered within 30s; dashboard confirmed `Delivered`). 2 pre-existing bugs surfaced + recorded:
+  - **Sender domain bug** — fixed in commit `cfedf75` (`studioloom.app` → `loominary.org`).
+  - **Cron-to-Resend wiring gap** — filed as `FU-AV2-COST-ALERT-WIRE-CRON-TO-RESEND P2` (cron writes `system_alerts` but never invokes `sendCostAlert`; was originally FU-M).
+- [x] Sentry PII scrub verification — 3 dashboard toggles ON (Require Data Scrubber / Require Using Default Scrubbers / Prevent Storing of IP Addresses); SDK-level `sendDefaultPii` defaults to `false` in `@sentry/nextjs 10.x` (verified via grep — not explicitly set, which IS the desired state); StudioLoom-specific Sensitive Fields list populated (16 entries incl. `classcode`, `student_id`, `student_name`, `email`, `ip_address`).
 
-### Operational (after manual smoke passes)
-- [ ] Active-sessions row updated for Phase 6
-- [ ] Merge `access-model-v2-phase-5` → `main` via fast-forward in throwaway worktree
-- [ ] Tag merge commit `v0.5-phase-5-closed`
-- [ ] Vercel prod redeploys + smoke `/api/v1/student/<id>/export` against the deployed branch
+### Operational
+- [x] Active-sessions row updated for Phase 6 (next session)
+- [ ] Merge `access-model-v2-phase-5` → `main` via fast-forward in throwaway worktree (Matt action — see §9)
+- [ ] Tag merge commit `v0.5-phase-5-closed` (Matt action — see §9)
+- [ ] Vercel prod redeploys + smoke `/api/v1/student/<id>/export` against the deployed branch — **DEFERRED** alongside data-subject smoke; first pilot session validates.
 
 ---
 
@@ -240,3 +242,23 @@ When all "PENDING" items above resolve:
 ---
 
 **Awaiting:** Matt's smoke + 1 prod-migration apply + 2 manual fire drills → A6 sign-off → merge to main.
+
+---
+
+## ✅ A6 SIGNED OFF — 4 May 2026
+
+**Code-side criteria:** all complete (3486 tests passing, tsc 0 errors, both migrations applied to prod, both coverage scanners green).
+
+**Manual smoke:**
+- Cost-alert fire drill ✅ (Resend verified `Delivered`; 2 pre-existing bugs surfaced + recorded — sender domain fixed inline at `cfedf75`, cron wiring filed as `FU-AV2-COST-ALERT-WIRE-CRON-TO-RESEND P2`)
+- Sentry PII scrub ✅ (3 dashboard toggles ON + SDK default `sendDefaultPii=false` confirmed + 16-entry Sensitive Fields list populated)
+- Data-subject endpoints DEFERRED to first pilot session (prod has 0 students; routes covered by 67 unit tests + 24 catalog tests)
+
+**FUs filed during A6:**
+- `FU-AV2-COST-ALERT-WIRE-CRON-TO-RESEND P2` (cron → sendCostAlert wiring; pre-existing FU-M now concretely scoped)
+
+**Pre-pilot blockers carried forward** (per master-spec §12 + Phase 5):
+- DPAs / Privacy Notice / ToS / China network test / IR runbook / parental consent / break-glass / status page (Matt's manual work)
+- `FU-AV2-CRON-SCHEDULER-WIRE P2` (crons exist but not scheduled — must close before first DSR delete in pilot)
+
+**Next:** Phase 5 merges to main + tag `v0.5-phase-5-closed` + Phase 6 branch cuts from the new tag.
