@@ -886,3 +886,75 @@ visibility-only to `--fail-on-missing` once the count hits 0.
    (largest bucket; ~half-day).
 5. Run scanner; iterate until missing == 0.
 6. Flip nightly to `--fail-on-missing`.
+
+---
+
+## FU-AV2-AI-BUDGET-EXHAUSTED-EMAIL
+**Priority:** P3
+**Surfaced:** Phase 5.3 implementation (3 May 2026 PM)
+**Target gate:** Pre-pilot OR first real over-cap event in production
+
+**Symptom:** When a student exhausts their daily AI cap, `withAIBudget` emits
+an `audit_events` row (`action='ai_budget.over_cap'`, `severity='warn'`) and
+returns 429 to the client. The student sees "budget exceeded" in the UI;
+the teacher sees nothing unless they query the audit log explicitly.
+
+**Why P3 not P2:** Path B ships pilot WITHOUT email notifications; the audit
+event is the source-of-truth surface. Real ops experience may show this is
+fine (rare cap hits) or annoying (frequent cap hits get lost in the audit
+feed) — defer to pilot data.
+
+**Done when:**
+1. Build `src/lib/access-v2/ai-budget/over-cap-email.ts` mirroring the
+   `src/lib/preflight/email.ts` Resend-fetch pattern (no SDK dependency,
+   console fallback when RESEND_API_KEY is unset).
+2. Email kinds: `ai_budget.exhausted` (student) + optionally
+   `ai_budget.exhausted.teacher_digest` (daily roll-up to teacher).
+3. Wire into `withAIBudget`'s `maybeEmitOverCapWarning` — same throttle
+   semantics (24h window via `ai_budget_state.last_warning_sent_at`).
+4. Honor student's `students.notification_preferences` JSONB (don't email
+   if opted out — pattern from Preflight phase 1B-2 student email opt-out).
+5. Document the email template + one fire-drill in `docs/security/`.
+
+**Suggested implementation order:** Build the email helper first as a pure
+function (no withAIBudget changes); test against a dev student account; then
+swap the `// TODO: send email` comment in middleware.ts for the real call
+behind a feature flag (`ai.budget.exhaustion_emails_enabled`, default false).
+
+---
+
+## FU-AV2-AI-BUDGET-WIRE-TOOL-SESSIONS-AND-OTHER-AI
+**Priority:** P2
+**Surfaced:** Phase 5.3 implementation (3 May 2026 PM)
+**Target gate:** Phase 5.3d (audit-coverage analog for AI calls)
+
+**Symptom:** Phase 5.3 wired `withAIBudget` into 3 student AI route files
+(word-lookup, quest/mentor, design-assistant). The brief named a 4th —
+`/api/student/safety/check-requirements` — but inspection revealed it's
+GET-only with no AI call (brief drift).
+
+The bigger question: how many OTHER student-attributed AI call sites exist
+that should be wrapped? The §5.3d budget-coverage scanner is the
+mechanism that finds them; until that lands (next sub-phase), the
+de-facto coverage is the 3 explicit wires.
+
+**Categories likely to surface from §5.3d:**
+- Tool-session routes (`/api/student/tool-sessions/*`) — many toolkit tools
+  may call AI through a different proxy path; needs scanner audit.
+- Open Studio routes (mentor variants, evidence reflection) — student
+  context, may not go through generateResponse.
+- Discovery Engine reflect endpoints — student-attributed AI calls.
+- Word-lookup `image_lookup` / `audio_lookup` if/when those ship.
+
+**Why P2 not P1:** Pilot can ship with the 3 wired routes — they cover the
+highest-volume student AI surface (Socratic mentor, vocabulary, quest mentor).
+Other surfaces are lower-volume + less aggressive. §5.3d's CI gate is the
+forcing function for completeness.
+
+**Done when:**
+1. Phase 5.3d scanner runs against current tree.
+2. Each entry in `docs/scanner-reports/ai-budget-coverage.json` `missing` is
+   either wrapped via `withAIBudget()` OR marked `// budget-skip: <reason>`
+   with rationale, OR filed as a follow-up sibling.
+3. Scanner returns `missing: 0` for student-attributed AI routes.
+4. CI gate (`--check-ai-budget-coverage --fail-on-missing`) flipped on.

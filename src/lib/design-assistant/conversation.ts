@@ -228,6 +228,15 @@ export async function generateResponse(
   questionType: string;
   bloomLevel: number;
   effortScore: number;
+  /**
+   * Phase 5.3 — surfaced so the route can wrap the call with withAIBudget.
+   * stop_reason 'max_tokens' means truncation; caller MUST NOT bill (Lesson #39).
+   */
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    stop_reason: string;
+  };
 }> {
   // 1. Load conversation + turns
   const { conversation, turns } = await loadConversation(conversationId);
@@ -307,7 +316,8 @@ export async function generateResponse(
   messages.push({ role: "user", content: studentMessage });
 
   // 9. Call AI
-  const response = await callDesignAssistantAI(systemPrompt, messages, apiKey);
+  const aiResult = await callDesignAssistantAI(systemPrompt, messages, apiKey);
+  const response = aiResult.text;
 
   // 10. Determine question type
   const questionType = suggestQuestionType(
@@ -323,6 +333,7 @@ export async function generateResponse(
     questionType,
     bloomLevel,
     effortScore,
+    usage: aiResult.usage,
   };
 }
 
@@ -488,12 +499,21 @@ async function getClassFrameworkForStudent(
 /**
  * Call the AI with the design assistant system prompt and conversation history.
  * Uses Claude Haiku for fast, cheap responses (~1-2s).
+ *
+ * Phase 5.3: returns usage so the caller can wrap with withAIBudget.
  */
 async function callDesignAssistantAI(
   systemPrompt: string,
   messages: Array<{ role: "user" | "assistant"; content: string }>,
   apiKey: string
-): Promise<string> {
+): Promise<{
+  text: string;
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    stop_reason: string;
+  };
+}> {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -545,7 +565,14 @@ async function callDesignAssistantAI(
     );
   }
 
-  return text;
+  return {
+    text,
+    usage: {
+      input_tokens: data.usage?.input_tokens ?? 0,
+      output_tokens: data.usage?.output_tokens ?? 0,
+      stop_reason: data.stop_reason ?? "end_turn",
+    },
+  };
 }
 
 // =========================================================================
