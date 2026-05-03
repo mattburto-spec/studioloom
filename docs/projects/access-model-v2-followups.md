@@ -795,3 +795,29 @@ multiple departments are likely).
 4. /admin/school/[id] Roles tab populated.
 5. Smoke: grant dept_head via UI → class_members rows auto-tagged →
    teacher sees the relevant classes in their dashboard.
+
+---
+
+## FU-AV2-DEPT-BACKFILL-FROM-NAME
+**Priority:** P3
+**Surfaced:** Phase 4.9 smoke (3 May 2026)
+**Target gate:** Pre-pilot or alongside FU-AV2-DEPT-HEAD-UI
+
+**Symptom:** Phase 4.9 backfill regex matches `classes.subject` for
+keywords. NIS classes have `subject = NULL` and encode discipline in
+`name` instead ("10 Design", "9 Design Science S2"). Result: 0 of 7
+NIS classes got auto-classified.
+
+**Fix:** Extend the backfill (or the future Settings UI department
+picker that's part of FU-AV2-DEPT-HEAD-UI) to fall back to
+`classes.name` when `subject` IS NULL. Same regex; just `coalesce(subject, name)`.
+
+**Why deferred:** Manual classification works fine for v1 — Matt set
+2 NIS classes to `design_tech` during the smoke and the trigger fired
+correctly. A dedicated backfill pass can run as a one-off SQL when
+the UI surface lands.
+
+**Done when:**
+1. Either: re-run the backfill with `coalesce(subject, name)` source.
+2. Or: bake into the Settings UI department picker logic when
+   FU-AV2-DEPT-HEAD-UI ships.

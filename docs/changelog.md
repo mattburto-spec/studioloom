@@ -3314,3 +3314,67 @@ Two audits ran post-A5a, two sub-phase additions approved:
 **Tests**: unchanged (3189/11). tsc strict: unchanged (0 errors). Vercel: no deploys this session.
 
 **Next session pickup**: handoff/main.md is the entry point. Phase 4 part 2 begins with 4.5 (school_merge_requests). 4.7b-0 ops flip can run any time after 4.5 lands — before 4.7b-1 code.
+
+
+## 2026-05-03 — Access Model v2 Phase 4 part 2 SHIPPED + Checkpoint A5b PASS
+
+**Worktree:** `/Users/matt/CWORK/questerra-access-v2`
+**Branch:** `access-model-v2-phase-4-part-2` → merging to `main`
+**Session type:** Marathon implementation. 9 sub-phases shipped end-to-end + smoke-verified on prod + Checkpoint A5b PASS.
+
+**What shipped**
+
+All 9 Phase 4 part 2 sub-phases complete, applied, and smoke-verified:
+
+- **4.5 — `school_merge_requests` + 90-day redirect cascade** (mig `20260502210353`, commit `f864172`). Platform-admin-mediated merges with 15-table cascade (audit-derived from brief's 12 — caught Preflight surfaces + guardians via Lesson #54 grep). Per-table audit_events row + summary row per merge.
+- **4.7 — Platform super-admin `/admin/school/[id]` + view-as URL** (commit `d0d8035`, hotfix `ea2cf6e`). HMAC-SHA256 signed view-as tokens (5-min TTL); middleware blocks mutations when `?as_token=` present. 7-tab detail page; replaces paper-only `/admin/schools` stub. Hotfix corrected `classes.deleted_at` → `is_archived` (mig 033 schema, not the soft-delete pattern).
+- **4.7b-0 — NIS tier flip ops** (manual SQL): NIS `subscription_tier` `'pilot'` → `'school'`. Pre-requisite for tier-aware membership tests. Plus Gmail-Matt detached from NIS (`school_id = NULL`) per master-spec separation invariant.
+- **4.7b-1 — school_admin role + INSERT-policy hardening** (mig `20260502215604`, commit `0b756b3`). New value in `school_responsibilities.responsibility_type` enum; `is_school_admin()` + `can_grant_school_admin()` SECURITY DEFINER helpers; INSERT policy with 3-branch grant rule (platform admin / existing admin / bootstrap-grace).
+- **4.7b-2 — invite flow + auto-join dismantle** (mig `20260502221646`, commit `8fe3a77`). NEW `school_invitations` table (DB-stored token for revocability); extended `lookup_school_by_domain` to return tier; tier-aware welcome wizard banner (school-tier → "ask IT to invite you"); `teacher_access_requests.school_id` FK added (mig 089 was waitlist, not invite infra — caught via CWORK Q4 audit).
+- **4.7b-3 — tier-gate 4 RLS leak surfaces** (mig `20260502223059`, commit `0380102`). NEW `current_teacher_school_tier_school_id()` SECURITY DEFINER helper; DROP+CREATE on 4 policies (audit_events / student_mentors / school_resources / guardians) to gate by school-tier school. Implicit tier-awareness for free/pro: alone in personal school = naturally siloed.
+- **4.6 — School library + Request-to-Use flow** (mig `20260502224119`, commit `f177ce9`). NEW `unit_use_requests` table; `units.forked_from_author_id` (existing `units.forked_from` from mig 007 reused — caught via Lesson #54 grep, would've duplicated). Author-controlled fork with attribution; library naturally tier-appropriate via existing `school_id` filter (no explicit tier-gate needed). The curriculum-library moat.
+- **4.8 — Schools settings bubble-up columns** (mig `20260502230242`, commit `57f001c`). 8 new columns on schools (academic_calendar_jsonb, timetable_skeleton_jsonb, frameworks_in_use_jsonb, default_grading_scale, notification_branding_jsonb, safeguarding_contacts_jsonb, content_sharing_default, default_student_ai_budget). Closes Phase 4.4b paper-only gap (applier registry referenced columns that didn't exist). Calendar backfilled from `school_calendar_terms` (NIS got 2 terms backfilled). `teachers.school_profile` source skipped — column doesn't exist (Lesson #54 again).
+- **4.8b — Freemium-build seam bake-in** (mig `20260502231455`, commit `ef7ca66`). `teachers.subscription_tier` enum mirroring schools; `stripe_customer_id` × 2 (nullable, unique-when-set partial indexes); `actor.plan` cascade resolution on ActorSession (teacher tier → school tier → free); `plan-gates.ts` pass-through helpers wired into 3 chokepoints (welcome/create-class, welcome/setup-from-timetable, teacher/students enrollment); `requires_plan` field documented in feature-flags-taxonomy + 1 exemplar; public-route boundary doc.
+- **4.9 — Department + dept_head auto-tag triggers** (mig `20260502233618`, commit `1177cdf`). `class_members.source` (NEW — caught Lesson #54 4th time this phase — brief assumed it existed); `classes.department` + `school_responsibilities.department`; CHECK enum extended 8 → 9 values (added `dept_head`); 4 SECURITY DEFINER triggers (responsibility insert / responsibility revoke / class insert / class department change resync). All 4 triggers verified end-to-end on prod via UPDATE → resync → revoke flow.
+
+**Checkpoint A5b — PASS**
+
+`docs/projects/access-model-v2-phase-4-checkpoint-a5b.md` written. All criteria green:
+- 11 commits to feature branch + 8 migrations applied to prod + 1 ops change
+- 3189 → 3291 tests (+102 new, 0 regressions, tsc strict 0 errors)
+- All RLS coverage clean; all SECURITY DEFINER helpers locked search_path per Lesson #66
+- 8 sub-phase smokes all green on prod
+- Documentation complete (this changelog + handoff + A5b doc)
+
+**Decisions made during execution** (captured in decisions-log):
+
+- 4.5 cascade list grew 12 → 15 tables (audit-derived from grep, not brief)
+- 4.6 reused existing `units.forked_from` instead of brief's specced `forked_from_unit_id` (column duplication caught)
+- 4.8 skipped `teachers.school_profile` backfill source (column doesn't exist)
+- 4.9 added `class_members.source` column (brief assumed it existed)
+- 4.8b shipped `requires_plan` schema-only + 1 exemplar; deferred per-flag annotation to FU pending tier-feature matrix decisions
+- Gmail-Matt detached from NIS (per master-spec separation; `school_id = NULL`)
+- `starter` tier kept dormant in CHECK enum (collapse risks audit_events CHECK rewrite)
+- Library tier-gate is implicit via existing `school_id` filter (no new RLS policy needed)
+
+**Lesson #67 candidate**: brief-vs-schema audit at PHASE start, not sub-phase start. Phase 4 part 2 caught the same gap pattern in 4 different sub-phases (Lesson #54 + #59 each time). 30-min phase-start audit would've caught all 4 in one batch. Filing as proposed addition to lessons-learned.md.
+
+**FUs filed during part 2: 9 new** (FU-FREEMIUM-CAN-PATTERN-ADR P3, FU-FREEMIUM-CALLSITE-PLAN-AUDIT P3, FU-FREEMIUM-SCHOOL-DOWNGRADE-OWNERSHIP P2, FU-WELCOME-WIZARD-STUDENT-EMAIL-GUARD P2, FU-AV2-IMPERSONATION-RENDER-WIRING P3, FU-AV2-TEACHER-DIRECTORY-ROUTE-GATE P3, FU-FREEMIUM-FLAGS-PLAN-ANNOTATION P3, FU-AV2-DEPT-HEAD-UI P2, FU-AV2-DEPT-BACKFILL-FROM-NAME P3).
+
+**FUs CLOSED**: FU-AV2-DEPT-HEAD-DEPARTMENT-MODEL P2 (data model + triggers shipped in 4.9).
+
+**Migrations applied to prod**:
+1. `20260502210353_phase_4_5_school_merge_requests.sql`
+2. `20260502215604_phase_4_7b_1_school_admin_role.sql`
+3. `20260502221646_phase_4_7b_2_school_invitations.sql`
+4. `20260502223059_phase_4_7b_3_tier_gate_leak_surfaces.sql`
+5. `20260502224119_phase_4_6_unit_use_requests.sql`
+6. `20260502230242_phase_4_8_schools_settings_columns.sql`
+7. `20260502231455_phase_4_8b_freemium_seams.sql`
+8. `20260502233618_phase_4_9_dept_head_triggers.sql`
+
+Plus the NIS tier flip + Gmail-Matt detach as ops changes.
+
+**RLS coverage**: clean. 111 → 114 tables (+3 from part 2: school_merge_requests, school_invitations, unit_use_requests). All have RLS + policies.
+
+**Next**: Phase 5 (Privacy & Compliance — audit log infrastructure + AI budget cascade + data export/delete + retention cron + cost-alert + Sentry PII scrub) → Phase 6 (Cutover & Cleanup) → Checkpoint A7 PILOT-READY. Total to PILOT-READY ~5-6 days.
