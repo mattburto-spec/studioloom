@@ -52,12 +52,28 @@ export default function StudentLoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center gradient-hero px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">StudioLoom</h1>
-          <p className="text-white/60">Student Login</p>
-        </div>
+    <div className="min-h-screen gradient-hero px-4 py-6 flex flex-col">
+      <div className="w-full">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 text-white/60 hover:text-white text-sm transition"
+          aria-label="Back to studioloom.org home"
+        >
+          <span aria-hidden="true">←</span>
+          <span>Back to home</span>
+        </Link>
+      </div>
+
+      <div className="flex-1 flex items-center justify-center">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            <Link href="/" className="inline-block">
+              <h1 className="text-3xl font-bold text-white mb-2 hover:opacity-90 transition">
+                StudioLoom
+              </h1>
+            </Link>
+            <p className="text-white/60">Student Login</p>
+          </div>
 
         <div className="bg-white rounded-2xl shadow-xl p-6 space-y-4">
           {step === "code" ? (
@@ -141,12 +157,13 @@ export default function StudentLoginPage() {
           )}
         </div>
 
-        <p className="text-center mt-5 text-white/40 text-sm">
-          Teacher?{" "}
-          <Link href="/teacher/login" className="text-white/70 hover:text-white underline">
-            Log in here
-          </Link>
-        </p>
+          <p className="text-center mt-5 text-white/40 text-sm">
+            Teacher?{" "}
+            <Link href="/teacher/login" className="text-white/70 hover:text-white underline">
+              Log in here
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );
