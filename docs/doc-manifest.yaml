@@ -2410,6 +2410,22 @@ docs:
     max_age_days: 90
     last_scanned: "2026-04-21"
 
+  - path: docs/projects/access-model-v2-phase-4-checkpoint-a5b.md
+    title: "Access Model v2 Phase 4 Checkpoint A5b — Phase 4 Part 2 Close"
+    purpose: "Checkpoint A5b PASS report (3 May 2026 PM). Covers all 9 Phase 4 part 2 sub-phases (4.5/4.7/4.7b-0/1/2/3/4.6/4.8/4.8b/4.9) with per-sub-phase commit refs, smoke results, decisions made during execution (15-table cascade audit, library implicit tier-gate, view-as middleware, DB-stored invite tokens, 089 schema gap, audit-events immutability exception, calendar backfill scope, requires_plan schema-only, Gmail-Matt detach, class_members.source addition), 9 new FUs filed + 1 closed, Lessons #54/#59/#64/#66 applied + Lesson #67 proposed, sign-off criteria, merge-to-main plan, Phase 5+ next steps."
+    category: projects
+    last_verified: "2026-05-03"
+    max_age_days: 180
+    last_scanned: "2026-05-03"
+
+  - path: docs/projects/access-v2-public-route-boundary.md
+    title: "Access Model v2 Public/Anonymous Route Boundary"
+    purpose: "Phase 4.8b authoritative reference: which routes are deliberately anonymous + audit-log exempt. Lists current public surface (/, /login, /teacher/login, /admin/login, /api/auth/*, /api/tools/*, /tools, /toolkit, /safety/projector, /api/public/*, /_next/*, /favicon). Documents the rule for Phase 5 audit-log scanner consumption (skip these paths when checking for missing logAuditEvent). Phase 6 cutover audit gate."
+    category: projects
+    last_verified: "2026-05-03"
+    max_age_days: 180
+    last_scanned: "2026-05-03"
+
   - path: docs/projects/preflight-phase-2a-checkpoint-2-1.md
     title: "Preflight Phase 2A Checkpoint 2.1 Report"
     purpose: "Phase 2A exit report (21 Apr 2026): 12-criterion pass/fail matrix, prod smoke test evidence on 4 STL fixtures (small-cube-25mm, seahorse-not-watertight, chess-pawn-inverted-winding, whale-not-watertight), 116 pytest pass count, 4 follow-ups opened (FU-SCANNER-OOM resolved, FU-SCANNER-SIDECAR-DRIFT, FU-SCANNER-LEASE-REAPER, FU-SCANNER-EMAIL-VERIFY), commit list."
@@ -2536,5 +2552,5 @@ summary:
     marketing: 1
     safety: 1
     email-templates: 5
-  last_updated: "2026-04-20"
+  last_updated: "2026-05-03"
   referenced_in_claude_md: 18

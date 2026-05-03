@@ -821,3 +821,44 @@ the UI surface lands.
 1. Either: re-run the backfill with `coalesce(subject, name)` source.
 2. Or: bake into the Settings UI department picker logic when
    FU-AV2-DEPT-HEAD-UI ships.
+
+---
+
+## FU-AV2-PHASE-4-PART-2-REGISTRY-SYNC
+**Priority:** P3
+**Surfaced:** Saveme post-Phase-4-part-2 close (3 May 2026)
+**Target gate:** Phase 6 cutover registry sweep
+
+**Symptom:** Phase 4 part 2 added 3 NEW tables (school_merge_requests,
+school_invitations, unit_use_requests) + ~10 new columns + ~20 new
+RLS policies + ~10 SECURITY DEFINER helpers + 4 trigger functions.
+Two registries don't auto-detect this drift:
+
+1. **`docs/schema-registry.yaml`** — manual review per migration. Phase 4
+   part 2's 8 migrations need entries / column updates. Existing 4 Phase 0
+   spec_drift entries (FU-DD scanner-misparse) still need reconciliation.
+
+2. **`docs/projects/WIRING.yaml`** — manual review per system. Phase 4
+   part 2 added new systems (school-governance v2, school-library,
+   tier-aware-membership, freemium-seams). The scanner doesn't know
+   about these. WIRING should also reflect:
+     - auth-system v2 → v3 (added ActorSession.plan + view-as)
+     - permission-helper v1 → v2 (added SCHOOL_ADMIN_ACTIONS + tier helper)
+     - class-management v2 (department + dept_head triggers)
+
+**Why deferred to FU**: Capturing this properly is ~1-2h of manual
+yaml editing across both files. Phase 4 part 2 close commit captured
+all the substantive work; registry sync is hygiene that's better
+done in a focused follow-up than rushed at saveme.
+
+**Done when:**
+1. schema-registry.yaml has entries for 3 new tables + column updates
+   for ~10 new columns + spec_drift entries reconciled.
+2. WIRING.yaml has entries for the 4 new systems + version bumps for
+   3 existing systems (auth / permissions / class-management).
+3. wiring-dashboard.html SYSTEMS array synced.
+
+**Why P3**: drift is cosmetic — neither registry drives runtime
+behavior. The scanner-side registries (api-registry, ai-call-sites,
+feature-flags, vendors, RLS) ARE clean. Phase 6 cutover (~Phase 5
+complete) is the natural full-registry-sync gate; this FU folds in.
