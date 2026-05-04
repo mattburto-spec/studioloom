@@ -780,6 +780,7 @@ export default function BlockPalette({
                   block={block}
                   onAdd={handleAdd}
                   highlight
+                  activeNmElementIds={activeNmElementIds}
                 />
               ))}
             </div>
@@ -799,6 +800,7 @@ export default function BlockPalette({
                   key={block.id}
                   block={block}
                   onAdd={handleAdd}
+                  activeNmElementIds={activeNmElementIds}
                 />
               ))
             )}
@@ -854,6 +856,7 @@ export default function BlockPalette({
                               key={block.id}
                               block={block}
                               onAdd={handleAdd}
+                              activeNmElementIds={activeNmElementIds}
                             />
                           ))}
                         </div>
@@ -896,20 +899,43 @@ function PaletteBlock({
   block,
   onAdd,
   highlight = false,
+  activeNmElementIds,
 }: {
   block: BlockDefinition;
   onAdd: (block: BlockDefinition) => void;
   highlight?: boolean;
+  /** Lever-MM: NM element IDs already on the active lesson — drives "added" state. */
+  activeNmElementIds?: string[];
 }) {
   const { startDrag, endDrag } = useDndContext();
   const meta = CATEGORIES[block.category] || CATEGORIES.custom;
 
-  // Read default dimensions once per render — block.create() is cheap (returns a literal)
-  const sample = block.create();
-  const bloomLoad = sample.bloom_level ? BLOOM_LOAD_MAP[sample.bloom_level] : null;
-  const effortLoad = sample.timeWeight ? TIME_WEIGHT_LOAD_MAP[sample.timeWeight] : null;
+  // Lever-MM — NM-element blocks (those with nmElementId set) take a
+  // simpler render path: no dimension chips (their throwing create() stub
+  // would crash if invoked), no drag-and-drop (they don't create
+  // ActivitySections), and an "added" state when the element is already
+  // a checkpoint on the current lesson.
+  const isNmBlock = Boolean(block.nmElementId);
+  const isAdded = Boolean(
+    isNmBlock && block.nmElementId && (activeNmElementIds ?? []).includes(block.nmElementId),
+  );
+
+  // Skip the create() probe entirely for NM blocks — the stub throws.
+  // For regular blocks, read default dimensions once per render
+  // (block.create() is cheap — returns a literal).
+  const sample = isNmBlock ? null : block.create();
+  const bloomLoad = sample?.bloom_level ? BLOOM_LOAD_MAP[sample.bloom_level] : null;
+  const effortLoad = sample?.timeWeight ? TIME_WEIGHT_LOAD_MAP[sample.timeWeight] : null;
 
   const handleDragStart = (e: DragEvent) => {
+    // NM blocks don't create ActivitySections — don't let them seed a
+    // drag payload. The dragstart is suppressed at the `draggable` flag
+    // below for NM blocks, but guarding here is belt-and-braces in case
+    // a future refactor accidentally re-enables drag.
+    if (isNmBlock) {
+      e.preventDefault();
+      return;
+    }
     const activity = block.create();
     e.dataTransfer.setData(
       "application/json",
@@ -931,13 +957,17 @@ function PaletteBlock({
 
   return (
     <div
-      draggable
+      draggable={!isNmBlock}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onClick={() => onAdd(block)}
-      title={block.description}
-      className={`group flex items-center gap-2 px-2 py-1.5 rounded-md border cursor-grab active:cursor-grabbing transition-colors ${
-        highlight
+      title={isAdded ? `${block.description} (already on this lesson — click chip × to remove)` : block.description}
+      className={`group flex items-center gap-2 px-2 py-1.5 rounded-md border transition-colors ${
+        isNmBlock ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"
+      } ${
+        isAdded
+          ? "border-yellow-300 bg-yellow-50 opacity-60"
+          : highlight
           ? "border-violet-300 bg-violet-50 hover:bg-violet-100"
           : "border-transparent hover:border-[var(--le-hair)] hover:bg-[var(--le-paper)]"
       }`}
@@ -973,10 +1003,19 @@ function PaletteBlock({
         </span>
       )}
 
-      {/* Drag hint */}
-      <span className="opacity-0 group-hover:opacity-100 text-[10px] text-[var(--le-ink-3)] flex-shrink-0 transition-opacity select-none">
-        drag
-      </span>
+      {/* Lever-MM — Added/Add hint (NM blocks only) */}
+      {isNmBlock && (
+        <span className="text-[10px] text-yellow-700 flex-shrink-0 select-none">
+          {isAdded ? "✓ added" : "+ add"}
+        </span>
+      )}
+
+      {/* Drag hint (regular blocks only) */}
+      {!isNmBlock && (
+        <span className="opacity-0 group-hover:opacity-100 text-[10px] text-[var(--le-ink-3)] flex-shrink-0 transition-opacity select-none">
+          drag
+        </span>
+      )}
     </div>
   );
 }

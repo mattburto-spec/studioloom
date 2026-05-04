@@ -22,7 +22,12 @@ import UnitThumbnailEditor from "./UnitThumbnailEditor";
 import { LessonSkillsPanel } from "@/components/skills/LessonSkillsPanel";
 import { autoPopulateBloomLevels } from "@/lib/dimensions/infer-bloom";
 import { buildNmElementBlocks, type BlockDefinition } from "./BlockPalette";
-import { getElementsForCompetency, type NMUnitConfig, DEFAULT_NM_CONFIG } from "@/lib/nm/constants";
+import {
+  getElementsForCompetency,
+  type NMUnitConfig,
+  type NMElement,
+  DEFAULT_NM_CONFIG,
+} from "@/lib/nm/constants";
 import type {
   UnitPage,
   PageContent,
@@ -138,13 +143,24 @@ export default function LessonEditor({
 
   // Build the NM-element BlockDefinition list passed to BlockPalette via customBlocks.
   // The palette renders these inside the "new_metrics" category accordion. Click handler
-  // (MM.0C) routes them through onAddNmCheckpoint instead of the normal onAddBlock path.
+  // routes them through onAddNmCheckpoint instead of the normal onAddBlock path.
   const customNmBlocks = useMemo<BlockDefinition[]>(() => {
     if (!useNewMetrics) return [];
     const competencyId = nmConfig.competencies?.[0];
     if (!competencyId) return [];
     const elements = getElementsForCompetency(competencyId);
     return buildNmElementBlocks(elements, competencyId);
+  }, [useNewMetrics, nmConfig.competencies]);
+
+  // Lookup table: element ID → NMElement metadata (name + color) for the
+  // active competency. Drives the chip-strip labels + the "added" state on
+  // palette blocks. Empty when NM is off / no competency resolved.
+  const nmElementsById = useMemo<Record<string, NMElement>>(() => {
+    if (!useNewMetrics) return {};
+    const competencyId = nmConfig.competencies?.[0];
+    if (!competencyId) return {};
+    const elements = getElementsForCompetency(competencyId);
+    return Object.fromEntries(elements.map((el) => [el.id, el]));
   }, [useNewMetrics, nmConfig.competencies]);
 
   // AI generation state
@@ -235,6 +251,90 @@ export default function LessonEditor({
     selectedPageIndex !== null && pages[selectedPageIndex]
       ? pages[selectedPageIndex]
       : null;
+
+  // Lever-MM — element IDs already registered as checkpoints on the
+  // currently-selected lesson. Drives both the palette's "added" state on
+  // NM blocks AND the chip strip rendered above the lesson's first phase.
+  const activeNmElementIds = useMemo<string[]>(() => {
+    if (!selectedPage) return [];
+    return nmConfig.checkpoints?.[selectedPage.id]?.elements ?? [];
+  }, [nmConfig.checkpoints, selectedPage]);
+
+  // Lever-MM — POST helper. Persists the new nmConfig via the existing
+  // /api/teacher/nm-config route. Optimistic update on the client; on
+  // failure we revert to the previous config so the UI reflects truth.
+  const persistNmConfig = useCallback(async (next: NMUnitConfig) => {
+    const previous = nmConfig;
+    setNmConfig(next);
+    try {
+      const res = await fetch("/api/teacher/nm-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ unitId, classId, config: next }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      console.error("[LessonEditor] NM config save failed, reverting:", err);
+      setNmConfig(previous);
+    }
+  }, [unitId, classId, nmConfig]);
+
+  // Lever-MM — click handler for NM-element blocks in the palette.
+  // Adds the element to nm_config.checkpoints[selectedPageId].elements
+  // (idempotent — silently no-ops if already added). Also flips
+  // nm_config.enabled = true the first time a checkpoint is registered,
+  // and ensures the competency is in nm_config.competencies / .elements
+  // so the rest of the NM system (results panel, student observation
+  // surfaces) treats this unit as "configured".
+  const handleAddNmCheckpoint = useCallback(
+    (elementId: string, competencyId: string) => {
+      if (!selectedPage) return;
+      const pageId = selectedPage.id;
+      const existing = nmConfig.checkpoints?.[pageId]?.elements ?? [];
+      if (existing.includes(elementId)) return; // idempotent
+      const next: NMUnitConfig = {
+        ...nmConfig,
+        enabled: true,
+        // Keep the competency list in sync — covers the bootstrap case
+        // where an empty config gets its first checkpoint.
+        competencies: nmConfig.competencies?.length
+          ? nmConfig.competencies
+          : [competencyId],
+        elements: nmConfig.elements?.includes(elementId)
+          ? nmConfig.elements
+          : [...(nmConfig.elements ?? []), elementId],
+        checkpoints: {
+          ...(nmConfig.checkpoints ?? {}),
+          [pageId]: { elements: [...existing, elementId] },
+        },
+      };
+      void persistNmConfig(next);
+    },
+    [nmConfig, selectedPage, persistNmConfig],
+  );
+
+  // Lever-MM — remove handler for NM checkpoint chips.
+  // Strips the element from nm_config.checkpoints[selectedPageId].elements.
+  // When a page's checkpoint list goes empty, removes the pageId entry
+  // entirely (avoids zombie pageIds polluting the checkpoints map per
+  // brief stop-trigger).
+  const handleRemoveNmCheckpoint = useCallback(
+    (elementId: string) => {
+      if (!selectedPage) return;
+      const pageId = selectedPage.id;
+      const existing = nmConfig.checkpoints?.[pageId]?.elements ?? [];
+      const filtered = existing.filter((id) => id !== elementId);
+      const nextCheckpoints = { ...(nmConfig.checkpoints ?? {}) };
+      if (filtered.length === 0) {
+        delete nextCheckpoints[pageId];
+      } else {
+        nextCheckpoints[pageId] = { elements: filtered };
+      }
+      const next: NMUnitConfig = { ...nmConfig, checkpoints: nextCheckpoints };
+      void persistNmConfig(next);
+    },
+    [nmConfig, selectedPage, persistNmConfig],
+  );
 
   const pageContent = useMemo(() => {
     if (!selectedPage?.content) return null;
@@ -1011,6 +1111,46 @@ export default function LessonEditor({
                 />
               </div>
 
+              {/* ─── Lever-MM: NM checkpoint chips ─── */}
+              {/* Renders the NM elements registered on this lesson as removable
+                  chips. Hidden when no checkpoints exist on this lesson (and
+                  thus the strip is empty) — avoids visual clutter on lessons
+                  without NM. Add via the "New Metrics" block category in the
+                  palette; remove by clicking × on a chip. */}
+              {useNewMetrics && activeNmElementIds.length > 0 && (
+                <div className="mt-3 px-3 py-2 rounded-lg border border-yellow-200 bg-yellow-50">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-yellow-700 text-[10px] font-extrabold tracking-wider uppercase">
+                      🎯 NM checkpoints on this lesson
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {activeNmElementIds.map((elementId) => {
+                      const meta = nmElementsById[elementId];
+                      const label = meta?.name || elementId;
+                      return (
+                        <span
+                          key={elementId}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border border-yellow-300 text-[11px] text-yellow-800"
+                          style={meta?.color ? { borderLeft: `3px solid ${meta.color}` } : undefined}
+                        >
+                          <span>{label}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveNmCheckpoint(elementId)}
+                            className="ml-1 text-yellow-700 hover:text-rose-600 transition-colors"
+                            title={`Remove ${label} from this lesson`}
+                            aria-label={`Remove ${label} checkpoint`}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* ─── Opening Phase ─── */}
               {phases && (
                 <div id="phase-opening">
@@ -1390,6 +1530,8 @@ export default function LessonEditor({
                      "new_metrics" accordion auto-hides when customNmBlocks
                      is empty (school flag off OR no competency resolved). */
                   customBlocks={customNmBlocks}
+                  onAddNmCheckpoint={handleAddNmCheckpoint}
+                  activeNmElementIds={activeNmElementIds}
                 />
               </div>
             </motion.div>
