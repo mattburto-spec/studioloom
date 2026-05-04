@@ -1095,6 +1095,12 @@ export interface CreateActivityBlockParams {
   title: string;
   description?: string;
   prompt: string;
+  /** Lever 1 v2 slot — one-sentence orient (≤200 chars). Renderer composes this with task + success_signal. NULL during transition window; renderer falls back to `prompt` when all three are null. */
+  framing?: string;
+  /** Lever 1 v2 slot — imperative body (≤800 chars soft cap). */
+  task?: string;
+  /** Lever 1 v2 slot — what students produce/record/submit (≤200 chars). */
+  success_signal?: string;
   source_type: ActivityBlockSource;
   source_upload_id?: string;
   source_unit_id?: string;

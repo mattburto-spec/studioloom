@@ -10,6 +10,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  validateSlotFields,
+  LEVER_1_DEPRECATED_HEADER,
+  LEVER_1_DEPRECATED_VALUE_PROMPT_ONLY,
+} from "@/lib/lever-1/validate-slot-fields";
 
 export async function GET(
   request: NextRequest,
@@ -62,6 +67,10 @@ export async function PATCH(
     "title",
     "description",
     "prompt",
+    // Lever 1 v2 slot fields
+    "framing",
+    "task",
+    "success_signal",
     "bloom_level",
     "time_weight",
     "grouping",
@@ -92,6 +101,22 @@ export async function PATCH(
     return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
   }
 
+  // Lever 1 sub-phase 1D — per-field length validation on slot fields
+  const v = validateSlotFields(
+    {
+      framing: updates.framing as string | undefined,
+      task: updates.task as string | undefined,
+      success_signal: updates.success_signal as string | undefined,
+    },
+    updates.prompt as string | undefined
+  );
+  if (!v.ok) {
+    return NextResponse.json(
+      { error: "Slot field validation failed", details: v.errors },
+      { status: 400 }
+    );
+  }
+
   const { data, error } = await db
     .from("activity_blocks")
     .update(updates)
@@ -109,7 +134,18 @@ export async function PATCH(
     return NextResponse.json({ error: "Block not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ id: data.id, updated: Object.keys(updates) });
+  const response = NextResponse.json({
+    id: data.id,
+    updated: Object.keys(updates),
+    warnings: v.warnings.length > 0 ? v.warnings : undefined,
+  });
+  if (v.legacyPromptOnly && "prompt" in updates) {
+    response.headers.set(
+      LEVER_1_DEPRECATED_HEADER,
+      LEVER_1_DEPRECATED_VALUE_PROMPT_ONLY
+    );
+  }
+  return response;
 }
 
 export async function DELETE(
