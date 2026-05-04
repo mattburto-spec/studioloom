@@ -6160,8 +6160,8 @@ tables:
     IS NOT NULL)'
 - name: notifications
   source_migration: 20260504115948_notifications_table.sql
-  status: pending
-  applied_date: null
+  status: applied
+  applied_date: '2026-05-04'
   purpose: 'Phase 3A foundation — generic per-recipient notification surface. First consumer Phase 3B (kind=integrity.flag_low_score
     when analyzeIntegrity score < threshold). Generic by design — `kind` discriminates, `payload` JSONB carries kind-specific
     data. Server-role inserts via createNotification() helper; SELECT + UPDATE-of-state by recipient via RLS. INSERT/DELETE
