@@ -260,7 +260,10 @@ export function MonitoredTextarea({
   useEffect(() => {
     metricsRef.current.startTime = Date.now();
     metricsRef.current.lastActiveTime = Date.now();
-    lastSnapshotTextRef.current = textareaRef.current?.value ?? "";
+    // Use the editor's text content as the initial snapshot baseline.
+    // Post rich-text-editor migration (10b8468) the textarea was replaced by
+    // RichTextEditorHandle exposing getTextContent().
+    lastSnapshotTextRef.current = editorRef.current?.getTextContent() ?? "";
 
     setupVisibilityListener();
     setupMonitoringTick();
