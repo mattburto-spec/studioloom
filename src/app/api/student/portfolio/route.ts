@@ -1,14 +1,15 @@
+// audit-skip: routine learner activity, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { withErrorHandler } from "@/lib/api/error-handler";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
 
 // GET: List portfolio entries
 export const GET = withErrorHandler("student/portfolio:GET", async (request: NextRequest) => {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   const unitId = request.nextUrl.searchParams.get("unitId");
   const limit = Number(request.nextUrl.searchParams.get("limit")) || 20;
@@ -36,9 +37,9 @@ export const GET = withErrorHandler("student/portfolio:GET", async (request: Nex
 
 // POST: Create a new portfolio entry
 export const POST = withErrorHandler("student/portfolio:POST", async (request: NextRequest) => {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   const body = await request.json();
   const { unitId, type, content, mediaUrl, linkUrl, linkTitle, pageId, sectionIndex } = body;
@@ -148,9 +149,9 @@ export const POST = withErrorHandler("student/portfolio:POST", async (request: N
 
 // DELETE: Remove own entry
 export const DELETE = withErrorHandler("student/portfolio:DELETE", async (request: NextRequest) => {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   const id = request.nextUrl.searchParams.get("id");
   if (!id) {

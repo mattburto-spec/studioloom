@@ -35,6 +35,14 @@ interface ResolvedSettings {
   tapASource: "default" | "student-override" | "class-override";
 }
 
+// ELL-level color tokens — matched to the static badge on the class page so
+// the same level looks the same wherever it appears.
+const ELL_TONES: Record<number, { bg: string; text: string; ring: string; ringOff: string }> = {
+  1: { bg: "#DBEAFE", text: "#1E40AF", ring: "#1E40AF", ringOff: "#F3F4F6" },
+  2: { bg: "#FEF3C7", text: "#92400E", ring: "#92400E", ringOff: "#F3F4F6" },
+  3: { bg: "#D1FAE5", text: "#065F46", ring: "#065F46", ringOff: "#F3F4F6" },
+};
+
 interface ApiResponse {
   student: {
     id: string;
@@ -69,15 +77,17 @@ interface ApiResponse {
 
 const SOURCE_BADGES: Record<string, { label: string; color: string }> = {
   intake: { label: "from intake", color: "bg-amber-100 text-amber-800" },
-  "student-override": { label: "🟪 student", color: "bg-purple-100 text-purple-800" },
-  "class-override": { label: "🟦 class", color: "bg-blue-100 text-blue-800" },
-  default: { label: "default", color: "bg-gray-100 text-gray-700" },
+  "student-override": { label: "student override", color: "bg-purple-100 text-purple-700" },
+  "class-override": { label: "class override", color: "bg-blue-100 text-blue-700" },
+  default: { label: "default", color: "bg-gray-100 text-gray-600" },
 };
 
-function SourceBadge({ source }: { source: string }) {
+function SourceBadge({ source, className = "" }: { source: string; className?: string }) {
   const b = SOURCE_BADGES[source] ?? SOURCE_BADGES.default;
   return (
-    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${b.color}`}>
+    <span
+      className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${b.color} ${className}`}
+    >
       {b.label}
     </span>
   );
@@ -89,6 +99,7 @@ export function StudentSupportSettings({ studentId }: { studentId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showClassSection, setShowClassSection] = useState(false);
+  const [showExplainer, setShowExplainer] = useState(false);
   const [classBusy, setClassBusy] = useState<Set<string>>(new Set());
   // Tiny "Saved" indicator — fades out after a moment. Polish-pass addition;
   // teachers were getting no feedback that a successful save had landed
@@ -231,121 +242,224 @@ export function StudentSupportSettings({ studentId }: { studentId: string }) {
   const hasAnyClassOverride = classes.some(
     (c) =>
       c.classOverrides.l1_target_override !== undefined ||
-      c.classOverrides.tap_a_word_enabled !== undefined
+      c.classOverrides.tap_a_word_enabled !== undefined ||
+      c.ellLevelOverride !== null
   );
+  const overrideClassCount = classes.filter(
+    (c) =>
+      c.classOverrides.l1_target_override !== undefined ||
+      c.classOverrides.tap_a_word_enabled !== undefined ||
+      c.ellLevelOverride !== null
+  ).length;
+  const hasGlobalOverride =
+    globalRaw.l1_target_override !== undefined ||
+    globalRaw.tap_a_word_enabled !== undefined;
+  const ellLevel = (student.ellLevel || 1) as EllLevel;
+  const ellTone = ELL_TONES[ellLevel];
 
   return (
-    <div className="space-y-6 max-w-4xl relative">
-      {/* ─── Saved indicator ─────────────────────────────────────────
-          Polite live region so screen readers announce save success
-          without being interrupted. Visual chip floats top-right of the
-          panel + fades after ~2.4s. */}
-      <div
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-        className="sr-only"
-      >
+    <div className="space-y-6 relative">
+      {/* ─── Saved indicator ──────────────────────────────────────── */}
+      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
         {savedAt ? "Saved" : ""}
       </div>
       {savedAt && (
         <div
-          className="absolute top-0 right-0 -mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-medium text-emerald-800 shadow-sm animate-in fade-in slide-in-from-top-1 pointer-events-none"
+          className="absolute top-0 right-0 -mt-1 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-800 shadow-sm animate-in fade-in slide-in-from-top-1 pointer-events-none z-10"
           aria-hidden="true"
         >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="3 8 7 12 13 4" />
           </svg>
           Saved
         </div>
       )}
 
-      {/* ─── Resolution chain explainer ──────────────────────────── */}
-      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm">
-        <div className="font-semibold text-amber-900 mb-2">
-          How {student.displayName || student.username}&apos;s settings are decided
+      {/* ─── HERO — Currently effective settings ──────────────────── */}
+      <div className="bg-white border border-gray-200 rounded-2xl p-5">
+        <div className="flex items-baseline justify-between mb-4">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-wider text-purple-600">
+              Currently effective
+            </div>
+            <h2 className="text-lg font-bold text-gray-900 mt-0.5">
+              {student.displayName || student.username}&apos;s support settings
+            </h2>
+          </div>
+          <button
+            onClick={() => setShowExplainer((s) => !s)}
+            className="text-xs font-medium text-purple-600 hover:text-purple-800 hover:underline focus:outline-none focus-visible:underline"
+            aria-expanded={showExplainer}
+          >
+            {showExplainer ? "Hide" : "How does this resolve?"}
+          </button>
         </div>
-        <ol className="list-decimal pl-5 space-y-1 text-amber-900">
-          <li>
-            <span className="font-medium">Intake</span> —{" "}
-            {student.intake.firstLanguageRaw ? (
-              <>
-                first language at home is{" "}
-                <span className="font-mono">{student.intake.firstLanguageRaw}</span>
-                {student.intake.intakeL1Code ? (
+
+        <div className="grid grid-cols-3 gap-3">
+          {/* ELL */}
+          <div className="bg-gray-50 rounded-xl px-3 py-3">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+              ELL level
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span
+                className="inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold"
+                style={{ background: ellTone.bg, color: ellTone.text }}
+              >
+                {ellLevel}
+              </span>
+              <span className="text-xs text-gray-600 font-medium">
+                {ELL_LEVELS[ellLevel].label}
+              </span>
+            </div>
+          </div>
+
+          {/* L1 */}
+          <div className="bg-gray-50 rounded-xl px-3 py-3">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+              L1 (translations)
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-base font-bold font-mono text-gray-900">
+                {student.resolvedGlobal.l1Target}
+              </span>
+              <span className="text-xs text-gray-600">
+                {l1DisplayLabel(student.resolvedGlobal.l1Target)}
+              </span>
+            </div>
+            <SourceBadge source={student.resolvedGlobal.l1Source} className="mt-1" />
+          </div>
+
+          {/* Tap-a-word */}
+          <div className="bg-gray-50 rounded-xl px-3 py-3">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+              Tap-a-word
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${
+                  student.resolvedGlobal.tapAWordEnabled
+                    ? "bg-emerald-100 text-emerald-800"
+                    : "bg-gray-200 text-gray-600"
+                }`}
+              >
+                {student.resolvedGlobal.tapAWordEnabled ? "ON" : "OFF"}
+              </span>
+            </div>
+            <SourceBadge source={student.resolvedGlobal.tapASource} className="mt-1" />
+          </div>
+        </div>
+
+        {showExplainer && (
+          <div className="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-600 space-y-1.5">
+            <div className="flex gap-1.5">
+              <span className="font-semibold text-gray-900">1. Intake →</span>
+              <span>
+                {student.intake.firstLanguageRaw ? (
                   <>
-                    {" "}
-                    (resolves to{" "}
-                    <span className="font-mono">{student.intake.intakeL1Code}</span>)
+                    L1 at home is{" "}
+                    <span className="font-mono text-gray-900">
+                      {student.intake.firstLanguageRaw}
+                    </span>
+                    {student.intake.intakeL1Code ? (
+                      <>
+                        {" "}→ resolves to{" "}
+                        <span className="font-mono text-gray-900">
+                          {student.intake.intakeL1Code}
+                        </span>
+                      </>
+                    ) : (
+                      <> (no supported translation, falls back to en)</>
+                    )}
                   </>
                 ) : (
-                  <> (no supported translation — falls back to English)</>
+                  <>no intake data, defaults to English</>
                 )}
-              </>
-            ) : (
-              <>no intake survey data — falls back to English default</>
-            )}
-            .
-          </li>
-          <li>
-            <span className="font-medium">Per-student global override</span> — set
-            below. Wins over intake.
-          </li>
-          <li>
-            <span className="font-medium">Per-class override</span> — optional, set
-            in the &quot;Customize for a specific class&quot; section. Wins over
-            student global, only inside that class.
-          </li>
-        </ol>
-        <div className="mt-3 pt-3 border-t border-amber-200 text-xs text-amber-800">
-          <span className="font-semibold">Tap-a-word default policy:</span> ON
-          for ELL 1-2 students OR for any student whose L1 isn&apos;t English
-          (translation safety). OFF for ELL 3 monolingual English students
-          (clean reading view). Teachers can override either way.
-        </div>
+              </span>
+            </div>
+            <div>
+              <span className="font-semibold text-gray-900">2. Per-student override →</span>{" "}
+              set below. Wins over intake.
+            </div>
+            <div>
+              <span className="font-semibold text-gray-900">3. Per-class override →</span>{" "}
+              expand the class section below. Wins inside that class only.
+            </div>
+            <div className="pt-2 mt-2 border-t border-gray-100">
+              <span className="font-semibold text-gray-900">Tap-a-word default:</span> ON
+              for ELL 1-2 OR L1 ≠ English (translation safety). OFF for ELL 3 monolingual
+              English readers (clean reading view).
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ─── Per-student global form ─────────────────────────────── */}
-      <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <div className="flex items-baseline justify-between mb-3">
-          <h3 className="text-base font-semibold text-gray-900">
-            Per-student settings
-          </h3>
+      <div className="bg-white border border-gray-200 rounded-2xl p-5">
+        <div className="flex items-baseline justify-between mb-4">
+          <h3 className="text-base font-bold text-gray-900">Per-student defaults</h3>
           <span className="text-xs text-gray-500">
-            Applies everywhere unless a class overrides it.
+            Applies everywhere unless a class overrides
           </span>
         </div>
 
-        {/* ELL level — separate row, full-width because the labels are longer */}
-        <label className="block mb-4">
-          <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">
-            ELL level (English language scaffolding)
-          </span>
-          <select
-            value={student.ellLevel || 1}
-            onChange={(e) =>
-              void updateGlobal({ ell_level: Number(e.target.value) as EllLevel })
-            }
-            disabled={saving}
-            className="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm bg-white"
-          >
-            {([1, 2, 3] as EllLevel[]).map((lvl) => (
-              <option key={lvl} value={lvl}>
-                {lvl} — {ELL_LEVELS[lvl].label} — {ELL_LEVELS[lvl].description}
-              </option>
-            ))}
-          </select>
-          <div className="mt-1 text-xs text-gray-500">
-            Global default. Each class can override below.
+        {/* ELL level — pill buttons */}
+        <div className="mb-5">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">
+            ELL level
           </div>
-        </label>
+          <div className="flex items-center gap-2">
+            {([1, 2, 3] as EllLevel[]).map((lvl) => {
+              const tone = ELL_TONES[lvl];
+              const active = ellLevel === lvl;
+              return (
+                <button
+                  key={lvl}
+                  onClick={() =>
+                    void updateGlobal({ ell_level: lvl })
+                  }
+                  disabled={saving}
+                  title={`${ELL_LEVELS[lvl].label} — ${ELL_LEVELS[lvl].description}`}
+                  className="group flex-1 rounded-xl border-2 px-3 py-2.5 text-left transition disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/40"
+                  style={{
+                    borderColor: active ? tone.ring : "#E5E7EB",
+                    background: active ? tone.bg : "white",
+                  }}
+                >
+                  <div className="flex items-baseline gap-2">
+                    <span
+                      className="inline-flex items-center justify-center w-7 h-7 rounded-full text-sm font-bold flex-shrink-0"
+                      style={{
+                        background: active ? tone.ring : tone.ringOff,
+                        color: active ? "white" : "#9CA3AF",
+                      }}
+                    >
+                      {lvl}
+                    </span>
+                    <div>
+                      <div
+                        className="text-sm font-semibold leading-tight"
+                        style={{ color: active ? tone.text : "#374151" }}
+                      >
+                        {ELL_LEVELS[lvl].label}
+                      </div>
+                      <div className="text-[10px] text-gray-500 mt-0.5 leading-tight">
+                        {ELL_LEVELS[lvl].description}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* L1 target */}
-          <label className="block">
-            <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">
               L1 (translation language)
-            </span>
+            </div>
             <select
               value={globalRaw.l1_target_override ?? "__inherit__"}
               onChange={(e) => {
@@ -356,30 +470,25 @@ export function StudentSupportSettings({ studentId }: { studentId: string }) {
                 });
               }}
               disabled={saving}
-              className="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm bg-white"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 disabled:opacity-50"
             >
               <option value="__inherit__">
-                inherit ({student.intake.firstLanguageRaw || "—"} →{" "}
+                Inherit from intake ({student.intake.firstLanguageRaw || "—"} →{" "}
                 {student.intake.intakeL1Code || "en"})
               </option>
               {SUPPORTED_L1_TARGETS.map((t) => (
                 <option key={t} value={t}>
-                  {t} ({l1DisplayLabel(t)})
+                  {t} — {l1DisplayLabel(t)}
                 </option>
               ))}
             </select>
-            <div className="mt-1 text-xs text-gray-500">
-              Resolved global:{" "}
-              <span className="font-mono">{student.resolvedGlobal.l1Target}</span>{" "}
-              <SourceBadge source={student.resolvedGlobal.l1Source} />
-            </div>
-          </label>
+          </div>
 
           {/* Tap-a-word */}
-          <label className="block">
-            <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">
               Tap-a-word
-            </span>
+            </div>
             <select
               value={
                 globalRaw.tap_a_word_enabled === null ||
@@ -395,27 +504,18 @@ export function StudentSupportSettings({ studentId }: { studentId: string }) {
                 });
               }}
               disabled={saving}
-              className="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm bg-white"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 disabled:opacity-50"
             >
               <option value="__inherit__">
-                inherit (default: {student.resolvedGlobal.tapAWordEnabled ? "on" : "off"})
+                Inherit (default: {student.resolvedGlobal.tapAWordEnabled ? "on" : "off"})
               </option>
-              <option value="true">on</option>
-              <option value="false">off</option>
+              <option value="true">On</option>
+              <option value="false">Off</option>
             </select>
-            <div className="mt-1 text-xs text-gray-500">
-              Resolved global:{" "}
-              <span className="font-mono">
-                {student.resolvedGlobal.tapAWordEnabled ? "on" : "off"}
-              </span>{" "}
-              <SourceBadge source={student.resolvedGlobal.tapASource} />
-            </div>
-          </label>
+          </div>
         </div>
 
-        {/* Reset all per-student global keys */}
-        {(globalRaw.l1_target_override !== undefined ||
-          globalRaw.tap_a_word_enabled !== undefined) && (
+        {hasGlobalOverride && (
           <button
             onClick={() =>
               void updateGlobal({
@@ -424,38 +524,50 @@ export function StudentSupportSettings({ studentId }: { studentId: string }) {
               })
             }
             disabled={saving}
-            className="mt-3 text-xs text-gray-500 hover:text-gray-800 hover:underline disabled:opacity-50"
+            className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-800 disabled:opacity-50 focus:outline-none focus-visible:underline"
           >
-            Reset to inherit (clears per-student global overrides)
+            <span aria-hidden="true">↺</span> Clear per-student overrides
           </button>
         )}
       </div>
 
-      {/* ─── Per-class section (collapsed by default) ────────────── */}
-      <div className="rounded-lg border border-gray-200 bg-white">
+      {/* ─── Per-class section ────────────────────────────────────── */}
+      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
         <button
           onClick={() => setShowClassSection((s) => !s)}
-          className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/50 focus-visible:ring-offset-1 rounded-lg"
+          className="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-purple-500/40"
           aria-expanded={showClassSection}
           aria-controls="support-per-class-section"
         >
-          <div>
-            <h3 className="text-base font-semibold text-gray-900">
-              Customize for a specific class
+          <div className="flex-1">
+            <h3 className="text-base font-bold text-gray-900">
+              Per-class overrides
             </h3>
             <p className="text-xs text-gray-500 mt-0.5">
-              {hasAnyClassOverride
-                ? `${classes.filter((c) => c.classOverrides.l1_target_override !== undefined || c.classOverrides.tap_a_word_enabled !== undefined || c.ellLevelOverride !== null).length} of ${classes.length} active classes have overrides.`
-                : `${classes.length} active class${classes.length === 1 ? "" : "es"}, no overrides set.`}
+              {hasAnyClassOverride ? (
+                <>
+                  <span className="font-semibold text-purple-700">{overrideClassCount}</span>{" "}
+                  of {classes.length} active class{classes.length === 1 ? "" : "es"} have overrides
+                </>
+              ) : (
+                <>
+                  {classes.length} active class{classes.length === 1 ? "" : "es"}, no overrides set
+                </>
+              )}
             </p>
           </div>
-          <span className="text-gray-400 text-lg" aria-hidden="true">{showClassSection ? "−" : "+"}</span>
+          <span
+            className="ml-3 inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-gray-500 text-sm font-bold"
+            aria-hidden="true"
+          >
+            {showClassSection ? "−" : "+"}
+          </span>
         </button>
 
         {showClassSection && (
           <div id="support-per-class-section" className="border-t border-gray-100">
             {classes.length === 0 ? (
-              <div className="p-4 text-sm text-gray-500">
+              <div className="p-5 text-sm text-gray-500">
                 No active enrollments in non-archived classes.
               </div>
             ) : (
@@ -465,6 +577,7 @@ export function StudentSupportSettings({ studentId }: { studentId: string }) {
                     key={c.classId}
                     cls={c}
                     busy={classBusy.has(c.classId)}
+                    studentEllLevel={student.ellLevel}
                     onUpdate={(patch) => void updateClass(c.classId, patch)}
                   />
                 ))}
@@ -479,13 +592,16 @@ export function StudentSupportSettings({ studentId }: { studentId: string }) {
 
 // ─── Per-class row ──────────────────────────────────────────────────────
 
+
 function ClassRowView({
   cls,
   busy,
+  studentEllLevel,
   onUpdate,
 }: {
   cls: ApiResponse["classes"][number];
   busy: boolean;
+  studentEllLevel: number | null;
   onUpdate: (patch: {
     l1_target_override?: L1Target | null;
     tap_a_word_enabled?: boolean | null;
@@ -499,13 +615,23 @@ function ClassRowView({
       cls.ellLevelOverride !== null,
     [cls.classOverrides, cls.ellLevelOverride]
   );
+  const ellTone = cls.resolvedEll
+    ? ELL_TONES[cls.resolvedEll as 1 | 2 | 3]
+    : null;
 
   return (
-    <div className={`p-4 ${busy ? "opacity-50 pointer-events-none" : ""}`}>
-      <div className="flex items-baseline justify-between mb-2">
-        <div>
-          <span className="font-medium text-gray-900">{cls.className}</span>
-          <span className="ml-2 text-xs text-gray-500 font-mono">{cls.classCode}</span>
+    <div className={`p-5 transition ${busy ? "opacity-50 pointer-events-none" : ""}`}>
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-gray-900">{cls.className}</span>
+          <span className="text-[11px] font-mono text-gray-400 px-1.5 py-0.5 rounded bg-gray-100">
+            {cls.classCode}
+          </span>
+          {hasOverride && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700">
+              CUSTOMIZED
+            </span>
+          )}
         </div>
         {hasOverride && (
           <button
@@ -517,35 +643,47 @@ function ClassRowView({
               })
             }
             disabled={busy}
-            className="text-xs text-gray-500 hover:text-gray-800 hover:underline disabled:opacity-50"
+            className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-800 disabled:opacity-50 focus:outline-none focus-visible:underline"
           >
-            Reset class overrides
+            <span aria-hidden="true">↺</span> Clear class overrides
           </button>
         )}
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-        {/* ELL override */}
-        <div>
-          <span className="text-xs text-gray-500">ELL: </span>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* ELL */}
+        <div className="bg-gray-50 rounded-xl p-3">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">
+            ELL
+          </div>
           <select
             value={cls.ellLevelOverride ?? "__inherit__"}
             onChange={(e) => {
               const val = e.target.value;
               onUpdate({
-                ell_level_override:
-                  val === "__inherit__" ? null : Number(val),
+                ell_level_override: val === "__inherit__" ? null : Number(val),
               });
             }}
             disabled={busy}
-            className="rounded border border-gray-200 px-1.5 py-0.5 text-sm bg-white"
+            className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 disabled:opacity-50"
           >
-            <option value="__inherit__">inherit</option>
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
+            <option value="__inherit__">Inherit ({studentEllLevel ?? "—"})</option>
+            <option value="1">1 — Beginner</option>
+            <option value="2">2 — Intermediate</option>
+            <option value="3">3 — Advanced/Native</option>
           </select>
-          <span className="ml-2 text-xs text-gray-500">
-            → <span className="font-mono">{cls.resolvedEll ?? "—"}</span>{" "}
+          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10px] text-gray-500">→</span>
+            {ellTone && cls.resolvedEll ? (
+              <span
+                className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold"
+                style={{ background: ellTone.bg, color: ellTone.text }}
+              >
+                {cls.resolvedEll}
+              </span>
+            ) : (
+              <span className="text-xs font-mono text-gray-400">—</span>
+            )}
             <SourceBadge
               source={
                 cls.ellSource === "class-override"
@@ -555,11 +693,14 @@ function ClassRowView({
                     : "default"
               }
             />
-          </span>
+          </div>
         </div>
 
-        <div>
-          <span className="text-xs text-gray-500">L1: </span>
+        {/* L1 */}
+        <div className="bg-gray-50 rounded-xl p-3">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">
+            L1
+          </div>
           <select
             value={cls.classOverrides.l1_target_override ?? "__inherit__"}
             onChange={(e) => {
@@ -570,22 +711,29 @@ function ClassRowView({
               });
             }}
             disabled={busy}
-            className="rounded border border-gray-200 px-1.5 py-0.5 text-sm bg-white"
+            className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 disabled:opacity-50"
           >
-            <option value="__inherit__">inherit</option>
+            <option value="__inherit__">Inherit</option>
             {SUPPORTED_L1_TARGETS.map((t) => (
               <option key={t} value={t}>
-                {t}
+                {t} — {l1DisplayLabel(t)}
               </option>
             ))}
           </select>
-          <span className="ml-2 text-xs text-gray-500">
-            → <span className="font-mono">{cls.resolved.l1Target}</span>{" "}
+          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10px] text-gray-500">→</span>
+            <span className="text-xs font-mono font-semibold text-gray-900">
+              {cls.resolved.l1Target}
+            </span>
             <SourceBadge source={cls.resolved.l1Source} />
-          </span>
+          </div>
         </div>
-        <div>
-          <span className="text-xs text-gray-500">Tap-a-word: </span>
+
+        {/* Tap-a-word */}
+        <div className="bg-gray-50 rounded-xl p-3">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">
+            Tap-a-word
+          </div>
           <select
             value={
               cls.classOverrides.tap_a_word_enabled === null ||
@@ -596,20 +744,30 @@ function ClassRowView({
             onChange={(e) => {
               const val = e.target.value;
               onUpdate({
-                tap_a_word_enabled: val === "__inherit__" ? null : val === "true",
+                tap_a_word_enabled:
+                  val === "__inherit__" ? null : val === "true",
               });
             }}
             disabled={busy}
-            className="rounded border border-gray-200 px-1.5 py-0.5 text-sm bg-white"
+            className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 disabled:opacity-50"
           >
-            <option value="__inherit__">inherit</option>
-            <option value="true">on</option>
-            <option value="false">off</option>
+            <option value="__inherit__">Inherit</option>
+            <option value="true">On</option>
+            <option value="false">Off</option>
           </select>
-          <span className="ml-2 text-xs text-gray-500">
-            → <span className="font-mono">{cls.resolved.tapAWordEnabled ? "on" : "off"}</span>{" "}
+          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10px] text-gray-500">→</span>
+            <span
+              className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                cls.resolved.tapAWordEnabled
+                  ? "bg-emerald-100 text-emerald-800"
+                  : "bg-gray-200 text-gray-600"
+              }`}
+            >
+              {cls.resolved.tapAWordEnabled ? "ON" : "OFF"}
+            </span>
             <SourceBadge source={cls.resolved.tapASource} />
-          </span>
+          </div>
         </div>
       </div>
     </div>

@@ -1,36 +1,95 @@
 # Handoff — main
 
-**Last session ended:** 2026-04-28T13:30Z
-**Worktree:** `/Users/matt/CWORK/questerra`
-**HEAD:** `6495b66` "merge preflight-active: Phase 8.1d-37 hotfix — student upload Path B school_id validation"
-**(Today's saveme commit appended on top — pull before continuing.)**
+**Last session ended:** 2026-05-03T07:50Z (Phase 4 part 2 SHIPPED + Checkpoint A5b PASS + merged to main)
+**Worktree:** `/Users/matt/CWORK/questerra-access-v2`
+**Branch:** `main` — fully synced with origin after FF-merge of `access-model-v2-phase-4-part-2`
+**Pending push:** 0
+**Tag:** `v0.4-phase-4-closed` at the merge commit
 
-## What just happened
+## What just happened (this session)
 
-- **Language scaffolding work wrapped for now.** Matt explicitly closed it out: "I feel like this wraps up things for now for language support." Treat as a done milestone — next pickup is whatever surfaces from tomorrow's class OR an explicit decision to start Phase 3 Response Starters.
-- **Today AM (8 commits):** multi-class context fix series (Bugs 1, 1.5, 2, 3, 4) → Option A unified per-student Support tab → ELL editing consolidation (inline class-page pills removed) → class-architecture-cleanup project filed → Lesson #60 added.
-- **Today PM (3 commits + prod verification):** smart default for tap-a-word (ON when ELL ≤ 2 OR L1 ≠ English; replaces hardcoded `true` that put scaffolding on every student) → word-level speaker buttons removed from WordPopover (block read-aloud already handles English) → list-class-units.mjs banked as scripts/dev/ inspector.
-- **Bug 3 verified end-to-end in prod via SQL.** Service LEEDers row's pre-existing stale `{l1_target_override: null}` flipped to `{}` when teacher hit "Reset class overrides" — proves the new mergeSupportSettingsForWrite doesn't just avoid creating null orphans, it cleans up legacy ones on touch. 10 Design override → reset → `{}` clean confirmed the everyday teacher workflow.
-- **Per-feature granular split (definitions/translations/audio/images as separate flags + admin matrix) explicitly deferred.** Matt: "seems too much for this site at this point. what we've just built is more than most sites already." Will surface only if pilot data or learning support conversation explicitly demands it.
+Marathon Phase 4 part 2 ship. 9 sub-phases shipped end-to-end + applied to prod + smoke-verified + Checkpoint A5b PASS + merged to main.
+
+- **9 sub-phases shipped** (4.5 / 4.7 / 4.7b-0/1/2/3 / 4.6 / 4.8 / 4.8b / 4.9). 11 commits on the feature branch. 8 prod migrations applied in timestamp order. 1 ops change (NIS tier flip + Gmail-Matt detach).
+- **3189 → 3291 tests** (+102 new, 0 regressions, tsc strict 0 errors throughout).
+- **All sub-phases smoke-verified on prod** via Supabase SQL Editor — schema sanity, CHECK constraints, partial unique indexes, lifecycle transitions, helper return values, trigger end-to-end (4.9 dept_head triggers verified via UPDATE → resync → revoke flow).
+- **9 new FUs filed**, 1 closed (FU-AV2-DEPT-HEAD-DEPARTMENT-MODEL).
+- **Lessons #54, #59, #64, #66 applied throughout.** Proposed Lesson #67 captured in decisions-log: brief-vs-schema audit at PHASE start (not sub-phase start). Phase 4 part 2 caught the same gap pattern in 4 sub-phases (4.5/4.6/4.8/4.9) — phase-start audit would've batched all 4 catches.
+- **Checkpoint A5b PASS** — `docs/projects/access-model-v2-phase-4-checkpoint-a5b.md` written. All criteria green.
+- **Merged to main** via throwaway worktree FF-merge per migration discipline.
 
 ## State of working tree
 
-- **Clean** after this PM saveme commit lands.
-- 3 untracked files in main (none mine, none touched today): `docs/landing-copy-story-b.md`, `docs/landing-redesign-prompt.md`, `docs/specs/brief-generator.md` (Matt's drafts, predate this work). Diagnostic scripts cleaned up — `scripts/check-test-student.mjs` deleted, `scripts/list-class-units.mjs` moved to `scripts/dev/` and committed.
-- **Parallel sessions still active.** `docs/projects/access-model-v2.md` continues to be edited by the Access v2 session — coordinate before touching from this worktree. Preflight session also active (last visible commit is `6495b66` Phase 8.1d-37 hotfix).
-- Migration sequence: latest applied `20260427115409_student_support_settings.sql` (27 Apr). No new migrations since; today's work was pure app code.
-- Drift status: api-registry clean, ai-call-sites clean, RLS coverage clean (the small JSON diff in `docs/scanner-reports/rls-coverage.json` is preflight schema noise, not from my work).
-- Tests: **2287 passed | 9 skipped | 146 files**. tsc 0 errors.
+- `git status -s`: clean.
+- Branch: `main` synced with origin.
+- Tag `v0.4-phase-4-closed` at merge commit — rollback baseline.
+- Tests: 3291 passed | 11 skipped.
+- Typecheck: 0 errors (`tsconfig.check.json` strict).
+- Vercel: prod main deployed green at `studioloom.org` with all of Phase 4 part 2 live.
+- Branches preserved on origin: `access-model-v2-phase-4-part-2` (record), `access-model-v2-phase-4-hotfix-a5a` (record), `access-model-v2-phase-4-hotfix-topnav` (record), `access-model-v2-phase-4` (record).
 
-## Next steps
+## Next steps — Phase 5 (Privacy & Compliance)
 
-- [ ] **Tomorrow's class — natural smoke test** for everything shipped today. Whatever issue surfaces is the priority.
-- [ ] **Optional cosmetic cleanup** — the only remaining `test` student data oddity is a stale `{"l1_target_override": "zh"}` on his **6 Design** (archived) `class_students.support_settings`. Bug 4 filters archived classes from resolution so it does nothing functionally. Cleared automatically when class-architecture-cleanup §1 (auto-unenroll trigger) ships. Manual cleanup: open Support tab → 6 Design row → Reset class overrides. Probably leave it.
-- [ ] **Phase 3 Response Starters** (~3-4 days) — natural next phase of language-scaffolding-redesign. Magic-wand-pen affordance on `ResponseInput`, side panel with Word Bank + Sentence Starters, AI-generated per-activity, class-shared cache. Mirrors tap-a-word architecture (server resolver, sandbox bypass).
-- [ ] **Class architecture cleanup** — when ready, start with §1 (archived class auto-unenroll trigger, ~2hr). Trigger phrase: "continue class architecture". §1 is independent of Access Model v2; §4 (Option B URL-scoped classId) is gated behind it.
-- [ ] **Access Model v2** — running in parallel session. Was given a manual briefing covering today's helpers + Option A surface to preserve. If you start a fresh Access v2 session and the briefing wasn't transferred, ping the user.
+Per master spec §4 line 267 (~3 days). Triggers Checkpoint A6.
 
-## Open questions / blockers
+- [ ] **Audit log infrastructure** — wire `logAuditEvent()` wrapper into every state-mutating route. The wrapper inserts into `audit_events` (table already exists from mig 20260428215923; Phase 4 part 2 already populated it via various inserts during 4.5 cascade / 4.7 impersonation / 4.7b-2 invitations / 4.6 use-requests). CI gate: extend `scan-api-routes.py` to flag any POST/PATCH/DELETE/PUT route lacking the wrapper. Pre-flight check: count routes that already have audit-event inserts vs total mutation routes.
+- [ ] **Per-student AI budget middleware** — cascade resolution + atomic state updates via `ai_budget_state` (table already exists from mig 20260428220303). 4-layer cascade per Decision 6: tier default (from `schools.subscription_tier` mapped by admin_settings) → school override (`schools.default_student_ai_budget` — Phase 4.8 column) → class override (`ai_budgets WHERE subject='class'`) → student override (`ai_budgets WHERE subject='student'`). Reset rolls over at midnight in `schools.timezone`. Teacher-visible warning before hard cap.
+- [ ] **Data export endpoint** — `GET /api/student/[id]/export` (JSON dump of all student-owned data, RLS-checked).
+- [ ] **Data delete endpoint** — `DELETE /api/student/[id]` soft-delete + 30-day hard-delete cron.
+- [ ] **Teacher view of student audit log** — `GET /api/teacher/students/[id]/audit-log`.
+- [ ] **Retention enforcement cron** — monthly job at `scripts/ops/run-retention-enforcement.ts`. Reads `data-classification-taxonomy.md` `retention_days` per column. Soft-deletes past horizon; hard-deletes past `retention_days + 30`.
+- [ ] **Cost-alert pipeline live test** — set `COST_ALERT_DAILY_USD=$0.01`, trigger one AI call, confirm Resend delivers email. Document at `docs/security/cost-alert-fire-drill.md`.
+- [ ] **Sentry PII scrubbing verification** — open Sentry dashboard, confirm scrubbing enabled, screenshot to `docs/security/sentry-pii-scrub-{date}.png`.
+- [ ] **Checkpoint A6** — audit row appears for every state-mutating route in a smoke run; AI budget triggers on synthetic abuse run; export verified for a real student record producing valid JSON; delete verified to soft → hard cascade; retention cron runs cleanly on test data; cost-alert fire drill landed; Sentry PII scrub verified.
 
-- **None blocking.** Today's work is shipped, verified in prod (Bug 3 SQL inspection), tested (2287 passing, 0 failing), and explicitly closed out by Matt.
-- The 6 Design stale row is the only data-noise leftover. Harmless but cosmetic; will self-clean when class-architecture-cleanup §1 ships OR on next teacher edit to that row.
+## Then Phase 6 (Cutover & Cleanup) → Checkpoint A7 PILOT-READY
+
+Per master spec §4 line 278 (~2-3 days):
+- Deprecate legacy student token system (delete dead code, not just `_unused` rename)
+- Remove `author_teacher_id` direct-ownership reads (everything via `class_members`)
+- Update all 6 registries (schema, api, ai-call-sites, feature-flags, vendors, WIRING)
+- Update ADR-003; write ADR-011 (school+governance), ADR-012 (audit log), ADR-013 (API versioning)
+- RLS-no-policy documentation for the 7 flagged tables (audit F12)
+- API versioning rename pass `/api/*` → `/api/v1/*` with 90-day legacy aliases
+- Tag pilot baseline `v0.x-pilot1`
+- Checkpoint A7 — PILOT-READY
+
+**Total to PILOT-READY: ~5-6 focused build days from here.**
+
+## Pre-flight ritual for Phase 5 (DON'T SKIP)
+
+1. Re-read `docs/build-methodology.md`
+2. Re-read Lessons **#54** (registries can lie — TRIGGERED 4 TIMES IN PHASE 4 PART 2), **#59** (estimates lie when audit hasn't happened), **#64** (RLS recursion), **#65** (old triggers don't know about new user types), **#66** (SECURITY DEFINER search_path lockdown). **Apply Lesson #67 (proposed)** — run a single brief-vs-schema audit at the START of Phase 5 covering all sub-phases at once.
+3. Pre-flight registry cross-check (Step 5c) for all sub-phases:
+   - Audit `audit_events` table — what columns exist, what the existing inserters write, what the schema-registry says
+   - Audit `ai_budget_state` table — same
+   - Audit `data-classification-taxonomy.md` — what `retention_days` values are set + which tables have them
+4. Run baseline `npm test` (expect 3291 passing).
+5. Run `bash scripts/migrations/verify-no-collision.sh` against `origin/main` before any new migration mints.
+
+## Open questions / blockers for Phase 5
+
+- **`logAuditEvent()` wrapper signature decision** — should it be a synchronous fire-and-forget (don't block route response) or sync await? Phase 4 inserts use sync-await. Phase 5 may want async-fire to avoid latency cost on hot routes. Decision belongs in Phase 5 brief.
+- **Retention defaults in data-classification-taxonomy.md** — how aggressive is the hard-delete? 30 days post soft-delete is the master-spec default but some tables (audit_events, school_setting_changes) are explicitly "forever in v1" per Decision 4. Reconcile in pre-flight.
+- **AI budget reset cron scheduling** — Vercel Cron Jobs vs Supabase Edge Function vs external. Phase 5 picks one.
+
+## Don't forget
+
+- **Phase 4 part 2 fully closed + merged + smoke-verified on prod main.** All 8 migrations applied. Tag `v0.4-phase-4-closed` is the rollback baseline.
+- **9 new FUs from part 2 are tracked**: 4 P2 + 5 P3. None blocking Phase 5; some pair with Phase 5 work (FU-WELCOME-WIZARD-STUDENT-EMAIL-GUARD pairs with audit log; FU-AV2-IMPERSONATION-RENDER-WIRING pairs with view-as-as-real-impersonation).
+- **`is_platform_admin=true` is on `mattburto@gmail.com`, NOT NIS-Matt.** Gmail-Matt has `school_id=NULL` post-Option-A.
+- **NIS is on `'school'` tier**. NIS-Matt has manual `school_admin` responsibility (id `fa8b1cd1-...`). `class_members.source` column populated only for `auto_dept_head` rows from triggers.
+- **Loominary-Matt soft-deleted + auth banned** — don't muddy by editing.
+- **Wednesday students arrive at NIS.** Phase 5 work is admin-side / cron-side; doesn't affect student-facing teaching directly. Safe to continue through Wednesday's transition.
+- **Methodology rule 8** — Phase 5 work happens on a feature branch (`access-model-v2-phase-5`), not main. FF-merge through throwaway worktree at A6 sign-off.
+
+## Key references
+
+- **Brief**: `docs/projects/access-model-v2-phase-4-brief.md` (record — locked at A5b PASS)
+- **Checkpoint A5b**: `docs/projects/access-model-v2-phase-4-checkpoint-a5b.md` (written this session)
+- **Master spec**: `docs/projects/access-model-v2.md` — Phase 5 §4 line 267, Phase 6 §4 line 278
+- **Decisions-log**: `docs/decisions-log.md` — 13+ new entries from Phase 4 part 2
+- **Followups**: `docs/projects/access-model-v2-followups.md` — 9 new + 1 closed
+- **Changelog**: `docs/changelog.md` — full Phase 4 part 2 session entry
+- **Tag**: `v0.4-phase-4-closed`
+- **Active sessions**: `/Users/matt/CWORK/.active-sessions.txt` — to-be-updated for Phase 5

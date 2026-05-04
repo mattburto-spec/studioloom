@@ -1,6 +1,10 @@
+// audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
+import {
+  requireTeacherAuth,
+  verifyTeacherOwnsClass,
+} from "@/lib/auth/verify-teacher-unit";
 
 /**
  * DELETE /api/teacher/class-students
@@ -38,26 +42,12 @@ export async function DELETE(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  // Verify teacher owns this class
-  const { data: classRow } = await supabase
-    .from("classes")
-    .select("id")
-    .eq("id", classId)
-    .eq("teacher_id", teacherId)
-    .maybeSingle();
-
-  if (!classRow) {
-    // Try author_teacher_id fallback
-    const { data: classRow2 } = await supabase
-      .from("classes")
-      .select("id")
-      .eq("id", classId)
-      .eq("author_teacher_id", teacherId)
-      .maybeSingle();
-
-    if (!classRow2) {
-      return NextResponse.json({ error: "Class not found" }, { status: 404 });
-    }
+  // Phase 6.2 — gate via can()-backed shim. Opens up co_teacher /
+  // dept_head capability + collapses the dual teacher_id/author_teacher_id
+  // dance into one resolved check.
+  const owns = await verifyTeacherOwnsClass(teacherId, classId);
+  if (!owns) {
+    return NextResponse.json({ error: "Class not found" }, { status: 404 });
   }
 
   // 1. Soft-remove from class_students
@@ -93,25 +83,15 @@ export async function DELETE(request: NextRequest) {
   const hasActiveEnrollments =
     (remainingEnrollments && remainingEnrollments.length > 0) || hasLegacyClass;
 
-  // 3. If no remaining enrollments, invalidate ALL sessions (force logout)
-  //    If they still have other classes, leave sessions alive
-  if (!hasActiveEnrollments) {
-    const { error: sessionError } = await supabase
-      .from("student_sessions")
-      .delete()
-      .eq("student_id", studentId);
-
-    if (sessionError) {
-      // Non-fatal — student is already removed from class
-      console.error(
-        "[class-students] Session invalidation error:",
-        sessionError
-      );
-    }
-  }
+  // Phase 6.1 — student_sessions table dropped. Forced sign-out is now
+  // handled by Supabase Auth: deleting the auth.users row (or revoking
+  // refresh tokens via supabase.auth.admin.signOut) is the equivalent.
+  // For "removed from last class" we do NOT auto-revoke the auth session —
+  // the student may still need to access their portfolio. The
+  // `class_students` removal already gates classroom data; auth stays.
 
   return NextResponse.json({
     success: true,
-    sessionsInvalidated: !hasActiveEnrollments,
+    sessionsInvalidated: false,
   });
 }

@@ -619,3 +619,285 @@ if (process.env.NODE_ENV === "test" && process.env.RUN_E2E !== "1") { sandbox pa
 
 **Wider applicability:** Pre-push audit / code-review checklists should explicitly ask "did the audit surface anything in the code I'm touching that I'm planning to defer? If yes, why not fix it now?" The default answer should be "fix now"; the burden is on "defer" to justify itself. Especially true for fixes that share a helper function or test fixture with the in-flight change.
 
+
+### Lesson #61 — Index predicates can't contain non-IMMUTABLE functions; shape-asserting tests don't catch this
+**Date:** 29 Apr 2026
+**Phase:** Access Model v2 Phase 0.7b apply
+**Trigger:** Tried to apply migration `20260428220303_ai_budgets_and_state.sql` to prod. Postgres rejected it with `42P17: functions in index predicate must be marked IMMUTABLE`. The offending DDL was:
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_ai_budget_state_due_reset
+  ON ai_budget_state(reset_at)
+  WHERE reset_at < now();
+```
+
+**What happened:** `now()` is `STABLE`, not `IMMUTABLE`. Postgres won't let you build a partial index whose predicate value changes over time (otherwise the index would silently lose correctness as `now()` advances). The fix: drop the predicate, use a plain b-tree on `reset_at`. The cron's `WHERE reset_at < now()` filter happens at query time; the b-tree forward-scan from earliest is efficient enough.
+
+The migration shape test asserted:
+```ts
+expect(sql).toMatch(/idx_ai_budget_state_due_reset[\s\S]+WHERE reset_at < now\(\)/);
+```
+which passed because the SQL TEXT contained that string. But the SQL TEXT being well-formed strings doesn't guarantee the SQL would actually compile against Postgres. **Shape-asserting tests assert presence of strings; they don't catch SQL semantic errors.**
+
+**Why this is a Lesson #38 sibling:** Lesson #38 was about tests asserting non-null instead of expected values. Lesson #61 is about tests asserting string-presence-in-text instead of execution-success. Both are "the test passed but the underlying thing is wrong." The fix is the same shape — make the test verify the expected outcome, not just the surface representation.
+
+**Rules:**
+- **For any partial index, verify the predicate uses only `IMMUTABLE` functions.** `now()`, `current_timestamp`, `random()`, anything that depends on session state — all rejected. `lower()`, arithmetic, constant comparisons — fine.
+- **Shape-asserting migration tests should be paired with at least one test that actually executes the migration against a real Postgres** (the live RLS test harness skeleton from Phase 0.9 is the right home for this — extend with a "this migration applies cleanly" check per migration).
+- **When you add a partial index, ask: is the predicate a constant? If not, is the function IMMUTABLE?** If the answer is "no" or "I'm not sure", drop the partial. The plain b-tree is almost always fast enough.
+
+**Wider applicability:** Anywhere a migration generates DDL that depends on database semantics (CHECK constraints with subqueries, CHECK constraints referencing other tables, partial indexes with mutable predicates, generated columns with non-immutable expressions, COMMENT escapes, etc.), the shape-asserting tests miss the failure mode. Pair with execution tests OR run the migration against a test database before declaring "Phase X DONE on branch."
+
+
+---
+
+### Lesson #62 — Use `pg_catalog.pg_constraint` for cross-schema FK verification, not `information_schema.constraint_column_usage`
+
+**Date:** 29 April 2026
+**Surfaced in:** Access Model v2 Phase 1.1a (`students.user_id` → `auth.users(id)` FK verification)
+
+**The bug:** Phase 1.1a's prod apply ran `ALTER TABLE students ADD COLUMN user_id UUID NULL REFERENCES auth.users(id) ON DELETE SET NULL`. The column landed, the index landed, the comment landed. The FK check query I wrote used `information_schema.constraint_column_usage` to verify the FK shape — and it **returned zero rows**. False alarm: the FK actually existed (confirmed by a `pg_catalog.pg_constraint` query and by the "constraint already exists" error when I tried to re-add it).
+
+**The cause:** `information_schema.constraint_column_usage` has documented quirks around cross-schema FK references. When the local table is in `public` and the foreign table is in `auth` (Supabase's auth schema), the JOIN to find the foreign-side schema/table can return zero rows even though the constraint exists. This is a Postgres standard-conformance issue; the view exists for SQL-standard portability but doesn't fully resolve cross-schema FKs.
+
+**The fix:** Use `pg_catalog.pg_constraint` directly. It's the authoritative source — the planner and executor both use it. Pattern for FK verification:
+
+```sql
+SELECT
+  c.conname AS constraint_name,
+  c.conrelid::regclass AS local_table,
+  a.attname AS local_column,
+  c.confrelid::regclass AS foreign_table,
+  af.attname AS foreign_column,
+  CASE c.confdeltype
+    WHEN 'a' THEN 'NO ACTION'
+    WHEN 'r' THEN 'RESTRICT'
+    WHEN 'c' THEN 'CASCADE'
+    WHEN 'n' THEN 'SET NULL'
+    WHEN 'd' THEN 'SET DEFAULT'
+  END AS on_delete
+FROM pg_constraint c
+JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey)
+JOIN pg_attribute af ON af.attrelid = c.confrelid AND af.attnum = ANY(c.confkey)
+WHERE c.contype = 'f'
+  AND c.conrelid = '<schema>.<table>'::regclass
+  AND a.attname = '<column>';
+```
+
+**Wider applicability:** Same pattern for any cross-schema PK/UNIQUE/EXCLUSION lookup. The `information_schema.*` views are good for portability and same-schema references, but **for any constraint check that crosses schemas (typically `public` ↔ `auth` in Supabase), reach for `pg_catalog` first.**
+
+**Why this is a Lesson #54 sibling:** Lesson #54 was "WIRING.yaml entries can claim 'complete' features that don't exist; audit by grep before trusting any system summary." This is the inverse: **information_schema views can claim 'absent' features that DO exist** because of standard-view limitations on cross-schema references. The fix shape is the same — when the abstraction layer says something doesn't exist, verify against the authoritative source before acting.
+
+**Rules:**
+- For FK shape verification: use `pg_catalog.pg_constraint` joined with `pg_attribute`.
+- For verifying that a constraint exists at all (without needing shape): the simplest, most reliable test is to attempt to CREATE it — Postgres returns a clear `already exists` error (SQLSTATE 42710) if it does.
+- For RLS policy verification: use `pg_policies` (a thin wrapper over `pg_policy`).
+- Treat `information_schema` as a portability layer for SQL standard tooling, not as authoritative for Postgres-specific features (cross-schema FKs, partial indexes, generated columns, RLS, etc.).
+
+---
+
+### Lesson #63 — Vercel preview URLs are deployment-specific; use the auto-aliased branch URL for "latest on branch" testing
+
+**Date:** 29 April 2026 PM
+**Surfaced in:** Access Model v2 Phase 1.4 prod-preview smoke testing
+
+**The bug:** Phase 1.4a + 1.4b prod-preview smoke tests appeared to fail with HTTP 401. Spent ~30 min adding diagnostic logging, capturing log exports, debugging the SSR cookie adapter — looking for issues in code that wasn't actually being tested.
+
+**The cause:** Vercel preview URLs are **deployment-specific**. Each `git push` creates a NEW deployment with a NEW URL hash:
+
+```
+push 1 → studioloom-aaa111-mattburto-specs-projects.vercel.app
+push 2 → studioloom-bbb222-mattburto-specs-projects.vercel.app
+push 3 → studioloom-ccc333-mattburto-specs-projects.vercel.app
+```
+
+We had captured the URL from push 1 (Phase 1.2 verification) and kept reusing it in curl commands for subsequent pushes. The URL pinned forever to commit-1's build, which lacked Phase 1.4a + 1.4b changes. Tests "failed" because we were testing the wrong code.
+
+**The fix:** Use Vercel's **auto-aliased branch URL** pattern, which always resolves to the latest deploy of the branch:
+
+```
+studioloom-git-<branch-name>-<team>-projects.vercel.app
+```
+
+Example: `studioloom-git-access-model-v2-phase-1-mattburto-specs-projects.vercel.app` always points at the most recent commit on `access-model-v2-phase-1`. As soon as we used it, Tests 1/2/3 all returned 200 — the new auth path worked all along.
+
+**Wider applicability:** Any Vercel-deployed app's preview testing. The deployment-hash URL is the right URL when you need to reference a specific build (e.g., "this exact bug is in deploy X"). The branch-alias URL is the right URL for "latest on this feature branch" smoke testing.
+
+**Rules:**
+- **Default to the branch-alias URL** for smoke testing during active development. Pattern: `<project>-git-<branch>-<team>.vercel.app`. The branch name has slashes converted to hyphens for URL safety.
+- **Use the deployment-hash URL** ONLY when you need to reference a specific build (debugging post-merge regressions, comparing two deployments, etc.).
+- **Confirm the deploy is "Ready"** in the Vercel dashboard before testing — the branch alias URL might point at a still-building deploy if you tested too soon after pushing.
+- **Verify the URL hits the expected commit** by adding a temporary version marker (e.g., `console.log("v" + COMMIT_SHA)`) if you suspect URL drift. Or — cheapest — temporarily add a `_debug: { commit: ... }` field in a response body to confirm.
+
+**Why this is a Lesson #38 sibling:** Lesson #38 was "verify expected values, not just non-null." This is "verify expected DEPLOYMENT, not just success-once." Both are about the gap between "the test didn't error" and "the test verified the thing you thought it did."
+
+---
+
+### Lesson #64 — Cross-table RLS subqueries silently recurse; use SECURITY DEFINER for any policy that joins through another RLS-protected table
+
+**Date:** 30 April 2026
+**Surfaced in:** Access Model v2 Phase 1.4 client-switch CS-2 — first time SSR client engaged Phase 1.5/1.5b/CS-1 student-side RLS policies in production. Hit two distinct recursion cycles in the same session.
+
+**The bug shape:** A "canonical chain" RLS policy of the form:
+
+```sql
+USING (target_id IN (SELECT some_col FROM other_table WHERE other_filter))
+```
+
+is fine in isolation. But the moment `other_table` ALSO has an RLS policy that subqueries back through the original table (or any table in the chain), Postgres throws:
+
+```
+ERROR: 42P17: infinite recursion detected in policy for relation "<table>"
+```
+
+This **never surfaces under admin client** (`createAdminClient()` bypasses RLS). It only triggers when the SSR client reads any table whose policies form the cycle. Phase 1.5/1.5b/CS-1 wrote ~14 student-side policies using this canonical chain pattern; every one is a latent recursion candidate, depending on what other policies exist on the joined tables.
+
+**Two cycles hit in one session, same pattern:**
+
+1. **`students` ↔ `class_students`.** `Teachers manage students` (since Phase 0) had `id IN (SELECT cs.student_id FROM class_students cs ...)`. Phase 1.5b's `class_students_self_read_authuid` had `student_id IN (SELECT id FROM students WHERE user_id = auth.uid())`. The instant SSR client touched students, recursion fired.
+
+2. **`classes` ↔ `class_students`.** `Teachers manage class_students` (since migration 041) had `class_id IN (SELECT id FROM classes WHERE teacher_id = auth.uid())`. CS-1's `Students read own enrolled classes` had `id IN (SELECT cs.class_id FROM class_students cs ...)`. Same cycle shape, different tables.
+
+**The fix:** SECURITY DEFINER helper function. Wrap the recursive subquery in a function that runs as the function's owner (typically `postgres`), bypassing RLS on tables it queries internally. The cycle breaks because the inner lookups don't re-enter RLS.
+
+```sql
+CREATE OR REPLACE FUNCTION public.is_teacher_of_class(class_uuid uuid)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM classes WHERE id = class_uuid AND teacher_id = auth.uid()
+  )
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.is_teacher_of_class(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_teacher_of_class(uuid) TO authenticated;
+
+-- Then in the policy:
+DROP POLICY "Teachers manage class_students" ON class_students;
+CREATE POLICY "Teachers manage class_students"
+  ON class_students FOR ALL
+  USING (public.is_teacher_of_class(class_id))
+  WITH CHECK (public.is_teacher_of_class(class_id));
+```
+
+The function is `STABLE` (deterministic for the same auth.uid() within a transaction), `SECURITY DEFINER` (runs as owner), `SET search_path` (locks the search path so the body can't be hijacked by a malicious user-set search_path).
+
+**Wider applicability:** ANY policy where a subquery hits a different RLS-protected table. Several un-audited policies still pending (FU-AV2-RLS-SECURITY-DEFINER-AUDIT P2):
+- `competency_assessments` student-read policy → `students` (potential cycle if competency_assessments has a teacher policy that reads students)
+- `quest_journeys/_milestones/_evidence` student policies → `students`
+- `student_progress` self-read → `students`
+- `fabrication_jobs/_scan_jobs` self-read → `students`
+- CS-1's `Students read own published assessments` on `assessment_records` → `students`
+- CS-1's `student_badges_read_own` → `students`
+
+Any of these will recurse the moment a route under SSR client reads them in a way that triggers the joined table's RLS.
+
+**Rules:**
+- **Default to SECURITY DEFINER for any policy that subqueries another table.** Direct column comparisons (`user_id = auth.uid()`) are fine. Cross-table subqueries are not — wrap them.
+- **Lock the search_path** in every SECURITY DEFINER function: `SET search_path = public, pg_temp`. Without this, a caller can manipulate search_path to inject malicious objects (CVE-class issue in older Postgres).
+- **REVOKE then GRANT to `authenticated` only.** PUBLIC has execute by default; explicit GRANT scope tightens the surface.
+- **The `STABLE` volatility marker** is correct for these helpers (not `IMMUTABLE` — auth.uid() can change across transactions, but is constant within one). Lesson #61 sibling: volatility markers matter for both indexes and SECURITY DEFINER.
+- **Add migration shape tests** that assert the policy USING clause references the function name, NOT an inlined subquery (Lesson #38). Catches regressions where someone re-inlines the recursive pattern.
+- **Smoke under SSR client** before declaring an RLS policy "done." Admin-client tests prove nothing about RLS evaluation.
+
+**Why this is a Lesson #38 + #54 sibling:** Lesson #38 — "verify expected values, not just non-null." Lesson #54 — "registries can claim 'complete' features that don't exist." This is the third in the family: **policies can claim correctness based on tests that never exercised them.** Schema-registry annotated `student_badges_read_own` as `(their)` (canonical chain) because the migration filename matched, but the actual SQL was broken (Phase 1.4 CS-1 finding). Phase 1.5/1.5b "completed" with shape tests that never ran under SSR client. CS-2 is the first time these policies actually evaluated, and they all needed work.
+
+**Operational rule:** Any future Access-Model-v2 phase that ships RLS policies must include at least one route in the same phase that reads under SSR client and validates the policy fires correctly. Not as a follow-up — in the same phase, as a Checkpoint criterion. Otherwise we accumulate latent recursion bombs that fire one at a time in production.
+
+---
+
+### Lesson #65 — Old triggers don't know about new user types
+
+**Surfaced:** 1 May 2026, Phase 2.5 Checkpoint A3 smoke (access-model-v2 Phase 2 close-out). Matt opened `/admin/teachers` and saw ~7 phantom rows with synthetic emails like `student-<uuid>@students.studioloom.local`.
+
+**Root cause:** `001_initial_schema.sql` (the very first schema migration, ~18 months old) defined a trigger:
+```sql
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION handle_new_teacher();
+```
+The function blindly inserted into `teachers` for every auth.users row, on the (then-true) assumption that every auth user was a teacher.
+
+Phase 1.1d access-v2 (29 Apr 2026) introduced student auth.users rows via `provision-student-auth-user.ts` — synthetic-email pattern, `app_metadata.user_type='student'`, no teacher-side data. The 18-month-old trigger fired anyway, creating phantom teacher rows for every student.
+
+**Why pre-flight didn't catch it:** Phase 1.1d's pre-flight audit looked at FK callers + downstream queries that consume `students.user_id`, but didn't audit auth.users-side triggers. There was no obvious reason to — the new code wrote auth.users via the admin API, and the admin API doesn't surface triggers in its return value.
+
+**Fix:** migration `20260501103415_fix_handle_new_teacher_skip_students.sql`:
+```sql
+IF (NEW.raw_app_meta_data->>'user_type') = 'student' THEN
+  RETURN NEW;
+END IF;
+```
+Plus a backfill DELETE with safety assertion (refuse to delete if any leaked row had FK references — none did).
+
+**Operational rule:** When introducing a new user_type / role / actor class into auth.users, audit ALL triggers on `auth.users` AND on any side-table that gets auto-populated from auth.users (`teachers`, `user_profiles`, etc). The audit checklist:
+1. `SELECT * FROM information_schema.triggers WHERE event_object_table = 'users'`
+2. For each trigger function, read the SQL — does it assume a single user_type?
+3. If yes — guard the function on user_type before the new role's first insert lands in prod.
+
+**Lesson #54 sibling:** "Old code makes assumptions that aren't documented anywhere." The trigger had no comment explaining "this assumes every user is a teacher." Future-proofing tip: when writing assumption-baked schema, add a comment in SQL referencing the assumption AND a test that asserts the assumption still holds.
+
+**Security audit:** clean. `buildTeacherSession` only routes when `user_type='teacher'` (set explicitly via app_metadata, not derived from teachers row existence); `requireAdmin` checks `is_admin=true` which is `false` on phantom rows. Leak was purely cosmetic in admin UI. **Document this in security audits as the exemplar of "wrong but not exploitable" — not every data integrity issue is a security issue, but every one of them needs a paper trail.**
+
+
+---
+
+### Lesson #66 — SECURITY DEFINER function rewrites must re-apply search_path lockdown
+
+**Date:** 2 May 2026
+**Surfaced in:** Phase 4.2 banner-test smoke. Matt tried to create a test teacher via the Supabase Auth dashboard; `Failed to create user: Database error creating new user`. Postgres logs surfaced `ERROR: relation "teachers" does not exist`.
+
+**The bug:** the May-1 rewrite migration (`20260501103415_fix_handle_new_teacher_skip_students.sql`) — which legitimately added the `user_type='student'` guard to fix Lesson #65 — accidentally dropped two safety properties from the function definition:
+
+1. `SET search_path = public, pg_temp`
+2. Schema-qualified table reference (`public.teachers` → `teachers`)
+
+Without (1), the SECURITY DEFINER function inherits the search_path of the calling session. Supabase Auth's INSERT context does NOT include `public` in the default search_path, so `INSERT INTO teachers (...)` failed for every email/password teacher signup since 1 May. Hadn't been caught because no new teachers had signed up via that path between 1 May and 2 May — only the existing accounts (mattburto@gmail.com, mattburton@nanjing-school.com from April) were logging in.
+
+**The fix:** migration `20260502102745_phase_4_3_x_fix_handle_new_teacher_search_path.sql` re-applies both properties:
+
+```sql
+CREATE OR REPLACE FUNCTION public.handle_new_teacher()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp     -- restored
+AS $function$
+BEGIN
+  IF (NEW.raw_app_meta_data->>'user_type') = 'student' THEN
+    RETURN NEW;
+  END IF;
+
+  INSERT INTO public.teachers (id, name, email)  -- schema-qualified
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
+    NEW.email
+  );
+  RETURN NEW;
+END;
+$function$;
+```
+
+Plus a DO-block sanity check that `pg_get_functiondef(oid)` contains both `SET search_path = public, pg_temp` AND `public.teachers` — refuses to apply if either is missing.
+
+**Rules:**
+
+- **Whenever rewriting a SECURITY DEFINER function via CREATE OR REPLACE, audit the existing definition's safety properties before submitting the new body.** `SECURITY DEFINER`, `STABLE`/`IMMUTABLE` volatility markers, `SET search_path`, REVOKE/GRANT lines — all of these are easy to drop accidentally because PG syntax allows them in any order around the body.
+- **Add a regression test** that asserts each safety property by name. The test in `migration-phase-4-3-x-fix-handle-new-teacher.test.ts` does exactly this — `expect(sql).toMatch(/SET search_path = public, pg_temp/)` etc. If a future rewrite drops a property, CI catches it before deploy.
+- **Bake the safety properties into the migration's sanity DO-block.** A DO-block that runs `pg_get_functiondef(oid)` and `RAISE EXCEPTION` when a property is missing is far more durable than a comment saying "remember to set search_path". The migration refuses to apply if the function definition is wrong — the deploy fails loudly, not silently.
+- **For ANY trigger on `auth.users` specifically,** treat search_path lockdown as MANDATORY. Auth schema's INSERT context has tighter default search_path than the public schema's, and the failure mode is "all signups break for X days until someone tries to sign up."
+
+**Why this is a Lesson #64 sibling:** Lesson #64 said `SECURITY DEFINER` policies need search_path locked because the policies subquery into other tables. This is the same rule applied to TRIGGERS: `SECURITY DEFINER` triggers need search_path locked because they `INSERT INTO` other tables. Same family — same fix.
+
+**Why pre-flight didn't catch it:** the May-1 migration shipped with a smoke test that created a row in `auth.users` via the trigger path AND verified the resulting `teachers` row had the `user_type='student'` skip working. But the smoke test ran in a Supabase SQL Editor session where `search_path` was already set to include `public` — same context as the test author. Production's auth-trigger context is different. **Auth-context smoke tests should run via the actual Supabase Auth admin API path (createUser), not via direct SQL Editor INSERT.**
+
+**Operational rule for future migrations touching `handle_new_teacher` (or any auth.users trigger function):**
+1. Read `pg_get_functiondef(oid)` of the existing definition before writing the rewrite
+2. Diff your new body against the old to confirm no safety properties dropped
+3. Migration's DO-block asserts every safety property survived
+4. Smoke test by calling Supabase Auth admin API `createUser`, NOT by direct INSERT INTO auth.users in SQL Editor
+

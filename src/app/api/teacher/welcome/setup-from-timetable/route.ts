@@ -1,3 +1,4 @@
+// audit-skip: routine teacher pedagogy ops, low audit value
 /**
  * POST /api/teacher/welcome/setup-from-timetable
  *
@@ -26,6 +27,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
+import { enforceClassCreateLimit } from "@/lib/access-v2/plan-gates";
 import { generateClassCode } from "@/lib/utils";
 
 // Multiple class inserts + timetable save — unlikely to hit this but be safe
@@ -122,6 +124,37 @@ export const POST = withErrorHandler(
 
     const supabase = createAdminClient();
 
+    // TODO(access-v2 §4.0): replace with requireActorSession().schoolId once Phase 1 lands.
+    // classes.school_id was tightened to NOT NULL by mig 20260428222049_phase_0_8b.
+    // Looked up once outside the per-class loop — same teacher owns all classes here.
+    const { data: timetableTeacherRow } = await supabase
+      .from("teachers")
+      .select("school_id")
+      .eq("id", teacherId)
+      .single();
+    if (!timetableTeacherRow?.school_id) {
+      return NextResponse.json(
+        { error: "Teacher missing school context" },
+        { status: 500 }
+      );
+    }
+
+    // Phase 4.8b — plan-gate chokepoint (pass-through today; freemium
+    // build wires real per-tier max_active_classes count).
+    const planGate = await enforceClassCreateLimit(teacherId);
+    if (!planGate.ok) {
+      return NextResponse.json(
+        {
+          error: `Class create limit reached for your plan (${planGate.tier}): ${planGate.current}/${planGate.cap}.`,
+          reason: planGate.reason,
+          tier: planGate.tier,
+          cap: planGate.cap,
+          current: planGate.current,
+        },
+        { status: 422 }
+      );
+    }
+
     // ── 1. Create all classes ──────────────────────────────────
     const createdClasses: Array<{
       classId: string;
@@ -141,6 +174,7 @@ export const POST = withErrorHandler(
           .from("classes")
           .insert({
             teacher_id: teacherId,
+            school_id: timetableTeacherRow.school_id,
             name: cls.name.trim(),
             code: classCode,
             framework: cls.framework,

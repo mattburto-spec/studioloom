@@ -37,6 +37,11 @@ interface ClassRow {
   name: string;
   code: string;
   framework?: string;
+  /** Phase 3.4c — role this teacher holds on the class (lead_teacher,
+   *  co_teacher, dept_head, mentor, lab_tech, observer). Co-teachers
+   *  see additional classes here that the legacy classes.teacher_id
+   *  filter would have hidden. */
+  role?: string;
 }
 
 interface StudentRow {
@@ -79,13 +84,56 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
 
   const teacherId = user.id;
 
-  // 1. Fetch all non-archived classes for this teacher
-  const { data: classes } = await supabase
-    .from("classes")
-    .select("id, name, code, framework")
-    .eq("teacher_id", teacherId)
-    .neq("is_archived", true)
-    .order("created_at", { ascending: false });
+  // 1. Fetch all non-archived classes the teacher is a MEMBER of (Phase 3.4c —
+  //    expanded from `.eq("teacher_id", teacherId)` to read class_members so
+  //    co_teacher / dept_head / mentor / lab_tech / observer see shared
+  //    classes too. Phase 0.8a backfilled lead_teacher rows for every
+  //    existing class; Phase 3.4b trigger seeds them on new INSERT, so
+  //    every owner still sees their classes after this change.).
+  //    Sorted client-side post-projection because PostgREST embed-order is
+  //    awkward across the join.
+  const { data: memberships } = await supabase
+    .from("class_members")
+    .select(
+      "class_id, role, classes!inner(id, name, code, framework, is_archived, created_at)"
+    )
+    .eq("member_user_id", teacherId)
+    .is("removed_at", null);
+
+  type ClassEmbed = {
+    id: string;
+    name: string;
+    code: string;
+    framework?: string;
+    is_archived?: boolean;
+    created_at?: string;
+  };
+  type ClassWithSort = ClassRow & { _createdAt: string };
+
+  const projected: ClassWithSort[] = [];
+  for (const m of memberships ?? []) {
+    const cls = (m as { classes: ClassEmbed | ClassEmbed[] }).classes;
+    const c = Array.isArray(cls) ? cls[0] : cls;
+    if (!c || c.is_archived === true) continue;
+    projected.push({
+      id: c.id,
+      name: c.name,
+      code: c.code,
+      framework: c.framework,
+      role: m.role as string,
+      _createdAt: c.created_at ?? "",
+    });
+  }
+
+  projected.sort((a, b) => b._createdAt.localeCompare(a._createdAt));
+
+  const classes: ClassRow[] = projected.map((p) => ({
+    id: p.id,
+    name: p.name,
+    code: p.code,
+    framework: p.framework,
+    role: p.role,
+  }));
 
   if (!classes || classes.length === 0) {
     const empty: DashboardData = {

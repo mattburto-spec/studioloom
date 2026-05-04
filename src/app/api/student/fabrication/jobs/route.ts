@@ -14,7 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   listStudentJobs,
@@ -26,8 +26,8 @@ const NO_CACHE_HEADERS = {
 } as const;
 
 export async function GET(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
 
   const limitParam = request.nextUrl.searchParams.get("limit");
   const limit = limitParam ? parseInt(limitParam, 10) : 100;
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
 
   const db = createAdminClient();
   const result = await listStudentJobs(db, {
-    studentId: auth.studentId,
+    studentId: session.studentId,
     limit,
   });
 

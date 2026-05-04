@@ -1,3 +1,4 @@
+// audit-skip: school directory operation, audit covered by school_settings_history
 /**
  * POST /api/schools
  *
@@ -29,10 +30,11 @@ export const POST = withErrorHandler("schools:POST", async (request: NextRequest
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { name, city, country } = (body ?? {}) as {
+  const { name, city, country, timezone } = (body ?? {}) as {
     name?: unknown;
     city?: unknown;
     country?: unknown;
+    timezone?: unknown;
   };
 
   if (typeof name !== "string" || name.trim().length < 3) {
@@ -48,20 +50,43 @@ export const POST = withErrorHandler("schools:POST", async (request: NextRequest
   const cleanName = name.trim();
   const cleanCity = typeof city === "string" && city.trim().length > 0 ? city.trim() : null;
   const cleanCountry = country.trim().toUpperCase();
+  // Phase 4.4d — timezone smart-default. If the client sent an IANA
+  // timezone (typically from Intl.DateTimeFormat().resolvedOptions().timeZone),
+  // accept it. Otherwise fall back to the schema default (Asia/Shanghai)
+  // by NOT setting the column on insert. Per master spec §3.8 Q10:
+  // "smart default for fresh schools; existing schools opt-in only".
+  const cleanTimezone =
+    typeof timezone === "string" && timezone.trim().length > 0
+      ? timezone.trim()
+      : null;
 
   const supabase = createAdminClient();
 
+  const insertRow: {
+    name: string;
+    city: string | null;
+    country: string;
+    ib_programmes: string[];
+    source: string;
+    verified: boolean;
+    created_by: string;
+    timezone?: string;
+  } = {
+    name: cleanName,
+    city: cleanCity,
+    country: cleanCountry,
+    ib_programmes: [],
+    source: "user_submitted",
+    verified: false,
+    created_by: teacherId,
+  };
+  if (cleanTimezone !== null) {
+    insertRow.timezone = cleanTimezone;
+  }
+
   const { data, error } = await supabase
     .from("schools")
-    .insert({
-      name: cleanName,
-      city: cleanCity,
-      country: cleanCountry,
-      ib_programmes: [],
-      source: "user_submitted",
-      verified: false,
-      created_by: teacherId,
-    })
+    .insert(insertRow)
     .select("id, name, city, country, ib_programmes, verified, source")
     .single();
 

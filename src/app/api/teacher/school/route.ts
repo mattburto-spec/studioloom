@@ -1,3 +1,4 @@
+// audit-skip: routine teacher pedagogy ops, low audit value
 /**
  * GET    /api/teacher/school — returns the teacher's current school (or null)
  * PATCH  /api/teacher/school — sets the teacher's `teachers.school_id`

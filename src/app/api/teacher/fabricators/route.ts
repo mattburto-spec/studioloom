@@ -1,3 +1,4 @@
+// audit-skip: routine teacher pedagogy ops, low audit value
 /**
  * /api/teacher/fabricators
  *   GET  — list fabricators the current teacher has invited

@@ -1,3 +1,4 @@
+// audit-skip: routine learner activity, low audit value
 /**
  * Student Quest Journey Milestone Detail API
  *
@@ -25,7 +26,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { rateLimit } from "@/lib/rate-limit";
 import * as Sentry from "@sentry/nextjs";
 
@@ -37,9 +38,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   // Rate limit: 30 updates per minute per student
   const rl = rateLimit(`quest-milestone-detail:${studentId}`, [{ maxRequests: 30, windowMs: 60_000 }]);
@@ -163,9 +164,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   // Rate limit: 20 deletes per minute per student
   const rl = rateLimit(`quest-milestone-delete:${studentId}`, [{ maxRequests: 20, windowMs: 60_000 }]);

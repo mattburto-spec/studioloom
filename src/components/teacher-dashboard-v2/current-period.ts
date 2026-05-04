@@ -208,9 +208,20 @@ export function resolveCurrentPeriod(
 
   // Look up unit thumbnail + completionPct + student count from the
   // dashboard data.
+  //
+  // Fallback (30 Apr 2026 — closes FU-DASHBOARD-HERO-NULL-UNIT-TITLE):
+  // when the schedule entry's unitId is null (timetable doesn't link
+  // periods to specific units), fall back to the class's first
+  // assigned unit from `cls.units[]`. This way, a class with
+  // Biomimicry assigned via class_units shows that unit in the hero
+  // even though the timetable doesn't store the unit-period mapping.
+  // Mirrors the same "first unit per class" choice the today endpoint
+  // makes at line ~75 of src/app/api/teacher/schedule/today/route.ts.
   let unitThumbnailUrl = FALLBACK_IMG;
   let completionPct: number | null = null;
   let studentCount = 0;
+  let resolvedUnitId: string | null = entry.unitId;
+  let resolvedUnitTitle: string | null = entry.unitTitle;
   for (const cls of classes) {
     if (cls.id !== entry.classId) continue;
     studentCount = cls.studentCount;
@@ -220,6 +231,14 @@ export function resolveCurrentPeriod(
         if (unit.thumbnailUrl) unitThumbnailUrl = unit.thumbnailUrl;
         completionPct = unit.completionPct;
       }
+    } else if (cls.units.length > 0) {
+      // Fallback: timetable doesn't specify a unit for this period, so
+      // use the class's first assigned unit.
+      const fallbackUnit = cls.units[0];
+      resolvedUnitId = fallbackUnit.unitId;
+      resolvedUnitTitle = fallbackUnit.unitTitle;
+      if (fallbackUnit.thumbnailUrl) unitThumbnailUrl = fallbackUnit.thumbnailUrl;
+      completionPct = fallbackUnit.completionPct;
     }
     break;
   }
@@ -229,9 +248,9 @@ export function resolveCurrentPeriod(
   // at 20 rows by most-recent-completion — enough for the hero chip to
   // reflect "today's pile" without a dedicated query.
   let ungradedCount = 0;
-  if (entry.unitId) {
+  if (resolvedUnitId) {
     for (const w of unmarkedWork) {
-      if (w.classId === entry.classId && w.unitId === entry.unitId) {
+      if (w.classId === entry.classId && w.unitId === resolvedUnitId) {
         ungradedCount += w.completedPages;
       }
     }
@@ -250,8 +269,8 @@ export function resolveCurrentPeriod(
     classColor: color,
     classColorDark: darken(color, 0.7),
     classColorTint: tint(color, 0.85),
-    unitId: entry.unitId,
-    unitTitle: entry.unitTitle ?? "—",
+    unitId: resolvedUnitId,
+    unitTitle: resolvedUnitTitle ?? "—",
     unitThumbnailUrl,
     completionPct,
     studentCount,

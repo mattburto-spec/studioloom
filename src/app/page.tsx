@@ -588,6 +588,8 @@ export default function Home() {
               <Link href="/toolkit" className="text-xs text-white/40 hover:text-white/70 transition">Toolkit</Link>
               <Link href="/login" className="text-xs text-white/40 hover:text-white/70 transition">Students</Link>
               <Link href="/teacher/login" className="text-xs text-white/40 hover:text-white/70 transition">Teachers</Link>
+              <Link href="/privacy" className="text-xs text-white/40 hover:text-white/70 transition">Privacy</Link>
+              <Link href="/terms" className="text-xs text-white/40 hover:text-white/70 transition">Terms</Link>
             </div>
           </div>
         </div>

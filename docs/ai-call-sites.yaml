@@ -78,9 +78,9 @@ call_sites:
   - /api/student/open-studio/discovery
   cost_category: student_api
   notes: HTTP-based call (no SDK import)
-- id: ai_app_api_student_word_lookup_route_itself
+- id: ai_app_api_student_word_lookup_route_async
   file: src/app/api/student/word-lookup/route.ts
-  function: itself
+  function: async
   provider: anthropic
   model: dynamic
   max_tokens: null

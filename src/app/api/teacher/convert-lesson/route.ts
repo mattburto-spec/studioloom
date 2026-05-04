@@ -1,3 +1,4 @@
+// audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -307,12 +308,28 @@ async function handleGeneration(
 
     // Save to database
     const db = createAdminClient();
+
+    // TODO(access-v2 §4.0): replace with requireActorSession().schoolId once Phase 1 lands.
+    // units.school_id was tightened to NOT NULL by mig 20260428222049_phase_0_8b.
+    const { data: convertTeacherRow } = await db
+      .from("teachers")
+      .select("school_id")
+      .eq("id", teacherId)
+      .single();
+    if (!convertTeacherRow?.school_id) {
+      return NextResponse.json(
+        { error: "Teacher missing school context" },
+        { status: 500 }
+      );
+    }
+
     const { data: newUnit, error: insertError } = await db
       .from("units")
       .insert({
         title: extraction?.unitTopic || "Imported Unit",
         description: skeleton.narrativeArc || null,
         content_data: contentData,
+        school_id: convertTeacherRow.school_id,
         grade_level: extraction?.gradeLevel || null,
         duration_weeks: Math.ceil(skeleton.lessons.length / 3),
         topic: extraction?.subjectArea || null,

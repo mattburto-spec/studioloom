@@ -1,5 +1,6 @@
+// audit-skip: routine learner activity, low audit value
 import { NextRequest, NextResponse } from 'next/server';
-import { requireStudentAuth } from '@/lib/auth/student';
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { createAdminClient } from '@/lib/supabase/admin';
 import { rateLimit } from '@/lib/rate-limit';
 import { canTransition } from '@/lib/quest/phase-machine';
@@ -18,9 +19,9 @@ import type { QuestPhase } from '@/lib/quest/types';
  */
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireStudentAuth(request);
-    if (auth.error) return auth.error;
-    const studentId = auth.studentId;
+    const session = await requireStudentSession(request);
+    if (session instanceof NextResponse) return session;
+    const studentId = session.studentId;
 
     // Rate limit: 10 phase transitions per minute
     const rl = rateLimit(`quest-phase:${studentId}`, [

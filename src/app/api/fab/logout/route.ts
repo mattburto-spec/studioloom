@@ -1,3 +1,4 @@
+// audit-skip: routine fab-tech operational endpoint, audit lives in fabrication pipeline state machine
 /**
  * POST /api/fab/logout
  *

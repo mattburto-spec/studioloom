@@ -35,16 +35,21 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 
 export async function GET(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  // Phase 1.4b — explicit Supabase Auth via requireStudentSession.
+  // Phase 1.4 CS-3 (30 Apr 2026) — RLS-respecting SSR client. Reads
+  // class_students/students/class_units/unit_badge_requirements/units/
+  // student_badges under their student-side policies (Phase 1.5b +
+  // CS-1's student_badges_rewrite). Recursion-safe per audit.
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   try {
-    const db = createAdminClient();
+    const db = await createServerSupabaseClient();
 
     // 1. Get student's class(es) via class_students junction (migration 041)
     const { data: enrollments, error: enrollErr } = await db

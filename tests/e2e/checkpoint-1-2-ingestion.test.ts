@@ -52,13 +52,15 @@ import { computeContentFingerprint } from "@/lib/ingestion/fingerprint";
 // Fixture loading
 // ---------------------------------------------------------------------------
 
+// Fixtures relocated 29 Apr 2026 from docs/lesson plans/ to tests/fixtures/ingestion/.
+// Original location was repo-bloat masquerading as docs; these are test inputs.
 const DOCX_PATH = path.resolve(
   process.cwd(),
-  "docs/lesson plans/mburton packaging redesign unit.docx"
+  "tests/fixtures/ingestion/mburton packaging redesign unit.docx"
 );
 const PDF_PATH = path.resolve(
   process.cwd(),
-  "docs/lesson plans/Under Pressure_ Using Young’s Modulus to Explore Material Properties - Activity - Teach Engineering.pdf"
+  "tests/fixtures/ingestion/Under Pressure_ Using Young’s Modulus to Explore Material Properties - Activity - Teach Engineering.pdf"
 );
 
 async function loadDocxText(): Promise<string> {

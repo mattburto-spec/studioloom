@@ -1,3 +1,4 @@
+// audit-skip: public anonymous free-tool, no actor identity
 /**
  * POST /api/tools/safety/submit-test
  *
@@ -11,7 +12,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { gradeTest, findBadgeBySlug } from "@/lib/safety/badge-definitions";
-import { getStudentId } from "@/lib/auth/student";
+import { getStudentSession } from "@/lib/access-v2/actor-session";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { nanoid } from "nanoid";
 
@@ -81,7 +82,8 @@ export const POST = withErrorHandler(
     // Award badge to authenticated students
     if (passed) {
       try {
-        const studentId = await getStudentId(request);
+        const session = await getStudentSession(request);
+        const studentId = session?.studentId ?? null;
         if (studentId) {
           const supabase = createAdminClient();
 

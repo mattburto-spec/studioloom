@@ -1,9 +1,9 @@
 # Class Architecture Cleanup
 
-**Status:** 🟢 READY (deferred — pick up after Access Model v2)
+**Status:** 🟡 IN PROGRESS — §1 + §2 + §3 RESOLVED 28 Apr 2026; §4 (Option B URL-scoped classId) deferred behind Access Model v2
 **Filed:** 28 Apr 2026
-**Estimated:** ~3-5 days (3 small fixes + 1 medium architectural decision)
-**Depends on:** Nothing blocking. Mostly orthogonal to Access Model v2 — can run in parallel or after.
+**Estimated:** ~3-5 days originally; §4 alone is ~10-11 days
+**Depends on:** §4 gated behind Access Model v2; §1-§3 were independent and shipped same-day as filing.
 **Related:** `docs/projects/option-b-classid-refactor.md` (planned but not authored — see §4 below)
 
 ---
@@ -27,9 +27,16 @@ the underlying data and UX are still confusing.
 
 ## The four gaps (priority order)
 
-### 1. Archived classes don't auto-unenroll their students (P1, ~2hr)
+### 1. Archived classes don't auto-unenroll their students (P1, ~2hr) ✅ RESOLVED 28 Apr 2026
 
-**Symptom:** A teacher archives a class via `is_archived = true`. The
+**Resolution:** Shipped via migration `20260428081225_archive_class_auto_unenroll.sql`
+(commit `d3d97bf`, applied to prod by Matt). Trigger fires on
+`classes.is_archived` false→true and sets `class_students.is_active=false`
++ `unenrolled_at=NOW()` for all enrollments. One-time backfill cleared
+existing drift (`test`'s 2 active-in-archived enrollments). Verified
+post-apply: zero active-in-archived rows remain.
+
+**Original symptom (kept for context):** A teacher archives a class via `is_archived = true`. The
 `class_students.is_active` flag for every student in that class stays
 `true`. Recent fixes route around this at resolution time, but anyone
 reading raw DB data sees "active enrollment in archived class" — confusing
@@ -53,31 +60,60 @@ not 3.
 
 **Recommended:** C. Trigger is ~10 lines. Backfill is a one-shot UPDATE.
 
-### 2. Unit progress is global to (student, unit), not (student, class, unit) (P2, architectural decision)
+### 2. Unit progress is global to (student, unit), not (student, class, unit) ✅ RESOLVED 28 Apr 2026 — current behavior is correct
 
-**Symptom:** `student_progress` schema is `(student_id, unit_id, page_number)`
+**Resolution:** Cohort Model wins. Keep `student_progress` keyed on
+`(student_id, unit_id, page_number)`. **NO migration, NO `class_id`
+column added.** Full reasoning in `docs/decisions-log.md` entry dated
+28 Apr 2026 PM ("`student_progress` scoped on (student, unit) by design");
+five-question summary:
+
+1. **Cohort reuse is mythical** — same student re-doing same unit in a
+   later year doesn't actually happen (students age up).
+2. **Mid-year transfer continuity** — shared progress means student work
+   follows them across class moves; per-class scoping would force
+   destructive reset or complex copy logic.
+3. **Forking is the fresh-start escape hatch** — when a teacher genuinely
+   wants separate progress, the existing per-class unit forking gives a
+   new `unit_id` so the key is naturally fresh. No schema change buys
+   anything fork doesn't already.
+4. **Re-assessment workflows go through fork** — the design pattern is
+   already "fork the unit if you want a clean slate."
+5. **Analytics scoping is a query-layer concern** — "average progress on
+   CO2 Racer in 10 Design this year" solvable by joining
+   `student_progress.created_at` against `class_students.enrolled_at` /
+   `unenrolled_at` ranges. No need to denormalize `class_id` onto
+   progress rows.
+
+**Edge case that almost flipped it:** concurrent dual enrollment
+(same student in two classes simultaneously, both teaching the same
+unit). Initially felt like shared progress would confuse "which class
+grade book?" — but: (a) rare in practice; (b) it's a UI/reporting
+question (which class to display the row under), not a schema question
+(the row exists once and is correctly attributed to student × unit);
+(c) per-year aesthetic is a UX framing the UI can apply when needed
+without schema changes.
+
+**Follow-up filed:** `FU-PROGRESS-COHORT-YEAR` P3 — if reporting ever
+needs cohort attribution, derive at query time via the enrollments JOIN.
+
+**Original framing (kept for context):** `student_progress` schema is `(student_id, unit_id, page_number)`
 — no `class_id`. If the same unit appears in two classes a student is in,
-their progress is shared. Cohort model: the SAME student doing CO2 Racer
-twice would see Year 9 progress when re-encountering it in Year 10.
-Per-year model: same problem with the year-over-year reused unit case.
+their progress is shared. Whether this was a feature or a bug depended on
+which mental model (cohort vs per-year) the platform should optimize for.
 
-**Whether this is a feature or a bug depends on intent:**
-- "Once you've done a unit, you've done it" → feature, as-is.
-- "Each year-cohort instance is its own attempt" → bug, needs `class_id`
-  on `student_progress` and a forking strategy when copying units across
-  classes.
+### 3. Three "10 Design" classes with no cohort marker ✅ RESOLVED 28 Apr 2026
 
-**Decision required:** Matt to call which way. Likely answer is "feature"
-for the cohort model and "bug" for per-year, which is why §4 (Option B
-URL-scoped class context) is the structural prerequisite — once classId
-is in every URL, adding it to student_progress becomes mechanical.
+**Resolution:** Shipped via commit `8dd0f45` — class list page (`/teacher/classes`)
+now derives a cohort label per class from the existing term system
+(migration 042's `class_students.term_id` × `school_calendar_terms`).
+Picks the most-recent active enrollment's term, displays as a purple chip
+next to the framework chip on each card. Archived classes get a muted
+gray version. Picked Option B (surface existing system, no new schema)
+over Option A (new `cohort_label` column) — term system already had the
+data, just wasn't displayed on the list page.
 
-**Estimate:** 0 hours if "feature" (just document). 1-2 days if "bug"
-(migration + content_resolution + per-class progress reset UI).
-
-### 3. Three "10 Design" classes with no cohort marker (P2, ~½ day)
-
-**Symptom:** Per-year model naturally creates `classes` rows with the
+**Original symptom (kept for context):** Per-year model naturally creates `classes` rows with the
 same `name` (Matt's prod has three "10 Design" classes already). UI
 disambiguates only by class code (`10DHVO`, `7DEIUY`, `7DE6RK`) which
 isn't human-readable.
@@ -116,24 +152,14 @@ the scope).
 
 ## Todo list
 
-Order is "do these in this sequence." Each is independently shippable.
-
-- [ ] **§1 — Archived class auto-unenrollment.** Author migration with:
-  (a) trigger on `classes.is_archived`,
-  (b) one-shot backfill `UPDATE class_students SET is_active=false,
-      unenrolled_at=NOW() WHERE class_id IN (SELECT id FROM classes
-      WHERE is_archived=true)`,
-  (c) verify queries.
-  ~2hr including push + apply to prod. Can ship before Access v2
-  starts.
-- [ ] **§3 — Cohort label / term-system audit.** Read migration 042
-  (`cohort_term_tracking`) + the "Semester 2 2025-2026" UI on the class
-  page. Decide: surface existing term label everywhere class name shows,
-  OR add `cohort_label` column. ~½ day after decision.
-- [ ] **§2 — student_progress class scope decision.** Matt decides
-  feature vs bug. If feature, document in `docs/decisions-log.md`. If
-  bug, file as P1 in this doc + draft migration. Decision: ~30 min.
-  Implementation if needed: 1-2 days.
+- [x] **§1 — Archived class auto-unenrollment.** ✅ SHIPPED 28 Apr (commit `d3d97bf`).
+  Trigger + backfill applied to prod by Matt.
+- [x] **§3 — Cohort label / term-system audit.** ✅ SHIPPED 28 Apr (commit `8dd0f45`).
+  Surfaced the existing term system on the class list — no new schema.
+- [x] **§2 — student_progress class scope decision.** ✅ RESOLVED 28 Apr (decisions-log entry).
+  Cohort Model wins; current schema is correct; no migration needed.
+  `FU-PROGRESS-COHORT-YEAR` P3 filed for query-layer cohort attribution if
+  ever needed.
 - [ ] **§4 — Option B URL-scoped classId.** Author the 8-phase plan
   doc (`docs/projects/option-b-classid-refactor.md`) using the 27 Apr
   Explore audit as input. Resolve the 5 open decisions noted in the
@@ -151,12 +177,13 @@ Order is "do these in this sequence." Each is independently shippable.
 
 ---
 
-## Trigger to start
+## Trigger to start §4 (only remaining section)
 
-After Access Model v2 Phase 0 ships AND tomorrow's class has had
-at least one full lesson with the recent Bug 1/1.5/2/3/4 fixes in
-production. Real classroom data tells us whether §2 (progress scope)
-matters in practice or is theoretical.
+After Access Model v2 Phase 0 ships. Option B URL-scoped classId is the
+only outstanding section — its blast radius (every student-facing URL +
+session resolver + per-class teacher routes) overlaps heavily with
+Access v2's auth-model rewrite, so doing Option B first means redoing
+it after v2 lands.
 
 When ready, say **"continue class architecture"** and Claude will
-re-read this file and start with §1.
+re-read this file and start with §4 (the only un-ticked item).

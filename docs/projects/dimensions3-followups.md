@@ -623,9 +623,15 @@ Same silent-data-loss pattern as FU-GG: the FK rejection error is swallowed by t
 
 ---
 
-## FU-FF — Undocumented RLS-as-deny-all pattern on 3 tables (P3)
+## FU-FF — Undocumented RLS-as-deny-all pattern on 3 tables (P3) ✅ RESOLVED
 
 **Filed:** 14 Apr 2026
+**Resolved:** 4 May 2026 (Phase 6.5a)
+
+Phase 6.5 shipped `docs/security/rls-deny-all.md` documenting all 5 tables with the RLS-enabled-no-policy pattern (the original 3 plus `fabricator_sessions` and `teacher_access_requests`; `student_sessions` was dropped entirely in Phase 6.1). `scripts/registry/scan-rls-coverage.py` now reads the doc at scan time and classifies these tables as `intentional_deny_all` rather than drift. `docs/scanner-reports/rls-coverage.json` shows `rls_no_policy_count: 0, intentional_deny_all_count: 5, status: clean`.
+
+Original issue text preserved below for history.
+
 **Target phase:** Next governance pass
 **Priority:** P3 (documentation gap, not a security bug)
 
@@ -1213,3 +1219,664 @@ import { TappableText } from "@/components/student/tap-a-word";
 For tools with hardcoded inline strings (the 24 deferred), the migration involves either (a) extracting the string into a const + wrapping, or (b) accepting that the literal text stays untappable. (b) is the simpler v1 — only wrap text already in a variable.
 
 **Definition of done:** All toolkit tools that show >50 chars of educational prose to students have their prompt text wrapped in `<TappableText>`. UI chrome (button labels, axis labels, etc.) intentionally stays plain — those don't benefit from tap-a-word.
+
+---
+
+## FU-PROGRESS-COHORT-YEAR — Cohort-year attribution for student_progress (P3)
+**Surfaced:** 28 Apr 2026 PM, class-architecture-cleanup §2 resolution
+**Captured in:** `docs/decisions-log.md` (28 Apr 2026 PM cohort-scoping decision), `docs/projects/class-architecture-cleanup.md` §2
+
+**Issue:** `student_progress` is keyed on `(student_id, unit_id, page_number)` with no `class_id` column. The Cohort Model decision (RESOLVED 28 Apr 2026) confirmed this is the right schema — sharing progress across class enrollments is correct for the dominant case (mid-year transfers, cohort rotations, etc.). But there's a downstream reporting question this defers: if a teacher ever wants "average progress on CO2 Racer for the 10 Design 2024-25 cohort specifically," the schema doesn't natively answer it.
+
+**Why P3:** No current reporting surface needs this. Filed as a query-layer follow-up so it's not lost when reporting work eventually surfaces it.
+
+**Recommended approach when work happens:** Derive cohort attribution at query time, NOT at schema time. Join `student_progress.created_at` against `class_students.enrolled_at` / `unenrolled_at` ranges for that `(student_id, class_id)` pair. Pseudocode:
+
+```sql
+SELECT sp.*, cs.class_id, cs.term_id
+FROM student_progress sp
+JOIN class_students cs
+  ON cs.student_id = sp.student_id
+  AND sp.created_at >= cs.enrolled_at
+  AND (cs.unenrolled_at IS NULL OR sp.created_at < cs.unenrolled_at)
+WHERE cs.class_id = '<target class>'
+  AND sp.unit_id = '<target unit>';
+```
+
+Edge cases to handle in the query helper (when written):
+- Student in two concurrent enrollments → progress row attributes to BOTH (or to the most-specific by some rule — UI/reporting decision)
+- Progress created before any enrollment_at (should be impossible but defensive guard)
+- Long-running progress that spans multiple enrollments (rare; pick the active enrollment at progress.updated_at if it matters)
+
+**Definition of done:** When the first reporting surface needs cohort-scoped progress, write a `getProgressByCohort(classId, unitId)` helper that does the JOIN above + handles the edge cases. No schema change.
+
+---
+
+## FU-DASHBOARD-HERO-NULL-UNIT-TITLE — Teacher dashboard NowHero renders giant "—" when no unit is assigned (P3) ✅ RESOLVED
+**Surfaced:** 30 Apr 2026 PM — during Phase 2.1 Microsoft OAuth smoke, Matt's hero showed colored placeholder bars where the unit title would render.
+**Resolved:** 30 Apr 2026 PM — fixed via commit `3cbd273`. Two-part fix:
+1. `resolveCurrentPeriod()` (in `src/components/teacher-dashboard-v2/current-period.ts`) now falls back to `cls.units[0]` when the `/api/teacher/schedule/today` entry has `unitId: null` but the class has class_units assigned. Mirrors the today endpoint's own "first unit per class" choice.
+2. `NowHero` (in `src/components/teacher-dashboard-v2/NowHero.tsx`) renders an explicit empty state ("No unit assigned. / Pick a unit to teach this class — the hero will fill in.") at smaller typography when `vm.unitId` is null. Previously the component just rendered `vm.unitTitle` (which fell back to `"—"`) inside an h1 sized 100-108px → the giant em-dash looked like colored bars.
+
+**Why this surfaced now:** the bug existed pre-Phase-2 but was invisible because Matt's earlier dashboard always showed a class with assigned units (CO2 Dragster on 7 Design). The Microsoft OAuth smoke happened on a day where Period 1 = 9 Design, which has no class_units rows. Phase 2.1 didn't introduce the bug — it just exercised a code path that hadn't been tripped before.
+
+**Tests:** 2817 passing, no regression. **Verified live in prod:** Matt's hero now renders the new empty state correctly.
+
+## FU-AV2-UI-STUDENT-INSERT-REFACTOR — 4 client-side student INSERT sites need server-side route + auth.users provisioning (P2) ✅ RESOLVED
+**Resolved:** 30 Apr 2026 PM — fixed via commit `b35979d`. Built new `POST /api/teacher/students` route with auth + class-ownership check + students INSERT + provisionStudentAuthUserOrThrow + optional class_students enrollment, atomic-ish (rolls back student INSERT on auth provisioning failure). Migrated all 5 INSERT call sites (count was 5 not 4 — re-audit found the additional bulk path in `teacher/students/page.tsx:1015`). Helper `createStudent` + `createAndEnroll` in `src/lib/students/class-enrollment.ts` rewritten as fetch wrappers preserving original "username exists → enroll existing" behavior via the route's 409 response code. 11 new route tests (401/400/403/409 + 2 happy paths + rollback + scrubbing + defaults). Tests: 2806 → 2817 passing. **Architectural impact:** every UI-created student now has auth.users provisioned at create time, not on first login — closes the NULL user_id security window that was only mitigated by Phase 1.2's lazy-provision fallback.
+
+**Surfaced:** 29 Apr 2026 PM, Access Model v2 Phase 1.1d preflight audit
+**Captured in:** `docs/projects/access-model-v2-phase-1-brief.md` §4.4 (Phase 1.4 route migration)
+
+**Issue:** 7 sites in the codebase INSERT into the `students` table:
+
+| Server-side (Phase 1.1d wired ✅) | Client-side UI (this FU) |
+|---|---|
+| `src/app/api/auth/lti/launch/route.ts` | `src/app/teacher/classes/[classId]/page.tsx` |
+| `src/app/api/teacher/welcome/add-roster/route.ts` | `src/app/teacher/units/[unitId]/class/[classId]/page.tsx` |
+| `src/app/api/teacher/integrations/sync/route.ts` | `src/app/teacher/students/page.tsx` |
+|  | `src/lib/students/class-enrollment.ts` (called from client) |
+
+The 4 client-side sites use the browser Supabase client (`createClient()`). They cannot call `auth.admin.createUser()` from the browser — service-role key is server-only. So when a teacher adds a student via these UI flows, `students.user_id` stays NULL until either:
+
+1. **Lazy provision on first login** — Phase 1.2's `/api/auth/student-classcode-login` route detects NULL `user_id` and provisions inline. Already in scope. Idempotent + safe (we only provision after classCode + username verifies).
+2. **Manual backfill cron** — could ship as a daily cleanup task, but redundant with #1.
+
+**Why P2 not P1:** lazy provision (#1) closes the security gap for any UI-created student before they can do anything in-app. The remaining concern is operational: a freshly-added student has NULL `user_id` for the time between teacher-add and first-login. RLS policies post-Phase-1.5 should treat this as "auth not provisioned" gracefully. Acceptable transient state for the pilot.
+
+**Why we should still close it (P2 not P3):** The right architecture is server-side INSERT for all student-creation flows. Phase 1.4 (route migration) is the natural place to refactor — when teacher routes get migrated to `requireActorSession()`, the 4 UI INSERT call sites should also move to a new `POST /api/teacher/students` (or similar) route that does insert + provision atomically.
+
+**Recommended approach when work happens (Phase 1.4 sub-step):**
+
+1. Build new server-side route `POST /api/teacher/students` accepting `{ classId, username, displayName, gradYear?, ellLevel?, authorTeacherId }`
+   - Verifies teacher owns the class
+   - Inserts the student row
+   - Calls `provisionStudentAuthUserOrThrow()` from `src/lib/access-v2/provision-student-auth-user.ts` (already wired by Phase 1.1d for the other 3 routes)
+   - Returns the inserted student with `user_id` populated
+2. Update the 4 UI sites to `fetch('/api/teacher/students', { method: 'POST', body: ... })` instead of direct Supabase INSERT
+3. Update `src/lib/students/class-enrollment.ts` similarly — its consumers move to the route
+4. Delete the inline INSERT logic from the 4 UI files (Lesson #45 — surgical cleanup of replaced code)
+
+**Definition of done:**
+- Zero remaining `from("students").insert(...)` calls in `src/app/teacher/**/*.tsx`
+- The new `POST /api/teacher/students` route exists with shape tests
+- Verification: `grep -rn 'from("students").*insert' src/app/teacher` returns 0 results
+
+**Related:** Phase 1.1d shipped the server-side helper (`provisionStudentAuthUser`); 3 of 7 sites use it. Phase 1.4 closes the remaining 4. FU-REGISTRY-DRIFT-CI Layer 2 (pre-commit hook) would catch a 5th UI site if added before Phase 1.4 runs.
+
+---
+
+## FU-AV2-PHASE-14B-2 — Migrate remaining 18 GET-only student routes to requireStudentSession (P3) ✅ RESOLVED
+**Resolved:** 30 Apr 2026 PM — fixed via commit `77ad01e`. Mechanical auth-helper swap across all 18 routes via Python script. 3 test files updated to mock `requireStudentSession` instead of `requireStudentAuth`. Tests + typecheck clean. Routes still use `createAdminClient()` for data queries (full SSR client switch is a separate piece of work tracked under different scope). All 18 now grant access to `session.userId` + `session.schoolId` per FU's stated benefit.
+
+
+**Surfaced:** 29 Apr 2026 PM, Access Model v2 Phase 1.4b
+**Captured in:** `docs/projects/access-model-v2-phase-1-brief.md` §4.4
+
+**Issue:** Phase 1.4b shipped requireStudentSession migration on 6 GET-only routes as a representative sample. The remaining 18 GET-only routes still call `requireStudentAuth` directly:
+
+| # | File |
+|---|---|
+| 1 | `src/app/api/student/fabrication/jobs/[jobId]/status/route.ts` |
+| 2 | `src/app/api/student/fabrication/jobs/route.ts` |
+| 3 | `src/app/api/student/fabrication/picker-data/route.ts` |
+| 4 | `src/app/api/student/gallery/feedback/route.ts` |
+| 5 | `src/app/api/student/gallery/rounds/route.ts` |
+| 6 | `src/app/api/student/gallery/submissions/route.ts` |
+| 7 | `src/app/api/student/open-studio/status/route.ts` |
+| 8 | `src/app/api/student/safety-certs/route.ts` |
+| 9 | `src/app/api/student/safety/badges/[badgeId]/route.ts` |
+| 10 | `src/app/api/student/safety/badges/route.ts` |
+| 11 | `src/app/api/student/safety/check-requirements/route.ts` |
+| 12 | `src/app/api/student/search/route.ts` |
+| 13 | `src/app/api/student/skills/cards/[slug]/quiz-status/route.ts` |
+| 14 | `src/app/api/student/skills/cards/[slug]/route.ts` |
+| 15 | `src/app/api/student/skills/library/route.ts` |
+| 16 | `src/app/api/student/tile-comments/route.ts` |
+| 17 | `src/app/api/student/unit-pages/[pageId]/skill-refs/route.ts` |
+| 18 | `src/app/api/student/unit/route.ts` |
+
+**Why P3:** Phase 1.4a's dual-mode `requireStudentAuth` wrapper means these 18 routes ALREADY accept the new sb-* cookie auth. Migration is purely cosmetic + grants access to `session.userId` + `session.schoolId` (currently unused by these GET routes). No functional regression today.
+
+**Pattern (mechanical, ~2 min per route):**
+
+```typescript
+// BEFORE
+import { requireStudentAuth } from "@/lib/auth/student";
+// ...
+const auth = await requireStudentAuth(request);
+if (auth.error) return auth.error;
+const studentId = auth.studentId;
+
+// AFTER
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
+// ...
+const session = await requireStudentSession(request);
+if (session instanceof NextResponse) return session;
+const studentId = session.studentId;
+// (or alias: const auth = { studentId: session.studentId };
+//  to preserve downstream `auth.studentId` references inline)
+```
+
+**Definition of done:** `grep -rl "requireStudentAuth" src/app/api/student | xargs grep -l "^export async function GET" | xargs grep -L "^export async function POST\|^export async function PATCH\|^export async function DELETE\|^export async function PUT"` returns empty.
+
+**Sequence:** Do this AFTER Phase 1.4c (Batch B + C) ships, since those touch many of the same files.
+
+**Related:** `FU-AV2-UI-STUDENT-INSERT-REFACTOR` (P2 — different surface; client-side INSERT sites). Phase 1.5 RLS work assumes student auth is via auth.users (which the dual-mode wrapper already provides for these 18 routes).
+
+---
+
+## FU-AV2-PHASE-15B — Phase 1.5b additive student-side RLS policies (4 tables, P2) ✅ RESOLVED
+**Resolved:** 30 Apr 2026 — all 4 migrations applied to prod (`20260429133359..133402`). Verified clean via `python3 scripts/registry/scan-rls-coverage.py` — `student_sessions` + `fabrication_scan_jobs` exited the `rls_enabled_no_policy` drift bucket. See spec_drift entries on those tables in `docs/schema-registry.yaml`.
+
+**Surfaced:** 29 Apr 2026 PM, Access Model v2 Phase 1.5
+**Captured in:** `docs/projects/access-model-v2-phase-1-brief.md` §4.5
+
+**Issue:** Phase 1.5 shipped 4 critical RLS migrations (1 add + 3 rewrites of broken policies). 4 additional migrations from the brief's §4.5 are deferred to Phase 1.5b — they're additive (lower urgency than the 3 rewrites because admin-client paths still work):
+
+| # | Migration | Purpose |
+|---|---|---|
+| 1 | `class_students_self_read_authuid` | ADD a parallel "Students read own enrollments" policy that uses `auth.uid()` chain. The existing policy on this table joins through `student_sessions` (legacy auth path) which still works during the grace period. |
+| 2 | `student_progress_self_read` | ADD "Students read own progress" — currently no student policy exists; legacy admin-client path is the only access. |
+| 3 | `fabrication_scan_jobs_self_read` | ADD "Students read own jobs" — currently `rls_enabled_no_policy` per scanner (one of the FU-FF-class drifts). |
+| 4 | `student_sessions_deny_all` | ADD explicit `USING (false)` policy to make intent explicit + close FU-FF officially. Currently `rls_enabled_no_policy` (deny-by-default but undocumented). |
+
+**Why P2 not P1:** these are additive. The current legacy admin-client paths still work for all 4 surfaces. Phase 1.4c routes that switch to RLS-respecting clients will start needing these policies once their batches ship — but Phase 1.4c is also P3 (FU-AV2-PHASE-14B-2 family).
+
+**Pattern (mechanical, ~10 min per migration):**
+
+```sql
+-- Pattern for "students read own X via auth.uid() chain"
+CREATE POLICY "Students read own X"
+  ON <table>
+  FOR SELECT
+  USING (
+    student_id IN (
+      SELECT id FROM students WHERE user_id = auth.uid()
+    )
+  );
+```
+
+For `student_sessions_deny_all`:
+
+```sql
+CREATE POLICY "Deny all (service role only)"
+  ON student_sessions
+  FOR ALL
+  USING (false)
+  WITH CHECK (false);
+```
+
+(Service role bypasses RLS regardless; this just makes the deny intent explicit.)
+
+**Definition of done:**
+- 4 migrations land on the access-model-v2-phase-1 branch (or its successor)
+- Shape tests assert the chain pattern (Lesson #38 — exact USING clause shape)
+- Applied to prod via Supabase SQL Editor
+- `docs/scanner-reports/rls-coverage.json` shows fabrication_scan_jobs + student_sessions move out of `rls_enabled_no_policy` drift bucket
+
+**Sequence:** ship after Phase 1.5 (this commit) lands in prod and Phase 1.4c routes start migrating to RLS-respecting clients. Could ship before Checkpoint A2 if convenient; otherwise tracks separately.
+
+**Related:** FU-FF (P3 — RLS-as-deny-all on 3 tables), Phase 1.5 (the 3 rewrite migrations that fix broken policies).
+
+## FU-AV2-PHASE-14-CLIENT-SWITCH — Switch student routes from createAdminClient to RLS-respecting SSR client (P2)
+**Surfaced:** 30 Apr 2026 — Access Model v2 Phase 1.6 close
+**Captured in:** `docs/projects/access-model-v2-phase-1-brief.md` §7 (Checkpoint A2 — Option A scope adjustment)
+
+**Issue:** Phase 1.5 + 1.5b shipped 14 student-side RLS policies via the canonical `auth.uid() → students.user_id → students.id` chain — they're applied to prod but **NOT load-bearing** because the routes that read student data still use `createAdminClient()`, which bypasses RLS entirely. The policies serve as a documented backstop for future client-switch, not as the active line of defense.
+
+For Phase 1 to close cleanly, this is acceptable: app-level filtering (the existing `studentId IN (...)` and `student_id = $1` checks in route code) remains the primary isolation mechanism. But the design intent is for the policies to be load-bearing — that's the whole point of unifying student auth into `auth.users`.
+
+**Why P2 (deferred from Phase 1, not P1):**
+- New auth path (Phase 1.2) verified end-to-end in prod-preview — students can log in via Supabase Auth, get sb-* cookies, hit dual-mode-wrapped routes, and receive correct data.
+- Existing app-level filtering has been audited (no new gaps introduced by Phase 1).
+- Client-switch is route-by-route mechanical work that needs careful smoke testing per surface (no single migration; ~57 routes).
+- **Supporting tables don't yet have student-side RLS** — `classes`, `class_units`, `units`, `class_lessons`, etc. need parallel `auth.uid() → teachers/classes` policies before student SSR clients can read them. That's Phase 1.4 client-switch's prerequisite, not Phase 1.5's scope.
+
+**Scope when picked up:**
+
+1. **Audit supporting tables** — list every table the 6 Phase 1.4b migrated routes read (and every table they `JOIN` to). Flag which already have student-side policies (Phase 1.5/1.5b additions) vs which are admin-only.
+2. **Author missing supporting-table policies** — `classes_student_via_class_students`, `units_student_via_class_units`, etc. Pattern: student can read row IF they have a row in `class_students` for the relevant class.
+3. **Switch routes one batch at a time** — replace `createAdminClient()` with the SSR-aware client (per Lesson docs). Start with a low-risk read-only batch (e.g. the 6 Phase 1.4b routes), smoke-test in prod-preview, then expand.
+4. **Smoke per batch** — log in as a real student, hit each route, compare response shape vs admin-client baseline.
+5. **Remove dual-mode fallback in Phase 6** — once all routes use RLS-respecting clients AND the front-end is fully on the new login endpoint, drop the legacy `student_sessions` lookup from `requireStudentAuth` (Phase 1.4a wrapper).
+
+**Definition of done:**
+- All 63 student routes use the RLS-respecting SSR client (or are deleted).
+- Supporting-table policies exist for every table read transitively from a student route.
+- Smoke-test plan signed off (one student, one teacher, one cross-school check that returns 0 rows or 404).
+- Phase 6 cutover unblocked.
+
+**Sequence:** picks up after Phase 1.6 + 1.7 close Phase 1. Could be done in parallel with Phase 2 (school entity) but probably cleaner to ship Phase 2 first and then do client-switch on the post-Phase-2 schema.
+
+**Related:** FU-AV2-PHASE-14B-2 (P3 — finish the cosmetic GET-route migration), FU-AV2-PHASE-15B ✅ RESOLVED (the policies that this work activates), `docs/security/student-auth-cookie-grace-period.md` (RLS implications section).
+
+## FU-REGISTRY-DRIFT-CI — Registry consultation isn't enforced; drift detection runs only at saveme (P2)
+**Surfaced:** 29 Apr 2026 PM, Access Model v2 Phase 1 brief preparation
+**Captured in:** `docs/projects/access-model-v2-phase-1-brief.md` §3.7
+
+**Issue:** The 6 saveme registries (`WIRING.yaml`, `schema-registry.yaml`, `api-registry.yaml`, `feature-flags.yaml`, `vendors.yaml`, `ai-call-sites.yaml`) + 3 taxonomies + scanner reports are foundationally good but have known drift surfaces:
+
+1. **Hand-curated entries drift between saveme runs.** Phase 1 brief prep cross-check (29 Apr) found `WIRING.yaml` `auth-system.key_files` listed `src/lib/auth/student-session.ts` — a file that doesn't exist (actual: `student.ts`). Lesson #54 in action: registry claimed something the codebase didn't have.
+2. **Phase briefs aren't consulting the registries upfront.** The `build-phase-prep` skill's Step 5 mentions WIRING.yaml but is silent on the other 5 registries. Phase 1 brief was drafted with a code-side audit only; the registry cross-check happened *after* the brief existed, and only because Matt asked. Without that prompt, the brief would have shipped with `auth-system.affects` missing 5 systems and `key_files` still pointing at a non-existent file.
+3. **No CI gate.** Drift is caught only when someone runs saveme. Between sessions, branches diverge from registries silently. The registries are themselves an early-warning system that no current process forces consultation of before doing meaningful work.
+
+**Why P2:** Registry drift isn't a bug-shipping risk on its own (the code still works), but it propagates blind spots into every subsequent phase brief that trusts the registries. Phase 1's `student_sessions` RLS-no-policy gap (FU-FF) could have been caught earlier if a CI gate had flagged it; instead it sat as a P3 "likely intentional" until Phase 1 made it load-bearing.
+
+**Recommended approach (3 layers, ordered cheapest → strongest):**
+
+### Layer 1 — Update `build-phase-prep` skill to make registry consultation mandatory
+The skill at `.claude/skills/build-phase-prep/SKILL.md` Step 5 currently mentions only WIRING. Extend it:
+
+> **Step 5b — Registry cross-check (mandatory for any phase that touches multiple files).** Before drafting the brief, identify which registries the phase will touch:
+> - Migrations or schema changes → read `schema-registry.yaml` entries for affected tables
+> - Routes added/modified → read `api-registry.yaml` for current state and auth taxonomy
+> - AI calls → read `ai-call-sites.yaml`
+> - Feature flags or env vars → read `feature-flags.yaml`
+> - New vendor integrations → read `vendors.yaml`
+> - PII / data classification → read `data-classification-taxonomy.md`
+> - RLS work → read `docs/scanner-reports/rls-coverage.json`
+>
+> For each consulted registry, spot-check ONE entry against code. If drift found, flag in the brief AND include closure in the phase deliverables.
+
+This is the cheapest change with the highest leverage — it forces the consultation that the Phase 1 brief had to be reminded to do.
+
+### Layer 2 — Pre-commit hook on `docs/projects/` updates
+When a brief is committed under `docs/projects/`, a hook runs the registry scanners and warns if drift exists. Doesn't block commits (briefs ship fast), but surfaces drift the moment it's committed.
+
+```bash
+# .husky/pre-commit (or equivalent)
+if git diff --cached --name-only | grep -q "^docs/projects/"; then
+  echo "Brief change detected — running registry scanners..."
+  python3 scripts/registry/scan-api-routes.py --check-only
+  python3 scripts/registry/scan-rls-coverage.py
+  # Don't fail; just warn
+fi
+```
+
+### Layer 3 — CI gate on registry drift
+Add a GitHub Action job that runs all 7 saveme scanners on every PR and **fails CI if any auto-generated registry has drift**. Hand-curated parts (WIRING `affects` lists, schema `spec_drift` entries) can't be auto-checked but the auto-generated halves (api, ai-calls, rls-coverage) can.
+
+```yaml
+# .github/workflows/registry-drift.yml
+- name: Check api-registry drift
+  run: |
+    python3 scripts/registry/scan-api-routes.py --apply
+    git diff --exit-code docs/api-registry.yaml || exit 1
+```
+
+Equivalent jobs for ai-call-sites and rls-coverage. Hard fail = forces saveme before merge.
+
+**Definition of done (each layer):**
+- L1: build-phase-prep SKILL.md updated; first phase brief after the update demonstrates the cross-check pattern.
+- L2: Pre-commit hook installed; tested by intentionally drifting a registry and confirming the hook warns.
+- L3: GitHub Action runs on every PR; tested by a PR that intentionally drifts api-registry; CI fails.
+
+**Sequence:** L1 should ship NOW (before Phase 1 starts) because it gates the very next brief. L2 + L3 are post-Phase-1.
+
+**Related:** Lesson #54 (WIRING claiming things that don't exist), FU-FF (`student_sessions` no-policy was a "likely intentional" P3 that Phase 1 promotes to load-bearing), FU-DD (legacy scanners strip `version:` field on rewrite — same pattern of hand-curated content lost to auto-regeneration).
+
+**Registry freshness baseline (29 Apr 2026 PM):**
+- `WIRING.yaml`: 28 Apr (1d old) — known drift on `auth-system.key_files`
+- `schema-registry.yaml`: 29 Apr — fresh (saveme today)
+- `api-registry.yaml`: 29 Apr — fresh (auto-generated)
+- `feature-flags.yaml`: 29 Apr — fresh
+- `vendors.yaml`: **14 Apr (15d old)** — stable enums, low risk but oldest
+- `ai-call-sites.yaml`: 29 Apr — fresh (auto-generated)
+- `data-classification-taxonomy.md`: **14 Apr (15d old)** — stable enums
+- `scanner-reports/rls-coverage.json`: 29 Apr — fresh (auto-generated)
+
+## FU-AV2-RLS-SECURITY-DEFINER-AUDIT — Sweep all student-side policies for cross-table recursion (P2) ✅ RESOLVED
+**Resolved:** 30 Apr 2026 — comprehensive audit completed. **No remaining cycles** beyond the two already fixed.
+
+**Audit methodology:** For every table T with policies that subquery another table T', checked whether T' has a policy that back-references T (directly or transitively). A cycle requires both ends to subquery into the other; neither was found beyond the two already-fixed cases.
+
+**Audit findings (table-by-table):**
+
+| Table | Subqueries to | Verdict |
+|---|---|---|
+| `students` | (own column only) | ✅ Direct + SECURITY DEFINER (`is_teacher_of_student` — fixed earlier today) |
+| `class_students` | students | ✅ students has SECURITY DEFINER teacher policy — no back-ref |
+| `classes` | class_students → students | ✅ class_students teacher policy is SECURITY DEFINER (`is_teacher_of_class` — fixed earlier today) |
+| `class_units` | classes | ✅ classes student policy → class_students → students. No back-ref to class_units. |
+| `assessment_records` | students, classes | ✅ Neither back-references assessment_records |
+| `competency_assessments` | students, class_students, classes | ✅ Triple joins in teacher policy, but no back-ref |
+| `design_conversations/_turns` | students, classes | ✅ No back-ref |
+| `quest_journeys/_milestones/_evidence` | students (via journey chain) | ✅ No back-ref |
+| `student_progress` | students, class_students, classes | ✅ UNION query in teacher policy, but no back-ref |
+| `student_badges` | students, classes | ✅ No back-ref |
+| `fabrication_jobs/_scan_jobs/_revisions` | students, classes (via own chain) | ✅ Self-contained chain, no back-ref |
+| `unit_badge_requirements` | units | ✅ units has only direct policies |
+| `gallery_*`, `units`, `class_units` (read) | (permissive) | ✅ No subqueries |
+
+**Why most tables are safe even without rewrites:** A cycle requires policies on BOTH ends to subquery into the other. The teacher-side policies on most tables subquery into `classes` or `students`. Those tables' policies are now either direct comparisons (`auth.uid() = teacher_id`) or SECURITY DEFINER. The student-side policies subquery only "downstream" into students/class_students/classes; nothing on those upstream tables' policies subqueries back into the downstream tables. The `students↔class_students` and `classes↔class_students` cycles were dangerous specifically because `Teachers manage students` had `id IN (SELECT cs.student_id FROM class_students cs ...)` — `students` was upstream-of-itself via `class_students`. Same shape for the second cycle. Both fixed.
+
+**Conclusion:** Phase 1.4 client-switch CS-3 + CS-N can ship without further RLS migration work. The audit IS the safety proof. Lesson #64's operational rule (every future RLS-shipping phase must include an SSR-client smoke as a Checkpoint criterion) still applies — not because of latent recursion, but to catch any new policies introduced in those phases that themselves create cycles with existing ones.
+
+**Optional hygiene follow-up (not filed — captured here):** Introduce `public.current_student_id()` SECURITY DEFINER helper and refactor ~9 student-side policies to use it instead of inlining `(SELECT id FROM students WHERE user_id = auth.uid())`. Pure code-cleanliness, no behavioral change. Can be picked up later as a single hygiene migration if anyone wants the centralization.
+
+**Original (pre-audit) issue text below:**
+
+**Surfaced:** 30 Apr 2026 — Access Model v2 Phase 1.4 CS-2 prod smoke
+**Captured in:** `supabase/migrations/20260430010922_phase_1_4_cs2_fix_students_rls_recursion.sql` (the immediate hotfix), this brief
+
+**Issue:** Phase 1.5/1.5b/CS-1 shipped 14+ student-side RLS policies using subqueries of the shape `... IN (SELECT id FROM students WHERE user_id = auth.uid())` (or similar across `class_students`, `student_progress`, etc.). When called from a context where `students` (or any other table on the path) ALSO has a teacher-side policy that subqueries back into the table being queried, Postgres throws:
+
+```
+ERROR: 42P17: infinite recursion detected in policy for relation "students"
+```
+
+The first cycle (`students` ↔ `class_students`) was hit by CS-2 and fixed via `is_teacher_of_student()` SECURITY DEFINER helper. **Other potential cycles are still latent** — they'll surface as more routes switch to SSR client.
+
+**Why P2:** The latent cycles are blocked-on-discovery, not load-bearing yet. App-level filtering + admin-client paths still work everywhere. Each new SSR-client route is a smoke surface that may or may not surface a cycle.
+
+**Suspected potential cycles (un-audited):**
+- `competency_assessments` student policy (Phase 1.5 rewrite) ↔ teacher policies on competency_assessments + students
+- `quest_journeys/_milestones/_evidence` student policies (Phase 1.5) ↔ their teacher policies
+- `design_conversations/_turns` (Phase 1.5) ↔ teacher policies
+- `student_progress_self_read` (Phase 1.5b) — does student_progress have a teacher policy that subqueries students?
+- `fabrication_jobs/_scan_jobs` (Phase 1.5b) — same question
+- `Students read own enrolled classes` (CS-1) ↔ `Teachers manage own classes`
+
+**Comprehensive fix approach:**
+
+1. **Build a generic `current_student_id()` SECURITY DEFINER helper:**
+   ```sql
+   CREATE OR REPLACE FUNCTION public.current_student_id()
+   RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER
+   SET search_path = public, pg_temp
+   AS $$
+     SELECT id FROM students WHERE user_id = auth.uid() LIMIT 1
+   $$;
+   ```
+2. **Audit each Phase 1.5/1.5b/CS-1 policy** — is the subquery into `students` necessary, or can it be replaced with `current_student_id()`?
+3. **Rewrite policies one table at a time**, prioritizing tables that have CS-2/CS-3 routes touching them. Document each rewrite as a spec_drift entry on the table.
+4. **Add migration shape tests** for each rewrite (Lesson #38 — assert exact USING clause shape).
+5. **Define test coverage:** for each rewritten policy, write a SQL impersonation test (`SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.sub TO '<student-uuid>'; SELECT ...`) that proves no recursion under SSR client semantics.
+
+**Definition of done:**
+- Every student-side policy that recurses through students/class_students/etc. either uses a SECURITY DEFINER helper OR uses a column-level comparison that can't recurse.
+- All Phase 1.4b + CS-2/CS-3/eventual-CS-N routes return real data, not all-defaults or null, when called via SSR client for an authenticated student.
+- A live RLS test harness (FU-HH partial) covers the known-bad patterns.
+
+**Sequence:** ship after CS-2's hotfix lands and CS-3 begins. The first CS-3 route that hits a different cycle dictates which policy gets fixed next.
+
+**Related:** `FU-HH` (no live RLS test harness — would catch this class of bug pre-prod), Phase 1.4 CS-2 brief (where this surfaced), Phase 1.5/1.5b prod-apply session (where the latent bug was authored).
+
+## FU-AV2-UNITS-ROUTE-CLASS-DISPLAY — `/api/student/units` shows wrong class for multi-class units + doesn't filter archived (P3) ✅ RESOLVED
+**Resolved:** 30 Apr 2026 PM — fixed via commit `cf37901`. Three changes to the class-picking logic in `src/app/api/student/units/route.ts`: (1) drop the legacy `students.class_id` fallback; (2) filter classes to non-archived BEFORE the class_units lookup; (3) order enrollments by `enrolled_at DESC` and pick the most-recently-enrolled match for each unit. Tests + typecheck clean. Smoke verified test2's response now shows `class_id: a7afd4f3` (Service LEEDers) instead of `82d7fb45` (g9 design archived). Behavior change: archived-class-only units stop appearing — correct since students shouldn't work on units from classes they've been removed from.
+
+**Surfaced:** 30 Apr 2026 — Phase 1.4 CS-3 prod smoke
+**Captured in:** This entry (the route works under RLS post-CS-3; the display issue is pre-existing).
+
+**Issue:** `/api/student/units/route.ts` returns each unit with a `class_id` / `class_name` for display in the dashboard card. Two pre-existing bugs in the picker logic, surfaced when CS-3 smoke test inspected the response shape:
+
+1. **Adds `students.class_id` (legacy column) as a fallback to the enrollment set.** This pulls in classes the student is no longer actively enrolled in via `class_students`. Combined with the second bug, this can pick an archived class as the display class when a unit is shared between an active class and an archived legacy class.
+
+2. **Doesn't filter archived classes from the candidate list.** Picks the first matching `class_units` row regardless of whether the class is archived. Same fix as the 28 Apr 2026 archive filter in `resolveStudentClassId` — needs applying here too.
+
+**Symptom:** test2 is in `Service LEEDers` (active) but `students.class_id` legacy column points at `g9 design` (archived). The unit `Arcade Machine Project` exists in BOTH classes via `class_units`. The route picks `g9 design` for display, not `Service LEEDers`. Notably, `progress.class_id` inside the unit DOES correctly resolve to the active class — the bug is in the outer display field only.
+
+**Why P3:** Pre-existing behavior unchanged by CS-3. Display-layer bug, not a security/data-integrity issue. RLS correctly allows test2 to read both classes (she IS in both via class_students junction, just one with `is_active=false`). The fix is route-layer logic, not a policy change.
+
+**Recommended fix:**
+1. Drop the `students.class_id` fallback (legacy column scheduled for Phase 6 cutover anyway).
+2. Filter `class_students` to `is_active = true` (already done).
+3. Filter classes by `is_archived IS NULL OR is_archived = false` when building the display map.
+4. When a unit appears in multiple of the student's active enrollments, prefer the most-recently-enrolled class (matches the deterministic tie-break in `resolveStudentClassId`).
+
+**Definition of done:** test2's `/api/student/units` response shows `class_id: "a7afd4f3-..."` and `class_name: "Service LEEDers"` for the Arcade Machine Project, NOT `82d7fb45-... "g9 design"`.
+
+**Sequence:** ship anytime. Self-contained route fix. Could pair with the eventual full CS-N migration (when the 18 unmigrated GET routes from FU-AV2-PHASE-14B-2 ship) since this is logic the route owns directly.
+
+**Related:** Phase 6 cutover removes `students.class_id` legacy column entirely, which auto-fixes this.
+
+## FU-AV2-STUDENT-BADGES-COLUMN-TYPE — `student_badges.student_id` is TEXT not UUID, no FK (P3) ✅ RESOLVED
+**Resolved:** 30 Apr 2026 PM — fixed via commit `40a14c5` (migration `20260430042051_student_badges_column_type_uuid_with_fk.sql`). Pre-flight verified 4 rows total, all UUID-shaped, zero orphans against students(id). Migration applied to prod: ALTER COLUMN student_id TEXT → UUID, ADD CONSTRAINT FOREIGN KEY ... ON DELETE CASCADE, DROP+CREATE all 3 policies (`student_badges_read_own` + `student_badges_teacher_read` + `student_badges_teacher_insert`) without `::text` casts. Semantic preserved exactly. Verified post-apply: column type is `uuid`, FK exists with ON DELETE CASCADE, all 3 policies recreated cleanly. Code callers unchanged — postgres-js + supabase-js auto-coerce string UUIDs at the wire format.
+
+
+**Surfaced:** 30 Apr 2026 — Access Model v2 Phase 1.4 CS-1 prod apply
+**Captured in:** `docs/projects/access-model-v2-phase-14-client-switch-brief.md` (CS-1 column-type quirk note in migration 3)
+
+**Issue:** Migration 035 created `student_badges.student_id` as `TEXT NOT NULL` (with the comment "nanoid from student_sessions"), NOT as `UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE`. In practice, production stores text-formatted UUIDs in this column — the teacher-side policy `student_badges_teacher_read` uses `::text` casts on both sides and has worked since 035 shipped. But the schema is still wrong.
+
+This surfaced when the Phase 1.4 CS-1 student-side rewrite migration tried `student_id IN (SELECT id FROM students WHERE user_id = auth.uid())` — Postgres rejected with `operator does not exist: text = uuid`. Fixed by mirroring the teacher policy's `::text` cast in the new policy. The fix works but propagates the column-type drift.
+
+**Why P3:** the workaround (`::text` cast on RHS) works correctly. No data integrity issue today — production rows hold text-formatted UUIDs that compare correctly. The cleanup is hygiene, not security or correctness.
+
+**Recommended approach:**
+
+1. **Pre-flight audit** — query prod to verify all `student_badges.student_id` values can cast to UUID (no leftover nanoid session tokens). One row that fails the cast blocks the migration.
+   ```sql
+   SELECT student_id FROM student_badges
+   WHERE student_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+   ```
+   Expected: 0 rows.
+
+2. **Migration:**
+   ```sql
+   ALTER TABLE student_badges
+     ALTER COLUMN student_id TYPE UUID USING student_id::uuid;
+
+   ALTER TABLE student_badges
+     ADD CONSTRAINT student_badges_student_id_fkey
+       FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE;
+   ```
+
+3. **Drop the `::text` casts** in both `student_badges_read_own` (CS-1's policy) and `student_badges_teacher_read` (migration 035's policy). Rewrite both via DROP+CREATE migrations using the clean column type.
+
+4. **Test:** existing student_badges shape tests + add one asserting the FK exists via `pg_catalog.pg_constraint` (Lesson #62).
+
+**Definition of done:**
+- `student_badges.student_id` is `UUID` with FK to `students(id)`.
+- Both policies use `student_id IN (SELECT id FROM students WHERE ...)` without casts.
+- `pg_catalog.pg_constraint` query confirms the FK exists with `ON DELETE CASCADE`.
+
+**Sequence:** ship after Phase 1.4 client-switch closes (this is a hygiene cleanup; not blocking pilot or any in-flight phase). Could pair with similar audit of other `*_id TEXT` columns if any exist (likely audit reveals more).
+
+**Related:** FU-FF (P3 — RLS-as-deny-all on 3 tables, similar "documented in registry but actual SQL diverges" class), Phase 1.4 CS-1 brief (where this surfaced).
+
+---
+
+## FU-AV2-LTI-PHASE-6-REWORK — `/api/auth/lti/launch` returns 410 pending Supabase Auth rewrite (P2)
+
+**Status:** OPEN — filed 4 May 2026 by Phase 6.1.
+
+**Surfaced:** Phase 6.1 dropped `student_sessions`. The legacy LTI 1.1 launch endpoint created a `student_sessions` row + `questerra_student_session` cookie; with the table gone, the route can't function as written.
+
+**Issue:** `src/app/api/auth/lti/launch/route.ts` was stubbed to return HTTP 410 Gone. NIS pilot does not use LTI launch — the route hadn't been exercised in months — so the 410 is honest about the dead-end without leaving silent breakage.
+
+**Why P2:** any school adopting StudioLoom that wires LTI in their LMS (ManageBac, Canvas, Schoology, Moodle, Toddle, Blackboard) hits the 410. Reinstate before the next school onboarding.
+
+**Recommended approach:** mirror the `/api/auth/student-classcode-login` pattern:
+1. Verify the LTI 1.1 OAuth signature (existing `verifyLtiSignature` helper still valid).
+2. Resolve `consumerKey → lms_integrations.class_id` (existing `findOrCreateStudent` still valid).
+3. Call `provisionStudentAuthUser({...})` to ensure `auth.users` + `students` rows exist (already imported in the original file).
+4. Mint a Supabase Auth session via `supabaseAdmin.auth.admin.generateLink({type:'magiclink', email: syntheticEmailForStudentId(student.id)})`.
+5. Construct an SSR client with the Next.js cookies adapter and `exchangeCodeForSession(linkData.properties.hashed_token)` to set `sb-*` cookies on the redirect response.
+6. Redirect to `/dashboard`.
+
+Reuse the same `syntheticEmail` shape as classcode-login so an existing student logging in via LTI lands on the same `auth.users` row they'd land on via classcode.
+
+**Definition of done:**
+- LTI POST returns a 302 redirect to `/dashboard` with `sb-*` cookies set.
+- A returning student via LTI ends up on the same `students.id` as via classcode-login (no orphan duplicates).
+- Smoke test from a real LMS launch (Canvas test instance or LTI launch simulator) passes once.
+
+**Sequence:** before any school other than NIS adopts. Estimated ~0.5 day if the classcode-login pattern is copy-paste tractable.
+
+**Related:** Phase 6.1 brief §6.1, `src/app/api/auth/student-classcode-login/route.ts` (canonical pattern).
+
+---
+
+## FU-AV2-STALE-TIMETABLE-LINK — `/teacher/timetable` route doesn't exist; nav prefetches it (P3)
+
+**Status:** OPEN — surfaced 4 May 2026 during Phase 6.2 smoke.
+
+**Issue:** Browser console shows `GET /teacher/timetable?_rs=... → 404 (Not Found)` on every Class Hub / Classes list page load. The `?_rs=` query param identifies it as a Next.js React Server Component **prefetch** (triggered by hovering or rendering a Link). Some component still references `/teacher/timetable` even though that page route doesn't exist.
+
+**Why P3:** silent (prefetch failures don't break user-visible behaviour). Just noisy in the console + wasted server hit.
+
+**Recommended approach:**
+1. Grep for `/teacher/timetable` in `src/app/teacher/layout.tsx`, the top-nav component, and any sidebar/quick-link panel: `grep -rn "/teacher/timetable" src/`
+2. Either (a) remove the dead Link if the timetable feature was scoped out OR (b) restore the route at `src/app/teacher/timetable/page.tsx` if the link is intentional UX.
+3. Verify no other dead Link patterns: `grep -rn 'href="/teacher' src/components/ src/app/teacher/layout.tsx | sort -u`
+
+**Definition of done:** no `/teacher/timetable` 404 in browser console on Class Hub / Classes list page loads.
+
+**Sequence:** opportunistic; pair with next teacher-nav cleanup pass.
+
+---
+
+## FU-STUDENT-PROGRESS-CLIENT-400 — client-side `student_progress` query 400s on Class Hub (P3)
+
+**Status:** OPEN — surfaced 4 May 2026 during Phase 6.2 smoke.
+
+**Issue:** Browser console on `/teacher/classes/[classId]` shows `GET cxxbfmnbwihuskaaltlk.supabase.co/rest/v1/student_progress?select=st…ges%2Ctotal_pages&student_id=in.(...) → 400 (Bad Request)`. The truncated `select=` includes `total_pages`, which likely doesn't exist on `student_progress` (or has been renamed). 400 from PostgREST = malformed query (column not found / bad operator), distinct from 401/403 (RLS).
+
+The query is going direct to Supabase (client-side `supabase-js`), not through a Next.js route — so the bug lives in a frontend component, not in any API route I can see in `src/app/api/`.
+
+**Why P3:** doesn't break the page load (the request fails silently and the affected widget probably renders empty); but the column drift means whatever progress widget this powers shows wrong/no data.
+
+**Recommended approach:**
+1. Find the caller: `grep -rn 'from("student_progress"' src/components/ src/app/teacher/`
+2. Diff its `.select()` against the current `student_progress` schema: `\d student_progress` in psql, or `SELECT column_name FROM information_schema.columns WHERE table_name='student_progress' ORDER BY ordinal_position`.
+3. Pick the right column or remove the stale reference.
+
+**Suspected:** a Class Hub progress-bar / completion-summary widget that was written against an old `student_progress.total_pages` column that's now stored elsewhere (e.g., on `units.content_data` page count, or computed). Audit the column lineage in schema-registry.yaml.
+
+**Definition of done:** no 400 on Class Hub page load; the affected widget renders accurate completion percentages.
+
+**Sequence:** opportunistic; pair with next dashboard polish pass.
+
+---
+
+## FU-AV2-API-V1-FILESYSTEM-RESHUFFLE — move route handlers into `src/app/api/v1/<domain>/` directory tree (P3, optional)
+
+**Status:** OPEN — filed 4 May 2026 by Phase 6.3.
+
+**Surfaced:** Phase 6.3 chose Option Z (Next.js `rewrites` in `next.config.ts`) over Option X (literal file moves) for the API versioning seam. Both achieve the same client-facing outcome — `/api/v1/*` works, external clients can pin to it, future `/api/v2/*` has a place to live. Option Z ships in ~30min, Option X is ~3-4h. ADR-013 documents the decision.
+
+**Issue:** The file-system layout doesn't match the canonical URL. Routes live at `src/app/api/teacher/units/route.ts` but the canonical URL is `/api/v1/teacher/units`. This works (rewrite handles it transparently) but creates a cognitive disconnect for anyone reading the codebase.
+
+**When to do this:**
+- (a) v2 actually needs to ship with breaking changes (would force the issue: v1 needs its own directory so v2 can exist alongside).
+- (b) The cognitive disconnect bothers you when reading code.
+- (c) You want to remove the permanent `next.config.ts` rewrite indirection.
+
+If none of these are pressing, leave it. The cost is the same later.
+
+**Recommended approach (when triggered):**
+1. Move all 318 `src/app/api/<domain>/*/route.ts` → `src/app/api/v1/<domain>/*/route.ts` (preserve directory structure).
+2. Update internal `fetch("/api/<domain>/...")` callers to `/api/v1/<domain>/...` (grep for the patterns, batch-replace per-domain).
+3. Update test imports that reference route handlers directly: `from "@/app/api/<domain>/..."` → `from "@/app/api/v1/<domain>/..."`.
+4. Flip the `next.config.ts` rewrite direction: `/api/<domain>/:path*` → `/api/v1/<domain>/:path*` (legacy bare paths still work via rewrite for 90 days).
+5. Update header rules in `next.config.ts` to mirror the new direction.
+6. Sync `api-registry.yaml` paths.
+7. Per-domain commits for review tractability (admin / teacher / student / fab / public).
+
+**Definition of done:** route files live under `src/app/api/v1/`; canonical URLs match file paths; bare `/api/<domain>/*` paths still work via redirect; api-registry shows v1 as canonical with bare paths flagged as legacy.
+
+**Sequence:** opportunistic. No deadline. Same cost whenever done.
+
+**Related:** `next.config.ts` API versioning seam comment, ADR-013 (api-versioning).
+
+---
+
+## FU-AV2-CROSS-TAB-ROLE-COLLISION — single Supabase Auth cookie can't hold teacher + student simultaneously (P2)
+
+**Status:** OPEN — surfaced 4 May 2026 during Phase 6 prod testing.
+
+**Issue:** Supabase Auth uses a single `sb-<projectref>-auth-token` cookie scoped to the studioloom.org domain. Teacher login and student-classcode-login both write to the SAME cookie. If a teacher is logged in in one tab and the user opens another tab and logs in as a student (e.g. for QA), the student session **overwrites** the teacher cookie. The teacher tab then makes its next request, the cookies return the student user, and the page either renders broken (no teacher data) or — worst case before Phase 6.3b — kicks off destructive flows like the teacher onboarding wizard.
+
+This was introduced by **Phase 1** (when students moved onto Supabase Auth from the legacy `student_sessions` table). Phase 6.1 dropped the legacy fallback but didn't materially change the collision behaviour — even pre-6.1, the second login would have stomped the first.
+
+Phase 6.3b (this same session) closed the worst hole by adding a `user_type` guard to middleware: `/teacher/*` redirects student sessions to `/dashboard?wrong_role=1`, and `/dashboard /unit /etc` redirects teacher sessions to `/teacher/dashboard?wrong_role=1`. So the wrong-role tab now lands on the right area instead of triggering destructive UI.
+
+**Why P2 (not P1):**
+- P1 mitigation already shipped (the user_type middleware guard prevents the worst-case onboarding-wizard scenario).
+- Real users hit this almost never (a teacher rarely needs to be logged in as a student in the same browser profile).
+- The workaround is trivial: use an incognito window for student testing.
+
+**Recommended fix paths (pick one or layer):**
+
+1. **Wrong-role toast UX (FU-AV2-WRONG-ROLE-TOAST P3):** when `?wrong_role=1` is in the URL, dashboard surfaces a banner: "You're logged in as a student. Sign out to switch to your teacher account." Already supported by the redirect query param.
+
+2. **Tab-scoped session ID (medium effort):** generate a tab-id in sessionStorage on first load; pass it to every auth fetch as a header; server keeps a per-tab session map keyed on that ID. Lets teacher+student coexist in the same browser profile across tabs. Requires a server-side store (Supabase table) and middleware integration.
+
+3. **Browser profile separation (zero effort, doc-only):** publish a "for QA, use a separate browser profile or incognito for student testing" pattern in the team docs. Ships nothing. Probably the right answer for the solo-dev pre-pilot phase.
+
+**Definition of done:** decide which path is worth pursuing. For a pilot of 1 school, path 3 is sufficient. For multi-school + cross-school admins (FU-AV2-PHASE-7), path 2 may be necessary.
+
+**Sequence:** post-pilot. Phase 6.3b's middleware guard makes this no longer pilot-blocking.
+
+---
+
+## FU-AV2-WRONG-ROLE-TOAST — surface "wrong role logged in" banner when `?wrong_role=1` (P3)
+
+**Status:** OPEN — filed 4 May 2026 alongside FU-AV2-CROSS-TAB-ROLE-COLLISION.
+
+**Issue:** Phase 6.3b's middleware redirects wrong-role sessions with `?wrong_role=1` query param. The dashboard pages don't currently consume this — the user lands silently and might not realise their session got switched.
+
+**Recommended approach:** in the student dashboard layout (`src/app/(student)/layout.tsx` or equivalent) and teacher dashboard layout, read the `wrong_role` search param and render a dismissable toast: "You were redirected because you're logged in as a [role]. [Sign out] to switch accounts." Sign-out link goes to the appropriate logout route.
+
+**Definition of done:** users hitting a wrong-role redirect see a clear explanation + path to recover.
+
+**Sequence:** opportunistic UX polish.
+
+---
+
+## FU-AV2-CRON-SCHEDULER-WIRE — wire retention + scheduled-hard-delete + cost-alert into Vercel Cron Jobs (P2) ✅ RESOLVED
+
+**Status:** OPEN → RESOLVED 4 May 2026 (post-Phase-6 close).
+
+**Surfaced:** Phase 6 Checkpoint A7 flagged this as the last hard pre-pilot blocker. The 3 cron functions in `src/lib/jobs/` (cost-alert, scheduled-hard-delete-cron, retention-enforcement) existed and were unit-tested but had no production scheduler — without this, the daily AI cost alert never fires, scheduled deletions never get hard-deleted, and retention horizons never trigger.
+
+**Resolution:**
+
+1. **3 GET route handlers** at `src/app/api/cron/<job>/route.ts` — each validates `Authorization: Bearer ${CRON_SECRET}` then delegates to the existing `run()` in the corresponding `src/lib/jobs/*.ts`. Returns `{ ok, job, result, timestamp }` JSON.
+
+2. **`vercel.json`** declares the 3 crons with their schedules:
+   - `/api/cron/cost-alert` — daily at 06:00 UTC (= 14:00 Nanjing)
+   - `/api/cron/scheduled-hard-delete` — daily at 03:00 UTC (= 11:00 Nanjing)
+   - `/api/cron/retention-enforcement` — monthly on the 1st at 04:00 UTC (= 12:00 Nanjing)
+
+3. **Middleware** allows `/api/cron/*` through without student/teacher auth — the bearer-secret check in the handler is the gate.
+
+4. **`CRON_SECRET` registered** in `docs/feature-flags.yaml` as `required: true` (PILOT-BLOCKING). Matt must set this in Vercel project env before the first cron fires; without it every handler returns 401 to Vercel's own cron invocations.
+
+5. **15 auth-gate tests** (5 cases × 3 routes) verify: missing env → 401, missing header → 401, wrong bearer → 401, wrong scheme → 401, correct bearer → 200 with delegated result.
+
+**Matt's remaining one-time setup:**
+
+- Generate a CRON_SECRET (e.g. `openssl rand -hex 32`) and set in Vercel project env vars.
+- Redeploy. Vercel auto-detects `vercel.json` `crons` block on next deploy.
+- Watch the first cron fire (cost-alert at 06:00 UTC tomorrow) in Vercel dashboard → Logs → filter by path `/api/cron/cost-alert`. Should see `{ ok: true, ... }` response.
+
+**Definition of done:** met. All 3 crons wired with auth, tests passing, vercel.json declared, registry updated.
+
+**Note on AI budget reset:** the original FU description mentioned "ai-budget-reset-cron" as a 4th cron. There is no separate reset cron — Phase 5.2's `atomic_increment_ai_budget()` SECURITY DEFINER function performs the reset INLINE on the next per-student increment when `reset_at < now()`. Lazy reset is correct semantics for this use case (reset triggered by use, not by clock). If a teacher dashboard needs to display fresh `tokens_used_today=0` for inactive students at midnight, that's a separate UX concern (dashboard could compute `now() > reset_at ? 0 : tokens_used_today` at render time). Not pilot-blocking.
+
+---
+
+## FU-DEPS-RESIDUAL-MODERATE-VULNS — 4 moderate npm audit vulns with no clean upgrade path (P3)
+
+**Status:** OPEN — filed 4 May 2026 alongside the post-pilot dependency cleanup.
+
+**Surfaced:** Phase 6 cron-wire commit ran `npm audit`. After Bucket A (`npm audit fix` — closed 2 high-severity) and Bucket B (`npm audit fix --force` — Next 15.3.9 → 15.5.15), 4 moderate vulns remain that npm audit can only "fix" by introducing WORSE breakage:
+
+1. **postcss <8.5.10 (×2 advisories)** — bundled inside Next 15.5.15. Advisory: PostCSS XSS via unescaped `</style>` in CSS Stringify Output. npm audit suggests downgrading to next@9.3.3 — that's 6+ major versions back and would unwind every Phase 1–6 architectural change. **No Next version yet bundles a patched postcss.** Real risk in our app: low — postcss runs at build-time on Tailwind classes; we don't pipe user-controlled data into stylesheets.
+
+2. **uuid <14.0.0 (×2 advisories)** — transitive through `exceljs`. Advisory: missing buffer bounds check in `uuid.v3/v5/v6` when called with a custom `buf` parameter. npm audit suggests downgrading exceljs from ^4.4.0 to ^3.4.0 (already tried — created NEW vulns in fast-csv + tmp). **Real risk in our app: zero** — we use `uuid.v4()` exclusively, never the buf-accepting overloads.
+
+**Recommended approach (post-pilot):**
+
+For the postcss/Next bundling: monitor https://github.com/vercel/next.js/issues for the bundled postcss bump. When Next ships a patched postcss (likely Next 15.5.x or 15.6), `npm audit fix` will close it cleanly.
+
+For the uuid/exceljs chain: wait for either (a) exceljs to bump its uuid dep (track https://github.com/exceljs/exceljs), or (b) audit our actual exceljs usage and consider removing the dep entirely if it's only used in 1-2 export paths (Phase 7 candidate).
+
+**Why P3 not P2:** both vulns require attacker-controlled input down code paths we don't expose. Build-time CSS XSS doesn't apply to a server-rendered Next app with no user-CSS injection. uuid buf overflow doesn't apply when we never pass `buf`.
+
+**Definition of done:** npm audit shows 0 vulns of moderate or higher.
+
+**Sequence:** opportunistic. Re-run `npm audit` quarterly; close when upstream patches land.

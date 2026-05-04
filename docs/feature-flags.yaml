@@ -24,6 +24,7 @@ flags:
     required: false
     type: json
     scope: runtime
+    requires_plan: free   # Phase 4.8b — exemplar; full annotation pass via FU-FREEMIUM-FLAGS-PLAN-ANNOTATION
     default: '{"retrieve": true, "assemble": true, "gap_fill": true, "polish": true, "timing": true, "score": true}'
     description: Per-stage on/off toggles for the generation pipeline
     consumers:
@@ -82,7 +83,33 @@ flags:
       - src/types/admin.ts                       # AdminSettingKey.STARTER_PATTERNS_ENABLED
       - supabase/migrations/077_admin_settings.sql  # seed row
 
+  - name: auth.permission_helper_rollout
+    kind: flag
+    source: db
+    public: false
+    required: false
+    type: boolean
+    scope: runtime
+    default: true
+    description: 'Phase 3.0 kill-switch for the can() permission helper rollout. When true (default), verifyTeacherOwnsClass / verifyTeacherHasUnit / verifyTeacherCanManageStudent shims delegate to can() — opening up co_teacher / dept_head / mentor capability via class_members + student_mentors. When false, helpers fall back to legacy classes.teacher_id direct reads — used as kill-switch if a regression surfaces. Removed in Phase 6 cutover.'
+    consumers:
+      - src/lib/access-v2/can.ts                                            # isPermissionHelperRolloutEnabled reader
+      - src/lib/auth/verify-teacher-unit.ts                                 # 3 deprecated shims gate on this
+      - supabase/migrations/20260501123351_phase_3_0_permission_helper_rollout_flag.sql  # seed row
+
   # ── Env-sourced flags (process.env, set in .env.local or Vercel) ──────────
+
+  - name: NEXT_PUBLIC_AUTH_OAUTH_APPLE_ENABLED
+    kind: flag
+    source: env
+    public: true
+    required: false
+    type: boolean
+    scope: runtime
+    default: false
+    description: 'Phase 2.3 forward-compat flag — when true, Apple is added to the globally-enabled auth modes that the login page filter starts from. Phase 2.4 wires the actual Apple OAuth integration; until then, even setting this true is effectively no-op because no Apple button exists.'
+    consumers:
+      - src/lib/auth/allowed-auth-modes.ts
 
   - name: NEXT_PUBLIC_NSFW_BLOCK_THRESHOLD
     kind: flag
@@ -299,10 +326,81 @@ secrets:
     public: false
     required: false
     provider: Resend
-    description: Resend API key for sending cost alert emails (FU-M — not yet tested live)
+    description: Resend API key for sending cost alert emails (FU-M — not yet tested live), Preflight fabrication notifications, and bug-report admin notifications.
     rotation_notes: Replace in Vercel env vars. No stored state.
     consumers:
       - src/lib/monitoring/cost-alert-delivery.ts
+      - src/lib/preflight/email.ts
+      - src/app/api/bug-reports/route.ts
+
+  - name: BUG_REPORT_NOTIFY_EMAIL
+    kind: secret
+    source: env
+    public: false
+    required: false
+    provider: internal
+    description: Recipient address for new bug-report notifications. When set with RESEND_API_KEY, every successful bug report submission triggers a fire-and-forget email from "StudioLoom <hello@loominary.org>". Skipped silently when unset.
+    rotation_notes: Plain string in Vercel env vars. Update to redirect notifications.
+    consumers:
+      - src/app/api/bug-reports/route.ts
+
+  - name: CRON_SECRET
+    kind: secret
+    source: env
+    public: false
+    required: true  # PILOT-BLOCKING — without this, /api/cron/* endpoints return 401 to every request including Vercel's own cron invocations.
+    provider: Vercel Cron Jobs
+    description: |
+      Bearer secret that Vercel Cron Jobs attaches to the
+      Authorization header on every cron-invoked GET request. Each
+      /api/cron/* route handler validates this header before delegating
+      to the cron logic. Set in Vercel project env vars; Vercel will
+      then automatically include `Authorization: Bearer <CRON_SECRET>`
+      on cron invocations of paths declared in vercel.json `crons`.
+    rotation_notes: |
+      Generate a fresh secret (32+ bytes random hex/base64), update
+      Vercel env, redeploy. No stored state — handlers compare each
+      request's header against the live env value.
+    consumers:
+      - src/app/api/cron/cost-alert/route.ts
+      - src/app/api/cron/scheduled-hard-delete/route.ts
+      - src/app/api/cron/retention-enforcement/route.ts
+
+  - name: NEXT_PUBLIC_SENTRY_ORG_SLUG
+    kind: flag
+    source: env
+    public: true
+    required: false
+    description: Sentry org slug used to build the "View in Sentry" deep-link in the bug-report admin UI. Without it, the link defaults to a generic sentry.io search.
+    consumers:
+      - src/app/admin/bug-reports/page.tsx
+
+  - name: NEXT_PUBLIC_SENTRY_PROJECT_SLUG
+    kind: flag
+    source: env
+    public: true
+    required: false
+    description: Sentry project slug. Combined with NEXT_PUBLIC_SENTRY_ORG_SLUG, narrows the admin "View in Sentry" deep-link to a specific project's events search.
+    consumers:
+      - src/app/admin/bug-reports/page.tsx
+
+  - name: NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA
+    kind: flag
+    source: env
+    public: true
+    required: false
+    description: Auto-injected by Vercel at build time. Read by the bug-report client to tag submissions with the deployed release SHA so admins can see which build a bug was filed against.
+    consumers:
+      - src/components/shared/BugReportButton.tsx
+
+  - name: NEXT_PUBLIC_VERCEL_ENV
+    kind: flag
+    source: env
+    public: true
+    required: false
+    description: Auto-injected by Vercel ("production" | "preview" | "development"). Tagged into bug-report client_context for triage.
+    consumers:
+      - src/components/shared/BugReportButton.tsx
 
   - name: SUPABASE_SERVICE_ROLE_KEY
     kind: secret

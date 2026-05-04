@@ -8,6 +8,10 @@ export default defineConfig({
       "src/**/*.test.tsx",
       "tests/e2e/**/*.test.ts",
       "tests/pipeline/**/*.test.ts",
+      // Tests for scripts/ (e.g. Access Model v2 backfill scripts).
+      // Added 29 Apr 2026 with Phase 1.1b backfill — first script with
+      // co-located unit tests. Generic; benefits any future scriptable work.
+      "scripts/**/*.test.ts",
     ],
     exclude: [
       "**/node_modules/**",

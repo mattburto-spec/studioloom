@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getStudentId } from "@/lib/auth/student";
+import { getStudentSession } from "@/lib/access-v2/actor-session";
 import { AGENCY_ELEMENT_MAP } from "@/lib/nm/constants";
 import type { NMUnitConfig } from "@/lib/nm/constants";
 
@@ -28,11 +28,12 @@ export async function GET(
     return NextResponse.json({ checkpoint: null });
   }
 
-  const studentId = await getStudentId(request);
-  if (!studentId) {
+  const session = await getStudentSession(request);
+  if (!session) {
     // For unauthenticated users (public toolkit), just return null
     return NextResponse.json({ checkpoint: null });
   }
+  const studentId = session.studentId;
 
   const supabase = createAdminClient();
 

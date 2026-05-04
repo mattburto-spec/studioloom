@@ -1,3 +1,4 @@
+// audit-skip: routine learner activity, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import * as Sentry from "@sentry/nextjs";
@@ -8,8 +9,9 @@ import {
   generateResponse,
 } from "@/lib/design-assistant/conversation";
 import { rateLimit, DESIGN_ASSISTANT_LIMITS } from "@/lib/rate-limit";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
+import { withAIBudget } from "@/lib/access-v2/ai-budget/middleware";
 
 /**
  * POST /api/student/design-assistant
@@ -32,9 +34,9 @@ import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
  */
 export const POST = withErrorHandler("student/design-assistant:POST", async (request: NextRequest) => {
   // Student auth via session token cookie (not Supabase Auth)
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   const body = await request.json();
   const { conversationId, unitId, pageId, message } = body as {
@@ -140,12 +142,52 @@ export const POST = withErrorHandler("student/design-assistant:POST", async (req
       source: 'tool_session' as const,
     }).catch((err: unknown) => console.error('[design-assistant] moderation error:', err));
 
-    // Generate Socratic response
-    const result = await generateResponse(
-      activeConversationId,
-      message.trim(),
-      apiKey
+    // Phase 5.3 — wrap generateResponse in withAIBudget. Pre-check happens
+    // BEFORE generateResponse runs, so its side effects (loadConversation,
+    // appendTurn, effort assessment) are skipped on over_cap. On success
+    // we bill the actual usage. On 'truncated' (Lesson #39) we surface the
+    // error without billing — student's message is still appended (turn
+    // already committed inside generateResponse) but no AI response.
+    const supabaseForBudget = createAdminClient();
+    const budgetResult = await withAIBudget(
+      supabaseForBudget,
+      studentId,
+      async () => {
+        const r = await generateResponse(
+          activeConversationId!,
+          message.trim(),
+          apiKey
+        );
+        return {
+          result: r,
+          usage: r.usage,
+        };
+      }
     );
+
+    if (!budgetResult.ok) {
+      if (budgetResult.reason === "over_cap") {
+        return NextResponse.json(
+          {
+            error: "budget_exceeded",
+            cap: budgetResult.cap,
+            used: budgetResult.used,
+            reset_at: budgetResult.resetAt,
+          },
+          { status: 429 }
+        );
+      }
+      // 'truncated' — surface 502 (Lesson #39 — billing was skipped).
+      return NextResponse.json(
+        {
+          error: "model_truncated",
+          message: "AI response was truncated. Try a shorter message.",
+        },
+        { status: 502 }
+      );
+    }
+
+    const result = budgetResult.result;
 
     return NextResponse.json({
       conversationId: activeConversationId,
@@ -178,9 +220,9 @@ export const POST = withErrorHandler("student/design-assistant:POST", async (req
  */
 export const GET = withErrorHandler("student/design-assistant:GET", async (request: NextRequest) => {
   // Student auth via session token cookie
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   const { searchParams } = new URL(request.url);
   const conversationId = searchParams.get("conversationId");

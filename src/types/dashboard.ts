@@ -16,6 +16,13 @@ export interface DashboardClass {
   framework?: string;
   studentCount: number;
   units: DashboardUnit[];
+  /**
+   * Phase 3.4c — role this teacher holds on the class via `class_members`
+   * (lead_teacher / co_teacher / dept_head / mentor / lab_tech / observer).
+   * Lead is the default for owners (Phase 0.8a backfilled); other roles
+   * surface co-taught / mentored / observed visibility added in Phase 3.
+   */
+  role?: string;
 }
 
 export interface DashboardUnit {

@@ -314,24 +314,36 @@ export default function ClassDetailPage({
       // Update legacy class_id
       await supabase.from("students").update({ class_id: classId }).eq("id", existing.id);
     } else {
-      // Create new student + enroll
-      const { data: student, error } = await supabase.from("students").insert({
-        username: newUsername.trim().toLowerCase(),
-        display_name: newDisplayName.trim() || null,
-        graduation_year: newYearLevel ? yearLevelToGradYear(Number(newYearLevel)) : null,
-        class_id: classId,
-        author_teacher_id: user.id,
-      }).select().single();
-
-      if (error || !student) { setAdding(false); return; }
-
-      // Create enrollment
-      await supabase.from("class_students").insert({
-        student_id: student.id,
-        class_id: classId,
-        is_active: true,
-        term_id: currentTermId,
+      // FU-AV2-UI-STUDENT-INSERT-REFACTOR (30 Apr 2026): create new
+      // student + enrollment via the server-side route. Atomic INSERT +
+      // auth.users provisioning + class_students enrollment.
+      const res = await fetch("/api/teacher/students", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: newUsername.trim().toLowerCase(),
+          displayName: newDisplayName.trim() || null,
+          gradYear: newYearLevel ? yearLevelToGradYear(Number(newYearLevel)) : null,
+          classId,
+        }),
       });
+      if (!res.ok) {
+        setAdding(false);
+        return;
+      }
+
+      // Set term_id on the enrollment row the route just created (route
+      // doesn't accept term_id; this is a small UPDATE post-creation).
+      if (currentTermId) {
+        const body = await res.json();
+        if (body.student?.id) {
+          await supabase
+            .from("class_students")
+            .update({ term_id: currentTermId })
+            .eq("student_id", body.student.id)
+            .eq("class_id", classId);
+        }
+      }
     }
 
     setNewUsername("");
@@ -403,23 +415,47 @@ export default function ClassDetailPage({
     }
 
     if (toInsert.length > 0) {
-      const supabase = createClient();
-      const { data: inserted, error } = await supabase.from("students").insert(toInsert).select("id");
-      if (error) {
-        setBulkResult({ added: 0, skipped: [`Database error: ${error.message}`] });
-        setAdding(false);
-        return;
+      // FU-AV2-UI-STUDENT-INSERT-REFACTOR (30 Apr 2026): per-row POST to
+      // /api/teacher/students. Each row = 1 INSERT + auth.users provision
+      // + class_students enrollment, atomically server-side.
+      let added = 0;
+      const errs: string[] = [];
+
+      for (const row of toInsert) {
+        const res = await fetch("/api/teacher/students", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: row.username,
+            displayName: row.display_name,
+            classId,
+          }),
+        });
+
+        if (res.ok) {
+          added += 1;
+        } else {
+          let msg = `Failed: ${row.username}`;
+          try {
+            const body = await res.json();
+            msg =
+              body?.code === "DUPLICATE_USERNAME"
+                ? `${row.username} (duplicate)`
+                : `${row.username}: ${body?.error || res.statusText}`;
+          } catch {
+            // ignore JSON parse failure
+          }
+          errs.push(msg);
+        }
       }
-      // Create enrollments for all newly inserted students
-      if (inserted && inserted.length > 0) {
-        await supabase.from("class_students").insert(
-          inserted.map((s: { id: string }) => ({
-            student_id: s.id,
-            class_id: classId,
-            is_active: true,
-          }))
-        );
+
+      setBulkResult({ added, skipped: [...skipped, ...errs] });
+      setAdding(false);
+
+      if (added > 0) {
+        loadData();
       }
+      return;
     }
 
     setBulkResult({ added: toInsert.length, skipped });

@@ -13,16 +13,17 @@ let classStudentsError: string | null = null;
 let machineProfilesData: unknown = null;
 let machineProfilesError: string | null = null;
 
-vi.mock("@/lib/auth/student", () => ({
-  requireStudentAuth: async () => {
+vi.mock("@/lib/access-v2/actor-session", () => ({
+  requireStudentSession: async () => {
     if (!mockStudentId) {
-      return {
-        error: new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401,
-        }),
-      };
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    return { studentId: mockStudentId };
+    return {
+      type: "student" as const,
+      studentId: mockStudentId,
+      userId: "user-" + mockStudentId,
+      schoolId: null,
+    };
   },
 }));
 
@@ -57,7 +58,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 
 import { GET } from "../route";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 function makeRequest(): NextRequest {
   return new NextRequest(

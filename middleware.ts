@@ -1,10 +1,33 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE_NAME } from "@/lib/constants";
 import { isAdminUser } from "@/lib/auth/require-admin";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Phase 4.7 — view-as (impersonation) is read-only. If a request carries
+  // `as_token=...` AND the method is anything but GET/HEAD, refuse the
+  // request before downstream handlers see it. Per master-spec Decision 9:
+  // view-as is "URL param only, NEVER session-spoof." This middleware
+  // guard enforces the "read-only" half. Sig verification happens at the
+  // route layer (see verifyImpersonationToken in src/lib/auth/impersonation.ts).
+  if (request.nextUrl.searchParams.has("as_token")) {
+    const method = request.method.toUpperCase();
+    if (method !== "GET" && method !== "HEAD") {
+      return new NextResponse(
+        JSON.stringify({
+          error: "View-as impersonation is read-only — mutation blocked",
+        }),
+        {
+          status: 403,
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store, private",
+          },
+        }
+      );
+    }
+  }
 
   // Public routes — no auth required
   if (
@@ -13,6 +36,7 @@ export async function middleware(request: NextRequest) {
     pathname === "/teacher/login" ||
     pathname === "/admin/login" ||
     pathname.startsWith("/api/auth/") ||
+    pathname.startsWith("/api/cron/") ||  // Vercel Cron Jobs — auth via CRON_SECRET bearer in handler, not middleware.
     pathname.startsWith("/api/tools/") ||
     pathname.startsWith("/tools") ||
     pathname.startsWith("/toolkit") ||
@@ -86,7 +110,15 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Teacher routes — require Supabase Auth
+  // Teacher routes — require Supabase Auth AND user_type='teacher'.
+  //
+  // Phase 6.3b (4 May 2026): added user_type guard. Without it, a student
+  // session reaching /teacher/* (e.g. via cross-tab cookie collision: both
+  // student-classcode-login + teacher login write to the SAME sb-*
+  // cookie at studioloom.org, so the second login overwrites the first)
+  // walks straight into the teacher area. Worst case: /teacher/welcome
+  // sees "no teachers row for this user_id" and starts the teacher
+  // onboarding wizard with the student's UUID as a placeholder name.
   if (pathname.startsWith("/teacher")) {
     const response = NextResponse.next();
 
@@ -115,19 +147,62 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
+    // Phase 6.3b — wrong-role guard. Students hitting /teacher/* land on
+    // /dashboard. The hint param tells the dashboard to surface a "you're
+    // logged in as a student; sign out first if you wanted the teacher
+    // area" toast (FU-AV2-WRONG-ROLE-TOAST handles the UX polish).
+    const userType = (user.app_metadata as Record<string, unknown> | undefined)?.user_type;
+    if (userType === "student") {
+      const dashboardUrl = new URL("/dashboard", request.url);
+      dashboardUrl.searchParams.set("wrong_role", "1");
+      return NextResponse.redirect(dashboardUrl);
+    }
+
     return response;
   }
 
-  // Student routes — require student session cookie
+  // Student routes — require Supabase Auth session AND user_type='student'.
+  //
+  // Phase 6.1 (4 May 2026): replaced legacy questerra_student_session
+  // cookie check with sb-* presence check.
+  // Phase 6.3b (4 May 2026): added user_type guard so a teacher session
+  // reaching /dashboard etc. lands back at /teacher/dashboard instead
+  // of seeing student UI render with their teacher_id where a student_id
+  // is expected (silent no-data and worse).
   if (pathname.startsWith("/dashboard") || pathname.startsWith("/unit") || pathname.startsWith("/open-studio") || pathname.startsWith("/discovery") || pathname.startsWith("/gallery") || pathname.startsWith("/safety") || pathname.startsWith("/my-tools")) {
-    const sessionToken = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+    const response = NextResponse.next();
 
-    if (!sessionToken) {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet: Array<{ name: string; value: string; options?: Record<string, unknown> }>) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              response.cookies.set(name, value, options);
+            });
+          },
+        },
+      }
+    );
+
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
 
-    // Token existence check — full validation happens in the page/API
-    return NextResponse.next();
+    const userType = (user.app_metadata as Record<string, unknown> | undefined)?.user_type;
+    if (userType === "teacher") {
+      const teacherUrl = new URL("/teacher/dashboard", request.url);
+      teacherUrl.searchParams.set("wrong_role", "1");
+      return NextResponse.redirect(teacherUrl);
+    }
+
+    return response;
   }
 
   return NextResponse.next();

@@ -1,7 +1,8 @@
+// audit-skip: routine learner activity, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { withErrorHandler } from "@/lib/api/error-handler";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
 
 /**
@@ -17,9 +18,9 @@ import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
  */
 
 export const POST = withErrorHandler("student/open-studio/session:POST", async (request: NextRequest) => {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const actor = await requireStudentSession(request);
+  if (actor instanceof NextResponse) return actor;
+  const studentId = actor.studentId;
 
   const supabase = createAdminClient();
   const body = await request.json();
@@ -101,9 +102,9 @@ export const POST = withErrorHandler("student/open-studio/session:POST", async (
 });
 
 export const PATCH = withErrorHandler("student/open-studio/session:PATCH", async (request: NextRequest) => {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   const supabase = createAdminClient();
   const body = await request.json();

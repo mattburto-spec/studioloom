@@ -1,3 +1,4 @@
+// audit-skip: routine learner activity, low audit value
 /**
  * POST /api/student/fabrication/jobs/[jobId]/revisions
  *
@@ -21,7 +22,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   createRevision,
@@ -37,8 +38,8 @@ export async function POST(
   request: NextRequest,
   context: { params: Promise<{ jobId: string }> }
 ) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
 
   const { jobId } = await context.params;
   if (!jobId || typeof jobId !== "string") {
@@ -67,7 +68,7 @@ export async function POST(
 
   const db = createAdminClient();
   const result = await createRevision(db, {
-    studentId: auth.studentId,
+    studentId: session.studentId,
     jobId,
     fileType: String(b.fileType ?? ""),
     originalFilename: String(b.originalFilename ?? ""),
@@ -109,8 +110,8 @@ export async function GET(
   request: NextRequest,
   context: { params: Promise<{ jobId: string }> }
 ) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
 
   const { jobId } = await context.params;
   if (!jobId || typeof jobId !== "string") {
@@ -130,7 +131,7 @@ export async function GET(
   // revisionsError text) only when we return JSON.
   try {
     const db = createAdminClient();
-    const result = await listRevisions(db, { studentId: auth.studentId, jobId });
+    const result = await listRevisions(db, { studentId: session.studentId, jobId });
 
     if (isOrchestrationError(result)) {
       return NextResponse.json(
@@ -148,7 +149,7 @@ export async function GET(
     // without leaking to the response body.
     console.error(
       "[/api/student/fabrication/jobs/:jobId/revisions GET] unhandled error",
-      { jobId, studentId: auth.studentId, error: e }
+      { jobId, studentId: session.studentId, error: e }
     );
     return NextResponse.json(
       { error: "Couldn't load revision history. Please refresh." },

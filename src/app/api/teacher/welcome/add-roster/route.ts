@@ -1,3 +1,4 @@
+// audit-skip: routine teacher pedagogy ops, low audit value
 /**
  * POST /api/teacher/welcome/add-roster
  *
@@ -28,6 +29,7 @@ import {
   requireTeacherAuth,
   verifyTeacherOwnsClass,
 } from "@/lib/auth/verify-teacher-unit";
+import { provisionStudentAuthUser } from "@/lib/access-v2/provision-student-auth-user";
 
 type RosterInput = { name?: string; username?: string };
 
@@ -36,16 +38,22 @@ interface ParsedStudent {
   display_name: string | null;
   class_id: string;
   author_teacher_id: string;
+  school_id: string | null;
 }
 
 /**
  * Normalise a single roster line (or object) into a parsed student row.
  * Returns null if the line yields no usable username.
+ *
+ * `schoolId` is denormalised onto every student per Phase 0.3 (mig
+ * 20260428134250). After 0.8b NOT NULL tighten, students.school_id is required
+ * — caller MUST resolve it from classes.school_id before invoking parseEntry.
  */
 function parseEntry(
   entry: RosterInput,
   classId: string,
-  teacherId: string
+  teacherId: string,
+  schoolId: string | null
 ): ParsedStudent | null {
   const rawUsername = entry.username?.trim();
   const rawName = entry.name?.trim();
@@ -80,6 +88,7 @@ function parseEntry(
     display_name: displayName,
     class_id: classId,
     author_teacher_id: teacherId,
+    school_id: schoolId,
   };
 }
 
@@ -126,6 +135,16 @@ export const POST = withErrorHandler(
 
     const supabase = createAdminClient();
 
+    // Resolve the class's school_id ONCE — every roster student lands in the
+    // same class so they share school_id. Required since Phase 0.8b tightened
+    // students.school_id NOT NULL.
+    const { data: classRow } = await supabase
+      .from("classes")
+      .select("school_id")
+      .eq("id", classId)
+      .single();
+    const schoolId: string | null = classRow?.school_id ?? null;
+
     // Fetch existing usernames globally so we don't collide with users in
     // *any* class the teacher already owns. `students.username` is unique
     // across the whole table, so this matches DB reality.
@@ -142,7 +161,7 @@ export const POST = withErrorHandler(
     const skipped: string[] = [];
 
     for (const entry of roster) {
-      const parsed = parseEntry(entry, classId, teacherId);
+      const parsed = parseEntry(entry, classId, teacherId, schoolId);
       if (!parsed) {
         skipped.push(entry.name || entry.username || "(empty line)");
         continue;
@@ -193,6 +212,31 @@ export const POST = withErrorHandler(
       console.warn(
         "[welcome/add-roster] class_students insert warning:",
         enrollErr.message
+      );
+    }
+
+    // Phase 1.1d — provision auth.users rows for the new students. Per-student
+    // failures are logged but do not fail the bulk roster import; lazy-provision
+    // on first login (Phase 1.2 student-classcode-login) is the safety net.
+    // Reuses the schoolId resolved earlier (line ~138) for the parseEntry path.
+
+    let provisionFailures = 0;
+    for (const s of inserted) {
+      const result = await provisionStudentAuthUser(supabase, {
+        id: s.id,
+        user_id: null,
+        school_id: schoolId,
+      });
+      if (!result.ok) {
+        provisionFailures += 1;
+        console.error(
+          `[welcome/add-roster] provisionStudentAuthUser failed for student=${s.id}: ${result.error}`
+        );
+      }
+    }
+    if (provisionFailures > 0) {
+      console.warn(
+        `[welcome/add-roster] ${provisionFailures}/${inserted.length} students need lazy auth provisioning on first login`
       );
     }
 

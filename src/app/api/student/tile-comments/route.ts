@@ -12,11 +12,11 @@
  *
  * Auth: student session token (custom — students don't use Supabase Auth).
  * The admin client below is gated by requireStudentAuth's session check
- * matching auth.studentId.
+ * matching session.studentId.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 interface TileCommentRow {
@@ -28,9 +28,9 @@ interface TileCommentRow {
 }
 
 export async function GET(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if ("error" in auth) {
-    return auth.error;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) {
+    return session;
   }
 
   const url = request.nextUrl.searchParams;
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await db
     .from("student_tile_grades")
     .select("tile_id, page_id, student_facing_comment, score, released_at")
-    .eq("student_id", auth.studentId)
+    .eq("student_id", session.studentId)
     .eq("unit_id", unitId)
     .eq("page_id", pageId)
     .not("student_facing_comment", "is", null);

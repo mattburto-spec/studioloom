@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { logAuditEvent } from "@/lib/access-v2/audit-log";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -69,6 +70,25 @@ export async function PATCH(request: NextRequest) {
       .eq("id", id);
 
     if (error) throw error;
+
+    // Phase 6.4 — high-value admin action: status transitions on
+    // teacher_access_requests are gatekeeping decisions. soft-warn so the
+    // admin UI doesn't 500 if audit insert blips; Sentry catches the gap.
+    await logAuditEvent(supabase, {
+      actorId: auth.teacherId,
+      actorType: "platform_admin",
+      action: `admin.teacher_request.${status}`,
+      targetTable: "teacher_access_requests",
+      targetId: id,
+      severity: status === "rejected" ? "warn" : "info",
+      payload: {
+        newStatus: status,
+        ...(status === "rejected" && rejection_reason ? { rejectionReason: rejection_reason } : {}),
+      },
+      ip: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+      userAgent: request.headers.get("user-agent"),
+      failureMode: "soft-sentry",
+    });
 
     return NextResponse.json({ success: true });
   } catch (e) {

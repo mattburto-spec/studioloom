@@ -13,7 +13,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import type { QuizQuestion, QuizStatus } from "@/types/skills";
 
 export async function GET(
@@ -21,9 +21,9 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    const auth = await requireStudentAuth(request);
-    if (auth.error) return auth.error;
-    const studentId = auth.studentId;
+    const session = await requireStudentSession(request);
+    if (session instanceof NextResponse) return session;
+    const studentId = session.studentId;
     const { slug } = await params;
 
     const admin = createAdminClient();

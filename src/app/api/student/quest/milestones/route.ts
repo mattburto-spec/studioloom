@@ -1,3 +1,4 @@
+// audit-skip: routine learner activity, low audit value
 /**
  * Student Quest Journey Milestones API
  *
@@ -33,7 +34,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { rateLimit } from "@/lib/rate-limit";
 import * as Sentry from "@sentry/nextjs";
 import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
@@ -58,9 +59,9 @@ export interface Milestone {
  * GET: List milestones for a journey.
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   try {
     const { searchParams } = new URL(request.url);
@@ -122,9 +123,9 @@ export async function GET(request: NextRequest) {
  * POST: Create a new milestone.
  */
 export async function POST(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   // Rate limit: 20 creates per minute per student
   const rl = rateLimit(`quest-milestones:${studentId}`, [{ maxRequests: 20, windowMs: 60_000 }]);
@@ -255,9 +256,9 @@ export async function POST(request: NextRequest) {
  * PATCH: Bulk update milestones (reordering, date setting, etc.).
  */
 export async function PATCH(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   // Rate limit: 30 updates per minute per student
   const rl = rateLimit(studentId, [{ maxRequests: 30, windowMs: 60 * 1000 }]);

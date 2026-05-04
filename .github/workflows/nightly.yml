@@ -40,6 +40,32 @@ jobs:
       - name: WIRING.yaml health check
         run: python3 scripts/check-wiring-health.py
 
+      - name: Audit-coverage gate (Phase 6.4 — gating since 4 May 2026)
+        # Emits docs/scanner-reports/audit-coverage.json AND fails the build
+        # if any mutation route lacks logAuditEvent OR an `// audit-skip:`
+        # annotation. Phase 6.4 closed the original 224-route gap via
+        # bulk-skip + 3 inline-wires (admin/teachers DELETE+invite POST,
+        # admin/teacher-requests PATCH). Any new mutation route from now on
+        # must either call logAuditEvent or carry an audit-skip with a
+        # non-trivial reason — same discipline as the AI budget gate.
+        run: python3 scripts/registry/scan-api-routes.py --check-audit-coverage --fail-on-missing
+
+      - name: AI budget-coverage gate (Phase 5.3d — gating from day one)
+        # Emits docs/scanner-reports/ai-budget-coverage.json. Gates the build
+        # on missing > 0 (current state: 3 covered / 0 skipped / 0 missing).
+        # Any future student AI route added without `withAIBudget()` (or
+        # `// budget-skip: <reason>` annotation) fails this step.
+        run: python3 scripts/registry/scan-api-routes.py --check-budget-coverage --fail-on-missing
+
+      # Phase 5.5 cron entry points exist at:
+      #   scripts/ops/run-retention-enforcement.ts
+      #   scripts/ops/run-scheduled-hard-delete.ts
+      # NOT wired here — nightly.yml is for code gates, not runtime jobs
+      # (cost-alert.ts pattern is the same — script ships, scheduling decided
+      # separately). Tracked as FU-AV2-CRON-SCHEDULER-WIRE P2 — needs a call
+      # on Vercel cron vs GitHub Actions schedule vs external scheduler +
+      # secret-management for SUPABASE_SERVICE_ROLE_KEY.
+
       - name: Full build
         run: npm run build
         env:

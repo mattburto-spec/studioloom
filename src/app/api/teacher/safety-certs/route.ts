@@ -1,6 +1,8 @@
+// audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { verifyTeacherOwnsClass } from "@/lib/auth/verify-teacher-unit";
 import { v4 as uuid } from "uuid";
 
 /**
@@ -48,15 +50,9 @@ export async function GET(request: NextRequest) {
 
   const db = createAdminClient();
 
-  // Verify teacher owns this class
-  const { data: cls } = await db
-    .from("classes")
-    .select("id")
-    .eq("id", classId)
-    .eq("author_teacher_id", user.id)
-    .single();
-
-  if (!cls) {
+  // Phase 6.2 — gate via can()-backed shim.
+  const owns = await verifyTeacherOwnsClass(user.id, classId);
+  if (!owns) {
     return NextResponse.json({ error: "Class not found" }, { status: 404 });
   }
 
@@ -91,15 +87,9 @@ export async function POST(request: NextRequest) {
 
   const db = createAdminClient();
 
-  // Verify teacher owns this class
-  const { data: cls } = await db
-    .from("classes")
-    .select("id")
-    .eq("id", classId)
-    .eq("author_teacher_id", user.id)
-    .single();
-
-  if (!cls) {
+  // Phase 6.2 — gate via can()-backed shim.
+  const owns = await verifyTeacherOwnsClass(user.id, classId);
+  if (!owns) {
     return NextResponse.json({ error: "Class not found" }, { status: 404 });
   }
 

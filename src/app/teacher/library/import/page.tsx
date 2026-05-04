@@ -4,6 +4,11 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import MatchReport from "@/components/teacher/library/MatchReport";
 import ClassificationCheckpoint from "@/components/teacher/library/ClassificationCheckpoint";
+import {
+  validateUnitJson,
+  isJsonUnitFile,
+  type UnitJsonValidationError,
+} from "@/lib/units/import-json";
 
 // =========================================================================
 // Types
@@ -88,6 +93,7 @@ export default function ImportPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [jsonValidationErrors, setJsonValidationErrors] = useState<UnitJsonValidationError[] | null>(null);
   const [classifyResult, setClassifyResult] = useState<ClassifyResult | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
@@ -107,6 +113,7 @@ export default function ImportPage() {
   const handleClassify = async (textOrFile: string | File) => {
     setLoading(true);
     setError(null);
+    setJsonValidationErrors(null);
     setClassifyResult(null);
 
     try {
@@ -166,7 +173,64 @@ export default function ImportPage() {
       return;
     }
     setUploadedFileName(file.name);
+
+    // Direct JSON path — skip Pass A/B classify + reconstruct, post the
+    // pre-built unit straight to /api/teacher/units.
+    if (isJsonUnitFile(file)) {
+      handleJsonImport(file);
+      return;
+    }
+
     handleClassify(file);
+  };
+
+  // ── JSON direct import: parse → validate → POST → done ──
+  const handleJsonImport = async (file: File) => {
+    setLoading(true);
+    setError(null);
+    setJsonValidationErrors(null);
+
+    try {
+      const text = await file.text();
+      const validation = validateUnitJson(text);
+
+      if (!validation.ok) {
+        setJsonValidationErrors(validation.errors);
+        setStage("input");
+        return;
+      }
+
+      const { payload } = validation;
+      const res = await fetch("/api/teacher/units", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          title: payload.title,
+          contentData: payload.contentData,
+          description: payload.description,
+          gradeLevel: payload.gradeLevel,
+          topic: payload.topic,
+          unitType: payload.unitType,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to save unit");
+      }
+
+      const data = await res.json();
+      setStage("accepted");
+      if (data.unitId) {
+        setTimeout(() => router.push(`/teacher/units/${data.unitId}`), 1200);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "JSON import failed");
+      setStage("input");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // ── Step 2: Checkpoint confirmed → Continue (Pass B + Extract + Persist) ──
@@ -266,6 +330,7 @@ export default function ImportPage() {
     setResult(null);
     setClassifyResult(null);
     setRawText("");
+    setJsonValidationErrors(null);
     setStage("input");
     setInputMode("choice");
   };
@@ -279,7 +344,7 @@ export default function ImportPage() {
       <input
         ref={fileInputRef}
         type="file"
-        accept=".pdf,.docx,.pptx,.txt,.md"
+        accept=".pdf,.docx,.pptx,.txt,.md,.json,application/json"
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) handleFileUpload(file);
@@ -299,6 +364,21 @@ export default function ImportPage() {
         <div className="bg-red-50 text-red-700 rounded-lg px-4 py-2 text-sm">{error}</div>
       )}
 
+      {jsonValidationErrors && jsonValidationErrors.length > 0 && (
+        <div className="bg-red-50 text-red-700 rounded-lg px-4 py-3 text-sm space-y-2">
+          <p className="font-bold">
+            JSON validation failed ({jsonValidationErrors.length} {jsonValidationErrors.length === 1 ? "issue" : "issues"})
+          </p>
+          <ul className="space-y-1 text-xs font-mono">
+            {jsonValidationErrors.map((err, i) => (
+              <li key={i}>
+                <span className="text-red-900">{err.path}</span>: {err.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* ── Stage: Input ───────────────────────────────────── */}
       {stage === "input" && (
         <>
@@ -306,10 +386,14 @@ export default function ImportPage() {
             <div className="rounded-xl border border-purple-200 bg-purple-50 p-8 text-center space-y-3">
               <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto" />
               <p className="text-sm font-medium text-purple-700">
-                Classifying {uploadedFileName || "your unit plan"}...
+                {uploadedFileName?.toLowerCase().endsWith(".json")
+                  ? `Validating & saving ${uploadedFileName}...`
+                  : `Classifying ${uploadedFileName || "your unit plan"}...`}
               </p>
               <p className="text-[11px] text-gray-500">
-                This takes 5–15 seconds
+                {uploadedFileName?.toLowerCase().endsWith(".json")
+                  ? "Should take a second or two."
+                  : "This takes 5–15 seconds"}
               </p>
             </div>
           )}
@@ -330,7 +414,7 @@ export default function ImportPage() {
                       <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full uppercase tracking-wide">Recommended</span>
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      PDF, Word (.docx), PowerPoint (.pptx), or text file
+                      PDF, Word (.docx), PowerPoint (.pptx), text, or pre-built JSON
                     </p>
                   </div>
                 </div>

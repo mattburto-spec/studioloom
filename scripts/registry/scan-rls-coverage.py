@@ -21,6 +21,35 @@ from datetime import datetime, timezone
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 MIGRATIONS_DIR = os.path.join(REPO_ROOT, "supabase", "migrations")
 REPORT_PATH = os.path.join(REPO_ROOT, "docs", "scanner-reports", "rls-coverage.json")
+DENY_ALL_DOC = os.path.join(REPO_ROOT, "docs", "security", "rls-deny-all.md")
+
+
+def load_intentional_deny_all():
+    """Phase 6.5 — read the documented exceptions list from
+    docs/security/rls-deny-all.md so the scanner can separate intentional
+    deny-all tables from real drift.
+
+    Parses the markdown table starting after `## The 5 tables`. Each row's
+    first column (between backticks) is the table name. Returns a set of
+    lowercase table names. Returns an empty set if the doc is missing
+    (graceful degradation — scanner still works).
+    """
+    if not os.path.exists(DENY_ALL_DOC):
+        return set()
+    with open(DENY_ALL_DOC) as f:
+        text = f.read()
+    # Find the section header, then scan its markdown table rows.
+    section_re = re.compile(
+        r"##\s+The \d+ tables\s*\n.*?(?=\n##\s|\Z)",
+        re.DOTALL,
+    )
+    m = section_re.search(text)
+    if not m:
+        return set()
+    section = m.group(0)
+    # Each data row starts with `| `<backtick>tablename<backtick>` |`
+    row_re = re.compile(r"^\|\s*`([a-z_][a-z0-9_]*)`\s*\|", re.MULTILINE)
+    return {match.group(1).lower() for match in row_re.finditer(section)}
 
 
 def scan():
@@ -77,17 +106,21 @@ def scan():
             tables_with_policies.add(m.group(1).lower())
 
     # 4. Classify drift
+    intentional_deny_all_set = load_intentional_deny_all()
     no_rls = []  # Tables with no ENABLE ROW LEVEL SECURITY
-    rls_enabled_no_policy = []  # Tables with RLS enabled but no CREATE POLICY
+    rls_enabled_no_policy = []  # Tables with RLS enabled but no policy AND not in deny-all doc
+    intentional_deny_all = []  # Tables with RLS enabled, no policy, AND documented in rls-deny-all.md
 
     for table_name in sorted(tables.keys()):
         source = tables[table_name]
         if table_name not in rls_enabled:
             no_rls.append({"table": table_name, "source_migration": source})
         elif table_name not in tables_with_policies:
-            rls_enabled_no_policy.append(
-                {"table": table_name, "source_migration": source}
-            )
+            entry = {"table": table_name, "source_migration": source}
+            if table_name in intentional_deny_all_set:
+                intentional_deny_all.append(entry)
+            else:
+                rls_enabled_no_policy.append(entry)
 
     # 5. Build report
     report = {
@@ -98,12 +131,14 @@ def scan():
             "no_rls": no_rls,
             "rls_enabled_no_policy": rls_enabled_no_policy,
         },
+        "intentional_deny_all": intentional_deny_all,
         "stats": {
             "total_tables": len(tables),
             "rls_enabled": len(rls_enabled & set(tables.keys())),
             "with_policies": len(tables_with_policies & set(tables.keys())),
             "no_rls_count": len(no_rls),
             "rls_no_policy_count": len(rls_enabled_no_policy),
+            "intentional_deny_all_count": len(intentional_deny_all),
         },
         "status": "clean" if (len(no_rls) == 0 and len(rls_enabled_no_policy) == 0) else "drift_detected",
     }

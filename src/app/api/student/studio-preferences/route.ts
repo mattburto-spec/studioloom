@@ -1,5 +1,6 @@
+// audit-skip: routine learner activity, low audit value
 import { NextRequest, NextResponse } from "next/server";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MENTOR_IDS, type MentorId } from "@/lib/student/mentors";
 import { THEME_IDS, type ThemeId } from "@/lib/student/themes";
@@ -11,14 +12,14 @@ const CACHE_HEADERS = { "Cache-Control": "private, no-cache, no-store, must-reva
  * Returns mentor_id and theme_id for the current student.
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
 
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("students")
     .select("mentor_id, theme_id")
-    .eq("id", auth.studentId)
+    .eq("id", session.studentId)
     .single();
 
   if (error) {
@@ -39,8 +40,8 @@ export async function GET(request: NextRequest) {
  * Body: { mentor_id: "kit"|"sage"|"spark", theme_id: "clean"|"bold"|"warm"|"dark" }
  */
 export async function POST(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
 
   const body = await request.json();
   const { mentor_id, theme_id } = body;
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
   const { error } = await supabase
     .from("students")
     .update({ mentor_id, theme_id })
-    .eq("id", auth.studentId);
+    .eq("id", session.studentId);
 
   if (error) {
     console.error("[studio-preferences] Save failed:", error);
@@ -83,8 +84,8 @@ export async function POST(request: NextRequest) {
  * Update individual preferences (e.g., just theme or just mentor).
  */
 export async function PATCH(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
 
   const body = await request.json();
   const updates: Record<string, string | boolean> = {};
@@ -123,7 +124,7 @@ export async function PATCH(request: NextRequest) {
   const { error } = await supabase
     .from("students")
     .update(updates)
-    .eq("id", auth.studentId);
+    .eq("id", session.studentId);
 
   if (error) {
     console.error("[studio-preferences] Update failed:", error);

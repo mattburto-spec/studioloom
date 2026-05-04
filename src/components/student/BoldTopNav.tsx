@@ -21,6 +21,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Student } from "@/types";
 import { useSidebarSlot } from "./SidebarSlotContext";
+import { CommandPalette } from "@/components/search/CommandPalette";
 
 // ================= SESSION STUDENT =================
 
@@ -364,6 +365,28 @@ export function BoldTopNav({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [menuOpen]);
 
+  // Command palette state — wired to the search button + ⌘K shortcut.
+  // Same shortcut behaviour as the teacher TopNav: skip while typing in
+  // inputs/textareas/contentEditable so it doesn't hijack normal typing.
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+        const t = e.target as HTMLElement | null;
+        const tag = t?.tagName;
+        const inField =
+          tag === "INPUT" ||
+          tag === "TEXTAREA" ||
+          (t?.isContentEditable ?? false);
+        if (inField && !paletteOpen) return;
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [paletteOpen]);
+
   const avatarInitials = loading ? "" : showMock ? session.initials : session.initials;
   const avatarGrad = loading ? "from-[#E8E6DF] to-[#D4D1C8]" : session.avatarGrad;
 
@@ -435,7 +458,12 @@ export function BoldTopNav({
           })}
         </nav>
         <div className="flex-1" />
-        <button className="w-9 h-9 rounded-full hover:bg-white flex items-center justify-center text-[var(--sl-ink-2)]" aria-label="Search">
+        <button
+          onClick={() => setPaletteOpen(true)}
+          className="w-9 h-9 rounded-full hover:bg-white flex items-center justify-center text-[var(--sl-ink-2)]"
+          aria-label="Search"
+          title="Search (⌘K)"
+        >
           <Icon name="search" size={16} />
         </button>
         <button
@@ -514,6 +542,11 @@ export function BoldTopNav({
           )}
         </div>
       </div>
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        searchUrl="/api/student/search"
+      />
     </header>
   );
 }

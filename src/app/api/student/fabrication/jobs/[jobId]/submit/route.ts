@@ -1,3 +1,4 @@
+// audit-skip: routine learner activity, low audit value
 /**
  * POST /api/student/fabrication/jobs/[jobId]/submit
  *
@@ -25,7 +26,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { submitJob, isOrchestrationError } from "@/lib/fabrication/orchestration";
 
@@ -37,8 +38,8 @@ export async function POST(
   request: NextRequest,
   context: { params: Promise<{ jobId: string }> }
 ) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
 
   const { jobId } = await context.params;
   if (!jobId || typeof jobId !== "string") {
@@ -50,7 +51,7 @@ export async function POST(
 
   const db = createAdminClient();
   const result = await submitJob(db, {
-    studentId: auth.studentId,
+    studentId: session.studentId,
     jobId,
   });
 

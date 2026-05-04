@@ -1,36 +1,24 @@
+// audit-skip: auth-establishment endpoint; no actor identity until session minted
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { SESSION_COOKIE_NAME } from "@/lib/constants";
+import { getStudentSession } from "@/lib/access-v2/actor-session";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 // GET: Validate current student session and return student data
+//
+// Phase 6.1 (4 May 2026) — Supabase Auth only. The legacy
+// questerra_student_session cookie + student_sessions table fallback
+// (Path B) was removed when the table was dropped.
 export async function GET(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const supabase = createAdminClient();
 
-  if (!token) {
+  const studentSession = await getStudentSession(request);
+  if (!studentSession) {
     const response = NextResponse.json({ error: "No session" }, { status: 401 });
     response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
     return response;
   }
-
-  const supabase = createAdminClient();
-
-  // Step 1: Find the session by token (no joins — isolate from FK issues)
-  const { data: session, error: sessionError } = await supabase
-    .from("student_sessions")
-    .select("id, student_id, expires_at")
-    .eq("token", token)
-    .gt("expires_at", new Date().toISOString())
-    .maybeSingle();
-
-  if (sessionError || !session) {
-    const response = NextResponse.json(
-      { error: "Invalid or expired session" },
-      { status: 401 }
-    );
-    // Don't delete cookie here — it may just be a DB hiccup
-    response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
-    return response;
-  }
+  const studentId = studentSession.studentId;
 
   // Step 2: Get the student (try with new columns, fall back if migration 050 not applied)
   let student: Record<string, unknown> | null = null;
@@ -39,7 +27,7 @@ export async function GET(request: NextRequest) {
   const { data: s1, error: e1 } = await supabase
     .from("students")
     .select("id, username, display_name, ell_level, class_id, learning_profile, mentor_id, theme_id")
-    .eq("id", session.student_id)
+    .eq("id", studentId)
     .single();
 
   if (!e1 && s1) {
@@ -49,7 +37,7 @@ export async function GET(request: NextRequest) {
     const { data: s2, error: e2 } = await supabase
       .from("students")
       .select("id, username, display_name, ell_level, class_id, learning_profile")
-      .eq("id", session.student_id)
+      .eq("id", studentId)
       .single();
     student = s2;
     studentError = e2;
@@ -60,7 +48,6 @@ export async function GET(request: NextRequest) {
       { error: "Student not found" },
       { status: 401 }
     );
-    response.cookies.delete(SESSION_COOKIE_NAME);
     response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
     return response;
   }
@@ -152,17 +139,16 @@ export async function GET(request: NextRequest) {
   return response;
 }
 
-// DELETE: Logout — clear session
-export async function DELETE(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-
-  if (token) {
-    const supabase = createAdminClient();
-    await supabase.from("student_sessions").delete().eq("token", token);
-  }
+// DELETE: Logout — sign the student out of Supabase Auth.
+//
+// Phase 6.1 (4 May 2026) — replaces the legacy `student_sessions` row
+// delete + cookie wipe with a Supabase Auth signOut. The SSR client
+// clears the sb-* cookies on the response when signOut succeeds.
+export async function DELETE(_request: NextRequest) {
+  const ssrClient = await createServerSupabaseClient();
+  await ssrClient.auth.signOut();
 
   const response = NextResponse.json({ success: true });
-  response.cookies.delete(SESSION_COOKIE_NAME);
   response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
   return response;
 }

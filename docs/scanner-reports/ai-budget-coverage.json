@@ -1,0 +1,24 @@
+{
+  "registry": "ai-budget-coverage",
+  "timestamp": "2026-05-03T18:27:56.994481+00:00",
+  "version": 1,
+  "stats": {
+    "total_student_ai_routes": 3,
+    "covered": 3,
+    "skipped": 0,
+    "missing": 0
+  },
+  "covered": [
+    {
+      "file": "src/app/api/student/design-assistant/route.ts"
+    },
+    {
+      "file": "src/app/api/student/quest/mentor/route.ts"
+    },
+    {
+      "file": "src/app/api/student/word-lookup/route.ts"
+    }
+  ],
+  "skipped": [],
+  "missing": []
+}

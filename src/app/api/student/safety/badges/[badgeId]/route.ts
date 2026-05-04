@@ -15,16 +15,16 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import * as Sentry from "@sentry/nextjs";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ badgeId: string }> }
 ) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
   const { badgeId } = await params;
 
   try {

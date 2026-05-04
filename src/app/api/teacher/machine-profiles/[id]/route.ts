@@ -1,3 +1,4 @@
+// audit-skip: routine teacher pedagogy ops, low audit value
 /**
  * /api/teacher/machine-profiles/[id]
  *   PATCH  — edit any mutable field (name, spec, colour map, approval toggle)

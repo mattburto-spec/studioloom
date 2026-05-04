@@ -1,0 +1,5 @@
+-- Rollback for: phase_1_5b_fabrication_jobs_and_scan_jobs_student_read
+-- Pairs with: 20260429133401_phase_1_5b_fabrication_jobs_and_scan_jobs_student_read.sql
+
+DROP POLICY IF EXISTS fabrication_jobs_select_student ON fabrication_jobs;
+DROP POLICY IF EXISTS fabrication_scan_jobs_select_student ON fabrication_scan_jobs;

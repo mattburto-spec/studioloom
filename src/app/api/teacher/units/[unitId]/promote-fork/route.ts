@@ -1,6 +1,10 @@
+// audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
+import {
+  requireTeacherAuth,
+  verifyTeacherHasUnit,
+} from "@/lib/auth/verify-teacher-unit";
 import { saveAsVersion } from "@/lib/units/resolve-content";
 
 // ─────────────────────────────────────────────────────────────────
@@ -39,12 +43,18 @@ async function POST(
 
     const supabase = createAdminClient();
 
-    // Verify teacher owns unit
+    // Phase 6.2 — gate via can()-backed shim. Promote-fork is an
+    // ownership-equivalent operation (overwrites master content) so the
+    // shim's broader co-teacher capability also grants access here.
+    const access = await verifyTeacherHasUnit(auth.teacherId, unitId);
+    if (!access.hasAccess) {
+      return NextResponse.json({ error: "Unit not found" }, { status: 404 });
+    }
+
     const { data: unit, error: unitErr } = await supabase
       .from("units")
       .select("id, content_data, current_version, versions, author_teacher_id")
       .eq("id", unitId)
-      .eq("author_teacher_id", auth.teacherId)
       .single();
 
     if (unitErr || !unit) {

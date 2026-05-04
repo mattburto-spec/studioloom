@@ -171,7 +171,7 @@ export function TodayRail({ cards, now, loaded }: TodayRailProps) {
           heading="Enjoy the quiet."
           body="When you have classes scheduled, they'll show up here with the current period highlighted."
           ctaLabel="Check your timetable"
-          ctaHref="/teacher/timetable"
+          ctaHref="/teacher/settings?tab=timetable"
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3 flex-1 content-start">

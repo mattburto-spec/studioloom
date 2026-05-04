@@ -114,6 +114,68 @@ export default function TeacherWelcomePage() {
   // School (migration 085 — picker + add-your-own)
   const [selectedSchool, setSelectedSchool] = useState<PickerSchool | null>(null);
 
+  // Phase 4.2 — domain-based auto-suggest. Populated from lookup-by-domain
+  // call when the teacher's email maps to a verified school_domains row.
+  //
+  // Phase 4.7b-2 — banner is now TIER-AWARE:
+  //   - subscription_tier='school' → "ask IT to invite you" (no auto-join);
+  //     button creates a teacher_access_requests row + shows "request sent"
+  //   - subscription_tier='free'|'pro' → no banner (target is someone's
+  //     personal school; not joinable). UI never sees this case because
+  //     personal schools don't have school_domains rows, but defence-in-depth.
+  //   - subscription_tier='pilot'|'starter' → fall through to legacy
+  //     "Use this school" auto-join behaviour (pre-tier-aware seed schools)
+  const [domainSuggestion, setDomainSuggestion] = useState<{
+    id: string;
+    name: string;
+    subscription_tier: string;
+  } | null>(null);
+  const [domainSuggestionDismissed, setDomainSuggestionDismissed] = useState(false);
+  const [accessRequestSent, setAccessRequestSent] = useState(false);
+  const [accessRequestSending, setAccessRequestSending] = useState(false);
+  // Phase 4.3.y Bug B fix — track in-flight school_id persistence so we can
+  // disable Next while the PATCH is mid-flight + surface failures inline.
+  const [persistingSchool, setPersistingSchool] = useState(false);
+
+  /**
+   * Phase 4.3.y Bug B fix — persist teacher's school selection immediately.
+   *
+   * Without this, schools.school_id stays NULL until the wizard's step-5
+   * /api/teacher/welcome/complete call. But step-3 create-class requires
+   * a school context — every fresh teacher hit "Teacher missing school
+   * context" 500 because the wizard delayed persistence to the end.
+   *
+   * Returns true on success, false on failure. Caller decides how to
+   * surface failures (Next button blocks navigation; banner shows error).
+   */
+  const persistSchoolId = useCallback(
+    async (schoolId: string | null): Promise<boolean> => {
+      setPersistingSchool(true);
+      try {
+        const res = await fetch("/api/teacher/school", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ schoolId }),
+        });
+        if (!res.ok) {
+          console.error(
+            "[welcome] failed to persist school_id:",
+            res.status,
+            await res.text().catch(() => "")
+          );
+          return false;
+        }
+        return true;
+      } catch (err) {
+        console.error("[welcome] school persist error:", err);
+        return false;
+      } finally {
+        setPersistingSchool(false);
+      }
+    },
+    []
+  );
+
   // Timetable (step 2)
   const [timetableMethod, setTimetableMethod] = useState<
     null | "photo" | "ical" | "skip"
@@ -196,6 +258,40 @@ export default function TeacherWelcomePage() {
             .maybeSingle();
           if (school) {
             setSelectedSchool(school as PickerSchool);
+          }
+        } else if (user.email) {
+          // Phase 4.2 — domain-based auto-suggest. Only fires when the
+          // teacher hasn't already attached to a school. Free-email
+          // domains are blocklisted at the DB level, so we don't filter
+          // here — just trust the API response.
+          const emailDomain = user.email.split("@")[1]?.toLowerCase();
+          if (emailDomain) {
+            try {
+              const lookupRes = await fetch(
+                `/api/schools/lookup-by-domain?domain=${encodeURIComponent(
+                  emailDomain
+                )}`
+              );
+              if (lookupRes.ok) {
+                const json = await lookupRes.json();
+                if (json?.match?.id && json?.match?.name) {
+                  // Phase 4.7b-2 — only surface the banner for school-tier
+                  // and legacy seed (pilot/starter) targets. free/pro
+                  // schools are personal schools; not joinable.
+                  const tier = json.match.subscription_tier ?? "pilot";
+                  if (tier !== "free" && tier !== "pro") {
+                    setDomainSuggestion({
+                      id: json.match.id,
+                      name: json.match.name,
+                      subscription_tier: tier,
+                    });
+                  }
+                }
+              }
+            } catch {
+              // Silent — suggestion is a nice-to-have; falling back to
+              // the regular search picker is fine.
+            }
           }
         }
       } catch (err) {
@@ -738,6 +834,161 @@ export default function TeacherWelcomePage() {
                   Which school are you at?{" "}
                   <span className="text-gray-400 font-normal">(optional)</span>
                 </label>
+
+                {/* Phase 4.2 + 4.7b-2 — tier-aware domain auto-suggest banner */}
+                {domainSuggestion &&
+                  !selectedSchool &&
+                  !domainSuggestionDismissed &&
+                  domainSuggestion.subscription_tier === "school" && (
+                    <div className="mb-3 flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50/60 p-3">
+                      <div className="text-xl leading-none">🏫</div>
+                      <div className="flex-1 min-w-0">
+                        {accessRequestSent ? (
+                          <>
+                            <p className="text-sm font-medium text-gray-900">
+                              Access request sent to {domainSuggestion.name}.
+                            </p>
+                            <p className="text-xs text-gray-600 mt-0.5">
+                              Your school admin will review your request. You
+                              can continue setting up a personal workspace
+                              while you wait — they can transfer your work
+                              into the school account once approved.
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm font-medium text-gray-900">
+                              {domainSuggestion.name} uses Loominary
+                            </p>
+                            <p className="text-xs text-gray-600 mt-0.5">
+                              Your school is on a Loominary School plan.
+                              Joining requires an invitation from your school
+                              admin (usually IT). Request access below, or
+                              continue with a personal workspace for now.
+                            </p>
+                            <div className="mt-2 flex gap-2">
+                              <button
+                                type="button"
+                                disabled={accessRequestSending}
+                                onClick={async () => {
+                                  setAccessRequestSending(true);
+                                  setError(null);
+                                  try {
+                                    const res = await fetch(
+                                      "/api/teacher/welcome/request-school-access",
+                                      {
+                                        method: "POST",
+                                        headers: {
+                                          "Content-Type": "application/json",
+                                        },
+                                        body: JSON.stringify({
+                                          school_id: domainSuggestion.id,
+                                        }),
+                                      }
+                                    );
+                                    if (!res.ok && res.status !== 409) {
+                                      const txt = await res.text();
+                                      throw new Error(
+                                        `Request failed (${res.status}): ${txt}`
+                                      );
+                                    }
+                                    // 409 (duplicate) is fine — already sent
+                                    setAccessRequestSent(true);
+                                  } catch (e) {
+                                    setError(
+                                      `Couldn't send request: ${e instanceof Error ? e.message : "unknown"}`
+                                    );
+                                  } finally {
+                                    setAccessRequestSending(false);
+                                  }
+                                }}
+                                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                              >
+                                {accessRequestSending
+                                  ? "Sending…"
+                                  : "Request access"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setDomainSuggestionDismissed(true)
+                                }
+                                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+                              >
+                                Continue without
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                {/* Legacy auto-join banner — pilot/starter tier only.
+                    Will be retired when all seed schools are tier-flipped. */}
+                {domainSuggestion &&
+                  !selectedSchool &&
+                  !domainSuggestionDismissed &&
+                  domainSuggestion.subscription_tier !== "school" && (
+                    <div className="mb-3 flex items-start gap-3 rounded-xl border border-purple-200 bg-purple-50/60 p-3">
+                      <div className="text-xl leading-none">🎯</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900">
+                          We found your school: {domainSuggestion.name}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Based on your email domain. You can search instead if
+                          that&apos;s not right.
+                        </p>
+                        <div className="mt-2 flex gap-2">
+                          <button
+                            type="button"
+                            disabled={persistingSchool}
+                            onClick={async () => {
+                              // Re-fetch full school row for the picker shape
+                              const supabase = createClient();
+                              const { data } = await supabase
+                                .from("schools")
+                                .select(
+                                  "id, name, city, country, ib_programmes, verified, source"
+                                )
+                                .eq("id", domainSuggestion.id)
+                                .maybeSingle();
+                              if (!data) {
+                                setError(
+                                  "Couldn't load that school. Please pick from the search instead."
+                                );
+                                return;
+                              }
+                              // Phase 4.3.y Bug B fix — persist school_id NOW
+                              // so step-3 create-class has a school context.
+                              const ok = await persistSchoolId(data.id);
+                              if (!ok) {
+                                setError(
+                                  "Couldn't save your school. Please try again or use the search picker."
+                                );
+                                return;
+                              }
+                              setSelectedSchool(data as PickerSchool);
+                              setDomainSuggestionDismissed(true);
+                              setError(null);
+                            }}
+                            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:hover:bg-purple-600 transition-colors"
+                          >
+                            {persistingSchool ? "Saving…" : "Use this school"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDomainSuggestionDismissed(true)}
+                            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            Search instead
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                 <SchoolPicker
                   value={selectedSchool}
                   onChange={setSelectedSchool}
@@ -752,15 +1003,29 @@ export default function TeacherWelcomePage() {
 
             <div className="flex items-center gap-3">
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (!name.trim()) {
                     setError("Please enter a name.");
                     return;
                   }
+                  // Phase 4.3.y Bug B fix — if the teacher picked a school
+                  // via SchoolPicker but didn't go through the banner path,
+                  // persist their selection now (Next button is the moment
+                  // of commit). Skip if school_id is already in sync (e.g.
+                  // banner click already persisted) — but cheap to retry.
+                  if (selectedSchool) {
+                    const ok = await persistSchoolId(selectedSchool.id);
+                    if (!ok) {
+                      setError(
+                        "Couldn't save your school. Please try again."
+                      );
+                      return;
+                    }
+                  }
                   setError(null);
                   setStep("timetable");
                 }}
-                disabled={!name.trim()}
+                disabled={!name.trim() || persistingSchool}
                 className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
                 style={{
                   background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
@@ -1293,7 +1558,7 @@ export default function TeacherWelcomePage() {
           <div className="bg-white rounded-2xl p-6 border border-border shadow-sm space-y-5">
             <div>
               <h2 className="text-lg font-bold text-gray-900 mb-1">
-                What&apos;s your first class called?
+                Let&apos;s add a class
               </h2>
               <p className="text-sm text-gray-500">
                 You can add more classes later. We&apos;ll generate a join

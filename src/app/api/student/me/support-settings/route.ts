@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { resolveStudentSettings } from "@/lib/student-support/resolve-settings";
 import { resolveStudentClassId } from "@/lib/student-support/resolve-class-id";
 
@@ -27,8 +28,16 @@ import { resolveStudentClassId } from "@/lib/student-support/resolve-class-id";
 const CACHE_HEADERS = { "Cache-Control": "private, no-cache, no-store, must-revalidate" };
 
 export async function GET(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
+  // Phase 1.4b — explicit Supabase Auth via requireStudentSession.
+  // Phase 1.4 CS-2 (30 Apr 2026) — RLS-respecting SSR client. Helpers
+  // accept the supabase param so they read under the student's auth.uid()
+  // chain (CS-1 policies + Phase 1.5/1.5b coverage on students +
+  // class_students).
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
+
+  const supabase = await createServerSupabaseClient();
 
   const rawClassId = request.nextUrl.searchParams.get("classId") || undefined;
   const rawUnitId = request.nextUrl.searchParams.get("unitId") || undefined;
@@ -36,12 +45,13 @@ export async function GET(request: NextRequest) {
   // Bug 2: server-derive classId from (classId | unitId). resolveStudentClassId
   // verifies enrollment + handles UUID validation defensively.
   const classId = await resolveStudentClassId({
-    studentId: auth.studentId,
+    studentId: studentId,
     classId: rawClassId,
     unitId: rawUnitId,
+    supabase,
   });
 
-  const resolved = await resolveStudentSettings(auth.studentId, classId);
+  const resolved = await resolveStudentSettings(studentId, classId, supabase);
 
   return NextResponse.json(resolved, { headers: CACHE_HEADERS });
 }

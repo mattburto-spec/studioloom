@@ -24,15 +24,15 @@ docs:
     title: "Session Changelog"
     purpose: "Rolling log of changes across sessions for cross-session context"
     category: root
-    last_verified: "2026-04-27"
+    last_verified: "2026-04-29"
     max_age_days: 90
-    last_scanned: "2026-04-27"
+    last_scanned: "2026-04-29"
 
   - path: docs/decisions-log.md
     title: "Key Decisions Log"
-    purpose: "197+ architectural and design decisions from 17 Mar – 15 Apr 2026. Last: PKCE vs implicit auth flow split (15 Apr 2026)."
+    purpose: "203+ architectural and design decisions from 17 Mar – 29 Apr 2026. Last: bug-report system design — role-hint auth, JSONB client_context, screenshot bounds, dedupe, Sentry tie-in, rAF yield (29 Apr 2026)."
     category: root
-    last_verified: "2026-04-15"
+    last_verified: "2026-04-29"
     max_age_days: 90
     last_scanned: null
 
@@ -320,12 +320,75 @@ docs:
 
   - path: docs/projects/access-model-v2.md
     title: "Access Model v2 — Auth Unification, Multi-Tenancy & Privacy Foundation"
-    purpose: "Project plan (16-22 days, 6 phases) for unifying StudioLoom's auth model (every student → auth.users, classcode+name as custom Supabase flow), introducing schools as a first-class entity with flat membership + no-designated-admin governance (two-tier change rules, 7-day revert, 48h confirm window), audit log, per-student AI budgets, FERPA/GDPR/PIPL data export+delete, OAuth (Google + Microsoft + email/PW; Apple deferred), and forward-compat schema seams (school_resources polymorphic for PYP/Service library + alumni + partners; guardians; SIS external IDs; consents; school lifecycle). Collapses FU-O/P/R/Q/W into one project. Provides the spec gap referenced by Governance GOV-2. Design phase signed off 25 Apr 2026; Phase 0 trigger = Preflight Phase 8 ships + dashboard-v2 polish quiescent."
+    purpose: "Project plan (19-25 days, 6 phases — Path B chosen 28 Apr) for unifying StudioLoom's auth model (every student → auth.users, classcode+name as custom Supabase flow), introducing schools as a first-class entity with flat membership + no-designated-admin governance (two-tier change rules, 7-day revert, 48h confirm window), audit log, per-student AI budgets, FERPA/GDPR/PIPL data export+delete, OAuth (Google + Microsoft + email/PW; Apple deferred), and 8 forward-compat schema seams in §8.6 (school_resources polymorphic for PYP/Service library + alumni + partners; guardians; SIS external IDs; consents; school lifecycle; monetisation tier seam; school_responsibilities programme coordinators; student_mentors cross-program mentorship). Collapses FU-O/P/R/Q/W into one project. **Phase 0 MERGED to main 29 Apr 2026 (Checkpoint A1 ✅). Phase 1 CLOSED on branch 30 Apr 2026 under Option A — auth path live + 8 RLS migrations applied to prod + dual-mode wrapper covers all 63 routes; client-switch deferred to FU-AV2-PHASE-14-CLIENT-SWITCH (P2). Branch awaiting merge to main.**"
     category: projects
-    last_verified: "2026-04-25"
-    referenced_from: ["ALL-PROJECTS.md Access Model v2 project", "ALL-PROJECTS.md Governance GOV-2 (subsumed components)", "ALL-PROJECTS.md Mentor Manager (gated dependency)"]
+    last_verified: "2026-04-30"
+    referenced_from: ["ALL-PROJECTS.md Access Model v2 project", "ALL-PROJECTS.md Governance GOV-2 (subsumed components)", "ALL-PROJECTS.md Mentor Manager (gated dependency)", "access-model-v2-phase-0-brief.md", "access-model-v2-phase-1-brief.md"]
     max_age_days: 90
-    last_scanned: "2026-04-25"
+    last_scanned: "2026-04-30"
+
+  - path: docs/projects/access-model-v2-phase-0-brief.md
+    title: "Access Model v2 — Phase 0 Brief"
+    purpose: "Build phase brief for Phase 0 (Foundation Schema + Audit Pre-Reqs). 9 sub-tasks, ~3-4 days estimated. Documents pre-flight ritual, stop triggers, lessons to re-read, Checkpoint A1 PASS criteria, sub-task instruction blocks. As of 29 Apr 2026 ALL 9 SUB-TASKS DONE + merged to main. 12 migrations + 5 security artifacts + 209 new tests. Tracker rows in the table mark each sub-task with mig timestamp + test count + scope notes."
+    category: projects
+    last_verified: "2026-04-29"
+    referenced_from: ["access-model-v2.md", "ALL-PROJECTS.md Access Model v2"]
+    max_age_days: 90
+    last_scanned: "2026-04-29"
+
+  - path: docs/projects/access-model-v2-phase-1-brief.md
+    title: "Access Model v2 — Phase 1 Brief (Auth Unification)"
+    purpose: "Build phase brief for Phase 1 (Auth Unification). 7 sub-phases (1.1a/b/d, 1.2, 1.3, 1.4a/b, 1.5, 1.5b, 1.6, 1.7). Documents pre-flight audit (which surfaced 3 broken pre-existing RLS policies + 2 missing forward-compat seams), stop triggers, lessons to re-read, Checkpoint A2 PASS criteria split into 'Phase 1 close (NOW)' + 'Deferred to FU-AV2-PHASE-14-CLIENT-SWITCH'. As of 30 Apr 2026: ALL sub-phases SHIPPED + merged to main + Phase 1 closed under Option A (full client-switch deferred to its own brief)."
+    category: projects
+    last_verified: "2026-04-30"
+    referenced_from: ["access-model-v2.md", "ALL-PROJECTS.md Access Model v2"]
+    max_age_days: 90
+    last_scanned: "2026-04-30"
+
+  - path: docs/projects/access-model-v2-phase-14-client-switch-brief.md
+    title: "Access Model v2 — Phase 1.4 Client-Switch Brief"
+    purpose: "Build phase brief for the deferred Phase 1.4 client-switch (FU-AV2-PHASE-14-CLIENT-SWITCH). Switches the 6 Phase 1.4b routes from createAdminClient() to RLS-respecting createServerSupabaseClient(). 5 sub-phases (CS-1 missing/broken policies, CS-2 first 2 routes + smoke, CS-3 remaining 4 routes, CS-4 negative control, CS-5 registry hygiene). Documents 3 audit findings driving CS-1 (no classes student policy, no assessment_records student policy, broken student_badges_read_own using never-functional custom-token sentinel — Lesson #54 in action). As of 30 Apr 2026 (PM): CS-1 + CS-2 SHIPPED + verified live in prod under enforced RLS. Surfaced Lesson #64 (cross-table RLS subquery recursion → SECURITY DEFINER). CS-3 next."
+    category: projects
+    last_verified: "2026-04-30"
+    referenced_from: ["access-model-v2.md", "access-model-v2-phase-1-brief.md §7", "ALL-PROJECTS.md Access Model v2"]
+    max_age_days: 90
+    last_scanned: "2026-04-30"
+
+  - path: docs/security/student-auth-cookie-grace-period.md
+    title: "Student Auth Cookie Grace Period (Phase 1)"
+    purpose: "Operational doc covering the dual-auth-path coexistence semantics during the Access Model v2 grace window. Documents which cookies a student request may carry (sb-* only / questerra_student_session only / both), how the dual-mode wrapper resolves each, the stale-token edge case ('downgrade' to legacy auth), RLS implications (policies pre-positioned but not load-bearing yet — see FU-AV2-PHASE-14-CLIENT-SWITCH), and the audit-trail asymmetry between the new login route (writes audit_events) and the legacy one (uninstrumented during grace period). Grace period ends at Phase 6 cutover."
+    category: security
+    last_verified: "2026-04-30"
+    referenced_from: ["access-model-v2-phase-1-brief.md §4.6", "WIRING.yaml auth-system docs"]
+    max_age_days: 180
+    last_scanned: "2026-04-30"
+
+  - path: docs/security/multi-matt-audit-query.md
+    title: "Multi-Matt Prod Data Audit Query"
+    purpose: "Read-only diagnostic SQL for surfacing duplicate-name teacher rows in prod. Three NIS Matt teacher rows (different emails, same name='Matt', same school) plus any other test/demo accounts that share names. Phase 0.8a's orphan-teacher backfill explicitly does NOT silently merge — each row keeps its own school_id. Query gives Matt the data the Phase 6 cutover decision needs (merge vs keep separate). Phase 0.9 audit-derived deliverable."
+    category: security
+    last_verified: "2026-04-29"
+    referenced_from: ["access-model-v2.md §6 Risks", "access-model-v2-phase-0-brief.md sub-task 0.9"]
+    max_age_days: 365
+    last_scanned: "2026-04-29"
+
+  - path: docs/security/mfa-procedure.md
+    title: "Teacher MFA Procedure"
+    purpose: "Operational runbook for enabling Supabase TOTP MFA on teacher + platform-admin accounts. Covers project-level enable, first-login enrolment flow, recovery code storage, self-service reset (recovery codes), platform-admin reset path (out-of-band identity verification required), what-not-to-do (phishing guards). Phase 0.9 audit-derived deliverable closing audit F6 BLOCKER procedurally — Matt enables in Supabase dashboard before NIS pilot launch."
+    category: security
+    last_verified: "2026-04-29"
+    referenced_from: ["IT audit F6", "access-model-v2.md §3 item #30"]
+    max_age_days: 365
+    last_scanned: "2026-04-29"
+
+  - path: docs/security/encryption-key-rotation.md
+    title: "ENCRYPTION_KEY Rotation Procedure"
+    purpose: "Procedure + script (scripts/security/rotate-encryption-key.ts) for rotating the AES-256-GCM key that encrypts teacher BYOK credentials (LMS API tokens, AI provider API keys, LTI consumer secrets). Per-row decrypt-with-OLD → encrypt-with-NEW → roundtrip-verify-with-NEW with --dry-run flag. Phase 0.9 audit-derived deliverable closing audit F9 HIGH. Matt runs fire drill once during pilot setup. Rotation log table for appending each rotation event."
+    category: security
+    last_verified: "2026-04-29"
+    referenced_from: ["IT audit F9", "access-model-v2.md §3 item #32"]
+    max_age_days: 365
+    last_scanned: "2026-04-29"
 
   - path: docs/projects/discovery-engine-cognitive-layer.md
     title: "Discovery Engine — Cognitive Layer (MindPrint-Informed)"
@@ -411,10 +474,10 @@ docs:
     title: "Schema Registry — Table-Level Truth"
     purpose: "~76 tables with columns, RLS policies, writers, readers, spec drift. Backfilled from migration files through 103 (Preflight 1B-1). 3 flagged No RLS (FU-X). Sync: scripts/registry/sync-schema-registry.py"
     category: root
-    last_verified: "2026-04-20"
+    last_verified: "2026-04-29"
     referenced_from: ["CLAUDE.md registries section"]
     max_age_days: 30
-    last_scanned: "2026-04-20"
+    last_scanned: "2026-04-29"
 
   - path: docs/api-registry.yaml
     title: "API Registry — Route-Level Truth"
@@ -2199,11 +2262,11 @@ docs:
 
   - path: docs/feature-flags.yaml
     title: "Feature Flag & Secret Registry"
-    purpose: "Runtime feature-flag + secret registry — 15 flags, 12 secrets"
+    purpose: "Runtime feature-flag + secret registry — 19 flags, 13 secrets (added BUG_REPORT_NOTIFY_EMAIL secret + NEXT_PUBLIC_SENTRY_ORG_SLUG/PROJECT_SLUG/VERCEL_ENV/VERCEL_GIT_COMMIT_SHA flags 29 Apr 2026)"
     category: root
-    last_verified: "2026-04-14"
+    last_verified: "2026-04-29"
     max_age_days: 30
-    last_scanned: null
+    last_scanned: "2026-04-29"
 
   - path: docs/feature-flags-taxonomy.md
     title: "Feature Flag & Secret Taxonomy"
@@ -2356,6 +2419,22 @@ docs:
     max_age_days: 90
     last_scanned: "2026-04-21"
 
+  - path: docs/projects/access-model-v2-phase-4-checkpoint-a5b.md
+    title: "Access Model v2 Phase 4 Checkpoint A5b — Phase 4 Part 2 Close"
+    purpose: "Checkpoint A5b PASS report (3 May 2026 PM). Covers all 9 Phase 4 part 2 sub-phases (4.5/4.7/4.7b-0/1/2/3/4.6/4.8/4.8b/4.9) with per-sub-phase commit refs, smoke results, decisions made during execution (15-table cascade audit, library implicit tier-gate, view-as middleware, DB-stored invite tokens, 089 schema gap, audit-events immutability exception, calendar backfill scope, requires_plan schema-only, Gmail-Matt detach, class_members.source addition), 9 new FUs filed + 1 closed, Lessons #54/#59/#64/#66 applied + Lesson #67 proposed, sign-off criteria, merge-to-main plan, Phase 5+ next steps."
+    category: projects
+    last_verified: "2026-05-03"
+    max_age_days: 180
+    last_scanned: "2026-05-03"
+
+  - path: docs/projects/access-v2-public-route-boundary.md
+    title: "Access Model v2 Public/Anonymous Route Boundary"
+    purpose: "Phase 4.8b authoritative reference: which routes are deliberately anonymous + audit-log exempt. Lists current public surface (/, /login, /teacher/login, /admin/login, /api/auth/*, /api/tools/*, /tools, /toolkit, /safety/projector, /api/public/*, /_next/*, /favicon). Documents the rule for Phase 5 audit-log scanner consumption (skip these paths when checking for missing logAuditEvent). Phase 6 cutover audit gate."
+    category: projects
+    last_verified: "2026-05-03"
+    max_age_days: 180
+    last_scanned: "2026-05-03"
+
   - path: docs/projects/preflight-phase-2a-checkpoint-2-1.md
     title: "Preflight Phase 2A Checkpoint 2.1 Report"
     purpose: "Phase 2A exit report (21 Apr 2026): 12-criterion pass/fail matrix, prod smoke test evidence on 4 STL fixtures (small-cube-25mm, seahorse-not-watertight, chess-pawn-inverted-winding, whale-not-watertight), 116 pytest pass count, 4 follow-ups opened (FU-SCANNER-OOM resolved, FU-SCANNER-SIDECAR-DRIFT, FU-SCANNER-LEASE-REAPER, FU-SCANNER-EMAIL-VERIFY), commit list."
@@ -2482,5 +2561,5 @@ summary:
     marketing: 1
     safety: 1
     email-templates: 5
-  last_updated: "2026-04-20"
+  last_updated: "2026-05-03"
   referenced_in_claude_md: 18

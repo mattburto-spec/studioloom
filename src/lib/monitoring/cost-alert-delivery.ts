@@ -69,7 +69,7 @@ export async function sendCostAlert(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "StudioLoom Alerts <alerts@studioloom.app>",
+        from: "StudioLoom Alerts <hello@loominary.org>",
         to: [recipientEmail],
         subject: `⚠️ Cost Alert: ${payload.thresholdName} threshold crossed`,
         html: `

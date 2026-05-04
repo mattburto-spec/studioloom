@@ -1,6 +1,11 @@
+// audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
+import {
+  requireTeacherAuth,
+  verifyTeacherHasUnit,
+  verifyTeacherOwnsClass,
+} from "@/lib/auth/verify-teacher-unit";
 
 // ─────────────────────────────────────────────────────────────────
 // PATCH /api/teacher/class-units
@@ -43,23 +48,16 @@ async function PATCH(request: NextRequest) {
 
     const supabase = createAdminClient();
 
-    // Verify teacher owns both unit and class
-    const [unitRes, classRes] = await Promise.all([
-      supabase
-        .from("units")
-        .select("id")
-        .eq("id", body.unitId)
-        .eq("author_teacher_id", auth.teacherId)
-        .single(),
-      supabase
-        .from("classes")
-        .select("id")
-        .eq("id", body.classId)
-        .eq("teacher_id", auth.teacherId)
-        .single(),
+    // Phase 6.2 — gate via can()-backed shims. Opens up co_teacher /
+    // dept_head capability for class-unit edits while preserving the
+    // legacy author-only access (shims fall back to legacy when the
+    // permission_helper_rollout flag is off).
+    const [unitAccess, classOwned] = await Promise.all([
+      verifyTeacherHasUnit(auth.teacherId, body.unitId),
+      verifyTeacherOwnsClass(auth.teacherId, body.classId),
     ]);
 
-    if (unitRes.error || classRes.error) {
+    if (!unitAccess.hasAccess || !classOwned) {
       return NextResponse.json(
         { error: "Unit or class not found" },
         { status: 404 }

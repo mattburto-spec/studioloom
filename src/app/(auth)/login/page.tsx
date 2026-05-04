@@ -18,7 +18,15 @@ export default function StudentLoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/auth/student-login", {
+      // Phase 1.4 CS-2 (30 Apr 2026) — switched from legacy
+      // /api/auth/student-login (sets questerra_student_session cookie) to
+      // the Phase 1.2 classcode-login route (sets sb-* Supabase Auth
+      // cookies). Required for Phase 1.4b routes (grades, units, insights,
+      // safety/pending, me/support-settings, me/unit-context) which call
+      // requireStudentSession directly and don't accept the legacy cookie.
+      // Identical request payload + response shape; swap is the URL only.
+      // Phase 6 cutover removes the legacy route entirely.
+      const res = await fetch("/api/auth/student-classcode-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ classCode, username }),
@@ -44,12 +52,28 @@ export default function StudentLoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center gradient-hero px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">StudioLoom</h1>
-          <p className="text-white/60">Student Login</p>
-        </div>
+    <div className="min-h-screen gradient-hero px-4 py-6 flex flex-col">
+      <div className="w-full">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 text-white/60 hover:text-white text-sm transition"
+          aria-label="Back to studioloom.org home"
+        >
+          <span aria-hidden="true">←</span>
+          <span>Back to home</span>
+        </Link>
+      </div>
+
+      <div className="flex-1 flex items-center justify-center">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            <Link href="/" className="inline-block">
+              <h1 className="text-3xl font-bold text-white mb-2 hover:opacity-90 transition">
+                StudioLoom
+              </h1>
+            </Link>
+            <p className="text-white/60">Student Login</p>
+          </div>
 
         <div className="bg-white rounded-2xl shadow-xl p-6 space-y-4">
           {step === "code" ? (
@@ -133,12 +157,13 @@ export default function StudentLoginPage() {
           )}
         </div>
 
-        <p className="text-center mt-5 text-white/40 text-sm">
-          Teacher?{" "}
-          <Link href="/teacher/login" className="text-white/70 hover:text-white underline">
-            Log in here
-          </Link>
-        </p>
+          <p className="text-center mt-5 text-white/40 text-sm">
+            Teacher?{" "}
+            <Link href="/teacher/login" className="text-white/70 hover:text-white underline">
+              Log in here
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

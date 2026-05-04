@@ -1,3 +1,4 @@
+// audit-skip: routine teacher pedagogy ops, low audit value
 /**
  * PATCH /api/teacher/gallery/[roundId]/layout
  *

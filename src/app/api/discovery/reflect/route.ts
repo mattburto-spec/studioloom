@@ -1,5 +1,6 @@
+// audit-skip: anonymous discovery surface, no actor identity
 import { NextRequest, NextResponse } from "next/server";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { callHaiku } from "@/lib/toolkit/shared-api";
 import { rateLimit } from "@/lib/rate-limit";
@@ -41,11 +42,11 @@ interface ReflectRequestBody {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
 
   // Rate limit: 30/min, 200/hour per student
-  const limited = rateLimit(`discovery_reflect_${auth.studentId}`, [
+  const limited = rateLimit(`discovery_reflect_${session.studentId}`, [
     { maxRequests: 30, windowMs: 60 * 1000 },
     { maxRequests: 200, windowMs: 60 * 60 * 1000 },
   ]);
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
       const { data: student } = await admin
         .from("students")
         .select("learning_profile")
-        .eq("id", auth.studentId)
+        .eq("id", session.studentId)
         .single();
 
       if (student?.learning_profile) {

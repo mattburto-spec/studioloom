@@ -1,3 +1,4 @@
+// audit-skip: routine learner activity, low audit value
 /**
  * DELETE /api/student/fabrication/jobs/[jobId]
  *
@@ -29,7 +30,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   deleteStudentJob,
@@ -47,8 +48,8 @@ export async function DELETE(
   request: NextRequest,
   context: { params: Promise<{ jobId: string }> }
 ) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
 
   const { jobId } = await context.params;
   if (!jobId || typeof jobId !== "string" || !UUID_RE.test(jobId)) {
@@ -60,7 +61,7 @@ export async function DELETE(
 
   const db = createAdminClient();
   const result = await deleteStudentJob(db, {
-    studentId: auth.studentId,
+    studentId: session.studentId,
     jobId,
   });
 

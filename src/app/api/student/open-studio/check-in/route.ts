@@ -1,6 +1,7 @@
+// audit-skip: routine learner activity, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { buildOpenStudioSystemPrompt } from "@/lib/ai/open-studio-prompt";
 import type { OpenStudioInteraction } from "@/lib/ai/open-studio-prompt";
 import { logUsage } from "@/lib/usage-tracking";
@@ -35,9 +36,9 @@ const CHECK_IN_LIMITS = [
 ];
 
 export async function POST(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   const supabase = createAdminClient();
 

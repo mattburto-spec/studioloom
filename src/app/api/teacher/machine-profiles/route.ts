@@ -1,3 +1,4 @@
+// audit-skip: routine teacher pedagogy ops, low audit value
 /**
  * /api/teacher/machine-profiles
  *   GET  — list this teacher's machines + all system templates

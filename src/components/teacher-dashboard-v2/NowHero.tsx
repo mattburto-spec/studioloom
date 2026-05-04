@@ -79,7 +79,7 @@ function NoClassHero() {
               Plan a unit
             </Link>
             <Link
-              href="/teacher/timetable"
+              href="/teacher/settings?tab=timetable"
               className="bg-white/15 backdrop-blur hover:bg-white/25 text-white rounded-full px-4 py-2.5 font-bold text-[12.5px]"
             >
               View timetable
@@ -145,8 +145,22 @@ export function NowHero({ current, loaded }: NowHeroProps) {
               {/* Auto-scale title: short unit names stay dramatic, long ones
                *  shrink so they're more likely to fit a single line. Same
                *  bucket approach as the student hero (DashboardClient.tsx
-               *  ~line 628), tuned for the teacher hero's larger lg size. */}
-              {(() => {
+               *  ~line 628), tuned for the teacher hero's larger lg size.
+               *
+               *  Empty-state (30 Apr 2026 — FU-DASHBOARD-HERO-NULL-UNIT-TITLE):
+               *  when no unit is assigned to the class (vm.unitId is null),
+               *  render a meaningful prompt instead of a giant "—" which
+               *  reads as colored bars at display sizes. */}
+              {!vm.unitId ? (
+                <div className="mt-4 md:mt-6">
+                  <h1 className="display-lg text-[36px] sm:text-[48px] md:text-[56px] lg:text-[64px] leading-[0.95] text-white/90">
+                    No unit assigned.
+                  </h1>
+                  <p className="text-[18px] leading-snug mt-3 text-white/70 max-w-md">
+                    Pick a unit to teach this class — the hero will fill in.
+                  </p>
+                </div>
+              ) : (() => {
                 const len = vm.unitTitle.length;
                 const sizeCls =
                   len > 22

@@ -1,3 +1,4 @@
+// audit-skip: routine learner activity, low audit value
 /**
  * Student Gallery Submit API
  *
@@ -20,14 +21,14 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { rateLimit } from "@/lib/rate-limit";
 import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
 
 export async function POST(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   // Rate limit: 5 submissions/min per student
   const rateLimitResult = rateLimit(

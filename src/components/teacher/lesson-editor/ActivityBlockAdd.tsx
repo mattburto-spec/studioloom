@@ -1,9 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type DragEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { nanoid } from "nanoid";
-import type { ActivitySection, ResponseType, BloomLevel, TimeWeight, GroupingStrategy, ActivityAIRules } from "@/types";
+import { useDndContext } from "./DndContext";
+import type {
+  ActivitySection,
+  ResponseType,
+  BloomLevel,
+  TimeWeight,
+  GroupingStrategy,
+  ActivityAIRules,
+} from "@/types";
 
 interface ActivityBlockAddProps {
   onAdd: (activity: ActivitySection) => void;
@@ -15,7 +23,6 @@ interface ActivityTemplate {
   responseType: ResponseType;
   defaultPrompt: string;
   defaultDuration: number;
-  // Dimensions defaults
   bloom_level?: BloomLevel;
   timeWeight?: TimeWeight;
   grouping?: GroupingStrategy;
@@ -102,6 +109,8 @@ const TEMPLATES: ActivityTemplate[] = [
 
 export function ActivityBlockAdd({ onAdd }: ActivityBlockAddProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isOver, setIsOver] = useState(false);
+  const { isDragging, payload, endDrag } = useDndContext();
 
   const handleSelect = (template: ActivityTemplate) => {
     const activity: ActivitySection = {
@@ -109,7 +118,6 @@ export function ActivityBlockAdd({ onAdd }: ActivityBlockAddProps) {
       prompt: template.defaultPrompt,
       durationMinutes: template.defaultDuration,
       ...(template.responseType ? { responseType: template.responseType } : {}),
-      // Dimensions defaults from template
       ...(template.bloom_level ? { bloom_level: template.bloom_level } : {}),
       ...(template.timeWeight ? { timeWeight: template.timeWeight } : {}),
       ...(template.grouping ? { grouping: template.grouping } : {}),
@@ -119,38 +127,102 @@ export function ActivityBlockAdd({ onAdd }: ActivityBlockAddProps) {
     setIsOpen(false);
   };
 
+  const handleDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    if (!isOver) setIsOver(true);
+  };
+
+  const handleDragLeave = (e: DragEvent) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsOver(false);
+  };
+
+  const handleDrop = (e: DragEvent) => {
+    e.preventDefault();
+    setIsOver(false);
+
+    // Prefer in-page DnD context payload
+    if (payload) {
+      const activity: ActivitySection = {
+        ...payload.activity,
+        activityId: payload.activity.activityId || nanoid(8),
+      };
+      onAdd(activity);
+      endDrag();
+      return;
+    }
+
+    // Fallback: parse from dataTransfer
+    try {
+      const data = JSON.parse(e.dataTransfer.getData("application/json"));
+      if (data?.activity) {
+        const activity: ActivitySection = {
+          ...data.activity,
+          activityId: data.activity.activityId || nanoid(8),
+        };
+        onAdd(activity);
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const dropping = isDragging && isOver;
+
   return (
     <div className="relative">
-      {/* Add button */}
+      {/* Add button — also a drop target */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg border-2 border-dashed border-gray-200 text-sm text-gray-400 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50/30 transition-all"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={`w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg border-2 border-dashed text-[11.5px] font-bold transition-all ${
+          dropping
+            ? "border-violet-400 bg-violet-50 text-violet-700 shadow-md scale-[1.01]"
+            : isDragging
+            ? "border-violet-300 bg-violet-50/50 text-violet-600"
+            : "border-[var(--le-hair)] text-[var(--le-ink-3)] hover:border-violet-300 hover:text-violet-600 hover:bg-violet-50/30"
+        }`}
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <line x1="12" y1="5" x2="12" y2="19" />
-          <line x1="5" y1="12" x2="19" y2="12" />
-        </svg>
-        Add Activity
+        {dropping && payload ? (
+          <>
+            <span className="text-[14px]">{payload.icon}</span>
+            <span>Drop to add {payload.label}</span>
+          </>
+        ) : isDragging ? (
+          <>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Drop block here
+          </>
+        ) : (
+          <>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            + Add activity · drop a block
+          </>
+        )}
       </button>
 
       {/* Type picker dropdown */}
       <AnimatePresence>
         {isOpen && (
           <>
-            {/* Backdrop */}
-            <div
-              className="fixed inset-0 z-40"
-              onClick={() => setIsOpen(false)}
-            />
-
+            <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
             <motion.div
               initial={{ opacity: 0, y: -8, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -8, scale: 0.96 }}
               transition={{ type: "spring", damping: 25, stiffness: 400 }}
-              className="absolute left-0 right-0 mt-1 bg-white rounded-xl border border-gray-200 shadow-lg z-50 p-2"
+              className="absolute left-0 right-0 mt-1 bg-[var(--le-paper)] rounded-xl border border-[var(--le-hair)] shadow-lg z-50 p-2"
             >
-              <div className="text-xs font-medium text-gray-500 px-2 py-1.5 mb-1">
+              <div className="text-[11px] font-semibold text-[var(--le-ink-3)] px-2 py-1.5 mb-1">
                 What kind of activity?
               </div>
               <div className="grid grid-cols-2 gap-1">
@@ -158,10 +230,10 @@ export function ActivityBlockAdd({ onAdd }: ActivityBlockAddProps) {
                   <button
                     key={template.label}
                     onClick={() => handleSelect(template)}
-                    className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors text-left"
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] text-[var(--le-ink-2)] hover:bg-violet-50 hover:text-violet-800 transition-colors text-left"
                   >
-                    <span className="text-base">{template.icon}</span>
-                    <span className="font-medium">{template.label}</span>
+                    <span className="text-[14px]">{template.icon}</span>
+                    <span className="font-semibold">{template.label}</span>
                   </button>
                 ))}
               </div>

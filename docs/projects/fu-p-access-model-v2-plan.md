@@ -1,5 +1,22 @@
 # FU-P — Access Model v2: School + Memberships + Role Enum
 
+> ## ⚠️ SUPERSEDED — 28 April 2026
+>
+> **This plan has been superseded by [`access-model-v2.md`](access-model-v2.md).**
+>
+> Reasons for supersession:
+> 1. **Phase 8 (shipped 27–28 Apr) implemented a different architecture than this plan proposed.** Phase 8 uses **flat school membership** via the `current_teacher_school_id()` SECURITY DEFINER helper — *any* teacher with `teachers.school_id = X` manages everything school-owned at school X. This plan proposed a `school_memberships` table with role enum (`owner` / `admin` / `dept_head` / `teacher` / `co_teacher` / `ta` / `observer`) and per-rank permission matrix. Prod went the simpler way and validated it across 3 NIS Matt personas.
+> 2. **`access-model-v2.md` (signed off 25 Apr, restructured 28 Apr post-IT-audit) is the canonical plan.** It documents the flat-school model + class-level roles (`class_members` table for `lead_teacher` / `co_teacher` / `dept_head` / `lab_tech` / `observer`). Decision 7 in that plan explicitly notes: "School-level membership is flat — every teacher with `school_id = X` is a full member of school X, no sub-roles."
+> 3. **Migration 117's comment** ("FU-P-2 will rewrite RLS") is stale. The RLS rewrite for `classes.school_id` (and `machine_profiles`/`fabricators` school_id columns reserved in earlier migrations) lands in `access-model-v2.md` Phase 0 backfill + Phase 1 cutover, not from this plan.
+>
+> **Do not pick up this plan as a build spec.** Read `access-model-v2.md` instead. This file is preserved for historical context only.
+>
+> ---
+>
+> *Original plan content below — unchanged from 25 Apr draft.*
+
+---
+
 **Status:** PLAN DRAFT — not yet committed to a sprint.
 **Drafted:** 25 April 2026 PM (after Phase 8 main merge + prod smoke prep).
 **Revised:** 25 April 2026 PM (after Matt asked the deeper architectural question: "is there a central place to store school machines and labs? when a new design teacher comes will their students auto see the same labs and machines?").

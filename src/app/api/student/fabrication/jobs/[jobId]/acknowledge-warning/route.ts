@@ -1,3 +1,4 @@
+// audit-skip: routine learner activity, low audit value
 /**
  * POST /api/student/fabrication/jobs/[jobId]/acknowledge-warning
  *
@@ -19,7 +20,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   ACK_CHOICES,
@@ -36,8 +37,8 @@ export async function POST(
   request: NextRequest,
   context: { params: Promise<{ jobId: string }> }
 ) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
 
   const { jobId } = await context.params;
   if (!jobId || typeof jobId !== "string") {
@@ -75,7 +76,7 @@ export async function POST(
 
   const db = createAdminClient();
   const result = await acknowledgeWarning(db, {
-    studentId: auth.studentId,
+    studentId: session.studentId,
     jobId,
     revisionNumber:
       typeof b.revisionNumber === "number" ? b.revisionNumber : NaN,

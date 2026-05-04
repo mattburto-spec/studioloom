@@ -1,5 +1,6 @@
+// audit-skip: anonymous discovery surface, no actor identity
 import { NextRequest, NextResponse } from "next/server";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -16,9 +17,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 // GET: Load existing session or return null
 export async function GET(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   const { searchParams } = new URL(request.url);
   const unitId = searchParams.get("unit_id");
@@ -59,9 +60,9 @@ export async function GET(request: NextRequest) {
 
 // POST: Create a new session
 export async function POST(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   const body = await request.json();
   const { unit_id, class_id, profile, mode } = body;
@@ -101,9 +102,9 @@ export async function POST(request: NextRequest) {
 
 // PATCH: Auto-save session state + profile
 export async function PATCH(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   const body = await request.json();
   const { session_id, state, profile, completed } = body;

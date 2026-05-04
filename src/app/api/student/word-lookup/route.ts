@@ -1,12 +1,14 @@
+// audit-skip: routine learner activity, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { lookupSandbox } from "@/lib/ai/sandbox/word-lookup-sandbox";
 import { MODELS } from "@/lib/ai/models";
 import { l1DisplayLabel, type L1Target } from "@/lib/tap-a-word/language-mapping";
 import { resolveStudentSettings } from "@/lib/student-support/resolve-settings";
 import { resolveStudentClassId } from "@/lib/student-support/resolve-class-id";
+import { withAIBudget } from "@/lib/access-v2/ai-budget/middleware";
 
 /**
  * POST /api/student/word-lookup
@@ -15,7 +17,7 @@ import { resolveStudentClassId } from "@/lib/student-support/resolve-class-id";
  * Returns: { definition: string, exampleSentence: string | null, l1Translation: string | null, l1Target: 'en'|'zh'|'ko'|'ja'|'es'|'fr' }
  *
  * Resolution path:
- *   1. requireStudentAuth (token cookie → student_sessions)
+ *   1. requireStudentSession (Supabase Auth via sb-* cookies)
  *   2. Validate word (2–50 chars, lowercased + trimmed)
  *   3. Resolve l1Target SERVER-SIDE from `students.learning_profile.languages_at_home[0]`
  *      via `resolveL1Target` mapping. Defaults to 'en' (no translation slot).
@@ -59,8 +61,8 @@ interface WordLookupBody {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
+  const auth = await requireStudentSession(request);
+  if (auth instanceof NextResponse) return auth;
 
   let body: WordLookupBody | null = null;
   try {
@@ -205,23 +207,50 @@ export async function POST(request: NextRequest) {
 
   const maxTokens = wantsL1 ? MAX_TOKENS_WITH_L1 : MAX_TOKENS_EN_ONLY;
 
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: maxTokens,
-    tools: [tool],
-    tool_choice: { type: "tool", name: TOOL_NAME },
-    messages: [{ role: "user", content: userPrompt }],
+  // Phase 5.3 — wrap the Anthropic call in withAIBudget. Budget cap is
+  // resolved via the cascade (student > class > school > column > tier);
+  // truncation (Lesson #39) is handled by the wrapper without billing.
+  const budgetResult = await withAIBudget(supabase, auth.studentId, async () => {
+    const response = await client.messages.create({
+      model: MODEL,
+      max_tokens: maxTokens,
+      tools: [tool],
+      tool_choice: { type: "tool", name: TOOL_NAME },
+      messages: [{ role: "user", content: userPrompt }],
+    });
+    return {
+      result: response,
+      usage: {
+        input_tokens: response.usage.input_tokens,
+        output_tokens: response.usage.output_tokens,
+        stop_reason: response.stop_reason ?? "end_turn",
+      },
+    };
   });
 
-  // Lesson #39: stop_reason guard immediately after create.
-  if (response.stop_reason === "max_tokens") {
-    throw new Error(
-      `[/api/student/word-lookup] Anthropic truncated at max_tokens=${maxTokens} ` +
-        `(output_tokens=${response.usage.output_tokens}, model=${MODEL}, tool=${TOOL_NAME}, word="${rawWord}", l1Target=${l1Target}). ` +
-        `Bump MAX_TOKENS or shorten input.`
+  if (!budgetResult.ok) {
+    if (budgetResult.reason === "over_cap") {
+      return NextResponse.json(
+        {
+          error: "budget_exceeded",
+          cap: budgetResult.cap,
+          used: budgetResult.used,
+          reset_at: budgetResult.resetAt,
+        },
+        { status: 429, headers: CACHE_HEADERS }
+      );
+    }
+    // 'truncated' — model hit max_tokens. Return 502 (Lesson #39 — don't bill, surface).
+    return NextResponse.json(
+      {
+        error: "model_truncated",
+        message: `Anthropic truncated at max_tokens=${maxTokens} (model=${MODEL}, tool=${TOOL_NAME}, word="${rawWord}", l1Target=${l1Target}). Bump MAX_TOKENS or shorten input.`,
+      },
+      { status: 502, headers: CACHE_HEADERS }
     );
   }
 
+  const response = budgetResult.result;
   const block = response.content.find((b) => b.type === "tool_use");
   if (!block || block.type !== "tool_use") {
     return NextResponse.json(

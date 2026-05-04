@@ -64,4 +64,35 @@ describe("/teacher/library/import page — 2-step import flow", () => {
     expect(src).toContain("<MatchReport");
     expect(src).toContain("result.reconstruction.lessons");
   });
+
+  // ── JSON direct-import path (Path B) ──
+  it("accepts .json files in the file picker", () => {
+    expect(src).toContain('accept=".pdf,.docx,.pptx,.txt,.md,.json,application/json"');
+  });
+
+  it("imports the JSON validator and isJsonUnitFile helper", () => {
+    expect(src).toContain('from "@/lib/units/import-json"');
+    expect(src).toContain("validateUnitJson");
+    expect(src).toContain("isJsonUnitFile");
+  });
+
+  it("branches on isJsonUnitFile in handleFileUpload", () => {
+    expect(src).toContain("if (isJsonUnitFile(file))");
+    expect(src).toContain("handleJsonImport(file)");
+  });
+
+  it("posts JSON imports straight to /api/teacher/units with action: create", () => {
+    // Look for the JSON path's POST — distinct from the classify POST
+    const jsonImportIdx = src.indexOf("handleJsonImport");
+    const apiCallIdx = src.indexOf('"/api/teacher/units"', jsonImportIdx);
+    const actionCreateIdx = src.indexOf('action: "create"', jsonImportIdx);
+    expect(jsonImportIdx).toBeGreaterThan(0);
+    expect(apiCallIdx).toBeGreaterThan(jsonImportIdx);
+    expect(actionCreateIdx).toBeGreaterThan(jsonImportIdx);
+  });
+
+  it("renders the JSON validation error block when errors are present", () => {
+    expect(src).toContain("jsonValidationErrors");
+    expect(src).toContain("JSON validation failed");
+  });
 });

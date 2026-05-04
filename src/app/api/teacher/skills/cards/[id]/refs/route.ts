@@ -1,3 +1,4 @@
+// audit-skip: routine teacher pedagogy ops, low audit value
 /**
  * Teacher skill-card refs API — the "Used in" surface.
  *

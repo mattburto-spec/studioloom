@@ -181,6 +181,675 @@ PostgREST embed extended), `fabrication-class-color` (helper API
 extended for teacher disambiguation), `default-lab-route`
 (school-scoped rewrite — MED-3 fold-in), `LabSetupClient` (dead
 code dropped).
+---
+## 4 May 2026 — Access Model v2 PILOT-READY (Phase 6 closed + Cron wired + npm audit fixed)
+
+**Context:** Final close-out session for Access Model v2. Phases 0–5 had shipped end-April / early-May; Phase 6 (Cutover & Cleanup) was the architectural hygiene pass before pilot. Closed all 7 sub-phases plus shipped the cron wiring + npm audit fixes that surfaced as pre-pilot operational gaps.
+
+**Phase 6 — 7 sub-phases shipped + tagged `v0.6-pilot1`:**
+
+- **§6.0** pre-flight + 5 spec amendments (3-Matts done in 4.3.z, table count 7→5, route count 388→319, ADR-011 retired, est ~4-5d) + scaffold `docs/security/rls-deny-all.md` + 3 ADR scaffolds in sibling Loominary/. §3.3c critical decision RESOLVED: live-status route's student_sessions lookup → student_progress.updated_at > now()-5min.
+
+- **§6.1** legacy student token cleanup. Migration `phase_6_1_drop_student_sessions` (with DO-block sanity asserting 0 rows in students + student_sessions before dropping) applied to prod 4 May. 2 dependent RLS policies on class_students + student_projects replaced with auth.uid()-based equivalents in the same migration. Deleted: requireStudentAuth shim, dual-mode test, legacy login route, SESSION_COOKIE_NAME constant. Migrated 50 callsites to requireStudentSession (38 mechanical via script + 12 manual specials). LTI launch route stubbed as 410 with FU-AV2-LTI-PHASE-6-REWORK filed.
+
+- **§6.2** author_teacher_id cleanup. Audit revealed REAL scope was 8 ownership gates (vs brief's "~40 truly inline") + 17 own-data filters. 8 gates migrated to verifyTeacherHasUnit/verifyTeacherOwnsClass shims (both can()-backed); 5 access-check-skip annotations on look-alike-but-not gates. Side benefit: removed silent author_teacher_id leak in class-units/content GET+PATCH where the try-with-then-fallback-without-author logic let any teacher read any unit on author check failure.
+
+- **§6.3** API versioning seam. Chose Option Z (next.config.ts rewrites) over Option X (literal file moves of 318 routes) — same client-facing outcome for ~30min vs ~3-4h. Both `/api/<domain>/X` and `/api/v1/<domain>/X` now valid simultaneously; 4 mirrored Cache-Control: private header rules under /api/v1/* for auth-cookie-touching domains. ADR-013 promoted to Accepted with full Option X vs Z trade-off. FU-AV2-API-V1-FILESYSTEM-RESHUFFLE filed for the deferred file moves.
+
+- **§6.3b** middleware user_type guard — surfaced when Matt got bounced into the teacher onboarding wizard with a student's UUID as placeholder name after his student-tab login overwrote the teacher session cookie. Both teacher and student logins write the SAME sb-* cookie at studioloom.org; second login stomps first. Pre-fix worst case: student session reaching /teacher/welcome triggered the destructive onboarding flow. Mitigation: middleware now checks `app_metadata.user_type` after the existing presence check; wrong-role sessions redirect to the right area with `?wrong_role=1` flag for a future toast (FU-AV2-WRONG-ROLE-TOAST P3). Underlying single-cookie limitation filed as FU-AV2-CROSS-TAB-ROLE-COLLISION P2.
+
+- **§6.4** audit-coverage CI gate flip. Real audit: 232 mutation routes, 4 covered + 1 skipped + **228 missing**. 3 inline-wires (admin/teachers DELETE+invite POST, admin/teacher-requests PATCH — high-value admin actions get logAuditEvent with soft-sentry failureMode) + 224 categorical bulk-skips via Python script (117 teacher routine pedagogy ops, 36 student learner activity, 32 public free-tools no actor identity, 8 fab operational, 8 admin sandbox, 8 school covered by school_settings_history, 4 auth callbacks, 4 misc admin, etc.). nightly.yml flipped from `--check-audit-coverage` (visibility) to `--check-audit-coverage --fail-on-missing` (gating). 3 new tests (post-Phase-6.4 baseline + clean exit + synthetic-injection mechanism test) replaced the 1 stale "missing > 0 proves the gate would fire" test that became false post-closure.
+
+- **§6.5** RLS-no-policy doc + Phase 5 table classifications. `docs/security/rls-deny-all.md` documents all 5 service-role-only tables with file:line writer/reader callsites (admin_audit_log, ai_model_config, ai_model_config_history, fabricator_sessions, teacher_access_requests). `scripts/registry/scan-rls-coverage.py` extended to read the doc at scan time and classify those tables as `intentional_deny_all` rather than drift. status: clean (was drift_detected); rls_no_policy_count: 0 (was 5); intentional_deny_all_count: 5. Closes FU-FF. Plus: rebuilt 3 stale Phase 5 table entries in schema-registry.yaml (audit_events column-types-only → full classification block; ai_budgets + ai_budget_state status:dropped/columns:{} → applied with full per-column classification — the FU-DD scanner mis-parse class drift).
+
+- **§6.6** ADRs. Old 011-schema-rework.md (radical-pivot exploration, never accepted) marked Superseded with redirect note. 3 new ADRs in sibling Loominary/docs/adr/: 011-school-entity-and-governance.md (Decisions 1–8 baked into Phase 4), 012-audit-log-infrastructure.md (single immutable polymorphic table, 3-mode failure semantics, school_subscription_tier_at_event seam), 013-api-versioning.md (Option Z chosen + alternatives). Loominary ADR README index updated.
+
+- **§6.7** registry sync + Checkpoint A7 + handoff. All 5 scanners re-run + clean (modulo unrelated feature-flags drift on SENTRY_AUTH_TOKEN + auth.permission_helper_rollout + RUN_E2E — pre-existing). WIRING.yaml: student-signin promoted v1→v2 with Phase 6.1 narrative; auth-system stale references cleaned (deleted shim removed from key_files); api-versioning system added; pre-existing ai_budget_state YAML parse error fixed (bash-style brace expansion → proper list). Checkpoint A7 doc + handoff written. Tagged `v0.6-pilot1` on the merge commit (`394c4fb` Phase 6.4–6.7 merged on top of `912ddd8` Phase 6.0–6.3 + `b66f04a` Phase 6.3b hotfix).
+
+**Cron-wire — closes FU-AV2-CRON-SCHEDULER-WIRE (last hard pre-pilot blocker):**
+
+3 GET route handlers at `src/app/api/cron/<job>/route.ts` (cost-alert, scheduled-hard-delete, retention-enforcement) — each validates `Authorization: Bearer ${CRON_SECRET}` then delegates to the existing run() in src/lib/jobs/. Returns { ok, job, result, timestamp } JSON. `vercel.json` declares the 3 crons (cost-alert daily 06:00 UTC, scheduled-hard-delete daily 03:00 UTC, retention-enforcement monthly 1st 04:00 UTC). Middleware allows /api/cron/* through (bearer-secret in handler is the gate). CRON_SECRET registered in feature-flags.yaml as required: true (PILOT-BLOCKING). 15 auth-gate tests (5 cases × 3 routes) verify all auth failure modes + the success path. Note on AI budget reset: there is no separate reset cron — Phase 5.2's atomic_increment_ai_budget() SECURITY DEFINER function performs the reset INLINE on next per-student increment when reset_at < now(). Lazy reset is correct semantics for this use case.
+
+CRON_SECRET set in Vercel by Matt + redeployed. First cron fires daily at 06:00 UTC (cost-alert).
+
+**npm audit fix — 6 vulns → 4 moderate residuals:**
+
+Bucket A (npm audit fix, no breaking changes): closed 2 high-severity advisories — @xmldom/xmldom (4 advisories: DoS via uncontrolled recursion + 3 XML injection paths) + dompurify (4 advisories: ADD_TAGS form bypass, function-based predicate asymmetry, SAFE_FOR_TEMPLATES bypass, prototype pollution XSS).
+
+Bucket B (npm audit fix --force): Next.js 15.3.9 → 15.5.15 closing 7 advisories. Two are SQUARELY relevant to Phase 6 work: SSRF in middleware redirects (Phase 6.3b just shipped wrong-role middleware redirects) + HTTP request smuggling in rewrites (Phase 6.3 just shipped /api/v1/* rewrite seam). Process note: --force also DOWNGRADED exceljs ^4.4.0 → ^3.4.0 creating new transitive vulns in fast-csv + tmp; reverted package.json exceljs to ^4.4.0; final state Next@15.5.15 + exceljs@^4.4.0 with 6 → 4 vulns. Production build with Next 15.5.15 succeeded.
+
+Bucket C filed as FU-DEPS-RESIDUAL-MODERATE-VULNS P3: 4 moderate residuals with no clean upgrade path — postcss <8.5.10 bundled inside Next (no Next version yet bundles a patched postcss; npm audit suggests downgrading to next@9.3.3 which is absurd) + uuid <14.0.0 transitive through exceljs (only exploitable via custom buf parameter on uuid.v3/v5/v6 — we don't use those overloads). Both theoretical for our app.
+
+**Verification across the session:**
+- tsc clean throughout
+- npm test: 3291 → 3494 passed / 11 skipped (no regressions; +203 net from new tests)
+- npm audit: 6 → 4 (post-fix; remaining are upstream-blocked moderates)
+- npm run build: production bundle with Next 15.5.15 succeeds
+- All 5 registry scanners: clean status
+- Migration phase_6_1_drop_student_sessions APPLIED to prod with verified post-state (table gone, 2 legacy policies replaced with auth.uid() equivalents, scanner status: clean)
+- Smoke verified on Vercel preview: student lazy-provision via classcode-login → dashboard navigation → no questerra_student_session cookie anywhere; teacher Class Hub loads (single-route exercise of student-snapshot)
+
+**Follow-ups filed during the session:**
+- FU-AV2-LTI-PHASE-6-REWORK (P2) — LTI launch stubbed 410, needs Supabase Auth rewrite
+- FU-AV2-CROSS-TAB-ROLE-COLLISION (P2) — single-cookie limit deeper fix paths
+- FU-AV2-WRONG-ROLE-TOAST (P3) — surface ?wrong_role=1 banner
+- FU-AV2-STALE-TIMETABLE-LINK (P3) — Next.js prefetch noise
+- FU-STUDENT-PROGRESS-CLIENT-400 (P3) — frontend widget hits stale total_pages column
+- FU-AV2-API-V1-FILESYSTEM-RESHUFFLE (P3) — deferred Option X file moves
+- FU-DEPS-RESIDUAL-MODERATE-VULNS (P3) — 4 moderate vulns blocked on upstream patches
+
+**Follow-ups closed during the session:**
+- FU-FF (RLS-as-deny-all undocumented) ✅ — `docs/security/rls-deny-all.md` + scanner update
+- FU-AV2-AUDIT-MISSING-PHASE-6-CATCHUP (P2) ✅ — §6.4 closed it
+- FU-AV2-CRON-SCHEDULER-WIRE (P2) ✅ — last hard pre-pilot blocker
+- FU-AV2-PHASE-3-CALLSITES-REMAINING (P3) ✅ — §6.2 closed (audit revealed 8 real gates, not ~40)
+
+**Pre-pilot operational state:**
+- ✅ All architectural blockers closed
+- ✅ CRON_SECRET set + Vercel redeployed
+- ⏳ Sentry alerts setup (audit insert failures, cost-alert sends) — post-pilot polish
+- ⏳ Pilot smoke checklist when first NIS student lands
+
+**Tag:** `v0.6-pilot1` on merge commit.
+
+---
+
+## 1 May 2026 (PM) — Access Model v2 Phase 3 SHIPPED + APPLIED TO PROD (Class Roles & Permissions)
+
+**Context:** Continued from "Phase 2 CLOSED" earlier today. Picked up the next master-spec phase: Phase 3 Class Roles & Permissions. Pre-flight audit revealed Phase 0.6c + 0.7a schema seams (`class_members`, `school_responsibilities`, `student_mentors`, `audit_events`) were already live in prod from 29 April with RLS scoped reads — Phase 3 is helpers + UI plumbing + callsite migration, not new schema. Drafted 594-line brief end-to-end with 8 §3.8 open questions; Matt signed off all 8 plus picked Compressed scope for the 50-callsite migration.
+
+**Shipped (9 commits on `access-model-v2-phase-3`, all pushed to origin, NOT merged to main):**
+
+- **Phase 3.0 — kill-switch flag (`6dfbae5`)** — Migration `20260501123351_phase_3_0_permission_helper_rollout_flag.sql` adds `auth.permission_helper_rollout` to admin_settings (default true). When false, the can() shim path falls back to legacy helpers — kill-switch for emergency rollback without code revert. Applied to prod 1 May.
+
+- **Phase 3.1 — 3 SECURITY DEFINER Postgres helpers (`3a2e014`)** — Migration `20260501123401_phase_3_1_permission_helpers.sql` adds `has_class_role(uuid, text?)`, `has_school_responsibility(uuid, text?)`, `has_student_mentorship(uuid, text?)`. All STABLE + SECURITY DEFINER + search_path locked + REVOKE FROM PUBLIC + GRANT TO authenticated, service_role. Sanity DO block asserts Phase 0.8a backfill: every active class with teacher_id has a lead_teacher class_members row (returned 0 missing in prod). 15 shape tests pass. Lesson #64 pre-emptive — these helpers will eventually be called from RLS policies on adjacent tables; SECURITY DEFINER avoids the recursion class that bit Phase 1.4 CS-2. Applied to prod 1 May.
+
+- **Phase 3.2 — can() helper + Action enum + 33 unit tests (`864e369`)** — `src/lib/access-v2/permissions/actions.ts` defines Action union (5 scopes — class/unit/student/school/programme), Resource discriminated union, SubscriptionTier, CanOptions. CLASS_ROLE_ACTIONS matrix (6 roles × 14 actions). STUDENT_MENTOR_ACTIONS, PROGRAMME_COORDINATOR_ACTIONS, PLAIN_TEACHER_FALLBACK_ACTIONS sets. `src/lib/access-v2/can.ts` implements the 6-branch resolution: tier gate → platform admin → class scope → student mentor → programme coordinator → plain-teacher fallback (Decision 7 line 140 preserved exactly). 33 unit tests pass first run, covering all 6 branches + cross-cutting (student-actor short-circuit, kill-switch reader, actionScope detection).
+
+- **Phase 3.3 — `/api/teacher/me/scope` endpoint + 8 tests (`7688f97`)** — Returns the union of class-membership / student-mentorship / school-responsibility "hats" the teacher wears. Chip-shaped JSON for dashboard-v2-build to consume. Cache-Control: private, max-age=30 (Lesson #11). PostgREST embed shape normalised (handles both object + array forms).
+
+- **Phase 3.4a — verify-teacher helpers shim through can() (`0cb2371`)** — `verifyTeacherOwnsClass` / `verifyTeacherHasUnit` / `verifyTeacherCanManageStudent` now delegate to can() when the kill-switch flag is true (default). Each maps to its '.edit' action variant — preserves legacy "can this teacher mutate" semantics exactly. Marked @deprecated. New private helper `buildTeacherSessionForShim(teacherId)` synthesizes a TeacherSession from teacherId via teachers + user_profiles lookup. Closes FU-MENTOR-SCOPE on every route that uses these helpers (cross-class mentor scope via has_student_mentorship).
+
+- **Phase 3.4b — classes INSERT trigger (`c3948f5`)** — Migration `20260501130842_phase_3_4b_classes_seed_lead_teacher_trigger.sql` adds AFTER-INSERT trigger on classes that auto-creates a class_members.lead_teacher row from NEW.teacher_id. SECURITY DEFINER + idempotent NOT EXISTS guard. Applied to prod 1 May. Establishes the structural invariant: every classes row with teacher_id IS NOT NULL has a matching active lead_teacher class_members row. Pairs with Phase 0.8a backfill which seeded historical rows.
+
+- **Phase 3.4c — teacher dashboard expansion (`c88d8cf`)** — `/api/teacher/dashboard` GET reads `class_members` instead of `classes.teacher_id`. Co_teacher / dept_head / mentor / lab_tech / observer of a class now see that class on /teacher dashboard. ClassRow shape gains optional `role` field for chip UI. Sort preserves newest-first by classes.created_at via embed. **First user-visible co-teacher capability gain.**
+
+- **Phase 3.4d — units content PATCH uses can()-backed gate (`d01ce1d`)** — Replaces inline `.eq("author_teacher_id", auth.teacherId)` filter with `verifyTeacherHasUnit` pre-check (which delegates to can() via 3.4a). Co_teacher / dept_head can now edit master unit content. Demonstrates the canonical migration pattern for the deferred ~40 mutation gates.
+
+- **Phase 3.4 followups (`e315cd5`)** — 5 followups filed in `access-model-v2-followups.md`:
+  - FU-AV2-PHASE-3-CALLSITES-REMAINING P3 (~40 mutation gates)
+  - FU-AV2-PHASE-6-DELETE-SHIMS P3 (3 deprecated helpers + flag)
+  - FU-AV2-DEPT-HEAD-DEPARTMENT-MODEL P2 (Phase 4 auto-tag)
+  - FU-AV2-PHASE-3-CHIP-UI P2 (dashboard-v2-build consumer)
+  - FU-MENTOR-SCOPE ✅ RESOLVED (closed by 3.4a)
+  - FU-AV2-PHASE-3-COLUMN-CLASSIFICATION P3 (added later in this session)
+
+- **Phase 3.6 close-out (this saveme):**
+  - schema-registry.yaml: 4 Phase 0 entries (audit_events, class_members, school_responsibilities, student_mentors) rewritten from `status: dropped` + `columns: {}` to `status: applied` + full columns + indexes + RLS metadata. FU-DD class drift fix (compound multi-table CREATE TABLE migration confused the scanner; manual rebuild from migration source).
+  - WIRING.yaml: `auth-system.future_needs` trimmed (Phase 1.4 client-switch line removed — already shipped 30 Apr). Two new systems added: `class-management` v2 (with class_members data field + Phase 3.4b trigger note) + `permission-helper` v1 (can() helper + 3 Postgres readers + kill-switch flag).
+  - feature-flags.yaml: registered `auth.permission_helper_rollout` (16 → 17 flags).
+  - api-registry.yaml: rerun scanner — `/api/teacher/me/scope` registered, `/api/teacher/dashboard` tables_read updated to include `class_members` (was `classes`). Total routes: 397 → 398.
+  - rls-coverage.json: rerun scanner — 0 no_rls, 5 pre-existing FU-FF rls_enabled_no_policy entries (unchanged from baseline).
+  - decisions-log.md: 5 new Phase 3 entries (scope-trim rationale, SECURITY DEFINER pre-emptive, shim-mapping rationale, trigger over callsite seeding, kill-switch default-true, column-classification deferral).
+
+**Tests:** 2830 → 2886 (+56). tsc strict 0 errors throughout. 11 skipped unchanged.
+
+**Migrations applied to prod 1 May:**
+- 20260501123351_phase_3_0_permission_helper_rollout_flag.sql
+- 20260501123401_phase_3_1_permission_helpers.sql
+- 20260501130842_phase_3_4b_classes_seed_lead_teacher_trigger.sql
+
+**Smoke status:** Phase 3.5 ran 1-2 May. **Checkpoint A4 PASS** with 3 mid-smoke hotfix migrations + 2 route fixes captured. Outcome report appended to `docs/projects/access-model-v2-phase-3-smoke.md`.
+
+  - **Phase 3.4e** (`20260501141142_phase_3_4e_classes_class_members_read_policy.sql`) — adds `"Class members read their classes"` SELECT policy on `classes` via `has_class_role(id)`. Closes the PostgREST `classes!inner` embed gap surfaced in Scenario 2 (Teacher 2 saw 6 classes instead of 7).
+  - **Phase 3.4f** (`20260501142442_phase_3_4f_is_teacher_of_student_includes_class_members_and_mentors.sql`) — rewrites `is_teacher_of_student(uuid)` to add `has_class_role(cs.class_id)` + `has_student_mentorship(s.id)` OR branches. All 3 students RLS policies inherit fix. Closes FU-MENTOR-SCOPE on every route using the helper.
+  - **Phase 3.4g** (route, no migration) — `/api/teacher/me/scope` mid-smoke fix in two pushes. v1 pinned embed FK by constraint name (didn't shake the auto-alias loose); v2 dropped the embed entirely + follow-up `students` lookup by ID with `display_name` fallback to `username`. Original embed `students(name)` was syntactically invalid because `students` table has no `name` column.
+  - Mid-smoke `_debug` payload added to `/me/scope` for diagnostic surfacing (commit `d16b285`); removed on close-out (commit `0755d20`).
+
+**FU-MENTOR-SCOPE P1 ✅ resolved** by Phase 3.4f rewrite (every route using `is_teacher_of_student` now grants cross-class mentor access).
+
+**Lesson candidate #66** — when a phase introduces a new junction table + helper functions that read it, audit every existing RLS policy + helper function on adjacent tables for "do they consult the new junction?" — not just the writers + readers of the new table itself. Surfaced 3 instances during Phase 3.5 smoke that the Phase 3 brief's audit hadn't caught.
+
+**Branch state:** `access-model-v2-phase-3` 17 commits ahead of `origin/main`. NOT merged to main per methodology rule 8 — feature branch holds until explicit Checkpoint A4 merge command. Ready for fast-forward.
+
+**Capability live in prod (subject to feature branch deploy):**
+- Co_teacher / dept_head / mentor / lab_tech / observer see shared classes on `/teacher` dashboard
+- Co_teacher / dept_head can edit master unit content
+- Cross-class mentors (`student_mentors` rows) can manage their mentees on every route using verify-teacher helpers — closes FU-MENTOR-SCOPE
+- `/api/teacher/me/scope` returns role chips ready for dashboard-v2-build to consume
+- Every new class auto-gets a class_members.lead_teacher row via the trigger
+
+**Next:** Checkpoint A4 sign-off → merge to main. Then Phase 4 — School Registration, Settings & Governance (~3 days, master spec §4 line 253).
+
+---
+
+## 1 May 2026 (later) — Phase 2 CLOSED ✅ + Apple scaffold + admin Cache-Control + Phase 1 trigger leak fix
+
+**Context:** Continued from Phase 2.3 saveme. Closed out the remaining Phase 2 sub-phases (2.4 Apple flag scaffold + 2.5 Checkpoint A3) and fixed a pre-existing Phase 1 bug that surfaced during the admin-side smoke.
+
+**Phase 2.4 — Apple OAuth scaffold (`6dd4bb4`):**
+- Apple sign-in button + `handleAppleSignIn` handler added to `LoginForm.tsx`, gated by `allowedModes.includes("apple")`.
+- 3 layers off by default: env var `NEXT_PUBLIC_AUTH_OAUTH_APPLE_ENABLED=false`, no school has 'apple' in allowed_auth_modes, Supabase provider not configured.
+- 2 new helper tests (apple in school allowlist + apple stripped when global flag off).
+
+**Phase 2.5 — Checkpoint A3 ✅ PASS (`700c040` + `6e768cc`):**
+- All 8 functional smoke criteria green. Email/password sign-in + teacher invite flow verified during admin smoke.
+- Sole open follow-up: `FU-OAUTH-LANDING-FLASH` (P2, cosmetic, deferred).
+- Report: `docs/projects/access-model-v2-phase-2-checkpoint-a3.md`.
+
+**/api/admin/* Cache-Control fix (`41e7f3c`):**
+- Closed a Lesson #11 gap. `/api/auth/*`, `/api/student/*`, `/api/fab/*` were already `private`; admin routes were missed in Phase 1B-2 hardening.
+- `requireAdmin()` calls `supabase.auth.getUser()` which can trigger session refresh + Set-Cookie write-back. Without `private`, Vercel CDN strips Set-Cookie → breaks subsequent auth.
+
+**Phase 1 spillover — handle_new_teacher trigger fix (`7bc19ea` + `2a34191`):**
+- During /admin/teachers smoke, ~7 phantom rows with synthetic emails `student-<uuid>@students.studioloom.local` appeared in the teacher list.
+- Root cause: `handle_new_teacher` trigger from `001_initial_schema.sql` (~18 months old) blindly inserted into `teachers` on every `auth.users` insert. Phase 1.1d (29 Apr 2026) started provisioning student auth.users — trigger fired and leaked phantom teacher rows.
+- Migration `20260501103415_fix_handle_new_teacher_skip_students.sql` applied to prod 1 May 2026:
+  - Updated trigger to skip when `raw_app_meta_data->>'user_type' = 'student'`.
+  - Backfill DELETE with safety assertion (refused to delete if any leaked row had FK references in classes/units/students — none did).
+  - Notice log: `7 leaked teacher rows found`, `0 leaked rows have FK references`, `deleted 7 leaked teacher rows`.
+- **Security audit clean** — `buildTeacherSession` routes only on `user_type='teacher'`; `requireAdmin` checks `is_admin=true` which was false on phantoms. Cosmetic only.
+- **Lesson #65 logged** — old triggers don't know about new user types; audit auth.users triggers before introducing a new user role.
+
+**Tests:** 2828 → 2830 (+2 from Phase 2.4). tsc strict 0 errors.
+
+**Commits on main:**
+- `6dd4bb4` — feat(auth): Phase 2.4 — Apple OAuth feature flag scaffold
+- `700c040` — docs(access-v2): Phase 2 Checkpoint A3 report — PARTIAL PASS
+- `41e7f3c` — fix(security): /api/admin/* needs Cache-Control: private (Lesson #11)
+- `7bc19ea` — claim(migrations): reserve fix_handle_new_teacher_skip_students timestamp
+- `2a34191` — fix(migration): handle_new_teacher skips student user_type + cleans leaks
+- `6e768cc` — docs(access-v2): Phase 2 Checkpoint A3 ✅ PASS — all 8 criteria green
+
+**Files touched:** `src/app/teacher/login/LoginForm.tsx`, `src/lib/auth/__tests__/allowed-auth-modes.test.ts`, `next.config.ts`, `supabase/migrations/20260501103415_fix_handle_new_teacher_skip_students.{sql,down.sql}`, `docs/projects/access-model-v2-phase-2-checkpoint-a3.md`, `docs/decisions-log.md` (+5 entries), `docs/lessons-learned.md` (+Lesson #65), `docs/changelog.md` (this entry).
+
+**Outstanding:**
+- `FU-OAUTH-LANDING-FLASH` P2 — cosmetic, deferred.
+- `FU-AZURE-MPN-VERIFICATION` P3 — gated on second-school pilot.
+- `FU-LEGAL-LAWYER-REVIEW` P2 — pre-pilot expansion.
+- `FU-CUSTOM-AUTH-DOMAIN` P3 — Supabase Pro custom auth domain.
+- Google Cloud Console branding fields — Matt to fill in for Google consent screen polish.
+- `mattburto@gmail.com` smoke teacher row in prod — still there, soft-delete or label optionally.
+
+**Next:** Phase 3 — Auth Unification (every student → `auth.users`). ~3 days per master spec. Will need its own brief + pre-flight before code.
+
+---
+
+## 1 May 2026 — Phase 2.2 OAuth + Phase 2.3 allowlist BOTH SHIPPED + APPLIED TO PROD ✅
+
+**Context:** Picked up from Phase 2.2 mid-flight handoff (Matt was configuring Google Cloud Console). Closed out 2.2 with Google sign-in button, OAuth consent screen branding (legal pages + Microsoft publisher domain verification), then went straight into Phase 2.3 — the auth-mode allowlist that lets China-locked schools restrict to email_password.
+
+**Phase 2.2 closure:**
+- Google sign-in button shipped (`58a442d`) — mirrors Phase 2.1 Microsoft button, calls `signInWithOAuth({ provider: 'google' })`, reuses provider-agnostic `/auth/callback` route.
+- Smoke passed with `mattburto@gmail.com` (added to Google Cloud Test Users). New teacher row provisioned.
+- Privacy + Terms pages drafted at `/privacy` and `/terms` (`4ae2f0f`) for OAuth consent screen branding requirements. Stamped "Last updated 1 May 2026"; flagged `FU-LEGAL-LAWYER-REVIEW` P2 — not lawyer-vetted yet.
+- Microsoft Azure publisher domain verified on `www.studioloom.org` (`27f43c9`) — `studioloom.org` apex 307-redirects to www, Azure refuses to follow redirects during verification, so verification field set to `www`. File hosted at `/public/.well-known/microsoft-identity-association.json`.
+- Microsoft consent screen now shows StudioLoom branding (no more "Unverified" label).
+- Email correction: `hello@studioloom.org` → `hello@loominary.org` (`0ec0db4`) — Loominary is the umbrella entity, mailbox lives there.
+- 4 follow-ups filed: `FU-AZURE-MPN-VERIFICATION` P3, `FU-LEGAL-LAWYER-REVIEW` P2, `FU-CUSTOM-AUTH-DOMAIN` P3, `FU-OAUTH-LANDING-FLASH` P2 (1-2s landing-page flash mid-OAuth, sign-in succeeds, cosmetic).
+
+**Phase 2.3 SHIPPED + APPLIED TO PROD:**
+- Migration `20260501045136_allowed_auth_modes.sql` applied to prod Supabase by Matt 1 May 2026.
+- `schools.allowed_auth_modes TEXT[] NOT NULL DEFAULT [email_password,google,microsoft]`.
+- `classes.allowed_auth_modes TEXT[] NULL` — NULL means inherit from school.
+- CHECK constraints include `'apple'` for Phase 2.4 forward-compat. `array_length >= 1` so admins can't write empty allowlists.
+- Helper `src/lib/auth/allowed-auth-modes.ts` — `getAllowedAuthModes` (DB) + `resolveAllowedAuthModes` (pure). 11 unit tests covering 4 scope cases + safety-net + apple. Always returns non-empty (email_password fallback).
+- Login page split into server `page.tsx` (reads `searchParams`) + client `LoginForm.tsx`. Buttons render conditionally per resolved modes. Amber restriction banner when scope is supplied AND OAuth is unavailable.
+- Settings UI deferred to Phase 4 — admin edits via Supabase SQL editor for v1.
+- Schema-registry synced. Feature-flags.yaml updated with `NEXT_PUBLIC_AUTH_OAUTH_APPLE_ENABLED`.
+
+**Smoke (1 May 2026 prod):**
+- Unscoped login renders all 3 modes (Microsoft, Google, email/password). ✅
+- School-scoped (`UPDATE schools SET allowed_auth_modes = ARRAY['email_password']` + load `?school=<uuid>`) → only email/password renders + amber banner shows. ✅
+- Class-scoped (same pattern with classes.code) → only email/password renders. ✅
+
+**Tests:** 2817 → 2828 (+11). tsc strict 0 errors throughout.
+
+**Commits on main:**
+- `58a442d` — feat(auth): Phase 2.2 — Google OAuth sign-in button
+- `4ae2f0f` — feat(legal): privacy + terms pages
+- `27f43c9` — chore(azure): host microsoft-identity-association.json
+- `e251b80` — docs(access-v2): file Phase 2.2 follow-ups + draft Phase 2.3 sub-brief
+- `6698670` — claim(migrations): reserve allowed_auth_modes timestamp
+- `756267a` — feat(auth): Phase 2.3 — allowed_auth_modes allowlist (schema + login filtering)
+- `0ec0db4` — fix(legal): contact email is hello@loominary.org
+
+**Outstanding from Phase 2:**
+- Phase 2.4 — Apple OAuth feature flag scaffold (~1h, no real Apple integration).
+- Phase 2.5 — Checkpoint A3 verification + smoke.
+
+**Files touched:** `src/app/teacher/login/page.tsx` (refactored to server component) + `LoginForm.tsx` (new client component); `src/app/(legal)/{layout,privacy,terms}.tsx` (new); `src/lib/auth/allowed-auth-modes.ts` (new) + tests; `public/.well-known/microsoft-identity-association.json` (new); `supabase/migrations/20260501045136_allowed_auth_modes{,.down}.sql` (new); `docs/projects/access-model-v2-phase-2-brief.md` (status updates) + `access-model-v2-phase-2-3-brief.md` (new) + `access-model-v2-followups.md` (new); `docs/feature-flags.yaml` (added apple flag entry); `docs/decisions-log.md` (+10 decisions); `docs/api-registry.yaml` + `docs/ai-call-sites.yaml` + `docs/schema-registry.yaml` (synced).
+
+---
+
+## 30 Apr 2026 (very late) — Phase 2.1 Microsoft OAuth SHIPPED + VERIFIED LIVE + 2 bonus fixes ✅
+
+**Context:** Continued from "All 5 follow-ups closed" earlier. Started Phase 2 (OAuth + email/password for teachers). Phase 2.1 (Microsoft) shipped end-to-end + verified live with Matt's NIS account. Two bugs surfaced + fixed in the same segment.
+
+**Phase 2.1 — Microsoft OAuth (commit `539a173`):**
+
+- `/teacher/login/page.tsx` — added "Sign in with Microsoft" button calling `supabase.auth.signInWithOAuth({ provider: "azure" })`.
+- `/auth/callback/route.ts` — extended to handle OAuth code exchange (was previously PKCE-only for password reset). Routes:
+  - `type=recovery` → `/teacher/set-password`
+  - `type=invite` → `/teacher/set-password?next=/teacher/welcome`
+  - First-login OAuth (no teacher row) → provision teachers row + set `app_metadata.user_type='teacher'` → `/teacher/welcome`
+  - Existing teacher → `/teacher/dashboard` (or `next` param)
+- `provisionTeacherFromOAuth()` helper inside callback. Idempotent (23505 unique-violation = success).
+- External setup (Matt did in dashboards): Azure AD app registration as multi-tenant ("Multiple Entra ID tenants" / "Allow all tenants"), client secret minted, Supabase Azure provider configured with `https://login.microsoftonline.com/common`, "Allow same email logins" enabled for identity linking.
+
+**Bug 1 — Phase 0 user_type backfill gap (commit `eb866a7`):**
+
+Phase 0's backfill set `app_metadata.user_type` for students but NOT teachers. So existing teachers (Matt + every other backfilled teacher) had `user_type: null` in their JWT. Phase 1.3's `getActorSession()` returned null → routes using `requireTeacherSession`/`requireStudentSession` would 401. Dashboard rendered because legacy `requireTeacherAuth` only checks `user.id`, but post-CS-2/CS-3 routes that use polymorphic dispatch would silently fail.
+
+**Two-part fix:**
+1. **Prod backfill via SQL** — `UPDATE auth.users SET raw_app_meta_data = raw_app_meta_data || '{"user_type":"teacher"}'::jsonb WHERE id IN (SELECT id FROM teachers) AND user_type missing.` Result: `teachers_missing_user_type: 0` post-update.
+2. **Callback patched** to be idempotent — every OAuth login now checks `app_metadata.user_type` and sets it if missing. Future teachers signing in via OAuth (or any auth path that hits the callback) get the claim set automatically.
+
+**Bug 2 — Dashboard hero rendered giant em-dash for classes with no units (commit `3cbd273`):**
+
+`NowHero` rendered `vm.unitTitle` at 100-108px — when `unitTitle` was the fallback `"—"`, the giant em-dash + period looked like colored placeholder bars. Surfaced when Matt's hero showed Period 1 = 9 Design (a class with no class_units rows). Pre-existing bug, not Phase-2-introduced; just exercised for the first time.
+
+**Two-part fix:**
+1. `resolveCurrentPeriod()` — falls back to `cls.units[0]` when `entry.unitId` is null but the class has class_units assigned. Mirrors the today endpoint's "first unit per class" choice.
+2. `NowHero` — when `vm.unitId` is null, renders explicit empty state ("No unit assigned. / Pick a unit to teach this class — the hero will fill in.") at smaller typography. No more giant em-dash.
+
+**FU-DASHBOARD-HERO-NULL-UNIT-TITLE** filed as ✅ RESOLVED (`b000fcc`).
+
+**State of working tree:** clean (post-saveme). Tests 2817 passed | 11 skipped. Typecheck 0 errors.
+
+**Smoke verified live in prod:**
+- Sign in with Microsoft from incognito → `/teacher/dashboard` (existing teacher path)
+- DevTools cookies show `sb-cxxbfmnbwihuskaaltlk-auth-token.0/.1` set
+- After backfill + re-login: `auth.users.raw_app_meta_data->>'user_type' = 'teacher'`
+- Hero now shows "No unit assigned." empty state for 9 Design (correct, since 9 Design has no units assigned)
+- Same-email linking confirmed: 1 row per teacher email, `auth_users_id = teacher_id`
+
+**Next:** Phase 2.2 (Google OAuth, ~30 min once Google Cloud Console + Supabase Google provider are configured). Same callback infrastructure; just adds the second button + provider.
+
+---
+
+## 30 Apr 2026 (end-of-day) — All 5 Access-Model-v2 follow-ups closed + UI-INSERT atomic create route shipped ✅
+
+**Context:** Continued from "CS-3 + audit closed" earlier. Cleared the Phase 1.4 follow-up backlog — 4 P3s + 1 P2 closed. Day total: Phase 1 close → Phase 1.4 client-switch (CS-1+CS-2+CS-3) → 5 follow-ups → fully clean state for Phase 2.
+
+**Follow-ups closed this segment:**
+
+- **FU-AV2-UNITS-ROUTE-CLASS-DISPLAY (P3) ✅** — `cf37901`. Three fixes to `/api/student/units` class-picker logic: dropped `students.class_id` legacy fallback, filtered archived classes, recency-ordered enrollments. Smoke verified live: test2's response now shows `class_id: a7afd4f3` (Service LEEDers, active) instead of `82d7fb45` (g9 design, archived).
+
+- **FU-AV2-PHASE-14B-2 (P3) ✅** — `77ad01e`. Mechanical auth-helper swap across 18 GET-only student routes. Replaced `requireStudentAuth` (legacy) with `requireStudentSession` (Supabase Auth). Zero data-path changes — all 18 routes still use admin client for queries. 3 test files updated for the new mock target.
+
+- **FU-AV2-STUDENT-BADGES-COLUMN-TYPE (P3) ✅** — `40a14c5`. Pre-flight verified 4 rows total, all UUID-shaped, zero orphans. ALTER COLUMN TEXT → UUID, ADD FK to students(id) with ON DELETE CASCADE, DROP+CREATE all 3 student_badges policies without `::text` casts. Code callers unchanged (postgres-js auto-coerces string UUIDs).
+
+- **FU-AV2-UI-STUDENT-INSERT-REFACTOR (P2) ✅** — `b35979d`. Built new `POST /api/teacher/students` route: auth + class-ownership check + students INSERT + provisionStudentAuthUserOrThrow + optional class_students enrollment, atomic-ish (rolls back student INSERT on auth failure). Migrated all 5 client-side INSERT call sites + the createStudent/createAndEnroll helpers to use the route via fetch. 11 new route tests. Smoke verified: test student `newtest` created with `user_id` populated immediately + correct school_id + correct author_teacher_id.
+
+- **CS-2 SECURITY DEFINER WITH CHECK fix** — `9c35682`. Surfaced during UI-INSERT smoke that `Teachers manage students` (FOR ALL) was broken for INSERT — `is_teacher_of_student(NEW.id)` returns false for new rows because they're not in the table when WITH CHECK fires. Split FOR ALL into 4 cmd-specific policies: SELECT/UPDATE/DELETE use the SECURITY DEFINER helper (existing-row context); INSERT uses direct `author_teacher_id = auth.uid()` column check (recursion-safe, INSERT-safe). Latent bug from earlier today's CS-2 hotfix; fixed before any real student creation hit it.
+
+**Migrations applied to prod this segment (3):**
+- `20260430030419` — units student-read (was applied earlier today, not yet captured in this changelog entry; was part of CS-3)
+- `20260430042051` — student_badges TEXT→UUID + FK + policy cleanup
+- `20260430053105` — students Teachers WITH CHECK split (4 policies replace 1 FOR ALL)
+
+**State of working tree:** clean (post-saveme commit). Tests 2817 passed | 11 skipped. Typecheck 0 errors.
+
+**Lessons surfaced (not added — observed):** SECURITY DEFINER policies on FOR ALL break INSERT WITH CHECK because the function's internal SELECT runs against pre-INSERT table state. Mitigation: split FOR ALL into per-cmd policies when the policy needs different logic for INSERT vs S/U/D. Captured in the migration's WHY block; consider whether to elevate to formal Lesson #65 if this pattern recurs.
+
+**Day total (3 sessions, one continuous workflow):**
+- Phase 1 closed under Option A
+- Phase 1.4 client-switch CS-1/CS-2/CS-3 (6/6 Phase 1.4b routes load-bearing under RLS)
+- Frontend login swap + student-session dual-mode
+- 2 SECURITY DEFINER recursion hotfixes + 1 WITH CHECK split
+- Comprehensive RLS audit (zero cycles)
+- 18 GET routes auth helper swap
+- 1 column type cleanup (TEXT → UUID + FK)
+- New atomic POST /api/teacher/students route
+- 5 follow-ups closed
+- 10 RLS/schema migrations applied to prod
+- ~30 commits to main
+- Tests: 2792 → 2817 (+25)
+- Lesson #64 added
+- 0 production regressions
+
+**Next session:** Phase 2 (OAuth Google/Microsoft + email/password for teachers, ~3-4 days). All Phase 1 hygiene closed. Polymorphic `getActorSession()` from Phase 1.3 is the seam Phase 2 plugs into.
+
+---
+
+## 30 Apr 2026 (latest) — Phase 1.4 client-switch CS-3 SHIPPED + comprehensive RLS audit closed ✅
+
+**Context:** Continued from "CS-1 + CS-2" earlier this session. Picked Option B (comprehensive RLS audit before CS-3) to avoid per-route diagnostic surprises.
+
+**Audit (FU-AV2-RLS-SECURITY-DEFINER-AUDIT closed ✅ RESOLVED):**
+- Queried pg_policies for every cross-table-subquery pattern across the 21 tables CS-3 routes touch.
+- Mapped each: does the subqueried table have a policy that back-references the calling table?
+- Verdict: **zero remaining cycles.** The two CS-2 SECURITY DEFINER hotfixes (`students↔class_students`, `classes↔class_students`) closed the only two recursion-prone policy pairs in the system.
+- Findings table preserved in the (now-resolved) FU entry as the safety proof.
+
+**CS-3 (4 routes switched to SSR client):**
+- `grades` — assessment_records read under "Students read own published assessments" (CS-1).
+- `units` — multi-table read across students/class_students/classes/class_units/units/student_progress.
+- `safety/pending` — cross-table chain through class_units → unit_badge_requirements → student_badges.
+- `insights` — biggest surface (10+ tables). RLS-enforced.
+
+**CS-3 hotfix (1 migration applied to prod): `units` student-read policy.**
+- Smoke surfaced empty results from 3 of 4 routes — `units` table only had `Teachers read own or published units`. Students could read only published units. Unpublished assigned units were RLS-blocked.
+- Fix: additive `Students read own assigned units` USING `id IN (class_units → class_students → students)`.
+- Migration `20260430030419` applied + verified.
+- Re-smoke: `grades` returns real `unitTitle: "Arcade Machine Project"`, `units` returns full unit data, `safety/pending` shows real `unit_title`, `insights` unchanged.
+
+**Total Phase 1.4 client-switch state at end of session:**
+- 6/6 Phase 1.4b routes use SSR client. Phase 1.5/1.5b/CS-1/CS-3 student-side policies are load-bearing across the entire surface.
+- 4 RLS migrations applied to prod (3 CS-1 + 1 CS-3 hotfix). 2 SECURITY DEFINER hotfixes from CS-2 still in place.
+
+**Schema-registry YAML hygiene fix:** earlier today's CS-1 saveme had a Python script that appended spec_drift entries AFTER `spec_drift: []` instead of replacing it — produced invalid YAML at 3 locations (assessment_records, classes, student_badges). Caught when api-scanner failed to parse. Fixed via regex substitution + manual restructure for the `classes` entry (had a separate `changes_in_phase_7a` field interleaved). All scanners now run clean.
+
+**Pre-existing finding documented:** `/api/student/units` route shows wrong class for multi-class units (picks legacy `students.class_id` archived class over active enrollment). Filed FU-AV2-UNITS-ROUTE-CLASS-DISPLAY (P3). Display-layer bug, not a CS-3 regression — pre-existed under admin client.
+
+**Commits this segment:** `e44e883..a958a2b..a958a2b` (CS-3 timestamp claim + units RLS hotfix) + saveme.
+
+**State of working tree:** clean (post-saveme). Tests 2806 passed | 11 skipped. Typecheck 0 errors. Migration collision gate clean.
+
+**Next:** CS-4 (negative control) is now informational only — already verified RLS enforcement via earlier debug instrumentation. CS-5 close-out covered by this saveme. **Phase 1.4 client-switch effectively complete for the 6 Phase 1.4b routes.** Remaining work: 18 GET routes (FU-AV2-PHASE-14B-2 P3 — cosmetic, dual-mode wrapper covers them), Batch B mutation routes, Batch C teacher routes, eventual Phase 6 cutover.
+
+---
+
+## 30 Apr 2026 (later) — Phase 1.4 client-switch CS-1 + CS-2 SHIPPED: RLS load-bearing in prod for the first time ✅
+
+**Context:** Continued from earlier "Phase 1 CLOSED" session. Picked up Phase 1.4 client-switch (FU-AV2-PHASE-14-CLIENT-SWITCH P2) — switch the 6 Phase 1.4b routes from `createAdminClient()` (admin bypass) → `createServerSupabaseClient()` (RLS-respecting). First time RLS would actually carry weight in production traffic; revealed multiple latent bugs from Phase 1.5/1.5b/CS-1 that admin-client testing had masked.
+
+**Pre-flight findings (3 audit findings drove CS-1):**
+1. `classes` had no student-side RLS policy. Routes would silently 0-row post-switch.
+2. `assessment_records` had no student-side RLS policy. Same.
+3. `student_badges_read_own` policy used the **never-functional** `current_setting('app.student_id')` + `request.jwt.claims->>'sub'` pattern. Schema-registry annotated it as canonical chain (`(their)`) but the SQL was broken — Lesson #54 in action. Has been returning 0 rows for every student under every auth path that has ever existed; app-level filtering masked it.
+
+**Sub-phases shipped (all on `main`, no working branch — given no real users):**
+
+- **CS-1 (3 migrations applied to prod):** `classes_student_self_read`, `assessment_records_student_self_read` (draft-filtered), `student_badges_rewrite` (DROP + CREATE with canonical chain). Migration 3 hit a `text = uuid` operator error: `student_badges.student_id` is TEXT not UUID (technical debt from migration 035 — the column was created as `TEXT NOT NULL "nanoid from student_sessions"`, never converted to UUID + FK). Fix: `::text` cast on RHS to mirror the existing teacher policy. Filed FU-AV2-STUDENT-BADGES-COLUMN-TYPE P3 for proper cleanup. 14 shape tests added.
+
+- **CS-2 (2 routes switched + helper refactor):** `me/support-settings`, `me/unit-context` switched to SSR client. Helpers `resolveStudentSettings` + `resolveStudentClassId` refactored with optional `supabase: SupabaseClient` parameter (default `createAdminClient()` — backwards-compatible additive change, same shape as Phase 1.4a's dual-mode wrapper). 5 existing callers (4 teacher routes + 1 student word-lookup) unchanged.
+
+- **Frontend login swap:** `(auth)/login/page.tsx:21` was still POSTing to legacy `/api/auth/student-login`. Phase 1.4b's `requireStudentSession` switch had been **silently 401-ing 6 routes for every browser-based student** since it shipped (because legacy login set only `questerra_student_session` cookie, no sb-* cookies; Phase 1.4 prod-preview tests used cURL with new endpoint directly, never browser→legacy-page→API). One-line swap to `/api/auth/student-classcode-login`. Closes the regression.
+
+- **`student-session` route dual-mode:** When the frontend swap shipped, students bounced back to login. Cause: `(student)/layout.tsx:48` calls `/api/auth/student-session` which was legacy-only — read `questerra_student_session` cookie, 401'd on missing. Same dual-mode pattern as Phase 1.4a's `requireStudentAuth` wrapper applied: try `getStudentSession()` first, fall back to legacy. Bounce loop closed.
+
+- **Two emergency RLS recursion hotfixes (SECURITY DEFINER pattern):**
+  - **`students ↔ class_students` cycle.** Teachers manage students subqueries class_students; class_students self-read subqueries students; recursion. Fixed via `public.is_teacher_of_student(uuid)` SECURITY DEFINER helper (migration `20260430010922`).
+  - **`classes ↔ class_students` cycle.** CS-1's "Students read own enrolled classes" subqueries class_students; class_students teacher policy (since migration 041) subqueries classes; recursion. Fixed via `public.is_teacher_of_class(uuid)` (migration `20260430015239`).
+
+  Both ran as admin-client-bypassed for years; the moment SSR client touched them, they fired. Filed FU-AV2-RLS-SECURITY-DEFINER-AUDIT P2 for the comprehensive sweep — 6+ Phase 1.5/1.5b/CS-1 policies still have latent recursion potential, will surface as more routes switch.
+
+- **End-to-end smoke verified live in prod:**
+  - test2 logs in via classcode-login → sb-* cookies set ✅
+  - Dashboard loads + STAYS loaded (no bounce) ✅
+  - `me/support-settings`: `{"l1Target":"zh","l1Source":"intake","tapASource":"default"}` — REAL data, not defaults ✅
+  - `me/unit-context`: `{"class":{"id":"a7afd4f3","name":"Service LEEDers","code":"QKKL4Q","framework":"IB_MYP"}}` ✅
+  - Debug instrumentation confirmed: `classes` query returns 2 rows (test2's enrollments), correctly filtering out `Grade 8 Design` (not enrolled). RLS is enforcing.
+
+**Lessons added: #64 — Cross-table RLS subqueries silently recurse; SECURITY DEFINER for any policy that joins through another RLS-protected table.** Sibling to #38 (verify expected values) + #54 (registries can claim things that aren't true). The new operational rule: every future Access-Model-v2 phase that ships RLS policies must include at least one SSR-client smoke test in the same phase, as a Checkpoint criterion.
+
+**Systems affected:** `auth-system` (still v2; behavior changed under SSR client), `student-experience` (login flow + dashboard render path), `student-pm` (me/support-settings), `unit-system` (me/unit-context).
+
+**Migrations applied to prod (5 across the day):**
+- `20260429231118` — classes_student_self_read (CS-1)
+- `20260429231124` — assessment_records_student_self_read (CS-1)
+- `20260429231130` — student_badges_rewrite (CS-1, with column-type cast workaround)
+- `20260430010922` — students↔class_students recursion fix (CS-2 hotfix #1)
+- `20260430015239` — classes↔class_students recursion fix (CS-2 hotfix #2)
+
+**Commits to main this session window (~15 commits):** `b2082dc..4ad144e`. Includes both the productive shipping (CS-1 SQL bodies, CS-2 route + helper changes, frontend swap, dual-mode student-session) and the diagnostic detours (debug instrumentation pushed + reverted, emergency hotfix migrations).
+
+**State of working tree:** clean. Tests 2806 passed | 11 skipped (no regression). Typecheck 0 errors. CI green throughout.
+
+**Follow-ups filed today:**
+- FU-AV2-STUDENT-BADGES-COLUMN-TYPE (P3) — column should be UUID + FK to students(id), not TEXT
+- FU-AV2-RLS-SECURITY-DEFINER-AUDIT (P2) — comprehensive sweep of 6+ remaining cross-table-subquery policies
+
+**Next:** CS-3 (4 routes — grades, units, safety/pending, insights). Will surface more recursion cycles (probably in `assessment_records`, `competency_assessments`, etc.). Each cycle is ~30 min to fix once the pattern is known. Or do the comprehensive SECURITY DEFINER audit pre-emptively (P2 follow-up) and then ship CS-3 cleanly.
+
+---
+
+## 30 Apr 2026 — Access Model v2 Phase 1 CLOSED (Option A): auth path live, RLS pre-positioned, client-switch deferred ✅
+
+**Context:** Two-day session continuing from the Day-1 saveme that shipped Phases 1.1a/1.1b/1.1d/1.2/1.3/1.4a/1.4b/1.5/1.5b on branch. Day 2 applied 8 RLS migrations to prod, then closed Phase 1 with Phase 1.6 cleanup + Phase 1.7 registry hygiene under "Option A" scope (full client-switch deferred to a follow-up rather than absorbed into Phase 1).
+
+**What changed (4 commits across the day, all on `access-model-v2-phase-1`):**
+
+- **Day 2 morning — 8 RLS migrations applied to prod** via Supabase SQL Editor in timestamp order. 4 from Phase 1.5 (3 rewrites of broken policies + 1 additive on `students`); 4 from Phase 1.5b (additive on `class_students`, `student_progress`, `fabrication_jobs` + `fabrication_scan_jobs`, deny-all on `student_sessions`). Verification queries returned expected pg_policies rows for each. `scan-rls-coverage.py` confirmed `student_sessions` + `fabrication_scan_jobs` exited the `rls_enabled_no_policy` drift bucket.
+
+- **Phase 1.6 cleanup (`be2f3c8`):** Dropped the temporary alias pattern (`const auth = { studentId: session.studentId }`) from 3 of the 6 Phase 1.4b routes — `grades`, `me/support-settings`, `me/unit-context` now use `studentId` directly. The other 3 Phase 1.4b routes (`units`, `insights`, `safety/pending`) were never aliased. Also created `docs/security/student-auth-cookie-grace-period.md` documenting dual-auth-path coexistence semantics until Phase 6 cutover (cookie surface during the grace window, stale-token edge case, RLS implications, audit-trail asymmetry).
+
+- **Phase 1.7 registry hygiene (`936fd96`):** WIRING.yaml `auth-system` rewritten to v2 — summary describes polymorphic auth.users + app_metadata.user_type model + dual-mode wrapper grace period; `affects` expanded 4 → 12 systems (every student-* surface that consumes the helper); `key_files` corrected (removed nonexistent `student-session.ts`, added `actor-session.ts`, `provision-student-auth-user.ts`, classcode-login route); `data_fields` adds `students.user_id`. schema-registry.yaml: spec_drift entries on 12 tables touched by Phase 1.5 + 1.5b. dimensions3-followups.md: FU-AV2-PHASE-15B ✅ RESOLVED; new **FU-AV2-PHASE-14-CLIENT-SWITCH (P2)** filed (route migration, supporting-table policies, live RLS harness, cross-class smoke, feature flag). Phase 1 brief §7 split into "Phase 1 close (NOW)" + "Deferred to client-switch follow-up".
+
+- **Saveme registry sync:** scan-api-routes / scan-ai-calls / scan-feature-flags / scan-vendors / scan-rls-coverage all rerun. No new drift introduced by Phase 1 work; pre-existing drifts unchanged (FU-FF flagged tables remain intentionally deny-all; feature-flags drift pre-existing).
+
+**Systems affected:** `auth-system` (v1 → v2). Indirectly: every student-* surface (12 systems in the rewritten `affects` list).
+
+**State of working tree:** clean (post-saveme commit). Tests 2762 passed | 11 skipped (no regression from Day 1 baseline). Typecheck 0 errors. 24+ commits ahead of main, all pushed.
+
+**Decisions logged:** see decisions-log entry "Phase 1 closed under Option A — RLS pre-positioned not load-bearing (30 Apr 2026)". Lessons #62 + #63 added Day 1.
+
+**Next:** merge `access-model-v2-phase-1` → `main` (with `git merge origin/main` first to absorb the school_id NOT NULL hotfix commits). Then Phase 2 (OAuth + email-password for teachers) per `docs/projects/access-model-v2.md`.
+
+---
+
+## 29 Apr 2026 — Bug-report system overhaul: role-hint auth, rich client_context, Sentry, screenshots, dedupe, email, motion polish ✅
+
+**Context:** Matt noticed a student-submitted bug report was tagged
+`reporter_role = "teacher"` in the admin panel and asked what could be
+improved. The existing `/admin/bug-reports` UI captured only
+description / category / page_url / last 5 console.errors and showed a
+flat list filtered only by status. Sentry was installed (`@sentry/nextjs`
+10.43.0) but never linked to bug reports. No screenshot UX existed despite
+the schema having a `screenshot_url` column. No notifications, no
+dedupe.
+
+**What changed (one branch on main, ~6 commits, 2 migrations applied to
+prod 28–29 Apr):**
+
+- **Role-hint auth fix** (commit `7a30e04`, migration
+  `20260428230559_add_bug_report_client_context`): API resolution order
+  was always Supabase Auth first → student session second. If a student
+  was logged in on a profile that also had a teacher Supabase Auth
+  session, every report got tagged "teacher". Frontend now sends
+  `role_hint`; API tries the matching source first and falls through
+  the other way only if it fails. Hint is verified, not trusted.
+- **Rich `client_context` JSONB column** added to `bug_reports`. Captures
+  userAgent, platform, language(s), viewport (w/h/DPR), screen, connection
+  (effectiveType/downlink/RTT/saveData), hardware (cores/memory/touch),
+  release SHA, deploy env, timezone, time-on-page, referrer, route
+  context (`{routeKind, unitId, lessonNumber, activityNumber, classId}`
+  parsed client-side from `/unit/:id/L:n/A:n`, `/class/:id`, etc.), and
+  rolling last-10 runtime events (console.error / console.warn /
+  window.error / unhandledrejection — the screenshot Matt sent of an
+  unhandledrejection would have been missed by the old console.error-only
+  hook).
+- **Admin UI overhaul** (`784f3d2`, `4ef85eb`): structured 4-section
+  context grid (Page / Browser / Viewport / Network & Hardware) with
+  per-row labels that hide on null. Filter bar with free-text search
+  across description+page_url+admin_notes plus Status/Category/Role
+  button rows with live counts and a one-click "clear filters" link.
+  Reporter role shown as a coloured chip on each row card (cyan/purple).
+- **Sentry tie-in** (`eebd5ef`, migration `20260429010718`): client calls
+  `Sentry.captureMessage` at submit time tagged with `bug_report`,
+  `bug_category`, `reporter_role`, `class_id`, `route_kind`. Returned
+  `event_id` stored in new `bug_reports.sentry_event_id` column. Admin
+  links to the Sentry events search (`NEXT_PUBLIC_SENTRY_ORG_SLUG` /
+  `NEXT_PUBLIC_SENTRY_PROJECT_SLUG` env vars narrow the deep-link to a
+  specific project).
+- **Screenshot capture** (same commit): adds `html-to-image` dep
+  (~50 KB gz). Client uses `toJpeg` q=0.8 with dynamically-computed
+  `pixelRatio` so longest output dim caps at 1400 px (a 1500×8000
+  lesson page becomes ~262×1400 ≈ 200–400 KB JPEG, well under
+  Vercel's 4.5 MB body limit). New private `bug-report-screenshots`
+  Storage bucket with service-role-only RLS (matches migration 102
+  pattern). API uploads decoded base64, stores object path. Admin GET
+  batch-mints signed URLs (30 min TTL) so admin UI can render
+  screenshots inline. Initial bug: tall preview pushed the textarea
+  off the panel — fixed (`c8d2579`) with `max-h-32 object-cover-top`
+  + click-to-open-fullsize. Second bug: rAF yield needed before the
+  blocking `toJpeg` work or the capture-shimmer never paints
+  (`5d5e224`).
+- **Email notification on every new report**: fire-and-forget
+  `api.resend.com` POST from "StudioLoom <hello@loominary.org>"
+  (loominary.org is verified in Resend, reuses existing
+  RESEND_API_KEY). Subject `[Bug · category] description-50`,
+  body has page URL + admin link + Sentry link. Skips silently
+  when `BUG_REPORT_NOTIFY_EMAIL` or `RESEND_API_KEY` are unset.
+  Failures logged, never break submission.
+- **Client-side dedupe** in admin UI: reports fingerprinted by
+  (category | route_kind | first event kind+message). Description
+  intentionally NOT in the fingerprint — different students will phrase
+  the same bug differently. Row card shows "×N similar" rose badge
+  when more than one report shares the fingerprint. No schema work
+  (computed over the full 200-row page).
+- **Motion polish** (`30a4a4c`, `5d5e224`) via existing framer-motion
+  dep, students-only:
+  - Idle wiggle: 1.6 s 6-frame jiggle every ~5 s, just enough
+    personality without being distracting. Teachers get the static icon.
+  - Click splat: multi-blob radial (yellow/pink/green/blue/purple)
+    scales 0.4 → 2.4× and fades over 0.55 s, re-keyed via state
+    counter so it re-fires on every click.
+  - Capture shimmer: 128 px gradient panel with a horizontal shimmer
+    sweep, pulsing camera icon, "Capturing screenshot…" headline +
+    "Long pages can take a few seconds" subtitle. Two `requestAnimationFrame`
+    yields after `setCapturingScreenshot(true)` ensure the shimmer paints
+    before `toJpeg`'s synchronous DOM/canvas work blocks the main thread.
+
+**Migrations applied to prod (in order):**
+1. `20260428230559_add_bug_report_client_context.sql` — `client_context JSONB NOT NULL DEFAULT '{}'`.
+2. `20260429010718_add_bug_report_sentry_and_screenshots.sql` — `sentry_event_id TEXT NULL` + private `bug-report-screenshots` Storage bucket + service-role-only RLS policy.
+
+**Systems affected:** `bug-reporting`, `auth-system` (role-hint resolution
+pattern), `governance-registries` (feature-flags + schema-registry
+updates).
+
+**Tests:** No new automated tests this session. Verified end-to-end via
+Matt's prod smoke — student-tagged role correctly captured, admin UI
+renders rich context, screenshot panel sized correctly, capture shimmer
+visible during the 2–3 s capture window after the rAF fix.
+
+**Lessons surfaced:**
+- For long pages, JPEG q=0.8 with dynamically-scaled `pixelRatio`
+  beats PNG by ~10× on file size, comfortably fitting Vercel's
+  4.5 MB body limit even on 8000-pixel-tall lesson pages.
+- React state updates inside an event handler don't paint before
+  subsequent synchronous work in the same async function — explicit
+  `requestAnimationFrame` yields are required if the work that
+  follows blocks the main thread (e.g. `toJpeg`'s DOM/canvas
+  rendering).
+- Auth disambiguation should be a hint passed from the client, not
+  inferred server-side. Two valid auth sources can coexist in the
+  same browser; trust what the user's UI claims they are, then
+  verify against that source first.
+
+**Follow-ups (not done — opportunity backlog):**
+- "Reply to reporter" — schema has `response` field but no notification
+  path. Would close the loop with students. Resend already wired.
+- "Send a response" auto-email when admin marks status `fixed`.
+- Reporter session correlation (per-browser ID so multiple reports
+  from same student/session group together).
+- CSV export for batch triage.
+- Server-side fingerprint column (currently computed client-side; fine
+  at <200 rows).
+
+---
+
+## 29 Apr 2026 — TopNav search palettes wired (teacher + student) + lesson body-content scan ✅
+
+**Context:** The search icon in the dashboard-v2 TopNav had been an inert
+visual placeholder since Phase 1 scaffold (24 Apr). Wired it end-to-end —
+first for teachers, then mirrored for students once Matt confirmed it
+worked, then iterated on student-side scope (added lessons, then widened
+lesson search to scan body content after Matt reported missing words he
+knew were in his lessons).
+
+**What changed:**
+
+- **Teacher palette** (commit `d9045bf`): new `/api/teacher/search` route
+  (3-bucket parallel ilike across `classes` / `class_units → units` /
+  `class_students → students`, scoped via `classes.teacher_id`, 6 hits per
+  bucket, 2-char min, escaped pattern). New `CommandPalette` component
+  with debounced fetch (180 ms), `AbortController` cancellation, grouped
+  results, keyboard nav (↑/↓/Enter/Esc), backdrop click. TopNav button +
+  global ⌘K/Ctrl+K shortcut with in-input guard.
+- **Student palette** (commit `3b6e748`): refactored to share —
+  `src/types/search.ts` carries `SearchHit`/`SearchResponse` types, and
+  `CommandPalette` moved to `src/components/search/` with a `searchUrl`
+  prop (defaults to teacher endpoint). New `/api/student/search` —
+  `requireStudentAuth` + service-role client (mirrors `/api/student/units`).
+  Resolves student class IDs via `class_students` junction + legacy
+  `students.class_id` fallback. v1 returned units only.
+- **Lessons bucket** (commit `f84a13a`): added `LessonHit` type +
+  `lessons[]` on `SearchResponse`. Student route now loads master units
+  in one query, walks each assignment using `resolveClassUnitContent` +
+  `getPageList` so lesson hits reflect the forked content the student
+  actually sees. Teacher search returns `lessons: []` (not implemented).
+  CommandPalette renders the new bucket with an emerald `Lesson` badge.
+- **Body-content fix** (commit `9c472c3`): Matt reported lessons not
+  finding words he knew existed. Root cause — for v4 (timeline) units
+  `v4ToPageList` derives lesson title from just the first core activity's
+  title. New `pageSearchText()` helper concatenates every student-visible
+  string field (page.title, content.title, learningGoal,
+  introduction.text, sections[].prompt + exampleResponse + ELL
+  scaffolding, success_criteria, reflection.items, vocabWarmup
+  terms/definitions/examples). Excludes `teacher_notes` (private) and AI
+  rules (internal). Title hits and body hits collected separately so
+  title matches sort first. Bucket cap stays 8.
+
+**Validation:**
+- ✅ tsc strict (`tsconfig.check.json`) clean throughout
+- ✅ Both endpoints compile + return 401 unauthenticated in dev
+- ✅ Teacher + student both working in prod after Vercel deploy (Matt
+  confirmed: "ok works")
+- ❌ Couldn't visually exercise the modal as a logged-in user in dev
+  preview (no creds) — verification was endpoint-level + tsc
+
+**Migrations this session:** None.
+
+**Decisions added (logged inline, not in decisions-log):**
+- Class-bucket excluded from student search (students don't have
+  per-class pages — everything funnels to `/dashboard`).
+- All page types searched (lesson, skill, reflection, context, custom,
+  strand) — they're all navigable in the student flow.
+- Title-vs-body hit ranking via two arrays + concat at the end (no score
+  function) — simpler than a single ranked list.
+- Lesson search excludes `teacher_notes` (privacy) and AI rules
+  (irrelevant) but includes ELL scaffolding text (vocab a student might
+  remember).
+- Component placed at `src/components/search/CommandPalette.tsx` (shared
+  location); types at `src/types/search.ts`.
+
+**FUs added (informal — not filed in followups doc):**
+- **Search perf — content_data refetch per keystroke** P3. Each lesson
+  search keystroke (post-debounce) re-fetches `content_data` for every
+  assigned unit. Tolerable for typical 3–10 active units; if a power
+  user complains of lag, add a client-side cache of unit content per
+  palette-open lifecycle.
+- **Teacher lesson search** P3. Type system already supports `lessons[]`
+  for teachers; `/api/teacher/search` just returns empty. Wire if useful.
+- **Search ranking beyond title vs body** P3. Currently title-hit-first
+  is the only signal. If body-hit results get noisy (e.g. common words
+  matching across many pages), add scoring (term frequency, position).
+
+**FUs resolved this session:** None.
+
+**Systems affected:** New endpoints surface in `api-registry.yaml`
+(2 routes added: `/api/teacher/search`, `/api/student/search`). No new
+DB writes, no new AI calls, no new vendors, no migrations.
+
+**Drift surfaced (pre-existing, not from this session):**
+- `feature-flags.yaml` — orphaned `SENTRY_AUTH_TOKEN` (FU-CC,
+  build-time-only), missing `RUN_E2E` (used in `student/word-lookup`
+  test gate, not added to registry).
+- `rls-coverage` — 7 tables RLS-enabled-no-policies (FU-FF,
+  pre-existing pattern likely intentional for several).
+
+**Tests:** Unchanged (search routes have no tests yet — small enough
+that endpoint-level smoke + tsc was the bar).
+
+**Cost spent this session:** $0 (no AI calls made or added).
+
+**Pending after this saveme:** None blocking. Next normal work resumes
+on whatever queue Matt picks (Access Model v2 Phase 0, dashboard-v2
+polish, or new request).
 
 ---
 
@@ -2499,3 +3168,494 @@ Trying to handle both in one route produces silent failures — either "PKCE ver
 **Cost spent this session (Phase 2 work):** $0.0 (all changes are infrastructure + UI; no Anthropic calls fired beyond Phase 1 baseline).
 
 **Pending after this saveme:** (1) Matt applies `student_support_settings` migration to prod; (2) browser-test the teacher control panel; (3) decide Phase 3 (Response Starters) vs Phase 4 (signal infrastructure + unified settings) as next major chunk.
+
+---
+
+### 29 April 2026 — Access Model v2 Phase 0 SHIPPED ON BRANCH (foundation schema + audit pre-reqs)
+
+**What changed:**
+
+All 9 sub-tasks of Access Model v2 Phase 0 (Foundation Schema + Audit Pre-Reqs) shipped on the `access-model-v2` branch in worktree `/Users/matt/CWORK/questerra-access-v2`. 12 migrations + 5 audit-derived security artifacts + 209 new tests. **51 commits ahead of main, not pushed.** Awaiting Matt's manual Supabase apply of remaining 7 migrations + Checkpoint A1 sign-off + branch merge to main.
+
+**Sub-tasks shipped (all DONE):**
+
+- **0.1** schools column expansion — 6 cols: `status` (lifecycle enum), `region`, `bootstrap_expires_at`, `subscription_tier` (monetisation seam), `timezone` (IANA), `default_locale`. Mig `20260428125547`. Tests +13.
+- **0.2** user locale columns — `teachers.locale` + `students.locale`. Mig `20260428132944`. Tests +7. **Option A scope** — SIS columns originally planned here narrowed to locale-only after pre-flight audit caught mig 005_lms_integration.sql already had SIS-shaped columns under different names. Canonicalisation deferred to Phase 6.
+- **0.3** student/unit school_id gap fill + backfill — `students.school_id` + `units.school_id` (nullable + indexed) + UPDATE FROM teacher chain + `COALESCE(author_teacher_id, teacher_id)` for units. Mig `20260428134250`. Tests +13. NOT NULL tightening deferred to Phase 0.8.
+- **0.4** soft-delete + unit_version_id — `deleted_at` on `students/teachers/units` (3 cols) + `unit_version_id` UUID FK `unit_versions(id)` ON DELETE SET NULL on 7 submission-shaped tables (`assessment_records`, `competency_assessments`, `portfolio_entries`, `student_progress`, `gallery_submissions`, `fabrication_jobs`, `student_tool_sessions`). Mig `20260428135317`. Tests +19. Existing `is_archived` patterns on `classes` / `knowledge_items` / `activity_blocks` preserved — harmonisation deferred to Phase 6.
+- **0.5** `user_profiles` table (Option B chosen) — id PK FK `auth.users(id) ON DELETE CASCADE` + 6-value `user_type` enum (`student / teacher / fabricator / platform_admin / community_member / guardian`) + `is_platform_admin BOOLEAN`. Auto-create trigger on `auth.users` INSERT alongside existing `handle_new_teacher` trigger. Backfill from existing teachers. RLS: self-read + platform_admin-anywhere; INSERT/UPDATE deny-by-default (trigger + service role only). Mig `20260428142618`. Tests +20.
+- **0.6** 7 forward-compat tables across 3 migration pairs:
+  - **0.6a** `school_resources` + `school_resource_relations` + `guardians` + `student_guardians` (mig `20260428214009`, +24 tests)
+  - **0.6b** `consents` (polymorphic subject, RLS deny-all-Phase-0; mig `20260428214403`, +16 tests)
+  - **0.6c** `school_responsibilities` (programme coordinators) + `student_mentors` (cross-program mentorship — resolves FU-MENTOR-SCOPE P1; polymorphic mentor via `auth.users` FK; mig `20260428214735`, +22 tests)
+- **0.7** core access tables across 2 migration pairs:
+  - **0.7a** `class_members` (6-role enum incl. `mentor`) + `audit_events` (immutable append-only, polymorphic actor_type 7 values, denormalised school+class FKs, monetisation analytics seam, 5 indexes; mig `20260428215923`, +24 tests)
+  - **0.7b** `ai_budgets` (polymorphic subject student/class/school) + `ai_budget_state` (per-student running counter; mig `20260428220303`, +19 tests)
+- **0.8** backfill split into 0.8a + 0.8b for safer manual application:
+  - **0.8a** orphan teachers → personal schools, students/units cascade tail, class_members lead_teacher seed (single DO $$ block with RAISE EXCEPTION on remaining NULLs; mig `20260428221516`, +18 tests)
+  - **0.8b** tighten NOT NULL on students/units/classes school_id (with pre-flight RAISE EXCEPTION guards; mig `20260428222049`, +14 tests)
+- **0.9** audit-derived non-schema deliverables:
+  - api-registry annotation: 7 `/api/tools/*` routes → `auth: public` (closes audit F10; scanner heuristic + gate threshold bumped 40→50)
+  - `docs/security/multi-matt-audit-query.md` — read-only diagnostic for 3-Matts + duplicate-name candidates
+  - `scripts/security/rotate-encryption-key.ts` + `docs/security/encryption-key-rotation.md` (closes audit F9; per-row decrypt-encrypt-roundtrip-verify with --dry-run)
+  - `docs/security/mfa-procedure.md` (closes audit F6 procedurally; Matt enables in Supabase dashboard)
+  - `src/lib/access-v2/__tests__/rls-harness/` — RLS test scaffold + 1 starter test (closes audit F14 partially; full coverage = `FU-AV2-RLS-HARNESS-FULL-COVERAGE` P2)
+
+**Plan corrections during execution (filed as inline edits to access-model-v2.md):**
+- §3 item #26 rewritten to acknowledge mig 005 SIS prior art (Option A decision)
+- §3 Phase 0 column-additions bullet updated to name exact tables for soft-delete + unit_version_id
+- §8.6 item 3 full reality-check section with what-vs-what comparison table
+- §3 §8.6 expanded from 5 to 7 forward-compat tables (added school_responsibilities + student_mentors)
+- §4 Phase 0 user-type bullet updated to ship 6 enum values from day one
+- Phase 0 brief sub-task table rows ticked DONE for each completed sub-task
+- Supabase boundary note added to Phase 0 brief header (Matt applies migrations + dashboard + prod queries manually, not autonomously)
+
+**Decisions logged (9 entries):** see `docs/decisions-log.md` tail for full text. Highlights: Option B for user_profiles (Supabase recommendation over auth.users direct columns); Option A for SIS columns (mig 005 prior art deferral); 3 soft-delete patterns coexist (don't harmonize in Phase 0); 6-value user_type enum from day one (community_member + guardian match schema seams); 7 forward-compat tables (programme coordinators + student mentors added 28 Apr from cross-program mentorship discovery); class_members.role includes 'mentor'; 0.8a/0.8b split for safer manual application; multi-Matt prod data preserved as 3 separate teacher rows; API versioning + timezone seams added 28 Apr.
+
+**Side-findings filed (5 follow-ups + several closed):**
+- `FU-AV2-GUARDIAN-CONTACT-ENCRYPTION` P3 — encrypt guardians.email + phone before parent portal UI
+- `FU-AV2-AUDIT-EVENTS-PARTITION` P3 — partition by month when row count justifies (~1M rows)
+- `FU-AV2-RLS-HARNESS-FULL-COVERAGE` P2 — extend harness to per-route coverage as Phase 1+ migrates routes
+- `FU-AV2-NEW-TEACHER-USER-TYPE-DEFAULT` (Phase 1 fixup — handled when auth unification updates the trigger)
+- Earlier in session: `FU-AV2-IT-SUPPORT-USER-TYPE`, `FU-AV2-TEACHER-CROSS-SCHOOL-MOVE`, `FU-AV2-MULTI-SCHOOL-MEMBERSHIPS`, `FU-AV2-HIERARCHICAL-GOVERNANCE`, `FU-AV2-PROGRAMME-COORDINATORS` (filed in §3 deferred list)
+
+**Files created:**
+- 12 migration pairs at `supabase/migrations/2026*.sql` + `.down.sql`
+- 12 migration shape test files at `src/lib/access-v2/__tests__/migration-*.test.ts`
+- `docs/projects/access-model-v2-phase-0-brief.md` (~470 lines master brief for the phase)
+- `docs/security/multi-matt-audit-query.md`, `docs/security/mfa-procedure.md`, `docs/security/encryption-key-rotation.md`
+- `scripts/security/rotate-encryption-key.ts`
+- `src/lib/access-v2/__tests__/rls-harness/{README.md, setup.ts, students.live.test.ts}`
+
+**Files modified:**
+- `docs/projects/access-model-v2.md` — extensive plan corrections (Path B chosen, Option B for user_profiles, mig 005 prior art, Option A scope narrowing, soft-delete pattern coexistence, scope expansion for programme coordinators + student mentors, monetisation/timezone/locale/API-versioning forward-compat seams, etc.)
+- `docs/api-registry.yaml` — sync after scanner heuristic fix (7 unknown → public)
+- `docs/schema-registry.yaml` — sync via sync-schema-registry.py (88 → 108 entries, +20 from Phase 0 tables + columns)
+- `docs/ai-call-sites.yaml` — sync (no diff this session)
+- `scripts/registry/scan-api-routes.py` — path-based public override for `/api/tools/*` + gate threshold bumped 40→50
+
+**Test counts:** 2433 → **2642 passed** (+209 across all 9 sub-tasks); 9 → 11 skipped (+2 RLS harness live tests skipped without env). Typecheck clean throughout.
+
+**Systems affected:** none "live" — Phase 0 is pure schema + scaffolding. WIRING.yaml `auth-system` entry will update in Phase 1 when the unified `getStudentSession()` helper lands. Schema-registry now records 12 new tables + ~12 column additions.
+
+**Registry sync results (saveme step 11):**
+- `api-registry.yaml` — drift captured (the F10 fix + recent route work)
+- `ai-call-sites.yaml` — clean
+- `feature-flags.yaml` — `SENTRY_AUTH_TOKEN` orphan persists (FU-CC, P3 known)
+- `vendors.yaml` — clean, status: ok
+- `rls-coverage.json` — 7 RLS-no-policy tables (all pre-existing FU-FF set; zero new from Phase 0)
+- `schema-registry.yaml` — 108 entries (+20 from Phase 0)
+
+**Scheduled task gap:** `refresh-project-dashboard` not in scheduled-tasks MCP — same gap as previous saveme runs. Dashboard `PROJECTS` array sync deferred to manual update or master CWORK-level dashboard refresh.
+
+**Session context:** This was the multi-day Phase 0 execution. Started from access-model-v2 plan signed off 25 Apr + IT audit reviewed 28 Apr → restructured plan for Path B (ship-before-pilot) → 9 sub-tasks across 3+ days of work in the questerra-access-v2 worktree. Matt manually applied migrations 0.1–0.5 to prod during execution (per "Supabase actions go through me manually" rule); migrations 0.6+ ship on the branch awaiting his apply. Checkpoint A1 verification ran with **5 PASS / 2 PARTIAL / 3 PENDING-MATT** status; merge to main waits for the 3 PENDING-MATT items (apply remaining migrations, MFA enrol, ENCRYPTION_KEY fire drill).
+
+---
+
+### 29 April 2026 — Access Model v2 Phase 0 APPLIED TO PROD + Checkpoint A1 PASS
+
+**What changed (post-saveme-#1 prod applies):**
+
+Following the saveme commit `64d2afc` that flipped Access Model v2 to "PHASE 0 SHIPPED ON BRANCH", Matt walked through the 12-step prod application + Checkpoint A1 close-out one step at a time. All 12 done.
+
+**Migrations applied to prod** (Supabase project `cxxbfmnbwihuskaaltlk`):
+1. ✅ 0.1 schools_v2_columns (already applied earlier in session window)
+2. ✅ 0.2 user_locale_columns (already applied)
+3. ✅ 0.3 student_unit_school_id (already applied)
+4. ✅ 0.4 soft_delete_and_unit_version_refs
+5. ✅ 0.5 user_profiles (4 teachers backfilled with user_type='teacher')
+6. ✅ 0.6a school_collections_and_guardians (4 tables)
+7. ✅ 0.6b consents (1 table + deny-all RLS)
+8. ✅ 0.6c school_responsibilities + student_mentors
+9. ✅ 0.7a class_members + audit_events
+10. ✅ 0.7b ai_budgets_and_state — **mid-apply fix** for Lesson #61 (`WHERE reset_at < now()` rejected by Postgres because `now()` is STABLE not IMMUTABLE; partial predicate dropped, plain b-tree on `reset_at` ships)
+11. ✅ 0.8a backfill — **mid-apply data fix** for orphan unit `Arcade Machine Project` (`fd2eaf1d-...`) which had NULL author_teacher_id AND teacher_id. Derived author from class_units chain → set to `mattburto@gmail.com` Matt row (`0f610a0b-...`). Migration ran cleanly afterward: 0 orphans, 26 lead_teacher rows seeded matching 26 classes-with-teacher.
+12. ✅ 0.8b NOT NULL tighten on students/units/classes school_id — **mid-apply data fix** for the 26 classes that had NULL school_id (Phase 0 doesn't auto-backfill mig 117's nullable column). Manual UPDATE FROM teacher chain populated all 26. Then 0.8b ran cleanly.
+
+**A1 ops items (Steps 10–12):**
+- ✅ Step 10 — Multi-Matt audit query run. Output: 3 Matts at NIS school_id `636ff4fc-...`, no other duplicate-name candidates. Data weights: `mattburto@gmail.com` (13 classes / 6 students / 7 units, oldest), `mattburton@nanjing-school.com` (7/1/3, school email), `hello@loominary.org` (6/0/1, newest). Phase 6 cutover decision: keep all 3 vs merge → deferred per plan.
+- ✅ Step 11 — Supabase MFA TOTP **Enabled** at project level (audit F6 satisfied). Per-user enrolment deferred to Phase 2 in-app UI (StudioLoom doesn't have `/auth/mfa/enroll` route yet — Supabase doesn't allow admin-side enrolment). `is_platform_admin=true` set on `mattburton@nanjing-school.com` user_profiles row.
+- ✅ Step 12 — ENCRYPTION_KEY rotation script smoke-tested via `--dry-run`. Prod has 0 encrypted rows (no BYOK API keys, no LMS integrations wired pre-pilot). Script connected to prod, queried 3 encrypted columns (ai_settings.encrypted_api_key, teacher_integrations.encrypted_api_token, lti_consumer_secret), reported 0 rows in each, exited `Failed: 0`. Live rotation deferred until first BYOK row exists. Rotation log entry appended to `docs/security/encryption-key-rotation.md`.
+
+**Checkpoint A1 final status: ALL 10 PASS ✅** (was 5 PASS / 2 PARTIAL / 3 PENDING-MATT post-saveme-#1).
+
+**Lessons logged this session:**
+- **Lesson #61** (`docs/lessons-learned.md`) — non-IMMUTABLE functions in index predicates are rejected by Postgres. Sibling to Lesson #38: shape-asserting tests catch string presence but not SQL semantic errors. Pair migration shape tests with execution tests against a real Postgres OR audit partial index predicates for `STABLE`/`VOLATILE` functions before declaring "Phase X DONE on branch".
+
+**Bumped commits:**
+- `2f87f1b` fix(access-v2): drop non-IMMUTABLE WHERE clause from idx_ai_budget_state_due_reset (mid-apply Lesson #61 fix)
+
+**Branch state:** `access-model-v2` at HEAD (commit added during this session). 53+ commits ahead of `main`. Tree clean. Ready to merge to main via PR. Worktree cleanup deferred — Matt can `git worktree remove ../questerra-access-v2` after merge OR keep for Phase 1.
+
+**Session context:** This was the prod apply + A1 close-out session. Multi-step walkthrough one migration at a time. Two mid-apply hiccups (Lesson #61 SQL bug + orphan data); both diagnosed + fixed inline; both informed Lesson #61 + the data-fix patterns. Now Phase 1 (Auth Unification — every student → auth.users + getStudentSession() helper + route migration) is the next milestone.
+
+---
+
+### 29 April 2026 (later) — Hygiene + Phase 1 brief drafted on branch + registry-consultation discipline codified
+
+**Systems affected:** repository hygiene, admin tooling (bug-reports), build-phase-prep skill, governance (registry consultation discipline), Access Model v2 (Phase 1 brief on feature branch).
+
+**What shipped to main today:**
+
+1. **Bug-report screenshot signed URL TTL** (`d97decd`) — bumped 30 min → 4 hr. Single-admin internal use; URL-leakage trade-off acceptable for the realistic triage workflow.
+
+2. **Repo hygiene Tier 1** (`9b83a71`) — relocated 247 MB of tracked reference material (`3delements/`, `docs/safety/`, `docs/newmetrics/`, `comic/`, `docs/newlook/`, `docs/lesson plans/`) to `/Users/matt/CWORK/_studioloom-reference/` (sibling, not in git). `.gitignore` blocks re-add. 5,307 files removed; 488,798 line deletions. Every future `git worktree add` skips the bulk. Recovered ~3 GiB free across 7 worktrees.
+
+3. **Test fixture relocation** (`5ce589b`) — restored `mburton packaging redesign unit.docx` + `Under Pressure...pdf` from the relocated reference folder to `tests/fixtures/ingestion/`. CI caught they were genuinely needed by `tests/e2e/checkpoint-1-2-ingestion.test.ts`. Net hygiene saving drops from 247 MB → ~230 MB. Lesson logged in decisions-log: my grep audit needs to cover `tests/` not just `src/` + `scripts/`.
+
+4. **FU-REGISTRY-DRIFT-CI filed** (`3007f38`) — P2 follow-up tracking the gap that `build-phase-prep` skill consulted only `WIRING.yaml`, leaving 5 other registries blind. 3-layer recommendation: L1 skill update (done — see #5), L2 pre-commit warn, L3 CI gate.
+
+5. **`build-phase-prep` skill — Step 5c added** — registry consultation now MANDATORY for any phase touching ≥3 files. Lists the 7 registries, requires spot-check against code, requires registry-sync sub-phase in commit plan. Master `CLAUDE.md` "Non-negotiables per phase" gets a 9th item codifying it.
+
+**What landed on `access-model-v2-phase-1` feature branch (NOT pushed to main):**
+
+- `42b2cf7` — Phase 1 brief draft (475 lines) covering 6 sub-phases of auth unification: backfill students → auth.users, custom Supabase classcode+name flow, `getStudentSession()`/`getActorSession()` polymorphic helpers, 3-batch route migration (A: 21 read-only, B: 21 mutation, C: 17 student-touching teacher routes), RLS simplification on 7 tables, negative control + cleanup. Synthetic email format locked: `student-<uuid>@students.studioloom.local`.
+- `5be1599` — Registry cross-check amendment. Added §3.7 with 10 verified gaps (numbers grep-confirmed), §4.7 Registry hygiene sub-phase (12 update steps that must land before A2 sign-off), risk #5 covering `student_sessions` RLS-no-policy promotion to load-bearing during the grace period (closes FU-FF P3), Checkpoint A2 extended with explicit registry-sync gate items.
+
+Branch state: `access-model-v2-phase-1` at `5be1599`, 2 commits ahead of `main`, not pushed. Awaiting Matt sign-off on synthetic email format + grace period decisions before §4.1 code starts.
+
+**Registries (this saveme — main-side):**
+
+| File | Action | Result |
+|---|---|---|
+| `api-registry.yaml` | Rerun scanner — applied | +2 routes (393 → 395; `/api/student/search` newly registered + `bug-reports` tables_read/written shape correction) |
+| `ai-call-sites.yaml` | Rerun scanner — applied | No drift |
+| `feature-flags.yaml` | Rerun scanner | Drift: `SENTRY_AUTH_TOKEN` orphaned (pre-existing FU-CC P3), `RUN_E2E` missing (test/CI env var, classification question — leave for now) |
+| `vendors.yaml` | Rerun scanner | No drift |
+| `rls-coverage.json` | Rerun scanner | 7 `rls_enabled_no_policy` (3 known: `ai_model_config*`, `student_sessions` per FU-FF; `fabricator_sessions`, `fabrication_scan_jobs`, `admin_audit_log`, `teacher_access_requests`). Phase 1 §4.5 closes 2 of these |
+| `schema-registry.yaml` | Manual review | No new migrations on main this session (Phase 1 migrations come on its own branch) |
+| `data-classification-taxonomy.md` | Manual review | No drift. Phase 1 brief §4.7 will add the Synthetic/Opaque Identifiers rule when Phase 1 ships |
+
+**Lessons + decisions:**
+- New decision: registry cross-check is a hard gate on phase briefs (logged)
+- New decision: repo hygiene Tier 1 (logged)
+- New decision: bug-report TTL 30→4hr (logged)
+- No new lessons — the WIRING `key_files` drift was Lesson #54 already, applied; the test-grep gap is captured in a decision.
+
+**Commits to main this session window:** `c3c6457..3007f38` (bug-reports fix, hygiene, fixtures, FU added).
+
+**Branch state at saveme:** `main` clean, all today's work pushed. `access-model-v2-phase-1` 2 ahead, local-only, awaiting Phase 1 sign-off.
+
+**Next:** Phase 1 of Access Model v2 (Auth Unification, ~3.5 days incl. registry hygiene). Pre-flight + research spike when Matt says "go" on the brief.
+
+---
+
+### 29 April 2026 (later still) — Access Model v2 Phase 1.1a/1.1b/1.1d/1.2 SHIPPED ON BRANCH + verified in preview
+
+**Branch:** `access-model-v2-phase-1` (8 commits ahead of `main`, pushed)
+**Worktree:** `/Users/matt/CWORK/questerra-access-v2`
+**Test count:** 2642 (Phase 0 baseline) → **2695** (+53 new tests across 1.1a + 1.1b + 1.1d + 1.2)
+**Typecheck:** 0 errors
+
+**Sub-phases shipped + state:**
+
+| Sub-phase | What | Prod state |
+|---|---|---|
+| 1.1a | ALTER TABLE students ADD COLUMN user_id UUID NULL FK auth.users(id) ON DELETE SET NULL + partial index + comment | ✅ Applied to prod via Supabase SQL Editor; verified column + FK + index + comment shape |
+| 1.1b | TS backfill script `scripts/access-v2/backfill-student-auth-users.ts` (--dry-run, --rollback flags, idempotent, robust to SDK drift) | ✅ Applied to prod; **7 students backfilled**, 7 auth.users created with synthetic emails + `app_metadata.user_type='student'` + `school_id` + `created_via='phase-1-1-backfill'`, 7 user_profiles auto-created via Phase 0 trigger |
+| 1.1d | Shared helper `provisionStudentAuthUser()` at `src/lib/access-v2/provision-student-auth-user.ts` + wires into 3 server-side INSERT routes (LTI launch, welcome/add-roster, integrations/sync) + post-Phase-1.1d miss fix to add school_id on add-roster's parseEntry payload | Pure code; no prod step. Filed FU-AV2-UI-STUDENT-INSERT-REFACTOR (P2) for the 4 client-side UI INSERT sites Phase 1.4 will refactor |
+| 1.2 | `POST /api/auth/student-classcode-login` — generateLink + verifyOtp via SSR cookie adapter; per-IP + per-classcode rate limit; lazy-provision fallback for UI-created students; audit_events on every outcome (success/failed/rate_limited); sanitised error logging; Cache-Control: private | ✅ Verified end-to-end in Vercel preview deploy: HTTP 200 happy path + sb-* session cookies set + JWT decoded with `app_metadata.user_type='student'` + 401 failure paths + audit_events rows shaped correctly + ip_address captured |
+
+**Test breakdown (29 new test cases added in this session):**
+- `migration-phase-1-1a-student-user-id-column.test.ts` — 8 shape tests
+- `provision-student-auth-user.test.ts` — 15 helper tests (pure helpers + happy/skip/reuse/fail paths + throwing variant)
+- `student-classcode-login/__tests__/route.test.ts` — 9 route tests (rate limit / 401 / lazy provision fail / generateLink fail / verifyOtp fail / happy + lazy provision)
+- `backfill-student-auth-users.test.ts` — 21 backfill tests (refactored to delegate to shared helper; 2 tests updated for new createUser-first semantics)
+
+**Lessons added (`docs/lessons-learned.md`):**
+- Lesson #62 — Use `pg_catalog.pg_constraint` for cross-schema FK verification, not `information_schema.constraint_column_usage` (surfaced when 1.1a's `students.user_id` FK to `auth.users(id)` was correctly created but information_schema query falsely reported zero rows; pg_catalog query confirmed the constraint exists with `ON DELETE SET NULL`)
+
+**Side issues handled in parallel by another session (NOT in this branch):**
+- `units-school-id-hotfix` (`c2ccb7e`) merged to main — fixes `/api/teacher/units` create case for post-0.8b NOT NULL school_id
+- Follow-up cleanup `462cfa8` on main — covers 4 other server-side INSERT sites (units/route.ts fork, convert-lesson, welcome/create-class, welcome/setup-from-timetable)
+- Proposal doc `c67dbc1` `access-v2-phase-1-school-id-foldin-proposal.md` reviewed and rejected — fold-in into Phase 1 conflated auth-unification with constraint-compliance bugfixes; recommendation taken to keep them as separate hotfixes on main + a single Phase-1.1d miss fix on this branch (add-roster school_id population)
+
+**Phase 1.2 prod-preview verification results (29 Apr 2026 PM):**
+- Test 1 (happy path): HTTP 200 + sb-* cookie + Cache-Control: private + correct response body ✅
+- Test 2 (JWT decode): app_metadata.user_type='student' + school_id + created_via all in claims; access_token TTL 3600s; amr method='otp' confirms magiclink flow ✅
+- Test 3a (bad classCode): HTTP 401 + Cache-Control: private + body `{"error":"Invalid class code"}` + audit row with failureReason='invalid_class_code' ✅
+- Test 3b (bad username): HTTP 401 + Cache-Control: private + body `{"error":"Student not found in this class"}` + audit row with failureReason='student_not_in_class' ✅
+- Test 4 (audit_events): 3 rows landed with correct shape; actor_id populated on success / NULL on failure; payload_jsonb shape correct; ip_address from x-forwarded-for ✅
+- Test 5 (per-classcode rate limit): skipped (unit-test covered)
+
+**Phase 1 progress:** 4 sub-phases of 7 done. Highest-risk sub-phase (1.2) verified. Remaining: 1.3 helpers (~0.5d), 1.4 route migrations (~1d), 1.5 RLS simplification (~0.5d), 1.6 negative control + cleanup (~0.5d), 1.7 registry hygiene (~0.5d). ~3 days from Checkpoint A2.
+
+**Registries (this saveme):**
+
+| File | Action | Result |
+|---|---|---|
+| `api-registry.yaml` | Rerun scanner — applied | New route `/api/auth/student-classcode-login` registered earlier in commit `c2a7456` (Phase 1.2). Scanner picked up the route + tests. No new diff this saveme. |
+| `ai-call-sites.yaml` | Rerun scanner — applied | No diff |
+| `feature-flags.yaml` | Rerun scanner | Pre-existing FU-CC drift (SENTRY_AUTH_TOKEN orphan) + RUN_E2E test env var still missing — known, deferred |
+| `vendors.yaml` | Rerun scanner | Status: ok |
+| `rls-coverage.json` | Rerun scanner | 7 known `rls_enabled_no_policy` (FU-FF + 6 others) — none new. Phase 1.5 closes 2 of these (student_sessions + fabrication_scan_jobs). |
+| `schema-registry.yaml` | Manual review | Phase 1.1a column add documented in migration shape test (`migration-phase-1-1a-student-user-id-column.test.ts`); `students.user_id` writers list expansion to be done in Phase 1.7 registry hygiene — drift acknowledged, deferred (not load-bearing). |
+| `data-classification-taxonomy.md` | Manual review | No drift this session. Phase 1.7 registry hygiene adds the Synthetic/Opaque Identifiers rule when Phase 1 closes. |
+
+**Branch state at saveme:** clean. 8 commits ahead of `main`, pushed.
+
+**NEXT:** Matt continues to Phase 1.3 — `getStudentSession()` / `getActorSession()` polymorphic helpers. Pure code, no prod step. Builds on the now-verified architecture.
+
+---
+
+### 29 April 2026 (evening) — Phase 1.3 + 1.4a + 1.4b + 1.5 + 1.5b SHIPPED ON BRANCH; Phase 1.4 verified end-to-end in prod-preview
+
+**Branch:** `access-model-v2-phase-1` (21 commits ahead of `main`, all pushed)
+**Test count:** 2695 → **2762** (+67 across the evening session)
+**Typecheck:** 0 errors throughout
+**Lessons added:** #62 (pg_catalog FK verification), #63 (Vercel preview URLs are deployment-specific)
+
+**Sub-phases shipped + state:**
+
+| Sub-phase | What | State |
+|---|---|---|
+| 1.3 | Polymorphic actor session helpers (`getStudentSession` / `getActorSession` / `requireStudentSession` / `requireActorSession`) | ✅ Code on branch; 18 tests |
+| 1.4a | Dual-mode `requireStudentAuth` wrapper — legacy entry point tries Supabase Auth first, falls back to legacy. All 63 student routes auto-upgraded with zero route file changes. | ✅ Code on branch; 9 tests; **VERIFIED in prod-preview** |
+| 1.4b | 6 GET routes explicitly migrated to `requireStudentSession` (grades, units, insights, safety/pending, me/support-settings, me/unit-context) | ✅ Code on branch; **VERIFIED in prod-preview** |
+| 1.5 | 4 RLS migrations: students self-read + 3 REWRITES of broken policies (competency_assessments, quest_journeys+milestones+evidence, design_conversations+turns). Pre-flight audit caught that `student_id = auth.uid()` was wrong post-Phase-1.1a (different UUIDs). Rewrites use `auth.uid() → students.user_id → students.id` chain. | ✅ Migrations + 21 shape tests on branch; awaiting Matt's prod apply |
+| 1.5b | 4 additive RLS migrations: class_students parallel auth.uid policy, student_progress self-read, fabrication_jobs + fabrication_scan_jobs self-read, student_sessions explicit deny-all (closes FU-FF). | ✅ Migrations + 19 shape tests on branch; awaiting Matt's prod apply |
+
+**Phase 1.4 prod-preview verification (29 Apr evening):**
+
+| Test | URL | Method | Status | Notes |
+|---|---|---|---|---|
+| 1 | `studioloom-git-...vercel.app/api/auth/student-classcode-login` | POST | 200 ✅ | sb-* cookies set |
+| 2 | `studioloom-git-...vercel.app/api/student/units` (Phase 1.4b) | GET via sb-* | 200 ✅ | requireStudentSession reads JWT, dual-mode auth works |
+| 3 | `studioloom-git-...vercel.app/api/student/portfolio` (NOT migrated) | GET via sb-* | 200 ✅ | dual-mode wrapper auto-upgrades via legacy `requireStudentAuth` |
+
+**False alarm during verification (Lesson #63 source):** Initial Test 2 attempts returned 401 against the OLD deployment URL (`studioloom-5yfej1l0t-...`). That URL pinned to a Phase-1.2-era build, before Phase 1.4a/b shipped. Switching to the auto-aliased branch URL (`studioloom-git-access-model-v2-phase-1-...`) immediately returned 200. Spent ~30 min adding diagnostic logging (commits 57454af, f0087ea — both reverted in 80d68f6) before realising the URL was stale. Logged as Lesson #63 — Vercel preview URLs are deployment-specific.
+
+**Side cleanup commit (`8b0be68`):** accidentally committed `cookies.txt` (test artifact with valid session token) in 57454af. Removed via `git rm` + appended `.gitignore` entry to block future commits. Repo is private + token is for synthetic test student, blast radius near zero.
+
+**Registries (this saveme):**
+
+| File | Action | Result |
+|---|---|---|
+| `api-registry.yaml` | Rerun scanner — applied | No new diff (Phase 1.4b helper migration didn't add routes) |
+| `ai-call-sites.yaml` | Rerun scanner — applied | No diff |
+| `feature-flags.yaml` | Rerun scanner | Pre-existing FU-CC + RUN_E2E drift (known) |
+| `vendors.yaml` | Rerun scanner | Status: ok |
+| `rls-coverage.json` | Rerun scanner | **Drift dropped from 7 → 5 entries** (student_sessions + fabrication_scan_jobs exited the drift bucket via Phase 1.5b — even though the migrations haven't applied to prod yet, the scanner reads the migration files in the repo). Remaining 5 (admin_audit_log, ai_model_config, ai_model_config_history, fabricator_sessions, teacher_access_requests) are separate concerns or intentional deny-all. |
+| `schema-registry.yaml` | Manual review | spec_drift entries for the Phase 1.5 + 1.5b RLS rewrites tracked in Phase 1.7 (registry hygiene sub-phase) |
+| `data-classification-taxonomy.md` | Manual review | No drift |
+
+**What's next:**
+
+1. **Matt applies 8 RLS migrations to prod** via Supabase SQL Editor (Phase 1.5: 4 migrations, then Phase 1.5b: 4 migrations, in timestamp order; ~10 sec each). Each is a small SQL paste from the file.
+2. **Phase 1.4c** — Batch B (mutations) + Batch C (teacher routes touching students), ~38 routes mechanical migration. Tracked: FU-AV2-PHASE-14B-2 (P3) covers the 18 GET routes too.
+3. **Phase 1.4 client-switch** — change routes from `createAdminClient()` to RLS-respecting SSR client. Higher-stakes than helper migration; route-by-route review.
+4. **Phase 1.6** — negative control + cleanup (delete legacy fallback, drop alias pattern from 1.4b).
+5. **Phase 1.7** — registry hygiene (WIRING auth-system rewrite, schema-registry spec_drift, taxonomies).
+6. **Checkpoint A2** — gate criteria + merge to main.
+
+~2 days from Checkpoint A2.
+
+---
+
+## 2026-05-02 — Access Model v2 Phase 4 part 1 SHIPPED + Checkpoint A5a + 6 hotfix commits
+
+**Marathon session.** Phase 4.0 → 4.4d shipped end-to-end. 7 migrations applied to prod. Three-Matts prod-data consolidation. ~300 new tests (2895 → 3189). 50+ commits. Checkpoint A5a passed and merged to main. Two follow-up hotfix passes after smoke testing.
+
+### What landed
+
+**Phase 4.0** — Pre-flight + scaffolds. Active-sessions claimed. Migration `20260502024657_phase_4_0_governance_engine_rollout_flag` (admin_settings kill-switch flag, idempotent, default true). 4 scaffolds: archived-school read-only guard (§3.9 item 16), multi-campus parent-precedence helper (§3.9 item 13), governance type contracts (PayloadV1 + TierResolver per §3.9 item 14), rollout-flag accessor. **i18n primitive verification**: zero matches for next-intl/next-i18next/i18next/useTranslation across src — finding logged, deferred to FU-AV2-PHASE-4-4D-NEXT-INTL.
+
+**Phase 4.1** — Schools seed extension. Migration `20260502025737_phase_4_1_seed_schools_extension` shipped 101 schools across 6 markets (UK indies, Australia AHIGS/GPS, US NAIS, Asia non-China fills, Europe non-UK, MEA + NZ + Canada). Curation-criteria-driven (publicly listed D&T faculty / Matt has on-the-ground intro / teaches a demoable framework). source='imported'. UTF-8 verified.
+
+**Phase 4.2** — `school_domains` + welcome wizard auto-suggest. Migration `20260502031121_phase_4_2_school_domains` adds the table + 2 SECURITY DEFINER functions (`is_free_email_domain` IMMUTABLE with 26-provider blocklist including Chinese providers; `lookup_school_by_domain` STABLE narrow projection callable by anon). 4 RLS policies. New routes: `GET /api/schools/lookup-by-domain` (public), `GET /api/school/[id]/domains` (list), `POST /api/school/[id]/domains` (auto-verify path only — non-matching returns 501 with `requires: phase_4_3_governance_engine`). Welcome wizard banner ships above SchoolPicker when domain match found. **Banner verified end-to-end on prod** with all 3 NIS domains (`nis.org.cn`, `nischina.org`, `nanjing-school.com`).
+
+**Phase 4.3** — Governance engine. Migration `20260502034114_phase_4_3_school_setting_changes` adds `school_setting_changes` ledger + `school_setting_changes_rate_state` rate-state side-table + 2 enums (tier, status) + 4 indexes + 4 RLS policies + `enforce_setting_change_rate_limit` SECURITY DEFINER fn (sliding-hour bucket-per-hour storage; atomic check-then-increment). 3 new TS files: `governance/tier-resolvers.ts` (context-aware classification per §3.8 Q2 — domain-match auto-verify, AI-budget delta >50% escalates to high-stakes, 13 always-high + 14 always-low sets), `governance/setting-change.ts` (propose/confirm/revert helpers with bootstrap-grace + version-stamping + rate-limit + archived-guard + kill-switch composition), `app/api/school/[id]/domains/[domainId]/route.ts` (DELETE wired through governance — single-teacher bootstrap immediate-apply vs multi-teacher pending). 84 new tests.
+
+**Phase 4.3.x** — handle_new_teacher search_path hotfix. Migration `20260502102745_phase_4_3_x_fix_handle_new_teacher_search_path` re-applies `SET search_path = public, pg_temp` + schema-qualified `INSERT INTO public.teachers`. The May-1 rewrite (Lesson #65 fix) accidentally dropped both. Failure mode: `ERROR: relation "teachers" does not exist` for every email/password teacher signup since 1 May. Surfaced 2 May during banner-test smoke. **Lesson #66** filed: SECURITY DEFINER function rewrites must re-apply search_path lockdown. Hot-fix applied to prod via SQL Editor first; migration captures fix in audit trail.
+
+**Phase 4.3.y** — Bug A + B + UX-1 fix-pack. Migration `20260502105711_phase_4_3_y_handle_new_teacher_auto_personal_school` extends trigger to atomically INSERT a personal school per Decision 2 (Phase 0 backfilled existing teachers; trigger now extends to new signups). Personal school: `'{Teacher Name}'s School ({user_id[0:8]})'`, country='ZZ', source='user_submitted', verified=false. Welcome wizard `persistSchoolId` helper fires PATCH `/api/teacher/school` immediately on banner-click + Step 1 Next (Bug B fix — was deferred to wizard step 5 / complete). Copy fix: "What's your first class called?" → "Let's add a class". 20 new tests. **Bug A verified end-to-end on prod** (banner-test-3 trigger created NIS personal school).
+
+**Phase 4.3.z** — Three-Matts prod-data consolidation. Pulled forward from Phase 6 cutover plan. Renamed `mattburto@gmail.com` → "Admin" (both `is_admin=true` + `is_platform_admin=true`); `mattburton@nanjing-school.com` → "Matt Burton" pure teacher (admin flags removed); `hello@loominary.org` → "Loominary (deactivated)" with `teachers.deleted_at = now()` + `auth.users.banned_until = '2099-01-01'`. 26 classes / 11 units / 7 students wiped. 8 orphan student auth.users cleaned. Master-spec risk row line 319 ("Multi-Matt-teacher-account prod data") resolved. Apply discipline learned: Supabase SQL Editor runs in autocommit mode — temp tables don't survive across statements; idempotent statement chains required for prod-data work.
+
+**Phase 4.4a** — Bootstrap auto-close trigger + GET school + read-only settings page skeleton. Migration `20260502122024_phase_4_4a_bootstrap_auto_close_trigger` adds AFTER INSERT trigger on teachers — closes `schools.bootstrap_expires_at` when active count goes 1→2 (conditional UPDATE never reopens per §3.8 Q6). New `GET /api/school/[id]` route returns school + teacher count + pending proposals + 30-day activity feed. New `/school/[id]/settings` page (server component) renders identity / status / 3 conditional banners (archived / bootstrap grace / lone-teacher post-bootstrap) / pending proposals list / activity feed. Editable sections placeholder. 26 new tests.
+
+**Phase 4.4b** — Universal PATCH + editable Identity. NEW `governance/applier.ts` registry maps 22 change_types across 9 setting categories to actual schools column updates (or school_domains insert/delete for domain ops). Pre-wires Phase 4.8 JSONB columns (academic_calendar_jsonb, timetable_skeleton_jsonb, etc.) so 4.8 ships without PATCH-route code change. Universal `PATCH /api/school/[id]/settings` endpoint routes through `proposeSchoolSettingChange` + `applyChange` with status-mapped HTTP responses. `IdentitySection` client component with 6 editable fields, tier-aware UI (Save vs Propose label flip, badge text changes by bootstrap state). 33 new tests.
+
+**Phase 4.4c** — Confirm + revert (interactive governance UI). NEW `POST /api/school/[id]/proposals/[changeId]/confirm` (2nd-teacher confirm) + `POST /api/school/[id]/changes/[changeId]/revert` (7-day-window revert with `before_at_propose` written back). `PendingProposalsList` + `ActivityFeed` client components with self-proposed badges, confirm dialog modal (2-way before/after preview with ARIA), Revert buttons on applied rows within window, status pills, `router.refresh()` on success. 19 new tests.
+
+**Phase 4.4d** — Polish: timezone smart-default in welcome-wizard SchoolPicker `Intl.DateTimeFormat()` auto-detect for fresh school creation. Multi-campus parent breadcrumb on settings header (per-field inheritance badges defer to FU-AV2-PHASE-4-PER-FIELD-INHERITANCE-BADGES alongside Phase 4.8 JSONB columns landing). Confirm dialog 2-way preview (ships material UX win; full live 3-way diff filed as FU-AV2-PHASE-4-3WAY-LIVE-DIFF). i18n primitive bootstrap deferred (FU-AV2-PHASE-4-4D-NEXT-INTL).
+
+**Checkpoint A5a** — passed all sub-criteria. Merged to main via fast-forward worktree pattern. `b82f9f2..0bf1aeb` (47 commits to main).
+
+### Post-merge hotfix passes
+
+**Hotfix 1 (5 commits, `0bf1aeb..9ced53e`)** — surfaced via Matt's smoke testing:
+- C1+C2: dirty-check anchor (router.refresh after IdentitySection save) + server-side `.trim()` (prod data hit: NIS schools.city saved as "Nanjing " with trailing space; cleanup SQL ran)
+- C3: `/school/me/settings` redirect helper + TopNav avatar dropdown nav links ("My Settings" + "School Settings")
+- U1: Country / Timezone / Default locale dropdowns (NEW `option-lists.ts` with 39 countries + 47 timezones + 11 locales)
+- U2: Region field hidden from UI (governance-internal scoping; no user-facing purpose v1)
+- D1: stale "coming in 4.4b" copy replaced
+- 3 FUs filed: FU-AV2-PHASE-4-DOMAIN-UI, FU-AV2-WELCOME-CALENDAR-PREVIEW, FU-AV2-WELCOME-STEP5-CTAS (P2 — Matt is moving away from AI-generated units)
+
+**Hotfix 2 (1 commit, `9ced53e..b2b9bed`)** — settings page rendered bare without TopNav (stuck-page UX). NEW `src/app/school/layout.tsx` mirrors `/teacher/layout.tsx` structure (TeacherShell + auth + welcome-wizard guard). Slight duplication; FU-AV2-LAYOUT-DEDUP filed.
+
+### Numbers
+
+- **Tests:** 2895 → 3189 (+294 new, 0 regressions)
+- **tsc strict:** clean throughout
+- **Migrations:** 7 applied to prod (all verified by Matt)
+- **Routes:** ~14 new (Phase 4.2 + 4.3 + 4.4a/b/c)
+- **Commits to main:** 53 (47 from Phase 4.4d branch + 5 hotfix commits + 1 TopNav hotfix commit)
+- **Branch:** access-model-v2-phase-4-part-2 cut from main for Phase 4 part 2 (4.5/4.6/4.7/4.8/4.9)
+
+### Lessons logged this session
+
+- **Lesson #66** — SECURITY DEFINER function rewrites must re-apply search_path lockdown. Sibling of #64 (RLS recursion) and #65 (assumption-baked triggers). Operational rule: read existing `pg_get_functiondef` before rewriting; diff new vs old to confirm safety properties survive; sanity DO-block asserts every property; smoke via Supabase Auth admin API not direct SQL Editor INSERT.
+
+### Decisions logged this session
+
+12 §3.8 sign-offs + 6 §3.9 future-proofing additions + Phase 4.4 4-pass split + 4.4c/4.4d UX scope decisions. See decisions-log entries dated 2026-05-02.
+
+### What's next
+
+**Phase 4 part 2 on `access-model-v2-phase-4-part-2`** — 4.5 (school_merge_requests + 90-day redirect cascade) + 4.6 (School Library browse + Request-to-Use flow) + 4.7 (super-admin /admin/school/[id]) + 4.8 (settings bubble-up JSONB columns) + 4.9 (department + dept_head triggers) → Checkpoint A5b → final Phase 4 close. Estimated 5-7 days.
+
+**Pending hygiene FUs** (from this saveme):
+- `FU-AV2-API-REGISTRY-DYNAMIC-ROUTES` P3 — api-registry.yaml scanner missed Phase 4 dynamic [id] routes (~14 routes); manual sync deferred
+- `FU-AV2-SCHEMA-REGISTRY-PHASE-4-TABLES` P3 — schema-registry.yaml manual entries for 3 new tables (school_domains / school_setting_changes / school_setting_changes_rate_state) + new columns on schools deferred
+- `FU-AV2-WIRING-PHASE-4-SYSTEMS` P3 — WIRING.yaml needs `school-governance` + `school-library` system entries; updates to auth-system + permission-helper + class-management impact lists deferred
+- `FU-AV2-LAYOUT-DEDUP` P3 — `/school/layout.tsx` and `/teacher/layout.tsx` share ~80% logic; refactor when next layout-touching work happens
+
+**RLS coverage:** clean. 108 → 111 tables (+3 from Phase 4); all 3 new tables have RLS + policies. 5 pre-existing rls_no_policy entries unchanged.
+
+
+
+## 2026-05-02 PM — Access Model v2 Phase 4 part 2 PLAN UPDATE (4.8b freemium seams + 4.7b tier-aware membership + Decision 8 amendment)
+
+**Worktree:** `/Users/matt/CWORK/questerra-access-v2`
+**Branch:** `access-model-v2-phase-4-part-2`
+**Session type:** Plan-only — no code touched, no migrations applied. Pure spec/decision work after Checkpoint A5a ship + 4.8b mid-phase freemium seam audit.
+
+**What changed**
+
+Two audits ran post-A5a, two sub-phase additions approved:
+
+1. **4.8b freemium-build seam bake-in** (~0.75 day, slot between 4.8 and 4.9). 9-seam audit confirmed 5 seams already in place (`schools.subscription_tier` 5-tier enum, `audit_events.action TEXT` open string, `ai_budgets`/`ai_budget_state` cascade, `can(actor, action, resource, { requiresTier })`, `/api/public/*` boundary). 1 deferred to Phase 5 (`withAIBudget()` middleware per master spec line 269). Remaining 6 seams folded into 4.8b: `teachers.subscription_tier` enum (mirrors schools), `stripe_customer_id` × 2 nullable cols, `actor.plan` on ActorSession with cascade resolution (teacher tier → school tier → free), `plan-gates.ts` pass-through helpers wired into 3 chokepoints (welcome/create-class, welcome/setup-from-timetable, teacher/students enrollment), `requires_plan` field on feature-flags.yaml schema, public-route boundary one-pager doc. Out of scope: Stripe SDK/webhook/UI, plan-limit count queries, tier-feature matrix decisions, trial state machine — defer to post-access-v2 freemium build (~6.75 eng days because foundations are baked here). Hard rule: no Stripe checkout until tier-feature matrix is signed.
+
+2. **4.7b tier-aware membership amendment** (~3.75 days, 4 sub-sub-phases + Matt-checkpoint, slot between 4.7 and 4.8). 2nd-pass review (Gemini + CWORK independent reports) surfaced verification gap on free tier: anyone signing up with school-domain email auto-joins → reads 6 RLS leak surfaces. CWORK audit caught 2 surfaces missed in initial scope: `student_mentors_school_teacher_read` (mig `20260428214735` — direct student-ID enumeration via mentor↔student joins) and `school_resources_school_read` + `guardians_school_read` (mig `20260428214009` — parent PII when populated by Mentor Manager). Decision 8 amended: flat governance with 2-teacher confirm applies WITHIN school-tier schools that have ≥2 verified school_admin members; single-school_admin schools follow bootstrap rules indefinitely. `school_admin` role implementation = a value in `school_responsibilities.responsibility_type` (no new table). Free/pro = personal school siloed; school-tier = invite-only. Sub-sub-phases:
+   - **4.7b-0 ops** (~0.25d): flip NIS `subscription_tier` `'pilot'` → `'school'` BEFORE any 4.7b code.
+   - **4.7b-1** (~1d): `'school_admin'` enum value + `SCHOOL_ADMIN_ACTIONS` matrix + `is_school_admin()` SECURITY DEFINER helper + INSERT-policy hardening (prevent self-promotion; allow during bootstrap-grace OR existing admin OR platform admin).
+   - **4.7b-2** (~1.5d): NEW `school_invitations` table (mig 089 `teacher_access_requests` is INSUFFICIENT — waitlist with TEXT `school` field, no `school_id` FK / token / `invited_by`). Domain-match banner rewrite (target school-tier → "ask IT" + request POST, never auto-join). Auto-join code path actively dismantled. Invite-acceptance endpoint. Upgrade-path reusing `schools.merged_into_id` from §4.5.
+   - **Matt-checkpoint**: smoke invite-flow end-to-end before sweeping policies.
+   - **4.7b-3** (~1d): tier-gate 6 leak surfaces (settings governance / audit log / library / teacher directory / student_mentors / school_resources+guardians).
+
+**Execution-order reorder under Option A**: 4.6 ships AFTER 4.7b. Library at free tier exposes other teachers' unit titles + content — bigger leak than the 6 existing surfaces. Build it gated from day one. Trade-off: reduces school-library QA window pre-pilot; mitigated by gated-from-day-one design.
+
+**2 new FUs filed**:
+- `FU-FREEMIUM-SCHOOL-DOWNGRADE-OWNERSHIP` P2 — school-tier-lapse split flow (ownership of shared students/classes/library when school downgrades free). Defer until real downgrade case arrives.
+- `FU-WELCOME-WIZARD-STUDENT-EMAIL-GUARD` P2 — student `@school-domain` emails can teacher-signup at flagged domains; tier-aware membership fixes only AFTER target school is `'school'` tier; needs role gate even after 4.7b lands. Should land before 2nd-school onboarding.
+
+**Estimate impact**: Phase 4 ~12.25 → ~17 days. Close ~13–14 May → ~17–18 May 2026.
+
+**Files modified** (5 plan docs, ~520 lines added):
+- `docs/projects/access-model-v2-phase-4-brief.md` — §3.8 item 13 (Decision 8 amendment), §4.7b spec (4 sub-sub-phases + Matt-checkpoint with full SQL/RLS/stop-triggers), §4.8b spec (added in earlier turn), §9 Estimate table updated, §11 sign-off addendums (4.8b + 4.7b)
+- `docs/projects/access-model-v2.md` — Decision 8 line 336 amended with full text + teacher-leaves-school content rule corollary
+- `docs/decisions-log.md` — 2 new entries (4.8b + Decision 8 amendment)
+- `docs/projects/access-model-v2-followups.md` — 4 new FUs (FU-FREEMIUM-CAN-PATTERN-ADR P3, FU-FREEMIUM-CALLSITE-PLAN-AUDIT P3, FU-FREEMIUM-SCHOOL-DOWNGRADE-OWNERSHIP P2, FU-WELCOME-WIZARD-STUDENT-EMAIL-GUARD P2)
+- `docs/handoff/main.md` — refreshed for next-session pickup with new execution order + 4.7b-0 ops prerequisite
+
+**Registries**: scanner sweep no-op (no new code/migrations/routes/AI-calls/vendors this session). JSON report timestamps refreshed.
+
+**Tests**: unchanged (3189/11). tsc strict: unchanged (0 errors). Vercel: no deploys this session.
+
+**Next session pickup**: handoff/main.md is the entry point. Phase 4 part 2 begins with 4.5 (school_merge_requests). 4.7b-0 ops flip can run any time after 4.5 lands — before 4.7b-1 code.
+
+
+## 2026-05-03 — Access Model v2 Phase 4 part 2 SHIPPED + Checkpoint A5b PASS
+
+**Worktree:** `/Users/matt/CWORK/questerra-access-v2`
+**Branch:** `access-model-v2-phase-4-part-2` → merging to `main`
+**Session type:** Marathon implementation. 9 sub-phases shipped end-to-end + smoke-verified on prod + Checkpoint A5b PASS.
+
+**What shipped**
+
+All 9 Phase 4 part 2 sub-phases complete, applied, and smoke-verified:
+
+- **4.5 — `school_merge_requests` + 90-day redirect cascade** (mig `20260502210353`, commit `f864172`). Platform-admin-mediated merges with 15-table cascade (audit-derived from brief's 12 — caught Preflight surfaces + guardians via Lesson #54 grep). Per-table audit_events row + summary row per merge.
+- **4.7 — Platform super-admin `/admin/school/[id]` + view-as URL** (commit `d0d8035`, hotfix `ea2cf6e`). HMAC-SHA256 signed view-as tokens (5-min TTL); middleware blocks mutations when `?as_token=` present. 7-tab detail page; replaces paper-only `/admin/schools` stub. Hotfix corrected `classes.deleted_at` → `is_archived` (mig 033 schema, not the soft-delete pattern).
+- **4.7b-0 — NIS tier flip ops** (manual SQL): NIS `subscription_tier` `'pilot'` → `'school'`. Pre-requisite for tier-aware membership tests. Plus Gmail-Matt detached from NIS (`school_id = NULL`) per master-spec separation invariant.
+- **4.7b-1 — school_admin role + INSERT-policy hardening** (mig `20260502215604`, commit `0b756b3`). New value in `school_responsibilities.responsibility_type` enum; `is_school_admin()` + `can_grant_school_admin()` SECURITY DEFINER helpers; INSERT policy with 3-branch grant rule (platform admin / existing admin / bootstrap-grace).
+- **4.7b-2 — invite flow + auto-join dismantle** (mig `20260502221646`, commit `8fe3a77`). NEW `school_invitations` table (DB-stored token for revocability); extended `lookup_school_by_domain` to return tier; tier-aware welcome wizard banner (school-tier → "ask IT to invite you"); `teacher_access_requests.school_id` FK added (mig 089 was waitlist, not invite infra — caught via CWORK Q4 audit).
+- **4.7b-3 — tier-gate 4 RLS leak surfaces** (mig `20260502223059`, commit `0380102`). NEW `current_teacher_school_tier_school_id()` SECURITY DEFINER helper; DROP+CREATE on 4 policies (audit_events / student_mentors / school_resources / guardians) to gate by school-tier school. Implicit tier-awareness for free/pro: alone in personal school = naturally siloed.
+- **4.6 — School library + Request-to-Use flow** (mig `20260502224119`, commit `f177ce9`). NEW `unit_use_requests` table; `units.forked_from_author_id` (existing `units.forked_from` from mig 007 reused — caught via Lesson #54 grep, would've duplicated). Author-controlled fork with attribution; library naturally tier-appropriate via existing `school_id` filter (no explicit tier-gate needed). The curriculum-library moat.
+- **4.8 — Schools settings bubble-up columns** (mig `20260502230242`, commit `57f001c`). 8 new columns on schools (academic_calendar_jsonb, timetable_skeleton_jsonb, frameworks_in_use_jsonb, default_grading_scale, notification_branding_jsonb, safeguarding_contacts_jsonb, content_sharing_default, default_student_ai_budget). Closes Phase 4.4b paper-only gap (applier registry referenced columns that didn't exist). Calendar backfilled from `school_calendar_terms` (NIS got 2 terms backfilled). `teachers.school_profile` source skipped — column doesn't exist (Lesson #54 again).
+- **4.8b — Freemium-build seam bake-in** (mig `20260502231455`, commit `ef7ca66`). `teachers.subscription_tier` enum mirroring schools; `stripe_customer_id` × 2 (nullable, unique-when-set partial indexes); `actor.plan` cascade resolution on ActorSession (teacher tier → school tier → free); `plan-gates.ts` pass-through helpers wired into 3 chokepoints (welcome/create-class, welcome/setup-from-timetable, teacher/students enrollment); `requires_plan` field documented in feature-flags-taxonomy + 1 exemplar; public-route boundary doc.
+- **4.9 — Department + dept_head auto-tag triggers** (mig `20260502233618`, commit `1177cdf`). `class_members.source` (NEW — caught Lesson #54 4th time this phase — brief assumed it existed); `classes.department` + `school_responsibilities.department`; CHECK enum extended 8 → 9 values (added `dept_head`); 4 SECURITY DEFINER triggers (responsibility insert / responsibility revoke / class insert / class department change resync). All 4 triggers verified end-to-end on prod via UPDATE → resync → revoke flow.
+
+**Checkpoint A5b — PASS**
+
+`docs/projects/access-model-v2-phase-4-checkpoint-a5b.md` written. All criteria green:
+- 11 commits to feature branch + 8 migrations applied to prod + 1 ops change
+- 3189 → 3291 tests (+102 new, 0 regressions, tsc strict 0 errors)
+- All RLS coverage clean; all SECURITY DEFINER helpers locked search_path per Lesson #66
+- 8 sub-phase smokes all green on prod
+- Documentation complete (this changelog + handoff + A5b doc)
+
+**Decisions made during execution** (captured in decisions-log):
+
+- 4.5 cascade list grew 12 → 15 tables (audit-derived from grep, not brief)
+- 4.6 reused existing `units.forked_from` instead of brief's specced `forked_from_unit_id` (column duplication caught)
+- 4.8 skipped `teachers.school_profile` backfill source (column doesn't exist)
+- 4.9 added `class_members.source` column (brief assumed it existed)
+- 4.8b shipped `requires_plan` schema-only + 1 exemplar; deferred per-flag annotation to FU pending tier-feature matrix decisions
+- Gmail-Matt detached from NIS (per master-spec separation; `school_id = NULL`)
+- `starter` tier kept dormant in CHECK enum (collapse risks audit_events CHECK rewrite)
+- Library tier-gate is implicit via existing `school_id` filter (no new RLS policy needed)
+
+**Lesson #67 candidate**: brief-vs-schema audit at PHASE start, not sub-phase start. Phase 4 part 2 caught the same gap pattern in 4 different sub-phases (Lesson #54 + #59 each time). 30-min phase-start audit would've caught all 4 in one batch. Filing as proposed addition to lessons-learned.md.
+
+**FUs filed during part 2: 9 new** (FU-FREEMIUM-CAN-PATTERN-ADR P3, FU-FREEMIUM-CALLSITE-PLAN-AUDIT P3, FU-FREEMIUM-SCHOOL-DOWNGRADE-OWNERSHIP P2, FU-WELCOME-WIZARD-STUDENT-EMAIL-GUARD P2, FU-AV2-IMPERSONATION-RENDER-WIRING P3, FU-AV2-TEACHER-DIRECTORY-ROUTE-GATE P3, FU-FREEMIUM-FLAGS-PLAN-ANNOTATION P3, FU-AV2-DEPT-HEAD-UI P2, FU-AV2-DEPT-BACKFILL-FROM-NAME P3).
+
+**FUs CLOSED**: FU-AV2-DEPT-HEAD-DEPARTMENT-MODEL P2 (data model + triggers shipped in 4.9).
+
+**Migrations applied to prod**:
+1. `20260502210353_phase_4_5_school_merge_requests.sql`
+2. `20260502215604_phase_4_7b_1_school_admin_role.sql`
+3. `20260502221646_phase_4_7b_2_school_invitations.sql`
+4. `20260502223059_phase_4_7b_3_tier_gate_leak_surfaces.sql`
+5. `20260502224119_phase_4_6_unit_use_requests.sql`
+6. `20260502230242_phase_4_8_schools_settings_columns.sql`
+7. `20260502231455_phase_4_8b_freemium_seams.sql`
+8. `20260502233618_phase_4_9_dept_head_triggers.sql`
+
+Plus the NIS tier flip + Gmail-Matt detach as ops changes.
+
+**RLS coverage**: clean. 111 → 114 tables (+3 from part 2: school_merge_requests, school_invitations, unit_use_requests). All have RLS + policies.
+
+**Next**: Phase 5 (Privacy & Compliance — audit log infrastructure + AI budget cascade + data export/delete + retention cron + cost-alert + Sentry PII scrub) → Phase 6 (Cutover & Cleanup) → Checkpoint A7 PILOT-READY. Total to PILOT-READY ~5-6 days.
+
+---
+
+## 2026-05-04 — Access Model v2 Phase 5 SHIPPED + Checkpoint A6 READY (~150 min, 9 commits)
+
+**Branch**: `access-model-v2-phase-5` (10 commits ahead of `v0.4-phase-4-closed`, local-only — awaiting Matt's manual smoke before merge).
+
+**Sub-phases shipped**: 5.0 (scaffolds + runbook skeleton) → 5.1 (logAuditEvent wrapper, 3-mode failure, 12 retrofits) → 5.1d (audit-coverage CI gate, visibility-only) → 5.2 (AI budget cascade resolver + atomic SQL helper) → 5.3 (withAIBudget middleware + 3 student AI routes wired) → 5.3d (budget-coverage CI gate, gating from day one) → 5.4 (data-subject endpoints + scheduled_deletions table) → 5.5 (retention cron + scheduled-hard-delete cron) → 5.6 (teacher audit-log view) → 5.7 (cost-alert + Sentry PII scrub runbooks) → 5.8 (registry sync + close-out).
+
+**Tests**: 3291 → **3495** (+204), 11 skipped. tsc strict 0 errors throughout.
+
+**Migrations**: 2 (`phase_5_2_atomic_ai_budget_increment` applied to prod; `phase_5_4_scheduled_deletions` PENDING apply by Matt).
+
+**Q1–Q7 resolutions** (signed off 3 May 2026 PM): tier defaults code-constants + admin_settings runtime override; 3-mode audit failure semantics ('throw' / 'soft-warn' / 'soft-sentry'); Q3+Q6 collapsed into the budget-coverage scanner; per-table cascade fan-out; `scheduled_deletions` table (not query-based); budget-coverage CI gate gating from day one; strict timestamp-based retention with held-row + indefinite-column guards.
+
+**FUs filed during Phase 5 (4 new)**: FU-AV2-AI-BUDGET-EXHAUSTED-EMAIL P3, FU-AV2-AI-BUDGET-WIRE-TOOL-SESSIONS-AND-OTHER-AI P2, FU-AV2-AUDIT-MISSING-PHASE-6-CATCHUP P2 (228 inherited routes, Phase 6 cutover natural seam), FU-AV2-CRON-SCHEDULER-WIRE P2 (pre-pilot — needed before first DSR delete).
+
+**Brief vs. reality drift recorded**: brief named 4 routes for §5.3; `safety/check-requirements` is GET-only (no AI) → 3 wired. Brief named 9 retrofit sites for §5.1; grep found 12 (Phase 4.6's `unit-use-requests.ts` × 2 missed; folded in per Lesson #60). Brief said `can.ts:96` TODO emits audit; redesigned as no-emit with comment (per-permission-check audit would explode the table).
+
+**Coverage scanners (new)**: `audit-coverage` visibility-only (4 covered + 1 skipped + 228 inherited); `ai-budget-coverage` gating from day one (3/3 covered).
+
+**Lessons applied**: #34/#38/#39/#41/#43-46/#54/#59/#60/#61/#64/#66 throughout. Two NCs caught real test weaknesses (regex breadth in §5.2 migration test, action-string mutation in §5.4 delete-student).
+
+**Pending Matt actions before A6 sign-off + merge**:
+1. Apply migration `20260503143034_phase_5_4_scheduled_deletions.sql` to prod
+2. Smoke-test `/api/v1/student/[id]/export` + DELETE on a test student
+3. Cost-alert fire drill per `docs/security/cost-alert-fire-drill.md`
+4. Sentry PII scrub verification per `docs/security/sentry-pii-scrub-procedure.md`
+5. Sign off Checkpoint A6 + merge to main + tag `v0.5-phase-5-closed`
+
+**Next**: Phase 6 (Cutover & Cleanup — `/api/v1/*` rename pass, ADRs 003/011/012/013, registry sync, RLS-no-policy doc, 3-Matts merge decision, ~2-3 days, Checkpoint A7 PILOT-READY).

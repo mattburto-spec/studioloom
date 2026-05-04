@@ -1,0 +1,23 @@
+-- Rollback for: phase_6_1_drop_student_sessions
+-- Pairs with: 20260503203440_phase_6_1_drop_student_sessions.sql
+--
+-- Intentional no-op rollback. Rationale:
+--   - The dropped `student_sessions` table held only short-lived bearer tokens
+--     (default TTL ≤ 24h, often shorter). Restoring its schema would not
+--     restore any session data — every token would have expired anyway.
+--   - All 56 student API routes have been migrated to `requireStudentSession`
+--     in the same commit as the DROP; restoring the table without restoring
+--     the deleted code would not re-enable login. The legacy login route
+--     (`/api/auth/student-login/route.ts`), the shim (`src/lib/auth/student.ts`),
+--     and the cookie middleware path are all gone.
+--   - Real rollback path: `git revert` the Phase 6.1 commit. That restores
+--     the code AND, since the migration's body is `DROP TABLE IF EXISTS`,
+--     reverting + re-applying the prior migration history rebuilds the table
+--     definition. The history is still in the repo at the pre-Phase-6.1 sha.
+--
+-- If you genuinely need to roll back this migration without reverting code,
+-- DON'T — the resulting state (table exists, no callers) is dead surface
+-- area waiting to drift. Roll back the commit instead.
+
+-- (no-op)
+SELECT 1;

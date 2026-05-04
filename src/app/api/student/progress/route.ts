@@ -1,7 +1,8 @@
+// audit-skip: routine learner activity, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { withErrorHandler } from "@/lib/api/error-handler";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
 import { createHash } from "crypto";
 
@@ -26,9 +27,9 @@ const NUMBER_TO_PAGE_ID: Record<number, string> = {
 
 // GET: Load progress for a specific unit
 export const GET = withErrorHandler("student/progress:GET", async (request: NextRequest) => {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   const { searchParams } = new URL(request.url);
   const unitId = searchParams.get("unitId");
@@ -57,9 +58,9 @@ export const GET = withErrorHandler("student/progress:GET", async (request: Next
 
 // POST: Save/update progress for a specific page
 export const POST = withErrorHandler("student/progress:POST", async (request: NextRequest) => {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   const { unitId, pageId, status, responses, timeSpent, integrityMetadata } =
     await request.json();

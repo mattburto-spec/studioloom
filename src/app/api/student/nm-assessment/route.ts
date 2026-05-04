@@ -1,6 +1,7 @@
+// audit-skip: routine learner activity, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireStudentAuth } from "@/lib/auth/student";
+import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { v4 as uuid } from "uuid";
 import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
 
@@ -42,9 +43,9 @@ function checkRateLimit(studentId: string): boolean {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireStudentAuth(request);
-  if (auth.error) return auth.error;
-  const studentId = auth.studentId;
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
 
   // Check rate limit
   if (!checkRateLimit(studentId)) {

@@ -1,3 +1,4 @@
+// audit-skip: routine fab-tech operational endpoint, audit lives in fabrication pipeline state machine
 /**
  * GET    /api/fab/jobs/[jobId]   — single-job detail (Phase 7-2)
  * DELETE /api/fab/jobs/[jobId]   — permanent purge (Phase 8.1d-31)
