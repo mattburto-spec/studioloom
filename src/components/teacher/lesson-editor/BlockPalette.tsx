@@ -23,6 +23,16 @@ export interface BlockDefinition {
   create: () => ActivitySection;
   /** Optional: marks this block as user-added or imported */
   source?: "built-in" | "custom" | "imported";
+  /**
+   * Lever-MM (NM block category): when set, this block represents an NM
+   * competency element rather than a regular activity. Click → register
+   * a checkpoint on the current lesson via onAddNmCheckpoint instead of
+   * onAddBlock. The `create()` factory is a no-op stub for these — never
+   * called through the regular onAddBlock path.
+   */
+  nmElementId?: string;
+  /** Lever-MM: parent competency ID for NM-element blocks (so the click handler can persist it). */
+  nmCompetencyId?: string;
 }
 
 export type BlockCategory =
@@ -31,7 +41,9 @@ export type BlockCategory =
   | "toolkit"
   | "assessment"
   | "collaboration"
-  | "custom";
+  | "custom"
+  /** Lever-MM: New Metrics competency elements. Empty when school's `use_new_metrics` flag is off. */
+  | "new_metrics";
 
 interface CategoryMeta {
   label: string;
@@ -85,7 +97,69 @@ const CATEGORIES: Record<BlockCategory, CategoryMeta> = {
     bgColor: "bg-rose-50",
     borderColor: "border-rose-200",
   },
+  new_metrics: {
+    // Lever-MM: gold dot — distinct from assessment's amber + Templates' violet.
+    // The category renders only when LessonEditor passes NM-element blocks
+    // (i.e. school's `use_new_metrics` flag is true and a competency is selected).
+    label: "New Metrics",
+    dotColor: "bg-yellow-500",
+    color: "text-yellow-700",
+    bgColor: "bg-yellow-50",
+    borderColor: "border-yellow-200",
+  },
 };
+
+// ─────────────────────────────────────────────────────────────────
+// Lever-MM — NM-element BlockDefinition factory
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * Build a list of palette BlockDefinitions from a competency's elements.
+ * Each element renders in the "New Metrics" accordion. Click → registers
+ * a checkpoint on the current lesson via the NM API path (handled at the
+ * click site in MM.0C — for now create() throws if invoked through the
+ * regular onAddBlock path, which would create a junk ActivitySection).
+ *
+ * Caller is responsible for:
+ *   - Gating on `school_context.use_new_metrics === true` (pass empty array
+ *     when off — empty category accordion auto-hides via activeCategories).
+ *   - Resolving the active competency (only one shown at a time per unit).
+ *   - Wiring the click handler to /api/teacher/nm-config (MM.0C).
+ */
+export function buildNmElementBlocks(
+  /**
+   * Accepts the canonical `NMElement` shape from `@/lib/nm/constants`.
+   * Defined inline as a structural type so `BlockPalette` doesn't need
+   * to import the NM module (keeps the palette decoupled from NM
+   * internals — only the field names matter).
+   */
+  elements: ReadonlyArray<{ id: string; name: string; definition?: string; studentDescription?: string }>,
+  competencyId: string,
+): BlockDefinition[] {
+  return elements.map((el) => ({
+    id: `nm-element-${competencyId}-${el.id}`,
+    label: el.name,
+    icon: "🎯",
+    category: "new_metrics" as const,
+    // Prefer the student-facing description (more human) over the formal
+    // definition for the palette tooltip; fall back to a generic CTA when
+    // both are missing.
+    description: el.studentDescription || el.definition || `Add a checkpoint for ${el.name} on this lesson.`,
+    defaultPhase: "any" as const,
+    nmElementId: el.id,
+    nmCompetencyId: competencyId,
+    source: "built-in" as const,
+    // Stub create() — should never be invoked through onAddBlock. The click
+    // handler in BlockPalette short-circuits NM blocks and routes to the
+    // NM checkpoint registration path instead. Throwing here makes any
+    // accidental invocation a loud error rather than silent junk-section.
+    create: () => {
+      throw new Error(
+        `[BlockPalette] NM-element block "${el.id}" was invoked through onAddBlock — should route through onAddNmCheckpoint instead. (Lever-MM regression.)`,
+      );
+    },
+  }));
+}
 
 // ─────────────────────────────────────────────────────────────────
 // "My Blocks" helpers — convert DB activity_blocks to BlockDefinitions
@@ -515,12 +589,29 @@ interface BlockPaletteProps {
   isOpen?: boolean;
   /** @deprecated No longer used — LessonEditor controls visibility */
   onToggle?: () => void;
+  /**
+   * Lever-MM: handler for NM-element blocks (those with `nmElementId`
+   * set). Wired up in MM.0C — until then, clicks on NM blocks are no-ops
+   * (the click handler short-circuits if this prop is undefined).
+   * Receives the NM element ID + parent competency ID so the caller can
+   * register a checkpoint on the current lesson.
+   */
+  onAddNmCheckpoint?: (elementId: string, competencyId: string) => void;
+  /**
+   * Lever-MM: NM element IDs already registered as checkpoints on the
+   * currently-active lesson. The palette uses this to render "added"
+   * state on the corresponding NM blocks (greyed out / different
+   * affordance) so teachers don't double-add. Empty/undefined = none added.
+   */
+  activeNmElementIds?: string[];
 }
 
 export default function BlockPalette({
   onAddBlock,
   suggestedBlockIds,
   customBlocks,
+  onAddNmCheckpoint,
+  activeNmElementIds,
 }: BlockPaletteProps) {
   const [search, setSearch] = useState("");
   const [expandedCategory, setExpandedCategory] = useState<BlockCategory | null>("response");
@@ -562,9 +653,19 @@ export default function BlockPalette({
 
   const handleAdd = useCallback(
     (block: BlockDefinition) => {
+      // Lever-MM: NM-element blocks DON'T create an ActivitySection — they
+      // register a checkpoint on the current lesson. Route to the NM handler
+      // when present; until MM.0C wires it, fall through silently (so MM.0B's
+      // list-only state doesn't crash on click via the throwing `create()` stub).
+      if (block.nmElementId && block.nmCompetencyId) {
+        if (onAddNmCheckpoint) {
+          onAddNmCheckpoint(block.nmElementId, block.nmCompetencyId);
+        }
+        return;
+      }
       onAddBlock(block.create());
     },
-    [onAddBlock]
+    [onAddBlock, onAddNmCheckpoint]
   );
 
   const suggestedBlocks = suggestedBlockIds

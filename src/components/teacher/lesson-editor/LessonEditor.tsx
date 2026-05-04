@@ -21,6 +21,8 @@ import DimensionsSummaryBar from "./DimensionsSummaryBar";
 import UnitThumbnailEditor from "./UnitThumbnailEditor";
 import { LessonSkillsPanel } from "@/components/skills/LessonSkillsPanel";
 import { autoPopulateBloomLevels } from "@/lib/dimensions/infer-bloom";
+import { buildNmElementBlocks, type BlockDefinition } from "./BlockPalette";
+import { getElementsForCompetency, type NMUnitConfig, DEFAULT_NM_CONFIG } from "@/lib/nm/constants";
 import type {
   UnitPage,
   PageContent,
@@ -111,6 +113,39 @@ export default function LessonEditor({
       if (data) setUdlEnabled(data.teacher_preferences?.enable_udl || data.school_context?.enable_udl || false);
     }).catch(() => {});
   }, []);
+
+  // Lever-MM — New Metrics state
+  // - useNewMetrics: whether the school flag (school_context.use_new_metrics) is on
+  // - nmConfig: the unit's NM config (per-class via class_units.nm_config, fallback to units.nm_config)
+  // - The "active competency" is currently nmConfig.competencies[0] (single per unit;
+  //   multi-competency is parked as v2 work). The competency selector lives in MM.0D.
+  // - When useNewMetrics is false OR no competency resolved, customNmBlocks is an empty array
+  //   and the "New Metrics" accordion auto-hides (BlockPalette filters empty categories).
+  const [useNewMetrics, setUseNewMetrics] = useState(false);
+  const [nmConfig, setNmConfig] = useState<NMUnitConfig>(DEFAULT_NM_CONFIG);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/teacher/nm-config?unitId=${unitId}&classId=${classId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (cancelled || !data) return;
+        setUseNewMetrics(data.globalNmEnabled !== false);
+        if (data.config) setNmConfig(data.config);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [unitId, classId]);
+
+  // Build the NM-element BlockDefinition list passed to BlockPalette via customBlocks.
+  // The palette renders these inside the "new_metrics" category accordion. Click handler
+  // (MM.0C) routes them through onAddNmCheckpoint instead of the normal onAddBlock path.
+  const customNmBlocks = useMemo<BlockDefinition[]>(() => {
+    if (!useNewMetrics) return [];
+    const competencyId = nmConfig.competencies?.[0];
+    if (!competencyId) return [];
+    const elements = getElementsForCompetency(competencyId);
+    return buildNmElementBlocks(elements, competencyId);
+  }, [useNewMetrics, nmConfig.competencies]);
 
   // AI generation state
   const [showAIGenerate, setShowAIGenerate] = useState(false);
@@ -1351,6 +1386,10 @@ export default function LessonEditor({
                   suggestedBlockIds={suggestedBlockIds}
                   isOpen={paletteOpen}
                   onToggle={() => setPaletteOpen(!paletteOpen)}
+                  /* Lever-MM — NM elements pass via customBlocks; the
+                     "new_metrics" accordion auto-hides when customNmBlocks
+                     is empty (school flag off OR no competency resolved). */
+                  customBlocks={customNmBlocks}
                 />
               </div>
             </motion.div>
