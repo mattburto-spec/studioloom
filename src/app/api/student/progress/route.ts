@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
+import { dispatchIntegrityAlerts } from "@/lib/notifications/dispatch-integrity-alerts";
 import { createHash } from "crypto";
 
 // In-memory hash cache: progressRowId → last moderated content hash.
@@ -201,6 +202,26 @@ export const POST = withErrorHandler("student/progress:POST", async (request: Ne
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Phase 3B: Fire-and-forget integrity-flag dispatcher.
+  // Scores every key in integrityMetadata; if the lowest crosses the
+  // threshold (40), fires one notification per lead/co teacher in the
+  // resolved class. Audit-emits 'integrity.flag_auto_created' regardless
+  // of whether recipients exist. No-op when integrityMetadata is missing,
+  // resolvedClassId is null (multi-class ambiguity), or all scores >=
+  // threshold. Phase 3E will replace the threshold with per-teacher prefs.
+  if (integrityMetadata && data?.id) {
+    void dispatchIntegrityAlerts(supabase, {
+      studentId,
+      progressRowId: data.id,
+      unitId,
+      pageId,
+      classId: resolvedClassId,
+      integrityMetadata,
+    }).catch((err) => {
+      console.error("[progress] fire-and-forget integrity dispatch failed:", err);
+    });
   }
 
   // Phase 5F: Fire-and-forget server moderation (non-blocking for auto-save)

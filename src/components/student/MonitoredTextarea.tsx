@@ -260,7 +260,7 @@ export function MonitoredTextarea({
   useEffect(() => {
     metricsRef.current.startTime = Date.now();
     metricsRef.current.lastActiveTime = Date.now();
-    lastSnapshotTextRef.current = value;
+    lastSnapshotTextRef.current = textareaRef.current?.value ?? "";
 
     setupVisibilityListener();
     setupMonitoringTick();
@@ -287,7 +287,15 @@ export function MonitoredTextarea({
         );
       }
     };
-  }, [setupVisibilityListener, setupMonitoringTick, value]);
+    // Mount once. The 30-second snapshot interval MUST survive keystrokes —
+    // including `value` (or the setup callbacks, which depend on updateMetrics
+    // → onIntegrityUpdate from props) here would tear down + recreate the
+    // interval on every render, so the 30s timer never gets to fire 30s.
+    // This was the bug behind "No snapshots captured" in teacher reports.
+    // setupVisibilityListener / setupMonitoringTick are captured at mount;
+    // they read latest state via refs internally.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /**
    * Sync characterCount when value changes

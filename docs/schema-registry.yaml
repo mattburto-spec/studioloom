@@ -6158,6 +6158,137 @@ tables:
   check_constraints:
   - 'machine_profile_ownership_check: (is_system_template AND teacher_id IS NULL) OR (NOT is_system_template AND teacher_id
     IS NOT NULL)'
+- name: notifications
+  source_migration: 20260504115948_notifications_table.sql
+  status: pending
+  applied_date: null
+  purpose: 'Phase 3A foundation — generic per-recipient notification surface. First consumer Phase 3B (kind=integrity.flag_low_score
+    when analyzeIntegrity score < threshold). Generic by design — `kind` discriminates, `payload` JSONB carries kind-specific
+    data. Server-role inserts via createNotification() helper; SELECT + UPDATE-of-state by recipient via RLS. INSERT/DELETE
+    deny-by-default (no client policies — service role only). Retention 90 days post-dismiss; Phase 3D will enforce via
+    expires_at sweep.'
+  writers:
+  - src/lib/notifications/create-notification.ts (createNotification helper — single insert path)
+  readers: []
+  columns:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 90
+      basis: pseudonymous
+    recipient_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 90
+      basis: legitimate_interest
+    recipient_role:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 90
+      basis: pseudonymous
+    school_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 90
+      basis: legitimate_interest
+    kind:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 90
+      basis: pseudonymous
+      notes: 'Discriminator. NO DB CHECK constraint — TypeScript NotificationKind union (src/types/notifications.ts) is source of truth, asserted by cross-reference test.'
+    severity:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 90
+      basis: pseudonymous
+    title:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 90
+      basis: legitimate_interest
+      notes: 'Server-authored summary — may include a student name. Not student voice (the student didn''t write it).'
+    body:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 90
+      basis: legitimate_interest
+      notes: 'Server-authored detail line. Contains scores + activity titles, not raw student text — link_url deep-links to IntegrityReport for excerpts. Keep PII-light to justify 90-day retention.'
+    payload:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 90
+      basis: legitimate_interest
+      notes: 'Kind-specific JSONB. Contains FKs (student_id, page_id, unit_id) + scalar metadata (score, flag types). MUST NOT contain raw student text — title/body are bounded summaries; link_url points to IntegrityReport for full content. Hash-only because IDs are PII when joined.'
+    dedup_key:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 90
+      basis: pseudonymous
+      notes: 'Phase 3B integrity-alerts use <student_id>|<page_id>|<YYYY-MM-DD> — student_id present, hash-only for prompts.'
+    link_url:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 90
+      basis: pseudonymous
+    read_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 90
+      basis: pseudonymous
+    dismissed_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 90
+      basis: pseudonymous
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 90
+      basis: pseudonymous
+    expires_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 90
+      basis: pseudonymous
+  rls:
+    enabled: true
+    policies:
+    - 'notifications_recipient_self_read: SELECT — recipient_id = auth.uid()'
+    - 'notifications_recipient_update_own_state: UPDATE — recipient_id = auth.uid() (read_at + dismissed_at only by intent;
+      payload mutation is allowed by RLS but no app code does it)'
+    insert: deny-by-default — service role via createNotification()
+    delete: deny-by-default — no policy, no caller
 - name: open_studio_profiles
   source_migration: 031_open_studio_profiles.sql
   status: applied

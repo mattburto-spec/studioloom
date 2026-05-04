@@ -120,7 +120,15 @@ export function analyzeIntegrity(metadata: IntegrityMetadata): IntegrityAnalysis
   }
 
   // Rule 3: Typing speed anomaly detection
-  if (metadata.totalTimeActive > 0 && metadata.characterCount > 0) {
+  // Guard: skip when totalTimeActive < 10s (too little signal — produces 4592 WPM
+  // artifacts on paste events) OR pasteRatio >= 0.4 (rule 1 already catches paste).
+  // Without these, a 1.1s paste of 424 chars piles speed_anomaly + minimal_time
+  // on top of paste_heavy for one underlying signal.
+  if (
+    metadata.totalTimeActive >= 10 &&
+    metadata.characterCount > 0 &&
+    pasteRatio < 0.4
+  ) {
     const charsPerSecond = metadata.characterCount / metadata.totalTimeActive;
     const wpm = (charsPerSecond / 5) * 60;
 
@@ -175,7 +183,14 @@ export function analyzeIntegrity(metadata: IntegrityMetadata): IntegrityAnalysis
   }
 
   // Rule 6: Minimal active time with large content
-  if (metadata.totalTimeActive < 30 && metadata.characterCount > 200) {
+  // Guard: skip when pasteRatio >= 0.4 — rule 1 already catches paste-heavy
+  // content. Without this guard, a single paste fires paste_heavy + minimal_time
+  // for the same underlying signal.
+  if (
+    metadata.totalTimeActive < 30 &&
+    metadata.characterCount > 200 &&
+    pasteRatio < 0.4
+  ) {
     score -= 20;
     flags.push({
       type: "minimal_time",
