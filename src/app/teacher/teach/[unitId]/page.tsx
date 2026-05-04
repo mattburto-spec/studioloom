@@ -15,6 +15,7 @@ import type {
   ComputedLesson, WorkshopPhases, LessonExtension, PageContent,
 } from "@/types";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
+import { composedPromptText } from "@/lib/lever-1/compose-prompt";
 
 // =========================================================================
 // Types
@@ -942,8 +943,9 @@ export default function TeachingDashboard({
                       {i + 1}
                     </span>
                     <div style={{ flex: 1 }}>
+                      {/* Lever 1: composed text — slot fields take priority over legacy prompt */}
                       <p style={{ color: "#D1D5DB", lineHeight: 1.4, margin: "0 0 4px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                        {section.prompt}
+                        {composedPromptText(section)}
                       </p>
                       <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                         {section.responseType && (

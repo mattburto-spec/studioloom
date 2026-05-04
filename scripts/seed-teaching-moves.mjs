@@ -24,10 +24,40 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
+import { createHash } from "node:crypto";
+
+// ─── Content fingerprint (mirrors src/lib/ingestion/fingerprint.ts) ───
+// Inline port so this .mjs script doesn't need to dynamic-import .ts.
+// IMPORTANT: keep in lock-step with the canonical TS implementation —
+// the SQL UNIQUE constraint on activity_blocks.content_fingerprint
+// expects the same digest. If you change the normalisation here, change
+// it in src/lib/ingestion/fingerprint.ts AND in migration 068.
+function normaliseForFingerprint(text) {
+  return (text || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[.,;:!?]+$/g, "");
+}
+function computeContentFingerprint({ title, prompt, sourceType }) {
+  const composed =
+    normaliseForFingerprint(title) +
+    "\n" +
+    normaliseForFingerprint(prompt) +
+    "\n" +
+    (sourceType || "");
+  return createHash("sha256").update(composed).digest("hex");
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "..");
 const REWRITE_CACHE_PATH = resolve(REPO_ROOT, "scripts/seed-data/teaching-moves-rewritten.json");
+// Lever 1 sub-phase 1C-revised — v2 slot fields produced by
+// scripts/seed-data/rewrite-to-v2-shape.mjs. If present and the move id
+// matches, we write framing/task/success_signal to the new columns.
+// If absent we still write the legacy single-blob `prompt` (renderer
+// falls back through it).
+const V2_CACHE_PATH = resolve(REPO_ROOT, "scripts/seed-data/teaching-moves-v2.json");
 const REWRITE_PROMPT_PATH = resolve(REPO_ROOT, "scripts/seed-data/rewrite-prompt.md");
 
 // ─── CLI args ───
@@ -69,6 +99,15 @@ function die(msg) {
 }
 
 // ─── Load rewrite cache ───
+function loadV2Cache() {
+  if (!existsSync(V2_CACHE_PATH)) return {};
+  try {
+    return JSON.parse(readFileSync(V2_CACHE_PATH, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
 function loadRewriteCache() {
   if (!existsSync(REWRITE_CACHE_PATH)) return {};
   try {
@@ -204,17 +243,28 @@ function buildTags(move) {
   return tags;
 }
 
-function moveToBlockPayload(move, studentPrompt) {
+function moveToBlockPayload(move, studentPrompt, v2Slots) {
   const category = move.category;
   if (!VALID_CATEGORIES.has(category)) {
     throw new Error(`Invalid activity_category "${category}" for move ${move.id}`);
   }
 
+  const sourceType = "community";
   return {
     title: move.name,
-    prompt: studentPrompt,
+    prompt: studentPrompt, // Legacy single-blob — preserved as renderer fallback
+    content_fingerprint: computeContentFingerprint({
+      title: move.name,
+      prompt: studentPrompt,
+      sourceType,
+    }),
+    // Lever 1 v2 slot fields. Null when v2 cache miss; the renderer falls
+    // back to `prompt` when all three are null.
+    framing: v2Slots?.framing || null,
+    task: v2Slots?.task || null,
+    success_signal: v2Slots?.success_signal || null,
     description: `${move.description}\n\nExample: ${move.example}`,
-    source_type: "community",
+    source_type: sourceType,
     teacher_id: SYSTEM_TEACHER_ID,
     is_public: true,
     efficacy_score: 65,
@@ -338,6 +388,13 @@ async function main() {
   console.log(`[seed] Loaded ${moves.length} teaching moves`);
 
   const cache = loadRewriteCache();
+  const v2Cache = loadV2Cache();
+  const v2Count = Object.keys(v2Cache).length;
+  if (v2Count > 0) {
+    console.log(`[seed] Loaded ${v2Count} v2 slot entries from teaching-moves-v2.json (Lever 1 1C-revised)`);
+  } else {
+    console.warn(`[seed] No v2 slot cache found — all rows will write framing/task/success_signal as NULL (renderer falls back to prompt). Run scripts/seed-data/rewrite-to-v2-shape.mjs first.`);
+  }
 
   const supabase = REWRITE_ONLY
     ? null
@@ -378,8 +435,12 @@ async function main() {
         continue;
       }
 
-      // Step 3: build payload
-      const payload = moveToBlockPayload(move, studentPrompt);
+      // Step 3: build payload (with v2 slots if available — Lever 1 1C-revised)
+      const v2Slots = v2Cache[move.id];
+      if (!v2Slots) {
+        console.warn(`  ⚠ no v2 slots     ${move.id} — writing legacy prompt only (will need teacher edit later)`);
+      }
+      const payload = moveToBlockPayload(move, studentPrompt, v2Slots);
 
       // Step 4: embedding
       const embedSource = `${move.name}\n\n${studentPrompt}\n\nExample: ${move.example}`;

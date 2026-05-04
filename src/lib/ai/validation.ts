@@ -1,4 +1,5 @@
 import type { PageContent, TimelineActivity } from "@/types";
+import { composedPromptText } from "@/lib/lever-1/compose-prompt";
 
 interface ValidationResult {
   valid: boolean;
@@ -51,10 +52,29 @@ export function validateGeneratedPages(
     for (let i = 0; i < page.sections.length; i++) {
       const section = page.sections[i] as Record<string, unknown>;
 
-      if (!section.prompt || typeof section.prompt !== "string") {
-        errors.push(`${pageId}.sections[${i}]: Missing 'prompt'`);
+      // Lever 1 v2: tool schema requires framing + task + success_signal.
+      // Accept legacy single-blob `prompt` for back-compat (pre-v2 fixtures
+      // and any future migration-mode reads). Reject when nothing is usable.
+      const framing = typeof section.framing === "string" ? section.framing.trim() : "";
+      const task = typeof section.task === "string" ? section.task.trim() : "";
+      const successSignal = typeof section.success_signal === "string" ? section.success_signal.trim() : "";
+      const legacyPrompt = typeof section.prompt === "string" ? section.prompt.trim() : "";
+
+      if (!framing && !task && !legacyPrompt) {
+        errors.push(`${pageId}.sections[${i}]: Missing both v2 slot fields (framing/task) and legacy prompt`);
         continue;
       }
+
+      // Compose legacy `prompt` from slots when populated so non-migrated
+      // readers (grading tiles, edit-tracker, knowledge chunking, Teaching
+      // Mode display) keep working without a renderer rewrite.
+      const composed = composedPromptText({
+        framing,
+        task,
+        success_signal: successSignal,
+        prompt: legacyPrompt,
+      });
+      section.prompt = composed;
 
       // Fix invalid responseType to "text"
       if (!section.responseType || !VALID_RESPONSE_TYPES.includes(section.responseType as string)) {
@@ -160,11 +180,30 @@ export function validateTimelineActivities(
       continue;
     }
 
-    // Required: prompt
-    if (!a.prompt || typeof a.prompt !== "string") {
-      errors.push(`Activity[${i}] (${a.id}): Missing 'prompt'`);
+    // Lever 1 v2: timeline tool schema requires framing + task + success_signal.
+    // Accept legacy single-blob `prompt` for back-compat. Reject when nothing
+    // usable. Compose `prompt` from slots so the wizard, output-adapter and
+    // any other TimelineActivity consumer that still reads the legacy field
+    // gets the right text without further changes.
+    const framing = typeof a.framing === "string" ? a.framing.trim() : "";
+    const task = typeof a.task === "string" ? a.task.trim() : "";
+    const successSignal = typeof a.success_signal === "string" ? a.success_signal.trim() : "";
+    const legacyPrompt = typeof a.prompt === "string" ? a.prompt.trim() : "";
+
+    if (!framing && !task && !legacyPrompt) {
+      errors.push(`Activity[${i}] (${a.id}): Missing both v2 slot fields (framing/task) and legacy 'prompt'`);
       continue;
     }
+
+    a.prompt = composedPromptText({
+      framing,
+      task,
+      success_signal: successSignal,
+      prompt: legacyPrompt,
+    });
+    if (framing) a.framing = framing;
+    if (task) a.task = task;
+    if (successSignal) a.success_signal = successSignal;
 
     // Required: durationMinutes
     if (typeof a.durationMinutes !== "number" || a.durationMinutes <= 0) {

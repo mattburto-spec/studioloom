@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { PageContent, ResponseType } from "@/types";
 import type { WizardDispatch } from "@/hooks/useWizardState";
+import { composedPromptText } from "@/lib/lever-1/compose-prompt";
 
 interface Props {
   pageId: string;
@@ -152,9 +153,9 @@ export function PageReviewCard({ pageId, content, color, isExpanded, dispatch, o
                   Section {si + 1}
                 </label>
                 <div className="flex items-center gap-1.5">
-                  {/* Word count */}
+                  {/* Word count — Lever 1 counts the composed text (slots when v2, prompt fallback) */}
                   <span className="text-[9px] text-text-secondary/50">
-                    {wordCount(section.prompt)} words
+                    {wordCount(composedPromptText(section))} words
                   </span>
 
                   {/* Response type selector */}

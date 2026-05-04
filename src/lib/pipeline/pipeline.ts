@@ -54,6 +54,11 @@ function makeFixtureBlock(overrides: Partial<ActivityBlock> & { title: string; p
     id: crypto.randomUUID(),
     teacher_id: null,
     description: null,
+    // Lever 1 — slot fields nullable for fixture blocks; tests can
+    // override per case to exercise v2-shape vs legacy-fallback paths.
+    framing: null,
+    task: null,
+    success_signal: null,
     source_type: "manual",
     source_upload_id: null,
     source_unit_id: null,
@@ -365,10 +370,18 @@ export function stage3_fillGaps(
     const activities: FilledActivity[] = lesson.activities.map((slot) => {
       if (slot.source === "library" && slot.block) {
         const b = slot.block.block;
+        // Lever 1 — pull v2 slots from the library block; fall back to
+        // empty when the block is pre-Lever-1 shape.
+        const framing = b.framing || "";
+        const task = b.task || (b.framing ? "" : b.prompt);
+        const success_signal = b.success_signal || "";
         return {
           source: "library" as const,
           sourceBlockId: b.id,
           title: b.title,
+          framing,
+          task,
+          success_signal,
           prompt: b.prompt,
           bloom_level: b.bloom_level || "apply",
           time_weight: b.time_weight,
@@ -388,10 +401,17 @@ export function stage3_fillGaps(
       // Gap fill — simulated with [GENERATED] marker
       gapsFilled++;
       const ctx = slot.gapContext;
+      // Lever 1 — synthetic v2-shape slots for the simulated gap fill
+      const framing = `[GENERATED] An activity for "${request.topic}".`;
+      const task = `[GENERATED] Complete this ${ctx?.suggestedCategory || "activity"} task. Document your work as you go.`;
+      const success_signal = "[GENERATED] Submit your completed work.";
       return {
         source: "generated" as const,
         title: `[GENERATED] ${slot.gapDescription || "Activity"}`,
-        prompt: `[GENERATED] Complete this ${ctx?.suggestedCategory || "activity"} task for "${request.topic}".`,
+        framing,
+        task,
+        success_signal,
+        prompt: `${framing}\n\n${task}\n\n${success_signal}`,
         bloom_level: ctx?.suggestedBloom || "apply",
         time_weight: ctx?.suggestedTimeWeight || "moderate",
         grouping: ctx?.suggestedGrouping || "individual",

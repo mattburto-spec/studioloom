@@ -87,6 +87,16 @@
 - **Priority:** P0 | **Est:** 4-5 days | **Doc:** [lesson-pulse.md](lesson-pulse.md)
 - Phase 1 COMPLETE (47 tests, validated 4.4–4.8 on 3 real lessons). Context Injection COMPLETE. Teaching Moves Library COMPLETE (65 moves, 29 tests). **Next:** Voice/Personality Layer, Sequencing Intuition. Note: generation wiring in 4 routes is quarantined — Pulse code preserved for Dimensions3 reuse.
 
+### Lesson Quality — Lever 1: Slot Fields
+- **Status:** 🔴 ACTIVE — 1A brief drafted 4 May 2026, awaiting Matt sign-off before 1B
+- **Priority:** P0 (structural unlock for Levers 2–5) | **Est:** ~3-4 days across 9 sub-phases | **Docs:** [lesson-quality-lever-1-slot-fields.md](lesson-quality-lever-1-slot-fields.md), [lesson-content-style-guide-v2-draft.md](../specs/lesson-content-style-guide-v2-draft.md) (the contract)
+- **Worktree:** `/Users/matt/CWORK/questerra` on branch `lesson-quality-lever-1-slot-fields` (off main @ `51ed550`). Backup pushes to `lever-1-wip`.
+- **Goal:** Refactor activity prompt from single markdown blob → three structured fields (`framing` / `task` / `success_signal`). Toddle pattern. Renderer composes via hybrid spec (framing as muted lead paragraph → task as body → 🎯-prefixed success signal). Editor surfaces three boxes with per-field validation. AI generation rewritten across 4 schema sites + pipeline + adapter + ingestion + activity-cards.
+- **Surface coverage:** `activity_blocks` (62 rows, 2 authors — backfill via heuristic with `needs_review` flag) + `units.content_data` JSONB (zero units in prod — no backfill, new units born compliant). Legacy `prompt` column kept for 30-day soak; removal deferred to a separate post-Lever-1 phase.
+- **Sub-phases:** 1A brief (this) → 1B migration → 1C backfill dry-run → 1D API → 1E renderer → 1F editor UI → 1G AI generation rewrite → 1H tests → 1I registry sync. Matt Checkpoint 1.1 between 1H and 1I.
+- **Stop triggers:** fingerprint drift in 1B; >25% needs_review in 1C; legacy fallback triggered after 1G; per-field length-cap violations in generation. Don't stop for: needs_review tail (teachers tune), UI polish (functional first), removing `prompt` column (out of scope).
+- **Baseline tests:** 3494 / 11 skipped / 222 files (4 May 2026, post-Access-v2 merge).
+
 ### MYPflex — Framework-Flexible Assessment
 - **Priority:** P0 | **Est:** 2 days remaining | **Doc:** [mypflex.md](mypflex.md)
 - Phases 1-3 COMPLETE. Migration 055 APPLIED. Framework selector on classes, adaptive grading UI (buttons for discrete, sliders for %). Phase 4 (future-proofing) pending. **Unblocks non-MYP teacher adoption.**

@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { motion, useDragControls, AnimatePresence } from "framer-motion";
 import InlineEdit from "./InlineEdit";
-import { MarkdownPrompt } from "@/components/student/MarkdownPrompt";
+import { SlotFieldEditor, SlotPreview } from "./SlotFieldEditor";
 import { CRITERIA, type CriterionKey } from "@/lib/constants";
 import type {
   ActivitySection,
@@ -209,7 +209,13 @@ export default function ActivityBlock({
   const tint = RESPONSE_TINT[responseType];
   const icon = RESPONSE_ICON[responseType];
   const subtypeLabel = RESPONSE_TYPE_LABELS[responseType];
-  const titleText = (activity.prompt || "").split("\n")[0] || "Activity";
+  // Lever 1 — title derives from framing first (one-sentence orient is
+  // the natural label), then falls through to task / legacy prompt.
+  const titleText =
+    (activity.framing && activity.framing.trim()) ||
+    (activity.task && activity.task.split("\n")[0]) ||
+    (activity.prompt || "").split("\n")[0] ||
+    "Activity";
   const bloomLoad = activity.bloom_level
     ? BLOOM_LEVELS.find((b) => b.value === activity.bloom_level)?.load
     : null;
@@ -334,7 +340,7 @@ export default function ActivityBlock({
                 </div>
               )}
 
-              {/* Prompt — Edit / Preview tabs */}
+              {/* Prompt — Lever 1 three-box editor + composed Preview */}
               <div className="mt-3">
                 <div className="flex items-center gap-2 mb-1">
                   <div className="text-[10px] le-cap text-[var(--le-ink-3)]">Prompt to students</div>
@@ -364,20 +370,10 @@ export default function ActivityBlock({
                   </div>
                 </div>
                 {promptMode === "edit" ? (
-                  <InlineEdit
-                    value={activity.prompt}
-                    onChange={(newPrompt) => onUpdate({ prompt: newPrompt })}
-                    placeholder="Enter activity prompt..."
-                    multiline
-                    className="text-[12.5px] leading-relaxed text-[var(--le-ink-2)]"
-                  />
+                  <SlotFieldEditor activity={activity} onUpdate={onUpdate} />
                 ) : (
                   <div className="px-3 py-2 rounded-md border border-[var(--le-hair)] bg-[var(--le-bg)] text-[12.5px] leading-relaxed text-[var(--le-ink-2)] [&_p]:my-1.5 [&_strong]:font-bold [&_strong]:text-[var(--le-ink)] [&_em]:italic [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5">
-                    {activity.prompt ? (
-                      <MarkdownPrompt text={activity.prompt} />
-                    ) : (
-                      <span className="italic text-[var(--le-ink-3)]">No prompt yet.</span>
-                    )}
+                    <SlotPreview activity={activity} />
                     <div className="mt-2 pt-2 border-t border-dashed border-[var(--le-hair)] text-[10px] text-[var(--le-ink-3)] italic">
                       Note: students see only paragraphs, <strong className="not-italic">bold</strong>, <em>italic</em>, lists, and links. Headings (<code>###</code>) and tables (<code>| col | col |</code>) are dropped.
                     </div>

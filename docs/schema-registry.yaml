@@ -77,14 +77,56 @@ tables:
 - name: activity_blocks
   source_migration: 060_activity_blocks.sql
   status: applied
-  applied_date: null
-  purpose: null
+  applied_date: '2026-04-01'  # Phase A bootstrap, ~1 Apr 2026; exact date not logged at the time
+  purpose: |
+    First-class library entries for reusable activity templates. Replaces inline JSONB
+    activity definitions. Extracted from teacher uploads (knowledge pipeline) and
+    generated units (generation pipeline). Drives BlockPalette in the lesson editor
+    and feeds the Lesson Pulse repair / generation co-pilot. Composite ranking on
+    relevance + efficacy + context-match + teacher affinity + freshness (per WIRING
+    activity-blocks summary — note: ranking weights claimed there have not been
+    verified against code; see FU-LEVER-1-RANKING-WEIGHTS-AUDIT).
+  spec_drift:
+  - date: '2026-05-04'
+    note: |
+      Lever 1 sub-phase 1B added 4 columns: framing TEXT (nullable),
+      task TEXT (nullable), success_signal TEXT (nullable),
+      backfill_needs_review BOOLEAN NOT NULL DEFAULT false. Migration:
+      20260504020826_activity_three_field_prompt.sql. Brief:
+      docs/projects/lesson-quality-lever-1-slot-fields.md. Renderer
+      composes via hybrid spec — see brief §Renderer composition.
+      Legacy `prompt` column kept (transition window, removal gated
+      30 days post-Lever-1).
+  - date: '2026-05-04'
+    note: |
+      Drift fix: applied_date and purpose were null pre-Lever-1 — populated
+      from CLAUDE.md Phase A context (~1 Apr 2026 + bootstrap blurb).
+      RLS read/write policy detail still '(unknown)' below — scanner
+      doesn't introspect the policies; flagged FU-SCHEMA-REGISTRY-RLS-DETAIL.
+  - date: '2026-05-04'
+    note: |
+      Lever 1 sub-phase 1H closed audit step 7: every reader of
+      `block.prompt` / `section.prompt` (lesson-tiles, edit-tracker,
+      knowledge/chunk, timing-validation, infer-bloom, activity-library,
+      design-assistant, plus 9 wizard / display components) now reads via
+      `composedPromptText()` so v2 slot fields take priority during the
+      transition. Also closed a 1G validator regression: validateGeneratedPages
+      and validateTimelineActivities still required legacy `prompt` —
+      both now accept slots OR legacy and compose `prompt` from slots
+      for back-compat consumers. Tests +24 (3600 → 3624). Helpers
+      composedPromptText / hasSlotFields widened from ActivitySection
+      to a structural SlotBearing shape so they work over TimelineActivity,
+      ActivityBlock rows, AI tool payloads, and fixtures.
   columns:
     id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
     teacher_id: UUID REFERENCES auth.users(id)
     title: TEXT NOT NULL
     description: TEXT
-    prompt: TEXT NOT NULL
+    prompt: TEXT NOT NULL  # Legacy single-field. Renderer falls back to this when framing/task/success_signal all null. Removal: 30-day post-Lever-1 soak gated.
+    framing: TEXT  # Lever 1 slot — one-sentence orient (≤200 chars).
+    task: TEXT  # Lever 1 slot — imperative body (≤800 chars).
+    success_signal: TEXT  # Lever 1 slot — what students produce (≤200 chars).
+    backfill_needs_review: BOOLEAN NOT NULL DEFAULT false  # Lever 1 sub-phase 1C heuristic-split flag.
     source_type: TEXT NOT NULL
     source_upload_id: UUID
     source_unit_id: UUID

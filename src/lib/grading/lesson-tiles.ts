@@ -10,6 +10,7 @@
 
 import type { ActivitySection, UnitPage } from "@/types";
 import { getCriterionDisplay } from "@/lib/constants";
+import { composedPromptText } from "@/lib/lever-1/compose-prompt";
 
 export interface LessonTile {
   /** "activity_<nanoid>" or "section_<idx>" — must match student_progress response key. */
@@ -94,7 +95,10 @@ export function extractTilesFromPage(
     out.push({
       tileId: tileIdForSection(section, i),
       index: i,
-      title: tileTitle(section.prompt),
+      // Lever 1: derive the tile label from the composed slot text so v2
+      // activities show their framing/task instead of the empty legacy
+      // prompt during the migration window.
+      title: tileTitle(composedPromptText(section)),
       criterionKey,
       criterionLabel: display.name,
       criterionColor: display.color,

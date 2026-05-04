@@ -6,6 +6,7 @@ import { getPageList, getPageById } from "@/lib/unit-adapter";
 import type { UnitContentData, StudentProgress } from "@/types";
 import { useStudent } from "../student-context";
 import { useBellCount } from "@/components/student/BellCountContext";
+import { composedPromptText } from "@/lib/lever-1/compose-prompt";
 import {
   Icon,
   type IconName,
@@ -243,7 +244,9 @@ function computeTaskState(
   // All responded → show the last block as "current" with progress = total
   const currentIdx = firstUnresponded >= 0 ? firstUnresponded : total - 1;
   const section = sections[currentIdx];
-  const prompt = (section.prompt || "").trim();
+  // Lever 1: composedPromptText prefers the v2 slot fields and falls back
+  // to legacy `prompt` automatically.
+  const prompt = composedPromptText(section);
   const title = prompt.length > 0 ? truncatePrompt(prompt) : `Block ${currentIdx + 1}`;
 
   return {

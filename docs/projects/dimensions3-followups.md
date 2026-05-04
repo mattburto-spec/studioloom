@@ -1883,6 +1883,51 @@ For the uuid/exceljs chain: wait for either (a) exceljs to bump its uuid dep (tr
 
 ---
 
+## FU-LESSON-EDITOR-AUTO-PINNED-SKILL — Lesson editor mounts a default skill on freshly-seeded lessons (P2)
+
+**Status:** OPEN — filed 4 May 2026 during Lever 1 Matt Checkpoint 1.1 smoke.
+
+**Surfaced:** The Lever 1 smoke seed (`scripts/lever-1/seed-test-unit.sql`) wrote a v3 unit with three lessons and assigned it to a freshly-created class (`Lever 1 Smoke Class`). The seed deliberately wrote NO entries to any skills / pinned-skills tables — INSERTs touched only `units`, `classes`, `class_units`. INSERT triggers on `classes` were bypassed via `SET LOCAL session_replication_role = 'replica';` so `seed_lead_teacher_on_class_insert` and `tg_classes_auto_tag_dept_heads_on_insert` did NOT fire either.
+
+Despite that, when Matt opened the seeded unit in the Phase 0.5 lesson editor, every lesson rendered with a "Skills for this lesson" pill pre-populated:
+
+  > **3D Printing: basic setup** [BRONZE]
+
+This skill is unrelated to the unit topic (roller coaster physics → marble run) and was never written to the database by the seed. It's appearing from somewhere in the editor's render pipeline.
+
+**Suspected cause (one of):**
+
+1. **Class-default skill on `classes.framework='myp_design'`** — the editor reads class.framework and pulls a "default first skill" from a skills lookup. Most likely candidate.
+2. **Auto-suggest fallback** — when a lesson has zero pinned skills, the editor renders the first matching skill from the catalog as a placeholder until the teacher confirms or removes it.
+3. **Stale RPC / cached data** — possible but unlikely given this is a fresh class (created via the smoke seed) with no prior state.
+4. **Bug in `SkillsForLesson` component** — defaults to a hardcoded skill ID when the read returns empty.
+
+**Investigation steps:**
+
+- `grep -rn "3D Printing.*basic setup\|3d-printing-basic\|skills.*default\|first.*skill" src/components/teacher/lesson-editor/ src/components/teacher/skills/ src/lib/skills/`
+- Check the `pinned_skills` (or equivalent) table on prod for rows referencing the seed class_id `b3534f58-47fe-4830-8a0d-c705f374b23b` or unit_id `80f0f7a9-c225-4b57-8a09-6d752d4ee099`. If empty, the skill is mounted client-side from a default — locate the default.
+- Check the lesson-editor render code for skill-pill mounting:
+  ```
+  grep -rn "Skills for this lesson\|SKILLS FOR THIS LESSON\|pinned.*skill\|3D Printing" src/components/teacher/lesson-editor/
+  ```
+- Verify `classes.framework` resolution path — does the editor query a `framework_default_skills` lookup table?
+
+**Symptoms to capture before fixing:**
+
+- Take a screenshot of the editor with the auto-pinned skill visible (already in the chat record from the smoke).
+- Note the URL: `/teacher/units/80f0f7a9-c225-4b57-8a09-6d752d4ee099/class/b3534f58-47fe-4830-8a0d-c705f374b23b/edit`.
+- Note that NO skills appear on the unit's `pinned_skills` table (verify with `SELECT * FROM pinned_skills WHERE unit_id = '80f0f7a9...';` or whatever the actual table is called — schema unknown).
+
+**Why P2 not P1:** doesn't break anything — the skill is informational, not enforced. But it WILL confuse teachers (they'll think they pinned 3D Printing when they didn't), and if the teacher SAVES with the auto-pinned skill displayed, it might persist as a real pin without consent.
+
+**Definition of done:** either (a) the auto-mount logic is removed so empty lessons render with no skills pill, OR (b) the auto-mount renders only a "+ Pin a skill" CTA (not a specific skill), OR (c) the auto-mount is opt-in via an admin setting with a visible "Auto-suggested" badge so teachers can tell it's a default.
+
+**Not Lever 1 territory** — Lever 1 only touched activity prompt fields (framing/task/success_signal) and the surrounding readers. Skill-pinning is an independent system. Filed here because it surfaced during a Lever 1 smoke; pick up alongside the Phase 0.5 lesson editor cleanup.
+
+**Sequence:** before any teacher pilots the lesson editor at scale. Likely 1-2 hour investigation.
+
+---
+
 ## FU-AV2-WELCOME-WIZARD-AUTO-CREATE-HARDENING — `/teacher/welcome` auto-creates teacher row + personal school on first visit (P2)
 
 **Status:** OPEN — filed 4 May 2026 after data-cleanup of 3 stray teacher rows + 3 orphan schools.

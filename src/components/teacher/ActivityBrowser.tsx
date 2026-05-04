@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { ACTIVITY_LIBRARY, type ActivityTemplate } from "@/lib/activity-library";
 import type { CriterionKey } from "@/lib/constants";
 import type { ActivityCard, CardAIHints, ModifierAxis } from "@/types/activity-cards";
+import { composedPromptText } from "@/lib/lever-1/compose-prompt";
 
 interface ActivityBrowserProps {
   onInsert: (activity: ActivityTemplate) => void;
@@ -490,7 +491,7 @@ function ActivityCardItem({
         <div className="px-4 pb-4 border-t border-border bg-gray-50">
           {/* Section previews */}
           <div className="mt-3 space-y-2">
-            {card.template?.sections?.map((section: { prompt: string; responseType?: string; scaffolding?: { ell1?: { sentenceStarters?: string[] } } }, i: number) => (
+            {card.template?.sections?.map((section: { prompt: string; framing?: string; task?: string; success_signal?: string; responseType?: string; scaffolding?: { ell1?: { sentenceStarters?: string[] } } }, i: number) => (
               <div key={i} className="bg-white rounded-lg p-3 border border-border">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-brand-purple/10 text-brand-purple">
@@ -499,7 +500,7 @@ function ActivityCardItem({
                   <span className="text-[10px] text-text-secondary">Section {i + 1}</span>
                 </div>
                 <p className="text-xs text-text-primary whitespace-pre-line line-clamp-4">
-                  {section.prompt}
+                  {composedPromptText(section)}
                 </p>
                 {section.scaffolding?.ell1?.sentenceStarters && (
                   <div className="mt-2 flex gap-1 flex-wrap">
@@ -687,7 +688,7 @@ function FallbackActivityItem({
                   <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-brand-purple/10 text-brand-purple">{section.responseType}</span>
                   <span className="text-[10px] text-text-secondary">Section {i + 1}</span>
                 </div>
-                <p className="text-xs text-text-primary whitespace-pre-line line-clamp-4">{section.prompt}</p>
+                <p className="text-xs text-text-primary whitespace-pre-line line-clamp-4">{composedPromptText(section)}</p>
               </div>
             ))}
           </div>

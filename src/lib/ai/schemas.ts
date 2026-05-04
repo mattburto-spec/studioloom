@@ -187,9 +187,22 @@ function buildPageContentSchema(unitType: UnitType = "design") {
         type: "array" as const,
         items: {
           type: "object" as const,
-          required: ["prompt", "responseType"],
+          // Lever 1 — three v2 slot fields required. Server composes the
+          // legacy `prompt` from framing+task+success_signal at persist time.
+          required: ["framing", "task", "success_signal", "responseType"],
           properties: {
-            prompt: { type: "string" as const, description: "Activity instructions for the student" },
+            framing: {
+              type: "string" as const,
+              description: "ONE sentence (≤30 words / ≤200 chars) orienting the student: what they're doing and why it matters today. Direct, second-person. NO meta commentary ('In this activity students...'). NO teacher-side framing. Reads quietly as the lead paragraph.",
+            },
+            task: {
+              type: "string" as const,
+              description: "The imperative body — what students actually do. Use a numbered list when there are discrete steps. ≤800 chars. NO `###` headings (silently dropped by renderer). NO `| col | col |` tables (dropped). NO `**Step 1:**` bold sub-headings (use a numbered list instead). Inline `**bold**` / `*italic*` / `[links](url)` / bulleted/numbered lists are fine.",
+            },
+            success_signal: {
+              type: "string" as const,
+              description: "ONE short sentence (≤200 chars) telling the student what they should produce, record, submit, or share so they know when they're done. Use a clear production verb: write, record, submit, share, sketch, annotate, present, etc. Renders prefixed with 🎯 + bold. ALWAYS PRESENT — even when the original framing is exploratory, infer one.",
+            },
             responseType: {
               type: "string" as const,
               enum: ["text", "upload", "voice", "link", "multi", "decision-matrix", "pmi", "pairwise", "trade-off-sliders"],
@@ -371,9 +384,22 @@ export const OUTLINE_GENERATION_TOOL: Tool = {
 function buildJourneyActivitySectionSchema() {
   return {
     type: "object" as const,
-    required: ["prompt", "responseType", "criterionTags"],
+    // Lever 1 — three v2 slot fields required. Server composes the
+    // legacy `prompt` from framing+task+success_signal at persist time.
+    required: ["framing", "task", "success_signal", "responseType", "criterionTags"],
     properties: {
-      prompt: { type: "string" as const, description: "Activity instructions for the student" },
+      framing: {
+        type: "string" as const,
+        description: "ONE sentence (≤30 words / ≤200 chars) orienting the student: what they're doing and why it matters today. Direct, second-person. NO meta commentary. Reads quietly as the lead paragraph.",
+      },
+      task: {
+        type: "string" as const,
+        description: "The imperative body — what students actually do. Use a numbered list when there are discrete steps. ≤800 chars. NO `###` headings (renderer drops them). NO tables. NO `**Step 1:**` bold sub-headings — use a numbered list instead. Inline `**bold**` / `*italic*` / `[links](url)` / bulleted+numbered lists are fine.",
+      },
+      success_signal: {
+        type: "string" as const,
+        description: "ONE short sentence (≤200 chars) telling the student what they produce, record, submit, or share. Use a production verb (write/record/submit/share/sketch/annotate/present etc.). Renders with 🎯 prefix + bold. Always present — infer one if exploratory.",
+      },
       responseType: {
         type: "string" as const,
         enum: ["text", "upload", "voice", "link", "multi", "decision-matrix", "pmi", "pairwise", "trade-off-sliders"],
@@ -533,7 +559,12 @@ export const SINGLE_JOURNEY_OUTLINE_TOOL: Tool = {
 /** Schema for a single timeline activity. */
 const timelineActivitySchema = {
   type: "object" as const,
-  required: ["id", "role", "title", "prompt"],
+  // Lever 1 — three v2 slot fields required. For "content" role
+  // (information-only), task carries the body; framing + success_signal
+  // can be a brief one-line orient + a "Read it" / "Note the warning"
+  // closing cue. Server composes the legacy `prompt` from the slots
+  // at persist time.
+  required: ["id", "role", "title", "framing", "task", "success_signal"],
   properties: {
     id: { type: "string" as const, description: "Short unique ID for this activity (e.g. 'a1', 'a2', 'a3')" },
     role: {
@@ -542,7 +573,18 @@ const timelineActivitySchema = {
       description: "Activity role: warmup (vocab), intro (connect to prior learning), core (main task), reflection (self-assessment), content (information-only — safety warnings, key concepts, context; no student response)",
     },
     title: { type: "string" as const, description: "Short activity title (3-8 words)" },
-    prompt: { type: "string" as const, description: "Full activity instructions/content for the student. Supports basic markdown: **bold**, *italic*, [links](url)." },
+    framing: {
+      type: "string" as const,
+      description: "ONE sentence (≤30 words / ≤200 chars) orienting the student. For 'content' role, this is the brief 'why this matters' opener. Reads as the lead paragraph.",
+    },
+    task: {
+      type: "string" as const,
+      description: "The imperative body — what students do (or for 'content' role, the information they read). Numbered list for discrete steps. ≤800 chars. NO `###` headings or `| col | col |` tables (renderer drops them). Inline `**bold**`/`*italic*`/`[links](url)`/lists fine.",
+    },
+    success_signal: {
+      type: "string" as const,
+      description: "ONE short sentence (≤200 chars) — what students produce/record/submit. For 'content' role this can be a closing cue like 'Note the safety warning before starting' or 'Be ready to apply this in the next activity'. Renders with 🎯 + bold.",
+    },
     durationMinutes: { type: "number" as const, description: "Optional fallback — only set if exact minutes are critical (e.g. safety demo must be exactly 5 min). Otherwise use timeWeight." },
     responseType: {
       type: "string" as const,

@@ -1,0 +1,422 @@
+{
+  "blind-swap": {
+    "framing": "You'll develop an initial idea, pass it blindly to a peer, then improve someone else's concept while honoring their original vision.",
+    "task": "1. Work on your initial idea for 5 minutes. Develop your concept, sketch it out, or draft your thinking as clearly as you can.\n\n2. When time is called, fold your paper in half or turn away so you can't see who receives it. Pass your work to someone you haven't been looking at—perhaps the person behind you or someone across the room chosen randomly.\n\n3. You now have 4 minutes with someone else's idea. Improve what they've started without changing their core concept. Look for ways to strengthen, refine, or extend their thinking. You might add detail, solve a problem you notice, or push their idea further in the direction they were already headed.\n\n4. Resist the urge to restart from scratch or redirect completely. This isn't about making it \"yours\"—it's about making their idea better while respecting their original vision.\n\n5. When time ends, return the work to its owner. Review what was added to your original concept.",
+    "success_signal": "Consider which improvements genuinely strengthen your idea and be ready to discuss the exchange.",
+    "warnings": [
+      "task 929>800"
+    ],
+    "rewritten_at": "2026-05-04T02:38:50.231Z"
+  },
+  "constraint-removal": {
+    "framing": "You'll explore breakthrough ideas by temporarily removing one major constraint from your design brief.",
+    "task": "1. Select one constraint to remove:\n   - Budget or cost restrictions\n   - Size or weight limits\n   - Time constraints\n   - Material restrictions\n   - Technical capabilities\n   - Safety requirements\n\n2. Spend 10 minutes brainstorming solutions as if this limitation didn't exist. Generate as many ideas as possible. Push boundaries. Think big. Don't hold back because something seems impossible or impractical.\n\n3. Reintroduce the original constraint. Review your wild ideas and ask yourself:\n   - Which concepts contain kernels of brilliance that could be adapted?\n   - Can any ideas be scaled down, simplified, or modified to work within the real constraint?\n   - What principles or approaches from the unrestricted thinking could inform more realistic solutions?\n\n4. Circle or highlight the ideas that have potential when adapted. Consider hybrid approaches that capture the spirit of your bold thinking while respecting practical limitations.",
+    "success_signal": "Submit your brainstorm list with the most promising ideas circled or highlighted for adaptation.",
+    "warnings": [
+      "task 945>800"
+    ],
+    "rewritten_at": "2026-05-04T02:38:55.866Z"
+  },
+  "materials-roulette": {
+    "framing": "Draw three random materials from the bag and incorporate all three into your design solution.",
+    "task": "1. Draw your three materials and identify what each one does well—its key properties, strengths, and potential functions.\n\n2. Consider how each material might solve a specific problem in your design. Can you combine them to create new functions?\n\n3. Sketch multiple ways to integrate all three materials before committing to one approach. Test small combinations to see what works.\n\n4. Find a way to use each material meaningfully in your prototype. Don't discard a material just because it seems difficult—working within constraints often leads to more innovative solutions than unlimited options.\n\n5. Be ready to explain why each material earned its place in your final design.",
+    "success_signal": "Submit your prototype that uses all three materials and be prepared to explain the role of each one.",
+    "rewritten_at": "2026-05-04T02:39:01.981Z"
+  },
+  "worst-idea-first": {
+    "framing": "You'll unlock creative solutions by deliberately generating the worst ideas you can imagine, then flipping their flaws into strengths.",
+    "task": "1. Brainstorm the absolute worst solutions you can imagine for your problem. Push yourself to be ridiculous, impractical, or completely counterproductive — the worse, the better.\n\n2. Examine each terrible idea closely. Ask yourself: what makes this idea so bad? Identify the specific feature or principle that creates the problem.\n\n3. Flip it. Take that problematic feature and transform it into something useful. If your bad idea is \"too expensive,\" could that become \"premium quality\"? If it's \"takes forever,\" could that become \"thorough and careful\"? If it's \"annoying to everyone,\" could that become \"gets attention\" or \"creates disruption for good reason\"?\n\n4. Work through your entire list, extracting the hidden kernel of potential from each worst idea. Your most creative solutions may emerge from inverting your biggest failures.",
+    "success_signal": "Submit your list of worst ideas with the problematic feature and its flipped, useful version for each one.",
+    "warnings": [
+      "task 839>800"
+    ],
+    "rewritten_at": "2026-05-04T02:41:13.463Z"
+  },
+  "60-second-pitch": {
+    "framing": "You're going to pitch your best idea three times to three different partners, refining it with every round.",
+    "task": "1. Stand up and find a partner. You have exactly 60 seconds to pitch your idea—explain what it is, why it matters, and how it works. Your partner listens without interrupting.\n\n2. When time's up, your partner asks you ONE question that probes a gap, tests your thinking, or pushes for clarity (e.g., \"Who is this actually for?\" or \"How would that part work in real life?\"). Answer briefly.\n\n3. Switch roles. Your partner pitches for 60 seconds, and you ask one focused question.\n\n4. Find a new partner and repeat. You'll pitch three times total to three different people.\n\n5. Pay attention to what changes in your pitch each round. Notice which parts you clarify, which questions stump you, and where your idea strengthens or shifts. The questions reveal weak spots—places where your thinking isn't clear yet or your concept needs development.\n\n6. After three rounds, take two minutes to write down: What question kept coming up? What part of your idea needs the most work?",
+    "success_signal": "Write down the recurring question and the part of your idea that needs the most work.",
+    "warnings": [
+      "task 973>800"
+    ],
+    "rewritten_at": "2026-05-04T02:41:19.299Z"
+  },
+  "concept-mashup": {
+    "framing": "You will combine two seemingly unrelated ideas to spark creative design thinking.",
+    "task": "1. Draw or select one item from a \"things\" pile (objects, products, or systems) and one from a \"qualities\" pile (adjectives, emotions, or characteristics).\n\n2. Design something new at the intersection of these two cards. For instance, if you draw \"umbrella\" and \"playful,\" explore what a playful umbrella could be. Does it change colors in the rain? Does it make sounds? Does it have an unexpected shape? If you draw \"backpack\" and \"invisible,\" reimagine the concept entirely. Could it blend into its surroundings? Could it make your belongings disappear from view?\n\n3. Don't settle for your first idea. Push past the obvious. Sketch multiple possibilities. The stranger the combination, the more interesting your solution might become.\n\n4. Generate at least three different interpretations before choosing your strongest direction to develop further. Let the tension between the two cards drive your creative process—the goal is to honor both elements in your final design.",
+    "success_signal": "Sketch at least three interpretations and select your strongest direction to develop further.",
+    "warnings": [
+      "task 974>800"
+    ],
+    "rewritten_at": "2026-05-04T02:41:24.396Z"
+  },
+  "silent-brainstorm": {
+    "framing": "You will generate ideas individually and in complete silence, then organize them collaboratively without speaking.",
+    "task": "1. Grab a stack of sticky notes and write one idea per note for 5 minutes. Be specific and legible. Don't filter yourself—get as many ideas down as possible. No discussion, no looking at others' work, just write.\n\n2. When time is called, bring your notes to the designated wall or board space and post them in a cluster. Don't organize yet.\n\n3. Silently read everyone's ideas for 5 minutes. Walk around and start grouping similar ideas together. Move sticky notes into clusters that make sense to you. Others will be doing the same—it's collaborative and fluid. You might move a note someone else just placed. That's fine.\n\n4. After the silent clustering period, step back and look at the patterns that emerged. Which clusters are largest? Which ideas appear most frequently? Which surprise you?",
+    "success_signal": "Post your sticky notes, complete the silent clustering, and be ready to discuss the patterns you've created together.",
+    "rewritten_at": "2026-05-04T02:41:29.759Z"
+  },
+  "rapid-prototype-sprint": {
+    "framing": "You have exactly 10 minutes to build a rough prototype of your design using paper, tape, scissors, and markers.",
+    "task": "1. Set a timer for 10 minutes and start building immediately.\n2. Use paper to represent different parts of your design. Fold, cut, tape, and sketch quickly.\n3. Focus on speed, not perfection. Your prototype doesn't need to be beautiful or complete—it just needs to exist.\n4. Don't worry about getting it wrong. The timer will keep you moving forward.\n5. At the end of 10 minutes, stop working.\n\nYour prototype might be rough, messy, or incomplete—that's exactly the point. This sprint forces you to make fast decisions and get your ideas out of your head and into the world.",
+    "success_signal": "Hold up your physical prototype and be ready to explain your thinking to others.",
+    "rewritten_at": "2026-05-04T02:41:34.417Z"
+  },
+  "silent-gallery-walk": {
+    "framing": "You'll conduct a silent gallery walk, examining each displayed piece and leaving two kinds of sticky-note feedback: strengths and genuine questions.",
+    "task": "1. Walk slowly around the room in silence, carrying two colors of sticky notes.\n2. Use one color to note strengths—what's working well, what catches your attention, what seems effective.\n3. Use the other color to write genuine questions—things you're curious about, aspects you'd like to understand better, or places where you see potential for development.\n4. Write feedback directly on sticky notes and place them near the relevant part of each piece. Be specific: instead of \"good job,\" try \"the contrast here draws my eye to the central idea.\" Instead of \"what about this?\" try \"how did you decide on this particular arrangement?\"\n5. Move at your own pace, but visit every piece on display.\n6. Read what others have written as you go—their observations might help you see things you missed.\n7. After the silent walk ends, return to your seat for a whole-class discussion.",
+    "success_signal": "Place specific sticky-note feedback on every piece, then share patterns, surprising observations, or common questions in the class discussion.",
+    "warnings": [
+      "task 875>800"
+    ],
+    "rewritten_at": "2026-05-04T02:41:40.226Z"
+  },
+  "warm-cool-feedback": {
+    "framing": "You'll exchange work with a partner and give two kinds of feedback: warm feedback that names what's working, and cool feedback that explores new possibilities.",
+    "task": "1. **Warm Feedback (2 minutes):** Tell your partner what's working well in their work and explain specifically why. Point to concrete features and strengths. Use \"I notice...\" statements to describe what you see that's effective.\n\n2. **Cool Feedback (2 minutes):** Ask questions and offer suggestions that could make the work even better. Use \"I wonder...\" statements to explore possibilities your partner might not have considered yet. Focus on genuine curiosity about choices they made and alternatives they might explore.\n\n3. **Response (1 minute):** After receiving both types of feedback, take a moment to think aloud about what you heard. Which suggestions resonate with you? What will you try next?\n\nWarm feedback celebrates what's already strong. Cool feedback opens up new directions without criticism.",
+    "success_signal": "Complete the full feedback cycle with your partner: give warm and cool feedback, receive feedback, and share which ideas you'll try next.",
+    "warnings": [
+      "task 811>800"
+    ],
+    "rewritten_at": "2026-05-04T02:41:46.143Z"
+  },
+  "failure-museum": {
+    "framing": "You're curating a museum of your failed prototypes and unsuccessful attempts to celebrate the messy, imperfect process of learning through trial and error.",
+    "task": "1. Gather all versions of your work that didn't turn out as planned—broken prototypes, scrapped designs, abandoned ideas, or experiments that flopped.\n\n2. Set up a display table where you'll exhibit these \"failures\" as if they were valuable artifacts in a museum.\n\n3. For each failed attempt, create a label card that explains:\n   - What you were trying to accomplish\n   - Why this version failed or what went wrong\n   - What you learned from this failure\n   - How this failure helped you move forward\n\n4. Arrange your failures on the table with their explanation cards displayed prominently. Think like a museum curator: make your display clear and easy for visitors to understand.\n\n5. Once everyone has set up their displays, tour the museum. Walk around and examine your classmates' failed attempts. Read their labels. Notice patterns in what people learned and how failure pushed their thinking in new directions.\n\nThe goal isn't to showcase your best work—it's to celebrate risk-taking and proof that you pushed yourself to try something challenging.",
+    "success_signal": "Display your failures with label cards and tour your classmates' museum exhibits.",
+    "warnings": [
+      "task 1055>800"
+    ],
+    "rewritten_at": "2026-05-04T02:41:52.097Z"
+  },
+  "two-stars-wish": {
+    "framing": "You're giving your peer feedback that's specific, actionable, and balanced—celebrating what works and suggesting one way forward.",
+    "task": "1. **Star 1:** Identify one specific strength. Point to an exact element that works well and explain why it's effective.\n\n2. **Star 2:** Find a second specific strength in a different aspect of the work. Again, be precise about what makes it successful.\n\n3. **Wish:** Suggest one concrete improvement. Frame it as \"I wish...\" and focus on how the work could be enhanced or developed further.\n\nMake each point specific—reference actual parts of the work rather than general observations. Your stars should celebrate genuine achievements, and your wish should offer a realistic next step your peer can act on.",
+    "success_signal": "Write two stars and one wish that reference specific elements of your peer's work.",
+    "rewritten_at": "2026-05-04T02:41:57.152Z"
+  },
+  "expert-interview-sim": {
+    "framing": "You will take turns being an expert and an interviewer, switching roles after the first round.",
+    "task": "**Round 1:**\n1. If you're in Group A: Spend 10 minutes researching your assigned topic. Take notes on key facts, examples, and important details. Prepare to answer questions confidently as if you're an expert in this field.\n2. If you're in Group B: Spend 10 minutes preparing thoughtful interview questions about the topic. Think about what you genuinely want to know. Aim for questions that start with \"Why,\" \"How,\" or \"What if.\"\n3. Interview Phase (8 minutes): Group B interviews Group A. Interviewers, ask your questions and follow up on interesting answers. Experts, share what you learned clearly and support your points with specific information.\n\n**Round 2:**\n4. Switch roles completely with a new topic. Group A becomes the interviewers, Group B becomes the experts.\n5. Repeat the research, preparation, and interview process.\n\nExperts: It's okay to say \"I'm not sure, but based on what I learned...\" Interviewers: Listen actively and ask follow-up questions when something sounds interesting. Both: Stay curious and engaged throughout.",
+    "success_signal": "Complete both rounds—research, interview, then switch roles and repeat with a new topic.",
+    "warnings": [
+      "task 1044>800"
+    ],
+    "rewritten_at": "2026-05-04T02:42:03.457Z"
+  },
+  "product-autopsy": {
+    "framing": "You will carefully disassemble an existing product to discover how it was designed and built.",
+    "task": "1. Choose a product (or use the one provided by your teacher). This might be a broken toaster, phone case, mechanical toy, kitchen tool, or small appliance.\n\n2. Disassemble the product methodically. Remove screws, unclip parts, and separate components without forcing or breaking them. Take photos or make notes as you go so you can remember how pieces fit together.\n\n3. Sketch the internal structure as you work. Draw the major components and how they connect. Label each part you identify.\n\n4. For each component, investigate:\n   • What material is it made from? (Plastic, metal, rubber, composite?)\n   • How is it joined to other parts? (Screws, glue, clips, welds, friction fit?)\n   • Why did the designer choose THIS specific material for THIS particular part?\n\n5. Consider factors like strength, weight, cost, flexibility, temperature resistance, appearance, and manufacturing ease.\n\nBe prepared to explain what surprised you most about how the product was constructed and what design choices were particularly clever or problematic.",
+    "success_signal": "Submit annotated sketches showing the disassembled parts, materials identified, joining methods observed, and your analysis of design decisions.",
+    "warnings": [
+      "task 1039>800"
+    ],
+    "rewritten_at": "2026-05-04T02:42:08.536Z"
+  },
+  "user-shadowing": {
+    "framing": "You're going to observe a real user performing their task for exactly 10 minutes to uncover pain points you can solve.",
+    "task": "1. Find someone who naturally does the activity you're studying. Position yourself where you can see clearly without getting in their way.\n\n2. Start your timer and begin recording what happens. Do not speak or interrupt — your job is to watch closely and take notes.\n\n3. Watch for these details:\n   - Which steps take the longest time?\n   - What do they search for or struggle to find?\n   - What falls, breaks, or goes wrong?\n   - What creative workarounds do they use?\n   - What do they ignore or skip entirely?\n   - Where do they pause, hesitate, or look confused?\n   - What do they repeat multiple times?\n\n4. Write down everything you notice, even small details. Note the time when important moments happen. Pay attention to body language and facial expressions — frustration, confusion, and satisfaction all reveal important information.\n\n5. After 10 minutes end, thank the person. Review your notes immediately while the observations are fresh. Circle the three most significant pain points you witnessed.",
+    "success_signal": "Submit your observation notes with the three most significant pain points circled.",
+    "warnings": [
+      "task 1010>800"
+    ],
+    "rewritten_at": "2026-05-04T02:42:14.050Z"
+  },
+  "5-whys": {
+    "framing": "You will trace a problem back to its underlying source using the \"5 Whys\" technique.",
+    "task": "1. Start with the surface-level problem you've identified.\n2. Ask yourself \"Why does this happen?\" and write your answer.\n3. Take that answer and ask \"Why?\" again.\n4. Continue this process five times, with each answer becoming the focus of your next question.\n\nYour first \"why\" usually reveals an immediate cause. Your second and third \"whys\" often uncover process or system issues. By the fourth and fifth \"whys,\" you typically reach root causes—the fundamental reasons the problem exists.\n\nAs you dig deeper, resist the urge to stop early or jump to solutions. If an answer feels too simple or obvious, push further. If you reach a \"why\" that seems impossible to answer, you may have found your root cause.\n\nYour final answer should reveal something systemic, structural, or foundational—not just a symptom or immediate trigger.",
+    "success_signal": "Record all five layers of questioning with your root cause clearly identified.",
+    "warnings": [
+      "task 830>800"
+    ],
+    "rewritten_at": "2026-05-04T02:42:18.462Z"
+  },
+  "stakeholder-speed-dating": {
+    "framing": "You will role-play as a specific stakeholder with a unique perspective on the design problem, asking questions that matter most to the person you represent.",
+    "task": "1. Receive your assigned role from your teacher (user, manufacturer, shop owner, environmentalist, parent, child, community member, or another affected person).\n\n2. Prepare 3–5 questions that your stakeholder would genuinely care about. Think about what matters most to them: their concerns, what they need to know, and what benefits or problems they would focus on.\n\n3. When the timer starts, spend exactly 3 minutes asking your questions to the designer or design team. Stay in character. Listen to their responses and ask follow-up questions if something isn't clear or doesn't address your stakeholder's priorities.\n\n4. After 3 minutes, rotate to a new partner or switch roles. Complete multiple rounds, experiencing different perspectives or questioning different design approaches.\n\nUse your stakeholder's lens throughout—their values, constraints, and priorities should guide every question you ask. This isn't about your personal opinion; it's about authentically representing someone else's viewpoint.",
+    "success_signal": "Complete all rotation rounds, asking questions in character and recording key insights from each stakeholder perspective you represent.",
+    "warnings": [
+      "task 1010>800"
+    ],
+    "rewritten_at": "2026-05-04T02:42:24.677Z"
+  },
+  "progressive-constraints": {
+    "framing": "You'll start with complete creative freedom, then adapt your work every 5 minutes as new constraints are announced.",
+    "task": "1. Create your project without any restrictions. Work quickly and intuitively—you have 5 minutes before the first constraint arrives.\n\n2. When the first constraint is announced, modify your work to meet the new requirement while keeping everything you've already built. You cannot start over.\n\n3. Every 5 minutes, a new constraint will be added. Each time:\n   - Adapt your existing work to satisfy the new rule\n   - Maintain all previous constraints\n   - Think creatively about how to solve multiple requirements at once\n\n4. If a constraint seems impossible with your current design, find clever workarounds. Bend, fold, reposition, or minimally rebuild—but preserve as much of your original vision as possible.\n\nThe challenge isn't perfection—it's adaptation. Work quickly between announcements. The clock doesn't stop, and neither should your problem-solving.",
+    "success_signal": "Submit your final adapted project showing how you incorporated all constraints without restarting.",
+    "warnings": [
+      "task 861>800"
+    ],
+    "rewritten_at": "2026-05-04T02:42:30.151Z"
+  },
+  "parallel-prototypes": {
+    "framing": "You'll build three different prototypes simultaneously to explore multiple solutions and avoid locking into your first idea too early.",
+    "task": "1. Build three different versions of your solution at the same time using different materials, scales, or approaches.\n2. Set a timer for 15 minutes and work on all three simultaneously—don't finish one before starting the next.\n3. Once time is up, test each prototype against your design criteria.\n4. Document what works and what doesn't for each version. Pay attention to unexpected discoveries: sometimes the \"throwaway\" version reveals the best insight.\n5. Compare your prototypes side by side. Which one best solves the core problem? Which materials or techniques surprised you? What would you combine from different versions into a fourth, stronger prototype?",
+    "success_signal": "Document your test results and comparison notes for all three prototypes.",
+    "rewritten_at": "2026-05-04T02:42:35.280Z"
+  },
+  "skill-station-rotation": {
+    "framing": "You'll rotate through 4-5 stations, spending 8-10 minutes at each to practice a specific technique or skill.",
+    "task": "1. Work through the activities at your first station. Focus on building confidence and competence—don't rush. Use the full time to refine your approach and ask questions.\n\n2. Typical stations include measuring and marking (practice precision with rulers and measuring tools), joining techniques (try different methods to connect materials securely), finishing/sanding (develop smoothing and surface preparation skills), safety quiz (test your knowledge of tools and safe practices), and material testing (experiment with how different materials behave).\n\n3. When the timer signals, clean up your station and rotate to the next one.\n\n4. Pay attention to what works and what doesn't—you'll apply these skills in the main project soon.",
+    "success_signal": "Complete all stations, practicing each technique and cleaning up before rotating.",
+    "rewritten_at": "2026-05-04T02:42:41.024Z"
+  },
+  "testing-olympics": {
+    "framing": "You will put your prototype through a series of competitive tests to evaluate its performance across multiple criteria.",
+    "task": "1. Design 3–5 testing \"events\" that measure different aspects of your prototype. Each event should test a specific quality, such as:\n   - Structural performance (drop test, weight capacity, durability)\n   - Functionality (speed, accuracy, ease of use)\n   - User experience (user testing with classmates, comfort ratings)\n   - Aesthetics (class vote, visual appeal score)\n   - Efficiency (material use, cost-effectiveness, weight-to-strength ratio)\n\n2. Build a tracking system for each event. Decide how you'll measure results (time in seconds, weight in grams, votes out of 20, etc.) and create a simple rubric or scoring method.\n\n3. Test your prototype in each event. Record your scores systematically. If possible, test alongside other prototypes to compare performance.\n\n4. Analyze your results: Which events did your prototype excel at? Where did it struggle? What trade-offs became visible through testing?",
+    "success_signal": "Record your scores for all events and write a brief analysis identifying your prototype's strengths and specific improvements for the next iteration.",
+    "warnings": [
+      "task 911>800"
+    ],
+    "rewritten_at": "2026-05-04T02:42:46.985Z"
+  },
+  "reverse-engineering": {
+    "framing": "You will receive a finished product with no instructions or explanations—your job is to figure out exactly how it was made.",
+    "task": "1. Examine the product carefully. Study every detail—the joints, the finishes, the way different parts connect.\n\n2. Ask yourself: What was cut first? What was assembled in what order? Which processes had to happen before others could begin?\n\n3. Work backward from the finished product to document the complete manufacturing process.\n\n4. Create a detailed flowchart showing each step in the correct sequence. Include:\n   - All cutting, shaping, or forming operations\n   - The order of assembly\n   - When finishes or treatments were applied\n   - Why certain steps must come before others\n\nYou cannot take the product apart. Use only visual inspection, measurements, and logical reasoning. Think like a detective—look for clues in how materials overlap, where tool marks appear, and which features would be impossible to create after assembly.",
+    "success_signal": "Submit a flowchart clear enough that someone else could follow it to recreate the product from raw materials.",
+    "warnings": [
+      "task 840>800"
+    ],
+    "rewritten_at": "2026-05-04T02:42:52.235Z"
+  },
+  "one-word-whip": {
+    "framing": "You'll close today's session by sharing one word that captures how the work went for you.",
+    "task": "1. Think of one word that captures how today's work went—a feeling, a reaction, or whatever comes to mind first.\n2. When it's your turn, say your word clearly.\n3. Listen to everyone else's words.\n4. Keep it to just that single word—no explanations or details.",
+    "success_signal": "Share your word aloud when it's your turn.",
+    "rewritten_at": "2026-05-04T02:42:56.264Z"
+  },
+  "exit-ticket-3-2-1": {
+    "framing": "You're capturing what you learned, what surprised you, and what you're still curious about so you can see your own thinking—and share it with your teacher.",
+    "task": "1. Write three key ideas or concepts you learned today. Be specific about what you now understand that you didn't before.\n\n2. Identify two moments, facts, or ideas that surprised you, caught your attention, or made you think differently about the topic.\n\n3. Write one question you're still wondering about—something you'd like to explore further or understand more deeply.\n\nHand your note to your teacher on the way out.",
+    "success_signal": "Write your 3-2-1 reflection on a sticky note or index card and hand it to your teacher.",
+    "rewritten_at": "2026-05-04T02:43:01.283Z"
+  },
+  "process-timeline": {
+    "framing": "You'll map your design journey from start to finish so you can see how your thinking evolved and spot patterns in how you solve problems.",
+    "task": "1. Draw a timeline of your design work from start to finish using whatever visual style works for you—a linear path, a winding road, or branches.\n\n2. Mark these key moments along the path:\n   • Your starting point: What problem or idea launched this project?\n   • Decision points: Where did you choose between different options or approaches?\n   • Stuck moments: Where did progress slow or stop? What was blocking you?\n   • Pivots: Where did you change direction? What made you shift course?\n   • Breakthroughs: When did things suddenly click or become clearer?\n   • Current position: Where are you right now in the process?\n\n3. At each marked point, add a brief note explaining what happened and why. If you pivoted or changed direction, write what prompted that shift. If you had a breakthrough, capture what triggered it.",
+    "success_signal": "Submit your annotated timeline showing the arc of your design work with notes at each key moment.",
+    "warnings": [
+      "task 824>800"
+    ],
+    "rewritten_at": "2026-05-04T02:43:06.945Z"
+  },
+  "if-i-started-again": {
+    "framing": "You're going to reflect on what you'd do differently if you could restart this project with everything you know now.",
+    "task": "Complete the statement \"If I started this project again, I would...\" with at least three substantial changes.\n\nFor each change, explain:\n1. What you would do differently – be specific about the action or approach.\n2. Why this matters – what did you learn that makes this change important?\n3. What happened instead – briefly describe what you actually did.\n\nYour changes might relate to your research process, design decisions, time management, prototyping approach, testing methods, or collaboration strategies.\n\nThis isn't about listing mistakes or failures. It's about demonstrating your growth. The best reflections show how your understanding deepened through the project and what you discovered along the way.",
+    "success_signal": "Write or present your reflection, or annotate your process journal with \"restart notes\" highlighting key moments where you'd now take a different path.",
+    "rewritten_at": "2026-05-04T02:43:11.631Z"
+  },
+  "design-challenge-30sec": {
+    "framing": "You'll tackle three rapid-fire design challenges—30 seconds each—to get your creative brain moving without overthinking.",
+    "task": "1. Grab a pencil and paper.\n2. **Round 1:** Design a hat for a giraffe. Sketch for 30 seconds—no erasing, just draw whatever comes to mind.\n3. **Round 2:** Design a door for a submarine. Sketch for 30 seconds.\n4. **Round 3:** Design a chair for a ghost. Sketch for 30 seconds.\n5. Look at your three sketches and pick your favorite—the one that makes you smile or surprises you most.\n6. Turn to a partner and show them what you created. Explain your design in one sentence.\n\nWeird ideas are welcome here. The goal is to get your creative brain moving, not to create a masterpiece.",
+    "success_signal": "Share your favorite sketch with a partner and explain your design in one sentence.",
+    "rewritten_at": "2026-05-04T02:43:16.397Z"
+  },
+  "odd-one-out": {
+    "framing": "You're deciding which of four items is the odd one out—but there's no single right answer.",
+    "task": "1. Examine the four items in front of you.\n2. Look for patterns: Do three share a material, purpose, or construction technique while one doesn't?\n3. Choose which item is the odd one out based on the pattern you notice.\n4. Explain why you selected it: What makes your chosen item different? What do the other three have in common?\n5. Be ready to defend your reasoning—someone else might spot a completely different pattern, and their answer could be just as valid as yours.",
+    "success_signal": "Write your choice and explain the reasoning behind your selection.",
+    "rewritten_at": "2026-05-04T02:43:21.703Z"
+  },
+  "what-if-machine": {
+    "framing": "You'll explore a \"What if?\" question that challenges how you think about this topic.",
+    "task": "1. When your teacher poses the question, discuss it with your partner for exactly 2 minutes. Push beyond your first obvious answer—the most interesting ideas often come after you've exhausted the simple ones.\n\n2. As you discuss, ask yourselves:\n   • What would actually change?\n   • What new problems would this create?\n   • What surprising solutions might emerge?\n   • What wouldn't change at all?\n\n3. After 2 minutes, choose the idea that surprised you both, made you laugh, or completely changed how you thought about the topic—not necessarily the most \"correct\" answer.\n\n4. Listen carefully when other pairs share. Often the best insights come from combining multiple ideas or noticing patterns across different responses.",
+    "success_signal": "Share your most interesting idea with the class.",
+    "rewritten_at": "2026-05-04T02:43:25.911Z"
+  },
+  "vocab-charades": {
+    "framing": "You will act out technical vocabulary terms from your recent learning using only gestures, movements, and facial expressions—no speaking, sounds, pointing at objects, or mouthing words.",
+    "task": "1. Choose a term from the list your teacher provides.\n2. Take 30 seconds to plan how you'll represent this concept through movement alone.\n3. When it's your turn, perform your interpretation for the class while your classmates try to identify the term.\n4. After someone correctly guesses your word, briefly explain why you chose those specific movements or gestures and what aspects of the term you were trying to make visible.\n5. As an audience member, watch carefully and consider: What characteristics of this concept can be shown physically? How does movement help you remember and understand the term differently than reading a definition?",
+    "success_signal": "Perform your charade, explain your movement choices after your word is guessed, and participate as an active observer for classmates' turns.",
+    "rewritten_at": "2026-05-04T02:43:32.385Z"
+  },
+  "mystery-material": {
+    "framing": "You will receive an unknown material to examine, identify its properties, and deduce its possible uses.",
+    "task": "1. Examine the material. Handle the sample carefully and gather observations:\n   - Touch: What does the surface feel like? (smooth, rough, textured)\n   - Weight: How heavy or light is it compared to its size?\n   - Flexibility: Can you bend it? Does it stretch or spring back?\n   - Strength: Can you tear it easily? Does it resist force?\n   - Appearance: Describe its color, pattern, and structure\n\n2. Record properties. Create a list of the material's key characteristics. Be specific—instead of \"strong,\" note \"resists tearing when pulled firmly.\"\n\n3. Predict applications. Based on these properties, brainstorm what this material might be used for. Consider:\n   - Where would these specific properties be valuable?\n   - What problems could this material solve?\n   - What industries or products might need these characteristics?\n\n4. Make your best guess. Identify the material if you can, or propose what it could be. Justify your answer using the evidence you collected.",
+    "success_signal": "Share your findings, material identification, and evidence-based reasoning with the class.",
+    "warnings": [
+      "task 972>800"
+    ],
+    "rewritten_at": "2026-05-04T02:43:37.271Z"
+  },
+  "think-pair-share": {
+    "framing": "You will explore ways to improve the sustainability of a design through structured individual and collaborative thinking.",
+    "task": "1. **Think Alone (1 minute):** Examine the design in front of you. Silently consider: How could you make this design more sustainable? Jot down your initial ideas. Focus on materials, energy use, lifecycle, or waste reduction.\n\n2. **Pair Discussion (2 minutes):** Turn to your partner. Share your ideas and listen to theirs. Build on each other's thinking. Ask questions like \"What if we...?\" or \"How would that work?\" Identify the strongest or most creative sustainability improvement between you.\n\n3. **Share with Class (2 minutes):** Prepare your best idea to share with the whole class. Be ready to explain why this change would make the design more sustainable and what trade-offs might be involved.",
+    "success_signal": "Share your best sustainability improvement idea with the class, explaining why it works and what trade-offs are involved.",
+    "rewritten_at": "2026-05-04T02:43:42.012Z"
+  },
+  "jigsaw-expert-groups": {
+    "framing": "You will become an expert in one section of today's content and then teach it to your classmates.",
+    "task": "1. **Join your assigned expert group** (15 minutes). Study the materials, discuss key concepts, and prepare to explain this content clearly to others. Make sure everyone in your group understands the main ideas, important details, and can answer questions about your topic.\n\n2. **Reform into new mixed groups** (20 minutes) where each person represents a different expert topic. Take turns teaching your section to your new teammates. When you're teaching, explain clearly and check for understanding. When others are teaching, listen actively, take notes, and ask questions.\n\nYou're responsible for making sure your teammates truly understand your expert topic.",
+    "success_signal": "Explain your section confidently and connect all sections together to see the complete picture.",
+    "rewritten_at": "2026-05-04T02:43:46.397Z"
+  },
+  "design-sprint": {
+    "framing": "You will complete a rapid design challenge in 30 minutes by moving through five timed phases with your team.",
+    "task": "1. **Understand (5 minutes):** Read the design brief together. Identify the core problem, who you're designing for, and what constraints matter most. Ask clarifying questions and agree on success criteria.\n\n2. **Sketch (5 minutes):** Working individually, sketch three different solutions to the problem. Don't worry about artistic quality—focus on communicating your ideas through simple drawings, labels, and arrows. Think divergently and explore different approaches.\n\n3. **Decide (3 minutes):** Share your sketches quickly with your team. Each person gets 30 seconds per solution. Vote silently using dots or marks on the strongest ideas. Discuss the top-voted concepts briefly, then commit to one solution to move forward.\n\n4. **Prototype (10 minutes):** Build a rough version of your chosen solution using paper, cardboard, markers, or other basic materials. Make it tangible enough that someone else can interact with or understand it. Focus on the key features that solve the core problem.\n\n5. **Test (5 minutes):** Find another team and present your prototype. Watch them try to use or understand it without excessive explanation. Gather their feedback, questions, and observations.",
+    "success_signal": "Take notes on what worked and what confused users during testing and submit your prototype with your team's observations.",
+    "warnings": [
+      "task 1191>800"
+    ],
+    "rewritten_at": "2026-05-04T02:43:53.423Z"
+  },
+  "world-cafe": {
+    "framing": "You will participate in a rotating discussion that explores different aspects of your challenge by moving through multiple conversation tables.",
+    "task": "1. Spend eight minutes at your first table discussing the question posted there. Dive deep, share ideas, challenge assumptions, and capture key insights on the paper provided.\n\n2. When time is called, everyone except the table host moves clockwise to the next table.\n\n3. At each new table, listen to the host's brief on insights from previous groups. Then add your own perspectives, connections, or questions. You might agree, disagree, or take the conversation in an entirely new direction.\n\n4. After rotating through all tables, return to your home table. Synthesize the conversations, looking for patterns, tensions, and breakthrough ideas that emerged across all discussions.\n\nIf you are the table host: remain at your table throughout the activity, summarize concisely for newcomers, help them understand where the thinking has been, and keep the conversation moving forward rather than repeating what's already been said.",
+    "success_signal": "Capture key insights at each table and share your synthesis of patterns and breakthrough ideas when you return to your home table.",
+    "warnings": [
+      "task 927>800"
+    ],
+    "rewritten_at": "2026-05-04T02:43:59.800Z"
+  },
+  "pair-programming-design": {
+    "framing": "You will work in pairs to complete a design task, switching roles every 5 minutes to ensure equal contribution.",
+    "task": "1. Decide who starts as Driver and who starts as Navigator.\n\n2. Set a timer for 5 minutes.\n\n3. **Navigator:** Give clear verbal instructions to guide your partner's work. Describe what needs to be created, including shapes, sizes, positions, and connections. Be specific—instead of \"make it bigger,\" say \"draw a circle about 5 centimeters across.\" You cannot touch the materials or draw anything yourself.\n\n4. **Driver:** Hold the pencil, marker, or building materials. Draw, sketch, or construct exactly what your partner tells you—nothing more, nothing less. Follow the instructions precisely as given without adding your own ideas or interpretations.\n\n5. When the timer rings, swap roles immediately and continue until the design is complete.",
+    "success_signal": "Complete your design with both partners having contributed equally in each role.",
+    "rewritten_at": "2026-05-04T02:44:06.181Z"
+  },
+  "community-mapping": {
+    "framing": "You will create a visual map of your community to identify what exists, what's needed, and what could be improved.",
+    "task": "1. Choose your community space—your school campus, neighborhood, local park, or another area you know well.\n\n2. Spend 15–20 minutes exploring this space with fresh eyes.\n\n3. As you observe, document the following:\n   • **Red markers (Needs):** What's broken, damaged, or not working? What's missing that people need? Where do you see problems or frustrations?\n   • **Green markers (Assets):** What works well? What do people love about this space? What resources, programs, or features already exist that serve the community?\n   • **Yellow markers (Opportunities):** What could be improved or reimagined? Where do you see potential for change? What spaces are underused?\n   • **People and connections:** Who uses each space? When? For what purposes? Notice patterns in how different groups interact with the environment.\n\n4. Create your map using whatever format works best—hand-drawn, digital, photographic, or a combination. Include labels, notes, and observations that capture not just physical features but also how people experience and use the space.\n\nBe specific. Instead of \"the cafeteria needs improvement,\" note \"lunch lines block the hallway during period 4, creating congestion.\"",
+    "success_signal": "Submit your completed map with color-coded markers and specific observations that tell a story about your community's reality and possibilities.",
+    "warnings": [
+      "task 1191>800"
+    ],
+    "rewritten_at": "2026-05-04T02:44:12.046Z"
+  },
+  "empathy-immersion": {
+    "framing": "You'll experience firsthand how physical constraints change everyday interactions by simulating a user's lived reality.",
+    "task": "1. Choose one constraint to simulate for at least 15 minutes:\n   • Wear thick gardening gloves or oven mitts\n   • Use a wheelchair to navigate your school or home\n   • Block one ear with a headphone or earplug\n   • Wear glasses smeared with petroleum jelly to blur your vision\n   • Use only your non-dominant hand\n\n2. While experiencing the constraint, attempt everyday tasks:\n   • Open containers and doors\n   • Write or type messages\n   • Navigate stairs, ramps, or narrow spaces\n   • Read signs or screens\n   • Handle money or small objects\n\n3. Document your experience as you go:\n   • What frustrates you most?\n   • Which tasks become impossible versus merely difficult?\n   • What workarounds do you discover?\n   • How does this change what you notice in your environment?\n\n4. Reflect on implications: How would you redesign the products, spaces, or interfaces you just struggled with? What assumptions did you hold before that now seem wrong? What insights would you have missed by only reading about these challenges?\n\nSpend at least 10 minutes fully immersed. The discomfort is the point—direct experience reveals needs that descriptions cannot capture.",
+    "success_signal": "Submit your documented observations and design insights based on your immersion experience.",
+    "warnings": [
+      "task 1160>800"
+    ],
+    "rewritten_at": "2026-05-04T02:44:18.578Z"
+  },
+  "impact-mapping": {
+    "framing": "You will trace the ripple effects of your project beyond its immediate results.",
+    "task": "1. Identify your **primary impact**—the direct, visible change your action creates. This is what happens right away because of what you did.\n\n2. Map the **secondary impacts**—the knock-on effects that flow from your primary change. What happens because of that first change? Who else benefits? What new opportunities or conditions emerge?\n\n3. Consider the **systemic change**—the deeper, longer-term shifts in how systems, communities, or people operate. What larger patterns might your project influence? Could it change how people think, how organizations function, or how problems get addressed in the future?\n\nThink of this as drawing concentric circles outward from your action. Each ring represents a wider sphere of influence. Your cleanup effort might make water cleaner (primary), which enables more wildlife and recreation (secondary), which builds community investment and ongoing stewardship culture (systemic).\n\nBe specific and realistic. Avoid vague claims. Connect each level clearly: explain *how* your primary impact leads to secondary effects, and *why* those secondary effects might contribute to systemic change. Not every project creates systemic change—and that's okay.",
+    "success_signal": "Write out your three impact levels with clear explanations connecting each to the next.",
+    "warnings": [
+      "task 1191>800"
+    ],
+    "rewritten_at": "2026-05-04T02:44:24.211Z"
+  },
+  "action-plan-backwards": {
+    "framing": "You'll build a timeline by starting at your deadline and working backwards to today, revealing exactly what needs to happen when.",
+    "task": "1. Identify your final deadline — the day you present, showcase, or submit your work.\n2. Ask yourself: what must be finished the week before that day? Write it down as a milestone.\n3. Continue moving backwards in time. For each milestone, identify what needs to be complete before you can move to the next phase.\n4. Keep breaking down the timeline (two weeks before, a month before) until you reach today's date.\n5. Review your backwards map. You'll see exactly what you need to accomplish right now to stay on track and avoid last-minute rushing.",
+    "success_signal": "Submit your complete backwards timeline showing each milestone from your deadline to today.",
+    "rewritten_at": "2026-05-04T02:44:30.141Z"
+  },
+  "gallery-vote": {
+    "framing": "You'll review everyone's work and vote on the ideas that deserve to move forward.",
+    "task": "1. Post your idea, design, or solution on the wall where everyone can see it.\n2. Collect three dot stickers (or markers) to vote with.\n3. Walk around the gallery and review all posted work—read, observe, and think before you vote.\n4. Place your three dots on the ideas you believe are strongest, most interesting, or deserve to move forward. You can spread your dots across three different ideas, put two dots on one idea and one on another, or stack all three dots on a single idea you strongly support.\n5. Once everyone has voted, step back and look at the results. The ideas with the most dots represent the group's priorities and will move to the next stage.\n\nChoose thoughtfully based on what you genuinely think has potential, not just what your friends choose.",
+    "success_signal": "Place all three of your votes and review the final dot distribution with your class.",
+    "rewritten_at": "2026-05-04T02:44:36.332Z"
+  },
+  "speed-networking": {
+    "framing": "You'll rotate through quick conversations with classmates, sharing your project and gathering fresh perspectives in timed rounds.",
+    "task": "1. Form two circles—one inner, one outer—facing each other. Every two minutes, the inner circle rotates one person to the right.\n\n2. With each partner, take turns quickly: one person speaks for about 45 seconds while the other listens, then switch roles.\n\n3. **Round 1:** Share the core problem your project addresses. Your partner suggests one material you might consider using.\n\n4. **Round 2:** (After rotating) Describe who will use your design and what matters to them. Your partner identifies one constraint you should keep in mind.\n\n5. **Round 3:** (After rotating) Explain the most challenging part of your project so far. Your partner offers one piece of advice or asks one clarifying question.\n\nStay focused and keep the energy high. Listen actively—sometimes the most valuable insight comes from someone seeing your project with fresh eyes.",
+    "success_signal": "Complete all three rounds, gathering material suggestions, constraints, and advice from three different partners.",
+    "warnings": [
+      "task 850>800"
+    ],
+    "rewritten_at": "2026-05-04T02:44:42.494Z"
+  },
+  "material-scavenger-hunt": {
+    "framing": "You have 5 minutes to find real objects that match each material property combination on your list.",
+    "task": "Work with your team to search the classroom, hallways, or outdoor areas for examples that match these combinations:\n\n1. Something **flexible AND strong**\n2. Something **rigid AND lightweight**\n3. Something **transparent AND waterproof**\n4. Something **natural AND decorative**\n\nTake a clear photo of each object you find. Make sure the photo shows why it matches the properties—for example, if you claim something is flexible, your photo should show it bending.\n\nThe first team to return with photos of all four property combinations wins. If time runs out, the team with the most valid examples wins.\n\nStrategy tips: Split up to cover more ground, think creatively about everyday objects, and double-check your examples actually demonstrate the properties before you photograph them.",
+    "success_signal": "Submit photos of all four objects showing how each matches its property combination.",
+    "rewritten_at": "2026-05-04T02:44:46.976Z"
+  },
+  "pecha-kucha": {
+    "framing": "You'll create a 6-slide auto-advancing presentation that moves forward every 30 seconds without pausing or rewinding.",
+    "task": "1. Build slide 1: Introduce the problem you're solving and the challenge you identified.\n2. Build slide 2: Show who your user is and who experiences this problem.\n3. Build slide 3: Present your solution idea—what you designed or created.\n4. Build slide 4: Explain how you made it and the steps you took to build your solution.\n5. Build slide 5: Describe how you tested it and what feedback you gathered.\n6. Build slide 6: Reflect on what you'd change if you could do it again.\n\nKeep each slide simple—one key image and minimal text. You'll have exactly 30 seconds per slide (3 minutes total). Practice speaking smoothly through your entire presentation before the slides auto-advance in front of your audience.",
+    "success_signal": "Present your 6-slide deck with auto-advance timing to your audience.",
+    "rewritten_at": "2026-05-04T02:44:52.399Z"
+  },
+  "museum-exhibit": {
+    "framing": "You'll transform your workspace into a museum exhibit so classmates can explore your creative process and finished work.",
+    "task": "1. Place your finished work where visitors can see it clearly.\n2. Create a label card that includes:\n   • Title of your work\n   • Your name (as the designer/creator)\n   • Materials you used\n   • What inspired you\n3. Display 3–5 photos showing key stages of how you made this—from early ideas to final touches.\n4. Write one question on a large card or poster for visitors to answer. Place blank sticky notes nearby so they can respond and leave their thoughts on your display.\n5. Walk through the museum looking at others' exhibits. Read their label cards, study their process, and answer their questions on sticky notes. Leave thoughtful feedback about what interests you or what you notice in their work.",
+    "success_signal": "Set up your complete exhibit with product, label card, process photos, and interactive question, then visit and respond to at least three classmates' displays.",
+    "rewritten_at": "2026-05-04T02:44:57.895Z"
+  },
+  "choice-board": {
+    "framing": "You'll complete three activities that form a straight line on the grid—horizontal, vertical, or diagonal—to work across different skills.",
+    "task": "1. Study the grid and pick your line strategically:\n   - **Row 1:** Sketch a visual representation | Write a detailed explanation | Photograph evidence or examples\n   - **Row 2:** Build a physical or digital model | Present your findings to others | Discuss with peers and record insights\n   - **Row 3:** Research background information | Annotate key sources or materials | Film a demonstration or explanation\n\n2. Consider which combination will push you into unfamiliar territory, balance your strengths with new challenges, and create a complete picture of your learning.\n\n3. Mark your chosen path on the grid before you begin.\n\n4. Complete all three activities in sequence, giving roughly equal effort to each—don't rush through one to get to another.\n\nIf you finish early, challenge yourself with a second line using different activities.",
+    "success_signal": "Mark your chosen line on the grid and complete all three activities in that path.",
+    "warnings": [
+      "task 843>800"
+    ],
+    "rewritten_at": "2026-05-04T02:45:03.528Z"
+  },
+  "scaffolded-challenge": {
+    "framing": "You will work through a three-tier bridge-building challenge where all levels are visible from the start so you can see where you're headed.",
+    "task": "**Must** (Complete this first)\nBuild a bridge that spans 20 centimeters using any materials provided. Test that it reaches across the gap without collapsing.\n\n**Should** (Push yourself here)\nMake your bridge strong enough to hold a 200-gram weight without breaking or sagging significantly. Test it carefully and record your result.\n\n**Could** (Extension challenge)\nOptimize your bridge design for efficiency. Calculate your bridge's weight-to-strength ratio: how much weight can it support compared to how much material you used? Redesign to use the least material possible while maintaining strength.\n\nMove to the next tier when you're ready—but make sure each level is truly complete before advancing. If you complete Must quickly, move straight to Should. If you finish Should, challenge yourself with Could.",
+    "success_signal": "Track and record which tier you reached and your test results at each level.",
+    "warnings": [
+      "task 812>800"
+    ],
+    "rewritten_at": "2026-05-04T02:45:08.314Z"
+  },
+  "anchor-chart": {
+    "framing": "You will help build a reference chart that stays on the wall throughout this unit.",
+    "task": "As we build the chart together:\n\n• Suggest examples when asked.\n• Offer definitions in your own words.\n• Connect ideas to your current project or recent work.\n• Help organize information into categories.\n\nThe chart will be divided into columns: one for the main concept or term, one for what it means, and one for real examples—many from you and your classmates.\n\nThink about examples you've seen in your own experience, connections to what you're studying now, and ways to explain the idea that make sense to you.\n\nThe chart will remain visible as a reference tool. You can return to it when you need a reminder, want to check an example, or need to clarify a concept.",
+    "success_signal": "Contribute ideas and examples to help complete the class reference chart.",
+    "rewritten_at": "2026-05-04T02:45:13.327Z"
+  },
+  "sentence-starters-wall": {
+    "framing": "You have sentence starters on the wall to help you articulate your thinking clearly throughout this project.",
+    "task": "Use the posted phrases to:\n- Jump-start your contributions during group discussions\n- Structure your written reflections and explanations\n- Push your thinking further when you feel stuck\n- Build on classmates' ideas more effectively\n\nChoose starters that match what you're trying to express. You don't need to use them word-for-word; adapt them to fit your actual thoughts. The goal is to help you communicate complex ideas more clearly, not to script what you say.\n\nNotice that the starters change as we move through different phases of the project. When we're generating ideas, you'll see prompts that encourage brainstorming and creative thinking. During evaluation phases, you'll find language that helps you analyze strengths, weaknesses, and trade-offs.",
+    "success_signal": "Reference the wall whenever you need support expressing yourself—whether you're speaking, writing, or thinking through a problem.",
+    "rewritten_at": "2026-05-04T02:45:17.732Z"
+  },
+  "provocation": {
+    "framing": "You're going to generate as many questions as you can from a single prompt, then explore what kinds of thinking different questions invite.",
+    "task": "1. Look carefully at the image, object, or statement your teacher shows you.\n\n2. Write down as many questions as this provokes in your mind. You have 3 minutes. Don't try to answer them yet—just ask. Let your curiosity run wild. What are you wondering? What seems strange, interesting, or worth investigating?\n\n3. Sort your questions into two categories:\n   • Researchable questions: Questions you could answer through research, data, or investigation.\n   • Philosophical questions: Questions that involve values, beliefs, or ideas that might not have a single clear answer.\n\nThe goal isn't to have the \"right\" questions—it's to practice asking lots of them and noticing what kinds of thinking different questions invite.",
+    "success_signal": "Submit your sorted list of researchable and philosophical questions.",
+    "rewritten_at": "2026-05-04T02:45:22.852Z"
+  },
+  "visible-thinking-see-think-wonder": {
+    "framing": "You're going to observe something closely in three distinct ways: what you see, what you think, and what you wonder.",
+    "task": "1. Describe what you **SEE**. List only the facts—the concrete, observable details. What's actually there? What colors, shapes, objects, or features can you identify? Stick to what anyone looking at this would notice. No interpretations yet, just the evidence your eyes give you.\n\n2. Explain what you **THINK** is going on. Now you can interpret. What might be happening here? What could explain what you're observing? What connections or patterns do you notice? What story might these facts be telling? You're making educated guesses based on what you saw.\n\n3. Write down what you **WONDER**. What questions pop into your mind? What are you curious about? What would you need to know more about to understand this better? What surprises you or doesn't quite make sense yet?\n\nTake your time with each step. The goal is to move from careful observation, through thoughtful interpretation, to genuine curiosity and questioning.",
+    "success_signal": "Write your observations, interpretations, and questions for all three sections: See, Think, and Wonder.",
+    "warnings": [
+      "task 925>800"
+    ],
+    "rewritten_at": "2026-05-04T02:45:28.548Z"
+  },
+  "time-lapse-process": {
+    "framing": "You'll document your creative process by capturing automatic photos while you work, then curate and annotate the key moments.",
+    "task": "1. Set up your phone or tablet to capture photos every 30 seconds. Position it so it has a clear view of your workspace—lean it against a book, pencil case, or water bottle if needed. Use a timer app or your phone's built-in interval feature.\n\n2. Work on your project as you normally would. Let the camera capture the entire process without stopping to pose or adjust.\n\n3. When you finish, review all the images as a sequence. You'll see your work evolve frame by frame.\n\n4. Select 5–8 images that show important moments: when you started, when you made a key decision, when something went wrong, when you fixed it, and when you completed a major step.\n\n5. For each selected image, write 2–3 sentences describing what was happening at that moment. What were you thinking? What problem were you solving? What did you decide to do next?",
+    "success_signal": "Submit your 5–8 curated images with written annotations for each that explain your thinking and decisions at that moment.",
+    "warnings": [
+      "task 834>800"
+    ],
+    "rewritten_at": "2026-05-04T02:45:34.546Z"
+  },
+  "annotated-sketch": {
+    "framing": "You'll create an exploded sketch of your design that shows every material choice you've made and the reasoning behind it.",
+    "task": "1. Draw an exploded sketch of your design large enough to accommodate annotations without crowding.\n\n2. Add at least 8 annotation arrows radiating from key features across your design. Use clear lines connecting each feature to its label.\n\n3. For each annotation, answer three questions in this format: \"Feature name — Material — Reason for choice.\"\n   • **What is it?** Name the specific component or feature.\n   • **What material will you use?** Be specific—not just \"metal\" but \"aluminum\" or \"steel.\"\n   • **Why did you choose this?** Explain your reasoning—strength, weight, cost, appearance, availability.\n\n4. Focus your annotations on features that involve material decisions, structural elements, user interaction points, and joining methods.\n\nExamples:\n• \"Handle grip — Rubber coating — provides non-slip surface when hands are wet\"\n• \"Support bracket — 3mm acrylic — transparent to show internal mechanism\"\n• \"Fastener — M4 bolt — removable for maintenance and part replacement\"",
+    "success_signal": "Submit your annotated exploded sketch with at least 8 clearly labeled features showing material choices and reasoning.",
+    "warnings": [
+      "task 987>800"
+    ],
+    "rewritten_at": "2026-05-04T02:45:40.979Z"
+  },
+  "role-reversal-critique": {
+    "framing": "Step into the shoes of your end user and present your design from their perspective—not as the designer who created it.",
+    "task": "1. Choose a specific user from your target audience. If you've designed a pencil case for primary students, become a Year 3 student seeing it for the first time. If you've created a website for elderly users, become a 70-year-old trying to navigate it.\n\n2. Present your design by walking through a real scenario where this user would interact with your product. Narrate their experience moment by moment:\n   • What's their first impression?\n   • How do they figure out what to do?\n   • Where do things go? How do they find what they need?\n   • What feels easy? What causes confusion or frustration?\n   • What questions pop into their head?\n\n3. Stay in character throughout. Use the language your user would use. Notice details a designer might overlook—the button that's hard to press with arthritic fingers, the label that's too small to read without glasses, the zipper that catches on fabric.\n\nThis isn't about defending your design choices. Let yourself genuinely experience the usability issues, the moments of delight, and the unexpected problems.",
+    "success_signal": "Present your in-character user walkthrough, narrating the moment-by-moment experience from your chosen user's perspective.",
+    "warnings": [
+      "task 1053>800"
+    ],
+    "rewritten_at": "2026-05-04T02:45:46.304Z"
+  },
+  "peer-teach-back": {
+    "framing": "You just learned this concept or technique—now teach it to a partner who missed the whole lesson.",
+    "task": "1. Explain the concept clearly enough that your partner could actually do it or use it on their own.\n2. Walk them through the steps, show them what matters, and answer their questions.\n3. Make sure they understand well enough to perform the task, solve a similar problem, or pass a quiz based only on what you taught them.\n4. Switch roles when you're done—now you're the student who missed the lesson.\n5. Listen carefully and ask questions until you truly understand.\n\nUse your own explanations and find your own examples. If you can teach it, you really know it.",
+    "success_signal": "Teach the concept to your partner, then switch roles and learn it back from them.",
+    "rewritten_at": "2026-05-04T02:45:51.422Z"
+  }
+}
