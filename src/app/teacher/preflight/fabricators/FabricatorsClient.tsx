@@ -1,7 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+  type FormEvent,
+} from "react";
+import { createPortal } from "react-dom";
 
 interface MachineProfile {
   id: string;
@@ -198,6 +205,56 @@ function FabricatorRow({
 }) {
   const [isPending, startTransition] = useTransition();
   const [menuOpen, setMenuOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(
+    null
+  );
+
+  // Phase 8-1 + Round 2 (4 May 2026): the actions dropdown is rendered
+  // via React portal because the table wrapper has `overflow-hidden`
+  // (needed to clip the rounded corners on the table content). Without
+  // the portal, the absolutely-positioned dropdown would render INSIDE
+  // the wrapper and get clipped at the table's bottom edge — Matt
+  // reported the popup "hidden within the box it's nested in" during
+  // the cross-persona admin smoke. Portal escapes the overflow context
+  // entirely, positioned via getBoundingClientRect on the button.
+  useEffect(() => {
+    if (!menuOpen) {
+      setMenuPos(null);
+      return;
+    }
+    const btn = buttonRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    // Position the menu top-right under the button. Menu width is
+    // 12rem (w-48 = 192px); right-align by anchoring left to
+    // (button.right - 192px). 4px vertical gap.
+    setMenuPos({
+      top: rect.bottom + 4,
+      left: rect.right - 192,
+    });
+  }, [menuOpen]);
+
+  // Click-outside + ESC dismissal.
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onDocClick(e: MouseEvent) {
+      const target = e.target as Node;
+      if (buttonRef.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      setMenuOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
 
   function handle(action: RowAction) {
     setMenuOpen(false);
@@ -234,22 +291,33 @@ function FabricatorRow({
         )}
       </td>
       <td className="px-4 py-3 text-right">
-        <div className="relative inline-block">
-          <button
-            type="button"
-            disabled={isPending}
-            onClick={() => setMenuOpen((v) => !v)}
-            className="rounded-md px-2 py-1 text-gray-500 hover:bg-gray-100 disabled:opacity-50"
-            aria-label="Row actions"
-          >
-            …
-          </button>
-          {menuOpen && (
-            <div className="absolute right-0 z-10 mt-1 w-48 rounded-lg bg-white py-1 text-sm shadow-lg ring-1 ring-gray-200">
+        <button
+          ref={buttonRef}
+          type="button"
+          disabled={isPending}
+          onClick={() => setMenuOpen((v) => !v)}
+          className="rounded-md px-2 py-1 text-gray-500 hover:bg-gray-100 disabled:opacity-50"
+          aria-label="Row actions"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+        >
+          …
+        </button>
+        {menuOpen &&
+          menuPos &&
+          typeof document !== "undefined" &&
+          createPortal(
+            <div
+              ref={menuRef}
+              role="menu"
+              className="fixed z-50 w-48 rounded-lg bg-white py-1 text-sm shadow-lg ring-1 ring-gray-200"
+              style={{ top: menuPos.top, left: menuPos.left }}
+            >
               <button
-                className="block w-full px-3 py-1.5 text-left hover:bg-gray-50"
+                className="block w-full px-3 py-1.5 text-left hover:bg-gray-50 disabled:opacity-50"
                 onClick={() => handle("reset-password")}
                 disabled={!fabricator.is_active}
+                role="menuitem"
               >
                 Reset password (email)
               </button>
@@ -257,6 +325,7 @@ function FabricatorRow({
                 <button
                   className="block w-full px-3 py-1.5 text-left text-rose-700 hover:bg-rose-50"
                   onClick={() => handle("deactivate")}
+                  role="menuitem"
                 >
                   Deactivate
                 </button>
@@ -264,13 +333,14 @@ function FabricatorRow({
                 <button
                   className="block w-full px-3 py-1.5 text-left hover:bg-gray-50"
                   onClick={() => handle("reactivate")}
+                  role="menuitem"
                 >
                   Reactivate
                 </button>
               )}
-            </div>
+            </div>,
+            document.body
           )}
-        </div>
       </td>
     </tr>
   );

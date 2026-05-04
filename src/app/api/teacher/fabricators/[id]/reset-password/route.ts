@@ -8,6 +8,10 @@
  *
  * Distinct from the invite POST in that this assumes the fabricator row
  * already exists and is active — we only issue a new reset session.
+ *
+ * Phase 8-1 + Round 2 audit (4 May 2026): school-scoped ownership.
+ * Any teacher at the same school can reset the password (replaces
+ * the pre-flat-membership `invited_by_teacher_id = user.id` check).
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -19,6 +23,11 @@ import {
 } from "@/lib/fab/auth";
 import { sendFabricationEmail } from "@/lib/preflight/email";
 import { renderResetPasswordEmail } from "@/lib/preflight/email-templates";
+import {
+  loadTeacherSchoolId,
+  isOrchestrationError,
+} from "@/lib/fabrication/lab-orchestration";
+import { loadSchoolOwnedFabricator } from "@/lib/fabrication/fab-orchestration";
 
 async function getTeacherUser(request: NextRequest) {
   const supabase = createServerClient(
@@ -53,15 +62,26 @@ export async function POST(
 
   const admin = createAdminClient();
 
-  const { data: fabricator } = await admin
-    .from("fabricators")
-    .select("id, email, display_name, is_active, invited_by_teacher_id")
-    .eq("id", id)
-    .maybeSingle();
-
-  if (!fabricator || fabricator.invited_by_teacher_id !== user.id) {
-    return privateJson({ error: "Not found" }, 404);
+  // School-scoped ownership check (Phase 8-1 + Round 2 audit).
+  const schoolResult = await loadTeacherSchoolId(admin, user.id);
+  if (isOrchestrationError(schoolResult)) {
+    return privateJson(
+      { error: schoolResult.error.message },
+      schoolResult.error.status
+    );
   }
+  const fabResult = await loadSchoolOwnedFabricator(
+    admin,
+    schoolResult.schoolId,
+    id
+  );
+  if (isOrchestrationError(fabResult)) {
+    return privateJson(
+      { error: fabResult.error.message },
+      fabResult.error.status
+    );
+  }
+  const fabricator = fabResult.fabricator;
 
   if (!fabricator.is_active) {
     return privateJson(
@@ -96,7 +116,7 @@ export async function POST(
     subject: "Reset your Preflight password",
     html: renderResetPasswordEmail({
       setPasswordUrl,
-      displayName: fabricator.display_name,
+      displayName: fabricator.display_name ?? "Fabricator",
     }),
     supabase: admin,
   });

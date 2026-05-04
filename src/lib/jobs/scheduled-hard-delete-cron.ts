@@ -114,10 +114,31 @@ export async function run(
     else if (result === "errored") errored += 1;
   }
 
+  const completedAt = new Date().toISOString();
+
+  // Phase 6.7-followup — emit audit_event so the admin dashboard's "Vercel
+  // Cron Jobs" panel can show the last-fired time. Always emit, even on a
+  // zero-work run — the dashboard wants to see "yes, the cron is alive".
+  await logAuditEvent(supabase, {
+    actorId: null,
+    actorType: "system",
+    action: "scheduled_hard_delete.run",
+    severity: errored > 0 ? "warn" : "info",
+    payload: {
+      run_id: runId,
+      started_at: startedAt,
+      completed_at: completedAt,
+      processed,
+      skipped_held: skippedHeld,
+      errored,
+    },
+    failureMode: "soft-warn",
+  });
+
   return {
     runId,
     startedAt,
-    completedAt: new Date().toISOString(),
+    completedAt,
     summary: { processed, skipped_held: skippedHeld, errored },
   };
 }

@@ -293,11 +293,15 @@ export async function createUploadJob(
     return { error: { status: 403, message: "Not enrolled in this class" } };
   }
 
-  // 2. Resolve teacher_id from the class. classes.teacher_id IS auth.users.id
-  //    (teachers.id = auth.users.id per schema-registry.yaml).
+  // 2. Resolve teacher_id + school_id from the class. classes.teacher_id IS
+  //    auth.users.id (teachers.id = auth.users.id per schema-registry.yaml).
+  //    Phase 8-1 + 4-May fix: ALSO pull teachers.school_id via embed so the
+  //    machine validation below can scope by school, not by individual
+  //    teacher (the latter breaks under flat school membership when the
+  //    class's teacher and the machine's creating teacher differ).
   const classRow = await db
     .from("classes")
-    .select("teacher_id")
+    .select("teacher_id, teachers!inner(school_id)")
     .eq("id", req.classId)
     .maybeSingle();
   if (classRow.error) {
@@ -309,6 +313,14 @@ export async function createUploadJob(
     return { error: { status: 500, message: "Class has no teacher — data integrity issue" } };
   }
   const teacherId: string = classRow.data.teacher_id;
+  // PostgREST embed shape: object or array depending on FK direction.
+  const classTeachers = classRow.data.teachers as
+    | { school_id: string | null }
+    | { school_id: string | null }[]
+    | undefined;
+  const classSchoolId = Array.isArray(classTeachers)
+    ? classTeachers[0]?.school_id ?? null
+    : classTeachers?.school_id ?? null;
 
   // 3. Resolve lab_id + machine_category. Two paths per Phase
   //    8.1d-22:
@@ -328,7 +340,7 @@ export async function createUploadJob(
   if (req.machineProfileId) {
     const profile = await db
       .from("machine_profiles")
-      .select("id, teacher_id, lab_id, machine_category, is_active")
+      .select("id, school_id, lab_id, machine_category, is_system_template, is_active")
       .eq("id", req.machineProfileId)
       .maybeSingle();
     if (profile.error) {
@@ -342,12 +354,16 @@ export async function createUploadJob(
     if (!profile.data || profile.data.is_active === false) {
       return { error: { status: 404, message: "Machine profile not found" } };
     }
+    // Phase 8-1 + 4-May fix: school-scoped machine ownership check.
+    // System templates (school_id IS NULL, is_system_template = true)
+    // pass through to any school. Non-template machines must be at the
+    // student's class's school. Replaces the previous teacher_id ===
+    // class.teacher_id check that broke under flat school membership
+    // when machine creator and class teacher differ.
     if (
-      profile.data.teacher_id !== null &&
-      profile.data.teacher_id !== teacherId
+      !profile.data.is_system_template &&
+      profile.data.school_id !== classSchoolId
     ) {
-      // System templates (teacher_id null) pass through; teacher-
-      // owned machines must belong to THIS class's teacher.
       return { error: { status: 404, message: "Machine profile not found" } };
     }
     if (!profile.data.lab_id) {

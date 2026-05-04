@@ -64,13 +64,15 @@ describe("fabTabLabel", () => {
 });
 
 describe("fabEmptyMessage", () => {
-  it("returns the inviting-teacher message when no jobs are visible to the fabricator (8.1d-9 + 8.1d-20)", () => {
+  it("returns the school-scoped message when no jobs are visible to the fabricator (8.1d-9 + Phase 8-1)", () => {
     // Phase 8.1d-9 dropped per-machine assignments — fabricators now
-    // see ALL their inviting teacher's jobs. The empty-state copy
-    // shifted with it; "no machines assigned" is no longer the right
-    // mental model.
+    // see ALL their school's jobs (Phase 8-1 flat membership). The
+    // empty-state copy shifted accordingly; "no machines assigned"
+    // is no longer the right mental model and "inviting teacher" was
+    // narrowed-then-corrected to "school" by the 4 May fab-machines
+    // school-scoping fix.
     const msg = fabEmptyMessage("ready", true);
-    expect(msg).toContain("inviting teacher");
+    expect(msg).toContain("school");
   });
   it("returns tab-specific empty copy when jobs do exist on this teacher", () => {
     expect(fabEmptyMessage("ready", false)).toContain("No approved jobs");
