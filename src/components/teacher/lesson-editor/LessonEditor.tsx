@@ -30,6 +30,11 @@ import {
   NM_COMPETENCIES,
   DEFAULT_NM_CONFIG,
 } from "@/lib/nm/constants";
+import {
+  addCheckpoint as addNmCheckpointOp,
+  removeCheckpoint as removeNmCheckpointOp,
+  setCompetency as setNmCompetencyOp,
+} from "@/lib/nm/checkpoint-ops";
 import type {
   UnitPage,
   PageContent,
@@ -282,76 +287,38 @@ export default function LessonEditor({
   }, [unitId, classId, nmConfig]);
 
   // Lever-MM — click handler for NM-element blocks in the palette.
-  // Adds the element to nm_config.checkpoints[selectedPageId].elements
-  // (idempotent — silently no-ops if already added). Also flips
-  // nm_config.enabled = true the first time a checkpoint is registered,
-  // and ensures the competency is in nm_config.competencies / .elements
-  // so the rest of the NM system (results panel, student observation
-  // surfaces) treats this unit as "configured".
+  // Delegates to the pure addCheckpoint() op in lib/nm/checkpoint-ops
+  // (tested in isolation; idempotency + bootstrap-of-competencies/elements
+  // arrays + enabled-flag flip all live there).
   const handleAddNmCheckpoint = useCallback(
     (elementId: string, competencyId: string) => {
       if (!selectedPage) return;
-      const pageId = selectedPage.id;
-      const existing = nmConfig.checkpoints?.[pageId]?.elements ?? [];
-      if (existing.includes(elementId)) return; // idempotent
-      const next: NMUnitConfig = {
-        ...nmConfig,
-        enabled: true,
-        // Keep the competency list in sync — covers the bootstrap case
-        // where an empty config gets its first checkpoint.
-        competencies: nmConfig.competencies?.length
-          ? nmConfig.competencies
-          : [competencyId],
-        elements: nmConfig.elements?.includes(elementId)
-          ? nmConfig.elements
-          : [...(nmConfig.elements ?? []), elementId],
-        checkpoints: {
-          ...(nmConfig.checkpoints ?? {}),
-          [pageId]: { elements: [...existing, elementId] },
-        },
-      };
+      const next = addNmCheckpointOp(nmConfig, selectedPage.id, elementId, competencyId);
+      if (next === nmConfig) return; // op was a no-op (already added)
       void persistNmConfig(next);
     },
     [nmConfig, selectedPage, persistNmConfig],
   );
 
-  // Lever-MM — set the active competency for this unit. Replaces the
-  // single-element competencies array (multi-competency-per-unit is parked
-  // as v2). Does NOT erase existing checkpoints when switching — the
-  // checkpoints map is keyed by pageId + element ID, and orphaned-element
-  // chips on lessons stay visible and removable. Per brief stop-trigger
-  // ("Switch loses elements — don't auto-erase elements when competency
-  // changes — warn instead"), we don't touch elements / checkpoints here.
+  // Lever-MM — set the active competency for this unit. Delegates to
+  // setCompetency() — does NOT touch elements/checkpoints (orphaned-chip
+  // handling per the brief stop-trigger).
   const handleSetCompetency = useCallback(
     (competencyId: string) => {
-      if (nmConfig.competencies?.[0] === competencyId) return; // no-op
-      const next: NMUnitConfig = {
-        ...nmConfig,
-        competencies: [competencyId],
-      };
+      const next = setNmCompetencyOp(nmConfig, competencyId);
+      if (next === nmConfig) return;
       void persistNmConfig(next);
     },
     [nmConfig, persistNmConfig],
   );
 
-  // Lever-MM — remove handler for NM checkpoint chips.
-  // Strips the element from nm_config.checkpoints[selectedPageId].elements.
-  // When a page's checkpoint list goes empty, removes the pageId entry
-  // entirely (avoids zombie pageIds polluting the checkpoints map per
-  // brief stop-trigger).
+  // Lever-MM — remove handler for NM checkpoint chips. Delegates to
+  // removeCheckpoint() (zombie-pageId guard + idempotency live there).
   const handleRemoveNmCheckpoint = useCallback(
     (elementId: string) => {
       if (!selectedPage) return;
-      const pageId = selectedPage.id;
-      const existing = nmConfig.checkpoints?.[pageId]?.elements ?? [];
-      const filtered = existing.filter((id) => id !== elementId);
-      const nextCheckpoints = { ...(nmConfig.checkpoints ?? {}) };
-      if (filtered.length === 0) {
-        delete nextCheckpoints[pageId];
-      } else {
-        nextCheckpoints[pageId] = { elements: filtered };
-      }
-      const next: NMUnitConfig = { ...nmConfig, checkpoints: nextCheckpoints };
+      const next = removeNmCheckpointOp(nmConfig, selectedPage.id, elementId);
+      if (next === nmConfig) return;
       void persistNmConfig(next);
     },
     [nmConfig, selectedPage, persistNmConfig],

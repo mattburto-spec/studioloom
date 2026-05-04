@@ -5,45 +5,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { nanoid } from "nanoid";
 import type { ActivitySection, ResponseType } from "@/types";
 import { useDndContext } from "./DndContext";
-
-// ─────────────────────────────────────────────────────────────────
-// Block definitions — the source of truth for every draggable block
-// ─────────────────────────────────────────────────────────────────
-
-export interface BlockDefinition {
-  id: string;
-  label: string;
-  /** @deprecated Kept for backward compat — not rendered in palette */
-  icon: string;
-  category: BlockCategory;
-  description: string;
-  /** Which Workshop Model phase this block naturally fits in */
-  defaultPhase: "opening" | "miniLesson" | "workTime" | "debrief" | "any";
-  /** Factory function to create the ActivitySection */
-  create: () => ActivitySection;
-  /** Optional: marks this block as user-added or imported */
-  source?: "built-in" | "custom" | "imported";
-  /**
-   * Lever-MM (NM block category): when set, this block represents an NM
-   * competency element rather than a regular activity. Click → register
-   * a checkpoint on the current lesson via onAddNmCheckpoint instead of
-   * onAddBlock. The `create()` factory is a no-op stub for these — never
-   * called through the regular onAddBlock path.
-   */
-  nmElementId?: string;
-  /** Lever-MM: parent competency ID for NM-element blocks (so the click handler can persist it). */
-  nmCompetencyId?: string;
-}
-
-export type BlockCategory =
-  | "response"
-  | "content"
-  | "toolkit"
-  | "assessment"
-  | "collaboration"
-  | "custom"
-  /** Lever-MM: New Metrics competency elements. Empty when school's `use_new_metrics` flag is off. */
-  | "new_metrics";
+import type { BlockDefinition, BlockCategory } from "./BlockPalette.types";
+// Lever-MM: re-exported from BlockPalette.types so existing consumers
+// keep importing types from `BlockPalette` (public surface unchanged).
+export type { BlockDefinition, BlockCategory };
+// Lever-MM: NM-element BlockDefinition factory lives in a pure .ts module
+// so it's importable from .test.ts without JSX-transform issues.
+// Re-exported here so the public surface stays unchanged.
+export { buildNmElementBlocks } from "./nm-element-blocks";
 
 interface CategoryMeta {
   label: string;
@@ -109,57 +78,9 @@ const CATEGORIES: Record<BlockCategory, CategoryMeta> = {
   },
 };
 
-// ─────────────────────────────────────────────────────────────────
-// Lever-MM — NM-element BlockDefinition factory
-// ─────────────────────────────────────────────────────────────────
-
-/**
- * Build a list of palette BlockDefinitions from a competency's elements.
- * Each element renders in the "New Metrics" accordion. Click → registers
- * a checkpoint on the current lesson via the NM API path (handled at the
- * click site in MM.0C — for now create() throws if invoked through the
- * regular onAddBlock path, which would create a junk ActivitySection).
- *
- * Caller is responsible for:
- *   - Gating on `school_context.use_new_metrics === true` (pass empty array
- *     when off — empty category accordion auto-hides via activeCategories).
- *   - Resolving the active competency (only one shown at a time per unit).
- *   - Wiring the click handler to /api/teacher/nm-config (MM.0C).
- */
-export function buildNmElementBlocks(
-  /**
-   * Accepts the canonical `NMElement` shape from `@/lib/nm/constants`.
-   * Defined inline as a structural type so `BlockPalette` doesn't need
-   * to import the NM module (keeps the palette decoupled from NM
-   * internals — only the field names matter).
-   */
-  elements: ReadonlyArray<{ id: string; name: string; definition?: string; studentDescription?: string }>,
-  competencyId: string,
-): BlockDefinition[] {
-  return elements.map((el) => ({
-    id: `nm-element-${competencyId}-${el.id}`,
-    label: el.name,
-    icon: "🎯",
-    category: "new_metrics" as const,
-    // Prefer the student-facing description (more human) over the formal
-    // definition for the palette tooltip; fall back to a generic CTA when
-    // both are missing.
-    description: el.studentDescription || el.definition || `Add a checkpoint for ${el.name} on this lesson.`,
-    defaultPhase: "any" as const,
-    nmElementId: el.id,
-    nmCompetencyId: competencyId,
-    source: "built-in" as const,
-    // Stub create() — should never be invoked through onAddBlock. The click
-    // handler in BlockPalette short-circuits NM blocks and routes to the
-    // NM checkpoint registration path instead. Throwing here makes any
-    // accidental invocation a loud error rather than silent junk-section.
-    create: () => {
-      throw new Error(
-        `[BlockPalette] NM-element block "${el.id}" was invoked through onAddBlock — should route through onAddNmCheckpoint instead. (Lever-MM regression.)`,
-      );
-    },
-  }));
-}
+// Lever-MM — buildNmElementBlocks lives in ./nm-element-blocks (pure
+// .ts so it's testable from .test.ts without JSX). Re-exported above
+// for the existing public surface.
 
 // ─────────────────────────────────────────────────────────────────
 // "My Blocks" helpers — convert DB activity_blocks to BlockDefinitions
