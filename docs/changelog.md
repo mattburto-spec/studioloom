@@ -4,6 +4,78 @@
 
 ---
 
+## 4 May 2026 — Access Model v2 PILOT-READY (Phase 6 closed + Cron wired + npm audit fixed)
+
+**Context:** Final close-out session for Access Model v2. Phases 0–5 had shipped end-April / early-May; Phase 6 (Cutover & Cleanup) was the architectural hygiene pass before pilot. Closed all 7 sub-phases plus shipped the cron wiring + npm audit fixes that surfaced as pre-pilot operational gaps.
+
+**Phase 6 — 7 sub-phases shipped + tagged `v0.6-pilot1`:**
+
+- **§6.0** pre-flight + 5 spec amendments (3-Matts done in 4.3.z, table count 7→5, route count 388→319, ADR-011 retired, est ~4-5d) + scaffold `docs/security/rls-deny-all.md` + 3 ADR scaffolds in sibling Loominary/. §3.3c critical decision RESOLVED: live-status route's student_sessions lookup → student_progress.updated_at > now()-5min.
+
+- **§6.1** legacy student token cleanup. Migration `phase_6_1_drop_student_sessions` (with DO-block sanity asserting 0 rows in students + student_sessions before dropping) applied to prod 4 May. 2 dependent RLS policies on class_students + student_projects replaced with auth.uid()-based equivalents in the same migration. Deleted: requireStudentAuth shim, dual-mode test, legacy login route, SESSION_COOKIE_NAME constant. Migrated 50 callsites to requireStudentSession (38 mechanical via script + 12 manual specials). LTI launch route stubbed as 410 with FU-AV2-LTI-PHASE-6-REWORK filed.
+
+- **§6.2** author_teacher_id cleanup. Audit revealed REAL scope was 8 ownership gates (vs brief's "~40 truly inline") + 17 own-data filters. 8 gates migrated to verifyTeacherHasUnit/verifyTeacherOwnsClass shims (both can()-backed); 5 access-check-skip annotations on look-alike-but-not gates. Side benefit: removed silent author_teacher_id leak in class-units/content GET+PATCH where the try-with-then-fallback-without-author logic let any teacher read any unit on author check failure.
+
+- **§6.3** API versioning seam. Chose Option Z (next.config.ts rewrites) over Option X (literal file moves of 318 routes) — same client-facing outcome for ~30min vs ~3-4h. Both `/api/<domain>/X` and `/api/v1/<domain>/X` now valid simultaneously; 4 mirrored Cache-Control: private header rules under /api/v1/* for auth-cookie-touching domains. ADR-013 promoted to Accepted with full Option X vs Z trade-off. FU-AV2-API-V1-FILESYSTEM-RESHUFFLE filed for the deferred file moves.
+
+- **§6.3b** middleware user_type guard — surfaced when Matt got bounced into the teacher onboarding wizard with a student's UUID as placeholder name after his student-tab login overwrote the teacher session cookie. Both teacher and student logins write the SAME sb-* cookie at studioloom.org; second login stomps first. Pre-fix worst case: student session reaching /teacher/welcome triggered the destructive onboarding flow. Mitigation: middleware now checks `app_metadata.user_type` after the existing presence check; wrong-role sessions redirect to the right area with `?wrong_role=1` flag for a future toast (FU-AV2-WRONG-ROLE-TOAST P3). Underlying single-cookie limitation filed as FU-AV2-CROSS-TAB-ROLE-COLLISION P2.
+
+- **§6.4** audit-coverage CI gate flip. Real audit: 232 mutation routes, 4 covered + 1 skipped + **228 missing**. 3 inline-wires (admin/teachers DELETE+invite POST, admin/teacher-requests PATCH — high-value admin actions get logAuditEvent with soft-sentry failureMode) + 224 categorical bulk-skips via Python script (117 teacher routine pedagogy ops, 36 student learner activity, 32 public free-tools no actor identity, 8 fab operational, 8 admin sandbox, 8 school covered by school_settings_history, 4 auth callbacks, 4 misc admin, etc.). nightly.yml flipped from `--check-audit-coverage` (visibility) to `--check-audit-coverage --fail-on-missing` (gating). 3 new tests (post-Phase-6.4 baseline + clean exit + synthetic-injection mechanism test) replaced the 1 stale "missing > 0 proves the gate would fire" test that became false post-closure.
+
+- **§6.5** RLS-no-policy doc + Phase 5 table classifications. `docs/security/rls-deny-all.md` documents all 5 service-role-only tables with file:line writer/reader callsites (admin_audit_log, ai_model_config, ai_model_config_history, fabricator_sessions, teacher_access_requests). `scripts/registry/scan-rls-coverage.py` extended to read the doc at scan time and classify those tables as `intentional_deny_all` rather than drift. status: clean (was drift_detected); rls_no_policy_count: 0 (was 5); intentional_deny_all_count: 5. Closes FU-FF. Plus: rebuilt 3 stale Phase 5 table entries in schema-registry.yaml (audit_events column-types-only → full classification block; ai_budgets + ai_budget_state status:dropped/columns:{} → applied with full per-column classification — the FU-DD scanner mis-parse class drift).
+
+- **§6.6** ADRs. Old 011-schema-rework.md (radical-pivot exploration, never accepted) marked Superseded with redirect note. 3 new ADRs in sibling Loominary/docs/adr/: 011-school-entity-and-governance.md (Decisions 1–8 baked into Phase 4), 012-audit-log-infrastructure.md (single immutable polymorphic table, 3-mode failure semantics, school_subscription_tier_at_event seam), 013-api-versioning.md (Option Z chosen + alternatives). Loominary ADR README index updated.
+
+- **§6.7** registry sync + Checkpoint A7 + handoff. All 5 scanners re-run + clean (modulo unrelated feature-flags drift on SENTRY_AUTH_TOKEN + auth.permission_helper_rollout + RUN_E2E — pre-existing). WIRING.yaml: student-signin promoted v1→v2 with Phase 6.1 narrative; auth-system stale references cleaned (deleted shim removed from key_files); api-versioning system added; pre-existing ai_budget_state YAML parse error fixed (bash-style brace expansion → proper list). Checkpoint A7 doc + handoff written. Tagged `v0.6-pilot1` on the merge commit (`394c4fb` Phase 6.4–6.7 merged on top of `912ddd8` Phase 6.0–6.3 + `b66f04a` Phase 6.3b hotfix).
+
+**Cron-wire — closes FU-AV2-CRON-SCHEDULER-WIRE (last hard pre-pilot blocker):**
+
+3 GET route handlers at `src/app/api/cron/<job>/route.ts` (cost-alert, scheduled-hard-delete, retention-enforcement) — each validates `Authorization: Bearer ${CRON_SECRET}` then delegates to the existing run() in src/lib/jobs/. Returns { ok, job, result, timestamp } JSON. `vercel.json` declares the 3 crons (cost-alert daily 06:00 UTC, scheduled-hard-delete daily 03:00 UTC, retention-enforcement monthly 1st 04:00 UTC). Middleware allows /api/cron/* through (bearer-secret in handler is the gate). CRON_SECRET registered in feature-flags.yaml as required: true (PILOT-BLOCKING). 15 auth-gate tests (5 cases × 3 routes) verify all auth failure modes + the success path. Note on AI budget reset: there is no separate reset cron — Phase 5.2's atomic_increment_ai_budget() SECURITY DEFINER function performs the reset INLINE on next per-student increment when reset_at < now(). Lazy reset is correct semantics for this use case.
+
+CRON_SECRET set in Vercel by Matt + redeployed. First cron fires daily at 06:00 UTC (cost-alert).
+
+**npm audit fix — 6 vulns → 4 moderate residuals:**
+
+Bucket A (npm audit fix, no breaking changes): closed 2 high-severity advisories — @xmldom/xmldom (4 advisories: DoS via uncontrolled recursion + 3 XML injection paths) + dompurify (4 advisories: ADD_TAGS form bypass, function-based predicate asymmetry, SAFE_FOR_TEMPLATES bypass, prototype pollution XSS).
+
+Bucket B (npm audit fix --force): Next.js 15.3.9 → 15.5.15 closing 7 advisories. Two are SQUARELY relevant to Phase 6 work: SSRF in middleware redirects (Phase 6.3b just shipped wrong-role middleware redirects) + HTTP request smuggling in rewrites (Phase 6.3 just shipped /api/v1/* rewrite seam). Process note: --force also DOWNGRADED exceljs ^4.4.0 → ^3.4.0 creating new transitive vulns in fast-csv + tmp; reverted package.json exceljs to ^4.4.0; final state Next@15.5.15 + exceljs@^4.4.0 with 6 → 4 vulns. Production build with Next 15.5.15 succeeded.
+
+Bucket C filed as FU-DEPS-RESIDUAL-MODERATE-VULNS P3: 4 moderate residuals with no clean upgrade path — postcss <8.5.10 bundled inside Next (no Next version yet bundles a patched postcss; npm audit suggests downgrading to next@9.3.3 which is absurd) + uuid <14.0.0 transitive through exceljs (only exploitable via custom buf parameter on uuid.v3/v5/v6 — we don't use those overloads). Both theoretical for our app.
+
+**Verification across the session:**
+- tsc clean throughout
+- npm test: 3291 → 3494 passed / 11 skipped (no regressions; +203 net from new tests)
+- npm audit: 6 → 4 (post-fix; remaining are upstream-blocked moderates)
+- npm run build: production bundle with Next 15.5.15 succeeds
+- All 5 registry scanners: clean status
+- Migration phase_6_1_drop_student_sessions APPLIED to prod with verified post-state (table gone, 2 legacy policies replaced with auth.uid() equivalents, scanner status: clean)
+- Smoke verified on Vercel preview: student lazy-provision via classcode-login → dashboard navigation → no questerra_student_session cookie anywhere; teacher Class Hub loads (single-route exercise of student-snapshot)
+
+**Follow-ups filed during the session:**
+- FU-AV2-LTI-PHASE-6-REWORK (P2) — LTI launch stubbed 410, needs Supabase Auth rewrite
+- FU-AV2-CROSS-TAB-ROLE-COLLISION (P2) — single-cookie limit deeper fix paths
+- FU-AV2-WRONG-ROLE-TOAST (P3) — surface ?wrong_role=1 banner
+- FU-AV2-STALE-TIMETABLE-LINK (P3) — Next.js prefetch noise
+- FU-STUDENT-PROGRESS-CLIENT-400 (P3) — frontend widget hits stale total_pages column
+- FU-AV2-API-V1-FILESYSTEM-RESHUFFLE (P3) — deferred Option X file moves
+- FU-DEPS-RESIDUAL-MODERATE-VULNS (P3) — 4 moderate vulns blocked on upstream patches
+
+**Follow-ups closed during the session:**
+- FU-FF (RLS-as-deny-all undocumented) ✅ — `docs/security/rls-deny-all.md` + scanner update
+- FU-AV2-AUDIT-MISSING-PHASE-6-CATCHUP (P2) ✅ — §6.4 closed it
+- FU-AV2-CRON-SCHEDULER-WIRE (P2) ✅ — last hard pre-pilot blocker
+- FU-AV2-PHASE-3-CALLSITES-REMAINING (P3) ✅ — §6.2 closed (audit revealed 8 real gates, not ~40)
+
+**Pre-pilot operational state:**
+- ✅ All architectural blockers closed
+- ✅ CRON_SECRET set + Vercel redeployed
+- ⏳ Sentry alerts setup (audit insert failures, cost-alert sends) — post-pilot polish
+- ⏳ Pilot smoke checklist when first NIS student lands
+
+**Tag:** `v0.6-pilot1` on merge commit.
+
+---
+
 ## 1 May 2026 (PM) — Access Model v2 Phase 3 SHIPPED + APPLIED TO PROD (Class Roles & Permissions)
 
 **Context:** Continued from "Phase 2 CLOSED" earlier today. Picked up the next master-spec phase: Phase 3 Class Roles & Permissions. Pre-flight audit revealed Phase 0.6c + 0.7a schema seams (`class_members`, `school_responsibilities`, `student_mentors`, `audit_events`) were already live in prod from 29 April with RLS scoped reads — Phase 3 is helpers + UI plumbing + callsite migration, not new schema. Drafted 594-line brief end-to-end with 8 §3.8 open questions; Matt signed off all 8 plus picked Compressed scope for the 50-callsite migration.

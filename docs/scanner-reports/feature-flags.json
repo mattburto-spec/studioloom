@@ -1,6 +1,6 @@
 {
   "registry": "feature-flags.yaml",
-  "timestamp": "2026-05-03T23:43:15.068083+00:00",
+  "timestamp": "2026-05-04T01:00:19.785238+00:00",
   "version": 1,
   "drift": {
     "orphaned": [
@@ -13,8 +13,8 @@
   },
   "stats": {
     "registered_flags": 17,
-    "registered_secrets": 17,
-    "code_env_vars": 28
+    "registered_secrets": 18,
+    "code_env_vars": 29
   },
   "status": "drift"
 }
