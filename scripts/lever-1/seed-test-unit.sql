@@ -36,22 +36,20 @@
 -- ====================================================================
 
 -- ─────────────────────────────────────────────────────────────────────
--- Bindings — EDIT THESE before running:
+-- Bindings — pre-filled for mattburton@nanjing-school.com:
 -- ─────────────────────────────────────────────────────────────────────
--- Replace 'YOUR-TEACHER-UUID-HERE' with your actual teachers.id (the
--- auth.users id you log in with). To find it, run:
---
---   SELECT id, email FROM auth.users WHERE email = 'your@email';
---
--- Then paste the id into the WITH clause below.
+-- IMPORTANT: log into StudioLoom as mattburton@nanjing-school.com
+-- before visiting the editor URL — the Phase 0.5 editor's RLS check
+-- matches the unit's teacher_id against your authenticated session.
+-- Logging in as the gmail account would 403/redirect.
 -- ─────────────────────────────────────────────────────────────────────
 
 WITH bindings AS (
   SELECT
-    'YOUR-TEACHER-UUID-HERE'::uuid AS teacher_id,
-    'Lever 1 Smoke Class'           AS class_name,
+    '27818389-9d3b-4760-988e-d9f166cd42e5'::uuid AS teacher_id,  -- mattburton@nanjing-school.com
+    'Lever 1 Smoke Class'             AS class_name,
     'Lever 1 — Three-Slot Smoke Unit' AS unit_title,
-    'Year 8' AS grade_level
+    'Year 8'                          AS grade_level
 ),
 -- Find or create a class for this teacher.
 existing_class AS (
@@ -309,21 +307,27 @@ class_unit_link AS (
   FROM class_id_resolved c, new_unit u
   RETURNING class_id, unit_id
 )
--- Output the IDs + the URL Matt needs to visit for the smoke.
+-- Output the IDs + the FULL prod URLs Matt needs to visit for the smoke.
+-- (Just click the editor_url cell value in the Supabase result pane.)
 SELECT
   cul.unit_id,
   cul.class_id,
-  '/teacher/units/' || cul.unit_id || '/class/' || cul.class_id || '/edit'  AS editor_url,
-  '/teacher/units/' || cul.unit_id || '/preview/L01'                         AS student_preview_url
+  'https://studioloom.org/teacher/units/' || cul.unit_id || '/class/' || cul.class_id || '/edit'  AS editor_url,
+  'https://studioloom.org/teacher/units/' || cul.unit_id || '/preview/L01'                         AS student_preview_url
 FROM class_unit_link cul;
 
 -- ====================================================================
--- ROLLBACK (uncomment + paste teacher_id again to remove this seed):
+-- ROLLBACK (uncomment to remove the seed unit when smoke is done):
 -- ====================================================================
 --
 -- DELETE FROM units
---  WHERE teacher_id = 'YOUR-TEACHER-UUID-HERE'::uuid
+--  WHERE teacher_id = '27818389-9d3b-4760-988e-d9f166cd42e5'::uuid
 --    AND title = 'Lever 1 — Three-Slot Smoke Unit';
 --
--- (class_units row cascades on unit DELETE. The class itself is left
--- intact — drop it manually if you also want to clean it up.)
+-- (class_units row cascades on unit DELETE. The 'Lever 1 Smoke Class'
+-- row is left intact — drop it manually if you also want it gone:
+--
+-- DELETE FROM classes
+--  WHERE teacher_id = '27818389-9d3b-4760-988e-d9f166cd42e5'::uuid
+--    AND name = 'Lever 1 Smoke Class';
+-- )
