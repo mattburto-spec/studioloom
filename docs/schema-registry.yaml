@@ -103,6 +103,20 @@ tables:
       from CLAUDE.md Phase A context (~1 Apr 2026 + bootstrap blurb).
       RLS read/write policy detail still '(unknown)' below — scanner
       doesn't introspect the policies; flagged FU-SCHEMA-REGISTRY-RLS-DETAIL.
+  - date: '2026-05-04'
+    note: |
+      Lever 1 sub-phase 1H closed audit step 7: every reader of
+      `block.prompt` / `section.prompt` (lesson-tiles, edit-tracker,
+      knowledge/chunk, timing-validation, infer-bloom, activity-library,
+      design-assistant, plus 9 wizard / display components) now reads via
+      `composedPromptText()` so v2 slot fields take priority during the
+      transition. Also closed a 1G validator regression: validateGeneratedPages
+      and validateTimelineActivities still required legacy `prompt` —
+      both now accept slots OR legacy and compose `prompt` from slots
+      for back-compat consumers. Tests +24 (3600 → 3624). Helpers
+      composedPromptText / hasSlotFields widened from ActivitySection
+      to a structural SlotBearing shape so they work over TimelineActivity,
+      ActivityBlock rows, AI tool payloads, and fixtures.
   columns:
     id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
     teacher_id: UUID REFERENCES auth.users(id)

@@ -1,11 +1,27 @@
 # Lesson Quality — Lever 1: Slot Fields
 
-**Status:** 1A drafted (4 May 2026). Awaiting Matt sign-off before 1B.
+**Status:** 1A–1I SHIPPED (4 May 2026). Branch holds 9 commits, awaiting Matt Checkpoint 1.1 + push.
 **Worktree:** `/Users/matt/CWORK/questerra`
-**Branch:** `lesson-quality-lever-1-slot-fields` (off `main` @ `51ed550`)
-**Baseline tests:** 3494 passed / 11 skipped / 222 files
+**Branch:** `lesson-quality-lever-1-slot-fields` (off `main` @ `51ed550`, 9 commits ahead — unpushed per push-discipline rule until Matt Checkpoint 1.1 PASSES + migration verified on prod)
+**Baseline tests:** 3494 → 3624 (+130 across 1A–1I, 0 regressions, tsc strict clean)
+**Migration:** `20260504020826_activity_three_field_prompt.sql` APPLIED TO PROD (1B) + 55 teaching moves AI-rewritten + reseeded with v2 shape (1C).
 **Style-guide contract:** [`docs/specs/lesson-content-style-guide-v2-draft.md`](../specs/lesson-content-style-guide-v2-draft.md) (v2 draft, supersedes v1)
 **Audit reported in chat:** 30 Apr 2026 + re-flighted 4 May post-Access-v2 merge
+
+### Sub-phase status
+
+| Phase | Status | Commit | Notes |
+|---|---|---|---|
+| 1A — brief + ALL-PROJECTS | ✅ shipped | `ebfd217` | 9-sub-phase plan with checkpoints |
+| 1B — migration (4 cols) + schema-registry | ✅ shipped + APPLIED PROD | `78b58af` | sandbox INSERT/SELECT verified exact values |
+| 1C-revised — AI-rewrite Teaching Moves to v2 | ✅ shipped | `d537f97` | 55 rows, 100% v2 coverage, content_fingerprint stable |
+| 1D — API read/write 3 fields + validation + deprecation header | ✅ shipped | `13b22d3` | 33 new tests; X-Lever-1-Deprecated response header |
+| 1E — ComposedPrompt renderer + ActivityCard + PDF mount | ✅ shipped | `d1c8cdd` | hybrid spec (muted framing + bold task + 🎯 success_signal) |
+| 1F — three-box slot editor + Preview composes via renderer | ✅ shipped | `c942283` | SlotFieldEditor with per-field char counts |
+| 1G — AI generation rewrite (3 schemas + pipeline + adapter) | ✅ shipped | `0b632ae` | +19 tests; pattern bug per Lesson #39 — fixed all 3 schema sites |
+| 1H — sweep section.prompt readers + close 1G validator regression | ✅ shipped | `4e4101c` | +24 tests; closed audit step 7; widened helper to SlotBearing; closed 1G validator regression in BOTH validateGeneratedPages + validateTimelineActivities |
+| 1I — registry sync + WIRING drift fixes | ✅ shipped | (this commit) | 2 WIRING.yaml drift items fixed; activity-blocks + unit-editor entries refreshed; schema-registry 1H drift entry appended |
+| Matt Checkpoint 1.1 | ⏳ pending | — | full smoke before push |
 
 ---
 
