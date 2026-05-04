@@ -1313,9 +1313,9 @@ systems:
     category: Teacher Experience
     status: complete
     currentVersion: 1
-    summary: "12-component modular editor: LessonEditor orchestrator, useLessonEditor state, useAutoSave, UndoManager, LessonSidebar, ActivityBlock, PhaseSection, etc. Drag-to-reorder, AI assist, fork-on-write. Lever 1 v2 (4 May 2026): SlotFieldEditor replaces single prompt textarea with three labelled boxes (framing / task / success_signal) + per-field char-count warnings; preview composes via the student renderer."
-    depends_on: [content-forking, activity-blocks, framework-adapter]
-    affects: [content-forking, unit-generation, teach-mode]
+    summary: "12-component modular editor: LessonEditor orchestrator, useLessonEditor state, useAutoSave, UndoManager, LessonSidebar, ActivityBlock, PhaseSection, etc. Drag-to-reorder, AI assist, fork-on-write. Lever 1 v2 (4 May 2026): SlotFieldEditor replaces single prompt textarea with three labelled boxes (framing / task / success_signal) + per-field char-count warnings; preview composes via the student renderer. Lever-MM (4 May 2026): New Metrics block category in the BlockPalette — competency-element BlockDefinitions render under a gold-dot accordion; click-to-add registers a checkpoint on the current lesson; chip strip at top of lesson card lists registered checkpoints with × remove; competency selector inside the accordion. Gated on teacher_profiles.school_context.use_new_metrics. Class-settings Metrics tab now hosts results display only (NMResultsPanel) — config moved here."
+    depends_on: [content-forking, activity-blocks, framework-adapter, nm-system]
+    affects: [content-forking, unit-generation, teach-mode, nm-system]
     docs:
       - path: docs/specs/lesson-editor-phase-0.5.md
         purpose: Full editor specification
@@ -1323,10 +1323,12 @@ systems:
         purpose: Navigation and edit mode toggle
       - path: docs/projects/lesson-quality-lever-1-slot-fields.md
         purpose: Lever 1 — three-box editor + per-field validation
+      - path: docs/projects/unit-editor-nm-block.md
+        purpose: Lever-MM — NM block category in palette + chip strip + competency selector
     data_fields:
       - table: class_units
-        columns: [id, content_data, forked_at, forked_from_version]
-        notes: Class-specific content forks
+        columns: [id, content_data, nm_config, forked_at, forked_from_version]
+        notes: Class-specific content forks. nm_config (JSONB) holds the NM checkpoints map (Lever-MM — written by editor's New Metrics block category click handler via /api/teacher/nm-config; read by student-facing surfaces unchanged).
     key_files:
       - src/app/teacher/units/[unitId]/class/[classId]/edit/page.tsx
       - src/components/teacher/lesson-editor/LessonEditor.tsx
@@ -1334,10 +1336,14 @@ systems:
       - src/components/teacher/lesson-editor/ActivityBlock.tsx
       - src/components/teacher/lesson-editor/SlotFieldEditor.tsx
       - src/components/teacher/lesson-editor/GhostBlock.tsx
-    future_needs: Rich media editing (video embeds, interactive widgets), version history view. Legacy single-textarea editor at src/app/teacher/units/[unitId]/edit/page.tsx (still mounted for unassigned units) needs porting to SlotFieldEditor or removing once Phase 0.5 supersedes it for all entry points.
+      - src/components/teacher/lesson-editor/BlockPalette.tsx
+      - src/components/teacher/lesson-editor/BlockPalette.types.ts
+      - src/components/teacher/lesson-editor/nm-element-blocks.ts
+      - src/lib/nm/checkpoint-ops.ts
+    future_needs: Rich media editing (video embeds, interactive widgets), version history view. Legacy single-textarea editor at src/app/teacher/units/[unitId]/edit/page.tsx (still mounted for unassigned units) needs porting to SlotFieldEditor or removing once Phase 0.5 supersedes it for all entry points. Lever-MM v2 candidates — drag-and-drop NM elements onto lesson tiles (currently click-only); multi-competency-per-unit (currently single); FU-NM-SCHOOL-ADMIN-CENTRALIZATION (school-level toggle + principal-facing dashboard).
     adrs: ["010"]
     os_seam: ready
-    change_impacts: Changes to content_data schema require migration. Changes to ActivityBlock structure affect editor rendering. Lever 1 v2 — SlotFieldEditor writes to all 3 slot fields AND syncs the legacy `prompt` field on every keystroke (composed via composedPromptText) so non-migrated readers stay valid.
+    change_impacts: Changes to content_data schema require migration. Changes to ActivityBlock structure affect editor rendering. Lever 1 v2 — SlotFieldEditor writes to all 3 slot fields AND syncs the legacy `prompt` field on every keystroke (composed via composedPromptText) so non-migrated readers stay valid. Lever-MM — changes to NM block category UI affect teacher discovery / configuration of competency assessments; pure state-transition logic in lib/nm/checkpoint-ops.ts is the canonical contract (idempotency, zombie-pageId guard, orphan-element handling on competency switch — covered by 30 tests).
 
   - id: unit-generation
     name: Unit Generation Wizard
