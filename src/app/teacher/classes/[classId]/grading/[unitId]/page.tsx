@@ -25,6 +25,7 @@ import { getYearLevelNumber } from "@/lib/utils/year-level";
 import IntegrityReport from "@/components/teacher/IntegrityReport";
 import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
 import { analyzeIntegrity } from "@/lib/integrity/analyze-integrity";
+import { stripResponseHtml } from "@/lib/integrity/strip-response-html";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -772,8 +773,10 @@ export default function GradingPage({
                           label = `Reflection ${parseInt(key.replace("reflection_", "")) + 1}`;
                         else if (key === "freeform") label = "Notes";
 
-                        // Safety: skip non-string values (toolkit JSON, tracking objects)
-                        const displayValue = typeof value === "string" ? value : typeof value === "object" ? JSON.stringify(value).slice(0, 200) + "…" : String(value ?? "—");
+                        // Safety: skip non-string values (toolkit JSON, tracking objects).
+                        // For string values, strip HTML markup (RichTextEditor + auto-injected
+                        // vocabulary look-up buttons) so the teacher sees prose, not <button> walls.
+                        const displayValue = typeof value === "string" ? stripResponseHtml(value) : typeof value === "object" ? JSON.stringify(value).slice(0, 200) + "…" : String(value ?? "—");
 
                         return (
                           <div key={key}>

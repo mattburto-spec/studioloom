@@ -12,6 +12,7 @@ import { ObservationSnap } from "@/components/nm";
 import { PaceFeedbackSummary } from "@/components/teacher/PaceFeedbackSummary";
 import IntegrityReport from "@/components/teacher/IntegrityReport";
 import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
+import { stripResponseHtml } from "@/lib/integrity/strip-response-html";
 import { AGENCY_ELEMENTS, type NMUnitConfig } from "@/lib/nm/constants";
 import { getYearLevelNumber } from "@/lib/utils/year-level";
 
@@ -643,6 +644,8 @@ export default function ProgressTrackingPage({
                                   ? "✓ Checked"
                                   : value === "false"
                                   ? "☐ Not checked"
+                                  : typeof value === "string"
+                                  ? stripResponseHtml(value) || "—"
                                   : value || "—"}
                               </p>
                             </div>

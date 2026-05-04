@@ -39,6 +39,7 @@ import {
   getScoreLabel,
 } from "@/lib/integrity/analyze-integrity";
 import type { IntegrityAnalysis, IntegrityFlag } from "@/lib/integrity/analyze-integrity";
+import { stripResponseHtml } from "@/lib/integrity/strip-response-html";
 
 interface IntegrityReportProps {
   metadata: IntegrityMetadata;
@@ -76,10 +77,17 @@ export default function IntegrityReport({
   const analysis = useMemo(() => analyzeIntegrity(metadata), [metadata]);
 
   const currentSnapshot = useMemo(() => {
+    // stripResponseHtml: student responses may contain auto-injected vocabulary
+    // "Look up <word>" buttons + RichTextEditor formatting markup. Strip to
+    // plain prose so the teacher sees the actual writing, not the markup.
     if (metadata.snapshots.length === 0) {
-      return { text: responseText || "", timestamp: metadata.startTime };
+      return {
+        text: stripResponseHtml(responseText),
+        timestamp: metadata.startTime,
+      };
     }
-    return metadata.snapshots[snapshotIndex];
+    const snap = metadata.snapshots[snapshotIndex];
+    return { text: stripResponseHtml(snap.text), timestamp: snap.timestamp };
   }, [snapshotIndex, metadata.snapshots, metadata.startTime, responseText]);
 
   const deletionRate = useMemo(() => {
