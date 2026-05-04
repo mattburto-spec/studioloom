@@ -262,6 +262,68 @@ export default function CategoryDashboard({
     }
   }
 
+  // Phase 8.1d (4 May 2026 polish): Start = download + flip to
+  // picked_up. Previously a plain <a href="/api/fab/jobs/[id]/download">
+  // link — the browser navigated to the endpoint, status flipped
+  // server-side as a side-effect of the GET, file downloaded. UX
+  // problem: zero feedback during the download. For a 200kB file
+  // it looked instant; for a 50MB file the user clicked "Start"
+  // and saw nothing change for several seconds, then suddenly
+  // the buttons morphed into Mark printed / Mark failed.
+  //
+  // Fix: fetch + blob + programmatic anchor click. Sets inFlight
+  // to "start" immediately so the button shows a spinner +
+  // "Downloading..." text. Finishes by re-fetching the dashboard
+  // to pick up the picked_up status. File still saves via the
+  // browser's download dialog (we trigger it via a programmatic
+  // <a download>).
+  async function startAndDownload(jobId: string, filename: string) {
+    setInFlight((p) => ({ ...p, [jobId]: "start" }));
+    mutatingCount.current += 1;
+    try {
+      const res = await fetch(`/api/fab/jobs/${jobId}/download`, {
+        credentials: "same-origin",
+      });
+      if (!res.ok) {
+        const errBody = await res
+          .text()
+          .then((t) => {
+            try {
+              return JSON.parse(t).error;
+            } catch {
+              return t;
+            }
+          })
+          .catch(() => "");
+        alertUser(errBody || `Couldn't start job (HTTP ${res.status})`);
+        return;
+      }
+      // Server responded with the file + Content-Disposition. Status
+      // is already flipped to picked_up server-side regardless of
+      // whether we successfully save the blob.
+      // Prefer the server's filename hint if present.
+      const cd = res.headers.get("Content-Disposition") || "";
+      const cdMatch = cd.match(/filename="?([^";]+)"?/i);
+      const downloadName = cdMatch?.[1] ?? filename;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = downloadName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      // Revoke after a tick so the browser has time to grab the blob.
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      alertUser(e instanceof Error ? e.message : "Network error");
+    } finally {
+      setInFlight((p) => ({ ...p, [jobId]: undefined }));
+      mutatingCount.current = Math.max(0, mutatingCount.current - 1);
+      await fetchAll();
+    }
+  }
+
   async function markComplete(jobId: string) {
     setInFlight((p) => ({ ...p, [jobId]: "complete" }));
     mutatingCount.current += 1;
@@ -548,6 +610,7 @@ export default function CategoryDashboard({
                       (j) => j.machineProfileId === m.id
                     )}
                     inFlight={inFlight}
+                    onStart={startAndDownload}
                     onComplete={markComplete}
                     onFailed={openFailModal}
                     onUnassign={(j) => setUnassignConfirm(j)}
@@ -1871,6 +1934,7 @@ function MachineColumn({
   runningJob,
   queuedJobs,
   inFlight,
+  onStart,
   onComplete,
   onFailed,
   onUnassign,
@@ -1880,6 +1944,10 @@ function MachineColumn({
   runningJob: FabJobRow | null;
   queuedJobs: FabJobRow[];
   inFlight: Record<string, "complete" | "fail" | "start" | "assign" | "unassign" | "delete" | undefined>;
+  /** Phase 4-May polish: Start now goes through fetch+blob so the
+   *  card can show a "Downloading…" busy state during the download.
+   *  Was a plain <a href> link before — zero feedback for big files. */
+  onStart: (jobId: string, filename: string) => void;
   onComplete: (jobId: string) => void;
   onFailed: (jobId: string) => void;
   /** Phase 8.1d-31: callbacks now take the full FabJobRow so the
@@ -1990,6 +2058,7 @@ function MachineColumn({
                   job={j}
                   accent={accent}
                   busy={inFlight[j.jobId]}
+                  onStart={onStart}
                   onUnassign={onUnassign}
                   onDelete={onDelete}
                 />
@@ -2119,12 +2188,17 @@ function QueuedJobCard({
   job,
   accent,
   busy,
+  onStart,
   onUnassign,
   onDelete,
 }: {
   job: FabJobRow;
   accent: string;
   busy: "complete" | "fail" | "start" | "assign" | "unassign" | "delete" | undefined;
+  /** Phase 4-May polish: Start now goes through fetch+blob so we
+   *  can show a "Downloading…" busy state during big-file fetches
+   *  (was a native <a href> link with no feedback). */
+  onStart: (jobId: string, filename: string) => void;
   /** Phase 8.1d-31: callbacks now receive the row so the parent's
    *  ConfirmActionModal can show student + class + filename
    *  without a re-query. Replaces 8.1d-27's window.confirm
@@ -2133,6 +2207,7 @@ function QueuedJobCard({
   onDelete: (job: FabJobRow) => void;
 }) {
   const isBusy = busy !== undefined;
+  const isDownloading = busy === "start";
 
   return (
     <div className={`${styles.card2}`} style={{ overflow: "hidden" }}>
@@ -2209,16 +2284,35 @@ function QueuedJobCard({
           >
             <DownloadIcon size={12} />
           </a>
-          <a
-            href={`/api/fab/jobs/${job.jobId}/download`}
-            title="Start: download + pick up the job"
-            aria-disabled={isBusy}
-            className={`${styles.btnPrimary} rounded-md flex-1 px-2 py-1.5 text-[11px] inline-flex items-center justify-center gap-1.5 ${
-              isBusy ? "opacity-50 pointer-events-none" : ""
-            }`}
+          <button
+            type="button"
+            onClick={() => onStart(job.jobId, job.originalFilename)}
+            disabled={isBusy}
+            title={
+              isDownloading
+                ? "Downloading the file… the job will start once it's saved."
+                : "Download the file and pick up the job (status → in progress)"
+            }
+            aria-label={isDownloading ? "Downloading" : "Download and start"}
+            className={`${styles.btnPrimary} rounded-md flex-1 px-2 py-1.5 text-[11px] inline-flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-wait`}
           >
-            <PlayIcon size={9} /> Start
-          </a>
+            {isDownloading ? (
+              <>
+                <span
+                  className="block w-2.5 h-2.5 border-[1.5px] rounded-full animate-spin"
+                  style={{
+                    borderColor: "rgba(255,255,255,0.6)",
+                    borderTopColor: "transparent",
+                  }}
+                />
+                <span>Downloading…</span>
+              </>
+            ) : (
+              <>
+                <PlayIcon size={9} /> Download and start
+              </>
+            )}
+          </button>
           <button
             type="button"
             onClick={() => onUnassign(job)}

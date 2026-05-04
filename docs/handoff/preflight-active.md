@@ -1,102 +1,109 @@
 # Handoff — preflight-active
 
-**Last session ended:** 2026-04-28T11:00:00Z
+**Last session ended:** 2026-05-04T05:30:00Z
 **Worktree:** `/Users/matt/CWORK/questerra-preflight`
-**HEAD:** `9824900` "feat(preflight): Phase 8-4 path 2 — class-chip teacher disambiguation on fab queue"
-**Top of main (post Phase 8-4 merge):** `740b892`
+**HEAD:** `81f20ab` "fix(preflight): /api/fab/logout — 303 redirect to /fab/login (was raw JSON)"
+**Top of main (post Round 2 closure):** `689023d`
 
 ## What just happened
 
-- **Preflight Phase 8 is fully done.** Phase 8-1 schema flip + Round
-  1 audit + Phase 8-2 lab orchestration + Phase 8-3 machine
-  orchestration + Phase 8-4 paths 1+2 all SHIPPED in a single
-  full-day session driven by Matt's smoke of yesterday's
-  school-scoped lab ownership migration.
-- **Audit doc CLOSED — 12 of 12 findings ✅ FIXED.** See
-  `docs/projects/preflight-audit-28-apr.md`. HIGH-1/2/3/4,
-  MED-1/2/3/4/5/6, LOW-1/2.
-- **Phase 8-4 path 2** shipped class-chip teacher disambiguation on
-  fab queue: `<ClassChip>` now renders `Grade 10 · M.B.` and uses
-  teacher initials as a color hash key so two NIS teachers' "Grade
-  10" classes get distinct colors. `formatTeacherInitials` helper.
-  PostgREST embed extended.
-- **Multi-teacher prod smoke validated** flat school membership
-  across 3 NIS personas at school_id `636ff4fc-...`. Strongest
-  possible proof that the school-scoped contract works
-  cross-teacher.
-- **saveme done at session end** (commit pending push). Changelog,
-  ALL-PROJECTS, dashboard, master CLAUDE.md, audit doc, doc-manifest
-  all in sync. 5 registry scans rerun (api/ai/feature-flags/vendors/
-  rls). API registry picked up 3 new grading routes from the
-  parallel session that merged to main.
+- **Phase 8-1 audit gap CLOSURE ROUND 2 SHIPPED.** Matt's
+  post-Access-v2 Preflight smoke caught 7 same-family Phase 8-1
+  audit gaps + 2 UX bugs. The 28 Apr audit doc was complete for
+  the *scope it audited* (queue+jobs+admin pages) but missed
+  sibling routes that don't list jobs. Today's session closed all
+  the rest in 7 PRs to main, all prod-validated cross-persona.
+
+- **All fixes:**
+  1. `/api/fab/machines` school-scoped (commit `9ddacce`)
+  2. Student upload validation school-scoped (`f6acdec`)
+  3. All 5 `/api/teacher/fabricators/*` admin routes
+     school-scoped (closes `FU-FAB-INVITE-SCHOOL-SCOPED` + 4
+     siblings — invite, list, deactivate, reset-password,
+     machines reassign) — commit `277f69e`
+  4. PostgREST embed → 2-query rewrite (`19856e8`) — fabricators
+     FK references `auth.users` not `teachers`, embed couldn't
+     resolve
+  5. Fab admin actions menu portal-rendered (`40cb10e`) — escape
+     table `overflow-hidden` clipping, click-outside + ESC
+     dismissal added
+  6. Fab logout 303 redirect (`81f20ab`) — was returning raw JSON
+     to the browser via native form POST
+
+- **New helpers in `fab-orchestration.ts`:**
+  - `loadSchoolOwnedFabricator(db, schoolId, fabricatorId)`
+  - `findFabricatorByEmail(db, email)` — returns fab + inviter
+    school for the cross-school 409 disambiguation in invite
+
+- **Tests 3494 → 3496** (+2 from new invite cases). 0 migrations.
+  tsc strict clean throughout. CI green throughout.
+
+- **`FU-FAB-INVITE-SCHOOL-SCOPED` ✅ RESOLVED** with closure note
+  in `docs/projects/preflight-followups.md` documenting the
+  5-route sweep + new helpers + audit-scope lesson.
 
 ## State of working tree
 
 - Branch `preflight-active` clean + in sync with origin.
-- Top-of-main `740b892` (Phase 8-4 merge).
-- Tests: **2433 pass / 9 skipped** (was 2208 at session start;
-  +225 net). tsc strict (`tsc --noEmit --project tsconfig.check.json`)
-  clean. CI green throughout the day's 4 merge commits.
-- Untracked: `Systems/Ingestion/ingestion-pipeline-summary.md`
-  (uncommitted modifications from a prior session, doc note about
-  Pipeline 1 role change). Out of scope; leave alone.
-- Untracked: `.github/workflows/deploy-preflight-scanner.yml` from
-  FU-SCANNER-CICD work. Out of scope.
+- Top-of-main `689023d` (PR #16 merge, fab logout 303 redirect).
+- Tests: **3496 pass / 11 skipped**. tsc strict clean.
+- One pre-existing unrelated `BugReportButton.tsx` TS error from
+  Access v2 Phase 6 work (html-to-image module type) — not gated
+  in CI, surfaces only on full `tsc --noEmit`.
 
 ## Next steps
 
-- [ ] **Access Model v2 Phase 0** — the canonical next pickup. Worktree
-      `/Users/matt/CWORK/questerra-access-v2` on branch
-      `access-model-v2`. Spec at `docs/projects/access-model-v2.md`.
-      Its scope already addresses the "3 Matts" identity cleanup
-      that surfaced today (all 3 NIS personas have `display_name = null`
-      and `name = "Matt"`, so Phase 8-4 path 2 disambiguation is
-      wired correctly but visually identical until distinct names
-      land — Access v2 fixes this properly via auth unification +
-      first-class schools entity).
+- [ ] **Run actual fabrication submission E2E** — last truly-real
+      loose end. Student upload → scanner → teacher approve → fab
+      pickup → complete. Today's smoke validated each access-control
+      path in isolation (cross-persona admin operations) but didn't
+      run a real job through the full pipeline post Access v2 +
+      post today's 7 fixes. ~10 min if everything works; longer if
+      something else surfaces.
 
-- [ ] **Or: dashboard-v2 polish** — if that's still the higher-priority
-      pickup. Worktree `/Users/matt/CWORK/questerra-dashboard` on
-      branch `dashboard-v2-build`.
+- [ ] **Optional:** consolidate the ~15 inline FUs scattered across
+      ALL-PROJECTS.md / dashboard / changelog into
+      `preflight-followups.md`. Mechanical cleanup pass; not
+      blocking.
 
-- [ ] **Optional pre-pilot housekeeping** (low priority):
-  - Drop legacy `machine_profiles.teacher_id` column in a follow-up
-    migration. Phase 8-3 left it as legacy (still NOT NULL via mig
-    093 ownership_check). Verify no downstream consumers (RLS on
-    other tables, FK references) before dropping.
-  - `RUN_E2E` env var still flagged missing from
-    `docs/feature-flags.yaml` (drift from tap-a-word work).
-    Register or document as test-only.
-  - PH9-FU-SCANNER-OOM-T1..T5 longevity plan (T1-T3 pre-pilot).
-  - FU-SCANNER-LEASE-REAPER P2 (blocks horizontal scaling).
-  - FU-SCANNER-CICD P2 (FLY_API_TOKEN minting + workflow file
-    pending in untracked).
+- [ ] **Pivot options after E2E smoke:**
+  - **Access Model v2 is PILOT-READY** (Phase 6 closed in parallel
+    session 4 May, tagged `v0.6-pilot1`). Pre-pilot operational
+    polish (Sentry alerts, pilot smoke checklist) is the next
+    natural pickup if not already actioned in another session.
+  - **Dashboard-v2 polish** — earlier queued work; not touched
+    today. Worktree at `questerra-dashboard` on
+    `dashboard-v2-build`.
+  - **CompliMate / Seedlings** — non-StudioLoom priorities per the
+    master index. Complete-Mate has the 1 June GACC deadline pulling.
 
 ## Open questions / blockers
 
-- **None blocking.** Phase 8 is closed. The audit doc is closed.
-  Multi-teacher prod-validated. CI green. Tests at all-day high.
+- **None blocking.** The session arc — post-Access-v2 smoke →
+  audit gap closure round 2 — was a complete loop. Preflight is
+  back on its feet, all access checks proven cross-persona under
+  flat school membership. The fabrication submission E2E is the
+  natural next pickup but isn't blocking anything else.
 
-- **3 Matts caveat:** All 3 NIS personas have `display_name = null`
-  and `name = "Matt"`. Phase 8-4 path 2 disambiguation works
-  correctly under the hood (initials populate, color hash takes
-  initials as input) but renders identically across personas
-  (`Grade 10 · M.` with same chip color) because the inputs
-  collide. Not a Phase 8 bug — it's a function of having 3 accounts
-  named Matt at one school. Real NIS pilot with 2+ distinct teacher
-  names will surface full disambiguation. Access Model v2 spec
-  addresses this identity cleanup.
+- **Lesson worth banking** for whoever runs the next audit pass:
+  scope by **route prefix**, not feature concept. The 28 Apr audit
+  framed scope as "queue + jobs + admin pages" and missed
+  `/api/teacher/fabricators/*` + `/api/fab/machines` because
+  those don't list jobs. Programmatic grep for
+  `invited_by_teacher_id !==` + `teacher_id !== teacherId`
+  surfaces every site mechanically.
 
-- **Legacy `machine_profiles.teacher_id` column** still present
-  after Phase 8-3 (orchestration writes both `teacher_id` AND
-  `created_by_teacher_id`, reads only `created_by_teacher_id`).
-  Future cleanup migration drops the column. Not urgent.
+- **PostgREST embed gotcha**: `fabricators.invited_by_teacher_id
+  REFERENCES auth.users(id)` not `teachers(id)`, even though
+  `teachers.id = auth.users.id` via mig 001 FK chain. Indirect
+  chains don't work for PostgREST embeds — need a direct FK
+  between embedded tables. Always grep `<column> REFERENCES`
+  before assuming a lab-pattern embed copies clean to a different
+  table.
 
-- **Phase 8 brief 6 open questions** — implicitly answered by the
-  shipped 8-1/8-2/8-3/8-4 work. Q1 (entity naming = labs school-scoped),
-  Q3 (cross-teacher visibility = flat), Q4 (who creates labs = any
-  teacher), Q2 (default-location = per-class via classes.default_lab_id
-  + per-teacher via teachers.default_lab_id), Q5 (student-side =
-  groupMachinesByLab unfiltered), Q6 (click vs drag = click). Brief
-  itself can be marked superseded by the actually-shipped work in
-  the next saveme.
+- **3 Matts caveat** still applies (all 3 NIS personas have
+  `display_name = null`, `name = "Matt"`). Phase 8-4 path 2
+  disambiguation works under the hood but renders identically.
+  Real NIS pilot with distinct teacher names will surface full
+  disambiguation. Access Model v2's auth unification spec
+  addresses this identity cleanup in its design.
