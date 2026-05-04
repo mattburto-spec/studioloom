@@ -14,6 +14,94 @@
 
 ---
 
+## FU-FAB-DEVICE-AUTH — Code-based fabricator login for shared lab workstations
+**Surfaced:** Post-Access-v2 retest setup, Matt prepping a 3rd account for Preflight smoke
+**Target phase:** Post-pilot UX expansion (gated on first school feedback that email-per-fab is friction)
+
+**Origin:** Matt setting up a fabricator account for testing realised the
+current "every fab is a person with an email" model assumes a dedicated
+lab tech — which most secondary DT departments don't have. The lab
+computer is shared, used by whoever the teacher delegates or by the
+teacher themselves after school. His instinct: `studioloom.org/fab` →
+type a "lab code" + "access code" → logged in. No email tied to it.
+
+**Current state (Phase 1B-2):** `fabricators` table requires
+`email NOT NULL` (Argon2id password auth, opaque session tokens). The
+invite flow generates a set-password URL but only sends it via email —
+URL is not in the API response, so without a real receivable email
+address you can't complete setup. Workaround for testing today:
+`+`-aliased email like `mattburton+fab1@nanjing-school.com`.
+
+**Proposed v1 design:**
+
+Two login_kinds on the same `fabricators` table:
+
+- `login_kind = 'email'` (today's pattern) — for schools with a
+  dedicated lab tech. Email-based auth, set-password via emailed link.
+  Accountability + named-person audit log.
+- `login_kind = 'device_code'` (new) — for shared workstations.
+  Teacher generates a 6–8 char code via the fab admin page (e.g.
+  `ALPHA7`, `LABMAC1`). Email column NULL. Login UX:
+  `/fab/login` has a "Use lab code instead?" toggle that swaps the
+  email field for a 6-char code field. No password — the code IS the
+  credential (rotatable by teacher at any time).
+
+Each fab still has a `display_name` ("DT Lab Mac" / "Cynthia") for
+the queue UI. School scoping (Phase 8-1) unchanged — both flavours
+gate by `current_teacher_school_id()` via the inviting teacher.
+
+**Schema changes:**
+- `fabricators.email` → nullable (currently NOT NULL UNIQUE)
+- Add `fabricators.login_kind` enum (`'email' | 'device_code'`,
+  default `'email'`)
+- Add `fabricators.device_code_hash` (Argon2id hash of the code,
+  same as existing `password_hash`)
+- Mutex constraint: exactly one of (email + password_hash) or
+  device_code_hash must be set per row
+- Migration: existing rows = `login_kind = 'email'`, no data
+  migration needed
+
+**Login flow:**
+- `/fab/login` UI: email/password by default, toggle to "Lab code"
+- API: `POST /api/fab/login` accepts EITHER `{email, password}` OR
+  `{deviceCode}` — returns same opaque session token shape, no other
+  downstream change
+- Session table (`fabricator_sessions`) unchanged
+
+**Audit / accountability concerns:**
+
+Device codes lose the "who-did-what" trail since a code is shared.
+Mitigation:
+- For destructive actions (mark-failed, permanent-delete), prompt
+  for the requesting teacher's initials in a confirm modal — logged
+  on the action row alongside the device fabricator_id
+- The Phase 7 `lab_tech_picked_up_by` column would track the device
+  fabricator_id, not a person — schools with strict audit needs use
+  email-based accounts instead
+
+**Why defer:**
+- Zero paying customers today — same wider-not-deeper trap as
+  FU-CNC-CATEGORY
+- The `+` alias workaround is functional for testing + early pilot
+- Adding a second auth path doubles the surface area of `/fab/login`
+  + invite admin + tests (~1.5–2 days build, real schema migration)
+- Worth doing the moment the FIRST pilot school says "we don't have
+  someone with an email for the lab" — direct customer pull
+
+**Definition of done:** (a) a pilot school has explicitly requested
+non-email fab login OR Matt onboards his own NIS lab and finds the
+email-per-fab friction unacceptable in real classroom flow, and (b)
+schema migration + login UX + invite admin updates ship together,
+and (c) audit-trail mitigation (teacher initial on destructive
+actions) is wired.
+
+**Workaround for Matt's smoke test today:** use
+`mattburton+fab1@nanjing-school.com` (+ alias routes to your inbox
+on most modern MX). Setup invite → email arrives → set password →
+log in on lab device with the aliased email + password.
+
+---
+
 ## FU-CNC-CATEGORY — CNC router as a third Preflight machine category
 **Surfaced:** 28 Apr 2026 evening, post Phase 8 closure
 **Target phase:** Post-pilot expansion (gated on ≥3 paying schools on 3D/laser)
