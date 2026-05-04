@@ -1957,3 +1957,31 @@ This skill is unrelated to the unit topic (roller coaster physics → marble run
 - One synthetic test asserting a student session POST'ing to the welcome handler returns 403/redirect, not a teacher row.
 
 **Sequence:** post-pilot. Phase 6.3b is the load-bearing fix; this is hardening on top.
+
+---
+
+## FU-NM-SCHOOL-ADMIN-CENTRALIZATION — School-level NM toggle + centralised principal-facing dashboard (P2)
+
+**Status:** OPEN — filed 4 May 2026 alongside the Lever-MM unit-editor NM-block migration.
+
+**Surfaced:** During the design conversation for moving NM configuration into the lesson editor (sub-phases MM.0B–MM.0G), Matt flagged that the current `teacher_profiles.school_context.use_new_metrics` flag is per-teacher. He'd prefer it to be a school-level admin setting where:
+1. A school admin / principal flips one toggle that turns NM on/off across the whole school.
+2. NM data (assessments, observations, competency rollups) flows into a **centralised principal-facing dashboard** showing competency progress school-wide, not just per-teacher.
+
+This is a real product capability, not just a UX rename. The data is already per-student (`competency_assessments` table); rolling it up by school is mostly a query + dashboard build.
+
+**Why P2 not P1:** Matt has a Wednesday-class deadline; the per-teacher gate works for the immediate goal of moving NM config into the editor. The principal-dashboard is genuinely a multi-day feature (school-admin role check, competency rollup queries, dashboard page, RLS policies for cross-teacher visibility). Doing it inside the unit-editor migration would blow past Wednesday.
+
+**Suggested investigation steps:**
+1. Confirm school-admin role exists and has the right RLS pattern (check Access Model v2 work — did Phase 6 land school-admin?).
+2. Decide whether the school-level toggle replaces the per-teacher `school_context.use_new_metrics` (cleaner) or stacks above it (per-teacher can opt OUT, school can opt IN — more flexible). Cleaner wins for v1 unless a teacher has a strong reason to opt out of school-mandated NM tracking.
+3. Sketch the principal-dashboard page: aggregate `competency_assessments` joined to `students` joined to `classes` joined to `teachers` joined to `schools`, group by competency × element × class × time-bucket. Pop-art visualisation pattern from existing `NMResultsPanel` likely scales — pop-art per class/teacher/year-level cells.
+4. Decide whether competency assignment is school-level too (the principal picks the competency for the whole school) or stays per-unit. School-level competency is much more aligned with how schools actually adopt frameworks; per-unit is cleaner for individual teacher autonomy.
+
+**Definition of done:**
+- One school-level toggle (likely `schools.config.use_new_metrics` or similar JSONB column) flips NM availability for the entire school.
+- Per-teacher gate becomes derived from the school setting (not directly editable, or only editable to opt-out).
+- Principal-facing route at `/principal/nm-dashboard` (or admin dashboard tab) shows school-wide competency rollups with the same pop-art aesthetic as the existing per-class results.
+- RLS policies admit a school-admin role to read assessments across teachers in their school.
+
+**Sequence:** post-Lever-MM (this week), gated on Access Model v2 Phase 6 closure (school-admin role must exist first). 2-3 days estimated.
