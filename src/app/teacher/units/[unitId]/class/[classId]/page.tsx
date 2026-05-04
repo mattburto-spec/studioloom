@@ -24,7 +24,7 @@ import { resolveClassUnitContent } from "@/lib/units/resolve-content";
 import { OpenStudioClassView } from "@/components/open-studio";
 import { PaceFeedbackSummary } from "@/components/teacher/PaceFeedbackSummary";
 import IntegrityReport from "@/components/teacher/IntegrityReport";
-import { stripResponseHtml } from "@/lib/integrity/strip-response-html";
+import { StudentResponseValue } from "@/components/teacher/StudentResponseValue";
 import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
 import { analyzeIntegrity } from "@/lib/integrity/analyze-integrity";
 import { ClassProfileOverview } from "@/components/teacher/ClassProfileOverview";
@@ -1049,7 +1049,7 @@ export default function ClassHubPage({
                             >
                               <p className="text-xs font-medium text-text-secondary uppercase tracking-wide mb-2">{label}</p>
                               <div className="bg-surface-alt rounded-lg p-3">
-                                <p className="text-sm text-text-primary whitespace-pre-wrap">{value === "true" ? "✓ Checked" : value === "false" ? "☐ Not checked" : typeof value === "string" ? stripResponseHtml(value) || "—" : JSON.stringify(value)}</p>
+                                <StudentResponseValue value={value} />
                               </div>
                               {integrityMeta && (
                                 <div className="mt-3 border-t border-gray-100 pt-3">
