@@ -162,17 +162,43 @@ export async function processManifest(
   // ── Walk manifest ──────────────────────────────────────────────
   const tables: RetentionPerTable[] = [];
   let totalSoftDeleted = 0;
+  let totalErrors = 0;
 
   for (const entry of manifest) {
     const result = await processTable(supabase, runId, entry);
     tables.push(result);
     totalSoftDeleted += result.soft_deleted;
+    if (result.error) totalErrors += 1;
   }
+
+  const completedAt = new Date().toISOString();
+
+  // Phase 6.7-followup — emit a per-run audit_event (separate from the
+  // per-table retention.soft_delete events emitted inside processTable)
+  // so the admin dashboard's "Vercel Cron Jobs" panel can show the
+  // last-fired time. Always emit, even on a zero-work / empty-manifest
+  // run — the dashboard wants to see "yes, the cron is alive". soft-warn
+  // failure mode: audit insert failure mustn't break the cron.
+  await logAuditEvent(supabase, {
+    actorId: null,
+    actorType: "system",
+    action: "retention_enforcement.run",
+    severity: totalErrors > 0 ? "warn" : "info",
+    payload: {
+      run_id: runId,
+      started_at: startedAt,
+      completed_at: completedAt,
+      tables_processed: tables.length,
+      total_soft_deleted: totalSoftDeleted,
+      total_errors: totalErrors,
+    },
+    failureMode: "soft-warn",
+  });
 
   return {
     runId,
     startedAt,
-    completedAt: new Date().toISOString(),
+    completedAt,
     summary: { tables, total_soft_deleted: totalSoftDeleted },
   };
 }

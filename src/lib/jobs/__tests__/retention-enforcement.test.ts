@@ -90,7 +90,15 @@ describe("retention-enforcement — empty manifest (v1)", () => {
       tables: [],
       total_soft_deleted: 0,
     });
-    expect(logAuditEventSpy).not.toHaveBeenCalled();
+    // Phase 6.7-followup — empty-manifest run still emits ONE audit event:
+    // the per-run summary (action='retention_enforcement.run') so the admin
+    // dashboard can show "yes, the cron is alive".
+    expect(logAuditEventSpy).toHaveBeenCalledTimes(1);
+    expect(logAuditEventSpy.mock.calls[0][1]).toMatchObject({
+      action: "retention_enforcement.run",
+      actorType: "system",
+      severity: "info",
+    });
   });
 });
 
@@ -222,16 +230,22 @@ describe("retention-enforcement — happy path (processManifest)", () => {
       status: "pending",
     });
 
-    // ONE audit event per table per run (not one per row — flooding guard)
-    expect(logAuditEventSpy).toHaveBeenCalledTimes(1);
-    expect(logAuditEventSpy.mock.calls[0][1]).toMatchObject({
+    // 2 audit events per run: one per-table soft_delete + one per-run summary
+    // (flooding guard is still per-row, not per-table; per-run summary is
+    // Phase 6.7-followup for the admin dashboard's "last fired" panel).
+    expect(logAuditEventSpy).toHaveBeenCalledTimes(2);
+    const softDeleteCall = logAuditEventSpy.mock.calls.find(
+      (c) => (c[1] as { action: string }).action === "retention.soft_delete",
+    );
+    expect(softDeleteCall).toBeDefined();
+    expect(softDeleteCall![1]).toMatchObject({
       action: "retention.soft_delete",
       actorType: "system",
       severity: "info",
       failureMode: "throw",
       targetTable: "students",
     });
-    const payload = (logAuditEventSpy.mock.calls[0][1] as {
+    const payload = (softDeleteCall![1] as {
       payload: Record<string, unknown>;
     }).payload;
     expect(payload).toMatchObject({
@@ -239,6 +253,11 @@ describe("retention-enforcement — happy path (processManifest)", () => {
       basis: "coppa_art_6",
       soft_deleted_count: 3,
     });
+    // Per-run summary audit
+    const summaryCall = logAuditEventSpy.mock.calls.find(
+      (c) => (c[1] as { action: string }).action === "retention_enforcement.run",
+    );
+    expect(summaryCall).toBeDefined();
   });
 
   it("per-table error captured; processing continues; no audit for the failed table", async () => {
@@ -269,10 +288,21 @@ describe("retention-enforcement — happy path (processManifest)", () => {
     );
     expect(teachersResult?.soft_deleted).toBe(1);
 
-    // 1 audit emit (only for teachers — students errored)
-    expect(logAuditEventSpy).toHaveBeenCalledTimes(1);
-    expect(logAuditEventSpy.mock.calls[0][1]).toMatchObject({
+    // 2 audit emits: per-table soft_delete (only for teachers — students
+    // errored) + per-run summary. Per-run summary's severity is 'warn'
+    // because totalErrors > 0.
+    expect(logAuditEventSpy).toHaveBeenCalledTimes(2);
+    const softDeleteCall = logAuditEventSpy.mock.calls.find(
+      (c) => (c[1] as { action: string }).action === "retention.soft_delete",
+    );
+    expect(softDeleteCall![1]).toMatchObject({
       targetTable: "teachers",
+    });
+    const summaryCall = logAuditEventSpy.mock.calls.find(
+      (c) => (c[1] as { action: string }).action === "retention_enforcement.run",
+    );
+    expect(summaryCall![1]).toMatchObject({
+      severity: "warn",
     });
   });
 
@@ -288,7 +318,11 @@ describe("retention-enforcement — happy path (processManifest)", () => {
     expect(result.summary.total_soft_deleted).toBe(0);
     expect(result.summary.tables[0].soft_deleted).toBe(0);
     expect(state.capturedInserts).toHaveLength(0);
-    expect(logAuditEventSpy).not.toHaveBeenCalled();
+    // Per-run summary still emits even on zero-work runs (the cron-alive signal).
+    expect(logAuditEventSpy).toHaveBeenCalledTimes(1);
+    expect(logAuditEventSpy.mock.calls[0][1]).toMatchObject({
+      action: "retention_enforcement.run",
+    });
   });
 
   it("unknown table maps to no scheduled_deletions row but soft-delete still fires", async () => {
@@ -304,7 +338,7 @@ describe("retention-enforcement — happy path (processManifest)", () => {
     expect(result.summary.tables[0].soft_deleted).toBe(1);
     // No scheduled_deletions insert because target_type doesn't map
     expect(state.capturedInserts).toHaveLength(0);
-    // Audit DOES fire — soft-delete happened
-    expect(logAuditEventSpy).toHaveBeenCalledTimes(1);
+    // Audit fires twice: per-table soft_delete + per-run summary.
+    expect(logAuditEventSpy).toHaveBeenCalledTimes(2);
   });
 });
