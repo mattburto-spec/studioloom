@@ -1,12 +1,14 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 /**
  * /api/teacher/fabricators
- *   GET  — list fabricators the current teacher has invited
+ *   GET  — list fabricators at the current teacher's school
  *   POST — invite a new fabricator (creates INVITE_PENDING row + is_setup session + emails link)
  *
- * Auth: teacher (Supabase Auth). Fabricators are scoped by invited_by_teacher_id
- * so teachers only see their own invitees. School-level sharing lands with
- * FU-P (school entity) post Phase 1B-2.
+ * Auth: teacher (Supabase Auth). Phase 8-1 + Round 2 audit (4 May
+ * 2026): fabricators are now SCHOOL-scoped — any teacher at the
+ * school sees + manages any of the school's fabs. Replaces the
+ * pre-flat-membership pattern of `invited_by_teacher_id = user.id`.
+ * `invited_by_teacher_id` stays as audit-only legacy column.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -18,6 +20,11 @@ import {
 } from "@/lib/fab/auth";
 import { sendFabricationEmail } from "@/lib/preflight/email";
 import { renderInviteEmail } from "@/lib/preflight/email-templates";
+import {
+  loadTeacherSchoolId,
+  isOrchestrationError,
+} from "@/lib/fabrication/lab-orchestration";
+import { findFabricatorByEmail } from "@/lib/fabrication/fab-orchestration";
 
 const INVITE_PENDING = "INVITE_PENDING";
 
@@ -54,10 +61,39 @@ export async function GET(request: NextRequest) {
 
   const admin = createAdminClient();
 
+  // Phase 8-1 + Round 2 audit (4 May 2026): school-scoped list.
+  // Resolve the calling teacher's school, then return every fab
+  // whose inviter is at the same school. Cross-school fabs are
+  // invisible (consistent with labs/machines).
+  const schoolResult = await loadTeacherSchoolId(admin, user.id);
+  if (isOrchestrationError(schoolResult)) {
+    return privateJson(
+      { error: schoolResult.error.message },
+      schoolResult.error.status
+    );
+  }
+  const schoolId = schoolResult.schoolId;
+
+  // First pull every teacher_id at this school. We need this to
+  // bracket the inviter set for the fab list. Excludes the
+  // @studioloom.internal sentinel (school_id IS NULL anyway, but
+  // belt + braces).
+  const { data: peers, error: peersError } = await admin
+    .from("teachers")
+    .select("id")
+    .eq("school_id", schoolId);
+  if (peersError) {
+    return privateJson({ error: `Peer lookup failed: ${peersError.message}` }, 500);
+  }
+  const inviterIds = (peers ?? []).map((p) => p.id);
+  if (inviterIds.length === 0) {
+    return privateJson({ fabricators: [] });
+  }
+
   const { data: fabricators, error: fabError } = await admin
     .from("fabricators")
     .select("id, email, display_name, is_active, created_at, last_login_at, password_hash")
-    .eq("invited_by_teacher_id", user.id)
+    .in("invited_by_teacher_id", inviterIds)
     .order("created_at", { ascending: false });
 
   if (fabError) {
@@ -147,6 +183,18 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
+  // Phase 8-1 + Round 2 audit: resolve calling teacher's school
+  // first. Used for (a) school-scoped existence check on the email,
+  // (b) display name for the invite email copy.
+  const schoolResult = await loadTeacherSchoolId(admin, user.id);
+  if (isOrchestrationError(schoolResult)) {
+    return privateJson(
+      { error: schoolResult.error.message },
+      schoolResult.error.status
+    );
+  }
+  const schoolId = schoolResult.schoolId;
+
   // Look up the current teacher's display name for the email copy.
   const { data: teacherRow } = await admin
     .from("teachers")
@@ -162,24 +210,35 @@ export async function POST(request: NextRequest) {
     teacherRow?.email?.split("@")[0] ||
     "Your teacher";
 
-  // Find an existing fabricator owned by this teacher with the same email.
-  const { data: existing } = await admin
-    .from("fabricators")
-    .select("id, invited_by_teacher_id, password_hash")
-    .ilike("email", email)
-    .maybeSingle();
+  // Find an existing fabricator with the same email — anywhere.
+  // The helper resolves the inviter's school for the membership
+  // decision below.
+  const lookup = await findFabricatorByEmail(admin, email);
+  if (isOrchestrationError(lookup)) {
+    return privateJson(
+      { error: lookup.error.message },
+      lookup.error.status
+    );
+  }
 
   let fabricatorId: string;
 
-  if (existing) {
-    if (existing.invited_by_teacher_id !== user.id) {
-      // Another teacher owns this fabricator — don't let the second teacher
-      // reassign or overwrite. School-level sharing is FU-P scope.
+  if (lookup) {
+    const { row: existing, inviterSchoolId } = lookup;
+    if (inviterSchoolId !== schoolId) {
+      // Different school: don't let School B hijack School A's fab.
+      // 409 with a school-level error (replaces the pre-flat-membership
+      // "another teacher" error — under flat school membership, any
+      // teacher at the same school is allowed to take over a teammate's
+      // pending invite).
       return privateJson(
-        { error: "A fabricator with that email already belongs to another teacher." },
+        { error: "A fabricator with that email already belongs to another school." },
         409
       );
     }
+    // Same school → allow take-over / resend regardless of which
+    // teacher persona originally invited. Any teacher at the school
+    // can re-send.
     if (!resend) {
       return privateJson(
         {

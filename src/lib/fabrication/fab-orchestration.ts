@@ -349,6 +349,167 @@ export async function fabricatorSchoolContext(
   };
 }
 
+// ============================================================
+// School-scoped fabricator admin helpers
+// ============================================================
+//
+// Phase 8-1 + Round 2 audit (4 May 2026): the 5 routes under
+// /api/teacher/fabricators/* still gated on
+// `fabricator.invited_by_teacher_id === user.id`. Under flat school
+// membership this is wrong — any teacher at the school should see +
+// manage any of the school's fabs. This helper family mirrors the
+// `loadSchoolOwnedLab` pattern from lab-orchestration: cross-school
+// → 404 (no existence leak), same-school → row returned for the
+// route to act on.
+//
+// `invited_by_teacher_id` stays as legacy audit-only column (same
+// pattern as machine_profiles.teacher_id post Phase 8-3). Future
+// cleanup migration could rename to `created_by_teacher_id` for
+// consistency, but that's separate.
+
+/** Subset of fabricators columns most admin routes need. */
+export interface SchoolOwnedFabricator {
+  id: string;
+  email: string;
+  display_name: string | null;
+  is_active: boolean;
+  password_hash: string;
+  invited_by_teacher_id: string | null;
+}
+
+/**
+ * Load a fabricator by id, scoped to the calling teacher's school.
+ * Returns 404 on not-found OR cross-school. Same error message in
+ * both cases — don't leak existence of fabs at other schools.
+ *
+ * Resolves the fab's school via the inviter's `teachers.school_id`.
+ * If the inviter has no school_id (orphan teacher pre-welcome-wizard),
+ * the fab is unreachable from any school's admin surface — surface
+ * as 404.
+ */
+export async function loadSchoolOwnedFabricator(
+  db: SupabaseLike,
+  schoolId: string,
+  fabricatorId: string
+): Promise<{ fabricator: SchoolOwnedFabricator } | OrchestrationError> {
+  const result = await db
+    .from("fabricators")
+    .select(
+      "id, email, display_name, is_active, password_hash, invited_by_teacher_id, inviter:teachers!fabricators_invited_by_teacher_id_fkey(school_id)"
+    )
+    .eq("id", fabricatorId)
+    .maybeSingle();
+  const { data, error } = result as {
+    data:
+      | (SchoolOwnedFabricator & {
+          inviter:
+            | { school_id: string | null }
+            | { school_id: string | null }[]
+            | null;
+        })
+      | null;
+    error: { message: string } | null;
+  };
+
+  if (error) {
+    return {
+      error: {
+        status: 500,
+        message: `Fabricator lookup failed: ${error.message}`,
+      },
+    };
+  }
+  if (!data) {
+    return { error: { status: 404, message: "Fabricator not found." } };
+  }
+
+  // PostgREST embed shape: object or array depending on FK direction.
+  const inviter = Array.isArray(data.inviter) ? data.inviter[0] : data.inviter;
+  const inviterSchoolId = inviter?.school_id ?? null;
+  if (inviterSchoolId !== schoolId) {
+    return { error: { status: 404, message: "Fabricator not found." } };
+  }
+
+  return {
+    fabricator: {
+      id: data.id,
+      email: data.email,
+      display_name: data.display_name,
+      is_active: data.is_active,
+      password_hash: data.password_hash,
+      invited_by_teacher_id: data.invited_by_teacher_id,
+    },
+  };
+}
+
+/**
+ * Find an existing fabricator by email AT THE CALLING TEACHER'S SCHOOL.
+ * Used by the invite POST to disambiguate three cases:
+ *   - null     → no fab with this email anywhere (or fab is at
+ *                another school — caller treats both as "no
+ *                conflict" and creates a fresh row)
+ *   - { row, sameSchool: true }  → existing fab at this school;
+ *                caller drives resend logic
+ *   - { row, sameSchool: false } → existing fab at a different
+ *                school; caller 409s with "belongs to another school"
+ *                to avoid letting school B hijack school A's fab.
+ *
+ * Email match is case-insensitive (matches the unique index).
+ */
+export async function findFabricatorByEmail(
+  db: SupabaseLike,
+  email: string
+): Promise<
+  | {
+      row: SchoolOwnedFabricator;
+      inviterSchoolId: string | null;
+    }
+  | null
+  | OrchestrationError
+> {
+  const result = await db
+    .from("fabricators")
+    .select(
+      "id, email, display_name, is_active, password_hash, invited_by_teacher_id, inviter:teachers!fabricators_invited_by_teacher_id_fkey(school_id)"
+    )
+    .ilike("email", email)
+    .maybeSingle();
+  const { data, error } = result as {
+    data:
+      | (SchoolOwnedFabricator & {
+          inviter:
+            | { school_id: string | null }
+            | { school_id: string | null }[]
+            | null;
+        })
+      | null;
+    error: { message: string } | null;
+  };
+
+  if (error) {
+    return {
+      error: {
+        status: 500,
+        message: `Fabricator lookup failed: ${error.message}`,
+      },
+    };
+  }
+  if (!data) return null;
+
+  const inviter = Array.isArray(data.inviter) ? data.inviter[0] : data.inviter;
+  return {
+    row: {
+      id: data.id,
+      email: data.email,
+      display_name: data.display_name,
+      is_active: data.is_active,
+      password_hash: data.password_hash,
+      invited_by_teacher_id: data.invited_by_teacher_id,
+    },
+    inviterSchoolId: inviter?.school_id ?? null,
+  };
+}
+
 /**
  * Confirms the fabricator can CURRENTLY pick up this job — job
  * exists AND its machine is in the fabricator's assignment list.
