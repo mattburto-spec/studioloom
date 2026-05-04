@@ -57,6 +57,24 @@ export function WordPopover({
   const [mounted, setMounted] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
 
+  // Stable refs for handlers used inside the global listeners. The parent
+  // (TappableText) recreates `onClose` on every render, so binding the
+  // listener directly to it would tear down + rebuild the click-outside
+  // listener on every state transition (loading→loaded). That churn is the
+  // most likely cause of the "popover says 'Looking up…' then disappears"
+  // bug Matt reported on 4 May 2026 — a stray mousedown landing in the
+  // listener-rebuild gap, or a stale closure firing after a fast re-render.
+  // With refs, the effect runs ONCE per mount and reads the latest onClose
+  // / state values when the listener fires.
+  const onCloseRef = useRef(onClose);
+  const stateRef = useRef(state);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
   // SSR safety: createPortal needs document — only render after mount.
   useEffect(() => {
     setMounted(true);
@@ -67,22 +85,28 @@ export function WordPopover({
     setImageFailed(false);
   }, [imageUrl]);
 
-  // Close on Esc.
+  // Close on Esc — runs ONCE per mount via stable ref.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, []);
 
-  // Close on click outside the popover.
+  // Close on click outside the popover — runs ONCE per mount via stable ref.
+  // Guards against dismissing while the lookup is still in-flight: students
+  // shouldn't lose their definition mid-fetch from a stray click on the
+  // page. They can still dismiss via Esc or by tapping outside once the
+  // result has arrived.
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
+      // Don't dismiss while loading — wait for the definition (or error) to land.
+      if (stateRef.current === "loading") return;
       const node = popoverRef.current;
       if (!node) return;
       if (e.target instanceof Node && !node.contains(e.target)) {
-        onClose();
+        onCloseRef.current();
       }
     };
     // Defer to next tick so the click that opened the popover doesn't immediately close it.
@@ -91,7 +115,7 @@ export function WordPopover({
       clearTimeout(t);
       window.removeEventListener("mousedown", onClick);
     };
-  }, [onClose]);
+  }, []);
 
   if (!mounted || typeof document === "undefined") return null;
 
@@ -139,6 +163,16 @@ export function WordPopover({
             />
           )}
         </>
+      )}
+      {/* Defense-in-depth: never render an empty popover. If state somehow
+          reads as 'loaded' but definition is missing (shouldn't happen — the
+          hook downgrades to error in that case — but if any future regression
+          breaks that invariant, this prevents the popover blanking out and
+          looking like a spontaneous dismissal). */}
+      {state === "loaded" && !definition && (
+        <div className="text-gray-500 text-xs italic">
+          No definition available.
+        </div>
       )}
       {state === "error" && (
         <div className="text-red-600 text-xs">

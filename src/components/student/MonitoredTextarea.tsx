@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
 } from "react";
+import { MarkdownToolbar } from "./MarkdownToolbar";
 
 /**
  * IntegrityMetadata: Academic integrity tracking data collected silently from textarea interactions.
@@ -296,25 +297,37 @@ export function MonitoredTextarea({
     metricsRef.current.characterCount = value.length;
   }, [value]);
 
-  // Default Tailwind classes matching ResponseInput textarea
+  // Default Tailwind classes matching ResponseInput textarea.
+  // bg-white is explicit so the typing surface stays white-on-white in the
+  // warm-paper Bold lesson scope (otherwise the textarea inherits the
+  // var(--sl-paper) tint of its parent card and looks muddy).
   const baseClassName =
-    "w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-transparent resize-y text-sm";
+    "w-full px-4 py-3 border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-transparent resize-y text-sm";
   const finalClassName = className ? `${baseClassName} ${className}` : baseClassName;
 
   return (
-    <textarea
-      ref={textareaRef}
-      id={id}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      onPaste={handlePaste}
-      onKeyDown={handleKeyDown}
-      onFocus={handleFocus}
-      onBlur={handleBlur}
-      placeholder={placeholder}
-      rows={rows}
-      disabled={disabled}
-      className={finalClassName}
-    />
+    <div>
+      {!disabled && (
+        <MarkdownToolbar
+          textareaRef={textareaRef}
+          value={value}
+          onChange={onChange}
+        />
+      )}
+      <textarea
+        ref={textareaRef}
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onPaste={handlePaste}
+        onKeyDown={handleKeyDown}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        placeholder={placeholder}
+        rows={rows}
+        disabled={disabled}
+        className={finalClassName}
+      />
+    </div>
   );
 }

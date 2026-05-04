@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ResponseType } from "@/types";
 import { MonitoredTextarea } from "./MonitoredTextarea";
 import type { IntegrityMetadata } from "./MonitoredTextarea";
+import { MarkdownToolbar } from "./MarkdownToolbar";
 import { DecisionMatrix } from "./DecisionMatrix";
 import { PMIFramework } from "./PMIFramework";
 import { PairwiseComparison } from "./PairwiseComparison";
@@ -68,6 +69,10 @@ export function ResponseInput({
       : responseType
   );
 
+  // Local ref for the plain (non-monitored) textarea path so MarkdownToolbar
+  // can drive the selection. The monitored path owns its own ref internally.
+  const plainTextareaRef = useRef<HTMLTextAreaElement>(null);
+
   return (
     <div className="space-y-2">
       {/* Response type selector for multi */}
@@ -124,14 +129,22 @@ export function ResponseInput({
             rows={4}
           />
         ) : (
-          <textarea
-            id={`response-${sectionIndex}`}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder}
-            rows={4}
-            className="w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-transparent resize-y text-sm"
-          />
+          <div>
+            <MarkdownToolbar
+              textareaRef={plainTextareaRef}
+              value={value}
+              onChange={onChange}
+            />
+            <textarea
+              ref={plainTextareaRef}
+              id={`response-${sectionIndex}`}
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder={placeholder}
+              rows={4}
+              className="w-full px-4 py-3 border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-transparent resize-y text-sm"
+            />
+          </div>
         ))}
 
       {/* Upload */}
