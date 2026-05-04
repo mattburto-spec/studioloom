@@ -1222,6 +1222,84 @@ For tools with hardcoded inline strings (the 24 deferred), the migration involve
 
 ---
 
+## FU-WORD-CACHE-HIT-TRACKING — Track cache hit_count + last_hit_at on word_definitions (P2)
+**Surfaced:** 4 May 2026, Matt smoke after textarea/popover round 2
+**Trigger:** Matt asked "hows the cache idea going for word defs to increase speed and decrease cost?" — answer was *cache works, observability is thin*. Single point measurement (cold-cache-smoke 27 Apr) showed 11.2% hit rate on real lessons after 578-word seed. Nothing tracked since.
+
+**Issue:** `word_definitions` has `generated_at` but no `hit_count` or `last_hit_at` columns. Can't see which cached words are popular vs cold, can't measure live hit-rate, can't identify good pre-warm candidates from real student behaviour. Every other word-cache improvement (per-unit pre-warm, hot-words admin page, lemmatisation cost-benefit analysis) sits on top of this.
+
+**Fix:**
+1. Migration (timestamp-prefixed): `ALTER TABLE word_definitions ADD COLUMN hit_count INTEGER NOT NULL DEFAULT 0, ADD COLUMN last_hit_at TIMESTAMPTZ;`
+2. In `src/app/api/student/word-lookup/route.ts` cache-HIT branch (lines 127–137): bump `hit_count` + set `last_hit_at = now()` via a non-blocking `supabase.from('word_definitions').update(...).eq(...)` (don't await — student response shouldn't wait on the hit-count write).
+3. Add the columns to `docs/schema-registry.yaml` word_definitions entry.
+
+**Definition of done:** Querying `SELECT word, hit_count, last_hit_at FROM word_definitions ORDER BY hit_count DESC LIMIT 20` returns a real top-20 list within a week of shipping. The per-week hit-rate query becomes possible:
+```sql
+SELECT
+  sum(CASE WHEN last_hit_at > now() - interval '7 days' THEN hit_count ELSE 0 END) AS recent_hits,
+  count(*) FILTER (WHERE generated_at > now() - interval '7 days') AS recent_misses
+FROM word_definitions;
+```
+
+**Why P2 not P3:** Unlocks every other observability + optimisation move on the cache. Cheapest one to ship (~10-line route diff + 4-line migration), highest leverage.
+
+---
+
+## FU-WORD-CACHE-PER-UNIT-PREWARM — Async warm definitions on unit publish (P3)
+**Surfaced:** 4 May 2026, Matt smoke after textarea/popover round 2
+**Trigger:** Cache discussion — cold-cache hit rate is 11.2% because the 578-word global seed is generic design vocab; a unit on (e.g.) "Sustainable transport" introduces dozens of topic-specific words that none of the global seed covers. First student per class pays the latency for every miss.
+
+**Issue:** Today, when a teacher publishes a unit, the unit's vocabulary is never pre-warmed. The first student to tap "aerodynamic" on each lesson page pays the ~1.2s Haiku miss; subsequent students hit the cache for free. With 12 students per class × 30 design-domain words per unit, that's ~360 first-tap latencies per unit launch that could be eliminated for ~$0.04 of pre-warm spend.
+
+**Fix:**
+1. After unit publish (or after lesson editor save), extract candidate words from lesson body text + activity prompts + vocab warmup terms. Filter to words ≥4 chars + not already in `word_definitions` for the relevant `(language, l1_target)` pair.
+2. Async-warm via batched Haiku calls (chunk 20 words/call to amortise overhead), guard with the existing AI budget cascade (school > class > tier).
+3. Implementation skeleton: new route `POST /api/teacher/units/[unitId]/prewarm-vocab` invoked by the editor's save handler, fire-and-forget. Extract logic into `lib/tap-a-word/extract-unit-vocab.ts` so it's testable in isolation.
+4. Per-class L1: if any students in the class have non-`en` `l1_target`, also pre-warm those translation rows.
+
+**Gating:** Depends on FU-WORD-CACHE-HIT-TRACKING shipping first so we can measure the actual hit-rate lift after pre-warm. Otherwise this is "build feature → hope it helps."
+
+**Definition of done:** A freshly-published unit on a novel topic shows ≥80% cache hit rate within 24 hours of publish (vs current ~11% baseline). Per-unit pre-warm adds ≤$0.10 to the unit-publish cost.
+
+---
+
+## FU-WORD-CACHE-ADMIN-PAGE — Live cache observability at /admin/registries/word-cache (P3)
+**Surfaced:** 4 May 2026, Matt smoke after textarea/popover round 2
+
+**Issue:** No surface today shows cache health to admins. Once FU-WORD-CACHE-HIT-TRACKING lands, the data exists but is only queryable via SQL.
+
+**Fix:** Read-only admin page at `/admin/registries/word-cache` (matches the existing `/admin/controls/registries` pattern from GOV-1). Surface:
+- Total cached rows (split by `l1_target`)
+- This-week hit count + miss count + hit %
+- Top-100 hottest words (highest `hit_count`)
+- Top-50 single-use words (cached once, never re-hit — pre-warm seed candidates for the inverse: words to NOT bother pre-warming)
+- Per-unit hit rate breakdown (joined via lesson-body word extraction) — see which units are well-covered vs cold
+
+**Pre-reqs:** FU-WORD-CACHE-HIT-TRACKING (data) + ideally FU-WORD-CACHE-PER-UNIT-PREWARM (so the per-unit breakdown is meaningful).
+
+**Definition of done:** Admin can answer "is the cache working?" and "which units need more pre-warm?" without writing SQL.
+
+---
+
+## FU-WORD-CACHE-LEMMATISATION — Stem-normalise cache keys to dedupe inflections (P3)
+**Surfaced:** 4 May 2026, Matt smoke after textarea/popover round 2
+
+**Issue:** `word_definitions.word` is exact-match. "design", "designs", "designed", "designing" each generate four separate rows, four separate Haiku calls, four separate cache misses on first tap. English Wiktionary stats suggest stem-deduplication saves ~30% on miss rate for academic vocabulary.
+
+**Fix:** Lemmatise the word client-side (or in the route's pre-cache-lookup step) before keying the cache. Two viable paths:
+- (a) Client-side: bundle a small lemmatiser (compromise.js ~200KB, or a lighter custom suffix-stripper for common English inflections — `-s`, `-es`, `-ed`, `-ing`, `-ly`, `-er`, `-est` covers ~90% of the win). Send both raw + lemma to the route; route prefers lemma cache hit.
+- (b) Server-side: lemmatise in the route before the cache lookup. No bundle cost on the client; ~5ms added latency per lookup.
+
+(b) is preferred — keeps the client thin, lets us iterate on lemmatisation rules without redeploying the SPA.
+
+**Correctness risk:** Some lemma collisions are wrong ("better"→"good" via irregular forms, "axis"→"axe" via false-friend stripping). Need a curated stop-list of inflections we DON'T strip, plus a test suite of ~50 edge cases. Not free; budget a half-day.
+
+**Pre-reqs:** FU-WORD-CACHE-HIT-TRACKING — without it we can't measure whether lemmatisation actually moves the hit rate. If it doesn't (e.g. because students mostly tap nouns in their base form), the build doesn't pay off.
+
+**Definition of done:** Hit rate on a fresh class lift ≥20% vs the non-lemmatised baseline measured via FU-WORD-CACHE-HIT-TRACKING. False-positive collision rate (lemma maps two semantically distinct words to the same key) <0.5% measured against a manual sample of the top-200 hot words.
+
+---
+
 ## FU-PROGRESS-COHORT-YEAR — Cohort-year attribution for student_progress (P3)
 **Surfaced:** 28 Apr 2026 PM, class-architecture-cleanup §2 resolution
 **Captured in:** `docs/decisions-log.md` (28 Apr 2026 PM cohort-scoping decision), `docs/projects/class-architecture-cleanup.md` §2
