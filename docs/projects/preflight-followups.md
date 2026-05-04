@@ -14,6 +14,111 @@
 
 ---
 
+## FU-FAB-INVITE-SCHOOL-SCOPED — Fabricator invite still gates on teacher_id, not school_id (Phase 8-1 audit gap)
+**Surfaced:** 29 Apr 2026, post-Access-v2 Preflight retest setup
+**Target phase:** Quick fix — Phase 8-5 cleanup or wherever fab-orchestration is next touched
+**Severity:** 🟠 MED (workflow-friction; not data-leak)
+
+**Symptom:** Matt couldn't invite his teacher email (`mattburton@nanjing-school.com`)
+as a fab because an `INVITE_PENDING` row from 24 Apr (invited by his
+other NIS persona `mattburto@gmail.com`) was still sitting in the
+table. Error returned: *"A fabricator with that email already belongs
+to another teacher."* Hard-block, no resend path.
+
+**Root cause:** `src/app/api/teacher/fabricators/route.ts` line 174:
+
+```ts
+if (existing.invited_by_teacher_id !== user.id) {
+  return privateJson(
+    { error: "A fabricator with that email already belongs to another teacher." },
+    409
+  );
+}
+```
+
+This check is **teacher-scoped** — pre-Phase-8-1 era code. Under flat
+school membership (Phase 8-1 + 8-2 + 8-3 contract), any teacher at
+the same school should be able to take over / re-invite / delete an
+existing fab row. The `invited_by_teacher_id` should be audit-only,
+not access-control, mirroring the `created_by_teacher_id` pattern
+established for labs (Phase 8-2) and machines (Phase 8-3).
+
+**Audit:** missed during the Phase 8-1 + Round 1 audit (28 Apr).
+Caught today (29 Apr) when it blocked Matt's own multi-persona
+testing. The audit doc preflight-audit-28-apr.md is closed 12/12 ✅
+but THIS site wasn't on the surface — fab-orchestration's queue + job
+paths got swept (HIGH-2/3/4) but the invite/admin route wasn't
+audited because it didn't directly touch jobs.
+
+**Fix:**
+
+Replace the teacher-id check with a school check via the established
+helpers:
+
+```ts
+import { loadTeacherSchoolId } from "@/lib/fabrication/lab-orchestration";
+
+// ... inside POST handler, after auth:
+const schoolResult = await loadTeacherSchoolId(admin, user.id);
+if (isOrchestrationError(schoolResult)) {
+  return privateJson({ error: schoolResult.error.message }, schoolResult.error.status);
+}
+const schoolId = schoolResult.schoolId;
+
+// When loading existing fab, also check its school via the inviting teacher chain:
+const { data: existing } = await admin
+  .from("fabricators")
+  .select(`
+    id, invited_by_teacher_id, password_hash,
+    inviter:teachers!fabricators_invited_by_teacher_id_fkey(school_id)
+  `)
+  .ilike("email", email)
+  .maybeSingle();
+
+if (existing) {
+  const inviterSchoolId = pickFirst(existing.inviter)?.school_id;
+  if (inviterSchoolId !== schoolId) {
+    return privateJson(
+      { error: "A fabricator with that email already belongs to another school." },
+      409
+    );
+  }
+  // Same school → fall through to resend path (no per-teacher gate).
+  // ... existing resend logic continues unchanged
+}
+```
+
+The error message also gets clearer: "another school" is the right
+boundary; "another teacher" was wrong because flat membership means
+any teacher at the school should take over a teammate's pending
+invite without ceremony.
+
+**Audit-while-here:** the same teacher_id check probably exists on
+the reset-password + deactivate + machine-assign routes for fabs.
+Sweep `/api/teacher/fabricators/[id]/*` for the same pattern when
+fixing this. Likely also `/api/teacher/labs/[id]/bulk-approval`...
+no, that one was Phase 8-3 swept. But verify all `/api/teacher/fabricators/*`.
+
+**Workaround for testing today (Matt's current state):** hand-delete
+the stale row in SQL:
+```sql
+DELETE FROM fabricators
+WHERE id = '2df7d022-51b3-4c73-9b35-e0fd0a80e397';
+```
+Then re-invite fresh from the new persona. The `INVITE_PENDING` row
+was old test debris; no real data lost.
+
+**Definition of done:** (a) `/api/teacher/fabricators/route.ts`
+invite path uses `loadTeacherSchoolId` + school-id comparison via
+the inviter's teachers FK chain, (b) all sibling routes under
+`/api/teacher/fabricators/[id]/*` audited for the same pattern
+(reset-password + deactivate + machines/[machineId]), (c) at least
+one new route test locks in the school-scoped behavior
+(cross-school 409, same-school resend works), and (d) audit doc gets
+a P.S. entry noting the late-found gap that Phase 8-1 audit missed.
+
+---
+
 ## FU-FAB-DEVICE-AUTH — Code-based fabricator login for shared lab workstations
 **Surfaced:** Post-Access-v2 retest setup, Matt prepping a 3rd account for Preflight smoke
 **Target phase:** Post-pilot UX expansion (gated on first school feedback that email-per-fab is friction)
