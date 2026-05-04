@@ -1880,3 +1880,35 @@ For the uuid/exceljs chain: wait for either (a) exceljs to bump its uuid dep (tr
 **Definition of done:** npm audit shows 0 vulns of moderate or higher.
 
 **Sequence:** opportunistic. Re-run `npm audit` quarterly; close when upstream patches land.
+
+---
+
+## FU-AV2-WELCOME-WIZARD-AUTO-CREATE-HARDENING — `/teacher/welcome` auto-creates teacher row + personal school on first visit (P2)
+
+**Status:** OPEN — filed 4 May 2026 after data-cleanup of 3 stray teacher rows + 3 orphan schools.
+
+**Surfaced:** the cross-tab cookie collision (FU-AV2-CROSS-TAB-ROLE-COLLISION) caused 3 student sessions to land on `/teacher/welcome` over the course of the Phase 6 work. The welcome wizard auto-created `teachers` rows + auto-created "personal schools" for each, even though `auth.users.app_metadata.user_type === 'student'` for all 3 (verified in the cleanup diagnostic). Phase 6.3b's middleware guard now redirects student sessions away from `/teacher/*`, preventing new occurrences via THIS trigger — but the wizard's "no questions asked, create the teacher record" behaviour is the underlying hazard.
+
+**Cleanup performed 4 May:** 3 stray `teachers` rows + 3 orphan `schools` rows deleted. `auth.users.user_type` was correctly `'student'` for all 3 (the wizard didn't flip the claim, which is the only reason students could still log in normally afterwards). 1 `auth.users` row (`580f9831...`, orphan with no `students` row) left behind as harmless dead weight — can't log in without class context.
+
+**The actual bug:** `/teacher/welcome` is a destructive flow that mutates state on first GET — creates teacher row, creates school, sets up governance defaults. Any session that reaches it without an explicit "I am a teacher onboarding for the first time" click is hazardous. Today the trigger was cookie collision; tomorrow it could be a misconfigured redirect, a stale link in an email, or an LMS deep-link bug.
+
+**Recommended fix (defence in depth on top of the 6.3b middleware guard):**
+
+1. **Hard guard at the page level:** before any state mutation, the welcome page should verify `session.user.app_metadata.user_type === 'teacher'`. If not, redirect to `/dashboard?wrong_role=1` with the same toast UX as the middleware. This catches the case where the middleware allowed-through (e.g. user_type was `null` from a backfill gap) but the actual user shouldn't see this flow.
+
+2. **Make state creation explicit:** the GET handler should ONLY render the form, never mutate. Move teacher row + school creation into a POST handler triggered by an explicit "Get started" button click. This breaks the "any GET creates state" anti-pattern entirely.
+
+3. **Audit other auto-create-on-first-visit flows:** grep for other pages that create rows on a GET request without explicit user action. Each is a potential cookie-collision hazard.
+
+**Why P2 (not P1):**
+- Phase 6.3b's middleware guard already prevents the most likely trigger (cookie collision).
+- Cleanup of the 3 affected rows was straightforward (intact `auth.users.user_type` saved us).
+- A real student in real prod would only hit this if both Phase 6.3b's middleware AND defence-in-depth (1) failed simultaneously.
+
+**Definition of done:**
+- Welcome page checks `user_type === 'teacher'` before any mutation; rejects with the wrong-role redirect otherwise.
+- Mutation moved out of GET handler into explicit POST.
+- One synthetic test asserting a student session POST'ing to the welcome handler returns 403/redirect, not a teacher row.
+
+**Sequence:** post-pilot. Phase 6.3b is the load-bearing fix; this is hardening on top.
