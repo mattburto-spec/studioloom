@@ -2645,8 +2645,7 @@ routes:
   method: PATCH
   file: src/app/api/teacher/fabricators/[id]/route.ts
   auth: teacher
-  tables_read:
-  - fabricators
+  tables_read: []
   tables_written:
   - fabricator_sessions
   - fabricators
@@ -2657,8 +2656,7 @@ routes:
   method: DELETE
   file: src/app/api/teacher/fabricators/[id]/route.ts
   auth: teacher
-  tables_read:
-  - fabricators
+  tables_read: []
   tables_written:
   - fabricator_sessions
   - fabricators
@@ -2670,7 +2668,6 @@ routes:
   file: src/app/api/teacher/fabricators/[id]/machines/route.ts
   auth: teacher
   tables_read:
-  - fabricators
   - machine_profiles
   tables_written:
   - fabricator_machines
@@ -2681,8 +2678,7 @@ routes:
   method: POST
   file: src/app/api/teacher/fabricators/[id]/reset-password/route.ts
   auth: teacher
-  tables_read:
-  - fabricators
+  tables_read: []
   tables_written:
   - fabricator_sessions
   ai_call_sites: []

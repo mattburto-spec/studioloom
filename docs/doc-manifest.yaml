@@ -546,10 +546,10 @@ docs:
     title: "Preflight Follow-Ups Tracker"
     purpose: "Per-FU tracking for Preflight phase follow-ups. Created 28 Apr 2026 evening after Phase 8 closure consolidated enough FUs to deserve a single home. First entry: FU-CNC-CATEGORY (CNC router as third Preflight machine category, post-pilot expansion gated on ≥3 paying schools). Future home for the inline FUs currently scattered across ALL-PROJECTS.md / dashboard.html / handoff / changelog (PH9-FU-SCANNER-OOM-T1..T5, PH9-FU-FAB-SURROGATE-MULTIPLE-EVAL, FU-SCANNER-LEASE-REAPER, FU-SCANNER-CICD, FU-FAB-UPLOAD-200MB, FU-SCANNER-RATE-LIMIT, FU-SCANNER-SIDECAR-DRIFT, FU-SCANNER-SIDECAR-DRIFT-SVG, FU-SCANNER-EMAIL-VERIFY, PH4-FU-PROGRESS-STAGES-UI-DEMO, PH5-FU-PER-RULE-ACKS, PH6-FU-PREVIEW-OVERLAY, PH6-FU-PREVIEW-PINCH-ZOOM, PH6-FU-RULE-MEDIA-EMBEDS, PH6-FU-TEACHER-CANNED-NOTES-EDITABLE, PH6-FU-HISTORY-PAGINATION, PH8-FU-DRAG-DROP — to be migrated into this tracker on next consolidation pass)."
     category: projects
-    last_verified: "2026-04-28"
+    last_verified: "2026-05-04"
     referenced_from: ["ALL-PROJECTS.md Preflight follow-ups", "CLAUDE.md Preflight active build plan"]
     max_age_days: 90
-    last_scanned: "2026-04-28"
+    last_scanned: "2026-05-04"
 
   - path: docs/projects/dimensions3-followups.md
     title: "Dimensions3 Follow-Ups Tracker"

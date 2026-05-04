@@ -4,6 +4,151 @@
 
 ---
 
+## 4 May 2026 — Preflight Phase 8-1 audit gap CLOSURE ROUND 2 — 7 same-family fixes + 2 UX bugs
+
+**Context:** Matt's post-Access-v2 Preflight smoke (he'd just finished
+Access Model v2 PILOT-READY in a parallel session) caught a series of
+same-family Phase 8-1 audit gaps. The original 28 Apr audit doc was
+declared CLOSED 12/12 last week — turned out it was complete for the
+*scope it audited* (queue + jobs + admin pages) but missed several
+sibling routes because they weren't job-listing surfaces. The
+contract was right; the audit's net wasn't wide enough.
+
+Today's session caught + fixed all the rest of the misses, validated
+each in prod cross-persona, and finalised a lesson for future audit
+scope framing.
+
+**What changed:**
+
+- **`/api/fab/machines` school-scoped** (commit `9ddacce`):
+  Was filtering machines by `teacher_id = invitingTeacherId` — fab
+  invited by Persona A couldn't see machines created by Persona B
+  even at the same school. Replaced with `fabricatorSchoolContext`
+  scoping by `school_id`. Empty-state copy "your inviting teacher's
+  labs" → "your school's labs" across `FabQueueClient.tsx` +
+  `fab-queue-helpers.ts` + 1 helper test.
+
+- **Student upload machine-validation school-scoped** (commit
+  `f6acdec`): `createUploadJob` in `orchestration.ts:345` was
+  validating `profile.teacher_id !== class.teacher_id`. Class owned
+  by Persona A, machine created by Persona B → 404 "Machine profile
+  not found" on submit when student picked the machine. Replaced
+  with `school_id` comparison via `teachers!inner(school_id)` embed
+  on the class lookup. System templates (school_id NULL) pass
+  through to any school. Test mock fixture updated.
+
+- **All 5 `/api/teacher/fabricators/*` admin routes school-scoped**
+  (commit `277f69e`):
+  Closes `FU-FAB-INVITE-SCHOOL-SCOPED` + 4 sibling routes
+  (PATCH/DELETE deactivate, reset-password, machines/[id] reassign,
+  GET list). Same family — all gated on
+  `invited_by_teacher_id === user.id`. Replaced with
+  `loadSchoolOwnedFabricator` + `findFabricatorByEmail` helpers
+  (new). Cross-school → 404 (no existence leak); same-school
+  cross-persona → works regardless of which teacher originally
+  invited. Invite POST: cross-school existing fab → 409 "belongs
+  to another school" (replaces the pre-flat-membership "another
+  teacher" hard-block). Machine validation in
+  `[id]/machines/route.ts` ALSO swept (school_id check on
+  per-machine validation). 7 → 9 invite test cases (added
+  cross-school 409 + cross-persona takeover).
+
+- **PostgREST FK embed bug → 2-query rewrite** (commit `19856e8`):
+  My initial sweep used `teachers!fabricators_invited_by_teacher_id_fkey(school_id)`
+  embed to resolve the inviter's school in one query. Failed at
+  prod with "Could not find a relationship between 'fabricators'
+  and 'teachers' in the schema cache". Root cause:
+  `fabricators.invited_by_teacher_id REFERENCES auth.users(id)`,
+  not `teachers(id)` — even though `teachers.id = auth.users.id`
+  via mig 001 FK chain, PostgREST embeds need a DIRECT FK between
+  the two embedded tables. Indirect chain through auth.users
+  doesn't resolve. Rewrote both helpers with a second
+  `.from("teachers").eq("id", X).maybeSingle()` lookup — same UUID
+  flows through unchanged as a teachers PK.
+
+- **Fab admin actions menu portal-rendered** (commit `40cb10e`):
+  The "…" actions dropdown was rendering correctly but clipped by
+  the table wrapper's `overflow-hidden` (used to clip rounded-xl
+  corners on table contents). Matt reported popup "hidden within
+  the box it's nested in". Fix: render via `createPortal` to
+  `document.body` with `position:fixed` calculated from the
+  button's `getBoundingClientRect`. Click-outside + ESC dismissal
+  added (was missing). ARIA roles added.
+
+- **Fab logout 303 redirect** (commit `81f20ab`):
+  `/api/fab/logout` returned `{ok:true}` JSON. Logout button uses
+  native `<form action="..." method="post">` (zero-JS path), so
+  browser navigated to API URL on submit and rendered raw JSON.
+  Fix: 303 See Other to `/fab/login`. Standard PRG pattern, no
+  JS dependency, no raw JSON visible.
+
+**Verification:**
+
+- ✅ `tsc --noEmit --project tsconfig.check.json` clean throughout
+  (one pre-existing unrelated `BugReportButton.tsx` error from
+  Access v2 Phase 6 work; not gated in CI).
+- ✅ Tests 3494 → 3496 (+2 from new invite cases). Full suite
+  3496/3507 across 7 commits, no regressions.
+- ✅ All 7 fixes prod-validated cross-persona by Matt:
+  visibility, edit, soft-delete, bulk-approval (machines list);
+  job submit with specific machine (student upload); reset
+  password, deactivate, reactivate (fab admin); actions menu
+  visible; logout lands on `/fab/login`.
+
+**Migrations:** None.
+
+**Schema:** No changes. `invited_by_teacher_id` stays as legacy
+audit-only column (same pattern as `machine_profiles.teacher_id`
+post Phase 8-3). Future cleanup migration could rename to
+`created_by_teacher_id` for consistency, but not blocking.
+
+**`FU-FAB-INVITE-SCHOOL-SCOPED` ✅ RESOLVED** with closure note in
+`docs/projects/preflight-followups.md` documenting the 5-route
+sweep + the new helpers + the lesson on audit scope framing.
+
+**Lessons surfaced + filed:**
+
+- **Audit scope framing matters.** The 28 Apr audit framed scope
+  by *feature concept* ("queue + jobs + admin pages") and missed
+  `/api/teacher/fabricators/*` + `/api/fab/machines` because they
+  don't list jobs. Future similar audits should scope by **route
+  prefix** + programmatically grep for the pattern (e.g.,
+  `invited_by_teacher_id !==`, `teacher_id !== teacherId`).
+  Pattern's mechanical, audit nets should be too.
+
+- **PostgREST embed FK rule.** PostgREST needs a DIRECT FK between
+  two tables to embed them. Indirect chains via shared auth ID
+  (e.g., `teachers.id = auth.users.id` so referencing `auth.users`
+  doesn't let you embed `teachers`) don't work. Always grep
+  `<column> REFERENCES` before assuming a lab-pattern embed
+  copy-paste will work on a different table.
+
+- **Native form POST + JSON response = ugly UX.** When a button is
+  a `<form action="..." method="post">` (zero-JS path), the API
+  must return a redirect or HTML response. JSON renders raw to
+  the user. Standard PRG (Post/Redirect/Get) is the correct
+  pattern.
+
+**Pending after this saveme:** None. Preflight is back on its feet
+post Access v2. Last truly-real loose end is running an actual
+fabrication submission end-to-end through the pipeline (student
+upload → scan → teacher approve → fab pickup → complete) — the
+substantive smoke that proves the whole pipeline still works.
+Matt deferred this; can be tomorrow or whenever.
+
+**Worktree state at session end:**
+`/Users/matt/CWORK/questerra-preflight` on `preflight-active` (in
+sync with origin). Top-of-main: `689023d`.
+
+**Systems affected:** `fabrication-fab-orchestration` (new
+`loadSchoolOwnedFabricator` + `findFabricatorByEmail` helpers),
+`fab-machines-route` (school-scoped), `student-upload-orchestration`
+(school-scoped machine validation), `teacher-fabricators-routes`
+(5-route sweep + portal'd actions menu UX), `fab-logout-route`
+(303 redirect).
+
+---
+
 ## 28 Apr 2026 evening — Preflight Phase 8-3 + Phase 8-4 paths 1+2 SHIPPED — audit doc CLOSED 12/12 ✅
 
 **Context:** Continuation of the morning's Phase 8-1 + 8-2 work.
