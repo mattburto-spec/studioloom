@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
-// Primary nav — 12 tabs per spec §9.8
+// Primary nav — pilot-focused tabs.
+// Removed (4 May 2026): Pipeline + Library (Dimensions3 generation pipeline +
+// activity-block library, both quarantined while Dimensions3 project is on
+// hold). The page files remain as stubs so URLs don't 404; nav just hides them.
 const TABS = [
   { label: "Dashboard", href: "/admin" },
-  { label: "Pipeline", href: "/admin/pipeline" },
-  { label: "Library", href: "/admin/library" },
-  { label: "Controls", href: "/admin/controls" },
   { label: "Cost & Usage", href: "/admin/cost-usage" },
   { label: "Quality", href: "/admin/quality" },
   { label: "Wiring", href: "/admin/wiring" },
@@ -17,22 +18,19 @@ const TABS = [
   { label: "Schools", href: "/admin/schools" },
   { label: "Bug Reports", href: "/admin/bug-reports" },
   { label: "Audit Log", href: "/admin/audit-log" },
+  { label: "Controls", href: "/admin/controls" },
 ];
 
-// Secondary nav — legacy/tool routes
+// Secondary nav — operational tools.
+// Removed (4 May 2026): Pipeline Health, Library Health, Ingestion Sandbox,
+// Simulator, Feedback, Generation Sandbox, Sandbox Hub, Costs (legacy
+// duplicate of Cost & Usage). All Dimensions3-era; can be re-enabled by
+// adding back to this array if/when Dimensions3 resumes.
 const TOOLS_TABS = [
-  { label: "Pipeline Health", href: "/admin/pipeline/health" },
-  { label: "Library Health", href: "/admin/library/health" },
-  { label: "Ingestion Sandbox", href: "/admin/ingestion-sandbox" },
-  { label: "Simulator", href: "/admin/simulator" },
-  { label: "Feedback", href: "/admin/feedback" },
-  { label: "Costs", href: "/admin/costs" },
   { label: "Settings", href: "/admin/settings" },
   { label: "Registries", href: "/admin/controls/registries" },
   { label: "AI Model", href: "/admin/ai-model" },
   { label: "Frameworks", href: "/admin/framework-adapter" },
-  { label: "Generation Sandbox", href: "/admin/generation-sandbox" },
-  { label: "Sandbox Hub", href: "/admin/test-sandbox" },
 ];
 
 export default function AdminLayout({
@@ -41,6 +39,19 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const [pendingTeacherRequests, setPendingTeacherRequests] = useState<number>(0);
+
+  // Lightweight badge count for the Teachers tab — surfaces the
+  // teacher_access_requests queue without requiring the user to drill into
+  // the Teachers tab to see there's anything waiting. Polls once on mount;
+  // refreshed on every nav (the layout re-mounts on hard navigation).
+  useEffect(() => {
+    if (pathname === "/admin/login" || pathname === null) return;
+    fetch("/api/admin/teacher-requests?status=pending")
+      .then((r) => (r.ok ? r.json() : { requests: [] }))
+      .then((d) => setPendingTeacherRequests(Array.isArray(d.requests) ? d.requests.length : 0))
+      .catch(() => { /* silent — badge just stays 0 */ });
+  }, [pathname]);
 
   // /admin/login manages its own chrome — render bare (no admin nav).
   // Also render bare while pathname is still resolving (null during initial
@@ -104,13 +115,21 @@ export default function AdminLayout({
               <Link
                 key={tab.href}
                 href={tab.href}
-                className={`px-3 py-2 text-xs font-medium rounded-t-lg whitespace-nowrap transition-colors ${
+                className={`px-3 py-2 text-xs font-medium rounded-t-lg whitespace-nowrap transition-colors inline-flex items-center gap-1.5 ${
                   isActive(tab.href)
                     ? "text-purple-700 bg-purple-50 border-b-2 border-purple-600"
                     : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
                 }`}
               >
                 {tab.label}
+                {tab.href === "/admin/teachers" && pendingTeacherRequests > 0 && (
+                  <span
+                    className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 text-[10px] font-bold leading-none bg-amber-500 text-white rounded-full"
+                    title={`${pendingTeacherRequests} teacher request(s) awaiting review`}
+                  >
+                    {pendingTeacherRequests}
+                  </span>
+                )}
               </Link>
             ))}
           </nav>
