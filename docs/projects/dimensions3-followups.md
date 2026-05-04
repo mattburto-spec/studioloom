@@ -1856,3 +1856,27 @@ Phase 6.3b (this same session) closed the worst hole by adding a `user_type` gua
 **Definition of done:** met. All 3 crons wired with auth, tests passing, vercel.json declared, registry updated.
 
 **Note on AI budget reset:** the original FU description mentioned "ai-budget-reset-cron" as a 4th cron. There is no separate reset cron — Phase 5.2's `atomic_increment_ai_budget()` SECURITY DEFINER function performs the reset INLINE on the next per-student increment when `reset_at < now()`. Lazy reset is correct semantics for this use case (reset triggered by use, not by clock). If a teacher dashboard needs to display fresh `tokens_used_today=0` for inactive students at midnight, that's a separate UX concern (dashboard could compute `now() > reset_at ? 0 : tokens_used_today` at render time). Not pilot-blocking.
+
+---
+
+## FU-DEPS-RESIDUAL-MODERATE-VULNS — 4 moderate npm audit vulns with no clean upgrade path (P3)
+
+**Status:** OPEN — filed 4 May 2026 alongside the post-pilot dependency cleanup.
+
+**Surfaced:** Phase 6 cron-wire commit ran `npm audit`. After Bucket A (`npm audit fix` — closed 2 high-severity) and Bucket B (`npm audit fix --force` — Next 15.3.9 → 15.5.15), 4 moderate vulns remain that npm audit can only "fix" by introducing WORSE breakage:
+
+1. **postcss <8.5.10 (×2 advisories)** — bundled inside Next 15.5.15. Advisory: PostCSS XSS via unescaped `</style>` in CSS Stringify Output. npm audit suggests downgrading to next@9.3.3 — that's 6+ major versions back and would unwind every Phase 1–6 architectural change. **No Next version yet bundles a patched postcss.** Real risk in our app: low — postcss runs at build-time on Tailwind classes; we don't pipe user-controlled data into stylesheets.
+
+2. **uuid <14.0.0 (×2 advisories)** — transitive through `exceljs`. Advisory: missing buffer bounds check in `uuid.v3/v5/v6` when called with a custom `buf` parameter. npm audit suggests downgrading exceljs from ^4.4.0 to ^3.4.0 (already tried — created NEW vulns in fast-csv + tmp). **Real risk in our app: zero** — we use `uuid.v4()` exclusively, never the buf-accepting overloads.
+
+**Recommended approach (post-pilot):**
+
+For the postcss/Next bundling: monitor https://github.com/vercel/next.js/issues for the bundled postcss bump. When Next ships a patched postcss (likely Next 15.5.x or 15.6), `npm audit fix` will close it cleanly.
+
+For the uuid/exceljs chain: wait for either (a) exceljs to bump its uuid dep (track https://github.com/exceljs/exceljs), or (b) audit our actual exceljs usage and consider removing the dep entirely if it's only used in 1-2 export paths (Phase 7 candidate).
+
+**Why P3 not P2:** both vulns require attacker-controlled input down code paths we don't expose. Build-time CSS XSS doesn't apply to a server-rendered Next app with no user-CSS injection. uuid buf overflow doesn't apply when we never pass `buf`.
+
+**Definition of done:** npm audit shows 0 vulns of moderate or higher.
+
+**Sequence:** opportunistic. Re-run `npm audit` quarterly; close when upstream patches land.
