@@ -1043,13 +1043,16 @@ export default function ClassHubPage({
                           const integrityMeta = detailIntegrity?.[key];
 
                           return (
-                            <div key={key}>
-                              <p className="text-xs font-medium text-text-secondary uppercase tracking-wide mb-1">{label}</p>
+                            <div
+                              key={key}
+                              className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
+                            >
+                              <p className="text-xs font-medium text-text-secondary uppercase tracking-wide mb-2">{label}</p>
                               <div className="bg-surface-alt rounded-lg p-3">
                                 <p className="text-sm text-text-primary whitespace-pre-wrap">{value === "true" ? "✓ Checked" : value === "false" ? "☐ Not checked" : typeof value === "string" ? stripResponseHtml(value) || "—" : JSON.stringify(value)}</p>
                               </div>
                               {integrityMeta && (
-                                <div className="mt-2">
+                                <div className="mt-3 border-t border-gray-100 pt-3">
                                   <IntegrityReport metadata={integrityMeta} />
                                 </div>
                               )}

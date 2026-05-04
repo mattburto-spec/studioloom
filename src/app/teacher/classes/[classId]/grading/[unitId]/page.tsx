@@ -779,8 +779,11 @@ export default function GradingPage({
                         const displayValue = typeof value === "string" ? stripResponseHtml(value) : typeof value === "object" ? JSON.stringify(value).slice(0, 200) + "…" : String(value ?? "—");
 
                         return (
-                          <div key={key}>
-                            <p className="text-xs font-medium text-text-secondary uppercase tracking-wide mb-0.5">
+                          <div
+                            key={key}
+                            className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
+                          >
+                            <p className="text-xs font-medium text-text-secondary uppercase tracking-wide mb-2">
                               {label}
                             </p>
                             <div className="bg-surface-alt rounded-lg p-2.5">
@@ -795,7 +798,7 @@ export default function GradingPage({
 
                             {/* Show per-response integrity report if metadata exists for this key */}
                             {evidenceIntegrity?.[key] && (
-                              <div className="mt-2 border-t border-gray-100 pt-2">
+                              <div className="mt-3 border-t border-gray-100 pt-3">
                                 <IntegrityReport
                                   metadata={evidenceIntegrity[key]}
                                   responseText={typeof value === "string" ? value : undefined}

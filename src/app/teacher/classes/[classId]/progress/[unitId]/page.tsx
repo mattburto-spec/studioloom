@@ -634,8 +634,11 @@ export default function ProgressTrackingPage({
                         }
 
                         return (
-                          <div key={key}>
-                            <p className="text-xs font-medium text-text-secondary uppercase tracking-wide mb-1">
+                          <div
+                            key={key}
+                            className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
+                          >
+                            <p className="text-xs font-medium text-text-secondary uppercase tracking-wide mb-2">
                               {label}
                             </p>
                             <div className="bg-surface-alt rounded-lg p-3">
