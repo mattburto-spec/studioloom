@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 425
+# Total routes: 428
 
 routes:
 - path: /api/admin/ai-model
@@ -502,6 +502,33 @@ routes:
   tables_read: []
   tables_written:
   - bug_reports
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/cron/cost-alert
+  method: GET
+  file: src/app/api/cron/cost-alert/route.ts
+  auth: service-role
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/cron/retention-enforcement
+  method: GET
+  file: src/app/api/cron/retention-enforcement/route.ts
+  auth: service-role
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/cron/scheduled-hard-delete
+  method: GET
+  file: src/app/api/cron/scheduled-hard-delete/route.ts
+  auth: service-role
+  tables_read: []
+  tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
