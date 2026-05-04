@@ -569,6 +569,24 @@ docs:
     max_age_days: 365
     last_scanned: null
 
+  - path: docs/projects/unit-editor-nm-block.md
+    title: "Unit Editor — NM Block Category (Lever-MM brief + sub-phase tracker)"
+    purpose: "7-sub-phase plan + commit hash table for Lever-MM — moving New Metrics configuration out of the class-settings Metrics tab and into the Phase 0.5 lesson editor's block palette as a 'New Metrics' category. Click an element → chip lands at top of current lesson card via existing /api/teacher/nm-config POST (no schema change, no new API). Class-settings Metrics tab keeps NMResultsPanel but loses NMConfigPanel mount + gains a banner pointing teachers to the editor. Three new modules: BlockPalette.types.ts (pure types) + nm-element-blocks.ts (factory) + lib/nm/checkpoint-ops.ts (pure state transitions). Pure-logic-extraction pattern documented as Lesson #71. Status: MM.0A–MM.0G SHIPPED + merged to main (PR #19, commit 7a91e08). Tests 3630 → 3660 (+30). Built ahead of Matt's Wednesday-class deadline (6 May 2026)."
+    category: projects
+    last_verified: "2026-05-04"
+    referenced_from: ["ALL-PROJECTS.md Lever-MM entry", "CLAUDE.md What's next", "WIRING.yaml unit-editor", "changelog.md 4 May 2026 Lever-MM entry"]
+    max_age_days: 365
+    last_scanned: null
+
+  - path: src/lib/nm/checkpoint-ops.ts
+    title: "NM checkpoint state-transition operations (pure)"
+    purpose: "Pure NM-config state transitions used by the Phase 0.5 lesson editor's New Metrics block category (Lever-MM, 4 May 2026). Lifted out of LessonEditor.tsx so the transition logic is testable in isolation without mounting the React tree. Three exported functions: addCheckpoint (idempotent, bootstraps competencies + elements + enabled flag on first registration), removeCheckpoint (zombie-pageId guard — deletes pageId entry when elements would go empty), setCompetency (single-element replacement, doesn't touch elements/checkpoints per orphan-element rule). All immutable: return new NMUnitConfig, never mutate input. Reference-equal return on no-ops so callers can detect via `next === current`. Covered by 19 tests in src/lib/nm/__tests__/checkpoint-ops.test.ts."
+    category: source
+    last_verified: "2026-05-04"
+    referenced_from: ["LessonEditor.tsx (consumer)", "WIRING.yaml unit-editor (canonical contract reference)", "unit-editor-nm-block.md", "lessons-learned.md #71"]
+    max_age_days: 365
+    last_scanned: null
+
   - path: scripts/lever-1/seed-test-unit.sql
     title: "Lever 1 — test unit seed (Matt Checkpoint 1.1 fixture)"
     purpose: "Three-lesson v2 unit (12 sections) seed for Lever 1 smoke. Coverage matrix: 9 sections full v2 (3 slots populated + composed prompt copy) → exercises ComposedPrompt hybrid spec; L1.S2 legacy-only (prompt set, no slots) → exercises MarkdownPrompt fallback; L2.S3 partial slots (framing + task only, no success_signal) → exercises composition with the gap; L1.S3 + L3.S1 content-only (no responseType) with contentStyle warning + practical → exercises renderer's response-type fork on v2 sections. Pre-filled for mattburton@nanjing-school.com (teacher_id 27818389-9d3b-4760-988e-d9f166cd42e5, school_id 636ff4fc-4413-4a8e-a3cd-c6f1e17bd5a1, NIS). Wraps in BEGIN; SET LOCAL session_replication_role = 'replica' to bypass classes INSERT triggers (Lesson #69). Output returns full https://studioloom.org/... URLs to click straight from Supabase result pane. Rollback block at bottom. Seed lives until Lever 1 1J cleanup."

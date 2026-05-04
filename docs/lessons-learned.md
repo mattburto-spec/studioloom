@@ -964,3 +964,43 @@ This skips USER triggers (the Postgres role flag for "I'm a replica, don't run t
 2. If smoke gate = "headless code path / API / migration shape," default path is: local tests → merge → smoke against deployed main.
 3. Don't let the push-discipline rule starve a smoke that legitimately needs a deployed build. Pushing to a feature branch ≠ pushing to main.
 
+### Lesson #71 — Pure logic in `.tsx` files isn't testable in this repo's vitest config; extract to `.ts` modules
+**The bug:** Lever-MM sub-phase MM.0F tried to test `buildNmElementBlocks` (a pure factory that takes NM elements + returns BlockDefinitions). The function lived inside `BlockPalette.tsx` because it was tightly coupled to BlockDefinition + BlockCategory types. Test file was named `.test.ts`. Vitest threw at parse time:
+
+  ```
+  Failed to parse source for import analysis because the content contains
+  invalid JS syntax. If you use tsconfig.json, make sure to not set jsx to preserve.
+  Plugin: vite:import-analysis
+  File: BlockPalette.tsx:709:67  →  <h3 className="le-cap...">Blocks</h3>
+  ```
+
+The repo's `vitest.config.ts` has no React/JSX plugin (no `@vitejs/plugin-react`, no `vitest.config.tsx`-with-jsx-pragma setup, no `esbuild.jsx` config). So when ANY test imports from a `.tsx` file, vite tries to transform the `.tsx` and trips on the first JSX expression. Renaming the test to `.test.tsx` did NOT help — the importer's JSX-awareness doesn't propagate to the importee.
+
+**The fix:** extract pure logic out of `.tsx` into a sibling pure `.ts` module. Re-export from the `.tsx` so the public surface stays unchanged. Tests import the new pure `.ts` directly and never touch the `.tsx`.
+
+**For Lever-MM specifically, this meant 3 small modules:**
+- `BlockPalette.types.ts` — `BlockDefinition` + `BlockCategory` interfaces (pure types, no JSX)
+- `nm-element-blocks.ts` — `buildNmElementBlocks` factory (pure logic)
+- `BlockPalette.tsx` — the React component, now imports + re-exports the above
+
+**Why this is a Lesson #38 sibling:** Lesson #38 said "verify expected values, not just non-null." This is "verify pure-logic boundaries, not just colocation." Both are about catching the gap between "this works because of coincidence" (test was happy because it didn't actually run) and "this works because the contract holds" (test exercised the actual function).
+
+**The general rule:** **If pure logic lives inside a `.tsx` file, treat it as untestable in this repo's current config. Extract it to a sibling `.ts` module before writing the test.** The cost is one extra file; the benefit is testable logic + clearer JSX/non-JSX boundary in the codebase.
+
+**When this comes up:** any time you find yourself wanting a `.test.ts` to import a helper function, factory, type, or pure transformer that currently sits inside a React component file. Especially common in:
+- Block / palette / library factories that build BlockDefinitions
+- Form-state reducers
+- Validators that take props and return errors
+- Conversion helpers (DB row → display shape)
+- Any `useFoo()` hook's pure-helper extracts
+
+**Operational rule:**
+1. Before writing the test, scan the source file: does it have JSX? If yes, the imported functions need to live in a sibling `.ts`.
+2. Cheap fix: create `<ComponentName>.<concept>.ts` (e.g. `BlockPalette.types.ts`), move the pure code, re-export from the `.tsx`.
+3. Test imports from the new `.ts` directly, not the `.tsx`.
+4. **Don't** add a `@vitejs/plugin-react` to vitest.config just to test one function — that affects every test in the suite (slower transforms, larger footprint, cascading config concerns). Extract the function instead.
+
+**Long-term consideration:** if the codebase eventually wants component-level tests (mounting React, asserting rendered output), THAT's when `@vitejs/plugin-react` earns its place. Until then, pure-logic-in-`.ts` is the simpler boundary.
+
+
+

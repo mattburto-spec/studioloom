@@ -3881,3 +3881,73 @@ Plus the NIS tier flip + Gmail-Matt detach as ops changes.
 1. **Lever 0 — Manual Unit Builder + AI Wizard Deprecation** — port the rigorous CBCI + Structure-of-Process + Paul-Elder unit planner from studioloom.org/unitplanner; deprecate the existing 3-lane wizard once the new builder writes three-slot output natively. ~5–7 days, brief pending.
 2. **`FU-PROD-MIGRATION-BACKLOG-AUDIT`** (P1) — surfaced during smoke; prod is missing migration 051 + much of Access Model v2 schema. Worth auditing what's actually applied vs what code assumes before next push.
 3. **Levers 2–5** (lints, voice/personality, exemplar contrast, sequencing intuition) — all unlocked by Lever 1's structured payload, can land any time.
+
+---
+
+## 4 May 2026 (late evening CST) — Lever-MM (NM block category in unit editor) SHIPPED + merged to main
+
+**Session goal:** Move New Metrics configuration out of the awkward class-settings Metrics tab and into the Phase 0.5 lesson editor's block palette as a new "New Metrics" category. Click an element → chip lands at top of current lesson card. Class-settings tab keeps results panel but loses the config wizard.
+
+**Outcome:** ✅ ALL 7 SUB-PHASES SHIPPED + merged to main as PR #19 at `7a91e08`. Built ahead of Matt's Wednesday-class deadline (1-day buffer).
+
+**Commits (8 on feature branch + 1 PR-merge):**
+
+| Commit | Sub-phase | Notes |
+|---|---|---|
+| `d58e7ca` | MM.0A | brief + design sign-off (1=A chip-on-lesson, 2=A selector-in-palette-header, 3=tab-stays-as-results) + `FU-NM-SCHOOL-ADMIN-CENTRALIZATION` (P2) filed |
+| `8ed0199` | MM.0B | `"new_metrics"` BlockCategory + gold-dot CATEGORIES entry + `buildNmElementBlocks` factory + LessonEditor fetches nm_config + passes via customBlocks. Click kill-switch on NM blocks (throwing create() stub guards against junk-section creation through the regular onAddBlock path) |
+| `6b0995e` | MM.0C | click-to-add (idempotent + bootstraps enabled flag + competencies/elements arrays) + chip strip at top of lesson card + × remove (zombie-pageId guard). PaletteBlock refactored to be NM-aware: skip create() probe for NM blocks (which throws), draggable={!isNmBlock}, "✓ added" / "+ add" badge state |
+| `141f0a5` | MM.0D | competency selector inside the New Metrics accordion + activeCategories filter fix so the accordion stays visible when competency has no elements (otherwise the selector becomes inaccessible — caught during build) |
+| `f50968a` | MM.0E | NMConfigPanel unmounted from class-settings tab + banner pointing teachers to the editor + NMResultsPanel preserved. NMConfigPanel.tsx file kept in repo for potential reuse |
+| `cbb6184` | MM.0F | refactor pure logic out of React for testability: `lib/nm/checkpoint-ops.ts` (addCheckpoint / removeCheckpoint / setCompetency, immutable, reference-equal no-op for idempotency detection) + extract `buildNmElementBlocks` into pure `nm-element-blocks.ts` (vitest can't transform JSX-bearing .tsx in default config; pure .ts is testable). +30 tests covering all idempotency, zombie-pageId guards, orphan-element rules, round-trip behaviour |
+| `0fee582` | MM.0G | WIRING.yaml unit-editor entry refreshed (key_files +4, depends_on/affects +nm-system, future_needs lists Lever-MM v2 candidates, change_impacts notes `lib/nm/checkpoint-ops.ts` is the canonical contract) |
+| `7a91e08` | PR #19 merge | Lever-MM lands on main |
+
+**Tests:** 3630 → 3660 (+30, 0 regressions, tsc strict clean throughout).
+
+**No migration.** Existing `class_units.nm_config` JSONB column reused.
+**No new API routes.** Existing `/api/teacher/nm-config` POST reused.
+**No new tables.**
+
+**Smoke walkthrough plan** (against Vercel preview that built from PR #19):
+- Editor → Blocks pane → "New Metrics" gold-dot accordion visible (when `use_new_metrics === true`)
+- Inside accordion: competency selector + element list with "+ add" badges
+- Click element → chip with 🎯 + element name + × at top of lesson card; reload persists
+- Click × → chip removes + persists
+- Switch to a competency with no elements → empty-state hint; existing chips remain
+- Class-settings Metrics tab → renamed banner + NMResultsPanel only (no config wizard)
+- Disable `use_new_metrics` → category disappears from palette + class-settings shows disabled-state card
+
+(Smoke verified by Matt before merge — said "merge" so we shipped.)
+
+**Stop triggers verified NOT tripped:**
+- ✓ Privacy gate intact (only renders when `use_new_metrics === true`)
+- ✓ No silent save failures (try/catch with revert + console.error)
+- ✓ No zombie pageIds (deleted when elements would go empty — covered by 2 tests)
+- ✓ Idempotent add (covered by reference-equal no-op test)
+- ✓ Student-facing surfaces unchanged (same `nm_config.checkpoints` shape, untouched code paths)
+- ✓ Test count UP (+30), not down
+
+**Lessons banked:** see #71 (Pure logic extraction from .tsx for vitest testability — recurring pattern, documented for future cases).
+
+**Decisions logged:** see Lever-MM section in decisions-log.md.
+
+**Follow-ups filed:**
+- `FU-NM-SCHOOL-ADMIN-CENTRALIZATION` (P2) — school-level toggle + principal-facing centralised dashboard. Real product capability, multi-day, gated on Access Model v2 Phase 6 closure (school-admin role).
+- `FU-LEVER-MM-DRAG-AND-DROP` (P3, informal) — drag-and-drop NM elements onto lesson tiles instead of click-only. Out of scope for v1, click-only sufficed.
+- `FU-LEVER-MM-MULTI-COMPETENCY` (P3, informal) — multi-competency-per-unit. v1 supports one; would require expanding the selector to multi-select + filter logic on element list.
+
+**Systems affected:**
+- `unit-editor` — gained New Metrics block category + chip strip + competency selector. `BlockPalette.tsx` split into 3 modules (.tsx + .types.ts + nm-element-blocks.ts).
+- `nm-system` — now READ + WRITTEN from the lesson editor (was read-only before). Pure state-transition module at `lib/nm/checkpoint-ops.ts` is the canonical contract for `nm_config` mutations.
+
+**WIRING updates:** `unit-editor` entry — depends_on/affects gain "nm-system"; key_files +4; future_needs lists v2 candidates; change_impacts notes the canonical-contract module.
+
+**What's next (Matt to choose):**
+1. Use Lever-MM in Wednesday's class (the actual deadline that motivated this)
+2. **Lever 0 — Manual Unit Builder + AI Wizard Deprecation** (still pending, brief due) — port studioloom.org/unitplanner
+3. `FU-NM-SCHOOL-ADMIN-CENTRALIZATION` (P2) — needs Access Model v2 Phase 6 first
+4. `FU-PROD-MIGRATION-BACKLOG-AUDIT` (P1) — Lever 1 surfaced this; still open
+5. **Levers 2–5** (lints, voice/personality, exemplar contrast, sequencing intuition)
+
+**Build velocity:** ~5 hours wall-clock from brief sign-off to merged PR. The pure-logic-extraction pattern (Lesson #71) added ~30 minutes but bought 30 tests of regression coverage on the hairy state transitions — net positive given the data is per-class and Wednesday classes will be writing to it.

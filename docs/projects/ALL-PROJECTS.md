@@ -101,6 +101,21 @@
 - **Out of scope, gated on soak:** Sub-phase 1J (drop legacy `prompt` NOT NULL) — gated on 30-day post-cutover soak.
 - **Unlocks:** Levers 2–5 (lints, voice/personality, exemplar contrast, sequencing intuition) — all need a structured payload to operate on, which Lever 1 now provides.
 
+### Lever-MM — Unit Editor NM Block Category
+- **Status:** ✅ COMPLETE — MM.0A–MM.0G shipped + smoke verified + merged to main 4 May 2026 (PR #19, commit `7a91e08`)
+- **Priority:** P0 (Matt's Wednesday-class deadline — 6 May 2026) | **Actual:** ~5 hours wall-clock from brief sign-off to merged PR | **Doc:** [unit-editor-nm-block.md](unit-editor-nm-block.md)
+- **Outcome:** New Metrics configuration moved out of the awkward class-settings Metrics tab into the Phase 0.5 lesson editor's block palette. Click an element in the gold-dot "New Metrics" accordion → chip lands at the top of the current lesson card. Competency selector inside the accordion lets teachers switch between the 7 NM competencies. Class-settings Metrics tab keeps the results panel (`NMResultsPanel`) but loses the config wizard — banner now points teachers to the editor. Pure state-transition module at `lib/nm/checkpoint-ops.ts` is the canonical contract for `nm_config` mutations (idempotent add, zombie-pageId guard on remove, orphan-element handling on competency switch).
+- **Tests:** 3630 → 3660 (+30 — `checkpoint-ops` 19 + `buildNmElementBlocks` 11). 0 regressions, tsc strict clean.
+- **No migration.** Existing `class_units.nm_config` JSONB column reused.
+- **No new API routes.** Existing `/api/teacher/nm-config` POST reused.
+- **No new tables.**
+- **Lessons banked:** **#71** Pure logic in `.tsx` files isn't testable in this repo's vitest config — extract to `.ts` modules before writing tests.
+- **Follow-ups filed:**
+  - `FU-NM-SCHOOL-ADMIN-CENTRALIZATION` (P2) — school-level toggle + principal-facing centralised dashboard. Multi-day, gated on Access Model v2 Phase 6 (school-admin role must exist first).
+  - `FU-LEVER-MM-DRAG-AND-DROP` (P3, informal) — drag-and-drop NM elements onto lesson tiles instead of click-only.
+  - `FU-LEVER-MM-MULTI-COMPETENCY` (P3, informal) — multi-competency-per-unit (v1 supports one).
+- **Files touched:** 7 production files (BlockPalette.tsx + 2 new sibling modules, LessonEditor.tsx, class-settings page.tsx, nm/checkpoint-ops.ts) + 2 test files. WIRING.yaml `unit-editor` entry refreshed.
+
 ### Lever 0 — Manual Unit Builder + AI Wizard Deprecation
 - **Status:** 🟡 PROPOSED — surfaced 4 May 2026 mid-Lever-1 smoke when Matt requested removal of the existing 3-lane AI wizard in favour of a more rigorous manual builder
 - **Priority:** P0 (Matt's blocker for trusting the unit-creation flow) | **Est:** ~5–7 days, brief pending | **Reference:** [studioloom.org/unitplanner](https://www.studioloom.org/unitplanner#pe) (Matt's standalone CBCI + Structure-of-Process + Paul-Elder unit planner — port this UX)
