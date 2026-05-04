@@ -36,6 +36,7 @@ export async function middleware(request: NextRequest) {
     pathname === "/teacher/login" ||
     pathname === "/admin/login" ||
     pathname.startsWith("/api/auth/") ||
+    pathname.startsWith("/api/cron/") ||  // Vercel Cron Jobs — auth via CRON_SECRET bearer in handler, not middleware.
     pathname.startsWith("/api/tools/") ||
     pathname.startsWith("/tools") ||
     pathname.startsWith("/toolkit") ||

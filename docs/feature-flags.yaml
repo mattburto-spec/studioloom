@@ -344,6 +344,28 @@ secrets:
     consumers:
       - src/app/api/bug-reports/route.ts
 
+  - name: CRON_SECRET
+    kind: secret
+    source: env
+    public: false
+    required: true  # PILOT-BLOCKING — without this, /api/cron/* endpoints return 401 to every request including Vercel's own cron invocations.
+    provider: Vercel Cron Jobs
+    description: |
+      Bearer secret that Vercel Cron Jobs attaches to the
+      Authorization header on every cron-invoked GET request. Each
+      /api/cron/* route handler validates this header before delegating
+      to the cron logic. Set in Vercel project env vars; Vercel will
+      then automatically include `Authorization: Bearer <CRON_SECRET>`
+      on cron invocations of paths declared in vercel.json `crons`.
+    rotation_notes: |
+      Generate a fresh secret (32+ bytes random hex/base64), update
+      Vercel env, redeploy. No stored state — handlers compare each
+      request's header against the live env value.
+    consumers:
+      - src/app/api/cron/cost-alert/route.ts
+      - src/app/api/cron/scheduled-hard-delete/route.ts
+      - src/app/api/cron/retention-enforcement/route.ts
+
   - name: NEXT_PUBLIC_SENTRY_ORG_SLUG
     kind: flag
     source: env

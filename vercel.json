@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/cost-alert",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/scheduled-hard-delete",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/retention-enforcement",
+      "schedule": "0 4 1 * *"
+    }
+  ]
+}

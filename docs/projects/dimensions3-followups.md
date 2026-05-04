@@ -1823,3 +1823,36 @@ Phase 6.3b (this same session) closed the worst hole by adding a `user_type` gua
 **Definition of done:** users hitting a wrong-role redirect see a clear explanation + path to recover.
 
 **Sequence:** opportunistic UX polish.
+
+---
+
+## FU-AV2-CRON-SCHEDULER-WIRE — wire retention + scheduled-hard-delete + cost-alert into Vercel Cron Jobs (P2) ✅ RESOLVED
+
+**Status:** OPEN → RESOLVED 4 May 2026 (post-Phase-6 close).
+
+**Surfaced:** Phase 6 Checkpoint A7 flagged this as the last hard pre-pilot blocker. The 3 cron functions in `src/lib/jobs/` (cost-alert, scheduled-hard-delete-cron, retention-enforcement) existed and were unit-tested but had no production scheduler — without this, the daily AI cost alert never fires, scheduled deletions never get hard-deleted, and retention horizons never trigger.
+
+**Resolution:**
+
+1. **3 GET route handlers** at `src/app/api/cron/<job>/route.ts` — each validates `Authorization: Bearer ${CRON_SECRET}` then delegates to the existing `run()` in the corresponding `src/lib/jobs/*.ts`. Returns `{ ok, job, result, timestamp }` JSON.
+
+2. **`vercel.json`** declares the 3 crons with their schedules:
+   - `/api/cron/cost-alert` — daily at 06:00 UTC (= 14:00 Nanjing)
+   - `/api/cron/scheduled-hard-delete` — daily at 03:00 UTC (= 11:00 Nanjing)
+   - `/api/cron/retention-enforcement` — monthly on the 1st at 04:00 UTC (= 12:00 Nanjing)
+
+3. **Middleware** allows `/api/cron/*` through without student/teacher auth — the bearer-secret check in the handler is the gate.
+
+4. **`CRON_SECRET` registered** in `docs/feature-flags.yaml` as `required: true` (PILOT-BLOCKING). Matt must set this in Vercel project env before the first cron fires; without it every handler returns 401 to Vercel's own cron invocations.
+
+5. **15 auth-gate tests** (5 cases × 3 routes) verify: missing env → 401, missing header → 401, wrong bearer → 401, wrong scheme → 401, correct bearer → 200 with delegated result.
+
+**Matt's remaining one-time setup:**
+
+- Generate a CRON_SECRET (e.g. `openssl rand -hex 32`) and set in Vercel project env vars.
+- Redeploy. Vercel auto-detects `vercel.json` `crons` block on next deploy.
+- Watch the first cron fire (cost-alert at 06:00 UTC tomorrow) in Vercel dashboard → Logs → filter by path `/api/cron/cost-alert`. Should see `{ ok: true, ... }` response.
+
+**Definition of done:** met. All 3 crons wired with auth, tests passing, vercel.json declared, registry updated.
+
+**Note on AI budget reset:** the original FU description mentioned "ai-budget-reset-cron" as a 4th cron. There is no separate reset cron — Phase 5.2's `atomic_increment_ai_budget()` SECURITY DEFINER function performs the reset INLINE on the next per-student increment when `reset_at < now()`. Lazy reset is correct semantics for this use case (reset triggered by use, not by clock). If a teacher dashboard needs to display fresh `tokens_used_today=0` for inactive students at midnight, that's a separate UX concern (dashboard could compute `now() > reset_at ? 0 : tokens_used_today` at render time). Not pilot-blocking.
