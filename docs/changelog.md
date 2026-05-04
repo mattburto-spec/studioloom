@@ -3804,3 +3804,80 @@ Plus the NIS tier flip + Gmail-Matt detach as ops changes.
 5. Sign off Checkpoint A6 + merge to main + tag `v0.5-phase-5-closed`
 
 **Next**: Phase 6 (Cutover & Cleanup — `/api/v1/*` rename pass, ADRs 003/011/012/013, registry sync, RLS-no-policy doc, 3-Matts merge decision, ~2-3 days, Checkpoint A7 PILOT-READY).
+
+---
+
+## 4 May 2026 (late night CST) — Lever 1 (slot fields) SHIPPED + merged to main
+
+**Session goal:** Refactor activity prompts from a single markdown blob into three structured fields — `framing` / `task` / `success_signal` — across schema → AI generation → editor → renderer → ~9 downstream readers. The Toddle pattern. Structural unlock for Levers 2–5 (lints, voice/personality, exemplar contrast, sequencing intuition).
+
+**Outcome:** ✅ ALL 9 SUB-PHASES SHIPPED + merged to main as PR #17 at `5373ea7`. Smoke verified live on studioloom.org with three-box `SlotFieldEditor` rendering correctly, char-count caps working (200/800/200), seeded values pre-filled, hybrid composition (muted framing → bold task → 🎯 success_signal) on student preview.
+
+**Commits (11 on feature branch + 2 merges + 1 PR-merge):**
+
+| Commit | Sub-phase | Notes |
+|---|---|---|
+| `ebfd217` | 1A | brief + ALL-PROJECTS entry (9-sub-phase plan, named checkpoint) |
+| `78b58af` | 1B | migration `20260504020826_activity_three_field_prompt.sql` adds `framing`/`task`/`success_signal`/`backfill_needs_review` to `activity_blocks`; APPLIED TO PROD; sandbox INSERT/SELECT verified |
+| `d537f97` | 1C-rev | AI-rewrite Teaching Moves to v2 shape via Sonnet 4.5 `tool_use`; 55 rows reseeded with 100% v2 coverage; content_fingerprint stable |
+| `13b22d3` | 1D | API read/write 3 fields + per-field validation (200/800/200 caps) + `X-Lever-1-Deprecated` response header; +33 tests |
+| `d1c8cdd` | 1E | `ComposedPrompt` renderer (hybrid spec) + ActivityCard mount + PDF mount; +19 tests |
+| `c942283` | 1F | three-box `SlotFieldEditor` in lesson-editor + Preview composes via student renderer; +5 tests |
+| `0b632ae` | 1G | AI generation rewrite — 3 schemas (page/journey/timeline) + system prompts + stage3 + output-adapter + pipeline + dual ActivityBlock types; +19 tests; pattern bug per Lesson #39 — fixed all 3 schema sites in one commit |
+| `4e4101c` | 1H | sweep ~9 components + ~7 helpers (lesson-tiles, edit-tracker, knowledge/chunk, timing-validation, infer-bloom, activity-library, design-assistant) to use `composedPromptText`; CLOSED 1G validator regression in BOTH `validateGeneratedPages` + `validateTimelineActivities` (would have rejected every v2 generation); widened helper to structural `SlotBearing` shape; +24 tests |
+| `d2f784b` | 1I | registry sync (api-registry, ai-call-sites, schema-registry, WIRING) + 2 WIRING drift items fixed (`activity-blocks.key_files` pointed to non-existent `src/lib/blocks/block-{service,ranking}.ts`; `unit-editor.key_files` pointed to non-existent `src/lib/hooks/useLessonEditor.ts`) |
+| `50ddc1a` | seed | `scripts/lever-1/seed-test-unit.sql` smoke fixture (3 lessons × 4 sections covering full v2 / legacy-only / partial-slots / content-only) |
+| `91600d2` | seed | pre-fill seed for `mattburton@nanjing-school.com` + full `https://studioloom.org/...` URLs in output |
+| `28abf78` | FU | `FU-LESSON-EDITOR-AUTO-PINNED-SKILL` (P2) filed in `dimensions3-followups.md` |
+| `235d597`, `2b39994` | merge | feature branch resolved 2 rounds of conflicts with main (preflight session committing in parallel) |
+| `5373ea7` | PR #17 merge to main | Lever 1 lands |
+
+**Tests:** 3494 → 3630 (+136, 0 regressions, tsc strict clean throughout).
+
+**Migration on prod:** `20260504020826_activity_three_field_prompt.sql` — applied during 1B, sandbox-verified with INSERT/SELECT exact-value assertions.
+
+**Smoke walkthrough (live on studioloom.org):**
+- ✅ Phase 0.5 lesson editor mounted on seeded class-assigned unit
+- ✅ Three labelled textareas (Framing / Task / Success signal) — NOT one big prompt textarea
+- ✅ Char counts visible (108/200, 245/800, 57/200) per cap config
+- ✅ All three slots prefilled with seeded values
+- ✅ Legacy-only section (L1.S2) renders via MarkdownPrompt fallback
+- ✅ Partial-slots section (L2.S3) composes correctly with the gap
+- ✅ Content-only sections (L1.S3 / L3.S1) render with `contentStyle` warning/practical
+- ✅ Tile labels read framing first sentence
+- ✅ Hybrid composition on student preview (muted/bold/🎯)
+
+**Follow-ups filed during this session:**
+- `FU-LESSON-EDITOR-AUTO-PINNED-SKILL` (P2) — lesson editor mounts a default "3D Printing: basic setup" skill on freshly-seeded lessons regardless of class topic. Not Lever 1 territory; picks up alongside Phase 0.5 editor cleanup.
+- `FU-PROD-MIGRATION-BACKLOG-AUDIT` (P1, informal — should be promoted to formal FU) — surfaced during seed: prod is missing migration 051 (`unit_type`) + much of Access Model v2 schema (`school_id`, `code`, etc.). Repo migrations have drifted hard from prod. Sister to existing FU-EE.
+- `FU-LEVER-1-SEED-IDEMPOTENT` (P3) — seed script's units INSERT lacks `WHERE NOT EXISTS` guard; re-running creates duplicate units (Matt got 2 during smoke). Trivial fix.
+
+**Lessons added to `docs/lessons-learned.md`:**
+- **#67** — Tool-schema changes need matching validator changes; pattern-bug companion to #39 + #54
+- **#68** — Repo migration files ≠ applied prod schema; probe `information_schema.columns` before any seed/INSERT
+- **#69** — Triggers can hang seed scripts; bypass with `SET LOCAL session_replication_role = 'replica'` for fixtures
+- **#70** — When smoke surface IS deployed UI, push to feature branch → Vercel preview → smoke → main (don't let push-discipline starve a legitimate smoke)
+
+**Decisions logged in `docs/decisions-log.md`:**
+- Three structured slots, not one blob (Toddle pattern; structural unlock for Levers 2–5)
+- Composed-prompt-from-slots pattern preserved through transition (legacy `prompt` NOT NULL kept; 1J cleanup gated on 30-day soak)
+- AI rewrite via Sonnet `tool_use` over heuristic split for Teaching Moves backfill
+- `composedPromptText` widened to structural `SlotBearing` shape
+- Validator strategy: accept slots OR legacy, compose `prompt` from slots for back-compat
+- Smoke-via-Vercel-preview when checkpoint surface is deployed UI
+
+**Systems affected:**
+- `activity-blocks` — 4 new columns, 55 rows reseeded, key_files updated in WIRING
+- `unit-editor` — `SlotFieldEditor` replaces single-textarea prompt block; key_files updated in WIRING
+- `generation-pipeline` — 3 schemas (page/journey/timeline) + system prompts + stage3 + output-adapter all rewired for slot fields
+- `lesson-pulse` (read-side) — composes via `composedPromptText` (no algorithm change)
+- `grading` — tile titles compose via `composedPromptText`
+- `knowledge-pipeline` — `chunkUnitPage` composes activity text from slots for RAG
+- `student-renderer` (`ActivityCard`, `ExportPagePdf`) — hybrid `ComposedPrompt` mounts
+
+**WIRING updates:** `activity-blocks` + `unit-editor` entries refreshed (file paths, summary, change_impacts, future_needs). Schema-registry `activity_blocks` columns + 2 dated `spec_drift` entries.
+
+**What's next (Matt to choose):**
+1. **Lever 0 — Manual Unit Builder + AI Wizard Deprecation** — port the rigorous CBCI + Structure-of-Process + Paul-Elder unit planner from studioloom.org/unitplanner; deprecate the existing 3-lane wizard once the new builder writes three-slot output natively. ~5–7 days, brief pending.
+2. **`FU-PROD-MIGRATION-BACKLOG-AUDIT`** (P1) — surfaced during smoke; prod is missing migration 051 + much of Access Model v2 schema. Worth auditing what's actually applied vs what code assumes before next push.
+3. **Levers 2–5** (lints, voice/personality, exemplar contrast, sequencing intuition) — all unlocked by Lever 1's structured payload, can land any time.

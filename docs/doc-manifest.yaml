@@ -553,11 +553,29 @@ docs:
 
   - path: docs/projects/dimensions3-followups.md
     title: "Dimensions3 Follow-Ups Tracker"
-    purpose: "Per-FU tracking for Dimensions3 phase follow-ups (FU-1 through FU-W, FU-AA through FU-II). FU-E through FU-I (teacher grading migration, legacy CRITERIA cleanup, getCriterionColor wrapper, strand headers, null-framework fallback). FU-J through FU-L (scale hardcode, student-snapshot shape, local type collapse). FU-M (live cost alert email test). FU-N through FU-W (architectural limitations surfaced during Checkpoint 5.1 Step 9). FU-AA through FU-DD (schema-registry cleanup, scanner bugs). FU-EE (no migration-applied log, P2). FU-FF (undocumented RLS-as-deny-all on 3 tables, P3). FU-GG (nm-assessment data loss, P1). FU-HH (no RLS test harness, P2). FU-II (log-client-block pattern, P3)."
+    purpose: "Per-FU tracking for Dimensions3 phase follow-ups + cross-cutting follow-ups from sibling phases. Lever 1 additions (4 May 2026): FU-LESSON-EDITOR-AUTO-PINNED-SKILL (P2 — editor mounts default 3D Printing skill on freshly-seeded lessons regardless of class topic), FU-AV2-WELCOME-WIZARD-AUTO-CREATE-HARDENING (P2 — /teacher/welcome auto-creates teacher row on first GET). Earlier: FU-1..W, FU-AA..II covering schema-registry cleanup, scanner bugs, RLS gaps, no-canonical-migration-applied-log (FU-EE), nm-assessment data loss (FU-GG), and architectural limitations surfaced during Checkpoint 5.1 Step 9."
     category: projects
-    last_verified: "2026-04-14"
+    last_verified: "2026-05-04"
     referenced_from: ["ALL-PROJECTS.md Dimensions3 follow-ups", "CLAUDE.md current focus"]
     max_age_days: 90
+    last_scanned: null
+
+  - path: docs/projects/lesson-quality-lever-1-slot-fields.md
+    title: "Lesson Quality — Lever 1: Slot Fields (brief + sub-phase tracker)"
+    purpose: "9-sub-phase plan + commit hash table for Lever 1 — refactoring activity prompts from a single markdown blob into three structured fields (framing / task / success_signal). Toddle pattern. Structural unlock for Levers 2–5. Migration 20260504020826 applied to prod 4 May 2026. ComposedPrompt hybrid renderer (muted framing → bold task → 🎯 success_signal). Three-box SlotFieldEditor with per-field char-count caps (200/800/200). composedPromptText helper widened to structural SlotBearing shape. Validators (validateGeneratedPages + validateTimelineActivities) accept slots OR legacy and compose prompt from slots for back-compat. WIRING.yaml drift fixed on activity-blocks.key_files + unit-editor.key_files. Status: 1A–1I SHIPPED + smoke verified live on studioloom.org + merged to main (PR #17, commit 5373ea7). 1J cleanup (drop legacy prompt NOT NULL) gated on 30-day post-cutover soak."
+    category: projects
+    last_verified: "2026-05-04"
+    referenced_from: ["ALL-PROJECTS.md Lever 1 entry", "CLAUDE.md What's next", "WIRING.yaml activity-blocks", "WIRING.yaml unit-editor", "schema-registry.yaml activity_blocks spec_drift"]
+    max_age_days: 365
+    last_scanned: null
+
+  - path: scripts/lever-1/seed-test-unit.sql
+    title: "Lever 1 — test unit seed (Matt Checkpoint 1.1 fixture)"
+    purpose: "Three-lesson v2 unit (12 sections) seed for Lever 1 smoke. Coverage matrix: 9 sections full v2 (3 slots populated + composed prompt copy) → exercises ComposedPrompt hybrid spec; L1.S2 legacy-only (prompt set, no slots) → exercises MarkdownPrompt fallback; L2.S3 partial slots (framing + task only, no success_signal) → exercises composition with the gap; L1.S3 + L3.S1 content-only (no responseType) with contentStyle warning + practical → exercises renderer's response-type fork on v2 sections. Pre-filled for mattburton@nanjing-school.com (teacher_id 27818389-9d3b-4760-988e-d9f166cd42e5, school_id 636ff4fc-4413-4a8e-a3cd-c6f1e17bd5a1, NIS). Wraps in BEGIN; SET LOCAL session_replication_role = 'replica' to bypass classes INSERT triggers (Lesson #69). Output returns full https://studioloom.org/... URLs to click straight from Supabase result pane. Rollback block at bottom. Seed lives until Lever 1 1J cleanup."
+    category: scripts
+    last_verified: "2026-05-04"
+    referenced_from: ["lesson-quality-lever-1-slot-fields.md", "changelog.md 4 May 2026 Lever 1 entry", "ALL-PROJECTS.md Lever 1 entry"]
+    max_age_days: 365
     last_scanned: null
 
   - path: docs/projects/dimensions3-audit.md

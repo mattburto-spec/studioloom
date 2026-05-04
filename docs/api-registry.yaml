@@ -5,9 +5,22 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 428
+# Total routes: 430
 
 routes:
+- path: /api/admin/ai-budget
+  method: GET
+  file: src/app/api/admin/ai-budget/route.ts
+  auth: admin
+  tables_read:
+  - ai_budget_state
+  - ai_budgets
+  - schools
+  - students
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/admin/ai-model
   method: GET
   file: src/app/api/admin/ai-model/route.ts
@@ -87,6 +100,16 @@ routes:
   - admin_settings
   - cost_rollups
   - generation_runs
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/admin/deletions
+  method: GET
+  file: src/app/api/admin/deletions/route.ts
+  auth: admin
+  tables_read:
+  - scheduled_deletions
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
