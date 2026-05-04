@@ -14,9 +14,14 @@ export async function GET(request: NextRequest) {
   const supabase = createAdminClient();
 
   try {
+    // Note: students table has username + display_name, no `name` column
+    // (an old assumption broke this endpoint with a 500 — fixed 4 May 2026).
+    // The route doesn't actually USE the name in the response (anonymised
+    // by hash) so we just need columns that exist.
     const { data: students, error } = await supabase
       .from("students")
-      .select("id, name, class_id, created_at, learning_profile, mentor_id")
+      .select("id, username, display_name, class_id, school_id, created_at, learning_profile, mentor_id, deleted_at")
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(500);
 

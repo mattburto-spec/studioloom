@@ -5,31 +5,36 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 // Primary nav — pilot-focused tabs.
-// Removed (4 May 2026): Pipeline + Library (Dimensions3 generation pipeline +
-// activity-block library, both quarantined while Dimensions3 project is on
-// hold). The page files remain as stubs so URLs don't 404; nav just hides them.
+//
+// Removed in two passes:
+//   - 4 May AM: Pipeline + Library (Dimensions3 quarantined)
+//   - 4 May PM: Quality + Controls (Quality = Dimensions3 efficacy scores;
+//     Controls = empty hub page that just linked to Registries / Frameworks
+//     / AI Model — replaced with direct links via Registries in TOOLS).
+//   - Also added: AI Budget + Scheduled Deletions (new pilot-ops tabs).
+//
+// Page files for removed tabs remain so URLs don't 404; nav just hides them.
 const TABS = [
   { label: "Dashboard", href: "/admin" },
   { label: "Cost & Usage", href: "/admin/cost-usage" },
-  { label: "Quality", href: "/admin/quality" },
+  { label: "AI Budget", href: "/admin/ai-budget" },
   { label: "Wiring", href: "/admin/wiring" },
   { label: "Teachers", href: "/admin/teachers" },
   { label: "Students", href: "/admin/students" },
   { label: "Schools", href: "/admin/schools" },
   { label: "Bug Reports", href: "/admin/bug-reports" },
   { label: "Audit Log", href: "/admin/audit-log" },
-  { label: "Controls", href: "/admin/controls" },
+  { label: "Deletions", href: "/admin/deletions" },
 ];
 
 // Secondary nav — operational tools.
-// Removed (4 May 2026): Pipeline Health, Library Health, Ingestion Sandbox,
-// Simulator, Feedback, Generation Sandbox, Sandbox Hub, Costs (legacy
-// duplicate of Cost & Usage). All Dimensions3-era; can be re-enabled by
-// adding back to this array if/when Dimensions3 resumes.
+//
+// Removed 4 May PM: Settings (admin_settings UI rarely touched; can navigate
+// to /admin/settings directly when needed) + AI Model (runtime model config,
+// also rarely touched; direct URL works). Kept Registries (load-bearing for
+// drift detection) + Frameworks (FrameworkAdapter mapping reference).
 const TOOLS_TABS = [
-  { label: "Settings", href: "/admin/settings" },
   { label: "Registries", href: "/admin/controls/registries" },
-  { label: "AI Model", href: "/admin/ai-model" },
   { label: "Frameworks", href: "/admin/framework-adapter" },
 ];
 

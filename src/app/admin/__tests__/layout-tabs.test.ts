@@ -25,10 +25,13 @@ describe("admin layout — tab scaffold (pilot-focused, post-Dimensions3-pause)"
   });
 
   it("primary TABS includes all 10 pilot-focused labels", () => {
+    // 4 May PM trim: Quality + Controls dropped (Dimensions3 efficacy +
+    // empty hub page). AI Budget + Deletions added (new pilot-ops tabs
+    // built on Phase 5.4 + 5.2 schema).
     const expectedLabels = [
-      "Dashboard", "Cost & Usage", "Quality", "Wiring",
+      "Dashboard", "Cost & Usage", "AI Budget", "Wiring",
       "Teachers", "Students", "Schools", "Bug Reports",
-      "Audit Log", "Controls",
+      "Audit Log", "Deletions",
     ];
     for (const label of expectedLabels) {
       expect(src).toContain(`label: "${label}"`);
@@ -36,29 +39,41 @@ describe("admin layout — tab scaffold (pilot-focused, post-Dimensions3-pause)"
   });
 
   it("primary TABS does NOT include Dimensions3-quarantined entries", () => {
-    // Pipeline + Library were the Dimensions3 generation surfaces; not in
-    // the visible nav while the project is on hold. Page files remain so
-    // bookmarks don't 404; the nav just hides them.
+    // Pipeline + Library were the Dimensions3 generation surfaces; Quality
+    // was the Dimensions3 efficacy-drift dashboard. All hidden while the
+    // project is on hold. Page files remain so bookmarks don't 404.
     const match = src.match(/const TABS = \[([\s\S]*?)\];/);
     expect(match).not.toBeNull();
     const tabsBlock = match![1];
     expect(tabsBlock).not.toContain('label: "Pipeline"');
     expect(tabsBlock).not.toContain('label: "Library"');
+    expect(tabsBlock).not.toContain('label: "Quality"');
+    expect(tabsBlock).not.toContain('label: "Controls"');
   });
 
-  it("has a secondary TOOLS_TABS array with 4 surviving tools", () => {
+  it("has a secondary TOOLS_TABS array with 2 surviving tools", () => {
     expect(src).toContain("const TOOLS_TABS = [");
     const match = src.match(/const TOOLS_TABS = \[([\s\S]*?)\];/);
     expect(match).not.toBeNull();
     const entries = match![1].match(/\{ label:/g);
-    expect(entries).toHaveLength(4);
+    expect(entries).toHaveLength(2);
   });
 
-  it("secondary TOOLS_TABS keeps Settings + Registries + AI Model + Frameworks", () => {
-    const expected = ["Settings", "Registries", "AI Model", "Frameworks"];
+  it("secondary TOOLS_TABS keeps Registries + Frameworks", () => {
+    // Settings + AI Model dropped 4 May PM — rarely touched, accessible
+    // by direct URL when needed.
+    const expected = ["Registries", "Frameworks"];
     for (const label of expected) {
       expect(src).toContain(`label: "${label}"`);
     }
+  });
+
+  it("secondary TOOLS_TABS does NOT include Settings or AI Model", () => {
+    const match = src.match(/const TOOLS_TABS = \[([\s\S]*?)\];/);
+    expect(match).not.toBeNull();
+    const block = match![1];
+    expect(block).not.toContain('label: "Settings"');
+    expect(block).not.toContain('label: "AI Model"');
   });
 
   it("renders both primary and secondary nav rows", () => {
