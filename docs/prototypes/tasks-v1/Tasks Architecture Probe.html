@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>StudioLoom Tasks — Architecture Probe</title>
+<link rel="stylesheet" href="styles.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="bits.jsx"></script>
+<script type="text/babel" src="artboard1.jsx"></script>
+<script type="text/babel" src="artboard2.jsx"></script>
+<script type="text/babel" src="artboard3.jsx"></script>
+
+<script type="text/babel" data-presets="react">
+function App() {
+  const { DesignCanvas, DCSection, DCArtboard } = window;
+  return (
+    <DesignCanvas
+      title="StudioLoom — Tasks · Architecture Probe"
+      subtitle="One config surface, or two? Three artboards arguing it out."
+    >
+      {/* ARTBOARD 1 */}
+      <DCSection
+        id="ab1"
+        title="01 — Unified surface"
+        subtitle="One screen, type-aware. Same form. Two configured states."
+      >
+        <DCArtboard id="ab1-formative" label="Configured: formative quick-check" width={920} height={780}>
+          <div data-screen-label="01 Unified — Formative" style={{ padding: 20 }}>
+            <UnifiedSurface mode="formative" />
+          </div>
+        </DCArtboard>
+
+        <DCArtboard id="ab1-summative" label="Configured: summative project" width={920} height={1620}>
+          <div data-screen-label="01 Unified — Summative" style={{ padding: 20 }}>
+            <UnifiedSurface mode="summative" />
+          </div>
+        </DCArtboard>
+      </DCSection>
+
+      {/* ARTBOARD 2 */}
+      <DCSection
+        id="ab2"
+        title="02 — Split surfaces"
+        subtitle="Chooser up front. Inline row for quick checks. Multi-step config for projects."
+      >
+        <DCArtboard id="ab2-split" label="Chooser + both finished examples" width={1120} height={1280}>
+          <div data-screen-label="02 Split surfaces" style={{ padding: 20 }}>
+            <SplitSurfaces />
+          </div>
+        </DCArtboard>
+      </DCSection>
+
+      {/* ARTBOARD 3 */}
+      <DCSection
+        id="ab3"
+        title="03 — The decision"
+        subtitle="Pick one. Name the moment the loser breaks."
+      >
+        <DCArtboard id="ab3-decision" label="Verdict" width={1120} height={820}>
+          <div data-screen-label="03 Decision" style={{ padding: 20 }}>
+            <DecisionPanel />
+          </div>
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+
+</body>
+</html>
