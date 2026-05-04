@@ -2,15 +2,30 @@
 /**
  * PATCH /api/teacher/fabricators/[id]/machines
  *
- * Replace the set of machine assignments for a fabricator. The teacher must
- * own the fabricator (invited_by_teacher_id = auth.uid()). Each machineId
- * must be either a system-template profile or owned by this teacher.
+ * Replace the set of machine assignments for a fabricator.
+ *
+ * Phase 8-1 + Round 2 audit (4 May 2026): both ownership gates
+ * flipped to school-scoped. Any teacher at the same school can
+ * reassign machines on any fab at the school. Each machineId must
+ * be either a system template (school_id NULL) or a non-template
+ * machine at the same school as the calling teacher.
+ *
+ * Note: Phase 8.1d-9 deprecated the fabricator_machines junction
+ * as a visibility mechanism (queue scopes by school + lab now).
+ * This route still writes the table for legacy clients but the
+ * data isn't load-bearing. PH9-FU-FAB-MACHINE-RESTRICT may revive
+ * it post-pilot for opt-in restrictions.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { FAB_PRIVATE_CACHE_HEADERS } from "@/lib/fab/auth";
+import {
+  loadTeacherSchoolId,
+  isOrchestrationError,
+} from "@/lib/fabrication/lab-orchestration";
+import { loadSchoolOwnedFabricator } from "@/lib/fabrication/fab-orchestration";
 
 async function getTeacherUser(request: NextRequest) {
   const supabase = createServerClient(
@@ -60,21 +75,31 @@ export async function PATCH(
 
   const admin = createAdminClient();
 
-  // Ownership check on the fabricator.
-  const { data: fabricator } = await admin
-    .from("fabricators")
-    .select("id, invited_by_teacher_id")
-    .eq("id", id)
-    .maybeSingle();
+  // School-scoped ownership check on the fabricator + the machines.
+  const schoolResult = await loadTeacherSchoolId(admin, user.id);
+  if (isOrchestrationError(schoolResult)) {
+    return privateJson(
+      { error: schoolResult.error.message },
+      schoolResult.error.status
+    );
+  }
+  const schoolId = schoolResult.schoolId;
 
-  if (!fabricator || fabricator.invited_by_teacher_id !== user.id) {
-    return privateJson({ error: "Not found" }, 404);
+  const fabResult = await loadSchoolOwnedFabricator(admin, schoolId, id);
+  if (isOrchestrationError(fabResult)) {
+    return privateJson(
+      { error: fabResult.error.message },
+      fabResult.error.status
+    );
   }
 
-  // Validate each machineId — must be system template or teacher-owned.
+  // Validate each machineId — must be a system template (school_id
+  // IS NULL by design) OR a non-template machine at the same school
+  // as the calling teacher. Phase 8-3 made school_id NOT NULL for
+  // non-templates, so the check is uniform.
   const { data: profiles } = await admin
     .from("machine_profiles")
-    .select("id, is_system_template, teacher_id")
+    .select("id, is_system_template, school_id")
     .in("id", machineIds);
 
   const allowedIds = new Set(
@@ -82,7 +107,7 @@ export async function PATCH(
       .filter(
         (p) =>
           p.is_system_template === true ||
-          p.teacher_id === user.id
+          p.school_id === schoolId
       )
       .map((p) => p.id)
   );
@@ -90,7 +115,7 @@ export async function PATCH(
   const rejected = machineIds.filter((mid) => !allowedIds.has(mid));
   if (rejected.length > 0) {
     return privateJson(
-      { error: "One or more machines are not accessible to this teacher.", rejected },
+      { error: "One or more machines are not accessible at this school.", rejected },
       400
     );
   }

@@ -4,12 +4,21 @@
  *
  * Currently supports one operation: toggle is_active.
  * Hard-delete is NOT exposed (D-INVITE-3 — deactivate only, preserves audit trail).
+ *
+ * Phase 8-1 + Round 2 audit (4 May 2026): school-scoped ownership.
+ * Any teacher at the same school can deactivate the fab (replaces
+ * the pre-flat-membership `invited_by_teacher_id = user.id` check).
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { FAB_PRIVATE_CACHE_HEADERS } from "@/lib/fab/auth";
+import {
+  loadTeacherSchoolId,
+  isOrchestrationError,
+} from "@/lib/fabrication/lab-orchestration";
+import { loadSchoolOwnedFabricator } from "@/lib/fabrication/fab-orchestration";
 
 async function getTeacherUser(request: NextRequest) {
   const supabase = createServerClient(
@@ -51,15 +60,25 @@ export async function PATCH(
 
   const admin = createAdminClient();
 
-  // Ownership check — teacher can only modify fabricators they invited.
-  const { data: fabricator } = await admin
-    .from("fabricators")
-    .select("id, invited_by_teacher_id")
-    .eq("id", id)
-    .maybeSingle();
-
-  if (!fabricator || fabricator.invited_by_teacher_id !== user.id) {
-    return privateJson({ error: "Not found" }, 404);
+  // School-scoped ownership check (Phase 8-1 + Round 2 audit).
+  // Cross-school → 404 (no existence leak).
+  const schoolResult = await loadTeacherSchoolId(admin, user.id);
+  if (isOrchestrationError(schoolResult)) {
+    return privateJson(
+      { error: schoolResult.error.message },
+      schoolResult.error.status
+    );
+  }
+  const fabResult = await loadSchoolOwnedFabricator(
+    admin,
+    schoolResult.schoolId,
+    id
+  );
+  if (isOrchestrationError(fabResult)) {
+    return privateJson(
+      { error: fabResult.error.message },
+      fabResult.error.status
+    );
   }
 
   const updates: Record<string, unknown> = {};

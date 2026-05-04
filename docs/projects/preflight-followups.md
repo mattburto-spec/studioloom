@@ -15,8 +15,8 @@
 ---
 
 ## FU-FAB-INVITE-SCHOOL-SCOPED — Fabricator invite still gates on teacher_id, not school_id (Phase 8-1 audit gap)
+**Status: ✅ RESOLVED 4 May 2026** (along with 4 sibling fab admin routes; see closure note at bottom)
 **Surfaced:** 29 Apr 2026, post-Access-v2 Preflight retest setup
-**Target phase:** Quick fix — Phase 8-5 cleanup or wherever fab-orchestration is next touched
 **Severity:** 🟠 MED (workflow-friction; not data-leak)
 
 **Symptom:** Matt couldn't invite his teacher email (`mattburton@nanjing-school.com`)
@@ -116,6 +116,91 @@ the inviter's teachers FK chain, (b) all sibling routes under
 one new route test locks in the school-scoped behavior
 (cross-school 409, same-school resend works), and (d) audit doc gets
 a P.S. entry noting the late-found gap that Phase 8-1 audit missed.
+
+---
+
+### Closure note (4 May 2026)
+
+Resolved alongside 4 sibling routes in a single sweep. All 5
+`/api/teacher/fabricators/*` admin routes flipped to school-scoped.
+
+**Routes swept:**
+
+1. `GET /api/teacher/fabricators` — list now scopes by every
+   teacher at the school (previously: only the calling teacher's
+   own invitees).
+2. `POST /api/teacher/fabricators` (invite) — same-school existing
+   fab → resend hint as before; cross-school existing fab → new
+   error `"belongs to another school"` (replaces the
+   pre-flat-membership `"belongs to another teacher"` hard-block).
+3. `PATCH /api/teacher/fabricators/[id]` (deactivate) — uses
+   `loadSchoolOwnedFabricator`. Cross-school → 404.
+4. `POST /api/teacher/fabricators/[id]/reset-password` — same.
+   Also fixed an incidental TS strict error from the helper return
+   type (display_name became nullable; falls back to "Fabricator").
+5. `PATCH /api/teacher/fabricators/[id]/machines` — DOUBLE fix:
+   the fab ownership check AND the per-machine validation. Machines
+   are now validated as school-template OR school-school (matches
+   the calling teacher's school_id, which was already what
+   Phase 8-3 enforced on machine_profiles).
+
+**Schema:** unchanged. `invited_by_teacher_id` stays as legacy
+audit-only column (same pattern as `machine_profiles.teacher_id`
+post Phase 8-3). Future cleanup migration could rename to
+`created_by_teacher_id` for consistency, but not blocking.
+
+**New helpers in `src/lib/fabrication/fab-orchestration.ts`:**
+
+- `loadSchoolOwnedFabricator(db, schoolId, fabricatorId)` —
+  mirrors `loadSchoolOwnedLab` from lab-orchestration. Returns
+  `{ fabricator: SchoolOwnedFabricator } | OrchestrationError`.
+  Cross-school → 404 (no existence leak).
+- `findFabricatorByEmail(db, email)` — variant for the invite
+  path that needs to disambiguate "no fab anywhere" vs "fab at
+  same school" vs "fab at other school". Returns the row + the
+  inviter's `school_id`; caller compares.
+
+**Tests:**
+
+- `src/app/api/teacher/fabricators/__tests__/invite.test.ts`
+  rewritten: 7 → 9 cases. Mock fixture now provides
+  `school_id` on teachers + `inviterSchoolId` on existing
+  fabricator state. New cases:
+  - "another school" (cross-school 409 with new error message)
+  - "same school different teacher persona" (resend hint applies)
+  - "same school different teacher persona with resend=true"
+    (cross-persona takeover succeeds — locks in flat-membership
+    contract)
+- The 3 sibling routes (`[id]/route.ts`,
+  `[id]/reset-password/route.ts`, `[id]/machines/route.ts`)
+  had no pre-existing route tests (`audit-skip: routine teacher
+  pedagogy ops, low audit value` annotation was on all three).
+  Helper unit tests on `loadSchoolOwnedFabricator` could be
+  added later but the integration paths are exercised by the
+  invite test's mock pattern.
+
+**Verification:**
+- `tsc --noEmit --project tsconfig.check.json` clean (one
+  pre-existing unrelated `BugReportButton.tsx` error from Access
+  v2 Phase 6 work that's not gated in CI).
+- Targeted: 103 fab-related tests pass. Full suite: 3494 → 3496
+  (no regressions; +2 from new invite cases).
+- Smoke (Matt): logged in as `mattburton@nanjing-school.com`,
+  expected to see fab originally invited by `mattburto@gmail.com`
+  persona AT THE SAME NIS SCHOOL — works under flat membership.
+
+**Lessons surfaced:**
+- The 28 Apr audit doc was correct in its scope (queue + jobs +
+  admin pages) but the "admin pages" framing was too narrow —
+  excluded `/api/teacher/fabricators/*` because they don't list
+  jobs. Future audits should explicitly scope by **route prefix**
+  not by feature concept, to avoid this kind of gap.
+- Pattern recognition: every "teacher_id ownership check" in
+  Preflight admin/management surfaces should be school-scoped
+  under flat membership. The contract is uniform; the audit
+  noise was per-route. A future dimension audit could
+  programmatically grep for `invited_by_teacher_id !==` and
+  `teacher_id !== teacherId` patterns to surface the rest.
 
 ---
 
