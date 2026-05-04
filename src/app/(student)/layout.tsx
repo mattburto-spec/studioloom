@@ -11,7 +11,7 @@ import { BugReportButton } from "@/components/shared/BugReportButton";
 import { BoldTopNav } from "@/components/student/BoldTopNav";
 import { BellCountContext } from "@/components/student/BellCountContext";
 import { SidebarSlotContext } from "@/components/student/SidebarSlotContext";
-import { getThemeStyles, type ThemeId, THEMES } from "@/lib/student/themes";
+import { getThemeStyles, type ThemeId } from "@/lib/student/themes";
 import { MENTORS, type MentorId } from "@/lib/student/mentors";
 import type { Student, Class } from "@/types";
 
@@ -135,12 +135,17 @@ export default function StudentLayout({
       feedback_preference: "private" | "public";
       learning_differences: string[];
     } | null;
+    onboardingPicks: string[];
   }) => {
     try {
       await fetch("/api/student/studio-preferences", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mentor_id: data.mentorId, theme_id: data.themeId }),
+        body: JSON.stringify({
+          mentor_id: data.mentorId,
+          theme_id: data.themeId,
+          onboarding_picks: data.onboardingPicks,
+        }),
       });
 
       if (data.learningProfile) {
@@ -286,41 +291,10 @@ export default function StudentLayout({
                   </div>
                 </div>
 
-                <div className="mb-6">
-                  <label className="text-xs font-semibold uppercase tracking-wider opacity-60">Visual Theme</label>
-                  <div className="grid grid-cols-4 gap-2 mt-2">
-                    {(Object.values(THEMES) as { id: ThemeId; name: string; preview: { accent: string; bg: string } }[]).map((t) => {
-                      const isActive = (student as any).theme_id === t.id;
-                      const isDarkTheme = ["dark", "neon", "vapor", "cyber", "ocean"].includes(t.id);
-                      return (
-                        <button
-                          key={t.id}
-                          onClick={async () => {
-                            await fetch("/api/student/studio-preferences", {
-                              method: "PATCH",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ theme_id: t.id }),
-                            });
-                            setStudent((prev) => prev ? { ...prev, theme_id: t.id } as any : prev);
-                          }}
-                          className="p-3 rounded-xl text-center transition-all"
-                          style={{
-                            border: isActive ? `2px solid ${t.preview.accent}` : "2px solid transparent",
-                            background: t.preview.bg,
-                          }}
-                        >
-                          <div
-                            className="w-6 h-6 rounded-full mx-auto mb-1"
-                            style={{ background: t.preview.accent }}
-                          />
-                          <div className="text-xs font-semibold" style={{ color: isDarkTheme ? "#fff" : "#333" }}>
-                            {t.name}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                {/* Theme picker removed in v1 — theme auto-derives from
+                    chosen mentor (see lib/student/onboarding-images.ts →
+                    MENTOR_THEME_MAP). v2 (Designer Mentor System) restores
+                    per-designer theme assignment. */}
 
                 <button
                   onClick={() => {
