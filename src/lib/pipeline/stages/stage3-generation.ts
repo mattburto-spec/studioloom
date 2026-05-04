@@ -109,10 +109,12 @@ Determine the appropriate AI interaction rules:
 - tone: brief description of how AI should interact
 - rules: 2-3 specific behaviour rules for the AI mentor
 
-Respond with JSON matching this exact schema:
+Respond with JSON matching this exact schema (Lever 1 — three slot fields, NOT a single prompt):
 {
   "title": "Short descriptive title",
-  "prompt": "Clear, engaging task description for the student (2-4 sentences)",
+  "framing": "ONE sentence (≤200 chars) orienting the student: what they're doing and why it matters today. Direct, second-person. Reads quietly as the lead.",
+  "task": "The imperative body — numbered list for discrete steps. ≤800 chars. NO ### headings or | col | tables (renderer drops them). Inline **bold**/*italic*/[links](url)/lists fine.",
+  "success_signal": "ONE sentence (≤200 chars) telling the student what to produce/record/submit/share. Use a clear production verb. ALWAYS PRESENT.",
   "bloom_level": "${ctx.suggestedBloom || "apply"}",
   "time_weight": "${ctx.suggestedTimeWeight || "moderate"}",
   "grouping": "${ctx.suggestedGrouping || "individual"}",
@@ -141,7 +143,14 @@ Respond with JSON matching this exact schema:
 
 interface AIActivity {
   title: string;
-  prompt: string;
+  // Lever 1 — three v2 slot fields. The legacy `prompt` field is
+  // composed at persist time (output-adapter) from these three.
+  framing: string;
+  task: string;
+  success_signal: string;
+  /** Legacy single-blob fallback. May be present in older fixtures or
+   *  fallback paths; consumers compose from slots when present. */
+  prompt?: string;
   bloom_level: string;
   time_weight: string;
   grouping: string;
@@ -289,7 +298,9 @@ export async function stage3_fillGaps(
           const ctx = task.slot.gapContext || {};
           const fallback: AIActivity = {
             title: task.slot.gapDescription || "Activity",
-            prompt: `Complete this ${ctx.suggestedCategory || "activity"} task for "${request.topic}".`,
+            framing: `An ${ctx.suggestedCategory || "activity"} task for "${request.topic}".`,
+            task: `Complete this ${ctx.suggestedCategory || "activity"} task. Document your work as you go.`,
+            success_signal: "Submit your completed work.",
             bloom_level: ctx.suggestedBloom || "apply",
             time_weight: ctx.suggestedTimeWeight || "moderate",
             grouping: ctx.suggestedGrouping || "individual",
@@ -333,10 +344,19 @@ export async function stage3_fillGaps(
     const activities: FilledActivity[] = lesson.activities.map((slot, ai) => {
       if (slot.source === "library" && slot.block) {
         const b = slot.block.block;
+        // Lever 1 — pull v2 slots from the activity_block. For legacy
+        // blocks where the seeder didn't populate them, fall back to
+        // the legacy prompt (renderer will render through legacy path).
+        const framing = b.framing || "";
+        const task = b.task || (b.framing ? "" : b.prompt);
+        const success_signal = b.success_signal || "";
         return {
           source: "library" as const,
           sourceBlockId: b.id,
           title: b.title,
+          framing,
+          task,
+          success_signal,
           prompt: b.prompt,
           bloom_level: b.bloom_level || "apply",
           time_weight: b.time_weight,
@@ -360,10 +380,19 @@ export async function stage3_fillGaps(
       const generated = gapResults.get(key);
       if (generated) {
         const act = generated.activity;
+        // Lever 1 — generated activities now produce three slot fields
+        // per the updated AIActivity contract. Compose legacy prompt
+        // from them as the fallback for any reader still on prompt.
+        const composedPrompt = [act.framing, act.task, act.success_signal]
+          .filter((s) => s && s.trim())
+          .join("\n\n") || act.prompt || act.title;
         return {
           source: "generated" as const,
           title: act.title,
-          prompt: act.prompt,
+          framing: act.framing || "",
+          task: act.task || "",
+          success_signal: act.success_signal || "",
+          prompt: composedPrompt,
           bloom_level: act.bloom_level || "apply",
           time_weight: act.time_weight || "moderate",
           grouping: act.grouping || "individual",
@@ -383,10 +412,16 @@ export async function stage3_fillGaps(
 
       // Absolute fallback
       const ctx = slot.gapContext || {};
+      const fallbackFraming = `An activity for "${request.topic}".`;
+      const fallbackTask = `Complete this activity. Document your work as you go.`;
+      const fallbackSignal = "Submit your completed work.";
       return {
         source: "generated" as const,
         title: slot.gapDescription || "Activity",
-        prompt: `Complete this activity for "${request.topic}".`,
+        framing: fallbackFraming,
+        task: fallbackTask,
+        success_signal: fallbackSignal,
+        prompt: `${fallbackFraming}\n\n${fallbackTask}\n\n${fallbackSignal}`,
         bloom_level: ctx.suggestedBloom || "apply",
         time_weight: ctx.suggestedTimeWeight || "moderate",
         grouping: ctx.suggestedGrouping || "individual",

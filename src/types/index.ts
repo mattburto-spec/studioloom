@@ -1053,6 +1053,10 @@ export interface ActivityBlock {
   title: string;
   description: string | null;
   prompt: string;
+  // Lever 1 v2 slot fields (sub-phase 1B). Nullable for legacy rows.
+  framing: string | null;
+  task: string | null;
+  success_signal: string | null;
 
   // Source tracking
   source_type: ActivityBlockSource;
