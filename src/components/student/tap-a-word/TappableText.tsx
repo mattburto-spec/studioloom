@@ -139,6 +139,7 @@ export function TappableText({ text, contextSentence, className, classId: classI
           errorMessage={lookup.errorMessage}
           anchorRect={anchorRect}
           onClose={handleClose}
+          onRetry={lookup.retry}
         />
       )}
     </span>

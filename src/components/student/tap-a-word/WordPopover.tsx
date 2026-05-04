@@ -39,6 +39,8 @@ export interface WordPopoverProps {
   errorMessage: string | null;
   anchorRect: DOMRect;
   onClose: () => void;
+  /** Optional retry handler — surfaced as a "Retry" button in the error state. */
+  onRetry?: () => void;
 }
 
 export function WordPopover({
@@ -52,6 +54,7 @@ export function WordPopover({
   errorMessage,
   anchorRect,
   onClose,
+  onRetry,
 }: WordPopoverProps) {
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -175,9 +178,31 @@ export function WordPopover({
         </div>
       )}
       {state === "error" && (
-        <div className="text-red-600 text-xs">
-          {errorMessage || "Couldn't load definition. Tap to try again."}
+        <div className="text-xs">
+          <div className="text-red-600">
+            {errorMessage || "Couldn't load definition."}
+          </div>
+          {onRetry && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRetry();
+              }}
+              className="mt-1.5 text-blue-600 hover:text-blue-800 underline underline-offset-2 font-medium"
+            >
+              Retry
+            </button>
+          )}
         </div>
+      )}
+      {/* Idle is the hook's pre-lookup state. The popover should never
+          render with state==='idle' (handleClick fires lookup synchronously
+          before React commits the new openWord), but if any future ordering
+          regression breaks that invariant, show a friendly message instead
+          of a blank popover that looks like a spontaneous dismissal. */}
+      {state === "idle" && (
+        <div className="text-gray-500 text-xs italic">Tap again to look up.</div>
       )}
     </div>,
     document.body

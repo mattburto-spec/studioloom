@@ -2,6 +2,7 @@
 
 import type { UnitPage, ActivitySection, PortfolioEntry } from "@/types";
 import { composedPromptText } from "@/lib/lever-1/compose-prompt";
+import { looksLikeRichText } from "@/components/student/RichTextEditor";
 
 /** A group of pages rendered together under one heading. */
 export interface NarrativeSection {
@@ -428,7 +429,19 @@ function ResponseDisplay({ value }: { value: unknown }) {
     }
   }
 
-  // Plain text response
+  // Rich-text response (new responses authored via RichTextEditor) — render
+  // the HTML directly. RichTextEditor only emits inline tags from
+  // execCommand (b/i/strong/em/ul/ol/li/p/br/div/span); no script vectors.
+  if (looksLikeRichText(str)) {
+    return (
+      <div
+        className="text-sm text-gray-800 leading-relaxed rich-response"
+        dangerouslySetInnerHTML={{ __html: str }}
+      />
+    );
+  }
+
+  // Plain text response (legacy + freshly-typed unformatted responses)
   return (
     <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
       {str}

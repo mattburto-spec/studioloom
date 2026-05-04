@@ -5,7 +5,7 @@ import {
   useCallback,
   useEffect,
 } from "react";
-import { MarkdownToolbar } from "./MarkdownToolbar";
+import { RichTextEditor, type RichTextEditorHandle } from "./RichTextEditor";
 
 /**
  * IntegrityMetadata: Academic integrity tracking data collected silently from textarea interactions.
@@ -79,7 +79,7 @@ export function MonitoredTextarea({
   className = "",
   disabled = false,
 }: MonitoredTextareaProps) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<RichTextEditorHandle>(null);
 
   // Mutable tracking state (useRef to avoid re-renders)
   const metricsRef = useRef<IntegrityMetadata>({
@@ -118,9 +118,8 @@ export function MonitoredTextarea({
    */
   const updateMetrics = useCallback(
     (shouldNotify = false) => {
-      if (textareaRef.current) {
-        metricsRef.current.characterCount = textareaRef.current.value.length;
-      }
+      const text = editorRef.current?.getTextContent() ?? "";
+      metricsRef.current.characterCount = text.length;
       if (shouldNotify && onIntegrityUpdate) {
         onIntegrityUpdate({ ...metricsRef.current });
       }
@@ -132,7 +131,7 @@ export function MonitoredTextarea({
    * Handle paste events: log content and length
    */
   const handlePaste = useCallback(
-    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    (e: React.ClipboardEvent<HTMLDivElement>) => {
       const pastedText = e.clipboardData.getData("text/plain");
       const now = Date.now();
 
@@ -154,7 +153,7 @@ export function MonitoredTextarea({
    * integrityMetadataRef is populated before the 2s auto-save fires.
    */
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
       metricsRef.current.keystrokeCount++;
       metricsRef.current.lastActiveTime = Date.now();
 
@@ -226,9 +225,9 @@ export function MonitoredTextarea({
    */
   const setupMonitoringTick = useCallback(() => {
     tickIntervalRef.current = setInterval(() => {
-      if (!textareaRef.current) return;
+      if (!editorRef.current) return;
       const now = Date.now();
-      const currentText = textareaRef.current.value;
+      const currentText = editorRef.current.getTextContent();
 
       // Snapshot (only if text changed, capped at MAX_SNAPSHOTS)
       if (currentText !== lastSnapshotTextRef.current) {
@@ -297,37 +296,24 @@ export function MonitoredTextarea({
     metricsRef.current.characterCount = value.length;
   }, [value]);
 
-  // Default Tailwind classes matching ResponseInput textarea.
-  // bg-white is explicit so the typing surface stays white-on-white in the
-  // warm-paper Bold lesson scope (otherwise the textarea inherits the
-  // var(--sl-paper) tint of its parent card and looks muddy).
-  const baseClassName =
-    "w-full px-4 py-3 border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-transparent resize-y text-sm";
-  const finalClassName = className ? `${baseClassName} ${className}` : baseClassName;
-
+  // The RichTextEditor renders its own toolbar + contenteditable styled
+  // box. We forward integrity-tracking handlers into it. `value` is now an
+  // HTML string (e.g. "Hello <b>world</b>"); plain-text legacy values
+  // render unchanged because contenteditable shows untagged strings as text.
   return (
-    <div>
-      {!disabled && (
-        <MarkdownToolbar
-          textareaRef={textareaRef}
-          value={value}
-          onChange={onChange}
-        />
-      )}
-      <textarea
-        ref={textareaRef}
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onPaste={handlePaste}
-        onKeyDown={handleKeyDown}
-        onFocus={handleFocus}
-        onBlur={handleBlur}
-        placeholder={placeholder}
-        rows={rows}
-        disabled={disabled}
-        className={finalClassName}
-      />
-    </div>
+    <RichTextEditor
+      ref={editorRef}
+      id={id}
+      value={value}
+      onChange={onChange}
+      onPaste={handlePaste}
+      onKeyDown={handleKeyDown}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      placeholder={placeholder}
+      rows={rows}
+      disabled={disabled}
+      className={className}
+    />
   );
 }
