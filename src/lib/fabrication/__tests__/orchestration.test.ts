@@ -192,20 +192,30 @@ function makeClient(params: {
         }
         if (table === "classes") {
           if (classError) return { data: null, error: { message: classError } };
-          return { data: { teacher_id: classTeacherId }, error: null };
+          // Phase 8-1 + 4-May fix: orchestration now embeds
+          // teachers(school_id) for school-scoped machine validation.
+          return {
+            data: {
+              teacher_id: classTeacherId,
+              teachers: { school_id: "school-uuid-nis" },
+            },
+            error: null,
+          };
         }
         if (table === "machine_profiles") {
           if (machineError) return { data: null, error: { message: machineError } };
-          // Phase 8.1d-22: orchestration now selects (id, teacher_id,
-          // lab_id, machine_category, is_active). Provide all five so
-          // the path-A branch (specific machine pick) doesn't bail.
+          // Phase 8-1 + 4-May fix: orchestration now selects (id,
+          // school_id, lab_id, machine_category, is_system_template,
+          // is_active). school_id matches the class's school so the
+          // path-A branch passes validation.
           return {
             data: machineFound
               ? {
                   id: entry.eq![0][1],
-                  teacher_id: classTeacherId,
+                  school_id: "school-uuid-nis",
                   lab_id: "lab-uuid-aaa",
                   machine_category: "3d_printer",
+                  is_system_template: false,
                   is_active: true,
                 }
               : null,
