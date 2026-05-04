@@ -17,19 +17,21 @@ const src = readFileSync(
 );
 
 describe("admin layout — tab scaffold (pilot-focused, post-Dimensions3-pause)", () => {
-  it("has exactly 10 primary TABS entries", () => {
+  it("has exactly 9 primary TABS entries", () => {
     const match = src.match(/const TABS = \[([\s\S]*?)\];/);
     expect(match).not.toBeNull();
     const entries = match![1].match(/\{ label:/g);
-    expect(entries).toHaveLength(10);
+    expect(entries).toHaveLength(9);
   });
 
-  it("primary TABS includes all 10 pilot-focused labels", () => {
-    // 4 May PM trim: Quality + Controls dropped (Dimensions3 efficacy +
-    // empty hub page). AI Budget + Deletions added (new pilot-ops tabs
-    // built on Phase 5.4 + 5.2 schema).
+  it("primary TABS includes all 9 pilot-focused labels", () => {
+    // 4 May trims:
+    //   AM: Pipeline + Library (Dimensions3 quarantined)
+    //   PM #1: Quality + Controls (Dimensions3 + empty hub)
+    //   PM #2: Wiring (reference doc, not daily-ops surface)
+    //   Added: AI Budget + Deletions (new pilot-ops tabs).
     const expectedLabels = [
-      "Dashboard", "Cost & Usage", "AI Budget", "Wiring",
+      "Dashboard", "Cost & Usage", "AI Budget",
       "Teachers", "Students", "Schools", "Bug Reports",
       "Audit Log", "Deletions",
     ];
@@ -38,10 +40,9 @@ describe("admin layout — tab scaffold (pilot-focused, post-Dimensions3-pause)"
     }
   });
 
-  it("primary TABS does NOT include Dimensions3-quarantined entries", () => {
-    // Pipeline + Library were the Dimensions3 generation surfaces; Quality
-    // was the Dimensions3 efficacy-drift dashboard. All hidden while the
-    // project is on hold. Page files remain so bookmarks don't 404.
+  it("primary TABS does NOT include hidden-from-nav entries", () => {
+    // All 5 removed tabs still have page files so direct URLs work; nav
+    // just hides them.
     const match = src.match(/const TABS = \[([\s\S]*?)\];/);
     expect(match).not.toBeNull();
     const tabsBlock = match![1];
@@ -49,6 +50,7 @@ describe("admin layout — tab scaffold (pilot-focused, post-Dimensions3-pause)"
     expect(tabsBlock).not.toContain('label: "Library"');
     expect(tabsBlock).not.toContain('label: "Quality"');
     expect(tabsBlock).not.toContain('label: "Controls"');
+    expect(tabsBlock).not.toContain('label: "Wiring"');
   });
 
   it("has a secondary TOOLS_TABS array with 2 surviving tools", () => {

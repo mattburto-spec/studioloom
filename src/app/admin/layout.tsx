@@ -6,19 +6,20 @@ import { useEffect, useState } from "react";
 
 // Primary nav — pilot-focused tabs.
 //
-// Removed in two passes:
+// Removed in three passes:
 //   - 4 May AM: Pipeline + Library (Dimensions3 quarantined)
-//   - 4 May PM: Quality + Controls (Quality = Dimensions3 efficacy scores;
-//     Controls = empty hub page that just linked to Registries / Frameworks
-//     / AI Model — replaced with direct links via Registries in TOOLS).
-//   - Also added: AI Budget + Scheduled Deletions (new pilot-ops tabs).
+//   - 4 May PM #1: Quality + Controls (Quality = Dimensions3 efficacy
+//     scores; Controls = empty hub page).
+//   - 4 May PM #2: Wiring (system architecture map — useful as a
+//     reference doc but not a daily-pilot-ops surface; access via
+//     direct /admin/wiring URL when needed).
+//   - Added: AI Budget + Deletions (new pilot-ops tabs).
 //
 // Page files for removed tabs remain so URLs don't 404; nav just hides them.
 const TABS = [
   { label: "Dashboard", href: "/admin" },
   { label: "Cost & Usage", href: "/admin/cost-usage" },
   { label: "AI Budget", href: "/admin/ai-budget" },
-  { label: "Wiring", href: "/admin/wiring" },
   { label: "Teachers", href: "/admin/teachers" },
   { label: "Students", href: "/admin/students" },
   { label: "Schools", href: "/admin/schools" },
