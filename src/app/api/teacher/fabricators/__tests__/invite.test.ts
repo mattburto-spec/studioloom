@@ -59,10 +59,35 @@ vi.mock("@/lib/supabase/admin", () => ({
 const adminMock = {
   from: vi.fn((table: string) => {
     if (table === "teachers") {
+      // Two callsite shapes:
+      //   - loadTeacherSchoolId(callingUser) — selects "school_id"
+      //   - findFabricatorByEmail's inviter lookup — also selects
+      //     "school_id" but for a DIFFERENT teacher_id (the
+      //     existing fab's inviter). The mock differentiates by the
+      //     eq value: if it matches the calling teacher's id, return
+      //     tableState.teachers; otherwise return the existing fab's
+      //     inviter school.
       return {
         select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            maybeSingle: vi.fn(async () => ({ data: tableState.teachers ?? null })),
+          eq: vi.fn((_col: string, val: unknown) => ({
+            maybeSingle: vi.fn(async () => {
+              if (val === mockUserId) {
+                return { data: tableState.teachers ?? null };
+              }
+              // Inviter lookup — synthesize a row from the fab's
+              // inviterSchoolId fixture.
+              if (
+                tableState.existingFabricator &&
+                val === tableState.existingFabricator.invited_by_teacher_id
+              ) {
+                return {
+                  data: {
+                    school_id: tableState.existingFabricator.inviterSchoolId,
+                  },
+                };
+              }
+              return { data: null };
+            }),
           })),
         })),
       };
@@ -70,18 +95,21 @@ const adminMock = {
     if (table === "fabricators") {
       return {
         select: vi.fn(() => ({
+          // findFabricatorByEmail uses two queries — fabricator
+          // first (no embed; FK target is auth.users not teachers
+          // so PostgREST can't embed), then teachers lookup. Return
+          // the bare fab row here.
           ilike: vi.fn(() => ({
-            // findFabricatorByEmail now embeds the inviter's
-            // school via the FK named alias. Return the embedded
-            // shape when an existing fabricator is set.
             maybeSingle: vi.fn(async () => ({
               data: tableState.existingFabricator
                 ? {
-                    ...tableState.existingFabricator,
-                    inviter:
-                      tableState.existingFabricator.inviterSchoolId !== null
-                        ? { school_id: tableState.existingFabricator.inviterSchoolId }
-                        : null,
+                    id: tableState.existingFabricator.id,
+                    email: "test@example.com",
+                    display_name: "Test",
+                    is_active: true,
+                    password_hash: tableState.existingFabricator.password_hash,
+                    invited_by_teacher_id:
+                      tableState.existingFabricator.invited_by_teacher_id,
                   }
                 : null,
             })),

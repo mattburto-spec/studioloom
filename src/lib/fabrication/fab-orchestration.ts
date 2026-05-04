@@ -382,32 +382,27 @@ export interface SchoolOwnedFabricator {
  * Returns 404 on not-found OR cross-school. Same error message in
  * both cases — don't leak existence of fabs at other schools.
  *
- * Resolves the fab's school via the inviter's `teachers.school_id`.
- * If the inviter has no school_id (orphan teacher pre-welcome-wizard),
- * the fab is unreachable from any school's admin surface — surface
- * as 404.
+ * Two-query approach because PostgREST can't embed teachers via
+ * fabricators.invited_by_teacher_id — the FK points to auth.users(id)
+ * (mig 097), not teachers(id), so there's no direct FK between
+ * `fabricators` and `teachers`. (teachers.id = auth.users.id per
+ * mig 001 FK chain, but PostgREST needs a DIRECT FK to embed.)
+ * Caught at prod-apply time on 4 May.
  */
 export async function loadSchoolOwnedFabricator(
   db: SupabaseLike,
   schoolId: string,
   fabricatorId: string
 ): Promise<{ fabricator: SchoolOwnedFabricator } | OrchestrationError> {
-  const result = await db
+  const fabResult = await db
     .from("fabricators")
     .select(
-      "id, email, display_name, is_active, password_hash, invited_by_teacher_id, inviter:teachers!fabricators_invited_by_teacher_id_fkey(school_id)"
+      "id, email, display_name, is_active, password_hash, invited_by_teacher_id"
     )
     .eq("id", fabricatorId)
     .maybeSingle();
-  const { data, error } = result as {
-    data:
-      | (SchoolOwnedFabricator & {
-          inviter:
-            | { school_id: string | null }
-            | { school_id: string | null }[]
-            | null;
-        })
-      | null;
+  const { data, error } = fabResult as {
+    data: SchoolOwnedFabricator | null;
     error: { message: string } | null;
   };
 
@@ -423,9 +418,32 @@ export async function loadSchoolOwnedFabricator(
     return { error: { status: 404, message: "Fabricator not found." } };
   }
 
-  // PostgREST embed shape: object or array depending on FK direction.
-  const inviter = Array.isArray(data.inviter) ? data.inviter[0] : data.inviter;
-  const inviterSchoolId = inviter?.school_id ?? null;
+  // Resolve inviter's school via a separate teachers lookup.
+  // teachers.id = auth.users.id (mig 001) so the FK value works
+  // unchanged as a teachers PK lookup.
+  if (!data.invited_by_teacher_id) {
+    // Inviter is null (legacy pre-Phase-1B-2 row or audit cleanup) —
+    // no school can claim this fab. Treat as 404.
+    return { error: { status: 404, message: "Fabricator not found." } };
+  }
+  const teacherResult = await db
+    .from("teachers")
+    .select("school_id")
+    .eq("id", data.invited_by_teacher_id)
+    .maybeSingle();
+  const { data: teacherRow, error: teacherError } = teacherResult as {
+    data: { school_id: string | null } | null;
+    error: { message: string } | null;
+  };
+  if (teacherError) {
+    return {
+      error: {
+        status: 500,
+        message: `Inviter school lookup failed: ${teacherError.message}`,
+      },
+    };
+  }
+  const inviterSchoolId = teacherRow?.school_id ?? null;
   if (inviterSchoolId !== schoolId) {
     return { error: { status: 404, message: "Fabricator not found." } };
   }
@@ -467,22 +485,17 @@ export async function findFabricatorByEmail(
   | null
   | OrchestrationError
 > {
-  const result = await db
+  // Two-query approach — see loadSchoolOwnedFabricator comment for
+  // why we can't embed teachers from fabricators.
+  const fabResult = await db
     .from("fabricators")
     .select(
-      "id, email, display_name, is_active, password_hash, invited_by_teacher_id, inviter:teachers!fabricators_invited_by_teacher_id_fkey(school_id)"
+      "id, email, display_name, is_active, password_hash, invited_by_teacher_id"
     )
     .ilike("email", email)
     .maybeSingle();
-  const { data, error } = result as {
-    data:
-      | (SchoolOwnedFabricator & {
-          inviter:
-            | { school_id: string | null }
-            | { school_id: string | null }[]
-            | null;
-        })
-      | null;
+  const { data, error } = fabResult as {
+    data: SchoolOwnedFabricator | null;
     error: { message: string } | null;
   };
 
@@ -496,7 +509,29 @@ export async function findFabricatorByEmail(
   }
   if (!data) return null;
 
-  const inviter = Array.isArray(data.inviter) ? data.inviter[0] : data.inviter;
+  // Resolve inviter's school via a separate teachers lookup.
+  let inviterSchoolId: string | null = null;
+  if (data.invited_by_teacher_id) {
+    const teacherResult = await db
+      .from("teachers")
+      .select("school_id")
+      .eq("id", data.invited_by_teacher_id)
+      .maybeSingle();
+    const { data: teacherRow, error: teacherError } = teacherResult as {
+      data: { school_id: string | null } | null;
+      error: { message: string } | null;
+    };
+    if (teacherError) {
+      return {
+        error: {
+          status: 500,
+          message: `Inviter school lookup failed: ${teacherError.message}`,
+        },
+      };
+    }
+    inviterSchoolId = teacherRow?.school_id ?? null;
+  }
+
   return {
     row: {
       id: data.id,
@@ -506,7 +541,7 @@ export async function findFabricatorByEmail(
       password_hash: data.password_hash,
       invited_by_teacher_id: data.invited_by_teacher_id,
     },
-    inviterSchoolId: inviter?.school_id ?? null,
+    inviterSchoolId,
   };
 }
 
