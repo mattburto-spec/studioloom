@@ -1,11 +1,11 @@
 {
   "registry": "audit-coverage",
-  "timestamp": "2026-05-04T04:40:38.530861+00:00",
+  "timestamp": "2026-05-04T12:45:26.152075+00:00",
   "version": 1,
   "stats": {
-    "total_mutation_routes": 232,
+    "total_mutation_routes": 233,
     "covered": 7,
-    "skipped": 225,
+    "skipped": 226,
     "missing": 0
   },
   "covered": [
@@ -1122,6 +1122,13 @@
         "POST"
       ],
       "reason": "routine teacher pedagogy ops, low audit value"
+    },
+    {
+      "file": "src/app/api/teacher/notifications/[id]/route.ts",
+      "methods": [
+        "PATCH"
+      ],
+      "reason": "notification read/dismiss is recipient-side state, not an"
     },
     {
       "file": "src/app/api/teacher/open-studio/status/route.ts",

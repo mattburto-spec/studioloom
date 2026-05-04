@@ -6206,8 +6206,7 @@ tables:
       ai_exportable: full
       retention_days: 90
       basis: pseudonymous
-      notes: Discriminator. NO DB CHECK constraint — TypeScript NotificationKind union (src/types/notifications.ts) is source
-        of truth, asserted by cross-reference test.
+      notes: 'Discriminator. NO DB CHECK constraint — TypeScript NotificationKind union (src/types/notifications.ts) is source of truth, asserted by cross-reference test.'
     severity:
       pii: false
       student_voice: false
@@ -6222,8 +6221,7 @@ tables:
       ai_exportable: hash_only
       retention_days: 90
       basis: legitimate_interest
-      notes: Server-authored summary — may include a student's name (e.g., "Review recommended: Aiden Liu"). Not student
-        voice (the student didn't write it).
+      notes: 'Server-authored summary — may include a student name. Not student voice (the student didn''t write it).'
     body:
       pii: false
       student_voice: false
@@ -6231,8 +6229,7 @@ tables:
       ai_exportable: full
       retention_days: 90
       basis: legitimate_interest
-      notes: Server-authored detail line. By design contains scores + activity titles, not raw student text — the link_url
-        deep-links to the existing IntegrityReport for student excerpts. Keep PII-light to justify 90-day retention.
+      notes: 'Server-authored detail line. Contains scores + activity titles, not raw student text — link_url deep-links to IntegrityReport for excerpts. Keep PII-light to justify 90-day retention.'
     payload:
       pii: false
       student_voice: false
@@ -6240,9 +6237,7 @@ tables:
       ai_exportable: hash_only
       retention_days: 90
       basis: legitimate_interest
-      notes: Kind-specific JSONB. By design contains FKs (student_id, page_id, unit_id) + scalar metadata (score, flag types).
-        MUST NOT contain raw student text — that's why title/body are bounded summaries and link_url points to IntegrityReport
-        for the full content. Hash-only because IDs are PII when joined.
+      notes: 'Kind-specific JSONB. Contains FKs (student_id, page_id, unit_id) + scalar metadata (score, flag types). MUST NOT contain raw student text — title/body are bounded summaries; link_url points to IntegrityReport for full content. Hash-only because IDs are PII when joined.'
     dedup_key:
       pii: false
       student_voice: false
