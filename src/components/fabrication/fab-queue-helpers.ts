@@ -68,7 +68,7 @@ export function fabEmptyMessage(
   hasNoAssignments: boolean
 ): string {
   if (hasNoAssignments) {
-    return "Your inviting teacher has no jobs queued for any of their classes right now.";
+    return "Your school has no jobs queued for any teacher's classes right now.";
   }
   if (tab === "ready") return "No approved jobs waiting to be picked up right now.";
   if (tab === "in_progress")

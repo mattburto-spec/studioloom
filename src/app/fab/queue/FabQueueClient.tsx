@@ -2300,11 +2300,11 @@ function EmptyMachinesState({
           ? "Loading machines…"
           : labFiltered
             ? `No ${label} in this lab.`
-            : `No ${label} in your inviting teacher's labs.`}
+            : `No ${label} in your school's labs.`}
       </div>
       <div className="text-[12px]" style={{ color: "var(--ink-3)" }}>
         {loading ? (
-          "Fetching from your inviting teacher's lab setup."
+          "Fetching from your school's lab setup."
         ) : labFiltered ? (
           <>
             Try a different lab, or{" "}
