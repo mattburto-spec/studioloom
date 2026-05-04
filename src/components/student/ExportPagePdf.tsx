@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { ActivitySection } from "@/types";
+import { composedPromptText } from "@/lib/lever-1/compose-prompt";
 
 interface ExportPagePdfProps {
   pageId: string;
@@ -51,7 +52,9 @@ export function ExportPagePdf({
         // Prompt
         doc.setFontSize(11);
         doc.setFont("helvetica", "bold");
-        const promptLines = doc.splitTextToSize(section.prompt, 170);
+        // Lever 1: composes framing + task + success_signal when present;
+        // falls back to legacy section.prompt when all three slots are null.
+        const promptLines = doc.splitTextToSize(composedPromptText(section), 170);
         doc.text(promptLines, 20, y);
         y += promptLines.length * 5 + 4;
 

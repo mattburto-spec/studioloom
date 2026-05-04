@@ -410,6 +410,15 @@ export interface ActivitySection {
   source_block_id?: string;
   /** Workshop phase this activity belongs to. Defaults to "workTime" when missing (legacy). */
   phase?: "opening" | "miniLesson" | "workTime" | "debrief";
+
+  // ── Lever 1 v2 slot fields (sub-phase 1B added the SQL columns + JSONB shape) ──
+
+  /** v2 slot — one-sentence orient (≤200 chars). Renders as muted lead paragraph. NULL during transition window; renderer (ComposedPrompt) falls back to `prompt` when all three slot fields are null. */
+  framing?: string;
+  /** v2 slot — imperative body (≤800 chars soft cap). Renders as regular body. */
+  task?: string;
+  /** v2 slot — what students produce/record/submit (≤200 chars). Renders with 🎯 prefix + bold weight. */
+  success_signal?: string;
 }
 
 export interface Reflection {
