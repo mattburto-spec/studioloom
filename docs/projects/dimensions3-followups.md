@@ -1985,3 +1985,70 @@ This is a real product capability, not just a UX rename. The data is already per
 - RLS policies admit a school-admin role to read assessments across teachers in their school.
 
 **Sequence:** post-Lever-MM (this week), gated on Access Model v2 Phase 6 closure (school-admin role must exist first). 2-3 days estimated.
+
+---
+
+## FU-PROD-MIGRATION-BACKLOG-AUDIT — Prod schema has drifted hard from repo migrations (P1)
+**Surfaced:** 4 May 2026 during Lever 1 (slot fields) seed work
+**Priority:** P1 — prod-state divergence from repo; risk of seeded INSERTs failing or writing to phantom columns
+**Target phase:** Before next push that adds columns or RLS policies
+
+**Symptom:** While seeding the smoke-test unit for Lever 1, prod
+rejected INSERTs that the repo migrations would suggest are valid.
+Probing `information_schema.columns` revealed prod is missing
+migration 051 (`unit_type` column) AND much of the Access Model v2
+schema (`school_id`, `code`, etc. on tables that the repo claims
+have those columns).
+
+**What we know:**
+- Some migrations applied to prod, some haven't (no canonical
+  applied-migrations log — see sister FU-EE).
+- Repo migration files don't equal applied prod schema.
+- Probe-based pre-flight checks (Lesson #68) caught it for Lever 1
+  but won't catch every future site.
+- Access Model v2 work landed huge schema in parallel sessions;
+  some of those migrations may not have been applied to prod even
+  though they're in the repo.
+
+**Investigation steps:**
+1. Audit applied migrations in prod via Supabase dashboard
+   (Database → Migrations) vs the `supabase/migrations/` directory.
+   List divergences.
+2. For each missing migration, decide: apply now, retire (if
+   superseded), or leave as known divergence.
+3. Cross-check the schema-registry.yaml against
+   `information_schema.columns` for the top-traffic tables:
+   `units`, `classes`, `class_units`, `students`, `teachers`,
+   `schools`, `activity_blocks`, `fabrication_jobs`,
+   `machine_profiles`, `fabrication_labs`. Surface every drift.
+4. Decide on the canonical applied-log strategy (FU-EE sister) so
+   this doesn't recur.
+
+**Definition of done:** (a) divergence list filed, (b) each
+divergence resolved (apply / retire / accept), (c) schema-registry
+re-synced and `spec_drift` entries closed for resolved cases, (d)
+sister FU-EE gets a follow-on (or supersedes this) for the
+applied-log permanent fix.
+
+**Sister FU:** FU-EE (no canonical migration-applied log) — this
+P1 is the symptom, FU-EE is the underlying systemic issue.
+
+---
+
+## FU-LEVER-1-SEED-IDEMPOTENT — Seed script's units INSERT lacks idempotency guard (P3)
+**Surfaced:** 4 May 2026 during Lever 1 smoke
+**Priority:** P3 — workflow-friction during repeat seeding; not user-facing
+
+**Symptom:** Re-running `scripts/seed-data/seed-lever-1-test-unit.sql`
+creates duplicate units. Matt got 2 during smoke when he ran it
+twice.
+
+**Cause:** Seed INSERT on `units` lacks `WHERE NOT EXISTS`-style
+guard. Trivial fix.
+
+**Fix:** Wrap in `INSERT ... WHERE NOT EXISTS (SELECT 1 FROM units
+WHERE id = '<seed-id>')` or use `ON CONFLICT (id) DO NOTHING` if
+the seed sets a stable id.
+
+**Definition of done:** Seed script passes a "run twice, no
+duplicates" smoke. ~5 min fix.
