@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { LookupState } from "./useWordLookup";
 
@@ -37,7 +37,14 @@ export interface WordPopoverProps {
   /** Phase 2C: optional curated image URL. Slot hidden when null OR if the image fails to load. */
   imageUrl: string | null;
   errorMessage: string | null;
-  anchorRect: DOMRect;
+  /**
+   * The button element the popover is anchored to. Element-not-rect lets
+   * us re-measure on every render + on scroll/resize so the popover stays
+   * glued to the word even when surrounding layout shifts (lazy images
+   * loading, ScrollReveal animations, textareas growing). Round 2 fix
+   * after Matt's "still a bit flaky" report on 4 May 2026.
+   */
+  anchorEl: HTMLElement;
   onClose: () => void;
   /** Optional retry handler — surfaced as a "Retry" button in the error state. */
   onRetry?: () => void;
@@ -52,13 +59,17 @@ export function WordPopover({
   l1Target,
   imageUrl,
   errorMessage,
-  anchorRect,
+  anchorEl,
   onClose,
   onRetry,
 }: WordPopoverProps) {
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const [mounted, setMounted] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
+  // Live anchor position. Re-measured on every render plus on scroll +
+  // resize. Stored in viewport coords (no scroll offset) because the
+  // popover uses position: fixed.
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
   // Stable refs for handlers used inside the global listeners. The parent
   // (TappableText) recreates `onClose` on every render, so binding the
@@ -82,6 +93,42 @@ export function WordPopover({
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Live anchor positioning. Measure synchronously on layout to avoid a
+  // first-paint flash at (0,0), then re-measure on scroll (capture phase
+  // catches scrolling inside any ancestor scroll container — chat panels,
+  // sidebars, etc.) + resize. Uses position: fixed so the math is just
+  // viewport coordinates — no scroll offsets, no ancestor-transform math.
+  useLayoutEffect(() => {
+    if (!anchorEl) return;
+    const update = () => {
+      const r = anchorEl.getBoundingClientRect();
+      // Clamp to keep the popover inside the viewport. 320px is the
+      // popover's maxWidth; ~280px is its typical max height with
+      // definition + example + image.
+      const POPOVER_W = 320;
+      const POPOVER_H_BUDGET = 280;
+      const MARGIN = 8;
+      let top = r.bottom + 6;
+      let left = r.left;
+      if (left + POPOVER_W > window.innerWidth - MARGIN) {
+        left = Math.max(MARGIN, window.innerWidth - POPOVER_W - MARGIN);
+      }
+      if (top + POPOVER_H_BUDGET > window.innerHeight - MARGIN) {
+        // Flip above the word if there's no room below.
+        const flipped = r.top - 6 - POPOVER_H_BUDGET;
+        top = flipped > MARGIN ? flipped : Math.max(MARGIN, top);
+      }
+      setPos({ top, left });
+    };
+    update();
+    window.addEventListener("scroll", update, true); // capture: catches inner scrollers
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [anchorEl]);
 
   // Reset image-failed flag when the image URL changes (new word tapped).
   useEffect(() => {
@@ -120,11 +167,14 @@ export function WordPopover({
     };
   }, []);
 
-  if (!mounted || typeof document === "undefined") return null;
+  if (!mounted || typeof document === "undefined" || !pos) return null;
 
-  // Position: below anchor, document coordinates.
-  const top = anchorRect.bottom + window.scrollY + 6;
-  const left = anchorRect.left + window.scrollX;
+  // position: fixed → coords are viewport-relative. Independent of any
+  // ancestor's transform/filter/will-change (which would otherwise create
+  // a containing block and break absolute positioning math). This is the
+  // structural fix for "popover floats off the word after layout shift" —
+  // the useLayoutEffect above re-measures live on scroll/resize so it
+  // tracks the anchor instead of decaying to a stale rect.
   const maxWidth = 320;
 
   return createPortal(
@@ -132,8 +182,8 @@ export function WordPopover({
       ref={popoverRef}
       role="dialog"
       aria-label={`Definition of ${word}`}
-      className="absolute z-50 rounded-lg border border-gray-200 bg-white shadow-lg p-3 text-sm"
-      style={{ top, left, maxWidth }}
+      className="fixed z-50 rounded-lg border border-gray-200 bg-white shadow-lg p-3 text-sm"
+      style={{ top: pos.top, left: pos.left, maxWidth }}
     >
       <div className="font-semibold text-gray-900 mb-1">{word}</div>
       {state === "loading" && (
