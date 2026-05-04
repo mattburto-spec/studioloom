@@ -604,6 +604,16 @@ interface BlockPaletteProps {
    * affordance) so teachers don't double-add. Empty/undefined = none added.
    */
   activeNmElementIds?: string[];
+  /**
+   * Lever-MM: full list of available NM competencies for the selector
+   * inside the New Metrics accordion. Pass undefined (or empty) to hide
+   * the selector — typically when use_new_metrics is off.
+   */
+  nmCompetencies?: ReadonlyArray<{ id: string; name: string; description?: string }>;
+  /** Lever-MM: currently-active competency ID (drives selector value). */
+  nmCurrentCompetencyId?: string;
+  /** Lever-MM: change handler when teacher picks a different competency. */
+  onSetNmCompetency?: (competencyId: string) => void;
 }
 
 export default function BlockPalette({
@@ -612,6 +622,9 @@ export default function BlockPalette({
   customBlocks,
   onAddNmCheckpoint,
   activeNmElementIds,
+  nmCompetencies,
+  nmCurrentCompetencyId,
+  onSetNmCompetency,
 }: BlockPaletteProps) {
   const [search, setSearch] = useState("");
   const [expandedCategory, setExpandedCategory] = useState<BlockCategory | null>("response");
@@ -672,9 +685,20 @@ export default function BlockPalette({
     ? allBlocks.filter((b) => suggestedBlockIds.includes(b.id))
     : [];
 
-  // Gather which categories actually have blocks
+  // Gather which categories actually have blocks.
+  // Lever-MM exception: the "new_metrics" category renders whenever the
+  // parent passes `nmCompetencies` (i.e. NM is enabled for this teacher's
+  // school) — even when the active competency has zero elements. Without
+  // this, picking a competency with no elements would hide the accordion
+  // and the competency selector would become inaccessible (teacher
+  // couldn't switch back).
   const activeCategories = (Object.keys(CATEGORIES) as BlockCategory[]).filter(
-    (cat) => filteredBlocks.some((b) => b.category === cat)
+    (cat) => {
+      if (cat === "new_metrics" && nmCompetencies && nmCompetencies.length > 0) {
+        return true;
+      }
+      return filteredBlocks.some((b) => b.category === cat);
+    }
   );
 
   return (
@@ -813,7 +837,9 @@ export default function BlockPalette({
               const blocks = filteredBlocks.filter(
                 (b) => b.category === cat
               );
-              if (blocks.length === 0) return null;
+              // Lever-MM: don't bail on empty new_metrics — the selector
+              // still needs to render so the teacher can switch competencies.
+              if (blocks.length === 0 && cat !== "new_metrics") return null;
 
               const isExpanded = expandedCategory === cat;
 
@@ -850,6 +876,34 @@ export default function BlockPalette({
                         }}
                         className="overflow-hidden"
                       >
+                        {/* Lever-MM — competency selector inside the
+                            New Metrics accordion. Only renders for the
+                            new_metrics category AND when LessonEditor
+                            passes a non-empty competency list. */}
+                        {cat === "new_metrics" && nmCompetencies && nmCompetencies.length > 0 && (
+                          <div className="px-3 pt-2 pb-1">
+                            <label className="block text-[10px] le-cap text-[var(--le-ink-3)] mb-1">
+                              Competency
+                            </label>
+                            <select
+                              value={nmCurrentCompetencyId || ""}
+                              onChange={(e) => onSetNmCompetency?.(e.target.value)}
+                              className="w-full text-[12px] px-2 py-1.5 bg-white border border-yellow-300 rounded-md focus:outline-none focus:border-yellow-500 font-medium text-[var(--le-ink)]"
+                            >
+                              {nmCompetencies.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.name}
+                                </option>
+                              ))}
+                            </select>
+                            {/* Empty-state hint when competency has no elements yet */}
+                            {blocks.length === 0 && (
+                              <p className="text-[10.5px] text-[var(--le-ink-3)] italic mt-1.5 leading-relaxed">
+                                No elements available for this competency yet. Pick another competency or come back when the kit ships.
+                              </p>
+                            )}
+                          </div>
+                        )}
                         <div className="px-2 pb-2 space-y-0.5">
                           {blocks.map((block) => (
                             <PaletteBlock

@@ -26,6 +26,8 @@ import {
   getElementsForCompetency,
   type NMUnitConfig,
   type NMElement,
+  type NMCompetency,
+  NM_COMPETENCIES,
   DEFAULT_NM_CONFIG,
 } from "@/lib/nm/constants";
 import type {
@@ -311,6 +313,25 @@ export default function LessonEditor({
       void persistNmConfig(next);
     },
     [nmConfig, selectedPage, persistNmConfig],
+  );
+
+  // Lever-MM — set the active competency for this unit. Replaces the
+  // single-element competencies array (multi-competency-per-unit is parked
+  // as v2). Does NOT erase existing checkpoints when switching — the
+  // checkpoints map is keyed by pageId + element ID, and orphaned-element
+  // chips on lessons stay visible and removable. Per brief stop-trigger
+  // ("Switch loses elements — don't auto-erase elements when competency
+  // changes — warn instead"), we don't touch elements / checkpoints here.
+  const handleSetCompetency = useCallback(
+    (competencyId: string) => {
+      if (nmConfig.competencies?.[0] === competencyId) return; // no-op
+      const next: NMUnitConfig = {
+        ...nmConfig,
+        competencies: [competencyId],
+      };
+      void persistNmConfig(next);
+    },
+    [nmConfig, persistNmConfig],
   );
 
   // Lever-MM — remove handler for NM checkpoint chips.
@@ -1532,6 +1553,12 @@ export default function LessonEditor({
                   customBlocks={customNmBlocks}
                   onAddNmCheckpoint={handleAddNmCheckpoint}
                   activeNmElementIds={activeNmElementIds}
+                  /* Lever-MM — competency selector inside the New Metrics
+                     accordion. Only mounted when useNewMetrics is true; the
+                     palette swallows these props otherwise. */
+                  nmCompetencies={useNewMetrics ? NM_COMPETENCIES : undefined}
+                  nmCurrentCompetencyId={nmConfig.competencies?.[0]}
+                  onSetNmCompetency={handleSetCompetency}
                 />
               </div>
             </motion.div>
