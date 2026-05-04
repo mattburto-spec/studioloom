@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import type { LookupState } from "./useWordLookup";
 
@@ -94,41 +100,84 @@ export function WordPopover({
     setMounted(true);
   }, []);
 
-  // Live anchor positioning. Measure synchronously on layout to avoid a
-  // first-paint flash at (0,0), then re-measure on scroll (capture phase
-  // catches scrolling inside any ancestor scroll container — chat panels,
-  // sidebars, etc.) + resize. Uses position: fixed so the math is just
-  // viewport coordinates — no scroll offsets, no ancestor-transform math.
-  useLayoutEffect(() => {
+  // Live anchor positioning. The previous round used a static
+  // POPOVER_H_BUDGET = 280px to decide whether to flip above the word.
+  // That over-flipped: a "Looking up…" popover is only ~50px tall, so a
+  // word near the bottom of the viewport would get flipped 280px above
+  // its true position even though the actual popover would have fit
+  // below. Caught in Matt's 4 May screenshot — "starting" near the
+  // bottom rendered with its popover up near the page header.
+  //
+  // Fix: measure the popover's REAL bounding rect (offsetHeight/Width)
+  // after each render, and re-measure via ResizeObserver when the
+  // popover's content grows (loading→loaded adds the definition +
+  // example + optional image, ~doubling height). The observer attaches
+  // in a separate effect that runs AFTER the popover element is in the
+  // DOM (useLayoutEffect's first run computes initial pos with default
+  // 60px estimate; once pos is set the popover renders; then the
+  // observer effect attaches and re-measures with the actual size).
+  const computePosition = useCallback(() => {
     if (!anchorEl) return;
-    const update = () => {
-      const r = anchorEl.getBoundingClientRect();
-      // Clamp to keep the popover inside the viewport. 320px is the
-      // popover's maxWidth; ~280px is its typical max height with
-      // definition + example + image.
-      const POPOVER_W = 320;
-      const POPOVER_H_BUDGET = 280;
-      const MARGIN = 8;
-      let top = r.bottom + 6;
-      let left = r.left;
-      if (left + POPOVER_W > window.innerWidth - MARGIN) {
-        left = Math.max(MARGIN, window.innerWidth - POPOVER_W - MARGIN);
-      }
-      if (top + POPOVER_H_BUDGET > window.innerHeight - MARGIN) {
-        // Flip above the word if there's no room below.
-        const flipped = r.top - 6 - POPOVER_H_BUDGET;
-        top = flipped > MARGIN ? flipped : Math.max(MARGIN, top);
-      }
-      setPos({ top, left });
-    };
-    update();
-    window.addEventListener("scroll", update, true); // capture: catches inner scrollers
-    window.addEventListener("resize", update);
-    return () => {
-      window.removeEventListener("scroll", update, true);
-      window.removeEventListener("resize", update);
-    };
+    const r = anchorEl.getBoundingClientRect();
+    const pop = popoverRef.current;
+    // Defaults are sane for the very first paint before popoverRef
+    // attaches. ResizeObserver will fire on mount and re-position with
+    // real measurements, so this is just a transient initial estimate.
+    const popH = pop?.offsetHeight || 60;
+    const popW = pop?.offsetWidth || 320;
+    const MARGIN = 8;
+    let top = r.bottom + 6;
+    let left = r.left;
+    if (left + popW > window.innerWidth - MARGIN) {
+      left = Math.max(MARGIN, window.innerWidth - popW - MARGIN);
+    }
+    // Flip above ONLY if the actual popover would overflow below.
+    if (top + popH > window.innerHeight - MARGIN) {
+      const flipped = r.top - 6 - popH;
+      if (flipped > MARGIN) top = flipped;
+      // else: leave below; browser lets it bleed past the edge, but
+      // the popover stays anchored to the word visually.
+    }
+    setPos({ top, left });
   }, [anchorEl]);
+
+  // Initial measurement — runs synchronously during layout so there's
+  // no flash at (0,0). popoverRef.current is null on this first pass
+  // because the popover hasn't rendered yet (it's gated on pos being
+  // non-null). The default 60px estimate is fine for the loading state.
+  useLayoutEffect(() => {
+    computePosition();
+  }, [computePosition]);
+
+  // Scroll + resize listeners — keep the popover glued to the anchor
+  // when surrounding layout shifts. Capture phase catches scrolling
+  // inside any ancestor scroll container (chat panels, sidebars).
+  useEffect(() => {
+    if (!anchorEl) return;
+    window.addEventListener("scroll", computePosition, true);
+    window.addEventListener("resize", computePosition);
+    return () => {
+      window.removeEventListener("scroll", computePosition, true);
+      window.removeEventListener("resize", computePosition);
+    };
+  }, [anchorEl, computePosition]);
+
+  // ResizeObserver — re-position when the popover's OWN content grows.
+  // Critical for the loading→loaded transition: the popover starts at
+  // ~50px ("Looking up…") and grows to ~200-280px (definition + image).
+  // Without this, a word near the viewport bottom gets positioned for
+  // the small popover, then the loaded popover overflows offscreen.
+  // Runs in useEffect (post-paint) so popoverRef.current is populated.
+  // Re-runs on every pos change — that's a self-converging loop because
+  // once the actual size is measured, computePosition produces the same
+  // pos value and React skips the re-render.
+  useEffect(() => {
+    const node = popoverRef.current;
+    if (!node || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => computePosition());
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, [pos, computePosition]);
 
   // Reset image-failed flag when the image URL changes (new word tapped).
   useEffect(() => {
