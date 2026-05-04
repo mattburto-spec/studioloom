@@ -19,6 +19,7 @@ import { getFramework } from "@/lib/frameworks";
 import { logUsage } from "@/lib/usage-tracking";
 import { getMentorPromptModifier } from "@/lib/student/mentors";
 import type { MentorId } from "@/lib/student/mentors";
+import { composedPromptText } from "@/lib/lever-1/compose-prompt";
 
 // =========================================================================
 // CONVERSATION CRUD
@@ -389,7 +390,16 @@ async function getActivityContext(
         );
         if (activity) {
           result.title = activity.title;
-          result.prompt = activity.prompt;
+          // Lever 1: compose v2 slot fields when present so the design
+          // assistant's context window sees the full task text, not the
+          // potentially-stale legacy `prompt` when an activity has been
+          // edited via SlotFieldEditor.
+          result.prompt = composedPromptText({
+            framing: activity.framing,
+            task: activity.task,
+            success_signal: activity.success_signal,
+            prompt: activity.prompt,
+          });
           result.criterionTags = activity.criterionTags;
         }
       }

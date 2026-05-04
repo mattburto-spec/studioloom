@@ -531,7 +531,21 @@ export interface TimelineActivity {
   id: string;                    // nanoid(8) — stable across lesson rebalancing
   role: TimelineActivityRole;
   title: string;
+  /**
+   * Composed legacy prompt. Lever 1 v2: kept as the back-compat read
+   * path for non-migrated consumers (output-adapter composes it from
+   * the three slots at validation/persist time). New code should read
+   * via `composedPromptText(activity)` so the slot fields take
+   * precedence when populated.
+   */
   prompt: string;
+  // ── Lever 1 v2 slot fields (1G AI now produces these in the timeline schema) ──
+  /** v2 slot — one-sentence orient (≤200 chars). Populated by AI; survives wizard reduce. */
+  framing?: string;
+  /** v2 slot — imperative body (≤800 chars soft cap). */
+  task?: string;
+  /** v2 slot — what students produce/record/submit (≤200 chars). */
+  success_signal?: string;
   durationMinutes: number;       // Resolved at runtime from timeWeight if not set by AI
   timeWeight?: TimeWeight;       // Primary signal: quick | moderate | extended | flexible
   responseType?: ResponseType;   // optional — content-role activities have no response

@@ -6,6 +6,7 @@ import type { WizardDispatch } from "@/hooks/useWizardState";
 import type { LessonPulseScore } from "@/lib/layers/lesson-pulse";
 import PhaseTimelineBar, { type PhaseConfig, type OverheadConfig, buildDefaultPhases } from "@/components/lesson-timing/PhaseTimelineBar";
 import PulseGauges from "@/components/teacher/wizard/PulseGauge";
+import { composedPromptText } from "@/lib/lever-1/compose-prompt";
 
 interface Props {
   pageId: string;
@@ -433,7 +434,8 @@ export function JourneyLessonCard({ pageId, content, color, isExpanded, dispatch
               ) : (
                 <div className="flex items-start gap-2 rounded-lg px-3 py-2 hover:bg-white/60 transition-colors">
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs text-text-primary leading-relaxed">{section.prompt}</p>
+                    {/* Lever 1: render composed text; legacy textarea still edits `prompt` */}
+                    <p className="text-xs text-text-primary leading-relaxed">{composedPromptText(section)}</p>
                     <div className="flex items-center gap-2 mt-1">
                       {section.durationMinutes && (
                         <DraggableTime

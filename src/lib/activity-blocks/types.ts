@@ -89,6 +89,11 @@ export interface ExtractFromUnitParams {
     title: string;
     sections?: Array<{
       prompt: string;
+      // Lever 1 v2 slot fields — extractor pulls these through to the
+      // resulting Activity Block when populated.
+      framing?: string;
+      task?: string;
+      success_signal?: string;
       responseType?: string;
       scaffolding?: unknown;
       exampleResponse?: string;

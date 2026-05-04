@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import type { ActivitySection } from "@/types";
+import { composedPromptText, hasSlotFields } from "@/lib/lever-1/compose-prompt";
 
 interface GhostBlockProps {
   activity: ActivitySection;
@@ -53,9 +54,10 @@ export default function GhostBlock({
           <span className="text-xl flex-shrink-0">{icon}</span>
           <div className="flex-1 min-w-0">
             <div className="text-sm font-semibold text-gray-700">{label}</div>
-            {activity.prompt && (
+            {/* Lever 1: prefer composed slot text, fall back to legacy prompt */}
+            {(hasSlotFields(activity) || activity.prompt) && (
               <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
-                {activity.prompt}
+                {composedPromptText(activity)}
               </p>
             )}
             <p className="text-[10px] text-indigo-500/80 mt-1 italic">

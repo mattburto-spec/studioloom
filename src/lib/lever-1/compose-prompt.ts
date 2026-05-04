@@ -24,9 +24,21 @@
  * pass the result through `stripMarkdown()` themselves.
  */
 
-import type { ActivitySection } from "@/types";
+/**
+ * Structural shape — any object that carries (a subset of) the v2 slot
+ * fields plus the legacy `prompt`. Kept structural so this helper works
+ * over `ActivitySection`, `TimelineActivity`, `ActivityBlock`, AI tool
+ * payloads, fixtures, etc., without forcing every caller to widen at
+ * the type level.
+ */
+export interface SlotBearing {
+  framing?: string | null;
+  task?: string | null;
+  success_signal?: string | null;
+  prompt?: string | null;
+}
 
-export function composedPromptText(section: ActivitySection): string {
+export function composedPromptText(section: SlotBearing): string {
   const framing = (section.framing || "").trim();
   const task = (section.task || "").trim();
   const signal = (section.success_signal || "").trim();
@@ -44,7 +56,7 @@ export function composedPromptText(section: ActivitySection): string {
  * The renderer uses this to decide between hybrid composition vs the
  * legacy MarkdownPrompt fallback.
  */
-export function hasSlotFields(section: ActivitySection): boolean {
+export function hasSlotFields(section: SlotBearing): boolean {
   return (
     Boolean(section.framing && section.framing.trim()) ||
     Boolean(section.task && section.task.trim()) ||

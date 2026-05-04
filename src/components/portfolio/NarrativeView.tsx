@@ -1,6 +1,7 @@
 "use client";
 
 import type { UnitPage, ActivitySection, PortfolioEntry } from "@/types";
+import { composedPromptText } from "@/lib/lever-1/compose-prompt";
 
 /** A group of pages rendered together under one heading. */
 export interface NarrativeSection {
@@ -250,9 +251,9 @@ function PageBlock({
 
           return (
             <div key={i}>
-              {/* Prompt */}
+              {/* Prompt — Lever 1 composed text */}
               <p className="text-sm text-gray-500 mb-2 leading-relaxed">
-                {section.prompt}
+                {composedPromptText(section)}
               </p>
               {/* Response */}
               <ResponseDisplay value={value} />

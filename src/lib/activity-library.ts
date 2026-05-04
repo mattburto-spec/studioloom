@@ -1,5 +1,6 @@
 import type { CriterionKey } from "@/lib/constants";
 import type { ActivitySection, VocabTerm, Reflection, PageContent } from "@/types";
+import { composedPromptText } from "@/lib/lever-1/compose-prompt";
 
 // ---------------------------------------------------------------------------
 // Activity Template types
@@ -1038,9 +1039,12 @@ export function detectUsedActivities(
       // Check response type mapping
       const rtMatch = section.responseType ? RESPONSE_TYPE_TO_ACTIVITY[section.responseType] : undefined;
       if (rtMatch) used.add(rtMatch);
-      // Check text patterns in prompt
+      // Check text patterns in prompt — Lever 1: scan the composed slot
+      // text so v2 activities (where `task` carries the imperative body)
+      // still trigger the right pattern matches.
+      const text = composedPromptText(section);
       for (const { pattern, activityId } of TEXT_PATTERNS) {
-        if (pattern.test(section.prompt)) used.add(activityId);
+        if (pattern.test(text)) used.add(activityId);
       }
     }
   }

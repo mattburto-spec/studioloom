@@ -11,6 +11,7 @@
 
 import type { ExtractedDoc, ExtractedSection } from "@/lib/ingestion/document-extract";
 import type { LessonProfile, LessonFlowPhase } from "@/types/lesson-intelligence";
+import { composedPromptText } from "@/lib/lever-1/compose-prompt";
 
 export interface ChunkMetadata {
   source_type: "uploaded_plan" | "created_unit" | "activity_template" | "knowledge_item";
@@ -80,13 +81,24 @@ export function chunkDocument(
 
 /**
  * Chunk a single unit page (for auto-ingesting created units).
+ *
+ * Lever 1: section shape accepts the v2 slot fields (framing/task/
+ * success_signal). composedPromptText() prefers slots when populated and
+ * falls back to legacy `prompt` so chunks for v1 and v2 units are
+ * semantically equivalent for retrieval.
  */
 export function chunkUnitPage(
   pageId: string,
   pageContent: {
     title: string;
     learningGoal: string;
-    sections: Array<{ prompt: string; exampleResponse?: string }>;
+    sections: Array<{
+      prompt?: string;
+      framing?: string;
+      task?: string;
+      success_signal?: string;
+      exampleResponse?: string;
+    }>;
     vocabWarmup?: { terms: Array<{ term: string; definition: string }> };
     reflection?: { items: string[] };
   },
@@ -105,7 +117,8 @@ export function chunkUnitPage(
   }
 
   for (const section of pageContent.sections) {
-    parts.push(`Activity: ${section.prompt}`);
+    const text = composedPromptText(section);
+    if (text) parts.push(`Activity: ${text}`);
     if (section.exampleResponse) {
       parts.push(`Example: ${section.exampleResponse}`);
     }

@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { CRITERIA, type CriterionKey } from "@/lib/constants";
 import type { TimelineActivity } from "@/types";
 import type { WizardDispatch } from "@/hooks/useWizardState";
+import { composedPromptText } from "@/lib/lever-1/compose-prompt";
 
 const ROLE_CONFIG: Record<string, { icon: string; label: string; color: string; bg: string }> = {
   warmup:     { icon: "☀️", label: "Warm-up",    color: "#f59e0b", bg: "rgba(245,158,11,0.08)" },
@@ -154,9 +155,9 @@ export function DeckActivityCard({
               {activity.title}
             </h4>
 
-            {/* Prompt preview */}
+            {/* Prompt preview — Lever 1 composed text */}
             <p className="text-[11px] text-text-tertiary leading-snug line-clamp-2 flex-1 min-h-0">
-              {activity.prompt}
+              {composedPromptText(activity)}
             </p>
 
             {/* Bottom: criterion pips + response type */}
@@ -279,7 +280,8 @@ export function DeckActivityCard({
                 className="text-[11px] text-text-secondary leading-relaxed cursor-pointer hover:bg-black/[0.03] rounded px-1 py-0.5 -mx-1 flex-1 min-h-0 mb-2"
                 onClick={(e) => { e.stopPropagation(); setEditingField("prompt"); }}
               >
-                {activity.prompt}
+                {/* Lever 1: render composed text; legacy textarea still edits `prompt` */}
+                {composedPromptText(activity)}
               </p>
             )}
 
