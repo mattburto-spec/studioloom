@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 // Primary nav — pilot-focused tabs.
 //
@@ -39,6 +40,11 @@ const TOOLS_TABS = [
   { label: "Frameworks", href: "/admin/framework-adapter" },
 ];
 
+interface WhoAmI {
+  email: string | null;
+  teacherId: string | null;
+}
+
 export default function AdminLayout({
   children,
 }: {
@@ -46,6 +52,8 @@ export default function AdminLayout({
 }) {
   const pathname = usePathname();
   const [pendingTeacherRequests, setPendingTeacherRequests] = useState<number>(0);
+  const [whoami, setWhoami] = useState<WhoAmI | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // Lightweight badge count for the Teachers tab — surfaces the
   // teacher_access_requests queue without requiring the user to drill into
@@ -58,6 +66,33 @@ export default function AdminLayout({
       .then((d) => setPendingTeacherRequests(Array.isArray(d.requests) ? d.requests.length : 0))
       .catch(() => { /* silent — badge just stays 0 */ });
   }, [pathname]);
+
+  // Phase 6.7+ — show the logged-in admin's email in the header (the
+  // existing "Back to Dashboard" link gave no signal about which account
+  // the session belongs to, which the cross-tab cookie collision made
+  // genuinely confusing). /api/admin/whoami returns email + teacherId
+  // when admin; we fetch once per layout mount.
+  useEffect(() => {
+    if (pathname === "/admin/login" || pathname === null) return;
+    fetch("/api/admin/whoami")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.ok) setWhoami({ email: d.email ?? null, teacherId: d.teacherId ?? null });
+      })
+      .catch(() => { /* silent — header just shows "Admin" */ });
+  }, [pathname]);
+
+  // Close the menu when the route changes (so it doesn't linger after
+  // clicking "Back to teacher dashboard" inside the dropdown).
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
+  async function handleSignOut() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    window.location.href = "/admin/login";
+  }
 
   // /admin/login manages its own chrome — render bare (no admin nav).
   // Also render bare while pathname is still resolving (null during initial
@@ -106,12 +141,67 @@ export default function AdminLayout({
               Admin
             </span>
           </div>
-          <Link
-            href="/teacher/dashboard"
-            className="text-sm text-text-secondary hover:text-text-primary transition-colors font-medium"
-          >
-            Back to Dashboard
-          </Link>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              className="flex items-center gap-2 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors px-2 py-1 rounded-md hover:bg-gray-100"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+            >
+              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-purple-100 text-purple-700 text-xs font-bold uppercase">
+                {whoami?.email?.[0] ?? "A"}
+              </span>
+              <span className="hidden sm:inline-block max-w-[200px] truncate text-text-primary">
+                {whoami?.email ?? "Admin"}
+              </span>
+              <svg width="10" height="10" viewBox="0 0 10 10" className="text-gray-400" aria-hidden="true">
+                <path d="M2 4l3 3 3-3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+
+            {menuOpen && (
+              <>
+                {/* Click-away overlay */}
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setMenuOpen(false)}
+                  aria-hidden="true"
+                />
+                <div
+                  className="absolute right-0 top-full mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden"
+                  role="menu"
+                >
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <div className="text-[10px] uppercase tracking-wider text-gray-500">Signed in as</div>
+                    <div className="text-sm font-medium text-gray-900 truncate">
+                      {whoami?.email ?? "(unknown — not admin?)"}
+                    </div>
+                    {whoami?.teacherId && (
+                      <div className="text-[10px] text-gray-400 font-mono truncate mt-0.5">
+                        {whoami.teacherId}
+                      </div>
+                    )}
+                  </div>
+                  <Link
+                    href="/teacher/dashboard"
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    role="menuitem"
+                  >
+                    Back to teacher dashboard →
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleSignOut}
+                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 border-t border-gray-100"
+                    role="menuitem"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Primary tab navigation — 12 spec tabs */}
