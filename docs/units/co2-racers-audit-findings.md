@@ -10,7 +10,8 @@
 - **NM survey:** **FULLY BUILT and wired end-to-end** — API, storage, student-side form, and teacher-side results dashboard all working. The survey is mounted as an activity block category in the unit editor (Lever-MM `new_metrics` category in BlockPalette). Teacher checks responses via a tab on the unit manager. **No build needed.** The original audit's "missing student form UI" claim was wrong — corrected 5 May 2026 after Matt clarified.
 - **Portfolio:** Fully built ecosystem with auto-capture pattern (page_id + section_index unique index). FAB component listens for window events. **~0.25 day** to wire from journal activity, not 0.5.
 - **Activity blocks:** No "multi-prompt" responseType exists. Need one new responseType (`structured-prompts` or `journal-entry`). **~0.5 day** for the new component + portfolio auto-capture wiring.
-- **Critical-path build cost: ~5 days** (NM survey work goes to zero; activity-block + portfolio wiring + Kanban + Timeline + attention-rotation all still needed).
+- **Preflight student submit flow:** **FULLY BUILT.** `/fabrication/new` accepts STL uploads, scans via the rule-based pipeline, routes to the lab tech (Fabricator role) for pickup. Students access via existing `/fabrication` overview. Audit 4 confirmed 6 May 2026 — no gap.
+- **Critical-path build cost: ~5 days** (NM survey + Preflight both at zero; activity-block + portfolio wiring + Kanban + Timeline + attention-rotation all still needed).
 
 ---
 
@@ -249,7 +250,7 @@ The build is mostly NEW components on top of existing data infrastructure. That'
 1. **Build brief** — sub-phased plan with commits + tests for each tool. ~7 sub-phases, similar shape to TG.0C/0D briefs.
 2. **First build target — Kanban** (highest leverage, longest pole). Could start anytime tomorrow.
 3. **Anchor lesson content** — needs designed activity blocks for Class 1, 7, 14. Trivial build but needs Matt's content review.
-4. **Print pipeline (Preflight) integration** — students need to know how to submit jobs. Audit 4 (deferred): does the student-side Preflight submit flow exist? If not, that's a gap.
+4. **Print pipeline (Preflight) integration** ✅ — Audit 4 complete 6 May 2026. Student submit flow fully built: `/fabrication/new` STL upload → rule-based scan → Fabricator pickup. Students access via `/fabrication`. For the unit, just include a Kanban card linking to `/fabrication/new` so students know where to submit their wheel CAD files.
 
 ---
 
