@@ -32,6 +32,7 @@
 
 // rule-buckets module imports only types from this file, so no cycle.
 import { canSubmit } from "./rule-buckets";
+import { validatePreferredColor } from "./preferred-color-options";
 
 export const MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB — Supabase Free Plan ceiling
 export const FABRICATION_UPLOAD_BUCKET = "fabrication-uploads";
@@ -65,6 +66,12 @@ export interface CreateUploadJobRequest {
   fileType: string; // validated here, not at type level, so bad input surfaces as 400 not TS error
   originalFilename: string;
   fileSizeBytes: number;
+  /** Phase 8.1d-COLORv1: student's preferred filament color for
+   *  3D-printer jobs (e.g. "PLA — Black", "Other: glow-in-dark
+   *  green"). Null/undefined for laser-cutter jobs OR when the
+   *  student picked "No preference". Free text, ≤ 60 chars
+   *  enforced via `validatePreferredColor`. */
+  preferredColor?: string | null;
 }
 
 export interface CreateUploadJobSuccess {
@@ -217,6 +224,13 @@ export function validateUploadRequest(
     };
   }
 
+  // Phase 8.1d-COLORv1: optional preferred-color string for 3D
+  // printer jobs. Null/undefined for laser cutters (UI hides the
+  // field for that category). Free text gated to ≤ 60 chars.
+  const colorValidation = validatePreferredColor(b.preferredColor);
+  if ("error" in colorValidation) return { error: colorValidation.error };
+  const preferredColor = colorValidation.value;
+
   // studentId is supplied by the caller (from requireStudentAuth), not the
   // request body — trust the auth layer, don't re-derive.
   return {
@@ -238,6 +252,7 @@ export function validateUploadRequest(
       fileType: b.fileType as FileType,
       originalFilename: trimmedFilename,
       fileSizeBytes: b.fileSizeBytes,
+      preferredColor,
     },
   };
 }
@@ -481,6 +496,13 @@ export async function createUploadJob(
 
   // 4. INSERT fabrication_jobs. status='uploaded' + current_revision=1 are
   //    defaulted by the schema but we set explicitly for readability.
+  // Phase 8.1d-COLORv1: only persist preferred_color for 3D-printer
+  // jobs. Laser-cutter jobs leave it null (color is a 3D concept;
+  // laser jobs care about material thickness which is a separate
+  // future field).
+  const colorToWrite =
+    resolvedCategory === "3d_printer" ? req.preferredColor ?? null : null;
+
   const jobInsert = await db
     .from("fabrication_jobs")
     .insert({
@@ -492,6 +514,7 @@ export async function createUploadJob(
       machine_profile_id: resolvedMachineId,
       file_type: req.fileType,
       original_filename: req.originalFilename,
+      preferred_color: colorToWrite,
       status: "uploaded",
       current_revision: 1,
     })

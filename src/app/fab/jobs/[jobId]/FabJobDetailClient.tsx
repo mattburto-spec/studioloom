@@ -278,6 +278,18 @@ function ReadyView({
           )}
         </div>
 
+        {/* Phase 8.1d-COLORv1: prominent color chip when the student
+            requested a specific filament. Shown right under the job
+            metadata so the fab sees it before clicking Start. */}
+        {job.preferredColor && (
+          <div className="mt-3">
+            <span className="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold ring-1 ring-amber-400/40 bg-amber-400/10 text-amber-200">
+              <span aria-hidden="true">🎨</span>
+              <span>Preferred color: {job.preferredColor}</span>
+            </span>
+          </div>
+        )}
+
         <div className="mt-3 flex items-center gap-2 flex-wrap">
           <span
             className={`text-xs font-bold uppercase tracking-wide px-2 py-0.5 rounded ${pill}`}

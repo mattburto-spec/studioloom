@@ -38,6 +38,13 @@ import {
   type UploadAction,
 } from "@/components/fabrication/upload-state";
 import type { FabricationFileType } from "@/components/fabrication/picker-helpers";
+import {
+  PREFERRED_COLOR_OPTIONS,
+  PREFERRED_COLOR_NO_PREFERENCE,
+  PREFERRED_COLOR_OTHER_SENTINEL,
+  PREFERRED_COLOR_MAX_LEN,
+  resolveColorChoice,
+} from "@/lib/fabrication/preferred-color-options";
 
 interface PickerData {
   classes: ClassOption[];
@@ -66,6 +73,13 @@ export default function FabricationNewPage() {
   const [file, setFile] = React.useState<File | null>(null);
   const [fileType, setFileType] = React.useState<FabricationFileType | null>(null);
   const [validationError, setValidationError] = React.useState<string | null>(null);
+  // Phase 8.1d-COLORv1: preferred filament color for 3D-printer
+  // jobs. Default = "No preference" so it's never blocking. Hidden
+  // entirely for laser-cutter selections.
+  const [preferredColorChoice, setPreferredColorChoice] = React.useState<string>(
+    PREFERRED_COLOR_NO_PREFERENCE
+  );
+  const [preferredColorOther, setPreferredColorOther] = React.useState<string>("");
   const [uploadState, dispatch] = React.useReducer(uploadReducer, initialUploadState);
   // Phase 8.1d-11: instant click feedback. The /upload POST takes
   // 100-500ms before uploadReducer transitions to "uploading", so
@@ -159,6 +173,20 @@ export default function FabricationNewPage() {
           machineCategory: selectedCategory as string,
         };
 
+    // Phase 8.1d-COLORv1: only attach preferredColor for 3D-printer
+    // category. Server also enforces this — duplicating client-side
+    // for clarity + to avoid sending stale "Other:" payload when
+    // the student switched category mid-form.
+    const colorFields: Record<string, string | null> =
+      selectedCategory === "3d_printer"
+        ? {
+            preferredColor: resolveColorChoice(
+              preferredColorChoice,
+              preferredColorOther
+            ),
+          }
+        : {};
+
     // Step 1: POST /upload to create rows + mint signed URL.
     let initResult: {
       jobId: string;
@@ -174,6 +202,7 @@ export default function FabricationNewPage() {
         body: JSON.stringify({
           classId: selectedClassId,
           ...machineFields,
+          ...colorFields,
           fileType,
           originalFilename: file.name,
           fileSizeBytes: file.size,
@@ -365,6 +394,59 @@ export default function FabricationNewPage() {
             onMachineChange={setSelectedMachineProfileId}
             disabled={isBusy}
           />
+
+          {/* Phase 8.1d-COLORv1: filament color picker, 3D-printer only.
+              Hidden for lasers (color is a 3D-printer concept; laser
+              jobs care about material thickness which is a future
+              field). "No preference" is the default so the field is
+              never blocking. */}
+          {selectedCategory === "3d_printer" && (
+            <div className="space-y-2">
+              <label
+                htmlFor="preferred-color"
+                className="text-sm font-medium text-gray-900"
+              >
+                Preferred filament color
+              </label>
+              <select
+                id="preferred-color"
+                value={preferredColorChoice}
+                onChange={(e) => setPreferredColorChoice(e.target.value)}
+                disabled={isBusy}
+                className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/40 focus:border-brand-purple disabled:opacity-50"
+              >
+                {PREFERRED_COLOR_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              {preferredColorChoice === PREFERRED_COLOR_OTHER_SENTINEL && (
+                <div className="space-y-1">
+                  <input
+                    type="text"
+                    placeholder="e.g. neon pink, glow-in-dark green"
+                    value={preferredColorOther}
+                    onChange={(e) =>
+                      setPreferredColorOther(
+                        e.target.value.slice(0, PREFERRED_COLOR_MAX_LEN - 7)
+                      )
+                    }
+                    disabled={isBusy}
+                    maxLength={PREFERRED_COLOR_MAX_LEN - 7}
+                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/40 focus:border-brand-purple disabled:opacity-50"
+                  />
+                  <p className="text-xs text-gray-500">
+                    The fabricator will see "Other: {preferredColorOther || "…"}".
+                  </p>
+                </div>
+              )}
+              <p className="text-xs text-gray-500">
+                Helps the fabricator pick the right filament. They'll do their
+                best — exact color depends on what's loaded.
+              </p>
+            </div>
+          )}
 
           <FileDropzone
             file={file}
