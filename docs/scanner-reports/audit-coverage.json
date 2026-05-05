@@ -1,10 +1,6 @@
 {
   "registry": "audit-coverage",
-<<<<<<< HEAD
-  "timestamp": "2026-05-04T11:24:10.480585+00:00",
-=======
-  "timestamp": "2026-05-04T12:45:26.152075+00:00",
->>>>>>> integrity-fixes
+  "timestamp": "2026-05-04T22:20:42.417160+00:00",
   "version": 1,
   "stats": {
     "total_mutation_routes": 233,

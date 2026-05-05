@@ -3951,3 +3951,64 @@ Plus the NIS tier flip + Gmail-Matt detach as ops changes.
 5. **Levers 2–5** (lints, voice/personality, exemplar contrast, sequencing intuition)
 
 **Build velocity:** ~5 hours wall-clock from brief sign-off to merged PR. The pure-logic-extraction pattern (Lesson #71) added ~30 minutes but bought 30 tests of regression coverage on the hairy state transitions — net positive given the data is per-class and Wednesday classes will be writing to it.
+
+---
+
+## 5 May 2026 (early morning CST) — Lever-MM smoke gap + Tasks v1 prototype + Task System Architecture brief — all merged to main
+
+**Session goal:** Close out Lever-MM's preview-banner gap, then run the architectural-decision conversation that the next-big-thing build needs (tasks-grading + Lever 0 + ManageBac export + structured-vs-inquiry boundary). Land verdict in a Claude Design probe + a unified architectural brief.
+
+**Outcome:** ✅ THREE PRs MERGED to main. Documentation-heavy session — locks the architectural decision moment for the next ~16-day build phase without any code change.
+
+**Commits / PRs (this session):**
+
+| Commit / PR | Scope |
+|---|---|
+| `35ecc9d` | Preview banner — read-only NM checkpoint display in teacher preview (closes Matt's smoke-gap question post-Lever-MM merge) |
+| PR #21 → `1972dda` | Tasks v1 prototype — Claude Design handoff bundle landed at `docs/prototypes/tasks-v1/` with verdict (split surfaces, unified data) and three named friction moments |
+| PR #23 → `2a948a3` | Task System Architecture brief — 855-line architectural decision moment locking schema + UX direction |
+
+**Tests:** 3660 → 3700 (+40, parallel-session work absorbed; 0 regressions from this session — pure docs).
+
+**Architectural decisions banked in `decisions-log.md`** (see entries dated 5 May 2026):
+
+1. Unified `assessment_tasks` primitive over separate summative_tasks
+2. SPLIT teacher UI surfaces (inline-row formative + 5-tab summative)
+3. NM checkpoints stay PARALLEL to assessment_tasks
+4. ManageBac as EXPORT-NOT-INTEGRATION
+5. Three-layer architecture (shared infra + Layer 2 PM tools + mode-specific concrete)
+6. Polymorphic `submissions.source_kind` for inquiry-mode future-proofing
+7. G1 grading code rolls forward (not ripped out), parented to tasks via `task_id` FK
+
+**Independent reviews completed:** Cowork + Gemini both confirmed Option A (unified data primitive). Cowork pushed back on spec details — 7 spec corrections applied (submissions split out, weight on criterion-task edge, page_ids → join table, JSONB config for type-specific, version-based resubmissions, cross-unit support, peer/self deferred).
+
+**Tasks v1 prototype outputs:**
+- 3 artboards in one HTML canvas (unified surface, split surfaces, decision panel)
+- Decision panel argues from 3 named teacher-friction moments (Ms. Okafor 11:42am, Mr. Patel Sunday 8pm, first-year MYP teacher writing GRASPS)
+- Verbatim verdict: *"Ship split surfaces. Underneath, both still write to assessment_tasks. The discriminator earns its keep at query time, not at create time."*
+- Located at `docs/prototypes/tasks-v1/`, matches existing `docs/prototypes/grading-v2/` pattern
+
+**Task System Architecture brief contents:**
+- 855 lines covering: scope (in/out), three-layer architecture, Tasks v1 verdict, Cowork/Gemini review summary, full SQL schema with all 7 corrections applied, teacher UI (split surfaces), student UI (submission with self-assessment gate), ManageBac export (file-as-artifact pattern), NM-stays-parallel rationale, backfill plan for ~62 existing single-grade rows, G1 disposition (roll forward with task_id FK), 11-phase sequence (TG.0A-K), pre-flight ritual (Lessons #67-#71 cited), 7 open questions for sign-off, reading order
+- Replaces `docs/projects/grading-phase-g1-brief.md` (G1 was a 3-day cut that explicitly sidestepped the assessment_tasks question)
+- Sister briefs flagged as placeholder: `docs/projects/inquiry-mode-architecture.md` (PYP/PP/Service), `docs/projects/pm-tools-layer.md` (Layer 2), `docs/projects/manual-unit-designer.md` (Lever 0)
+
+**Build estimate:** ~16 days end-to-end. After **TG.0B (schema lock)**, Lever 0 (manual unit designer) can start in parallel — both consume the locked schema.
+
+**Systems affected:** None directly (pure docs). Future-affected when build phases ship: `unit-editor` (gains Tasks panel sidebar), `grading-system` (G1 roll-forward with task FK), new `tasks-system` system to register, `manage-bac-export` adapter.
+
+**Follow-ups filed during this session (informal in conversation, not yet in dimensions3-followups.md):**
+
+- `FU-INQUIRY-MODE-BRIEF` — sister architectural brief for PYP / PP / Service / capstones. Multi-week project.
+- `FU-LAYER-2-PM-TOOLS-BRIEF` — Layer 2 cross-mode PM tools (evidence log, milestone tracker, etc.). Built incrementally.
+- `FU-MANUAL-UNIT-DESIGNER-BRIEF` — Lever 0. Already on Matt's stated priority list.
+- `FU-TG-DND-LINKING` (P3) — drag-and-drop section-to-task linking instead of click-to-link.
+
+**No new lessons banked this session** — the architectural conversation surfaced design-decisions, not lessons-learned discoveries. Lessons #67-#71 from earlier today (Lever 1 + Lever-MM) remain the latest.
+
+**What's next (Matt to decide):**
+1. Get sign-off on the brief's 7 open questions (most are "yes per conversation; confirm")
+2. Move into TG.0B schema migration (~1 day; gates Lever 0)
+3. After TG.0B: Lever 0 build + tasks-grading build run in parallel
+
+**Build velocity for the day** (counting Lever 1 + Lever-MM + Tasks v1 prototype + Task System Architecture brief): two complete features end-to-end (Lever 1 schema-through-readers + Lever-MM block category) + one design probe + one architectural decision moment locked. ~12-14 hours wall-clock. Net tests +166. Three PRs to main. Zero regressions.
