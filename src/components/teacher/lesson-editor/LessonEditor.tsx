@@ -60,6 +60,15 @@ const SAVE_STATUS_LABELS: Record<string, { text: string; color: string }> = {
   error: { text: "Save failed", color: "text-red-500" },
 };
 
+// 5 May 2026 declutter pass — hide visually-noisy lesson-editor surfaces
+// pending the UI redesign. All three are reversible (flip to true to
+// restore). The underlying data + component code stays intact; only the
+// rendering is gated. Cast to `boolean` keeps the union type so TS still
+// narrows downstream gates (`pageContent?.sections && ...`) correctly.
+const SHOW_LESSON_HEALTH: boolean = false;
+const SHOW_LESSON_SKILLS_PANEL: boolean = false;
+const SHOW_NM_CHECKPOINT_STRIP: boolean = false;
+
 export default function LessonEditor({
   unitId,
   classId,
@@ -991,8 +1000,10 @@ export default function LessonEditor({
                   </button>
                 </div>
               )}
-              {/* Dimensions bar (non-sticky) when no timeline exists */}
-              {!phases && pageContent?.sections && pageContent.sections.length > 0 && (
+              {/* Dimensions bar (non-sticky) when no timeline exists.
+                  5 May 2026 declutter: Lesson Health hidden pending UI
+                  redesign. Flip SHOW_LESSON_HEALTH below to restore. */}
+              {SHOW_LESSON_HEALTH && !phases && pageContent?.sections && pageContent.sections.length > 0 && (
                 <DimensionsSummaryBar sections={pageContent.sections} phases={phases} udlEnabled={udlEnabled} />
               )}
               {phases && (
@@ -1051,8 +1062,10 @@ export default function LessonEditor({
                       );
                     })()}
                   </div>
-                  {/* ─── Dimensions Summary Bar (sticky with timeline) ─── */}
-                  {pageContent?.sections && pageContent.sections.length > 0 && (
+                  {/* ─── Dimensions Summary Bar (sticky with timeline) ───
+                      5 May 2026 declutter: Lesson Health hidden pending UI
+                      redesign. Flip SHOW_LESSON_HEALTH to restore. */}
+                  {SHOW_LESSON_HEALTH && pageContent?.sections && pageContent.sections.length > 0 && (
                     <DimensionsSummaryBar sections={pageContent.sections} phases={phases} udlEnabled={udlEnabled} />
                   )}
                 </div>
@@ -1102,21 +1115,28 @@ export default function LessonEditor({
               {/* ─── Skills pinned to this lesson ─── */}
               {/* Teacher-side of skill_card_refs. Pinning a card here makes
                   it surface in the student's "Skills for this lesson" panel
-                  at the top of the unit page. */}
-              <div className="mt-3">
-                <LessonSkillsPanel
-                  pageId={selectedPage.id}
-                  subjectLabel={`${unitTitle ?? "Unit"} · ${selectedPage.title ?? "Lesson"}`}
-                />
-              </div>
+                  at the top of the unit page.
+                  5 May 2026 declutter: hidden pending lesson-editor UI
+                  redesign. Future: skills become a block type whose click
+                  opens the skill detail. Flip SHOW_LESSON_SKILLS_PANEL to restore. */}
+              {SHOW_LESSON_SKILLS_PANEL && selectedPage && (
+                <div className="mt-3">
+                  <LessonSkillsPanel
+                    pageId={selectedPage.id}
+                    subjectLabel={`${unitTitle ?? "Unit"} · ${selectedPage.title ?? "Lesson"}`}
+                  />
+                </div>
+              )}
 
               {/* ─── Lever-MM: NM checkpoint chips ─── */}
               {/* Renders the NM elements registered on this lesson as removable
                   chips. Hidden when no checkpoints exist on this lesson (and
                   thus the strip is empty) — avoids visual clutter on lessons
                   without NM. Add via the "New Metrics" block category in the
-                  palette; remove by clicking × on a chip. */}
-              {useNewMetrics && activeNmElementIds.length > 0 && (
+                  palette; remove by clicking × on a chip.
+                  5 May 2026 declutter: yellow strip hidden pending lesson-
+                  editor UI redesign. Flip SHOW_NM_CHECKPOINT_STRIP to restore. */}
+              {SHOW_NM_CHECKPOINT_STRIP && useNewMetrics && activeNmElementIds.length > 0 && (
                 <div className="mt-3 px-3 py-2 rounded-lg border border-yellow-200 bg-yellow-50">
                   <div className="flex items-center gap-2 mb-1.5">
                     <span className="text-yellow-700 text-[10px] font-extrabold tracking-wider uppercase">

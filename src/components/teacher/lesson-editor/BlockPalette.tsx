@@ -613,10 +613,16 @@ export default function BlockPalette({
   // this, picking a competency with no elements would hide the accordion
   // and the competency selector would become inaccessible (teacher
   // couldn't switch back).
+  //
+  // 5 May 2026 declutter pass: NM_CATEGORY_VISIBLE flag hides the NM
+  // category visually pending lesson-editor UI redesign. Set to `true`
+  // to restore. Code path stays intact.
+  const NM_CATEGORY_VISIBLE = false;
   const activeCategories = (Object.keys(CATEGORIES) as BlockCategory[]).filter(
     (cat) => {
-      if (cat === "new_metrics" && nmCompetencies && nmCompetencies.length > 0) {
-        return true;
+      if (cat === "new_metrics") {
+        if (!NM_CATEGORY_VISIBLE) return false;
+        if (nmCompetencies && nmCompetencies.length > 0) return true;
       }
       return filteredBlocks.some((b) => b.category === cat);
     }
