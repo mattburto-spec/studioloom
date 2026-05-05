@@ -1,16 +1,16 @@
 # CO2 Racers — Audit findings (5 May 2026)
 
-> **Pre-build audits** for the agency unit, before drafting the build brief. Three areas: NM survey infra, portfolio surface, activity block schema. Outcome: most infrastructure exists, build cost drops from ~5 days to **~4.5 days for critical path**.
+> **Pre-build audits** for the agency unit, before drafting the build brief. Three areas: NM survey infra, portfolio surface, activity block schema. Outcome: most infrastructure exists, build cost drops from ~5 days to **~5 days critical path** (NM survey 0 days because fully built; activity-block + portfolio wiring still needed).
 > Companion to [`co2-racers-agency-unit.md`](co2-racers-agency-unit.md).
 
 ---
 
 ## TL;DR
 
-- **NM survey:** API + storage **fully wired**. Missing: student-side form UI + Three Cs structure on top of the existing rating. **~0.25 day** lift, not 0.5.
+- **NM survey:** **FULLY BUILT and wired end-to-end** — API, storage, student-side form, and teacher-side results dashboard all working. The survey is mounted as an activity block category in the unit editor (Lever-MM `new_metrics` category in BlockPalette). Teacher checks responses via a tab on the unit manager. **No build needed.** The original audit's "missing student form UI" claim was wrong — corrected 5 May 2026 after Matt clarified.
 - **Portfolio:** Fully built ecosystem with auto-capture pattern (page_id + section_index unique index). FAB component listens for window events. **~0.25 day** to wire from journal activity, not 0.5.
 - **Activity blocks:** No "multi-prompt" responseType exists. Need one new responseType (`structured-prompts` or `journal-entry`). **~0.5 day** for the new component + portfolio auto-capture wiring.
-- **Critical-path build cost: ~4.5 days** (was estimated at 5).
+- **Critical-path build cost: ~5 days** (NM survey work goes to zero; activity-block + portfolio wiring + Kanban + Timeline + attention-rotation all still needed).
 
 ---
 
@@ -43,10 +43,17 @@
 
 **Library:** `src/lib/nm/checkpoint-ops.ts` + `src/lib/nm/constants.ts` — pure logic for checkpoint registration/removal (Lever-MM work).
 
-### What's missing for the agency unit
+### What's actually built (corrected after Matt's clarification 5 May 2026)
 
-1. **Student-side survey form UI** — the API exists; the FORM component to render the survey at the right time (e.g. when a student visits a checkpoint page or completes a milestone) needs verification. Worth a quick check of `/student/unit/[unitId]/[pageId]` rendering.
-2. **Three Cs rubric structure** — current `rating` is 1-3 integer + free `comment`. For Three Cs (Choice / Causation / Change), we need to capture each as separate evidence per element.
+The original audit underread the editor authoring path. The full picture:
+
+1. **Student survey form** — exists. Mounted as an activity block category (`new_metrics`) in BlockPalette. Teachers add NM survey checkpoints to specific lessons via the right-sidebar palette in the lesson editor; students see the form when they reach those lessons; ratings + comments flow into `competency_assessments` via `POST /api/student/nm-assessment`.
+2. **Teacher results view** — exists as a tab on the unit manager. Reads via `GET /api/teacher/nm-results?unitId=X&classId=Y`.
+3. **Three Cs structure** — for the agency unit, captured via the existing `comment` field with Three Cs prompts, NOT via a new schema column. Teacher reads against the Three Cs rubric. Zero code work; pure prompt design.
+
+### Important regression caught + fixed (5 May 2026)
+
+The earlier declutter sweep (PR #41) hid the `new_metrics` block category visually via `NM_CATEGORY_VISIBLE = false` in `BlockPalette.tsx`. That was a misinterpretation of "remove the NM yellow bar" (Matt's intent was the amber checkpoint strip on lesson cards — `SHOW_NM_CHECKPOINT_STRIP` — NOT the BlockPalette category, which IS the survey-authoring path). Restored same day in PR #44.
 
 ### Recommended approach
 
@@ -71,7 +78,7 @@ The `rating` 1-3 maps cleanly: 3 Cs present = 3 (agency demonstrated), 2 = 2 (de
 - Teacher observation entry — small extension to the existing `nm-observation` route to take Three Cs structure
 - Aggregate view — minor update to `/api/teacher/nm-results` to surface Three Cs averages (likely small SQL extension)
 
-**Lift estimate:** **~0.25 day** (was 0.5). Most plumbing exists.
+**Lift estimate:** **~0 days** (was 0.5 → 0.25 → confirmed zero). Survey is fully built end-to-end. The unit just needs Matt to register NM checkpoints on the relevant lessons via the existing `new_metrics` block category. The Three Cs rubric is applied at teacher-grading time against the existing comment field.
 
 ---
 
@@ -194,15 +201,15 @@ I'd argue building the new responseType earns its keep.
 | 1 | **Kanban** (WIP=1, DoD, blockage triage, time-est, lesson-link) | 2 days | 2 days | Same — entirely new |
 | 2 | **Timeline** (backward-map + forward-plan) | 1.5 days | 1.5 days | Same — entirely new |
 | 3 | **Journal** (4-prompt activity block + portfolio auto-capture) | 0.5 day | **~0.5 day** | New responseType (~0.5d) + wiring (~0.25d). Hovers around 0.5-0.75d total. |
-| 4 | **Three Cs Survey** (5 surveys, milestone-triggered + anchored) | 0.5 day | **~0.25 day** | NM API + storage fully wired. Just student form + JSONB Three Cs structure. |
+| 4 | **Three Cs Survey** (5 surveys, milestone-triggered + anchored) | 0.5 day | **~0 days** | Fully built end-to-end. Matt confirmed survey is wired and working. Three Cs applied at teacher-grading time against existing comment field. |
 | 5 | **Teacher Attention-Rotation Panel** | 1 day | 1 day | Entirely new — not pre-built |
 | 6 | Strategy Canvas + Decision Log | 1 day combined | 1 day combined | Custom tools — entirely new |
 | 7 | Race Day Predictor | 0.5 day | 0.5 day | Custom tool — entirely new |
 | 8 | Anchor lesson activities (Class 1, 7, 14) | trivial | trivial | Existing activity blocks |
 
-**Critical path total (#1-5): ~5.25 days** → still close to original estimate, slight savings on #3 + #4.
+**Critical path total (#1-5): ~5 days** → NM survey #4 drops to 0; small offset by activity-block #3 staying 0.5d.
 
-**With nice-to-haves (#6-7): ~6.75 days** → ~7 days max with surplus.
+**With nice-to-haves (#6-7): ~6.5 days** → ~6.5 days max with surplus.
 
 The audit didn't dramatically shrink the build, but it confirmed:
 - **No new tables needed.** Everything fits existing schema (`competency_assessments.context` JSONB for Three Cs; `portfolio_entries` for journal).
