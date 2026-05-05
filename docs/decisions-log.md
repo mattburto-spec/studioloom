@@ -560,3 +560,23 @@ These six decisions emerged across an architectural conversation on 4-5 May 2026
 - **Polymorphic `submissions.source_kind` for inquiry-mode future-proofing (5 May 2026)** — Cowork's call: inquiry-mode evidence comes from `inquiry_milestones` not `assessment_tasks`. The shared submissions table uses `source_kind: 'task' | 'milestone' | 'project'` + `source_id` UUID (FK enforced in app layer due to polymorphism) so both modes write to the same evidence-capture pipeline. v1 only sees `source_kind='task'`; inquiry mode adds `'milestone'` later without schema migration. **Adding the polymorphism now costs nothing; retrofitting later is painful.**
 
 - **G1 grading code rolls forward (not ripped out), parented to tasks via `task_id` FK (5 May 2026)** — G1's Calibrate/Synthesize design + ScorePill components + lesson-tile extraction lib all keep their existing UX. Only the data layer reshapes: `student_tile_grades` migration re-mints with `task_id NOT NULL REFERENCES assessment_tasks(id)`. Calibrate becomes "tiles within this task." Synthesize aggregates per criterion per task per student. The half-shipped state (rolled-back migration + writing to non-existent table) closes cleanly when the brief's TG.0G phase lands. No design thrown away; minimal code rewrite.
+
+---
+
+## Task System Architecture — OQ resolutions (5 May 2026)
+
+The brief at [`docs/projects/task-system-architecture.md`](projects/task-system-architecture.md) had 7 open questions awaiting Matt sign-off. All resolved this session:
+
+- **OQ-1: Brief scope confirmed (5 May 2026)** — Structured classes only; inquiry / Layer 2 / Lever 0 = sister projects. Locked.
+
+- **OQ-2: NO BACKFILL — delete legacy dummy data (5 May 2026)** — DEPARTED FROM RECOMMENDATION. My recommendation was auto-migrate ~62 prod grades into `task_type='summative'` records to preserve historical reporting. Matt's call: existing single-grade-per-unit data is dummy / test data on dummy accounts; nothing real to preserve. TG.0B becomes purely additive (no migration logic), TG.0K becomes a clean DELETE + route removal (not a redirect + soak), estimate drops by ~0.5 day. The `/teacher/classes/[classId]/grading/[unitId]` legacy page is deleted, not redirected. **Important precedent:** when "preserve historical data" recommendations land in front of Matt, ask whether the data is real or test before assuming the cost is worth paying. Different default than I had.
+
+- **OQ-3: Self-assessment default-ON for summative (5 May 2026)** — Hattie d=1.33 (highest single effect size in his meta-analysis). Default-on for summative tasks; teacher can disable per-task via Tab 5 (Policy). The Submit button stays disabled until self-assessment is complete.
+
+- **OQ-4: ManageBac class-level grade-book export deferred to v1.1 (5 May 2026)** — Per-task PDFs (teacher brief + student portfolio) ship in v1. Class-level bulk export to ManageBac's CSV/XLSX import format lands when teacher demand surfaces or MB changes their bulk format. Each LMS has its own bulk format and they all change — don't bake one in v1.
+
+- **OQ-5: 5-tab config drawer (not full-page) (5 May 2026)** — Drawer slides in from right; lessons stay visible behind. Closes cleanly when teacher hits done. Caveat: if rubric editor (Tab 3) cramps inside drawer, escalate to a full-page route at TG.0D. Build as drawer first; switch only if it doesn't fit.
+
+- **OQ-6: Lever 0 schema-dependency check before TG.0B (5 May 2026)** — 30-min Lever 0 sketch as part of TG.0A pre-flight ritual. Confirms whether Lever 0's CBCI / Structure-of-Process / Paul-Elder framework braiding emits any fields that need to live on `assessment_tasks` (e.g. "this task uses Strategy X under Concept Y"). Cheap insurance against schema-locks-too-early.
+
+- **OQ-7: Dedicated worktree for TG build (5 May 2026)** — `/Users/matt/CWORK/questerra-tasks` for the ~15.5-day build. Matches existing pattern (`questerra-preflight`, `questerra-dashboard`). 16 days of schema-touching work definitely warrants the separation.

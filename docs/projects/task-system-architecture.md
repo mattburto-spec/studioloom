@@ -1,6 +1,6 @@
 # Task System Architecture
 
-**Status:** 🟡 BRIEF — drafted 5 May 2026. Awaiting Matt sign-off before TG.0B (schema migration).
+**Status:** ✅ BRIEF SIGNED OFF 5 May 2026 — all 7 open questions resolved (see § Open questions resolved). Ready for TG.0A pre-flight ritual.
 **Worktree:** `/Users/matt/CWORK/questerra` (or split into `/Users/matt/CWORK/questerra-tasks` if parallel-session collision becomes likely)
 **Branch:** `task-system-architecture` (off `main` @ today's tip)
 **Baseline tests:** 3700 passed / 11 skipped (post-Lever-MM + Tasks v1 prototype merge)
@@ -648,29 +648,29 @@ The two systems share infrastructure (rubric descriptors, criterion tagging, sub
 
 ---
 
-## Backfill plan — existing single-grade-per-unit data
+## Backfill plan — NONE (Matt's call, 5 May 2026 OQ-2 resolution)
 
-Current state: ~62 grades on prod (per recent counts) live in the legacy single-grade-per-unit model at `/teacher/classes/[classId]/grading/[unitId]`.
+**Decision: no backfill. Existing single-grade-per-unit data is dummy / test data and gets deleted.**
 
-Migration strategy:
+This is a simplification from the original draft (which proposed auto-migrating ~62 prod grades into `task_type='summative'` records). Matt confirmed: all existing graded units are dummy accounts in dev/test. Nothing to preserve. No teachers / students rely on the legacy data.
+
+**Cleanup steps in TG.0K:**
 
 ```sql
--- For each existing (student, unit, class) grade, create:
---   1. One assessment_task record per unit:
---      - title = '[Unit name] — Final Grade'
---      - task_type = 'summative'
---      - status = 'closed'
---      - config.criteria = ['A', 'B', 'C', 'D'] (or whatever was graded)
---   2. One submission record per (student, task) pair:
---      - source_kind = 'task'
---      - status = 'graded'
---      - text_response, uploads from existing student_progress / portfolio
---   3. grade_entries rows from existing per-criterion scores
+-- After TG.0B-J have shipped + smoke-tested:
+DELETE FROM student_progress WHERE ...test data...;       -- if applicable
+DELETE FROM legacy_grade_table_rows WHERE ...;            -- per-criterion scores from legacy /teacher/classes/[classId]/grading/[unitId]
+-- Existing units / classes themselves stay — only the grade records get nuked.
 ```
 
-The legacy page `/teacher/classes/[classId]/grading/[unitId]` redirects to the new task-scoped marking surface for the implicit "Final Grade" task. Teachers see no functional regression.
+The legacy `/teacher/classes/[classId]/grading/[unitId]` page is **deleted, not redirected** — code removed, route 404s for the rare deep-link, nav refactored to point at the new task-scoped marking surface only.
 
-The legacy single-grade page can be deleted in v1.1 (after a soak period).
+**Implications of this simplification:**
+- TG.0B is purely additive (new tables) — no migration logic to write, no row-count smoke gate, no concurrency concerns about legacy writers
+- TG.0K reduces from "redirect + soak" to "delete + remove route file"
+- Estimate drops by ~0.5 day (was ~16 days; now ~15.5 days)
+- One stop trigger removed: "Backfill produces fewer task records than grade rows = data loss" — N/A since no backfill
+- Risk: nuking dummy data in prod — gets a manual sanity check (count rows + verify they're test accounts) before the DELETE runs
 
 ---
 
@@ -697,8 +697,8 @@ The G1 prototype + half-shipped code is salvage-worthy:
 ## Sequence
 
 1. **Brief sign-off** (this doc, Matt review)
-2. **TG.0A** — pre-flight ritual + decision-log entries + handoff prep
-3. **TG.0B** — schema migration (assessment_tasks, task_lesson_links, task_criterion_weights, submissions, grade_entries, student_tile_grades) + backfill of existing grades
+2. **TG.0A** — pre-flight ritual + decision-log entries + handoff prep + Lever 0 schema-dependency check (per OQ-6)
+3. **TG.0B** — schema migration (assessment_tasks, task_lesson_links, task_criterion_weights, submissions, grade_entries, student_tile_grades). **Purely additive — no backfill** per OQ-2 resolution; legacy dummy-data deletion deferred to TG.0K.
 4. **TG.0C** — Tasks panel sidebar in editor + chooser + inline-row formative form
 5. **TG.0D** — 5-tab summative project config drawer
 6. **TG.0E** — lesson card "Builds toward..." chip integration (same pattern as Lever-MM)
@@ -707,10 +707,10 @@ The G1 prototype + half-shipped code is salvage-worthy:
 9. **TG.0H** — ManageBac export adapters (teacher task brief PDF/TXT/DOCX/PPT + student portfolio PDF/ZIP)
 10. **TG.0I** — tests + fixtures + smoke seed (analogue of Lever 1's seed-test-unit.sql)
 11. **TG.0J** — registry sync (WIRING, schema-registry, api-registry, doc-manifest)
-12. **TG.0K** — legacy single-grade page redirects + deprecation banner
+12. **TG.0K** — legacy single-grade page DELETION (per OQ-2 resolution: no redirect; route file removed, dummy data DELETE'd from prod after manual sanity check, nav refactored)
 13. **Matt Checkpoint TG.1** — full smoke (create formative + summative; student submits with self-assessment; teacher Calibrate/Synthesize; Manage Bac export round-trip)
 
-**Estimated effort:** ~16 days end-to-end.
+**Estimated effort:** ~15.5 days end-to-end (was ~16; OQ-2's no-backfill resolution shaved ~0.5 day off TG.0B + TG.0K).
 
 After **TG.0B (schema lock)**, Lever 0 (manual unit designer) build can start in parallel — it consumes the locked schema. Tasks-grading and Lever 0 implementation overlap; they don't step on each other.
 
@@ -726,15 +726,15 @@ After **TG.0B (schema lock)**, Lever 0 (manual unit designer) build can start in
 | TG.0H — ManageBac export | 2 days | Yes |
 | TG.0I — tests + smoke seed | 1.5 days | Yes |
 | TG.0J — registry sync | 0.5 day | Yes |
-| TG.0K — legacy redirect | 0.5 day | Yes |
-| **Total** | **~16 days** | |
+| TG.0K — legacy DELETE + route removal (per OQ-2) | 0.25 day | Yes |
+| **Total** | **~15.5 days** | |
 
 ---
 
 ## Stop triggers (any of these → pause + report)
 
 - Schema drift between this brief and prod (after migration applies, columns missing) — surfaces if FU-EE / migration backlog hasn't been resolved
-- Backfill of existing grades produces fewer task records than existing grade rows (data loss)
+- ~~Backfill of existing grades produces fewer task records than existing grade rows~~ — RESOLVED (no backfill per OQ-2; existing data is dummy/test, gets deleted in TG.0K)
 - G1 code refactor breaks the existing /teacher/marking page UX (regression on a shipped surface)
 - ManageBac export PDF doesn't pass a manual upload smoke (real teacher uploads it; rejected by MB) — would require format adjustments
 - Polymorphic `submissions.source_kind` field isn't sufficient — surfaces if inquiry-mode design forces a different shape
@@ -798,21 +798,21 @@ After **TG.0B (schema lock)**, Lever 0 (manual unit designer) build can start in
 
 ---
 
-## Open questions for sign-off
+## Open questions resolved (Matt sign-off, 5 May 2026)
 
-1. **Brief scope confirmed?** Tasks-grading for structured classes only; inquiry mode is sister project; PM tools are Layer 2 future; ManageBac is export-only. (My read: YES per conversation 4-5 May; confirm.)
+| OQ | Resolution | Notes |
+|---|---|---|
+| **1. Brief scope confirmed?** | ✅ **CONFIRMED** | Structured classes only; inquiry / Layer 2 / Lever 0 = sister projects |
+| **2. Backfill of existing grades?** | ✅ **NO BACKFILL — DELETE LEGACY DATA** | Existing single-grade-per-unit rows are dummy/test data on dummy accounts. Nothing to preserve. TG.0B is purely additive; TG.0K deletes the dummy data + the legacy `/teacher/classes/[classId]/grading/[unitId]` page outright. Estimate dropped ~0.5 day. (Departed from my original "auto-migrate" recommendation per Matt's call.) |
+| **3. Self-assessment default-on for summative?** | ✅ **DEFAULT ON** | Hattie d=1.33. Teacher can disable per-task via Tab 5 (Policy). |
+| **4. ManageBac class-level grade-book export?** | ✅ **DEFER TO v1.1** | Per-task PDFs + student portfolio in v1. Class-level bulk export when teacher demand surfaces. |
+| **5. 5-tab config — drawer or full-page?** | ✅ **DRAWER** | Slides in from right; lessons stay visible behind. If rubric editor (Tab 3) cramps, escalate to full-page at TG.0D. |
+| **6. Lever 0 schema dependency check?** | ✅ **REQUIRED PRE-TG.0B** | 30-min Lever 0 sketch BEFORE TG.0B applies. Captures any CBCI / SoP / Paul-Elder fields that need to live on `assessment_tasks`. Folded into TG.0A pre-flight ritual. |
+| **7. Dedicated worktree?** | ✅ **YES** | `/Users/matt/CWORK/questerra-tasks` for the ~15.5-day TG build. Matches existing pattern (`questerra-preflight`, `questerra-dashboard`). |
 
-2. **Backfill of existing grades** — auto-migrate to `task_type='summative'` with one task per unit + grade rollup? Or leave legacy data alone and start fresh? (Recommend: auto-migrate. Preserves historical reporting; no data loss.)
+All decisions logged in [`docs/decisions-log.md`](../decisions-log.md) under "Task System Architecture — OQ resolutions (5 May 2026)".
 
-3. **Self-assessment-before-submit gate for summative — required by default?** Hattie d=1.33 supports default-on. Teacher can disable per-task via Tab 5 (Policy). (Recommend: default-on.)
-
-4. **MyManageBac admin-export tooling** — should we offer to also export full class grade-books to ManageBac's CSV/XLSX import format in addition to per-task PDFs? (Defer — start with per-task; class-level can land as v1.1 if real demand surfaces.)
-
-5. **5-tab config drawer vs full-page route?** Drawer keeps users in the editor context; full page gives more room. (Recommend: drawer, mode = "editor sidebar slides over to make room for drawer panel". If drawer cramps the rubric editor in Tab 3, escalate to full-page route at TG.0D.)
-
-6. **Lever 0 schema dependency surfaces?** Lever 0's CBCI / Structure-of-Process / Paul-Elder framework braiding might require fields on `assessment_tasks` we haven't anticipated. (Action: review Lever 0 sketch PRIOR to TG.0B; amend brief if anything's missing.)
-
-7. **Worktree split?** This is ~16 days of work; warrants its own worktree (`/Users/matt/CWORK/questerra-tasks`) so it doesn't block other parallel sessions. (Recommend: yes, dedicated worktree.)
+**Brief is locked. TG.0A pre-flight is the next step.**
 
 ---
 

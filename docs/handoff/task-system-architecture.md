@@ -24,16 +24,11 @@
 
 ## Next steps
 
-- [ ] **Get sign-off on the brief's 7 open questions** (most are "yes per conversation; confirm"):
-  1. Brief scope confirmed (structured-classes only, inquiry/Layer 2/Lever 0 sister projects)
-  2. Backfill of existing grades — auto-migrate? (Recommend: yes)
-  3. Self-assessment-before-submit gate default-on for summative? (Recommend: yes — Hattie d=1.33)
-  4. ManageBac admin-export tooling beyond per-task? (Defer to v1.1)
-  5. 5-tab config drawer vs full-page route? (Recommend drawer; escalate at TG.0D if cramped)
-  6. Lever 0 schema dependency surfaces? (Action: review Lever 0 sketch PRIOR to TG.0B)
-  7. Worktree split? (Recommend: yes, dedicated `/Users/matt/CWORK/questerra-tasks`)
-- [ ] **TG.0A pre-flight ritual** — re-read Lessons #67-#71, audit BlockCategory consumers, audit grade-writers, sketch the report query
-- [ ] **TG.0B schema migration** (gates Lever 0) — `assessment_tasks` + `task_lesson_links` + `task_criterion_weights` + `submissions` (polymorphic) + `grade_entries` + `student_tile_grades` (re-mint with `task_id NOT NULL FK`) + backfill of existing single-grade-per-unit data
+- [x] **All 7 brief open questions RESOLVED (Matt sign-off, 5 May 2026):** scope confirmed · NO backfill (delete legacy dummy data) · self-assessment default-ON · MB class-level export deferred v1.1 · 5-tab drawer (not full-page) · Lever 0 schema check pre-TG.0B · dedicated worktree. Full resolutions in `docs/decisions-log.md` and brief's `§ Open questions resolved` section.
+- [ ] **Set up dedicated worktree:** `git worktree add /Users/matt/CWORK/questerra-tasks task-system-build` (or similar branch name)
+- [ ] **TG.0A pre-flight ritual** — re-read Lessons #67-#71, audit BlockCategory consumers, audit grade-writers, sketch the report query, **PLUS 30-min Lever 0 schema-dependency sketch** (per OQ-6)
+- [ ] **TG.0B schema migration** (gates Lever 0) — `assessment_tasks` + `task_lesson_links` + `task_criterion_weights` + `submissions` (polymorphic) + `grade_entries` + `student_tile_grades` (re-mint with `task_id NOT NULL FK`). **Purely additive — no backfill** per OQ-2 resolution.
+- [ ] **TG.0K** — DELETE legacy dummy grade data + remove `/teacher/classes/[classId]/grading/[unitId]` route file (per OQ-2: no redirect, just clean removal after manual sanity check that data is dummy)
 - [ ] **After TG.0B applies:** Lever 0 build can start in parallel with TG.0C-K. Both consume the locked schema.
 - [ ] **Promote informal FUs into `dimensions3-followups.md`:**
   - `FU-INQUIRY-MODE-BRIEF` — sister architectural brief
