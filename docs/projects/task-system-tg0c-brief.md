@@ -1,5 +1,7 @@
 # Task System — TG.0C Brief: Tasks Panel Sidebar + `+ Add task` Chooser + Quick-Check Inline Form
 
+> **Status:** ✅ **MERGED 5 May 2026** — PR #33 (brief) + PR #34 (6 sub-phases, merge commit `b42697c`). All 6 sub-phases shipped: TG.0C.1 types/validators → TG.0C.2 POST/GET routes → TG.0C.3 sidebar (read-only) → TG.0C.4 chooser + form → TG.0C.5 PATCH/DELETE + edit/delete affordances → TG.0C.6 registry sync + smoke seed. 123 tests passing. Awaiting Matt's prod smoke (Checkpoint TG.0C.1); fix-forward if anything breaks. Next: TG.0D (5-tab summative drawer).
+>
 > **Goal:** Land the teacher-facing Tasks panel sidebar in the lesson editor + the `+ Add task` chooser + the inline-row Quick-Check (formative) form. After this, summative project tasks (TG.0D, separate phase) can plug into the same panel; the lesson chip (TG.0E) reads from `task_lesson_links` rows the panel writes.
 > **Spec source:** [`task-system-architecture.md`](task-system-architecture.md) §Teacher UI (lines 427–502).
 > **Prototype:** [`docs/prototypes/tasks-v1/`](../prototypes/tasks-v1/) — Artboard 2 (split-surface variant) is the design reference for both the sidebar layout and the chooser modal.
