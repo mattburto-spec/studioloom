@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { listTasksForUnit } from "@/lib/tasks/client";
+import { listTasksForUnit, deleteTask, TaskApiError } from "@/lib/tasks/client";
 import type { AssessmentTask } from "@/lib/tasks/types";
 import {
   buildCriterionLabelMap,
@@ -82,9 +82,41 @@ export default function TasksPanel({
     formatTaskRow(t, labelMap)
   );
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
   function handleSaved(task: AssessmentTask) {
-    setTasks((prev) => [...(prev ?? []), task]);
+    setTasks((prev) => {
+      const list = prev ?? [];
+      const existingIdx = list.findIndex((t) => t.id === task.id);
+      if (existingIdx >= 0) {
+        const next = list.slice();
+        next[existingIdx] = task;
+        return next;
+      }
+      return [...list, task];
+    });
     setAddMode("idle");
+    setEditingId(null);
+  }
+
+  async function handleDelete(taskId: string, title: string) {
+    if (!window.confirm(`Delete "${title}"? This can't be undone.`)) return;
+    setDeletingId(taskId);
+    try {
+      await deleteTask(taskId);
+      setTasks((prev) => (prev ?? []).filter((t) => t.id !== taskId));
+    } catch (err) {
+      const msg =
+        err instanceof TaskApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Failed to delete";
+      window.alert(`Couldn't delete task: ${msg}`);
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   return (
@@ -143,34 +175,77 @@ export default function TasksPanel({
 
       {!loading && !error && rows.length > 0 && (
         <ul className="space-y-1.5">
-          {rows.map((row) => (
-            <li
-              key={row.id}
-              className="px-2 py-1.5 bg-[var(--le-paper)] border border-[var(--le-hair)] rounded text-[11px] leading-tight"
-              data-testid="tasks-panel-row"
-              data-task-id={row.id}
-            >
-              <div className="flex items-center gap-1.5 font-semibold text-[var(--le-ink)]">
-                <span aria-hidden="true">{row.icon}</span>
-                <span className="truncate">{row.title}</span>
-                {row.statusBadge && (
-                  <span className="ml-auto text-[9.5px] text-[var(--le-ink-3)]">
-                    {row.statusBadge}
-                  </span>
-                )}
-              </div>
-              <div className="text-[10.5px] text-[var(--le-ink-3)] mt-0.5 flex items-center gap-1.5">
-                {row.criterionLine && <span>{row.criterionLine}</span>}
-                {row.criterionLine && row.dueLine && <span>·</span>}
-                {row.dueLine && <span>{row.dueLine}</span>}
-                {row.isSummative && (
-                  <span className="ml-auto text-[var(--le-ink-2)]">
-                    [Configure →]
-                  </span>
-                )}
-              </div>
-            </li>
-          ))}
+          {rows.map((row) => {
+            const task = (tasks ?? []).find((t) => t.id === row.id)!;
+            const isEditing = editingId === row.id;
+            const isDeleting = deletingId === row.id;
+            if (isEditing) {
+              return (
+                <li key={row.id}>
+                  <QuickCheckRow
+                    unitId={unitId}
+                    classId={classId}
+                    framework={framework}
+                    pages={pages}
+                    editingTask={task}
+                    onSaved={handleSaved}
+                    onCancel={() => setEditingId(null)}
+                  />
+                </li>
+              );
+            }
+            return (
+              <li
+                key={row.id}
+                className="group px-2 py-1.5 bg-[var(--le-paper)] border border-[var(--le-hair)] rounded text-[11px] leading-tight"
+                data-testid="tasks-panel-row"
+                data-task-id={row.id}
+              >
+                <div className="flex items-center gap-1.5 font-semibold text-[var(--le-ink)]">
+                  <span aria-hidden="true">{row.icon}</span>
+                  <span className="truncate">{row.title}</span>
+                  {row.statusBadge && (
+                    <span className="ml-auto text-[9.5px] text-[var(--le-ink-3)]">
+                      {row.statusBadge}
+                    </span>
+                  )}
+                  <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {!row.isSummative && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingId(row.id)}
+                        className="text-[10px] text-[var(--le-ink-3)] hover:text-violet-600 px-1"
+                        title="Edit"
+                        data-testid={`tasks-panel-edit-${row.id}`}
+                      >
+                        ✎
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(row.id, row.title)}
+                      disabled={isDeleting}
+                      className="text-[10px] text-[var(--le-ink-3)] hover:text-rose-600 px-1 disabled:opacity-50"
+                      title="Delete"
+                      data-testid={`tasks-panel-delete-${row.id}`}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+                <div className="text-[10.5px] text-[var(--le-ink-3)] mt-0.5 flex items-center gap-1.5">
+                  {row.criterionLine && <span>{row.criterionLine}</span>}
+                  {row.criterionLine && row.dueLine && <span>·</span>}
+                  {row.dueLine && <span>{row.dueLine}</span>}
+                  {row.isSummative && (
+                    <span className="ml-auto text-[var(--le-ink-2)]">
+                      [Configure →]
+                    </span>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

@@ -11,14 +11,19 @@
  * if we flip the form-state shape later.
  */
 
-import { useReducer, useState, type FormEvent } from "react";
-import { createQuickCheck, TaskApiError } from "@/lib/tasks/client";
+import { useMemo, useReducer, useState, type FormEvent } from "react";
+import {
+  createQuickCheck,
+  TaskApiError,
+  updateTask,
+} from "@/lib/tasks/client";
 import {
   buildCreateInput,
   INITIAL_FORM_STATE,
   isQuickCheckFormReady,
   quickCheckReducer,
   type LinkedPage,
+  type QuickCheckFormState,
 } from "./quick-check-form-state";
 import {
   getCriterionLabels,
@@ -33,8 +38,26 @@ interface QuickCheckRowProps {
   framework?: string | null;
   /** All lessons in the unit, for the linked-pages picker. */
   pages?: ReadonlyArray<{ id: string; title: string }>;
+  /** When set, the row is in edit mode — saves via PATCH. */
+  editingTask?: AssessmentTask;
   onSaved: (task: AssessmentTask) => void;
   onCancel: () => void;
+}
+
+function buildInitialState(
+  task: AssessmentTask | undefined
+): QuickCheckFormState {
+  if (!task) return INITIAL_FORM_STATE;
+  const config = task.config as Record<string, unknown>;
+  return {
+    title: task.title,
+    criterion: (task.criteria[0] as QuickCheckFormState["criterion"]) ?? null,
+    dueDate: typeof config.due_date === "string" ? config.due_date : "",
+    linkedPages: task.linked_pages.map((lp) => ({
+      unit_id: lp.unit_id,
+      page_id: lp.page_id,
+    })),
+  };
 }
 
 export default function QuickCheckRow({
@@ -42,10 +65,12 @@ export default function QuickCheckRow({
   classId = null,
   framework,
   pages = [],
+  editingTask,
   onSaved,
   onCancel,
 }: QuickCheckRowProps) {
-  const [state, dispatch] = useReducer(quickCheckReducer, INITIAL_FORM_STATE);
+  const initial = useMemo(() => buildInitialState(editingTask), [editingTask]);
+  const [state, dispatch] = useReducer(quickCheckReducer, initial);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -77,14 +102,25 @@ export default function QuickCheckRow({
     setSubmitError(null);
     try {
       const payload = buildCreateInput(state, unitId, classId);
-      const task = await createQuickCheck({
-        unit_id: payload.unit_id,
-        class_id: payload.class_id,
-        title: payload.title,
-        criteria: payload.criteria,
-        due_date: state.dueDate || undefined,
-        linked_pages: state.linkedPages.length > 0 ? state.linkedPages : undefined,
-      });
+      let task: AssessmentTask;
+      if (editingTask) {
+        task = await updateTask(editingTask.id, {
+          title: payload.title,
+          config: payload.config,
+          criteria: payload.criteria,
+          linked_pages: state.linkedPages,
+        });
+      } else {
+        task = await createQuickCheck({
+          unit_id: payload.unit_id,
+          class_id: payload.class_id,
+          title: payload.title,
+          criteria: payload.criteria,
+          due_date: state.dueDate || undefined,
+          linked_pages:
+            state.linkedPages.length > 0 ? state.linkedPages : undefined,
+        });
+      }
       onSaved(task);
     } catch (err) {
       const msg =
