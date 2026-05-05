@@ -264,7 +264,7 @@ export interface EllScaffolding {
   ell3?: { extensionPrompts?: string[] };
 }
 
-export type ResponseType = "text" | "upload" | "voice" | "link" | "multi" | "canvas" | "decision-matrix" | "pmi" | "pairwise" | "trade-off-sliders" | "toolkit-tool";
+export type ResponseType = "text" | "upload" | "voice" | "link" | "multi" | "canvas" | "decision-matrix" | "pmi" | "pairwise" | "trade-off-sliders" | "toolkit-tool" | "structured-prompts";
 
 export interface ActivityMedia {
   type: "image" | "video";
@@ -385,6 +385,10 @@ export interface ActivitySection {
   toolId?: string;
   /** For toolkit-tool responseType: pre-filled challenge/topic (optional). */
   toolChallenge?: string;
+  /** For structured-prompts responseType (AG.1): the array of prompts students respond to. Authored at unit-creation time; immutable from student side. See src/lib/structured-prompts/types.ts. */
+  prompts?: import("@/lib/structured-prompts/types").StructuredPromptsConfig;
+  /** For structured-prompts responseType: require a photo before submit. Default false. */
+  requirePhoto?: boolean;
 
   // --- Dimensions v2 fields (29 Mar 2026) ---
 
