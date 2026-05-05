@@ -268,6 +268,18 @@ describe("Migration: 20260505032750_task_system_v1_schema (UP)", () => {
     });
   });
 
+  describe("RLS — teachers join uses canonical id column (TG.0B fix-2 drift catch)", () => {
+    // teachers.id IS the auth.users.id (1:1). Earlier RLS draft used
+    // `WHERE user_id = auth.uid()` which doesn't exist — caught at prod-apply.
+    it("teachers join uses 'WHERE id = auth.uid()' not 'WHERE user_id = auth.uid()'", () => {
+      expect(sqlBody).not.toMatch(/FROM teachers[\s\S]{0,80}WHERE\s+user_id\s*=\s*auth\.uid\(\)/);
+      expect(sqlBody).toMatch(/FROM teachers[\s\S]{0,120}WHERE\s+id\s*=\s*auth\.uid\(\)/);
+    });
+    it("no teachers.user_id reference anywhere in migration", () => {
+      expect(sqlBody).not.toMatch(/teachers[^\n]*\.user_id|user_id[^\n]*teachers/);
+    });
+  });
+
   describe("updated_at triggers (only the 2 new tables that need them)", () => {
     it("trigger on assessment_tasks", () => {
       expect(sqlBody).toMatch(

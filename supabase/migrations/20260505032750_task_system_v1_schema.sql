@@ -383,7 +383,7 @@ CREATE POLICY "assessment_tasks_read_school"
   USING (
     school_id IN (
       SELECT school_id FROM teachers
-      WHERE user_id = auth.uid() AND school_id IS NOT NULL
+      WHERE id = auth.uid() AND school_id IS NOT NULL
     )
     OR (SELECT is_platform_admin FROM user_profiles WHERE id = auth.uid()) = true
     OR public.is_school_admin(auth.uid(), school_id)
@@ -474,7 +474,7 @@ CREATE POLICY "submissions_read_teacher_via_school"
       SELECT id FROM assessment_tasks
       WHERE school_id IN (
         SELECT school_id FROM teachers
-        WHERE user_id = auth.uid() AND school_id IS NOT NULL
+        WHERE id = auth.uid() AND school_id IS NOT NULL
       )
     )
   );
