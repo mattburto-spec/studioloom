@@ -76,6 +76,10 @@ export interface ActivityBlock {
   title: string;
   description: string | null;
   prompt: string;
+  // Lever 1 v2 slot fields (sub-phase 1B). Nullable for legacy rows.
+  framing: string | null;
+  task: string | null;
+  success_signal: string | null;
 
   // Source tracking
   source_type: SourceType;
@@ -268,6 +272,16 @@ export interface FilledActivity {
   source: "library" | "generated";
   sourceBlockId?: string;
   title: string;
+  // Lever 1 — three v2 slot fields. Required from generation onward.
+  // Library blocks pass them through; generated activities produce them
+  // via stage3-generation. The legacy `prompt` field is composed from
+  // these three at the output-adapter boundary.
+  framing: string;
+  task: string;
+  success_signal: string;
+  /** Legacy single-blob fallback. Composed at the adapter boundary
+   *  from framing+task+success_signal. Kept on the type for old
+   *  fixtures + the composed-fallback path. */
   prompt: string;
   bloom_level: string;
   time_weight: string;

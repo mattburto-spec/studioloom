@@ -7,13 +7,24 @@
  */
 
 import type { ActivityDiff, EditTrackingResult, EditType } from "./types";
+import { composedPromptText } from "@/lib/lever-1/compose-prompt";
 
 // ─── Diff Computation ───
 
 interface ActivitySnapshot {
   id: string;
   title: string;
+  /**
+   * Composed prompt text — Lever 1: when v2 slot fields are present,
+   * this is the joined `framing\n\ntask\n\nsuccess_signal`. Falls back
+   * to legacy single-blob `prompt` when slots are empty. The diff
+   * comparison sees ONE comparable text per activity regardless of
+   * which shape the unit was authored in.
+   */
   prompt: string;
+  framing?: string;
+  task?: string;
+  success_signal?: string;
   description?: string;
   scaffolding?: unknown;
   example_response?: string;
@@ -40,10 +51,27 @@ export function extractActivities(contentData: Record<string, unknown>): Activit
     const sections = (page?.sections ?? page?.activities ?? []) as Array<Record<string, unknown>>;
     for (const section of sections) {
       const id = (section.activityId ?? section.id ?? `pos_${globalIndex}`) as string;
+      // Lever 1: compose v2 slot fields into the prompt-shaped snapshot
+      // so diff comparison treats slot edits as text edits to the same
+      // logical field. Without this, a v1→v2 edit (slots populated,
+      // legacy prompt cleared) would look like a 100% rewrite + delete.
+      const framing = (section.framing ?? "") as string;
+      const task = (section.task ?? "") as string;
+      const successSignal = (section.success_signal ?? "") as string;
+      const legacyPrompt = (section.prompt ?? section.description ?? section.content ?? "") as string;
+      const composed = composedPromptText({
+        framing,
+        task,
+        success_signal: successSignal,
+        prompt: legacyPrompt,
+      });
       activities.push({
         id,
         title: (section.title ?? section.label ?? "") as string,
-        prompt: (section.prompt ?? section.description ?? section.content ?? "") as string,
+        prompt: composed,
+        framing: framing || undefined,
+        task: task || undefined,
+        success_signal: successSignal || undefined,
         description: (section.description ?? "") as string,
         scaffolding: section.scaffolding,
         example_response: (section.example_response ?? section.exampleResponse ?? "") as string,

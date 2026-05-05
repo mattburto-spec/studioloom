@@ -410,6 +410,15 @@ export interface ActivitySection {
   source_block_id?: string;
   /** Workshop phase this activity belongs to. Defaults to "workTime" when missing (legacy). */
   phase?: "opening" | "miniLesson" | "workTime" | "debrief";
+
+  // ── Lever 1 v2 slot fields (sub-phase 1B added the SQL columns + JSONB shape) ──
+
+  /** v2 slot — one-sentence orient (≤200 chars). Renders as muted lead paragraph. NULL during transition window; renderer (ComposedPrompt) falls back to `prompt` when all three slot fields are null. */
+  framing?: string;
+  /** v2 slot — imperative body (≤800 chars soft cap). Renders as regular body. */
+  task?: string;
+  /** v2 slot — what students produce/record/submit (≤200 chars). Renders with 🎯 prefix + bold weight. */
+  success_signal?: string;
 }
 
 export interface Reflection {
@@ -522,7 +531,21 @@ export interface TimelineActivity {
   id: string;                    // nanoid(8) — stable across lesson rebalancing
   role: TimelineActivityRole;
   title: string;
+  /**
+   * Composed legacy prompt. Lever 1 v2: kept as the back-compat read
+   * path for non-migrated consumers (output-adapter composes it from
+   * the three slots at validation/persist time). New code should read
+   * via `composedPromptText(activity)` so the slot fields take
+   * precedence when populated.
+   */
   prompt: string;
+  // ── Lever 1 v2 slot fields (1G AI now produces these in the timeline schema) ──
+  /** v2 slot — one-sentence orient (≤200 chars). Populated by AI; survives wizard reduce. */
+  framing?: string;
+  /** v2 slot — imperative body (≤800 chars soft cap). */
+  task?: string;
+  /** v2 slot — what students produce/record/submit (≤200 chars). */
+  success_signal?: string;
   durationMinutes: number;       // Resolved at runtime from timeWeight if not set by AI
   timeWeight?: TimeWeight;       // Primary signal: quick | moderate | extended | flexible
   responseType?: ResponseType;   // optional — content-role activities have no response
@@ -1044,6 +1067,10 @@ export interface ActivityBlock {
   title: string;
   description: string | null;
   prompt: string;
+  // Lever 1 v2 slot fields (sub-phase 1B). Nullable for legacy rows.
+  framing: string | null;
+  task: string | null;
+  success_signal: string | null;
 
   // Source tracking
   source_type: ActivityBlockSource;
@@ -1095,6 +1122,12 @@ export interface CreateActivityBlockParams {
   title: string;
   description?: string;
   prompt: string;
+  /** Lever 1 v2 slot — one-sentence orient (≤200 chars). Renderer composes this with task + success_signal. NULL during transition window; renderer falls back to `prompt` when all three are null. */
+  framing?: string;
+  /** Lever 1 v2 slot — imperative body (≤800 chars soft cap). */
+  task?: string;
+  /** Lever 1 v2 slot — what students produce/record/submit (≤200 chars). */
+  success_signal?: string;
   source_type: ActivityBlockSource;
   source_upload_id?: string;
   source_unit_id?: string;

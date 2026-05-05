@@ -11,6 +11,7 @@
 
 import type { CreateActivityBlockParams, BloomLevel, TimeWeight, GroupingStrategy, DesignPhase, LessonStructureRole } from "@/types";
 import type { ExtractFromUploadParams, ExtractFromUnitParams, LessonFlowPhase } from "./types";
+import { composedPromptText, hasSlotFields } from "@/lib/lever-1/compose-prompt";
 
 // ----- Phase 1B: Extract from uploads -----
 
@@ -76,7 +77,11 @@ export function extractBlocksFromUnit(params: ExtractFromUnitParams): CreateActi
 
     for (let i = 0; i < page.sections.length; i++) {
       const section = page.sections[i];
-      if (!section.prompt || section.prompt.trim().length < 10) continue;
+
+      // Lever 1: prefer composed slot text. Skip when neither slots nor a
+      // substantive legacy prompt are present.
+      const composed = composedPromptText(section);
+      if (!composed || composed.trim().length < 10) continue;
 
       // Skip content-only sections (no responseType = informational text)
       // But DO include toolkit-tool sections (they have responseType)
@@ -85,10 +90,22 @@ export function extractBlocksFromUnit(params: ExtractFromUnitParams): CreateActi
       // Skip if this activity already references a source block (avoid duplication)
       if (section.source_block_id) continue;
 
+      const usingSlots = hasSlotFields(section);
+
       const block: CreateActivityBlockParams = {
-        title: buildTitleFromPrompt(section.prompt, page.title),
+        // Title derives from composed text so v2 sections get a meaningful
+        // label (framing first sentence) instead of an empty/auto-composed
+        // legacy prompt.
+        title: buildTitleFromPrompt(composed, page.title),
         description: null as unknown as undefined,
-        prompt: section.prompt,
+        // Persist the composed text into legacy prompt for back-compat with
+        // any reader that still hits the column directly. When slot fields
+        // are populated they are passed through too — keeps fingerprint
+        // stability across the v1→v2 transition (Lesson #38 forward-compat).
+        prompt: composed,
+        framing: usingSlots ? section.framing ?? undefined : undefined,
+        task: usingSlots ? section.task ?? undefined : undefined,
+        success_signal: usingSlots ? section.success_signal ?? undefined : undefined,
         source_type: "generated",
         source_unit_id: unitId,
         source_page_id: page.id,

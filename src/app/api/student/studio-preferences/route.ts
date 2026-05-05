@@ -37,14 +37,18 @@ export async function GET(request: NextRequest) {
  * Saves mentor + theme selection from onboarding.
  * Can be called multiple times (students can change in settings).
  *
- * Body: { mentor_id: "kit"|"sage"|"spark", theme_id: "clean"|"bold"|"warm"|"dark" }
+ * Body: {
+ *   mentor_id: "kit"|"sage"|"spark",
+ *   theme_id: "clean"|"bold"|"warm"|"dark",
+ *   onboarding_picks?: string[]  // v1 visual-picks tile IDs, feeds v2 rematch
+ * }
  */
 export async function POST(request: NextRequest) {
   const session = await requireStudentSession(request);
   if (session instanceof NextResponse) return session;
 
   const body = await request.json();
-  const { mentor_id, theme_id } = body;
+  const { mentor_id, theme_id, onboarding_picks } = body;
 
   // Validate mentor_id
   if (!mentor_id || !MENTOR_IDS.includes(mentor_id as MentorId)) {
@@ -62,7 +66,26 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Validate optional onboarding_picks: array of short string IDs.
+  // Cap at 10 entries / 32 chars each as a defensive bound on JSONB size.
+  if (onboarding_picks !== undefined) {
+    if (
+      !Array.isArray(onboarding_picks) ||
+      onboarding_picks.length > 10 ||
+      !onboarding_picks.every(
+        (id) => typeof id === "string" && id.length > 0 && id.length <= 32
+      )
+    ) {
+      return NextResponse.json(
+        { error: "onboarding_picks must be an array of up to 10 short string IDs" },
+        { status: 400 }
+      );
+    }
+  }
+
   const supabase = createAdminClient();
+
+  // Required write — mentor_id + theme_id. Onboarding can't proceed without these.
   const { error } = await supabase
     .from("students")
     .update({ mentor_id, theme_id })
@@ -71,6 +94,23 @@ export async function POST(request: NextRequest) {
   if (error) {
     console.error("[studio-preferences] Save failed:", error);
     return NextResponse.json({ error: "Failed to save preferences" }, { status: 500 });
+  }
+
+  // Opportunistic write — onboarding_picks (migration 20260504225635). If
+  // the column doesn't exist yet (migration not applied), log and continue
+  // so onboarding still completes. The picks just don't get persisted for
+  // pre-migration writes; v2 rematch falls back to last-known mentor.
+  if (onboarding_picks !== undefined && onboarding_picks.length > 0) {
+    const { error: picksError } = await supabase
+      .from("students")
+      .update({ onboarding_picks })
+      .eq("id", session.studentId);
+    if (picksError) {
+      console.warn(
+        "[studio-preferences] onboarding_picks save skipped (migration may not be applied):",
+        picksError.message
+      );
+    }
   }
 
   return NextResponse.json(

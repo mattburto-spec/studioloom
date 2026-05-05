@@ -77,14 +77,56 @@ tables:
 - name: activity_blocks
   source_migration: 060_activity_blocks.sql
   status: applied
-  applied_date: null
-  purpose: null
+  applied_date: '2026-04-01'  # Phase A bootstrap, ~1 Apr 2026; exact date not logged at the time
+  purpose: |
+    First-class library entries for reusable activity templates. Replaces inline JSONB
+    activity definitions. Extracted from teacher uploads (knowledge pipeline) and
+    generated units (generation pipeline). Drives BlockPalette in the lesson editor
+    and feeds the Lesson Pulse repair / generation co-pilot. Composite ranking on
+    relevance + efficacy + context-match + teacher affinity + freshness (per WIRING
+    activity-blocks summary — note: ranking weights claimed there have not been
+    verified against code; see FU-LEVER-1-RANKING-WEIGHTS-AUDIT).
+  spec_drift:
+  - date: '2026-05-04'
+    note: |
+      Lever 1 sub-phase 1B added 4 columns: framing TEXT (nullable),
+      task TEXT (nullable), success_signal TEXT (nullable),
+      backfill_needs_review BOOLEAN NOT NULL DEFAULT false. Migration:
+      20260504020826_activity_three_field_prompt.sql. Brief:
+      docs/projects/lesson-quality-lever-1-slot-fields.md. Renderer
+      composes via hybrid spec — see brief §Renderer composition.
+      Legacy `prompt` column kept (transition window, removal gated
+      30 days post-Lever-1).
+  - date: '2026-05-04'
+    note: |
+      Drift fix: applied_date and purpose were null pre-Lever-1 — populated
+      from CLAUDE.md Phase A context (~1 Apr 2026 + bootstrap blurb).
+      RLS read/write policy detail still '(unknown)' below — scanner
+      doesn't introspect the policies; flagged FU-SCHEMA-REGISTRY-RLS-DETAIL.
+  - date: '2026-05-04'
+    note: |
+      Lever 1 sub-phase 1H closed audit step 7: every reader of
+      `block.prompt` / `section.prompt` (lesson-tiles, edit-tracker,
+      knowledge/chunk, timing-validation, infer-bloom, activity-library,
+      design-assistant, plus 9 wizard / display components) now reads via
+      `composedPromptText()` so v2 slot fields take priority during the
+      transition. Also closed a 1G validator regression: validateGeneratedPages
+      and validateTimelineActivities still required legacy `prompt` —
+      both now accept slots OR legacy and compose `prompt` from slots
+      for back-compat consumers. Tests +24 (3600 → 3624). Helpers
+      composedPromptText / hasSlotFields widened from ActivitySection
+      to a structural SlotBearing shape so they work over TimelineActivity,
+      ActivityBlock rows, AI tool payloads, and fixtures.
   columns:
     id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
     teacher_id: UUID REFERENCES auth.users(id)
     title: TEXT NOT NULL
     description: TEXT
-    prompt: TEXT NOT NULL
+    prompt: TEXT NOT NULL  # Legacy single-field. Renderer falls back to this when framing/task/success_signal all null. Removal: 30-day post-Lever-1 soak gated.
+    framing: TEXT  # Lever 1 slot — one-sentence orient (≤200 chars).
+    task: TEXT  # Lever 1 slot — imperative body (≤800 chars).
+    success_signal: TEXT  # Lever 1 slot — what students produce (≤200 chars).
+    backfill_needs_review: BOOLEAN NOT NULL DEFAULT false  # Lever 1 sub-phase 1C heuristic-split flag.
     source_type: TEXT NOT NULL
     source_upload_id: UUID
     source_unit_id: UUID
@@ -6116,6 +6158,137 @@ tables:
   check_constraints:
   - 'machine_profile_ownership_check: (is_system_template AND teacher_id IS NULL) OR (NOT is_system_template AND teacher_id
     IS NOT NULL)'
+- name: notifications
+  source_migration: 20260504115948_notifications_table.sql
+  status: applied
+  applied_date: '2026-05-04'
+  purpose: 'Phase 3A foundation — generic per-recipient notification surface. First consumer Phase 3B (kind=integrity.flag_low_score
+    when analyzeIntegrity score < threshold). Generic by design — `kind` discriminates, `payload` JSONB carries kind-specific
+    data. Server-role inserts via createNotification() helper; SELECT + UPDATE-of-state by recipient via RLS. INSERT/DELETE
+    deny-by-default (no client policies — service role only). Retention 90 days post-dismiss; Phase 3D will enforce via
+    expires_at sweep.'
+  writers:
+  - src/lib/notifications/create-notification.ts (createNotification helper — single insert path)
+  readers: []
+  columns:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 90
+      basis: pseudonymous
+    recipient_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 90
+      basis: legitimate_interest
+    recipient_role:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 90
+      basis: pseudonymous
+    school_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 90
+      basis: legitimate_interest
+    kind:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 90
+      basis: pseudonymous
+      notes: 'Discriminator. NO DB CHECK constraint — TypeScript NotificationKind union (src/types/notifications.ts) is source of truth, asserted by cross-reference test.'
+    severity:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 90
+      basis: pseudonymous
+    title:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 90
+      basis: legitimate_interest
+      notes: 'Server-authored summary — may include a student name. Not student voice (the student didn''t write it).'
+    body:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 90
+      basis: legitimate_interest
+      notes: 'Server-authored detail line. Contains scores + activity titles, not raw student text — link_url deep-links to IntegrityReport for excerpts. Keep PII-light to justify 90-day retention.'
+    payload:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 90
+      basis: legitimate_interest
+      notes: 'Kind-specific JSONB. Contains FKs (student_id, page_id, unit_id) + scalar metadata (score, flag types). MUST NOT contain raw student text — title/body are bounded summaries; link_url points to IntegrityReport for full content. Hash-only because IDs are PII when joined.'
+    dedup_key:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 90
+      basis: pseudonymous
+      notes: 'Phase 3B integrity-alerts use <student_id>|<page_id>|<YYYY-MM-DD> — student_id present, hash-only for prompts.'
+    link_url:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 90
+      basis: pseudonymous
+    read_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 90
+      basis: pseudonymous
+    dismissed_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 90
+      basis: pseudonymous
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 90
+      basis: pseudonymous
+    expires_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 90
+      basis: pseudonymous
+  rls:
+    enabled: true
+    policies:
+    - 'notifications_recipient_self_read: SELECT — recipient_id = auth.uid()'
+    - 'notifications_recipient_update_own_state: UPDATE — recipient_id = auth.uid() (read_at + dismissed_at only by intent;
+      payload mutation is allowed by RLS but no app code does it)'
+    insert: deny-by-default — service role via createNotification()
+    delete: deny-by-default — no policy, no caller
 - name: open_studio_profiles
   source_migration: 031_open_studio_profiles.sql
   status: applied

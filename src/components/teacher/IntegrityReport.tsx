@@ -39,6 +39,7 @@ import {
   getScoreLabel,
 } from "@/lib/integrity/analyze-integrity";
 import type { IntegrityAnalysis, IntegrityFlag } from "@/lib/integrity/analyze-integrity";
+import { stripResponseHtml } from "@/lib/integrity/strip-response-html";
 
 interface IntegrityReportProps {
   metadata: IntegrityMetadata;
@@ -76,10 +77,17 @@ export default function IntegrityReport({
   const analysis = useMemo(() => analyzeIntegrity(metadata), [metadata]);
 
   const currentSnapshot = useMemo(() => {
+    // stripResponseHtml: student responses may contain auto-injected vocabulary
+    // "Look up <word>" buttons + RichTextEditor formatting markup. Strip to
+    // plain prose so the teacher sees the actual writing, not the markup.
     if (metadata.snapshots.length === 0) {
-      return { text: responseText || "", timestamp: metadata.startTime };
+      return {
+        text: stripResponseHtml(responseText),
+        timestamp: metadata.startTime,
+      };
     }
-    return metadata.snapshots[snapshotIndex];
+    const snap = metadata.snapshots[snapshotIndex];
+    return { text: stripResponseHtml(snap.text), timestamp: snap.timestamp };
   }, [snapshotIndex, metadata.snapshots, metadata.startTime, responseText]);
 
   const deletionRate = useMemo(() => {
@@ -234,16 +242,27 @@ export default function IntegrityReport({
 
         {hasSnapshots ? (
           <>
-            <div className="mb-4">
-              <input
-                type="range"
-                min="0"
-                max={Math.max(0, metadata.snapshots.length - 1)}
-                value={snapshotIndex}
-                onChange={(e) => setSnapshotIndex(parseInt(e.target.value))}
-                className="h-2 w-full cursor-pointer rounded-lg bg-gray-200 accent-blue-600"
-              />
-            </div>
+            {/* Slider only meaningful when there are 2+ snapshots to scrub
+             *  between. With one snapshot, max=0 → input pinned, looks
+             *  draggable but isn't. Show a note explaining the gap instead. */}
+            {metadata.snapshots.length > 1 ? (
+              <div className="mb-4">
+                <input
+                  type="range"
+                  min="0"
+                  max={metadata.snapshots.length - 1}
+                  value={snapshotIndex}
+                  onChange={(e) => setSnapshotIndex(parseInt(e.target.value))}
+                  className="h-2 w-full cursor-pointer rounded-lg bg-gray-200 accent-blue-600"
+                  aria-label="Scrub through writing snapshots"
+                />
+              </div>
+            ) : (
+              <p className="mb-4 text-xs text-gray-500 italic">
+                Only one snapshot captured. Scrubbing requires the response
+                to stay open for at least 60 seconds (snapshots fire every 30s).
+              </p>
+            )}
 
             <p className="mb-3 text-right text-xs font-medium text-gray-600">
               {formatRelativeTimestamp(currentSnapshot.timestamp, metadata.startTime)}

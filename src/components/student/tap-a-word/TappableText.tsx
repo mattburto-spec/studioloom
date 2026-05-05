@@ -78,7 +78,13 @@ export function TappableText({ text, contextSentence, className, classId: classI
   const support = useStudentSupportSettings(classId, unitId);
   const lookup = useWordLookup({ classId, unitId });
   const [openWord, setOpenWord] = useState<string | null>(null);
-  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+  // Store the anchor ELEMENT, not its rect. Layout can shift while the
+  // popover is open (lazy images load, ScrollReveal animates a sibling,
+  // textareas expand) — re-measuring on each render + on scroll/resize
+  // keeps the popover glued to the word instead of floating off into
+  // empty space and looking like it spontaneously dismissed. Round 2 of
+  // the popover-flakiness fix Matt reported on 4 May 2026.
+  const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
   const containerRef = useRef<HTMLSpanElement | null>(null);
 
   // Phase 2.5 gate: while support settings are loading, render plain spans
@@ -90,15 +96,29 @@ export function TappableText({ text, contextSentence, className, classId: classI
 
   function handleClick(e: React.MouseEvent<HTMLButtonElement>, word: string) {
     e.stopPropagation();
-    const rect = e.currentTarget.getBoundingClientRect();
+    // Tap-same-word-no-refire: if the popover is already showing this exact
+    // word, treat the click as a no-op rather than tearing down state and
+    // refiring. Avoids a React state-thrash that briefly flashes the
+    // "Looking up…" message when the cached entry is already there.
+    if (openWord !== null && openWord.toLowerCase() === word.toLowerCase()) {
+      if (process.env.NODE_ENV !== "production") {
+        // eslint-disable-next-line no-console
+        console.debug("[tap-a-word] re-tap suppressed", { word });
+      }
+      return;
+    }
     setOpenWord(word);
-    setAnchorRect(rect);
+    setAnchorEl(e.currentTarget);
     lookup.lookup(word, contextSentence);
+    if (process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.debug("[tap-a-word] tap", { word, classId, unitId });
+    }
   }
 
   function handleClose() {
     setOpenWord(null);
-    setAnchorRect(null);
+    setAnchorEl(null);
     lookup.reset();
   }
 
@@ -127,7 +147,7 @@ export function TappableText({ text, contextSentence, className, classId: classI
           </button>
         );
       })}
-      {openWord && anchorRect && (
+      {openWord && anchorEl && (
         <WordPopover
           word={openWord}
           state={lookup.state}
@@ -137,8 +157,9 @@ export function TappableText({ text, contextSentence, className, classId: classI
           l1Target={lookup.l1Target}
           imageUrl={lookup.imageUrl}
           errorMessage={lookup.errorMessage}
-          anchorRect={anchorRect}
+          anchorEl={anchorEl}
           onClose={handleClose}
+          onRetry={lookup.retry}
         />
       )}
     </span>

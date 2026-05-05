@@ -1823,7 +1823,11 @@ Place warmup + intro + reflection bookends roughly every ${input.lessonLengthMin
 ${options?.activitiesGeneratedSoFar ? `Activities generated so far: ${options.activitiesGeneratedSoFar}` : ""}
 
 Remember:
-- Every activity needs: id, role, title, prompt, timeWeight (quick | moderate | extended | flexible)
+- Every activity needs THREE slot fields (NOT a single prompt blob):
+  · framing — ONE sentence (≤200 chars) orienting the student. Reads quietly as the lead.
+  · task — the imperative body. Numbered list for discrete steps. ≤800 chars. NO \`###\` headings or \`| col | col |\` tables (renderer drops them). NO \`**Step 1:**\` bold sub-headings — use a numbered list instead.
+  · success_signal — ONE sentence (≤200 chars) telling the student what to produce/record/submit/share. Use a clear production verb. ALWAYS PRESENT — infer one if exploratory.
+  PLUS: id, role, title, timeWeight (quick | moderate | extended | flexible)
 - Only add durationMinutes when exact timing is critical (safety demo, timed assessment)
 - Core activities need: responseType, criterionTags, scaffolding (ell1/ell2/ell3)
 - Content activities: omit responseType. Use contentStyle (info/warning/tip/context/activity/speaking/practical), media, links where helpful.
@@ -2450,7 +2454,11 @@ PREFERRED ORDERING (adapt if Activity Blocks suggest a different pedagogically s
 Aim to keep reflection near the end. If adapting a Proven Activity Block that has a different structure, honour the block's proven sequence.
 
 Remember:
-- Every activity needs: id, role, title, prompt, timeWeight (quick | moderate | extended | flexible)
+- Every activity needs THREE slot fields (NOT a single prompt blob):
+  · framing — ONE sentence (≤200 chars) orienting the student. Reads quietly as the lead.
+  · task — the imperative body. Numbered list for discrete steps. ≤800 chars. NO \`###\` headings or \`| col | col |\` tables (renderer drops them). NO \`**Step 1:**\` bold sub-headings — use a numbered list instead.
+  · success_signal — ONE sentence (≤200 chars) telling the student what to produce/record/submit/share. Use a clear production verb. ALWAYS PRESENT — infer one if exploratory.
+  PLUS: id, role, title, timeWeight (quick | moderate | extended | flexible)
 - Only add durationMinutes when exact timing is critical (safety demo, timed assessment)
 - Core activities need: responseType, criterionTags, scaffolding (ell1/ell2/ell3)
 - Content activities: omit responseType. Use contentStyle (info/warning/tip/context/activity/speaking/practical), media, links where helpful.

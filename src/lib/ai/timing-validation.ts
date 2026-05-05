@@ -29,6 +29,7 @@ import type { GradeTimingProfile } from "./prompts";
 import type { TimeWeight } from "@/types";
 import { maxInstructionMinutes, MIN_WORK_TIME_PERCENT, calculateUsableTime, type TimingContext } from "./prompts";
 import { getLessonStructure, getMainBlockFloor, getEffectiveInstructionCap, structureHasInstructionCap } from "./lesson-structures";
+import { composedPromptText } from "@/lib/lever-1/compose-prompt";
 
 // =========================================================================
 // Types
@@ -49,7 +50,12 @@ export interface LessonExtension {
 }
 
 export interface LessonSection {
+  /** Composed prompt text — read via composedPromptText(section) when slots are present. */
   prompt?: string;
+  // Lever 1 v2 slot fields — when populated, take priority over `prompt`
+  framing?: string;
+  task?: string;
+  success_signal?: string;
   durationMinutes?: number;
   timeWeight?: TimeWeight;
   criterionTags?: string[];
@@ -381,10 +387,14 @@ export function validateLessonTiming(
   if (repaired.sections) {
     for (const section of repaired.sections) {
       if ((section.durationMinutes || 0) > maxPassive && !isHandsOnSection(section)) {
+        // Lever 1: prefer composed slot text for the warning preview so v2
+        // sections (where `prompt` may be the auto-composed copy) still
+        // surface meaningful labels.
+        const preview = composedPromptText(section).slice(0, 50);
         issues.push({
           code: "PASSIVE_PHASE_TOO_LONG",
           severity: "warning",
-          message: `Section "${section.prompt?.slice(0, 50)}..." is ${section.durationMinutes} min (max passive: ${maxPassive} min for Year ${profile.mypYear}). Consider splitting.`,
+          message: `Section "${preview}..." is ${section.durationMinutes} min (max passive: ${maxPassive} min for Year ${profile.mypYear}). Consider splitting.`,
         });
       }
     }
@@ -544,8 +554,9 @@ function isActiveSection(section: LessonSection): boolean {
     return true;
   }
 
-  // Check prompt text for active learning verbs
-  const prompt = (section.prompt || "").toLowerCase();
+  // Check prompt text for active learning verbs — Lever 1: read all three
+  // slots (composed) so the v2 `task` body is included in keyword matching.
+  const prompt = composedPromptText(section).toLowerCase();
   const activeVerbs = /\b(create|design|build|sketch|prototype|make|construct|write|discuss|debate|compare|analyze|evaluate|test|experiment|present|share|collaborate|brainstorm|investigate|research|interview|survey|reflect|plan|justify|explain|argue|demonstrate|model|role.?play|peer.?review|critique|annotate|map|diagram|sort|rank|categorise|categorize|assess|measure|document|photograph|record|film|draw|paint|sculpt|assemble|code|program|iterate|refine|improve)\b/;
   if (activeVerbs.test(prompt)) return true;
 
@@ -619,7 +630,8 @@ function inferWorkshopPhases(lesson: GeneratedLesson, usableMinutes: number, ins
     },
     workTime: {
       durationMinutes: Math.max(15, workTimeMin),
-      focus: sections[0]?.prompt?.slice(0, 100) || "Student creation and practice time",
+      // Lever 1: derive focus from composed text (slots when present)
+      focus: (sections[0] ? composedPromptText(sections[0]) : "").slice(0, 100) || "Student creation and practice time",
       checkpoints: workTimeMin >= 30 ? [`At ${Math.round(workTimeMin / 2)} min: Check progress and redirect`] : [],
     },
     debrief: {
@@ -671,7 +683,8 @@ export function stampPhaseNames(
 function isHandsOnSection(section: LessonSection): boolean {
   const handsonTypes = ["upload", "canvas", "decision-matrix", "trade-off-sliders"];
   if (section.responseType && handsonTypes.includes(section.responseType)) return true;
-  const prompt = (section.prompt || "").toLowerCase();
+  // Lever 1: composed text so v2 `task` body is included in keyword matching
+  const prompt = composedPromptText(section).toLowerCase();
   return /\b(build|create|sketch|prototype|make|construct|assemble|test|experiment)\b/.test(prompt);
 }
 

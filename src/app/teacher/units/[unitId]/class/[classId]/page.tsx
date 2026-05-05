@@ -3,7 +3,10 @@
 import { useState, useEffect, use, useCallback, useRef } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { NMConfigPanel, NMResultsPanel, ObservationSnap } from "@/components/nm";
+// Lever-MM (4 May 2026): NMConfigPanel no longer mounted from this surface
+// — configuration moved to the lesson editor's New Metrics block category.
+// Component kept in @/components/nm/index for potential reuse.
+import { NMResultsPanel, ObservationSnap } from "@/components/nm";
 import { BadgesTab } from "@/components/teacher/class-hub/BadgesTab";
 import { LessonSchedule } from "@/components/teacher/LessonSchedule";
 import type { ScheduleOverrides } from "@/components/teacher/LessonSchedule";
@@ -21,6 +24,7 @@ import { resolveClassUnitContent } from "@/lib/units/resolve-content";
 import { OpenStudioClassView } from "@/components/open-studio";
 import { PaceFeedbackSummary } from "@/components/teacher/PaceFeedbackSummary";
 import IntegrityReport from "@/components/teacher/IntegrityReport";
+import { StudentResponseValue } from "@/components/teacher/StudentResponseValue";
 import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
 import { analyzeIntegrity } from "@/lib/integrity/analyze-integrity";
 import { ClassProfileOverview } from "@/components/teacher/ClassProfileOverview";
@@ -1039,13 +1043,16 @@ export default function ClassHubPage({
                           const integrityMeta = detailIntegrity?.[key];
 
                           return (
-                            <div key={key}>
-                              <p className="text-xs font-medium text-text-secondary uppercase tracking-wide mb-1">{label}</p>
+                            <div
+                              key={key}
+                              className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
+                            >
+                              <p className="text-xs font-medium text-text-secondary uppercase tracking-wide mb-2">{label}</p>
                               <div className="bg-surface-alt rounded-lg p-3">
-                                <p className="text-sm text-text-primary whitespace-pre-wrap">{value === "true" ? "✓ Checked" : value === "false" ? "☐ Not checked" : typeof value === "string" ? value || "—" : JSON.stringify(value)}</p>
+                                <StudentResponseValue value={value} />
                               </div>
                               {integrityMeta && (
-                                <div className="mt-2">
+                                <div className="mt-3 border-t border-gray-100 pt-3">
                                   <IntegrityReport metadata={integrityMeta} />
                                 </div>
                               )}
@@ -1428,25 +1435,35 @@ export default function ClassHubPage({
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* METRICS TAB (NM / Melbourne Metrics)                              */}
+      {/* NEW METRICS TAB — Lever-MM (4 May 2026):                         */}
+      {/* Configuration moved to the lesson editor's "New Metrics" block   */}
+      {/* category. This tab now hosts the RESULTS view only.              */}
+      {/* NMConfigPanel.tsx kept in repo for reuse but no longer mounted.  */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {activeTab === "metrics" && (
         <div>
           {globalNmEnabled ? (
             <>
-              <div className="mb-6">
-                <NMConfigPanel unitId={unitId} classId={classId} pages={pages} currentConfig={nmConfig}
-                  onSave={async (config) => {
-                    const res = await fetch("/api/teacher/nm-config", {
-                      method: "POST", headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ unitId, classId, config }),
-                    });
-                    if (!res.ok) { const errData = await res.json().catch(() => ({})); throw new Error(errData.error || "Save failed"); }
-                    setNmConfig(config);
-                  }}
-                />
+              {/* Where-do-I-configure banner — points teachers at the new
+                  location. Renders unconditionally above the results so
+                  even teachers WITHOUT any checkpoints yet learn how to
+                  add them. */}
+              <div className="mb-6 px-4 py-3 rounded-xl border border-yellow-200 bg-yellow-50 flex items-start gap-3">
+                <span className="text-yellow-700 text-lg flex-shrink-0">🎯</span>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-text-primary text-sm mb-0.5">
+                    Configure NM checkpoints in the lesson editor
+                  </h3>
+                  <p className="text-xs text-text-secondary leading-relaxed">
+                    Open any lesson, expand the <strong>New Metrics</strong> block category in the Blocks pane (gold dot), and click an element to register a checkpoint on that lesson. Results from teacher observations and student self-assessments display below.
+                  </p>
+                </div>
               </div>
-              {nmConfig.enabled && <div className="mb-6"><NMResultsPanel unitId={unitId} classId={classId} /></div>}
+              {/* Results panel — unchanged. Renders whether or not nm_config.enabled
+                  is true, so teachers see "no results yet" state on a fresh class. */}
+              <div className="mb-6">
+                <NMResultsPanel unitId={unitId} classId={classId} />
+              </div>
             </>
           ) : (
             <div className="p-6 bg-gray-50 rounded-xl border border-border text-center">

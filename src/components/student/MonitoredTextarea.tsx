@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
 } from "react";
+import { RichTextEditor, type RichTextEditorHandle } from "./RichTextEditor";
 
 /**
  * IntegrityMetadata: Academic integrity tracking data collected silently from textarea interactions.
@@ -78,7 +79,7 @@ export function MonitoredTextarea({
   className = "",
   disabled = false,
 }: MonitoredTextareaProps) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<RichTextEditorHandle>(null);
 
   // Mutable tracking state (useRef to avoid re-renders)
   const metricsRef = useRef<IntegrityMetadata>({
@@ -117,9 +118,8 @@ export function MonitoredTextarea({
    */
   const updateMetrics = useCallback(
     (shouldNotify = false) => {
-      if (textareaRef.current) {
-        metricsRef.current.characterCount = textareaRef.current.value.length;
-      }
+      const text = editorRef.current?.getTextContent() ?? "";
+      metricsRef.current.characterCount = text.length;
       if (shouldNotify && onIntegrityUpdate) {
         onIntegrityUpdate({ ...metricsRef.current });
       }
@@ -131,7 +131,7 @@ export function MonitoredTextarea({
    * Handle paste events: log content and length
    */
   const handlePaste = useCallback(
-    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    (e: React.ClipboardEvent<HTMLDivElement>) => {
       const pastedText = e.clipboardData.getData("text/plain");
       const now = Date.now();
 
@@ -153,7 +153,7 @@ export function MonitoredTextarea({
    * integrityMetadataRef is populated before the 2s auto-save fires.
    */
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
       metricsRef.current.keystrokeCount++;
       metricsRef.current.lastActiveTime = Date.now();
 
@@ -225,9 +225,9 @@ export function MonitoredTextarea({
    */
   const setupMonitoringTick = useCallback(() => {
     tickIntervalRef.current = setInterval(() => {
-      if (!textareaRef.current) return;
+      if (!editorRef.current) return;
       const now = Date.now();
-      const currentText = textareaRef.current.value;
+      const currentText = editorRef.current.getTextContent();
 
       // Snapshot (only if text changed, capped at MAX_SNAPSHOTS)
       if (currentText !== lastSnapshotTextRef.current) {
@@ -260,7 +260,10 @@ export function MonitoredTextarea({
   useEffect(() => {
     metricsRef.current.startTime = Date.now();
     metricsRef.current.lastActiveTime = Date.now();
-    lastSnapshotTextRef.current = value;
+    // Use the editor's text content as the initial snapshot baseline.
+    // Post rich-text-editor migration (10b8468) the textarea was replaced by
+    // RichTextEditorHandle exposing getTextContent().
+    lastSnapshotTextRef.current = editorRef.current?.getTextContent() ?? "";
 
     setupVisibilityListener();
     setupMonitoringTick();
@@ -287,7 +290,15 @@ export function MonitoredTextarea({
         );
       }
     };
-  }, [setupVisibilityListener, setupMonitoringTick, value]);
+    // Mount once. The 30-second snapshot interval MUST survive keystrokes —
+    // including `value` (or the setup callbacks, which depend on updateMetrics
+    // → onIntegrityUpdate from props) here would tear down + recreate the
+    // interval on every render, so the 30s timer never gets to fire 30s.
+    // This was the bug behind "No snapshots captured" in teacher reports.
+    // setupVisibilityListener / setupMonitoringTick are captured at mount;
+    // they read latest state via refs internally.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /**
    * Sync characterCount when value changes
@@ -296,17 +307,16 @@ export function MonitoredTextarea({
     metricsRef.current.characterCount = value.length;
   }, [value]);
 
-  // Default Tailwind classes matching ResponseInput textarea
-  const baseClassName =
-    "w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-transparent resize-y text-sm";
-  const finalClassName = className ? `${baseClassName} ${className}` : baseClassName;
-
+  // The RichTextEditor renders its own toolbar + contenteditable styled
+  // box. We forward integrity-tracking handlers into it. `value` is now an
+  // HTML string (e.g. "Hello <b>world</b>"); plain-text legacy values
+  // render unchanged because contenteditable shows untagged strings as text.
   return (
-    <textarea
-      ref={textareaRef}
+    <RichTextEditor
+      ref={editorRef}
       id={id}
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={onChange}
       onPaste={handlePaste}
       onKeyDown={handleKeyDown}
       onFocus={handleFocus}
@@ -314,7 +324,7 @@ export function MonitoredTextarea({
       placeholder={placeholder}
       rows={rows}
       disabled={disabled}
-      className={finalClassName}
+      className={className}
     />
   );
 }

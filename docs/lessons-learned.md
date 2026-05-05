@@ -901,3 +901,106 @@ Plus a DO-block sanity check that `pg_get_functiondef(oid)` contains both `SET s
 3. Migration's DO-block asserts every safety property survived
 4. Smoke test by calling Supabase Auth admin API `createUser`, NOT by direct INSERT INTO auth.users in SQL Editor
 
+### Lesson #67 — When a tool schema has the same property repeated across N call sites, the validators have it repeated too
+**The bug:** Lever 1 sub-phase 1G updated three Anthropic `tool_use` schema sites (`buildPageGenerationTool`, `buildLessonGenerationTool`, `buildTimelineGenerationTool`) to make `framing`/`task`/`success_signal` required and removed `prompt` from each. Pattern-bug guard per Lesson #39: "if you're fixing the same pattern in 3 places, also fix the matching pattern in any sibling place." But two sibling places — `validateGeneratedPages` and `validateTimelineActivities` — were missed. They still required `prompt`. Result: every v2 generation after 1G shipped would have been rejected with "Missing 'prompt'." The bug landed in 1G and was caught in 1H by walking the audit list, not by any test.
+
+**Why pre-1H tests didn't catch it:** the 1G schema tests asserted the TOOL schema's required array contained the slots and DIDN'T contain `prompt` (good). The validators have their own require-checks in code (NOT generated from the tool schema). No test bridged the two. The two systems looked at the same JSON shape from opposite directions but their idea of "required" never met.
+
+**The general rule:** **Whenever you change a tool schema's required array, audit every server-side validator that reads the same payload.** They are NOT generated from each other. The tool schema is the input contract Anthropic enforces; the validator is the input contract YOUR code enforces. Updating one without the other = silent validation regression.
+
+**Pattern-bug companion to Lesson #39 + #54:** Lesson #39 says "if pattern X breaks in N call sites, audit all N before fixing one." Lesson #54 says "registries can claim shapes that don't exist." This is a third in the family: **two layers (tool schema, runtime validator) can both claim to enforce a contract, and disagree silently.**
+
+**Operational rule for tool-schema changes:**
+1. Before changing a tool's `required` array, grep for any code that ALSO checks the same field as required (validators, type guards, runtime asserts).
+2. Update both in the same commit, with shape tests asserting they agree.
+3. If you can't update in one commit (different scope), file a follow-up immediately and don't ship the schema change alone.
+
+### Lesson #68 — Repo migration files don't equal applied prod schema; verify before assuming columns exist
+**The bug:** The Lever 1 smoke seed (`scripts/lever-1/seed-test-unit.sql`) was authored against the schema-registry.yaml's `units` table definition, which includes `unit_type TEXT NOT NULL DEFAULT 'design'` (added by migration 051). Running the seed on prod errored: `column "unit_type" of relation "units" does not exist`. Migration 051 was in the repo but never applied to this Supabase project. After `information_schema.columns` probe revealed actual prod shape, more drift surfaced: `school_id UUID NOT NULL` (added by Access Model v2) was a NEW required column the schema-registry hadn't picked up, AND `classes.code` had become NOT NULL with no default. The repo migrations and prod state had diverged silently — most likely because earlier sessions ran some migrations directly via Supabase dashboard without recording in a migration log, OR migrations from the repo never got applied in the first place.
+
+**Why this happened:** there's no canonical "applied migrations" log on this database. We rely on filename-in-`supabase/migrations/` as a proxy for "applied," but proxy ≠ truth. FU-EE was already filed for this (P2 — "no canonical migration-applied log; probe-based pre-flight checks are fragile, need single source of truth"). This smoke surfaced the drift more sharply than any prior phase.
+
+**The general rule:** **Before any seed script, raw INSERT, or any code path that names columns explicitly, run `SELECT column_name FROM information_schema.columns WHERE table_name = '...'` against the actual prod database.** Do not trust the schema-registry, do not trust the repo migrations, do not trust your memory. The probe is 5 seconds; the alternative is N rounds of error-and-trim.
+
+**Pattern-bug companion to Lesson #54:** Lesson #54 — "WIRING.yaml claimed files that don't exist." Same root cause: registries describe intended state, prod reflects actual state, drift accumulates silently. **For schema specifically, prod is the source of truth, registries are descriptions.** Treat registries as a starting hypothesis, validate against prod every time.
+
+**Operational rule:**
+1. Any seed/INSERT script: probe `information_schema.columns` first, write the INSERT against the probe result.
+2. Any phase that touches a table: include "verify columns match registry on prod" in the pre-flight checklist.
+3. When `FU-EE` is closed (canonical applied-migrations log exists), this lesson's burden lightens; until then, probe before write.
+
+### Lesson #69 — Triggers can hang seed scripts; bypass them with `session_replication_role = 'replica'` for fixtures
+**The bug:** The first Lever 1 seed run took >60 seconds and timed out the Supabase SQL Editor. INSERT triggers on `classes` (`seed_lead_teacher_on_class_insert` + `tg_classes_auto_tag_dept_heads_on_insert` from Access Model v2) were running synchronously on every INSERT, doing membership/dept-head SELECT joins that are fine for one click in the UI but expensive for a seed script. The seed appeared frozen but had actually committed — leaving Matt with a duplicate row when he ran a second attempt.
+
+**The fix:** wrap the seed in:
+```sql
+BEGIN;
+SET LOCAL session_replication_role = 'replica';
+-- ... seed work ...
+COMMIT;
+```
+This skips USER triggers (the Postgres role flag for "I'm a replica, don't run triggers") while preserving foreign-key checks. Supabase SQL Editor runs as `postgres` which can do this. Made the seed run in <100ms.
+
+**Why this matters for fixtures specifically:** seed scripts care about WRITING the right rows. The user triggers enforce business invariants (auto-tag membership, audit-log writes, search-index refresh) that are correct for production traffic but pure overhead — sometimes orders of magnitude — for a one-off fixture insert. Bypassing them keeps fixture authoring quick.
+
+**The general rule:** **For one-off seed/test fixtures inserted via SQL Editor or admin scripts, default to `SET LOCAL session_replication_role = 'replica'` inside a transaction.** If a fixture's correctness genuinely depends on a trigger firing (rare for test data), document why and don't bypass.
+
+**Operational rule:**
+1. New seed scripts ALWAYS open with `BEGIN; SET LOCAL session_replication_role = 'replica';`.
+2. New seed scripts ALWAYS guard against duplicate runs via `WHERE NOT EXISTS` or upsert pattern (Lever 1 seed missed this for the units table — caught after Matt got two rows).
+3. Filed `FU-LEVER-1-SEED-IDEMPOTENT` (P3) to retrofit the upsert guard.
+
+### Lesson #70 — When the smoke surface IS the deployed UI, push to a preview branch BEFORE merging to main
+**The bug:** Lever 1 had a hard rule from CLAUDE.md: "never push to main until checkpoint signed off + migrations applied to prod." But the checkpoint smoke for Lever 1 was the three-box `SlotFieldEditor` rendering on the Phase 0.5 lesson editor — pure UI behaviour that can't be smoke-tested without a deployed build. So the rule said "smoke before push" and reality said "push before smoke." Catch-22.
+
+**The fix:** push the feature branch (NOT main) to origin. Vercel auto-builds a preview deployment for any pushed branch. The preview deployment talks to the same Supabase project, so the seed data and migration are already in place. Smoke against the preview URL. If it passes, merge to main; if it fails, push fixes to the same feature branch and Vercel rebuilds.
+
+**Why this isn't a discipline violation:** the discipline is "don't push BROKEN code to main." Pushing a feature branch to origin doesn't ship to users — Vercel previews are not the production URL. The push to main happens only after preview smoke passes, which IS what discipline wants. Per Matt's MEMORY rule: "push sub-phases through Vercel preview and continue; only pause for named Checkpoints, genuine architecture questions, or hard blocks."
+
+**For Lever 1 specifically:** Matt called the merge to main directly because he wanted the smoke on the canonical URL (studioloom.org) rather than a preview host. That's a valid override — the migration was already on prod, tests passed, and the validator regression had already been caught by 1H. But the GENERAL rule for next time stays: feature branch → Vercel preview → smoke → main.
+
+**Operational rule:**
+1. If smoke gate = "user can see the new UI behaviour," default path is: feature branch push → Vercel preview → smoke → merge.
+2. If smoke gate = "headless code path / API / migration shape," default path is: local tests → merge → smoke against deployed main.
+3. Don't let the push-discipline rule starve a smoke that legitimately needs a deployed build. Pushing to a feature branch ≠ pushing to main.
+
+### Lesson #71 — Pure logic in `.tsx` files isn't testable in this repo's vitest config; extract to `.ts` modules
+**The bug:** Lever-MM sub-phase MM.0F tried to test `buildNmElementBlocks` (a pure factory that takes NM elements + returns BlockDefinitions). The function lived inside `BlockPalette.tsx` because it was tightly coupled to BlockDefinition + BlockCategory types. Test file was named `.test.ts`. Vitest threw at parse time:
+
+  ```
+  Failed to parse source for import analysis because the content contains
+  invalid JS syntax. If you use tsconfig.json, make sure to not set jsx to preserve.
+  Plugin: vite:import-analysis
+  File: BlockPalette.tsx:709:67  →  <h3 className="le-cap...">Blocks</h3>
+  ```
+
+The repo's `vitest.config.ts` has no React/JSX plugin (no `@vitejs/plugin-react`, no `vitest.config.tsx`-with-jsx-pragma setup, no `esbuild.jsx` config). So when ANY test imports from a `.tsx` file, vite tries to transform the `.tsx` and trips on the first JSX expression. Renaming the test to `.test.tsx` did NOT help — the importer's JSX-awareness doesn't propagate to the importee.
+
+**The fix:** extract pure logic out of `.tsx` into a sibling pure `.ts` module. Re-export from the `.tsx` so the public surface stays unchanged. Tests import the new pure `.ts` directly and never touch the `.tsx`.
+
+**For Lever-MM specifically, this meant 3 small modules:**
+- `BlockPalette.types.ts` — `BlockDefinition` + `BlockCategory` interfaces (pure types, no JSX)
+- `nm-element-blocks.ts` — `buildNmElementBlocks` factory (pure logic)
+- `BlockPalette.tsx` — the React component, now imports + re-exports the above
+
+**Why this is a Lesson #38 sibling:** Lesson #38 said "verify expected values, not just non-null." This is "verify pure-logic boundaries, not just colocation." Both are about catching the gap between "this works because of coincidence" (test was happy because it didn't actually run) and "this works because the contract holds" (test exercised the actual function).
+
+**The general rule:** **If pure logic lives inside a `.tsx` file, treat it as untestable in this repo's current config. Extract it to a sibling `.ts` module before writing the test.** The cost is one extra file; the benefit is testable logic + clearer JSX/non-JSX boundary in the codebase.
+
+**When this comes up:** any time you find yourself wanting a `.test.ts` to import a helper function, factory, type, or pure transformer that currently sits inside a React component file. Especially common in:
+- Block / palette / library factories that build BlockDefinitions
+- Form-state reducers
+- Validators that take props and return errors
+- Conversion helpers (DB row → display shape)
+- Any `useFoo()` hook's pure-helper extracts
+
+**Operational rule:**
+1. Before writing the test, scan the source file: does it have JSX? If yes, the imported functions need to live in a sibling `.ts`.
+2. Cheap fix: create `<ComponentName>.<concept>.ts` (e.g. `BlockPalette.types.ts`), move the pure code, re-export from the `.tsx`.
+3. Test imports from the new `.ts` directly, not the `.tsx`.
+4. **Don't** add a `@vitejs/plugin-react` to vitest.config just to test one function — that affects every test in the suite (slower transforms, larger footprint, cascading config concerns). Extract the function instead.
+
+**Long-term consideration:** if the codebase eventually wants component-level tests (mounting React, asserting rendered output), THAT's when `@vitejs/plugin-react` earns its place. Until then, pure-logic-in-`.ts` is the simpler boundary.
+
+
+

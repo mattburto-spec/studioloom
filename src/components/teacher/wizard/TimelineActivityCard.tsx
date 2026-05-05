@@ -4,6 +4,7 @@ import { useState, useRef, useCallback } from "react";
 import { getCriterionDisplay, type CriterionKey } from "@/lib/constants";
 import type { TimelineActivity } from "@/types";
 import type { WizardDispatch } from "@/hooks/useWizardState";
+import { composedPromptText } from "@/lib/lever-1/compose-prompt";
 
 interface Props {
   activity: TimelineActivity;
@@ -216,10 +217,10 @@ export function TimelineActivityCard({
               <DraggableTime minutes={activity.durationMinutes} onAdjust={handleTimeAdjust} />
             </div>
 
-            {/* Prompt preview for longer activities */}
+            {/* Prompt preview for longer activities — Lever 1 composed text */}
             {showPromptPreview && (
               <p className="text-[11px] text-text-tertiary leading-snug mt-0.5 line-clamp-1">
-                {activity.prompt}
+                {composedPromptText(activity)}
               </p>
             )}
           </div>
@@ -350,7 +351,9 @@ export function TimelineActivityCard({
               className="text-[12px] text-text-secondary leading-relaxed cursor-pointer hover:bg-black/[0.02] rounded px-1 py-0.5 -mx-1"
               onClick={() => setEditingField("prompt")}
             >
-              {activity.prompt}
+              {/* Lever 1: render composed text but edit the legacy `prompt` field —
+                  v2 three-box editing happens in lesson-editor/SlotFieldEditor.tsx */}
+              {composedPromptText(activity)}
             </p>
           )}
         </div>

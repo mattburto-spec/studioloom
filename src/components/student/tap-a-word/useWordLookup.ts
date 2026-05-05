@@ -31,6 +31,8 @@ export interface LookupResult {
   imageUrl: string | null;
   errorMessage: string | null;
   lookup: (word: string, contextSentence?: string) => void;
+  /** Re-run the last lookup. Used by the popover's error-state retry button. */
+  retry: () => void;
   reset: () => void;
 }
 
@@ -43,6 +45,15 @@ interface CachedEntry {
 }
 
 const DEBOUNCE_MS = 250;
+/**
+ * Hard ceiling for the loading state. If the API doesn't respond within this
+ * window, the popover should transition to error rather than displaying
+ * "Looking up…" forever (or — given a parent re-render race — silently
+ * vanishing). Vercel function timeout is 10s on hobby / 60s on pro; 15s
+ * gives enough headroom for a slow Haiku call without leaving students
+ * staring at a stalled popover.
+ */
+const LOADING_TIMEOUT_MS = 15000;
 
 export interface UseWordLookupOpts {
   /**
@@ -73,16 +84,24 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
   const cacheRef = useRef<Map<string, CachedEntry>>(new Map());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlightRef = useRef<AbortController | null>(null);
+  const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Last lookup args — used by retry() to re-run the same word. */
+  const lastArgsRef = useRef<{ word: string; contextSentence?: string } | null>(null);
 
   const reset = useCallback(() => {
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
       debounceRef.current = null;
     }
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+      loadingTimeoutRef.current = null;
+    }
     if (inFlightRef.current) {
       inFlightRef.current.abort();
       inFlightRef.current = null;
     }
+    lastArgsRef.current = null;
     setState("idle");
     setWord(null);
     setDefinition(null);
@@ -101,9 +120,16 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
       return;
     }
 
+    // Stash the args so retry() can re-run with the same input.
+    lastArgsRef.current = { word: normalized, contextSentence };
+
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
       debounceRef.current = null;
+    }
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+      loadingTimeoutRef.current = null;
     }
     if (inFlightRef.current) {
       inFlightRef.current.abort();
@@ -115,6 +141,10 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
     // Cache hit: skip the network round-trip entirely.
     const cached = cacheRef.current.get(normalized);
     if (cached) {
+      if (process.env.NODE_ENV !== "production") {
+        // eslint-disable-next-line no-console
+        console.debug("[tap-a-word] in-memory cache hit", { word: normalized });
+      }
       setState("loaded");
       setDefinition(cached.definition);
       setExampleSentence(cached.exampleSentence);
@@ -137,9 +167,23 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
     // used in the debounced fetch match what the user saw when they tapped.
     const currentClassId = classId;
     const currentUnitId = unitId;
+    // Hard-cap the loading window. If neither response nor abort lands in
+    // this window, force the popover to error state with a retry button —
+    // matches Matt's smoke complaint of "Looking up… then disappears".
+    loadingTimeoutRef.current = setTimeout(() => {
+      if (inFlightRef.current) {
+        inFlightRef.current.abort();
+        inFlightRef.current = null;
+      }
+      setState("error");
+      setErrorMessage("Lookup timed out. Tap retry to try again.");
+    }, LOADING_TIMEOUT_MS);
+
     debounceRef.current = setTimeout(async () => {
       const controller = new AbortController();
       inFlightRef.current = controller;
+      const t0 =
+        typeof performance !== "undefined" ? performance.now() : Date.now();
       try {
         const res = await fetch("/api/student/word-lookup", {
           method: "POST",
@@ -152,6 +196,18 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
           }),
           signal: controller.signal,
         });
+        if (process.env.NODE_ENV !== "production") {
+          const elapsed = Math.round(
+            (typeof performance !== "undefined" ? performance.now() : Date.now()) - t0
+          );
+          // eslint-disable-next-line no-console
+          console.debug("[tap-a-word] fetch resolved", {
+            word: normalized,
+            status: res.status,
+            ok: res.ok,
+            elapsed_ms: elapsed,
+          });
+        }
         if (!res.ok) {
           const body = await res.json().catch(() => ({ error: "lookup failed" }));
           setState("error");
@@ -190,21 +246,45 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
         setL1Target(l1tgt);
         setImageUrl(img);
       } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
+        if (err instanceof DOMException && err.name === "AbortError") {
+          if (process.env.NODE_ENV !== "production") {
+            // eslint-disable-next-line no-console
+            console.debug("[tap-a-word] fetch aborted", { word: normalized });
+          }
+          return;
+        }
+        if (process.env.NODE_ENV !== "production") {
+          // eslint-disable-next-line no-console
+          console.warn("[tap-a-word] fetch failed", {
+            word: normalized,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
         setState("error");
         setErrorMessage(err instanceof Error ? err.message : "network error");
       } finally {
         if (inFlightRef.current === controller) {
           inFlightRef.current = null;
         }
+        if (loadingTimeoutRef.current) {
+          clearTimeout(loadingTimeoutRef.current);
+          loadingTimeoutRef.current = null;
+        }
       }
     }, DEBOUNCE_MS);
   }, [classId, unitId]);
+
+  const retry = useCallback(() => {
+    const args = lastArgsRef.current;
+    if (!args) return;
+    lookup(args.word, args.contextSentence);
+  }, [lookup]);
 
   // Clean up on unmount.
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
       if (inFlightRef.current) inFlightRef.current.abort();
     };
   }, []);
@@ -219,6 +299,7 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
     imageUrl,
     errorMessage,
     lookup,
+    retry,
     reset,
   };
 }

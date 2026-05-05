@@ -41,6 +41,13 @@ export async function insertActivityBlocks(
     title: block.title,
     description: block.description || null,
     prompt: block.prompt,
+    // Lever 1 v2 slot fields. Null when caller doesn't supply them
+    // (transition window). Renderer falls back to `prompt` when all
+    // three are null. Per-field length validation lives at the API
+    // layer — this helper trusts callers.
+    framing: block.framing || null,
+    task: block.task || null,
+    success_signal: block.success_signal || null,
     source_type: block.source_type,
     source_upload_id: block.source_upload_id || null,
     source_unit_id: block.source_unit_id || null,

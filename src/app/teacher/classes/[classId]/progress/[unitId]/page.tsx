@@ -11,6 +11,7 @@ import { OpenStudioUnlock, OpenStudioClassView } from "@/components/open-studio"
 import { ObservationSnap } from "@/components/nm";
 import { PaceFeedbackSummary } from "@/components/teacher/PaceFeedbackSummary";
 import IntegrityReport from "@/components/teacher/IntegrityReport";
+import { StudentResponseValue } from "@/components/teacher/StudentResponseValue";
 import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
 import { AGENCY_ELEMENTS, type NMUnitConfig } from "@/lib/nm/constants";
 import { getYearLevelNumber } from "@/lib/utils/year-level";
@@ -633,18 +634,15 @@ export default function ProgressTrackingPage({
                         }
 
                         return (
-                          <div key={key}>
-                            <p className="text-xs font-medium text-text-secondary uppercase tracking-wide mb-1">
+                          <div
+                            key={key}
+                            className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
+                          >
+                            <p className="text-xs font-medium text-text-secondary uppercase tracking-wide mb-2">
                               {label}
                             </p>
                             <div className="bg-surface-alt rounded-lg p-3">
-                              <p className="text-sm text-text-primary whitespace-pre-wrap">
-                                {value === "true"
-                                  ? "✓ Checked"
-                                  : value === "false"
-                                  ? "☐ Not checked"
-                                  : value || "—"}
-                              </p>
+                              <StudentResponseValue value={value} />
                             </div>
                           </div>
                         );

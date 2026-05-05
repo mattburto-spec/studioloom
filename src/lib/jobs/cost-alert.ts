@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { logAuditEvent } from "@/lib/access-v2/audit-log";
 
 /**
  * Job 2: Cost Alert
@@ -6,7 +7,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * Compare against thresholds and debounce alerts.
  */
 export async function run(
-  supabase: SupabaseClient
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any, any, any>
 ): Promise<{ alertId: string; summary: Record<string, unknown> }> {
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
@@ -104,6 +106,21 @@ export async function run(
 
     alertId = (alertData?.[0]?.id as string) ?? "";
   }
+
+  // Phase 6.7-followup — emit audit_event so the admin dashboard's "Vercel
+  // Cron Jobs" panel can show the last-fired time. soft-warn: audit failure
+  // mustn't break the cron run itself.
+  await logAuditEvent(supabase, {
+    actorId: null,
+    actorType: "system",
+    action: "cost.alert.run",
+    severity: "info",
+    payload: {
+      alertId,
+      ...payload,
+    },
+    failureMode: "soft-warn",
+  });
 
   return {
     alertId,

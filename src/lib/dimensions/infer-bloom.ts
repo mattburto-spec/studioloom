@@ -12,6 +12,7 @@
  */
 
 import type { BloomLevel, ActivitySection } from "@/types";
+import { composedPromptText } from "@/lib/lever-1/compose-prompt";
 
 // Keyword → Bloom level mapping with weights
 // Higher weight = stronger signal (exact verb match vs. contextual word)
@@ -66,7 +67,12 @@ const LEVEL_ORDER: BloomLevel[] = ["remember", "understand", "apply", "analyze",
  */
 function extractText(activity: ActivitySection): string {
   const parts: string[] = [];
-  if (activity.prompt) parts.push(activity.prompt);
+  // Lever 1: read composed text so the verb-keyword scan sees framing/task/
+  // success_signal in v2 activities (legacy `prompt` is the auto-composed
+  // duplicate, but composedPromptText gives consistent input regardless of
+  // which shape the activity was authored in).
+  const composed = composedPromptText(activity);
+  if (composed) parts.push(composed);
   if (activity.exampleResponse) parts.push(activity.exampleResponse);
   if (activity.scaffolding) {
     // EllScaffolding has tiered structure: ell1, ell2, ell3

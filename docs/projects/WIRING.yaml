@@ -968,7 +968,7 @@ systems:
     category: AI & Intelligence
     status: active
     currentVersion: 1
-    summary: "First-class SQL entities replacing inline JSONB. Migration applied (Phase A). Extracted from uploads (knowledge pipeline) and generated units (generation pipeline). Composite ranking: relevance 30% + efficacy 25% + context match 20% + teacher affinity 15% + freshness 10%. Phase 1.5 added moderation_status, content_fingerprint (UNIQUE idempotency), strand, level, copyright_flag. 55 teaching moves seeded (Phase 1.1, 10 Apr 2026)."
+    summary: "First-class SQL entities replacing inline JSONB. Migration applied (Phase A). Extracted from uploads (knowledge pipeline) and generated units (generation pipeline). Composite ranking: relevance 30% + efficacy 25% + context match 20% + teacher affinity 15% + freshness 10%. Phase 1.5 added moderation_status, content_fingerprint (UNIQUE idempotency), strand, level, copyright_flag. 55 teaching moves seeded (Phase 1.1, 10 Apr 2026). Lever 1 v2 (4 May 2026): added framing/task/success_signal slot columns + backfill_needs_review (migration 20260504020826), AI-rewrite reseed of 55 teaching moves to v2 shape, composedPromptText helper for legacy back-compat."
     depends_on: [knowledge-pipeline]
     affects: [generation-pipeline, unit-editor, lesson-pulse, unit-generation]
     docs:
@@ -976,20 +976,28 @@ systems:
         purpose: Bootstrap strategy with 200-400 blocks and Teaching Moves conversion
       - path: docs/projects/dimensions3.md
         purpose: Block library architecture in pipeline
+      - path: docs/projects/lesson-quality-lever-1-slot-fields.md
+        purpose: Lever 1 — three-slot prompt structure (framing/task/success_signal)
     data_fields:
       - table: activity_blocks
-        columns: [id, content, bloom_level, phase, category, efficacy_score, source, source_type, module, tags, strand, level, moderation_status, content_fingerprint, copyright_flag, created_at, updated_at]
-        notes: First-class block entity. content_fingerprint is UNIQUE (sha256 idempotency). moderation_status in (pending, grandfathered, approved, rejected). Migrations 067+068 (10 Apr 2026).
+        columns: [id, content, bloom_level, phase, category, efficacy_score, source, source_type, module, tags, strand, level, moderation_status, content_fingerprint, copyright_flag, framing, task, success_signal, backfill_needs_review, created_at, updated_at]
+        notes: First-class block entity. content_fingerprint is UNIQUE (sha256 idempotency). moderation_status in (pending, grandfathered, approved, rejected). Migrations 067+068 (10 Apr 2026). Lever 1 v2 columns added by migration 20260504020826 (4 May 2026) — framing/task/success_signal NULLABLE during transition window; legacy `prompt` stays NOT NULL (composed at write time when slots populated).
       - table: block_usage
         columns: [block_id, unit_id, teacher_id, used_count, last_used, performance]
         notes: Usage tracking for efficacy
     key_files:
-      - src/lib/blocks/block-service.ts
-      - src/lib/blocks/block-ranking.ts
-    future_needs: 1000+ block library, teacher custom blocks, block version history.
+      - src/lib/activity-blocks/store.ts
+      - src/lib/activity-blocks/extract.ts
+      - src/lib/activity-blocks/types.ts
+      - src/lib/activity-blocks/index.ts
+      - src/lib/lever-1/compose-prompt.ts
+      - src/lib/lever-1/validate-slot-fields.ts
+      - src/app/api/teacher/activity-blocks/route.ts
+      - src/app/api/teacher/activity-blocks/[id]/route.ts
+    future_needs: 1000+ block library, teacher custom blocks, block version history. Lever 1 1J cleanup (post-cutover): drop legacy `prompt` NOT NULL once all readers verified slot-aware in prod for ≥30 days.
     adrs: ["004"]
     os_seam: designed
-    change_impacts: Changes to block schema affect retrieval. Changes to ranking formula affect generation quality. Activity Block migration requires backfill.
+    change_impacts: Changes to block schema affect retrieval. Changes to ranking formula affect generation quality. Activity Block migration requires backfill. Lever 1 v2 — any reader of `section.prompt` or `block.prompt` MUST go through `composedPromptText()` so v2 slot fields take priority during transition (audit step 7 closed by sub-phase 1H).
 
   - id: intelligence-profiles
     name: Student Learning Profile — Unified Schema (+ Teacher/Class Profiles)
@@ -1305,26 +1313,37 @@ systems:
     category: Teacher Experience
     status: complete
     currentVersion: 1
-    summary: "12-component modular editor: LessonEditor orchestrator, useLessonEditor state, useAutoSave, UndoManager, LessonSidebar, ActivityBlock, PhaseSection, etc. Drag-to-reorder, AI assist, fork-on-write."
-    depends_on: [content-forking, activity-blocks, framework-adapter]
-    affects: [content-forking, unit-generation, teach-mode]
+    summary: "12-component modular editor: LessonEditor orchestrator, useLessonEditor state, useAutoSave, UndoManager, LessonSidebar, ActivityBlock, PhaseSection, etc. Drag-to-reorder, AI assist, fork-on-write. Lever 1 v2 (4 May 2026): SlotFieldEditor replaces single prompt textarea with three labelled boxes (framing / task / success_signal) + per-field char-count warnings; preview composes via the student renderer. Lever-MM (4 May 2026): New Metrics block category in the BlockPalette — competency-element BlockDefinitions render under a gold-dot accordion; click-to-add registers a checkpoint on the current lesson; chip strip at top of lesson card lists registered checkpoints with × remove; competency selector inside the accordion. Gated on teacher_profiles.school_context.use_new_metrics. Class-settings Metrics tab now hosts results display only (NMResultsPanel) — config moved here."
+    depends_on: [content-forking, activity-blocks, framework-adapter, nm-system]
+    affects: [content-forking, unit-generation, teach-mode, nm-system]
     docs:
       - path: docs/specs/lesson-editor-phase-0.5.md
         purpose: Full editor specification
       - path: docs/specs/unit-editing-navigation-spec.md
         purpose: Navigation and edit mode toggle
+      - path: docs/projects/lesson-quality-lever-1-slot-fields.md
+        purpose: Lever 1 — three-box editor + per-field validation
+      - path: docs/projects/unit-editor-nm-block.md
+        purpose: Lever-MM — NM block category in palette + chip strip + competency selector
     data_fields:
       - table: class_units
-        columns: [id, content_data, forked_at, forked_from_version]
-        notes: Class-specific content forks
+        columns: [id, content_data, nm_config, forked_at, forked_from_version]
+        notes: Class-specific content forks. nm_config (JSONB) holds the NM checkpoints map (Lever-MM — written by editor's New Metrics block category click handler via /api/teacher/nm-config; read by student-facing surfaces unchanged).
     key_files:
       - src/app/teacher/units/[unitId]/class/[classId]/edit/page.tsx
       - src/components/teacher/lesson-editor/LessonEditor.tsx
-      - src/lib/hooks/useLessonEditor.ts
-    future_needs: Rich media editing (video embeds, interactive widgets), version history view.
+      - src/components/teacher/lesson-editor/useLessonEditor.ts
+      - src/components/teacher/lesson-editor/ActivityBlock.tsx
+      - src/components/teacher/lesson-editor/SlotFieldEditor.tsx
+      - src/components/teacher/lesson-editor/GhostBlock.tsx
+      - src/components/teacher/lesson-editor/BlockPalette.tsx
+      - src/components/teacher/lesson-editor/BlockPalette.types.ts
+      - src/components/teacher/lesson-editor/nm-element-blocks.ts
+      - src/lib/nm/checkpoint-ops.ts
+    future_needs: Rich media editing (video embeds, interactive widgets), version history view. Legacy single-textarea editor at src/app/teacher/units/[unitId]/edit/page.tsx (still mounted for unassigned units) needs porting to SlotFieldEditor or removing once Phase 0.5 supersedes it for all entry points. Lever-MM v2 candidates — drag-and-drop NM elements onto lesson tiles (currently click-only); multi-competency-per-unit (currently single); FU-NM-SCHOOL-ADMIN-CENTRALIZATION (school-level toggle + principal-facing dashboard).
     adrs: ["010"]
     os_seam: ready
-    change_impacts: Changes to content_data schema require migration. Changes to ActivityBlock structure affect editor rendering.
+    change_impacts: Changes to content_data schema require migration. Changes to ActivityBlock structure affect editor rendering. Lever 1 v2 — SlotFieldEditor writes to all 3 slot fields AND syncs the legacy `prompt` field on every keystroke (composed via composedPromptText) so non-migrated readers stay valid. Lever-MM — changes to NM block category UI affect teacher discovery / configuration of competency assessments; pure state-transition logic in lib/nm/checkpoint-ops.ts is the canonical contract (idempotency, zombie-pageId guard, orphan-element handling on competency switch — covered by 30 tests).
 
   - id: unit-generation
     name: Unit Generation Wizard

@@ -6,6 +6,7 @@ import type { DashboardClass } from "@/types/dashboard";
 import type { Teacher } from "@/types";
 import { createClient } from "@/lib/supabase/client";
 import { I } from "./icons";
+import { NotificationBell } from "./NotificationBell";
 import { CommandPalette } from "@/components/search/CommandPalette";
 import {
   DROPDOWN_ITEMS,
@@ -221,13 +222,9 @@ export function TopNav({
         >
           <I name="search" size={16} />
         </button>
-        <button
-          className="w-9 h-9 rounded-full hover:bg-white flex items-center justify-center text-[var(--ink-2)] relative shrink-0"
-          aria-label="Notifications"
-        >
-          <I name="bell" size={16} />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#E86F2C] border-2 border-[var(--bg)]" />
-        </button>
+        <NotificationBell />
+        {/* Phase 3C: bell now shows real unread count + links to /teacher/notifications.
+         *  Replaces the prior static button (hardcoded orange dot, no click). */}
         {/* Avatar dropdown — click to reveal Settings + Log out. Same
          *  pattern as the student BoldTopNav. Kept inline in TopNav
          *  rather than a shared component because the two navs have

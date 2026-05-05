@@ -23,6 +23,7 @@ import type {
 } from "@/types/assessment";
 import { getYearLevelNumber } from "@/lib/utils/year-level";
 import IntegrityReport from "@/components/teacher/IntegrityReport";
+import { StudentResponseValue } from "@/components/teacher/StudentResponseValue";
 import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
 import { analyzeIntegrity } from "@/lib/integrity/analyze-integrity";
 
@@ -772,27 +773,21 @@ export default function GradingPage({
                           label = `Reflection ${parseInt(key.replace("reflection_", "")) + 1}`;
                         else if (key === "freeform") label = "Notes";
 
-                        // Safety: skip non-string values (toolkit JSON, tracking objects)
-                        const displayValue = typeof value === "string" ? value : typeof value === "object" ? JSON.stringify(value).slice(0, 200) + "…" : String(value ?? "—");
-
                         return (
-                          <div key={key}>
-                            <p className="text-xs font-medium text-text-secondary uppercase tracking-wide mb-0.5">
+                          <div
+                            key={key}
+                            className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
+                          >
+                            <p className="text-xs font-medium text-text-secondary uppercase tracking-wide mb-2">
                               {label}
                             </p>
                             <div className="bg-surface-alt rounded-lg p-2.5">
-                              <p className="text-sm text-text-primary whitespace-pre-wrap">
-                                {displayValue === "true"
-                                  ? "✓"
-                                  : displayValue === "false"
-                                  ? "☐"
-                                  : displayValue || "—"}
-                              </p>
+                              <StudentResponseValue value={value} compact />
                             </div>
 
                             {/* Show per-response integrity report if metadata exists for this key */}
                             {evidenceIntegrity?.[key] && (
-                              <div className="mt-2 border-t border-gray-100 pt-2">
+                              <div className="mt-3 border-t border-gray-100 pt-3">
                                 <IntegrityReport
                                   metadata={evidenceIntegrity[key]}
                                   responseText={typeof value === "string" ? value : undefined}

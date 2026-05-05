@@ -553,11 +553,65 @@ docs:
 
   - path: docs/projects/dimensions3-followups.md
     title: "Dimensions3 Follow-Ups Tracker"
-    purpose: "Per-FU tracking for Dimensions3 phase follow-ups (FU-1 through FU-W, FU-AA through FU-II). FU-E through FU-I (teacher grading migration, legacy CRITERIA cleanup, getCriterionColor wrapper, strand headers, null-framework fallback). FU-J through FU-L (scale hardcode, student-snapshot shape, local type collapse). FU-M (live cost alert email test). FU-N through FU-W (architectural limitations surfaced during Checkpoint 5.1 Step 9). FU-AA through FU-DD (schema-registry cleanup, scanner bugs). FU-EE (no migration-applied log, P2). FU-FF (undocumented RLS-as-deny-all on 3 tables, P3). FU-GG (nm-assessment data loss, P1). FU-HH (no RLS test harness, P2). FU-II (log-client-block pattern, P3)."
+    purpose: "Per-FU tracking for Dimensions3 phase follow-ups + cross-cutting follow-ups from sibling phases. Lever 1 additions (4 May 2026): FU-LESSON-EDITOR-AUTO-PINNED-SKILL (P2 — editor mounts default 3D Printing skill on freshly-seeded lessons regardless of class topic), FU-AV2-WELCOME-WIZARD-AUTO-CREATE-HARDENING (P2 — /teacher/welcome auto-creates teacher row on first GET). Earlier: FU-1..W, FU-AA..II covering schema-registry cleanup, scanner bugs, RLS gaps, no-canonical-migration-applied-log (FU-EE), nm-assessment data loss (FU-GG), and architectural limitations surfaced during Checkpoint 5.1 Step 9."
     category: projects
-    last_verified: "2026-04-14"
+    last_verified: "2026-05-04"
     referenced_from: ["ALL-PROJECTS.md Dimensions3 follow-ups", "CLAUDE.md current focus"]
     max_age_days: 90
+    last_scanned: null
+
+  - path: docs/projects/lesson-quality-lever-1-slot-fields.md
+    title: "Lesson Quality — Lever 1: Slot Fields (brief + sub-phase tracker)"
+    purpose: "9-sub-phase plan + commit hash table for Lever 1 — refactoring activity prompts from a single markdown blob into three structured fields (framing / task / success_signal). Toddle pattern. Structural unlock for Levers 2–5. Migration 20260504020826 applied to prod 4 May 2026. ComposedPrompt hybrid renderer (muted framing → bold task → 🎯 success_signal). Three-box SlotFieldEditor with per-field char-count caps (200/800/200). composedPromptText helper widened to structural SlotBearing shape. Validators (validateGeneratedPages + validateTimelineActivities) accept slots OR legacy and compose prompt from slots for back-compat. WIRING.yaml drift fixed on activity-blocks.key_files + unit-editor.key_files. Status: 1A–1I SHIPPED + smoke verified live on studioloom.org + merged to main (PR #17, commit 5373ea7). 1J cleanup (drop legacy prompt NOT NULL) gated on 30-day post-cutover soak."
+    category: projects
+    last_verified: "2026-05-04"
+    referenced_from: ["ALL-PROJECTS.md Lever 1 entry", "CLAUDE.md What's next", "WIRING.yaml activity-blocks", "WIRING.yaml unit-editor", "schema-registry.yaml activity_blocks spec_drift"]
+    max_age_days: 365
+    last_scanned: null
+
+  - path: docs/projects/unit-editor-nm-block.md
+    title: "Unit Editor — NM Block Category (Lever-MM brief + sub-phase tracker)"
+    purpose: "7-sub-phase plan + commit hash table for Lever-MM — moving New Metrics configuration out of the class-settings Metrics tab and into the Phase 0.5 lesson editor's block palette as a 'New Metrics' category. Click an element → chip lands at top of current lesson card via existing /api/teacher/nm-config POST (no schema change, no new API). Class-settings Metrics tab keeps NMResultsPanel but loses NMConfigPanel mount + gains a banner pointing teachers to the editor. Three new modules: BlockPalette.types.ts (pure types) + nm-element-blocks.ts (factory) + lib/nm/checkpoint-ops.ts (pure state transitions). Pure-logic-extraction pattern documented as Lesson #71. Status: MM.0A–MM.0G SHIPPED + merged to main (PR #19, commit 7a91e08). Tests 3630 → 3660 (+30). Built ahead of Matt's Wednesday-class deadline (6 May 2026)."
+    category: projects
+    last_verified: "2026-05-04"
+    referenced_from: ["ALL-PROJECTS.md Lever-MM entry", "CLAUDE.md What's next", "WIRING.yaml unit-editor", "changelog.md 4 May 2026 Lever-MM entry"]
+    max_age_days: 365
+    last_scanned: null
+
+  - path: src/lib/nm/checkpoint-ops.ts
+    title: "NM checkpoint state-transition operations (pure)"
+    purpose: "Pure NM-config state transitions used by the Phase 0.5 lesson editor's New Metrics block category (Lever-MM, 4 May 2026). Lifted out of LessonEditor.tsx so the transition logic is testable in isolation without mounting the React tree. Three exported functions: addCheckpoint (idempotent, bootstraps competencies + elements + enabled flag on first registration), removeCheckpoint (zombie-pageId guard — deletes pageId entry when elements would go empty), setCompetency (single-element replacement, doesn't touch elements/checkpoints per orphan-element rule). All immutable: return new NMUnitConfig, never mutate input. Reference-equal return on no-ops so callers can detect via `next === current`. Covered by 19 tests in src/lib/nm/__tests__/checkpoint-ops.test.ts."
+    category: source
+    last_verified: "2026-05-04"
+    referenced_from: ["LessonEditor.tsx (consumer)", "WIRING.yaml unit-editor (canonical contract reference)", "unit-editor-nm-block.md", "lessons-learned.md #71"]
+    max_age_days: 365
+    last_scanned: null
+
+  - path: scripts/lever-1/seed-test-unit.sql
+    title: "Lever 1 — test unit seed (Matt Checkpoint 1.1 fixture)"
+    purpose: "Three-lesson v2 unit (12 sections) seed for Lever 1 smoke. Coverage matrix: 9 sections full v2 (3 slots populated + composed prompt copy) → exercises ComposedPrompt hybrid spec; L1.S2 legacy-only (prompt set, no slots) → exercises MarkdownPrompt fallback; L2.S3 partial slots (framing + task only, no success_signal) → exercises composition with the gap; L1.S3 + L3.S1 content-only (no responseType) with contentStyle warning + practical → exercises renderer's response-type fork on v2 sections. Pre-filled for mattburton@nanjing-school.com (teacher_id 27818389-9d3b-4760-988e-d9f166cd42e5, school_id 636ff4fc-4413-4a8e-a3cd-c6f1e17bd5a1, NIS). Wraps in BEGIN; SET LOCAL session_replication_role = 'replica' to bypass classes INSERT triggers (Lesson #69). Output returns full https://studioloom.org/... URLs to click straight from Supabase result pane. Rollback block at bottom. Seed lives until Lever 1 1J cleanup."
+    category: scripts
+    last_verified: "2026-05-04"
+    referenced_from: ["lesson-quality-lever-1-slot-fields.md", "changelog.md 4 May 2026 Lever 1 entry", "ALL-PROJECTS.md Lever 1 entry"]
+    max_age_days: 365
+    last_scanned: null
+
+  - path: docs/projects/task-system-architecture.md
+    title: "Task System Architecture (TG brief)"
+    purpose: "Unified architectural brief for gradeable events in StudioLoom — single assessment_tasks table with task_type discriminator, SPLIT teacher UI surfaces, polymorphic submissions for inquiry-mode future-proofing, ManageBac as export-not-integration. 855 lines. Replaces grading-phase-g1-brief.md (G1 was a 3-day cut that sidestepped the assessment_tasks question). Three-layer architecture explicit: Layer 1 = shared infra (rubric_descriptors, polymorphic submissions, grade_entries); Layer 2 = cross-mode PM tools (placeholder); Layer 3 = mode-specific (STRUCTURED = this brief; INQUIRY = sister project). Cowork's 7 spec corrections applied. G1 code rolls forward with task_id FK on student_tile_grades. ~16 days end-to-end. Build sequence: TG.0A pre-flight → TG.0B schema (gates Lever 0) → TG.0C-K parallel → Matt Checkpoint TG.1. Status: BRIEF SIGNED OFF 5 May 2026 (PR #23 commit 2a948a3); awaiting TG.0B implementation start."
+    category: projects
+    last_verified: "2026-05-05"
+    referenced_from: ["ALL-PROJECTS.md Task System Architecture entry", "CLAUDE.md What's next (when next saveme runs)", "decisions-log.md 5 May 2026 entries", "grading.md (master spec, this picks up the assessment_tasks vision)", "tasks-v1 prototype README"]
+    max_age_days: 365
+    last_scanned: null
+
+  - path: docs/prototypes/tasks-v1/
+    title: "Tasks v1 Architecture Probe — Claude Design prototype"
+    purpose: "Three-artboard design probe testing whether formative + summative tasks should share one config surface or split. Verdict: Ship SPLIT surfaces. Data model stays UNIFIED. Three named teacher-friction moments justify the split (Ms. Okafor 11:42am exit ticket; Mr. Patel Sunday 8pm backward-design; first-year MYP teacher writing GRASPS — 'the UI taught her the practice'). Cited verbatim in task-system-architecture.md and decisions-log.md 5 May 2026 entries. Visual reference for TG.0C (Tasks panel + chooser) and TG.0D (5-tab summative config drawer) implementation."
+    category: prototypes
+    last_verified: "2026-05-05"
+    referenced_from: ["task-system-architecture.md (verdict + friction moments quoted verbatim)", "decisions-log.md 5 May 2026 SPLIT teacher UI entry", "ALL-PROJECTS.md Task System Architecture entry"]
+    max_age_days: 365
     last_scanned: null
 
   - path: docs/projects/dimensions3-audit.md

@@ -5,33 +5,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { nanoid } from "nanoid";
 import type { ActivitySection, ResponseType } from "@/types";
 import { useDndContext } from "./DndContext";
-
-// ─────────────────────────────────────────────────────────────────
-// Block definitions — the source of truth for every draggable block
-// ─────────────────────────────────────────────────────────────────
-
-export interface BlockDefinition {
-  id: string;
-  label: string;
-  /** @deprecated Kept for backward compat — not rendered in palette */
-  icon: string;
-  category: BlockCategory;
-  description: string;
-  /** Which Workshop Model phase this block naturally fits in */
-  defaultPhase: "opening" | "miniLesson" | "workTime" | "debrief" | "any";
-  /** Factory function to create the ActivitySection */
-  create: () => ActivitySection;
-  /** Optional: marks this block as user-added or imported */
-  source?: "built-in" | "custom" | "imported";
-}
-
-export type BlockCategory =
-  | "response"
-  | "content"
-  | "toolkit"
-  | "assessment"
-  | "collaboration"
-  | "custom";
+import type { BlockDefinition, BlockCategory } from "./BlockPalette.types";
+// Lever-MM: re-exported from BlockPalette.types so existing consumers
+// keep importing types from `BlockPalette` (public surface unchanged).
+export type { BlockDefinition, BlockCategory };
+// Lever-MM: NM-element BlockDefinition factory lives in a pure .ts module
+// so it's importable from .test.ts without JSX-transform issues.
+// Re-exported here so the public surface stays unchanged.
+export { buildNmElementBlocks } from "./nm-element-blocks";
 
 interface CategoryMeta {
   label: string;
@@ -85,7 +66,21 @@ const CATEGORIES: Record<BlockCategory, CategoryMeta> = {
     bgColor: "bg-rose-50",
     borderColor: "border-rose-200",
   },
+  new_metrics: {
+    // Lever-MM: gold dot — distinct from assessment's amber + Templates' violet.
+    // The category renders only when LessonEditor passes NM-element blocks
+    // (i.e. school's `use_new_metrics` flag is true and a competency is selected).
+    label: "New Metrics",
+    dotColor: "bg-yellow-500",
+    color: "text-yellow-700",
+    bgColor: "bg-yellow-50",
+    borderColor: "border-yellow-200",
+  },
 };
+
+// Lever-MM — buildNmElementBlocks lives in ./nm-element-blocks (pure
+// .ts so it's testable from .test.ts without JSX). Re-exported above
+// for the existing public surface.
 
 // ─────────────────────────────────────────────────────────────────
 // "My Blocks" helpers — convert DB activity_blocks to BlockDefinitions
@@ -515,12 +510,42 @@ interface BlockPaletteProps {
   isOpen?: boolean;
   /** @deprecated No longer used — LessonEditor controls visibility */
   onToggle?: () => void;
+  /**
+   * Lever-MM: handler for NM-element blocks (those with `nmElementId`
+   * set). Wired up in MM.0C — until then, clicks on NM blocks are no-ops
+   * (the click handler short-circuits if this prop is undefined).
+   * Receives the NM element ID + parent competency ID so the caller can
+   * register a checkpoint on the current lesson.
+   */
+  onAddNmCheckpoint?: (elementId: string, competencyId: string) => void;
+  /**
+   * Lever-MM: NM element IDs already registered as checkpoints on the
+   * currently-active lesson. The palette uses this to render "added"
+   * state on the corresponding NM blocks (greyed out / different
+   * affordance) so teachers don't double-add. Empty/undefined = none added.
+   */
+  activeNmElementIds?: string[];
+  /**
+   * Lever-MM: full list of available NM competencies for the selector
+   * inside the New Metrics accordion. Pass undefined (or empty) to hide
+   * the selector — typically when use_new_metrics is off.
+   */
+  nmCompetencies?: ReadonlyArray<{ id: string; name: string; description?: string }>;
+  /** Lever-MM: currently-active competency ID (drives selector value). */
+  nmCurrentCompetencyId?: string;
+  /** Lever-MM: change handler when teacher picks a different competency. */
+  onSetNmCompetency?: (competencyId: string) => void;
 }
 
 export default function BlockPalette({
   onAddBlock,
   suggestedBlockIds,
   customBlocks,
+  onAddNmCheckpoint,
+  activeNmElementIds,
+  nmCompetencies,
+  nmCurrentCompetencyId,
+  onSetNmCompetency,
 }: BlockPaletteProps) {
   const [search, setSearch] = useState("");
   const [expandedCategory, setExpandedCategory] = useState<BlockCategory | null>("response");
@@ -562,18 +587,39 @@ export default function BlockPalette({
 
   const handleAdd = useCallback(
     (block: BlockDefinition) => {
+      // Lever-MM: NM-element blocks DON'T create an ActivitySection — they
+      // register a checkpoint on the current lesson. Route to the NM handler
+      // when present; until MM.0C wires it, fall through silently (so MM.0B's
+      // list-only state doesn't crash on click via the throwing `create()` stub).
+      if (block.nmElementId && block.nmCompetencyId) {
+        if (onAddNmCheckpoint) {
+          onAddNmCheckpoint(block.nmElementId, block.nmCompetencyId);
+        }
+        return;
+      }
       onAddBlock(block.create());
     },
-    [onAddBlock]
+    [onAddBlock, onAddNmCheckpoint]
   );
 
   const suggestedBlocks = suggestedBlockIds
     ? allBlocks.filter((b) => suggestedBlockIds.includes(b.id))
     : [];
 
-  // Gather which categories actually have blocks
+  // Gather which categories actually have blocks.
+  // Lever-MM exception: the "new_metrics" category renders whenever the
+  // parent passes `nmCompetencies` (i.e. NM is enabled for this teacher's
+  // school) — even when the active competency has zero elements. Without
+  // this, picking a competency with no elements would hide the accordion
+  // and the competency selector would become inaccessible (teacher
+  // couldn't switch back).
   const activeCategories = (Object.keys(CATEGORIES) as BlockCategory[]).filter(
-    (cat) => filteredBlocks.some((b) => b.category === cat)
+    (cat) => {
+      if (cat === "new_metrics" && nmCompetencies && nmCompetencies.length > 0) {
+        return true;
+      }
+      return filteredBlocks.some((b) => b.category === cat);
+    }
   );
 
   return (
@@ -679,6 +725,7 @@ export default function BlockPalette({
                   block={block}
                   onAdd={handleAdd}
                   highlight
+                  activeNmElementIds={activeNmElementIds}
                 />
               ))}
             </div>
@@ -698,6 +745,7 @@ export default function BlockPalette({
                   key={block.id}
                   block={block}
                   onAdd={handleAdd}
+                  activeNmElementIds={activeNmElementIds}
                 />
               ))
             )}
@@ -710,7 +758,9 @@ export default function BlockPalette({
               const blocks = filteredBlocks.filter(
                 (b) => b.category === cat
               );
-              if (blocks.length === 0) return null;
+              // Lever-MM: don't bail on empty new_metrics — the selector
+              // still needs to render so the teacher can switch competencies.
+              if (blocks.length === 0 && cat !== "new_metrics") return null;
 
               const isExpanded = expandedCategory === cat;
 
@@ -747,12 +797,41 @@ export default function BlockPalette({
                         }}
                         className="overflow-hidden"
                       >
+                        {/* Lever-MM — competency selector inside the
+                            New Metrics accordion. Only renders for the
+                            new_metrics category AND when LessonEditor
+                            passes a non-empty competency list. */}
+                        {cat === "new_metrics" && nmCompetencies && nmCompetencies.length > 0 && (
+                          <div className="px-3 pt-2 pb-1">
+                            <label className="block text-[10px] le-cap text-[var(--le-ink-3)] mb-1">
+                              Competency
+                            </label>
+                            <select
+                              value={nmCurrentCompetencyId || ""}
+                              onChange={(e) => onSetNmCompetency?.(e.target.value)}
+                              className="w-full text-[12px] px-2 py-1.5 bg-white border border-yellow-300 rounded-md focus:outline-none focus:border-yellow-500 font-medium text-[var(--le-ink)]"
+                            >
+                              {nmCompetencies.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.name}
+                                </option>
+                              ))}
+                            </select>
+                            {/* Empty-state hint when competency has no elements yet */}
+                            {blocks.length === 0 && (
+                              <p className="text-[10.5px] text-[var(--le-ink-3)] italic mt-1.5 leading-relaxed">
+                                No elements available for this competency yet. Pick another competency or come back when the kit ships.
+                              </p>
+                            )}
+                          </div>
+                        )}
                         <div className="px-2 pb-2 space-y-0.5">
                           {blocks.map((block) => (
                             <PaletteBlock
                               key={block.id}
                               block={block}
                               onAdd={handleAdd}
+                              activeNmElementIds={activeNmElementIds}
                             />
                           ))}
                         </div>
@@ -795,20 +874,43 @@ function PaletteBlock({
   block,
   onAdd,
   highlight = false,
+  activeNmElementIds,
 }: {
   block: BlockDefinition;
   onAdd: (block: BlockDefinition) => void;
   highlight?: boolean;
+  /** Lever-MM: NM element IDs already on the active lesson — drives "added" state. */
+  activeNmElementIds?: string[];
 }) {
   const { startDrag, endDrag } = useDndContext();
   const meta = CATEGORIES[block.category] || CATEGORIES.custom;
 
-  // Read default dimensions once per render — block.create() is cheap (returns a literal)
-  const sample = block.create();
-  const bloomLoad = sample.bloom_level ? BLOOM_LOAD_MAP[sample.bloom_level] : null;
-  const effortLoad = sample.timeWeight ? TIME_WEIGHT_LOAD_MAP[sample.timeWeight] : null;
+  // Lever-MM — NM-element blocks (those with nmElementId set) take a
+  // simpler render path: no dimension chips (their throwing create() stub
+  // would crash if invoked), no drag-and-drop (they don't create
+  // ActivitySections), and an "added" state when the element is already
+  // a checkpoint on the current lesson.
+  const isNmBlock = Boolean(block.nmElementId);
+  const isAdded = Boolean(
+    isNmBlock && block.nmElementId && (activeNmElementIds ?? []).includes(block.nmElementId),
+  );
+
+  // Skip the create() probe entirely for NM blocks — the stub throws.
+  // For regular blocks, read default dimensions once per render
+  // (block.create() is cheap — returns a literal).
+  const sample = isNmBlock ? null : block.create();
+  const bloomLoad = sample?.bloom_level ? BLOOM_LOAD_MAP[sample.bloom_level] : null;
+  const effortLoad = sample?.timeWeight ? TIME_WEIGHT_LOAD_MAP[sample.timeWeight] : null;
 
   const handleDragStart = (e: DragEvent) => {
+    // NM blocks don't create ActivitySections — don't let them seed a
+    // drag payload. The dragstart is suppressed at the `draggable` flag
+    // below for NM blocks, but guarding here is belt-and-braces in case
+    // a future refactor accidentally re-enables drag.
+    if (isNmBlock) {
+      e.preventDefault();
+      return;
+    }
     const activity = block.create();
     e.dataTransfer.setData(
       "application/json",
@@ -830,13 +932,17 @@ function PaletteBlock({
 
   return (
     <div
-      draggable
+      draggable={!isNmBlock}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onClick={() => onAdd(block)}
-      title={block.description}
-      className={`group flex items-center gap-2 px-2 py-1.5 rounded-md border cursor-grab active:cursor-grabbing transition-colors ${
-        highlight
+      title={isAdded ? `${block.description} (already on this lesson — click chip × to remove)` : block.description}
+      className={`group flex items-center gap-2 px-2 py-1.5 rounded-md border transition-colors ${
+        isNmBlock ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"
+      } ${
+        isAdded
+          ? "border-yellow-300 bg-yellow-50 opacity-60"
+          : highlight
           ? "border-violet-300 bg-violet-50 hover:bg-violet-100"
           : "border-transparent hover:border-[var(--le-hair)] hover:bg-[var(--le-paper)]"
       }`}
@@ -872,10 +978,19 @@ function PaletteBlock({
         </span>
       )}
 
-      {/* Drag hint */}
-      <span className="opacity-0 group-hover:opacity-100 text-[10px] text-[var(--le-ink-3)] flex-shrink-0 transition-opacity select-none">
-        drag
-      </span>
+      {/* Lever-MM — Added/Add hint (NM blocks only) */}
+      {isNmBlock && (
+        <span className="text-[10px] text-yellow-700 flex-shrink-0 select-none">
+          {isAdded ? "✓ added" : "+ add"}
+        </span>
+      )}
+
+      {/* Drag hint (regular blocks only) */}
+      {!isNmBlock && (
+        <span className="opacity-0 group-hover:opacity-100 text-[10px] text-[var(--le-ink-3)] flex-shrink-0 transition-opacity select-none">
+          drag
+        </span>
+      )}
     </div>
   );
 }

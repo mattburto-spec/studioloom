@@ -1222,6 +1222,129 @@ For tools with hardcoded inline strings (the 24 deferred), the migration involve
 
 ---
 
+## FU-WORD-CACHE-HIT-TRACKING — Track cache hit_count + last_hit_at on word_definitions (P2)
+**Surfaced:** 4 May 2026, Matt smoke after textarea/popover round 2
+**Trigger:** Matt asked "hows the cache idea going for word defs to increase speed and decrease cost?" — answer was *cache works, observability is thin*. Single point measurement (cold-cache-smoke 27 Apr) showed 11.2% hit rate on real lessons after 578-word seed. Nothing tracked since.
+
+**Issue:** `word_definitions` has `generated_at` but no `hit_count` or `last_hit_at` columns. Can't see which cached words are popular vs cold, can't measure live hit-rate, can't identify good pre-warm candidates from real student behaviour. Every other word-cache improvement (per-unit pre-warm, hot-words admin page, lemmatisation cost-benefit analysis) sits on top of this.
+
+**Fix:**
+1. Migration (timestamp-prefixed): `ALTER TABLE word_definitions ADD COLUMN hit_count INTEGER NOT NULL DEFAULT 0, ADD COLUMN last_hit_at TIMESTAMPTZ;`
+2. In `src/app/api/student/word-lookup/route.ts` cache-HIT branch (lines 127–137): bump `hit_count` + set `last_hit_at = now()` via a non-blocking `supabase.from('word_definitions').update(...).eq(...)` (don't await — student response shouldn't wait on the hit-count write).
+3. Add the columns to `docs/schema-registry.yaml` word_definitions entry.
+
+**Definition of done:** Querying `SELECT word, hit_count, last_hit_at FROM word_definitions ORDER BY hit_count DESC LIMIT 20` returns a real top-20 list within a week of shipping. The per-week hit-rate query becomes possible:
+```sql
+SELECT
+  sum(CASE WHEN last_hit_at > now() - interval '7 days' THEN hit_count ELSE 0 END) AS recent_hits,
+  count(*) FILTER (WHERE generated_at > now() - interval '7 days') AS recent_misses
+FROM word_definitions;
+```
+
+**Why P2 not P3:** Unlocks every other observability + optimisation move on the cache. Cheapest one to ship (~10-line route diff + 4-line migration), highest leverage.
+
+---
+
+## FU-WORD-CACHE-PER-UNIT-PREWARM — Async warm definitions on unit publish (P3)
+**Surfaced:** 4 May 2026, Matt smoke after textarea/popover round 2
+**Trigger:** Cache discussion — cold-cache hit rate is 11.2% because the 578-word global seed is generic design vocab; a unit on (e.g.) "Sustainable transport" introduces dozens of topic-specific words that none of the global seed covers. First student per class pays the latency for every miss.
+
+**Issue:** Today, when a teacher publishes a unit, the unit's vocabulary is never pre-warmed. The first student to tap "aerodynamic" on each lesson page pays the ~1.2s Haiku miss; subsequent students hit the cache for free. With 12 students per class × 30 design-domain words per unit, that's ~360 first-tap latencies per unit launch that could be eliminated for ~$0.04 of pre-warm spend.
+
+**Fix:**
+1. After unit publish (or after lesson editor save), extract candidate words from lesson body text + activity prompts + vocab warmup terms. Filter to words ≥4 chars + not already in `word_definitions` for the relevant `(language, l1_target)` pair.
+2. Async-warm via batched Haiku calls (chunk 20 words/call to amortise overhead), guard with the existing AI budget cascade (school > class > tier).
+3. Implementation skeleton: new route `POST /api/teacher/units/[unitId]/prewarm-vocab` invoked by the editor's save handler, fire-and-forget. Extract logic into `lib/tap-a-word/extract-unit-vocab.ts` so it's testable in isolation.
+4. Per-class L1: if any students in the class have non-`en` `l1_target`, also pre-warm those translation rows.
+
+**Gating:** Depends on FU-WORD-CACHE-HIT-TRACKING shipping first so we can measure the actual hit-rate lift after pre-warm. Otherwise this is "build feature → hope it helps."
+
+**Definition of done:** A freshly-published unit on a novel topic shows ≥80% cache hit rate within 24 hours of publish (vs current ~11% baseline). Per-unit pre-warm adds ≤$0.10 to the unit-publish cost.
+
+---
+
+## FU-WORD-CACHE-ADMIN-PAGE — Live cache observability at /admin/registries/word-cache (P3)
+**Surfaced:** 4 May 2026, Matt smoke after textarea/popover round 2
+
+**Issue:** No surface today shows cache health to admins. Once FU-WORD-CACHE-HIT-TRACKING lands, the data exists but is only queryable via SQL.
+
+**Fix:** Read-only admin page at `/admin/registries/word-cache` (matches the existing `/admin/controls/registries` pattern from GOV-1). Surface:
+- Total cached rows (split by `l1_target`)
+- This-week hit count + miss count + hit %
+- Top-100 hottest words (highest `hit_count`)
+- Top-50 single-use words (cached once, never re-hit — pre-warm seed candidates for the inverse: words to NOT bother pre-warming)
+- Per-unit hit rate breakdown (joined via lesson-body word extraction) — see which units are well-covered vs cold
+
+**Pre-reqs:** FU-WORD-CACHE-HIT-TRACKING (data) + ideally FU-WORD-CACHE-PER-UNIT-PREWARM (so the per-unit breakdown is meaningful).
+
+**Definition of done:** Admin can answer "is the cache working?" and "which units need more pre-warm?" without writing SQL.
+
+---
+
+## FU-TAP-PAGE-LOAD-PREWARM — Async-warm page vocabulary on mount (P2)
+**Surfaced:** 4 May 2026, popover-flakiness round 3 ("any other ideas")
+**Trigger:** Even after position-fix + 15s timeout + retry button, the FIRST tap on any uncached word costs ~600-1500ms of Haiku latency. On a typical lesson page with ~30 unique tappable words, the student hits ~5-10 cache misses scattered through the session. Each one feels slow.
+
+**Issue:** Today the cache only warms on demand — student has to tap a word to populate it. Lesson pages display all their text at mount; we could async-warm the entire page's vocabulary on mount so by the time the student taps anything, ~95% of words are already cached. Pairs with FU-WORD-CACHE-PER-UNIT-PREWARM (which warms at unit-publish time, server-driven) — page-load pre-warm is a client-driven complement that handles content edited after publish, or units that pre-date the per-unit pre-warm shipping.
+
+**Fix:**
+1. New hook `usePageVocabPrewarm(text: string, classId, unitId)` — debounce 1500ms after mount, extract candidate words via the existing `tokenize()`, filter to ≥4 chars, dedup, batch-POST to a new `POST /api/student/word-lookup/batch` endpoint that runs cache-only check + missing-word generation in parallel.
+2. Use existing AI budget cascade — same per-student / per-class / per-school caps as the on-tap path.
+3. Mount the hook in the lesson page (`src/app/(student)/unit/[unitId]/[pageId]/page.tsx`) once data has loaded, passing the concatenated lesson body + activity prompt text.
+
+**Expected lift:** First-tap latency drops from ~800ms (cache miss median) to ~30ms (Supabase cache hit) for ~95% of taps. Per-page pre-warm cost ~$0.003-0.005 amortised across all students in the class.
+
+**Pre-reqs:** None hard, but FU-WORD-CACHE-HIT-TRACKING shipping first lets us measure the actual lift.
+
+**Definition of done:** Cold page-load smoke shows >90% cache hit rate on a freshly-published unit's first tap (vs current ~11% baseline).
+
+---
+
+## FU-TAP-HOVER-PREFETCH — Speculative prefetch on hover (P3)
+**Surfaced:** 4 May 2026, popover-flakiness round 3
+**Trigger:** Even with page-load pre-warm, words generated by an AI mentor mid-session (chat responses) aren't pre-warmed. Hover-prefetch covers that gap.
+
+**Issue:** When a student hovers a word for >250ms, they're showing intent. Kicking off a speculative cache check + Haiku call at hover time means the result is already in memory by the time they actually click.
+
+**Fix:** Add a debounced `onMouseEnter` to the `<button>` in `TappableText.tsx` that fires `lookup.prewarm(word)` (a new method on the hook that runs the cache-check + Haiku flow without setting any popover state). On click, the cache hit path is instant.
+
+**Why P3:** FU-TAP-PAGE-LOAD-PREWARM covers the bulk of the hit-rate gap; hover-prefetch is the long tail. Mobile/touch users don't hover, so the win is desktop-only. Worth doing but not before page-load pre-warm proves out.
+
+**Definition of done:** Desktop students see <50ms first-tap latency on words they hovered for >250ms before clicking.
+
+---
+
+## FU-TAP-MOBILE-DOUBLE-TAP — iOS double-tap-to-zoom interferes with tap target (P3)
+**Surfaced:** 4 May 2026, popover-flakiness round 3 (hypothesis)
+**Trigger:** Speculative — Matt's smoke is on a Mac with a magic-mouse-or-trackpad setup. iOS Safari has a 300ms double-tap-to-zoom behaviour that can swallow click events on small inline targets if the user double-taps by accident. Worth verifying once we test on iPad (which is part of NIS's actual student fleet).
+
+**Issue:** The tappable word `<button>` has no `touch-action: manipulation` set, so iOS Safari may delay click events by 300ms or trigger zoom on accidental double-tap. Could explain "sometimes works sometimes doesn't" on touch.
+
+**Fix:** Add `touch-action: manipulation` to the button styles (or a `viewport meta` `user-scalable=no` if zoom is acceptable to disable, but that has accessibility implications — `touch-action` is the cleaner local fix).
+
+**Definition of done:** iPad Safari smoke shows zero "tapped but nothing happened" reports across a 30-tap sequence on a freshly-loaded lesson page.
+
+---
+
+## FU-WORD-CACHE-LEMMATISATION — Stem-normalise cache keys to dedupe inflections (P3)
+**Surfaced:** 4 May 2026, Matt smoke after textarea/popover round 2
+
+**Issue:** `word_definitions.word` is exact-match. "design", "designs", "designed", "designing" each generate four separate rows, four separate Haiku calls, four separate cache misses on first tap. English Wiktionary stats suggest stem-deduplication saves ~30% on miss rate for academic vocabulary.
+
+**Fix:** Lemmatise the word client-side (or in the route's pre-cache-lookup step) before keying the cache. Two viable paths:
+- (a) Client-side: bundle a small lemmatiser (compromise.js ~200KB, or a lighter custom suffix-stripper for common English inflections — `-s`, `-es`, `-ed`, `-ing`, `-ly`, `-er`, `-est` covers ~90% of the win). Send both raw + lemma to the route; route prefers lemma cache hit.
+- (b) Server-side: lemmatise in the route before the cache lookup. No bundle cost on the client; ~5ms added latency per lookup.
+
+(b) is preferred — keeps the client thin, lets us iterate on lemmatisation rules without redeploying the SPA.
+
+**Correctness risk:** Some lemma collisions are wrong ("better"→"good" via irregular forms, "axis"→"axe" via false-friend stripping). Need a curated stop-list of inflections we DON'T strip, plus a test suite of ~50 edge cases. Not free; budget a half-day.
+
+**Pre-reqs:** FU-WORD-CACHE-HIT-TRACKING — without it we can't measure whether lemmatisation actually moves the hit rate. If it doesn't (e.g. because students mostly tap nouns in their base form), the build doesn't pay off.
+
+**Definition of done:** Hit rate on a fresh class lift ≥20% vs the non-lemmatised baseline measured via FU-WORD-CACHE-HIT-TRACKING. False-positive collision rate (lemma maps two semantically distinct words to the same key) <0.5% measured against a manual sample of the top-200 hot words.
+
+---
+
 ## FU-PROGRESS-COHORT-YEAR — Cohort-year attribution for student_progress (P3)
 **Surfaced:** 28 Apr 2026 PM, class-architecture-cleanup §2 resolution
 **Captured in:** `docs/decisions-log.md` (28 Apr 2026 PM cohort-scoping decision), `docs/projects/class-architecture-cleanup.md` §2
@@ -1880,3 +2003,175 @@ For the uuid/exceljs chain: wait for either (a) exceljs to bump its uuid dep (tr
 **Definition of done:** npm audit shows 0 vulns of moderate or higher.
 
 **Sequence:** opportunistic. Re-run `npm audit` quarterly; close when upstream patches land.
+
+---
+
+## FU-LESSON-EDITOR-AUTO-PINNED-SKILL — Lesson editor mounts a default skill on freshly-seeded lessons (P2)
+
+**Status:** OPEN — filed 4 May 2026 during Lever 1 Matt Checkpoint 1.1 smoke.
+
+**Surfaced:** The Lever 1 smoke seed (`scripts/lever-1/seed-test-unit.sql`) wrote a v3 unit with three lessons and assigned it to a freshly-created class (`Lever 1 Smoke Class`). The seed deliberately wrote NO entries to any skills / pinned-skills tables — INSERTs touched only `units`, `classes`, `class_units`. INSERT triggers on `classes` were bypassed via `SET LOCAL session_replication_role = 'replica';` so `seed_lead_teacher_on_class_insert` and `tg_classes_auto_tag_dept_heads_on_insert` did NOT fire either.
+
+Despite that, when Matt opened the seeded unit in the Phase 0.5 lesson editor, every lesson rendered with a "Skills for this lesson" pill pre-populated:
+
+  > **3D Printing: basic setup** [BRONZE]
+
+This skill is unrelated to the unit topic (roller coaster physics → marble run) and was never written to the database by the seed. It's appearing from somewhere in the editor's render pipeline.
+
+**Suspected cause (one of):**
+
+1. **Class-default skill on `classes.framework='myp_design'`** — the editor reads class.framework and pulls a "default first skill" from a skills lookup. Most likely candidate.
+2. **Auto-suggest fallback** — when a lesson has zero pinned skills, the editor renders the first matching skill from the catalog as a placeholder until the teacher confirms or removes it.
+3. **Stale RPC / cached data** — possible but unlikely given this is a fresh class (created via the smoke seed) with no prior state.
+4. **Bug in `SkillsForLesson` component** — defaults to a hardcoded skill ID when the read returns empty.
+
+**Investigation steps:**
+
+- `grep -rn "3D Printing.*basic setup\|3d-printing-basic\|skills.*default\|first.*skill" src/components/teacher/lesson-editor/ src/components/teacher/skills/ src/lib/skills/`
+- Check the `pinned_skills` (or equivalent) table on prod for rows referencing the seed class_id `b3534f58-47fe-4830-8a0d-c705f374b23b` or unit_id `80f0f7a9-c225-4b57-8a09-6d752d4ee099`. If empty, the skill is mounted client-side from a default — locate the default.
+- Check the lesson-editor render code for skill-pill mounting:
+  ```
+  grep -rn "Skills for this lesson\|SKILLS FOR THIS LESSON\|pinned.*skill\|3D Printing" src/components/teacher/lesson-editor/
+  ```
+- Verify `classes.framework` resolution path — does the editor query a `framework_default_skills` lookup table?
+
+**Symptoms to capture before fixing:**
+
+- Take a screenshot of the editor with the auto-pinned skill visible (already in the chat record from the smoke).
+- Note the URL: `/teacher/units/80f0f7a9-c225-4b57-8a09-6d752d4ee099/class/b3534f58-47fe-4830-8a0d-c705f374b23b/edit`.
+- Note that NO skills appear on the unit's `pinned_skills` table (verify with `SELECT * FROM pinned_skills WHERE unit_id = '80f0f7a9...';` or whatever the actual table is called — schema unknown).
+
+**Why P2 not P1:** doesn't break anything — the skill is informational, not enforced. But it WILL confuse teachers (they'll think they pinned 3D Printing when they didn't), and if the teacher SAVES with the auto-pinned skill displayed, it might persist as a real pin without consent.
+
+**Definition of done:** either (a) the auto-mount logic is removed so empty lessons render with no skills pill, OR (b) the auto-mount renders only a "+ Pin a skill" CTA (not a specific skill), OR (c) the auto-mount is opt-in via an admin setting with a visible "Auto-suggested" badge so teachers can tell it's a default.
+
+**Not Lever 1 territory** — Lever 1 only touched activity prompt fields (framing/task/success_signal) and the surrounding readers. Skill-pinning is an independent system. Filed here because it surfaced during a Lever 1 smoke; pick up alongside the Phase 0.5 lesson editor cleanup.
+
+**Sequence:** before any teacher pilots the lesson editor at scale. Likely 1-2 hour investigation.
+
+---
+
+## FU-AV2-WELCOME-WIZARD-AUTO-CREATE-HARDENING — `/teacher/welcome` auto-creates teacher row + personal school on first visit (P2)
+
+**Status:** OPEN — filed 4 May 2026 after data-cleanup of 3 stray teacher rows + 3 orphan schools.
+
+**Surfaced:** the cross-tab cookie collision (FU-AV2-CROSS-TAB-ROLE-COLLISION) caused 3 student sessions to land on `/teacher/welcome` over the course of the Phase 6 work. The welcome wizard auto-created `teachers` rows + auto-created "personal schools" for each, even though `auth.users.app_metadata.user_type === 'student'` for all 3 (verified in the cleanup diagnostic). Phase 6.3b's middleware guard now redirects student sessions away from `/teacher/*`, preventing new occurrences via THIS trigger — but the wizard's "no questions asked, create the teacher record" behaviour is the underlying hazard.
+
+**Cleanup performed 4 May:** 3 stray `teachers` rows + 3 orphan `schools` rows deleted. `auth.users.user_type` was correctly `'student'` for all 3 (the wizard didn't flip the claim, which is the only reason students could still log in normally afterwards). 1 `auth.users` row (`580f9831...`, orphan with no `students` row) left behind as harmless dead weight — can't log in without class context.
+
+**The actual bug:** `/teacher/welcome` is a destructive flow that mutates state on first GET — creates teacher row, creates school, sets up governance defaults. Any session that reaches it without an explicit "I am a teacher onboarding for the first time" click is hazardous. Today the trigger was cookie collision; tomorrow it could be a misconfigured redirect, a stale link in an email, or an LMS deep-link bug.
+
+**Recommended fix (defence in depth on top of the 6.3b middleware guard):**
+
+1. **Hard guard at the page level:** before any state mutation, the welcome page should verify `session.user.app_metadata.user_type === 'teacher'`. If not, redirect to `/dashboard?wrong_role=1` with the same toast UX as the middleware. This catches the case where the middleware allowed-through (e.g. user_type was `null` from a backfill gap) but the actual user shouldn't see this flow.
+
+2. **Make state creation explicit:** the GET handler should ONLY render the form, never mutate. Move teacher row + school creation into a POST handler triggered by an explicit "Get started" button click. This breaks the "any GET creates state" anti-pattern entirely.
+
+3. **Audit other auto-create-on-first-visit flows:** grep for other pages that create rows on a GET request without explicit user action. Each is a potential cookie-collision hazard.
+
+**Why P2 (not P1):**
+- Phase 6.3b's middleware guard already prevents the most likely trigger (cookie collision).
+- Cleanup of the 3 affected rows was straightforward (intact `auth.users.user_type` saved us).
+- A real student in real prod would only hit this if both Phase 6.3b's middleware AND defence-in-depth (1) failed simultaneously.
+
+**Definition of done:**
+- Welcome page checks `user_type === 'teacher'` before any mutation; rejects with the wrong-role redirect otherwise.
+- Mutation moved out of GET handler into explicit POST.
+- One synthetic test asserting a student session POST'ing to the welcome handler returns 403/redirect, not a teacher row.
+
+**Sequence:** post-pilot. Phase 6.3b is the load-bearing fix; this is hardening on top.
+
+---
+
+## FU-NM-SCHOOL-ADMIN-CENTRALIZATION — School-level NM toggle + centralised principal-facing dashboard (P2)
+
+**Status:** OPEN — filed 4 May 2026 alongside the Lever-MM unit-editor NM-block migration.
+
+**Surfaced:** During the design conversation for moving NM configuration into the lesson editor (sub-phases MM.0B–MM.0G), Matt flagged that the current `teacher_profiles.school_context.use_new_metrics` flag is per-teacher. He'd prefer it to be a school-level admin setting where:
+1. A school admin / principal flips one toggle that turns NM on/off across the whole school.
+2. NM data (assessments, observations, competency rollups) flows into a **centralised principal-facing dashboard** showing competency progress school-wide, not just per-teacher.
+
+This is a real product capability, not just a UX rename. The data is already per-student (`competency_assessments` table); rolling it up by school is mostly a query + dashboard build.
+
+**Why P2 not P1:** Matt has a Wednesday-class deadline; the per-teacher gate works for the immediate goal of moving NM config into the editor. The principal-dashboard is genuinely a multi-day feature (school-admin role check, competency rollup queries, dashboard page, RLS policies for cross-teacher visibility). Doing it inside the unit-editor migration would blow past Wednesday.
+
+**Suggested investigation steps:**
+1. Confirm school-admin role exists and has the right RLS pattern (check Access Model v2 work — did Phase 6 land school-admin?).
+2. Decide whether the school-level toggle replaces the per-teacher `school_context.use_new_metrics` (cleaner) or stacks above it (per-teacher can opt OUT, school can opt IN — more flexible). Cleaner wins for v1 unless a teacher has a strong reason to opt out of school-mandated NM tracking.
+3. Sketch the principal-dashboard page: aggregate `competency_assessments` joined to `students` joined to `classes` joined to `teachers` joined to `schools`, group by competency × element × class × time-bucket. Pop-art visualisation pattern from existing `NMResultsPanel` likely scales — pop-art per class/teacher/year-level cells.
+4. Decide whether competency assignment is school-level too (the principal picks the competency for the whole school) or stays per-unit. School-level competency is much more aligned with how schools actually adopt frameworks; per-unit is cleaner for individual teacher autonomy.
+
+**Definition of done:**
+- One school-level toggle (likely `schools.config.use_new_metrics` or similar JSONB column) flips NM availability for the entire school.
+- Per-teacher gate becomes derived from the school setting (not directly editable, or only editable to opt-out).
+- Principal-facing route at `/principal/nm-dashboard` (or admin dashboard tab) shows school-wide competency rollups with the same pop-art aesthetic as the existing per-class results.
+- RLS policies admit a school-admin role to read assessments across teachers in their school.
+
+**Sequence:** post-Lever-MM (this week), gated on Access Model v2 Phase 6 closure (school-admin role must exist first). 2-3 days estimated.
+
+---
+
+## FU-PROD-MIGRATION-BACKLOG-AUDIT — Prod schema has drifted hard from repo migrations (P1)
+**Surfaced:** 4 May 2026 during Lever 1 (slot fields) seed work
+**Priority:** P1 — prod-state divergence from repo; risk of seeded INSERTs failing or writing to phantom columns
+**Target phase:** Before next push that adds columns or RLS policies
+
+**Symptom:** While seeding the smoke-test unit for Lever 1, prod
+rejected INSERTs that the repo migrations would suggest are valid.
+Probing `information_schema.columns` revealed prod is missing
+migration 051 (`unit_type` column) AND much of the Access Model v2
+schema (`school_id`, `code`, etc. on tables that the repo claims
+have those columns).
+
+**What we know:**
+- Some migrations applied to prod, some haven't (no canonical
+  applied-migrations log — see sister FU-EE).
+- Repo migration files don't equal applied prod schema.
+- Probe-based pre-flight checks (Lesson #68) caught it for Lever 1
+  but won't catch every future site.
+- Access Model v2 work landed huge schema in parallel sessions;
+  some of those migrations may not have been applied to prod even
+  though they're in the repo.
+
+**Investigation steps:**
+1. Audit applied migrations in prod via Supabase dashboard
+   (Database → Migrations) vs the `supabase/migrations/` directory.
+   List divergences.
+2. For each missing migration, decide: apply now, retire (if
+   superseded), or leave as known divergence.
+3. Cross-check the schema-registry.yaml against
+   `information_schema.columns` for the top-traffic tables:
+   `units`, `classes`, `class_units`, `students`, `teachers`,
+   `schools`, `activity_blocks`, `fabrication_jobs`,
+   `machine_profiles`, `fabrication_labs`. Surface every drift.
+4. Decide on the canonical applied-log strategy (FU-EE sister) so
+   this doesn't recur.
+
+**Definition of done:** (a) divergence list filed, (b) each
+divergence resolved (apply / retire / accept), (c) schema-registry
+re-synced and `spec_drift` entries closed for resolved cases, (d)
+sister FU-EE gets a follow-on (or supersedes this) for the
+applied-log permanent fix.
+
+**Sister FU:** FU-EE (no canonical migration-applied log) — this
+P1 is the symptom, FU-EE is the underlying systemic issue.
+
+---
+
+## FU-LEVER-1-SEED-IDEMPOTENT — Seed script's units INSERT lacks idempotency guard (P3)
+**Surfaced:** 4 May 2026 during Lever 1 smoke
+**Priority:** P3 — workflow-friction during repeat seeding; not user-facing
+
+**Symptom:** Re-running `scripts/seed-data/seed-lever-1-test-unit.sql`
+creates duplicate units. Matt got 2 during smoke when he ran it
+twice.
+
+**Cause:** Seed INSERT on `units` lacks `WHERE NOT EXISTS`-style
+guard. Trivial fix.
+
+**Fix:** Wrap in `INSERT ... WHERE NOT EXISTS (SELECT 1 FROM units
+WHERE id = '<seed-id>')` or use `ON CONFLICT (id) DO NOTHING` if
+the seed sets a stable id.
+
+**Definition of done:** Seed script passes a "run twice, no
+duplicates" smoke. ~5 min fix.

@@ -2,16 +2,22 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { MENTORS, MENTOR_IDS, type MentorId } from "@/lib/student/mentors";
-import { THEMES, THEME_IDS, type ThemeId } from "@/lib/student/themes";
+import { THEMES, type ThemeId } from "@/lib/student/themes";
+import { themeForMentor } from "@/lib/student/onboarding-images";
+import { VisualPicksScreen } from "./VisualPicksScreen";
 
 // ============================================================================
-// "Set Up Your Studio" — First-login onboarding experience
+// "Set Up Your Studio" — First-login onboarding experience (v1)
 //
 // 4 screens:
-//   1. Choose Your Mentor (Kit / Sage / Spark)
-//   2. Choose Your Style (Clean / Bold / Warm / Dark)
+//   1. Visual Picks (pick 2–3 aesthetic mood tiles → suggests a mentor)
+//   2. Choose Your Mentor (Kit / Sage / Spark — suggested one pre-selected)
 //   3. Mentor Conversation (Learning Profile questions, skippable)
 //   4. Welcome Reveal (quick dashboard preview)
+//
+// Theme is auto-derived from mentor (kit→warm, sage→clean, spark→bold) — no
+// theme picker in v1 onboarding. Settings cog still exposes the full picker.
+// v2 destination: docs/projects/studioloom-designer-mentor-spec.md.
 //
 // Metaphor: setting up your own design studio workspace.
 // Mental model: character creation in a game.
@@ -72,6 +78,8 @@ interface StudioSetupProps {
     mentorId: MentorId;
     themeId: ThemeId;
     learningProfile: LearningProfileData | null;
+    /** Visual-picks tile IDs from screen 1 — persisted for v2 rematch */
+    onboardingPicks: string[];
   }) => void;
 }
 
@@ -84,7 +92,7 @@ interface LearningProfileData {
   learning_differences: string[];
 }
 
-type Screen = "mentor" | "theme" | "conversation" | "welcome";
+type Screen = "visualPicks" | "mentor" | "conversation" | "welcome";
 
 // Conversation sub-steps
 type ConvoStep = "languages" | "confidence" | "working" | "feedback" | "learning_diffs";
@@ -96,9 +104,16 @@ const CONVO_STEPS: ConvoStep[] = ["languages", "confidence", "working", "feedbac
 
 export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
   // --- Screen state ---
-  const [screen, setScreen] = useState<Screen>("mentor");
+  const [screen, setScreen] = useState<Screen>("visualPicks");
   const [selectedMentor, setSelectedMentor] = useState<MentorId | null>(null);
   const [selectedTheme, setSelectedTheme] = useState<ThemeId | null>(null);
+
+  // --- Visual picks state (Screen 1) ---
+  // Persisted to students.onboarding_picks (migration 20260504225635) so the
+  // v2 Designer Mentor System can re-run cosine-similarity matching against
+  // the 20-designer pool without re-onboarding existing students.
+  const [pickedImageIds, setPickedImageIds] = useState<string[]>([]);
+  const [suggestedMentor, setSuggestedMentor] = useState<MentorId | null>(null);
 
   // --- Conversation state ---
   const [convoStep, setConvoStep] = useState(0);
@@ -133,22 +148,37 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
   }, []);
 
   // --- Navigation ---
-  const goToTheme = useCallback(() => {
-    if (!selectedMentor) return;
-    setScreen("theme");
-  }, [selectedMentor]);
+  const handleVisualPicksComplete = useCallback(
+    (result: { pickedIds: string[]; suggested: MentorId }) => {
+      setPickedImageIds(result.pickedIds);
+      setSuggestedMentor(result.suggested);
+      // Pre-select the suggested mentor — student can still change on next screen.
+      setSelectedMentor(result.suggested);
+      setScreen("mentor");
+    },
+    []
+  );
 
-  const goToConversation = useCallback(() => {
-    if (!selectedTheme || !mentor) return;
+  const proceedFromMentor = useCallback(() => {
+    if (!selectedMentor) return;
+    // Auto-derive theme from mentor — students no longer pick a theme in v1.
+    const themeId = themeForMentor(selectedMentor);
+    setSelectedTheme(themeId);
+    const mentorDef = MENTORS[selectedMentor];
     setScreen("conversation");
     setConvoStep(0);
     // Mentor's first question
-    showMentorReaction(`Hey ${studentName.split(" ")[0]}! ${mentor.greeting} Let me ask you a few quick things.`);
-  }, [selectedTheme, mentor, studentName, showMentorReaction]);
+    showMentorReaction(
+      `Hey ${studentName.split(" ")[0]}! ${mentorDef.greeting} Let me ask you a few quick things.`
+    );
+  }, [selectedMentor, studentName, showMentorReaction]);
 
   const skipToWelcome = useCallback(() => {
+    if (selectedMentor && !selectedTheme) {
+      setSelectedTheme(themeForMentor(selectedMentor));
+    }
     setScreen("welcome");
-  }, []);
+  }, [selectedMentor, selectedTheme]);
 
   const advanceConvo = useCallback(() => {
     if (convoStep < CONVO_STEPS.length - 1) {
@@ -185,8 +215,11 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
 
   // --- Final save ---
   const handleComplete = useCallback(async () => {
-    if (!selectedMentor || !selectedTheme) return;
+    if (!selectedMentor) return;
     setSaving(true);
+
+    // Theme is auto-derived from mentor in v1; fall back if somehow not set.
+    const themeId: ThemeId = selectedTheme ?? themeForMentor(selectedMentor);
 
     // Build learning profile if any questions answered
     const hasProfile = languages.length > 0 || designConfidence > 0 || workingStyle || feedbackPref;
@@ -201,8 +234,13 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
         }
       : null;
 
-    onComplete({ mentorId: selectedMentor, themeId: selectedTheme, learningProfile: profile });
-  }, [selectedMentor, selectedTheme, languages, designConfidence, workingStyle, feedbackPref, learningDiffs, onComplete]);
+    onComplete({
+      mentorId: selectedMentor,
+      themeId,
+      learningProfile: profile,
+      onboardingPicks: pickedImageIds,
+    });
+  }, [selectedMentor, selectedTheme, pickedImageIds, languages, designConfidence, workingStyle, feedbackPref, learningDiffs, onComplete]);
 
   // --- Auto-advance after reaction shown for single-choice questions ---
   useEffect(() => {
@@ -219,15 +257,18 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
   // Render
   // ============================================================================
 
-  // Dynamic background based on selected theme (or default)
-  const bgStyle = theme
+  // Keep the dark dramatic background for picks / mentor / conversation —
+  // the light themes (warm, clean) would make the white text on those screens
+  // unreadable. The theme bg only previews on the welcome reveal, which is
+  // intentionally designed to show the student a taste of their studio.
+  const bgStyle = (screen === "welcome" && theme)
     ? { background: theme.tokens["--st-bg"] }
     : { background: "linear-gradient(135deg, #0F0F1A 0%, #1A1A3E 50%, #0F0F1A 100%)" };
 
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-y-auto"
+      className="fixed inset-0 z-50 flex flex-col items-center justify-start overflow-y-auto"
       style={{
         ...bgStyle,
         transition: "background 0.6s ease",
@@ -235,7 +276,7 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
     >
       {/* Progress dots */}
       <div className="fixed top-6 left-1/2 -translate-x-1/2 flex items-center gap-2 z-50">
-        {(["mentor", "theme", "conversation", "welcome"] as Screen[]).map((s, i) => (
+        {(["visualPicks", "mentor", "conversation", "welcome"] as Screen[]).map((s, i) => (
           <div
             key={s}
             className="rounded-full transition-all duration-500"
@@ -244,7 +285,7 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
               height: 8,
               background: screen === s
                 ? (mentor?.accent || "#7B2FF2")
-                : (["mentor", "theme", "conversation", "welcome"].indexOf(screen) > i
+                : (["visualPicks", "mentor", "conversation", "welcome"].indexOf(screen) > i
                     ? (mentor?.accent || "#7B2FF2")
                     : "rgba(255,255,255,0.2)"),
               opacity: screen === s ? 1 : 0.6,
@@ -253,16 +294,31 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
         ))}
       </div>
 
-      {/* ============ Screen 1: Choose Your Mentor ============ */}
+      {/* ============ Screen 1: Visual Picks ============ */}
+      {screen === "visualPicks" && (
+        <VisualPicksScreen onComplete={handleVisualPicksComplete} />
+      )}
+
+      {/* ============ Screen 2: Choose Your Mentor ============ */}
       {screen === "mentor" && (
         <div className="w-full max-w-3xl mx-auto px-4 py-16 animate-fadeIn">
           <div className="text-center mb-10">
             <h1 className="text-3xl md:text-4xl font-bold text-white mb-3">
-              Set Up Your Studio
+              Choose your mentor
             </h1>
-            <p className="text-white/60 text-base">
-              Choose a mentor to guide you through your design journey
-            </p>
+            {suggestedMentor ? (
+              <p className="text-white/70 text-base">
+                Based on your picks,{" "}
+                <strong style={{ color: MENTORS[suggestedMentor].accent }}>
+                  {MENTORS[suggestedMentor].name}
+                </strong>{" "}
+                feels like a natural match — but pick whoever speaks to you.
+              </p>
+            ) : (
+              <p className="text-white/60 text-base">
+                Choose a mentor to guide you through your design journey
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -351,9 +407,15 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
           </div>
 
           {/* Continue button */}
-          <div className="flex justify-center mt-8">
+          <div className="flex items-center justify-center gap-4 mt-8">
             <button
-              onClick={goToTheme}
+              onClick={() => setScreen("visualPicks")}
+              className="px-5 py-2.5 rounded-xl text-white/50 hover:text-white/80 text-sm font-medium transition-colors"
+            >
+              Back
+            </button>
+            <button
+              onClick={proceedFromMentor}
               disabled={!selectedMentor}
               className="px-8 py-3 rounded-xl font-bold text-sm flex items-center gap-2 transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed"
               style={{
@@ -368,98 +430,10 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
         </div>
       )}
 
-      {/* ============ Screen 2: Choose Your Style ============ */}
-      {screen === "theme" && (
-        <div className="w-full max-w-3xl mx-auto px-4 py-16 animate-fadeIn">
-          <div className="text-center mb-10">
-            <h1 className="text-3xl md:text-4xl font-bold text-white mb-3">
-              Your Studio Style
-            </h1>
-            <p className="text-white/60 text-base">
-              Pick a look — you can change this anytime
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {THEME_IDS.map((id) => {
-              const t = THEMES[id];
-              const isSelected = selectedTheme === id;
-              return (
-                <button
-                  key={id}
-                  onClick={() => setSelectedTheme(id)}
-                  className="relative rounded-2xl overflow-hidden transition-all duration-300 text-left"
-                  style={{
-                    border: isSelected ? `3px solid ${mentor?.accent || "#7B2FF2"}` : "3px solid rgba(255,255,255,0.08)",
-                    transform: isSelected ? "scale(1.03)" : "scale(1)",
-                    boxShadow: isSelected ? `0 8px 24px ${mentor?.accent || "#7B2FF2"}30` : "none",
-                  }}
-                >
-                  {/* Mini dashboard preview */}
-                  <div className="p-3 pb-2" style={{ background: t.preview.bg }}>
-                    {/* Mini header */}
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <div className="w-4 h-4 rounded" style={{ background: t.preview.accent }} />
-                      <div className="h-1.5 w-12 rounded-full" style={{ background: t.preview.text, opacity: 0.15 }} />
-                    </div>
-                    {/* Mini cards */}
-                    <div className="flex gap-1.5">
-                      <div className="flex-1 rounded-lg p-2" style={{ background: t.preview.card, boxShadow: "0 1px 2px rgba(0,0,0,0.06)" }}>
-                        <div className="h-1.5 w-full rounded-full mb-1.5" style={{ background: t.preview.accent, opacity: 0.7 }} />
-                        <div className="h-1 w-3/4 rounded-full" style={{ background: t.preview.textSecondary, opacity: 0.3 }} />
-                        <div className="h-1 w-1/2 rounded-full mt-1" style={{ background: t.preview.textSecondary, opacity: 0.2 }} />
-                      </div>
-                      <div className="flex-1 rounded-lg p-2" style={{ background: t.preview.card, boxShadow: "0 1px 2px rgba(0,0,0,0.06)" }}>
-                        <div className="h-1.5 w-full rounded-full mb-1.5" style={{ background: t.preview.accent, opacity: 0.5 }} />
-                        <div className="h-1 w-2/3 rounded-full" style={{ background: t.preview.textSecondary, opacity: 0.3 }} />
-                        <div className="h-1 w-1/3 rounded-full mt-1" style={{ background: t.preview.textSecondary, opacity: 0.2 }} />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Label */}
-                  <div className="px-3 py-2.5" style={{ background: t.preview.bg }}>
-                    <p className="text-xs font-bold" style={{ color: t.preview.text }}>{t.name}</p>
-                    <p className="text-[10px] mt-0.5 leading-tight" style={{ color: t.preview.textSecondary }}>{t.description}</p>
-                  </div>
-
-                  {/* Selection indicator */}
-                  {isSelected && (
-                    <div
-                      className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center"
-                      style={{ background: mentor?.accent || "#7B2FF2", color: "white" }}
-                    >
-                      <CheckIcon />
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Continue + Back */}
-          <div className="flex items-center justify-center gap-4 mt-8">
-            <button
-              onClick={() => setScreen("mentor")}
-              className="px-5 py-2.5 rounded-xl text-white/50 hover:text-white/80 text-sm font-medium transition-colors"
-            >
-              Back
-            </button>
-            <button
-              onClick={goToConversation}
-              disabled={!selectedTheme}
-              className="px-8 py-3 rounded-xl font-bold text-sm flex items-center gap-2 transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed"
-              style={{
-                background: mentor?.accent || "#7B2FF2",
-                color: "white",
-                boxShadow: selectedTheme ? `0 4px 20px ${mentor?.accent}40` : "none",
-              }}
-            >
-              Continue <ArrowRight />
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Theme picker removed in v1 — theme auto-derives from mentor.
+          See onboarding-images.ts → MENTOR_THEME_MAP. v2 (Designer Mentor
+          System) brings back per-mentor theme assignment via the 20-designer
+          system; settings cog still exposes the full theme picker today. */}
 
       {/* ============ Screen 3: Mentor Conversation ============ */}
       {screen === "conversation" && mentor && (
@@ -728,14 +702,6 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
             >
               {mentor.name} — {mentor.tagline}
             </span>
-            {theme && (
-              <span
-                className="px-3 py-1 rounded-full text-xs font-semibold"
-                style={{ background: `${mentor.accent}12`, color: `${mentor.accent}CC` }}
-              >
-                {theme.name} theme
-              </span>
-            )}
           </div>
 
           {/* Enter button */}

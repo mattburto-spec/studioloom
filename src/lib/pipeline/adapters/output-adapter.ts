@@ -37,8 +37,17 @@ function mapPhaseToWorkshop(phaseLabel: string): keyof WorkshopPhases {
  * Convert a pipeline PolishedActivity into the ActivitySection format used by the lesson editor.
  */
 function activityToSection(activity: PolishedActivity, index: number): ActivitySection {
+  // Lever 1 — compose legacy prompt from the three slot fields when
+  // upstream provided them. Falls back to existing prompt + title when
+  // upstream is library-source pre-Lever-1 shape.
+  const slots = [activity.framing, activity.task, activity.success_signal]
+    .filter((s) => s && s.trim());
+  const composedPrompt = slots.length > 0 ? slots.join("\n\n") : (activity.prompt || activity.title);
   return {
-    prompt: activity.prompt || activity.title,
+    framing: activity.framing || undefined,
+    task: activity.task || undefined,
+    success_signal: activity.success_signal || undefined,
+    prompt: composedPrompt,
     scaffolding: activity.scaffolding
       ? {
           ell1: { sentenceStarters: activity.scaffolding.sentence_starters, hints: activity.scaffolding.hints },

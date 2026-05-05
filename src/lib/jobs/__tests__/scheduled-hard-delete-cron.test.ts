@@ -101,7 +101,15 @@ describe("scheduled-hard-delete-cron — empty queue", () => {
       skipped_held: 0,
       errored: 0,
     });
-    expect(logAuditEventSpy).not.toHaveBeenCalled();
+    // Phase 6.7-followup — empty-queue run still emits ONE audit event:
+    // the per-run summary (action='scheduled_hard_delete.run') so the
+    // admin dashboard can show "yes, the cron is alive".
+    expect(logAuditEventSpy).toHaveBeenCalledTimes(1);
+    expect(logAuditEventSpy.mock.calls[0][1]).toMatchObject({
+      action: "scheduled_hard_delete.run",
+      actorType: "system",
+      severity: "info",
+    });
   });
 });
 
@@ -240,7 +248,12 @@ describe("scheduled-hard-delete-cron — held rows", () => {
     expect(result.summary.processed).toBe(0);
     // No DELETE issued for the held target
     expect(state.capturedDeletes).toEqual([]);
-    expect(logAuditEventSpy).not.toHaveBeenCalled();
+    // No per-row audit (the row was held, not deleted), but the per-run
+    // summary still emits.
+    expect(logAuditEventSpy).toHaveBeenCalledTimes(1);
+    expect(logAuditEventSpy.mock.calls[0][1]).toMatchObject({
+      action: "scheduled_hard_delete.run",
+    });
   });
 });
 

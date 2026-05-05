@@ -3804,3 +3804,211 @@ Plus the NIS tier flip + Gmail-Matt detach as ops changes.
 5. Sign off Checkpoint A6 + merge to main + tag `v0.5-phase-5-closed`
 
 **Next**: Phase 6 (Cutover & Cleanup — `/api/v1/*` rename pass, ADRs 003/011/012/013, registry sync, RLS-no-policy doc, 3-Matts merge decision, ~2-3 days, Checkpoint A7 PILOT-READY).
+
+---
+
+## 4 May 2026 (late night CST) — Lever 1 (slot fields) SHIPPED + merged to main
+
+**Session goal:** Refactor activity prompts from a single markdown blob into three structured fields — `framing` / `task` / `success_signal` — across schema → AI generation → editor → renderer → ~9 downstream readers. The Toddle pattern. Structural unlock for Levers 2–5 (lints, voice/personality, exemplar contrast, sequencing intuition).
+
+**Outcome:** ✅ ALL 9 SUB-PHASES SHIPPED + merged to main as PR #17 at `5373ea7`. Smoke verified live on studioloom.org with three-box `SlotFieldEditor` rendering correctly, char-count caps working (200/800/200), seeded values pre-filled, hybrid composition (muted framing → bold task → 🎯 success_signal) on student preview.
+
+**Commits (11 on feature branch + 2 merges + 1 PR-merge):**
+
+| Commit | Sub-phase | Notes |
+|---|---|---|
+| `ebfd217` | 1A | brief + ALL-PROJECTS entry (9-sub-phase plan, named checkpoint) |
+| `78b58af` | 1B | migration `20260504020826_activity_three_field_prompt.sql` adds `framing`/`task`/`success_signal`/`backfill_needs_review` to `activity_blocks`; APPLIED TO PROD; sandbox INSERT/SELECT verified |
+| `d537f97` | 1C-rev | AI-rewrite Teaching Moves to v2 shape via Sonnet 4.5 `tool_use`; 55 rows reseeded with 100% v2 coverage; content_fingerprint stable |
+| `13b22d3` | 1D | API read/write 3 fields + per-field validation (200/800/200 caps) + `X-Lever-1-Deprecated` response header; +33 tests |
+| `d1c8cdd` | 1E | `ComposedPrompt` renderer (hybrid spec) + ActivityCard mount + PDF mount; +19 tests |
+| `c942283` | 1F | three-box `SlotFieldEditor` in lesson-editor + Preview composes via student renderer; +5 tests |
+| `0b632ae` | 1G | AI generation rewrite — 3 schemas (page/journey/timeline) + system prompts + stage3 + output-adapter + pipeline + dual ActivityBlock types; +19 tests; pattern bug per Lesson #39 — fixed all 3 schema sites in one commit |
+| `4e4101c` | 1H | sweep ~9 components + ~7 helpers (lesson-tiles, edit-tracker, knowledge/chunk, timing-validation, infer-bloom, activity-library, design-assistant) to use `composedPromptText`; CLOSED 1G validator regression in BOTH `validateGeneratedPages` + `validateTimelineActivities` (would have rejected every v2 generation); widened helper to structural `SlotBearing` shape; +24 tests |
+| `d2f784b` | 1I | registry sync (api-registry, ai-call-sites, schema-registry, WIRING) + 2 WIRING drift items fixed (`activity-blocks.key_files` pointed to non-existent `src/lib/blocks/block-{service,ranking}.ts`; `unit-editor.key_files` pointed to non-existent `src/lib/hooks/useLessonEditor.ts`) |
+| `50ddc1a` | seed | `scripts/lever-1/seed-test-unit.sql` smoke fixture (3 lessons × 4 sections covering full v2 / legacy-only / partial-slots / content-only) |
+| `91600d2` | seed | pre-fill seed for `mattburton@nanjing-school.com` + full `https://studioloom.org/...` URLs in output |
+| `28abf78` | FU | `FU-LESSON-EDITOR-AUTO-PINNED-SKILL` (P2) filed in `dimensions3-followups.md` |
+| `235d597`, `2b39994` | merge | feature branch resolved 2 rounds of conflicts with main (preflight session committing in parallel) |
+| `5373ea7` | PR #17 merge to main | Lever 1 lands |
+
+**Tests:** 3494 → 3630 (+136, 0 regressions, tsc strict clean throughout).
+
+**Migration on prod:** `20260504020826_activity_three_field_prompt.sql` — applied during 1B, sandbox-verified with INSERT/SELECT exact-value assertions.
+
+**Smoke walkthrough (live on studioloom.org):**
+- ✅ Phase 0.5 lesson editor mounted on seeded class-assigned unit
+- ✅ Three labelled textareas (Framing / Task / Success signal) — NOT one big prompt textarea
+- ✅ Char counts visible (108/200, 245/800, 57/200) per cap config
+- ✅ All three slots prefilled with seeded values
+- ✅ Legacy-only section (L1.S2) renders via MarkdownPrompt fallback
+- ✅ Partial-slots section (L2.S3) composes correctly with the gap
+- ✅ Content-only sections (L1.S3 / L3.S1) render with `contentStyle` warning/practical
+- ✅ Tile labels read framing first sentence
+- ✅ Hybrid composition on student preview (muted/bold/🎯)
+
+**Follow-ups filed during this session:**
+- `FU-LESSON-EDITOR-AUTO-PINNED-SKILL` (P2) — lesson editor mounts a default "3D Printing: basic setup" skill on freshly-seeded lessons regardless of class topic. Not Lever 1 territory; picks up alongside Phase 0.5 editor cleanup.
+- `FU-PROD-MIGRATION-BACKLOG-AUDIT` (P1, informal — should be promoted to formal FU) — surfaced during seed: prod is missing migration 051 (`unit_type`) + much of Access Model v2 schema (`school_id`, `code`, etc.). Repo migrations have drifted hard from prod. Sister to existing FU-EE.
+- `FU-LEVER-1-SEED-IDEMPOTENT` (P3) — seed script's units INSERT lacks `WHERE NOT EXISTS` guard; re-running creates duplicate units (Matt got 2 during smoke). Trivial fix.
+
+**Lessons added to `docs/lessons-learned.md`:**
+- **#67** — Tool-schema changes need matching validator changes; pattern-bug companion to #39 + #54
+- **#68** — Repo migration files ≠ applied prod schema; probe `information_schema.columns` before any seed/INSERT
+- **#69** — Triggers can hang seed scripts; bypass with `SET LOCAL session_replication_role = 'replica'` for fixtures
+- **#70** — When smoke surface IS deployed UI, push to feature branch → Vercel preview → smoke → main (don't let push-discipline starve a legitimate smoke)
+
+**Decisions logged in `docs/decisions-log.md`:**
+- Three structured slots, not one blob (Toddle pattern; structural unlock for Levers 2–5)
+- Composed-prompt-from-slots pattern preserved through transition (legacy `prompt` NOT NULL kept; 1J cleanup gated on 30-day soak)
+- AI rewrite via Sonnet `tool_use` over heuristic split for Teaching Moves backfill
+- `composedPromptText` widened to structural `SlotBearing` shape
+- Validator strategy: accept slots OR legacy, compose `prompt` from slots for back-compat
+- Smoke-via-Vercel-preview when checkpoint surface is deployed UI
+
+**Systems affected:**
+- `activity-blocks` — 4 new columns, 55 rows reseeded, key_files updated in WIRING
+- `unit-editor` — `SlotFieldEditor` replaces single-textarea prompt block; key_files updated in WIRING
+- `generation-pipeline` — 3 schemas (page/journey/timeline) + system prompts + stage3 + output-adapter all rewired for slot fields
+- `lesson-pulse` (read-side) — composes via `composedPromptText` (no algorithm change)
+- `grading` — tile titles compose via `composedPromptText`
+- `knowledge-pipeline` — `chunkUnitPage` composes activity text from slots for RAG
+- `student-renderer` (`ActivityCard`, `ExportPagePdf`) — hybrid `ComposedPrompt` mounts
+
+**WIRING updates:** `activity-blocks` + `unit-editor` entries refreshed (file paths, summary, change_impacts, future_needs). Schema-registry `activity_blocks` columns + 2 dated `spec_drift` entries.
+
+**What's next (Matt to choose):**
+1. **Lever 0 — Manual Unit Builder + AI Wizard Deprecation** — port the rigorous CBCI + Structure-of-Process + Paul-Elder unit planner from studioloom.org/unitplanner; deprecate the existing 3-lane wizard once the new builder writes three-slot output natively. ~5–7 days, brief pending.
+2. **`FU-PROD-MIGRATION-BACKLOG-AUDIT`** (P1) — surfaced during smoke; prod is missing migration 051 + much of Access Model v2 schema. Worth auditing what's actually applied vs what code assumes before next push.
+3. **Levers 2–5** (lints, voice/personality, exemplar contrast, sequencing intuition) — all unlocked by Lever 1's structured payload, can land any time.
+
+---
+
+## 4 May 2026 (late evening CST) — Lever-MM (NM block category in unit editor) SHIPPED + merged to main
+
+**Session goal:** Move New Metrics configuration out of the awkward class-settings Metrics tab and into the Phase 0.5 lesson editor's block palette as a new "New Metrics" category. Click an element → chip lands at top of current lesson card. Class-settings tab keeps results panel but loses the config wizard.
+
+**Outcome:** ✅ ALL 7 SUB-PHASES SHIPPED + merged to main as PR #19 at `7a91e08`. Built ahead of Matt's Wednesday-class deadline (1-day buffer).
+
+**Commits (8 on feature branch + 1 PR-merge):**
+
+| Commit | Sub-phase | Notes |
+|---|---|---|
+| `d58e7ca` | MM.0A | brief + design sign-off (1=A chip-on-lesson, 2=A selector-in-palette-header, 3=tab-stays-as-results) + `FU-NM-SCHOOL-ADMIN-CENTRALIZATION` (P2) filed |
+| `8ed0199` | MM.0B | `"new_metrics"` BlockCategory + gold-dot CATEGORIES entry + `buildNmElementBlocks` factory + LessonEditor fetches nm_config + passes via customBlocks. Click kill-switch on NM blocks (throwing create() stub guards against junk-section creation through the regular onAddBlock path) |
+| `6b0995e` | MM.0C | click-to-add (idempotent + bootstraps enabled flag + competencies/elements arrays) + chip strip at top of lesson card + × remove (zombie-pageId guard). PaletteBlock refactored to be NM-aware: skip create() probe for NM blocks (which throws), draggable={!isNmBlock}, "✓ added" / "+ add" badge state |
+| `141f0a5` | MM.0D | competency selector inside the New Metrics accordion + activeCategories filter fix so the accordion stays visible when competency has no elements (otherwise the selector becomes inaccessible — caught during build) |
+| `f50968a` | MM.0E | NMConfigPanel unmounted from class-settings tab + banner pointing teachers to the editor + NMResultsPanel preserved. NMConfigPanel.tsx file kept in repo for potential reuse |
+| `cbb6184` | MM.0F | refactor pure logic out of React for testability: `lib/nm/checkpoint-ops.ts` (addCheckpoint / removeCheckpoint / setCompetency, immutable, reference-equal no-op for idempotency detection) + extract `buildNmElementBlocks` into pure `nm-element-blocks.ts` (vitest can't transform JSX-bearing .tsx in default config; pure .ts is testable). +30 tests covering all idempotency, zombie-pageId guards, orphan-element rules, round-trip behaviour |
+| `0fee582` | MM.0G | WIRING.yaml unit-editor entry refreshed (key_files +4, depends_on/affects +nm-system, future_needs lists Lever-MM v2 candidates, change_impacts notes `lib/nm/checkpoint-ops.ts` is the canonical contract) |
+| `7a91e08` | PR #19 merge | Lever-MM lands on main |
+
+**Tests:** 3630 → 3660 (+30, 0 regressions, tsc strict clean throughout).
+
+**No migration.** Existing `class_units.nm_config` JSONB column reused.
+**No new API routes.** Existing `/api/teacher/nm-config` POST reused.
+**No new tables.**
+
+**Smoke walkthrough plan** (against Vercel preview that built from PR #19):
+- Editor → Blocks pane → "New Metrics" gold-dot accordion visible (when `use_new_metrics === true`)
+- Inside accordion: competency selector + element list with "+ add" badges
+- Click element → chip with 🎯 + element name + × at top of lesson card; reload persists
+- Click × → chip removes + persists
+- Switch to a competency with no elements → empty-state hint; existing chips remain
+- Class-settings Metrics tab → renamed banner + NMResultsPanel only (no config wizard)
+- Disable `use_new_metrics` → category disappears from palette + class-settings shows disabled-state card
+
+(Smoke verified by Matt before merge — said "merge" so we shipped.)
+
+**Stop triggers verified NOT tripped:**
+- ✓ Privacy gate intact (only renders when `use_new_metrics === true`)
+- ✓ No silent save failures (try/catch with revert + console.error)
+- ✓ No zombie pageIds (deleted when elements would go empty — covered by 2 tests)
+- ✓ Idempotent add (covered by reference-equal no-op test)
+- ✓ Student-facing surfaces unchanged (same `nm_config.checkpoints` shape, untouched code paths)
+- ✓ Test count UP (+30), not down
+
+**Lessons banked:** see #71 (Pure logic extraction from .tsx for vitest testability — recurring pattern, documented for future cases).
+
+**Decisions logged:** see Lever-MM section in decisions-log.md.
+
+**Follow-ups filed:**
+- `FU-NM-SCHOOL-ADMIN-CENTRALIZATION` (P2) — school-level toggle + principal-facing centralised dashboard. Real product capability, multi-day, gated on Access Model v2 Phase 6 closure (school-admin role).
+- `FU-LEVER-MM-DRAG-AND-DROP` (P3, informal) — drag-and-drop NM elements onto lesson tiles instead of click-only. Out of scope for v1, click-only sufficed.
+- `FU-LEVER-MM-MULTI-COMPETENCY` (P3, informal) — multi-competency-per-unit. v1 supports one; would require expanding the selector to multi-select + filter logic on element list.
+
+**Systems affected:**
+- `unit-editor` — gained New Metrics block category + chip strip + competency selector. `BlockPalette.tsx` split into 3 modules (.tsx + .types.ts + nm-element-blocks.ts).
+- `nm-system` — now READ + WRITTEN from the lesson editor (was read-only before). Pure state-transition module at `lib/nm/checkpoint-ops.ts` is the canonical contract for `nm_config` mutations.
+
+**WIRING updates:** `unit-editor` entry — depends_on/affects gain "nm-system"; key_files +4; future_needs lists v2 candidates; change_impacts notes the canonical-contract module.
+
+**What's next (Matt to choose):**
+1. Use Lever-MM in Wednesday's class (the actual deadline that motivated this)
+2. **Lever 0 — Manual Unit Builder + AI Wizard Deprecation** (still pending, brief due) — port studioloom.org/unitplanner
+3. `FU-NM-SCHOOL-ADMIN-CENTRALIZATION` (P2) — needs Access Model v2 Phase 6 first
+4. `FU-PROD-MIGRATION-BACKLOG-AUDIT` (P1) — Lever 1 surfaced this; still open
+5. **Levers 2–5** (lints, voice/personality, exemplar contrast, sequencing intuition)
+
+**Build velocity:** ~5 hours wall-clock from brief sign-off to merged PR. The pure-logic-extraction pattern (Lesson #71) added ~30 minutes but bought 30 tests of regression coverage on the hairy state transitions — net positive given the data is per-class and Wednesday classes will be writing to it.
+
+---
+
+## 5 May 2026 (early morning CST) — Lever-MM smoke gap + Tasks v1 prototype + Task System Architecture brief — all merged to main
+
+**Session goal:** Close out Lever-MM's preview-banner gap, then run the architectural-decision conversation that the next-big-thing build needs (tasks-grading + Lever 0 + ManageBac export + structured-vs-inquiry boundary). Land verdict in a Claude Design probe + a unified architectural brief.
+
+**Outcome:** ✅ THREE PRs MERGED to main. Documentation-heavy session — locks the architectural decision moment for the next ~16-day build phase without any code change.
+
+**Commits / PRs (this session):**
+
+| Commit / PR | Scope |
+|---|---|
+| `35ecc9d` | Preview banner — read-only NM checkpoint display in teacher preview (closes Matt's smoke-gap question post-Lever-MM merge) |
+| PR #21 → `1972dda` | Tasks v1 prototype — Claude Design handoff bundle landed at `docs/prototypes/tasks-v1/` with verdict (split surfaces, unified data) and three named friction moments |
+| PR #23 → `2a948a3` | Task System Architecture brief — 855-line architectural decision moment locking schema + UX direction |
+
+**Tests:** 3660 → 3700 (+40, parallel-session work absorbed; 0 regressions from this session — pure docs).
+
+**Architectural decisions banked in `decisions-log.md`** (see entries dated 5 May 2026):
+
+1. Unified `assessment_tasks` primitive over separate summative_tasks
+2. SPLIT teacher UI surfaces (inline-row formative + 5-tab summative)
+3. NM checkpoints stay PARALLEL to assessment_tasks
+4. ManageBac as EXPORT-NOT-INTEGRATION
+5. Three-layer architecture (shared infra + Layer 2 PM tools + mode-specific concrete)
+6. Polymorphic `submissions.source_kind` for inquiry-mode future-proofing
+7. G1 grading code rolls forward (not ripped out), parented to tasks via `task_id` FK
+
+**Independent reviews completed:** Cowork + Gemini both confirmed Option A (unified data primitive). Cowork pushed back on spec details — 7 spec corrections applied (submissions split out, weight on criterion-task edge, page_ids → join table, JSONB config for type-specific, version-based resubmissions, cross-unit support, peer/self deferred).
+
+**Tasks v1 prototype outputs:**
+- 3 artboards in one HTML canvas (unified surface, split surfaces, decision panel)
+- Decision panel argues from 3 named teacher-friction moments (Ms. Okafor 11:42am, Mr. Patel Sunday 8pm, first-year MYP teacher writing GRASPS)
+- Verbatim verdict: *"Ship split surfaces. Underneath, both still write to assessment_tasks. The discriminator earns its keep at query time, not at create time."*
+- Located at `docs/prototypes/tasks-v1/`, matches existing `docs/prototypes/grading-v2/` pattern
+
+**Task System Architecture brief contents:**
+- 855 lines covering: scope (in/out), three-layer architecture, Tasks v1 verdict, Cowork/Gemini review summary, full SQL schema with all 7 corrections applied, teacher UI (split surfaces), student UI (submission with self-assessment gate), ManageBac export (file-as-artifact pattern), NM-stays-parallel rationale, backfill plan for ~62 existing single-grade rows, G1 disposition (roll forward with task_id FK), 11-phase sequence (TG.0A-K), pre-flight ritual (Lessons #67-#71 cited), 7 open questions for sign-off, reading order
+- Replaces `docs/projects/grading-phase-g1-brief.md` (G1 was a 3-day cut that explicitly sidestepped the assessment_tasks question)
+- Sister briefs flagged as placeholder: `docs/projects/inquiry-mode-architecture.md` (PYP/PP/Service), `docs/projects/pm-tools-layer.md` (Layer 2), `docs/projects/manual-unit-designer.md` (Lever 0)
+
+**Build estimate:** ~16 days end-to-end. After **TG.0B (schema lock)**, Lever 0 (manual unit designer) can start in parallel — both consume the locked schema.
+
+**Systems affected:** None directly (pure docs). Future-affected when build phases ship: `unit-editor` (gains Tasks panel sidebar), `grading-system` (G1 roll-forward with task FK), new `tasks-system` system to register, `manage-bac-export` adapter.
+
+**Follow-ups filed during this session (informal in conversation, not yet in dimensions3-followups.md):**
+
+- `FU-INQUIRY-MODE-BRIEF` — sister architectural brief for PYP / PP / Service / capstones. Multi-week project.
+- `FU-LAYER-2-PM-TOOLS-BRIEF` — Layer 2 cross-mode PM tools (evidence log, milestone tracker, etc.). Built incrementally.
+- `FU-MANUAL-UNIT-DESIGNER-BRIEF` — Lever 0. Already on Matt's stated priority list.
+- `FU-TG-DND-LINKING` (P3) — drag-and-drop section-to-task linking instead of click-to-link.
+
+**No new lessons banked this session** — the architectural conversation surfaced design-decisions, not lessons-learned discoveries. Lessons #67-#71 from earlier today (Lever 1 + Lever-MM) remain the latest.
+
+**What's next (Matt to decide):**
+1. Get sign-off on the brief's 7 open questions (most are "yes per conversation; confirm")
+2. Move into TG.0B schema migration (~1 day; gates Lever 0)
+3. After TG.0B: Lever 0 build + tasks-grading build run in parallel
+
+**Build velocity for the day** (counting Lever 1 + Lever-MM + Tasks v1 prototype + Task System Architecture brief): two complete features end-to-end (Lever 1 schema-through-readers + Lever-MM block category) + one design probe + one architectural decision moment locked. ~12-14 hours wall-clock. Net tests +166. Three PRs to main. Zero regressions.

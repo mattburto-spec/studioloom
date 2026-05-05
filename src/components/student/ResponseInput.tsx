@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ResponseType } from "@/types";
 import { MonitoredTextarea } from "./MonitoredTextarea";
 import type { IntegrityMetadata } from "./MonitoredTextarea";
+import { RichTextEditor } from "./RichTextEditor";
 import { DecisionMatrix } from "./DecisionMatrix";
 import { PMIFramework } from "./PMIFramework";
 import { PairwiseComparison } from "./PairwiseComparison";
@@ -124,13 +125,12 @@ export function ResponseInput({
             rows={4}
           />
         ) : (
-          <textarea
+          <RichTextEditor
             id={`response-${sectionIndex}`}
             value={value}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={onChange}
             placeholder={placeholder}
             rows={4}
-            className="w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-transparent resize-y text-sm"
           />
         ))}
 

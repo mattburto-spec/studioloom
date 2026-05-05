@@ -2,7 +2,9 @@
 
 import { ResponseInput } from "@/components/student/ResponseInput";
 import { TextToSpeech } from "@/components/student/TextToSpeech";
-import { MarkdownPrompt, stripMarkdown } from "@/components/student/MarkdownPrompt";
+import { stripMarkdown } from "@/components/student/MarkdownPrompt";
+import { ComposedPrompt } from "@/components/student/ComposedPrompt";
+import { composedPromptText } from "@/lib/lever-1/compose-prompt";
 import { TappableText } from "@/components/student/tap-a-word";
 import { toEmbedUrl } from "@/lib/video-embed";
 import type { ActivitySection } from "@/types";
@@ -143,7 +145,7 @@ export function ActivityCard({
             </div>
           )}
           <div className="text-sm text-gray-700 leading-relaxed">
-            <MarkdownPrompt text={section.prompt} tappable />
+            <ComposedPrompt section={section} variant="compact" tappable />
           </div>
 
           {/* Media in content block */}
@@ -156,12 +158,12 @@ export function ActivityCard({
         </div>
       ) : (
         <>
-          {/* Prompt header */}
+          {/* Prompt header — Lever 1 hybrid composition (framing + task + 🎯 success) */}
           <div className="mb-4">
             <div className="flex items-start justify-between gap-3">
-              <h2 className="text-lg md:text-xl font-semibold text-gray-900 leading-snug flex-1">
-                <MarkdownPrompt text={section.prompt} tappable />
-              </h2>
+              <div className="flex-1">
+                <ComposedPrompt section={section} variant="standard" tappable />
+              </div>
               <div className="flex items-center gap-1.5 flex-shrink-0 mt-1">
                 {section.portfolioCapture && (
                   <span
@@ -175,7 +177,8 @@ export function ActivityCard({
                     Portfolio
                   </span>
                 )}
-                <TextToSpeech text={stripMarkdown(section.prompt)} />
+                {/* TTS reads the COMPOSED prompt — students hear framing + task + signal */}
+                <TextToSpeech text={stripMarkdown(composedPromptText(section))} />
               </div>
             </div>
             {/* Colored accent bar under prompt */}
