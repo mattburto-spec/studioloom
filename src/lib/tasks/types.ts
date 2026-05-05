@@ -34,21 +34,95 @@ export interface FormativeConfig {
   linked_pages?: Array<{ unit_id: string; page_id: string }>;
 }
 
+// ─── Summative config blocks (TG.0D) ────────────────────────────────────────
+
 /**
- * Summative config (TG.0D — stub here so the discriminated union is complete).
+ * Wiggins/McTighe GRASPS block — authentic-task framing.
  *
- * Will gain: GRASPS block, submission_format, ai_use_policy, late_policy,
- * resubmission settings, self_assessment toggle, etc. See brief §Project task.
+ * Surfaced as Tab 1 of 5 in the summative drawer. A teacher who's never
+ * written GRASPS gets it presented FIRST, before any other configuration —
+ * the UI teaches the practice (Tasks v1 Friction Moment 03).
+ */
+export interface GraspsBlock {
+  goal: string;
+  role: string;
+  audience: string;
+  situation: string;
+  performance: string;
+  standards: string;
+}
+
+/**
+ * Submission policy — Tab 2 of the summative drawer.
+ *
+ * `format` drives the student-side submission UI in TG.0F.
+ * `ai_use_policy` is checked at submit time + surfaced on student work.
+ * `integrity_declaration_required` shows a checkbox students must tick
+ * before submission.
+ */
+export interface SubmissionPolicy {
+  format: "text" | "upload" | "multi";
+  word_count_cap?: number;
+  ai_use_policy: "allowed" | "allowed_with_citation" | "not_allowed";
+  integrity_declaration_required: boolean;
+}
+
+/**
+ * Resubmission policy. v1 supports off / open-until-date / max-attempts.
+ * After publish, changes to this block require explicit confirmation
+ * (data-loss-adjacent for in-flight student submissions).
+ */
+export interface ResubmissionPolicy {
+  mode: "off" | "open_until" | "max_attempts";
+  until?: string; // ISO YYYY-MM-DD when mode='open_until'
+  max?: number; // 1..10 when mode='max_attempts'
+}
+
+/**
+ * Timeline block — Tab 4 of the summative drawer.
+ * Combines due date + late policy + resubmission + linked lessons.
+ */
+export interface TimelineBlock {
+  due_date?: string;
+  late_policy?: string;
+  resubmission: ResubmissionPolicy;
+  linked_pages?: Array<{ unit_id: string; page_id: string }>;
+}
+
+/**
+ * Policy block — Tab 5 of the summative drawer.
+ *
+ * `grouping='group'` is greyed-out in v1 (peer/group deferred per OQ).
+ * `peer_evaluator_config` is a stub field for v1.1 — included in the
+ * type so future migrations don't need a JSONB shape change.
+ */
+export interface PolicyBlock {
+  grouping: "individual" | "group";
+  notify_on_publish: boolean;
+  notify_on_due_soon: boolean;
+  /** v1.1 stub — peer-evaluator config not yet wired. */
+  peer_evaluator_config?: Record<string, unknown>;
+}
+
+/**
+ * SummativeConfig — full shape promoted in TG.0D.
+ *
+ * Lives in `assessment_tasks.config` JSONB (Cowork correction #4 —
+ * type-specific JSONB extension point). Validated at app layer via
+ * validateSummativeConfig in src/lib/tasks/validators.ts.
+ *
+ * Per OQ-3 sign-off: `self_assessment_required` defaults to TRUE for
+ * summative (Hattie d=1.33). Teacher can flip OFF, but the UI nudges
+ * away ("Lower self-assessment effect — disable only if you've
+ * discussed reasons with students").
  */
 export interface SummativeConfig {
-  /** TG.0D will populate. For TG.0C this stub satisfies the discriminator. */
-  grasps?: Record<string, string>;
-  submission_format?: "text" | "upload" | "multi";
-  word_count_cap?: number;
-  ai_use_policy?: "allowed" | "allowed_with_citation" | "not_allowed";
-  late_policy?: string;
-  resubmission?: { mode: "off" | "open_until" | "max_attempts"; until?: string; max?: number };
-  self_assessment_required?: boolean; // default true (Hattie d=1.33, OQ-3)
+  grasps: GraspsBlock;
+  submission: SubmissionPolicy;
+  timeline: TimelineBlock;
+  policy: PolicyBlock;
+  /** OQ-3: default true (Hattie d=1.33). UI nudges away from disabling. */
+  self_assessment_required: boolean;
 }
 
 /** Discriminated union keyed on TaskType. */
