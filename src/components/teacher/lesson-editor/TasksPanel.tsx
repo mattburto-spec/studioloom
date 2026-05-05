@@ -137,11 +137,11 @@ export default function TasksPanel({
         {addMode === "idle" && (
           <button
             type="button"
-            onClick={() => setAddMode("chooser")}
+            onClick={() => setAddMode("summative")}
             className="text-[10.5px] text-[var(--le-ink-3)] hover:text-[var(--le-ink)] underline-offset-2 hover:underline"
             data-testid="tasks-panel-add"
           >
-            + Add task
+            + Add assessment
           </button>
         )}
       </div>
