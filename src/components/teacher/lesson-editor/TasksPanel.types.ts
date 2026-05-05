@@ -74,7 +74,7 @@ export function formatCriterionLine(
  * details into the React component. Returns "" for non-formative or missing.
  */
 export function extractDueDate(task: AssessmentTask): string {
-  const config = task.config as Record<string, unknown>;
+  const config = task.config as unknown as Record<string, unknown>;
   const due = config?.due_date;
   return typeof due === "string" ? due : "";
 }
