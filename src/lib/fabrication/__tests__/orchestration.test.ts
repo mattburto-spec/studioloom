@@ -106,6 +106,35 @@ describe("validateUploadRequest", () => {
     if (!("ok" in r && r.ok)) throw new Error("expected ok result");
     expect(r.data.originalFilename).toBe("cube.stl");
   });
+
+  // ---- preferredColor (Phase 8.1d-COLORv1) ----
+
+  it("defaults preferredColor to null when omitted", () => {
+    const r = validateUploadRequest(valid);
+    if (!("ok" in r && r.ok)) throw new Error("expected ok result");
+    expect(r.data.preferredColor).toBeNull();
+  });
+
+  it("accepts a preferredColor and trims it", () => {
+    const r = validateUploadRequest({ ...valid, preferredColor: "  PLA — Black  " });
+    if (!("ok" in r && r.ok)) throw new Error("expected ok result");
+    expect(r.data.preferredColor).toBe("PLA — Black");
+  });
+
+  it("canonicalises 'No preference' to null preferredColor", () => {
+    const r = validateUploadRequest({ ...valid, preferredColor: "No preference" });
+    if (!("ok" in r && r.ok)) throw new Error("expected ok result");
+    expect(r.data.preferredColor).toBeNull();
+  });
+
+  it("rejects preferredColor longer than the 60-char cap with 400", () => {
+    const r = validateUploadRequest({
+      ...valid,
+      preferredColor: "z".repeat(61),
+    });
+    expect((r as { error: { status: number; message: string } }).error.status).toBe(400);
+    expect((r as { error: { message: string } }).error.message).toMatch(/preferredColor/);
+  });
 });
 
 // ---------- buildStoragePath ----------
@@ -339,6 +368,7 @@ describe("createUploadJob — happy path", () => {
       original_filename: "cube.stl",
       status: "uploaded",
       current_revision: 1,
+      preferred_color: null,
     });
 
     // fabrication_job_revisions INSERT includes storage_path + scan_status.
@@ -352,6 +382,24 @@ describe("createUploadJob — happy path", () => {
       storage_path: `fabrication/teacher-uuid-111/${validReq.studentId}/${createdJobId}/v1.stl`,
       file_size_bytes: 1024,
     });
+  });
+
+  // Phase 8.1d-COLORv1: preferredColor flows from the validated
+  // request into the fabrication_jobs INSERT payload when the bound
+  // machine is a 3D printer (the fake client always returns
+  // machine_category: "3d_printer").
+  it("writes preferredColor to the fabrication_jobs row on 3D printer jobs", async () => {
+    const { client, log } = makeClient({});
+    const r = await createUploadJob(client, {
+      ...validReq,
+      preferredColor: "PLA — Black",
+    });
+    if (isUploadJobError(r)) throw new Error(`expected success, got: ${r.error.message}`);
+
+    const jobInsert = log.find((e) => e.table === "fabrication_jobs" && e.op === "insert");
+    expect((jobInsert?.payload as { preferred_color: string }).preferred_color).toBe(
+      "PLA — Black"
+    );
   });
 });
 

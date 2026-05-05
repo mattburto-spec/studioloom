@@ -2250,6 +2250,22 @@ function QueuedJobCard({
             >
               {job.originalFilename}
             </div>
+            {/* Phase 8.1d-COLORv1: filament color chip — the student
+                told us what they want, surface it where the fab
+                makes the load-vs-skip decision. */}
+            {job.preferredColor && (
+              <div
+                className="mt-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9.5px] font-semibold ring-1"
+                style={{
+                  background: "rgba(245, 158, 11, 0.12)",
+                  color: "rgb(252, 211, 77)",
+                  borderColor: "rgba(245, 158, 11, 0.3)",
+                }}
+              >
+                <span aria-hidden="true">🎨</span>
+                <span className="truncate">{job.preferredColor}</span>
+              </div>
+            )}
           </div>
         </div>
 

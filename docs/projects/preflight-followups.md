@@ -204,6 +204,112 @@ post Phase 8-3). Future cleanup migration could rename to
 
 ---
 
+## FU-GUEST-UPLOAD — Per-school anonymous upload page (no StudioLoom account)
+**Surfaced:** 4 May 2026 night, post-Round-2 closure conversation
+**Target phase:** Post-validation (customer-pull-gated, see below)
+**Severity:** 🟢 LOW (feature growth, no current bug)
+
+**Origin:** Matt asked: *"how hard would it be to have a page for each
+school that any student can go to to upload stl or svg files that
+then make it into the fab pipeline. it could be a simple 3 digit
+code to input to allow uploads. and there would be a space to type
+student name in. workaround for students who want to get jobs done
+but dont yet have studioloom accounts."*
+
+**Why this matters strategically:**
+
+Real product gap. Schools have students who want lab access without
+onboarding to the platform — siblings, MYP kids not in the Design
+class but using the makerspace, after-school club kids, one-off
+projects. Guest mode would unblock them.
+
+Also a **pilot acquisition lever**: "print a poster with a code,
+kids drop files" answers the common pilot objection "I don't want
+to onboard 30 kids to evaluate your platform." Zero
+account-creation friction.
+
+**Why it's GATED on customer pull, not built now:**
+
+Same anti-pattern that put 7 unmonetised projects on Matt's master
+index. Building features on a product with 0 paying customers
+doesn't fix the customer problem. The validation step is cheap and
+should come first.
+
+**Validation (do BEFORE any code):** Next 3 DT teachers Matt talks
+to, ask: *"If you could put a poster in your lab with a code, and
+any kid could drop an STL/SVG without onboarding to the platform,
+would you use that?"* If 2+ say yes → build. If <2 → it's a
+Matt-projection. ~10 min of conversation.
+
+**Two implementation paths once validated:**
+
+### Path A — Pragmatic shortcut (~half day)
+
+SQL-create one "Guest" student per school + one "Guest" class.
+Public-classcode flow: `/upload/<schoolCode>` → typed name becomes
+new student row's display_name → existing student auth issues a
+session → same upload UI as authenticated students.
+
+- **Schema:** None (or minimal — maybe one column on `schools` for
+  the upload code).
+- **Code:** A single new public route + a thin wrapper around
+  existing student-classcode auth.
+- **Pros:** Zero orchestration changes; scanner, queue, fab pickup
+  all work unchanged.
+- **Cons:** Data model messier (guest student rows accumulate);
+  no real distinction between "guest" and "real student" in the
+  DB.
+
+### Path B — Proper guest mode (~1–1.5 days)
+
+| Layer | Work |
+|---|---|
+| Schema | New migration: `schools.upload_code` (4–6 chars), nullable `fabrication_jobs.student_id` + `class_id`, new `guest_name` text column, new `guest_email` (optional, for completion notification) |
+| Public route | `/upload/[code]` — no auth, school-scoped via code lookup |
+| Public API | `POST /api/public/fabrication/upload` — code → school_id, write job with NULL student_id + populated guest_name |
+| Teacher queue | New "Guest jobs" tab or filter — school-scoped, any teacher reviews |
+| Approval flow | Most likely **pending teacher review** for v1 (anonymous = abuse risk); could later add hybrid (auto under thresholds, pending over) |
+| Rate limiting | Per-IP throttle on the public endpoint; codes rotatable by school admin |
+| Tests + smoke | ~2h |
+
+**Real concerns to think through:**
+
+- **Abuse vector** — anonymous uploads can carry inappropriate
+  content, spam, oversized files. School liability concern. Pending
+  teacher review mitigates but doesn't eliminate.
+- **No notification path** — without an email/account, lab tech
+  finishes the print and the kid has to physically check back at
+  the lab. Optional email field could help.
+- **No revisions** — each guest upload is its own job; no iteration
+  loop possible without an account.
+- **Quota** — one IP could spam 50 jobs. Need per-IP-per-day limit.
+- **Lifecycle** — guest jobs probably auto-expire after some window
+  (no one's tracking them long-term).
+- **Code design** — 3 chars × ~36 alphanumeric = ~46k codes,
+  trivially brute-forceable. 5–6 chars is more reasonable. Visible
+  on a poster in the lab → casual brute-forcing wouldn't help
+  anyway because they'd need physical access to know what files to
+  upload to what machine.
+
+**Strategic angle for kill-or-promote signal:**
+
+If guest-mode usage at a pilot school exceeds authenticated student
+usage by >10×, the model is wrong (kids don't want accounts; lab is
+just a service). If <10%, accounts are valuable (history, badges,
+integrity monitoring all matter). Either signal is useful.
+
+**Definition of done:** (a) at least one pilot school has formally
+requested guest upload OR Matt's own NIS lab has run the half-day
+shortcut for ≥1 week with measurable usage, (b) Path A or Path B
+implementation lands with rate-limiting + per-IP quota, (c)
+moderation/review flow chosen and documented, (d) abuse policy +
+content moderation surface specified before public launch.
+
+**Trigger to revisit:** "continue guest upload" / "FU-GUEST-UPLOAD"
+in any session.
+
+---
+
 ## FU-FAB-DEVICE-AUTH — Code-based fabricator login for shared lab workstations
 **Surfaced:** Post-Access-v2 retest setup, Matt prepping a 3rd account for Preflight smoke
 **Target phase:** Post-pilot UX expansion (gated on first school feedback that email-per-fab is friction)

@@ -114,6 +114,12 @@ export interface FabJobRow {
   currentRevision: number;
   fileSizeBytes: number | null;
   jobStatus: string;
+  /** Phase 8.1d-COLORv1: student's requested filament color for
+   *  3D-printer jobs (e.g. "PLA — Black", "Other: glow-in-dark
+   *  green"). Null for laser-cutter jobs OR when the student
+   *  picked "No preference". The fab queue surfaces this prominently
+   *  so the lab tech knows what filament to load. */
+  preferredColor: string | null;
   /** Phase 8.1d-17: time the student first submitted the job
    *  (= jobs.created_at). Distinct from approvedAt — lets the fab
    *  queue show how long total a job has been in flight. */
@@ -146,6 +152,9 @@ export interface FabJobDetail {
     completionStatus: string | null;
     completionNote: string | null;
     completedAt: string | null;
+    /** Phase 8.1d-COLORv1: requested filament color for 3D-printer
+     *  jobs. Null for laser-cutter jobs / "no preference". */
+    preferredColor: string | null;
   };
   student: { id: string; name: string };
   classInfo: { id: string; name: string } | null;
@@ -680,6 +689,7 @@ interface RawFabQueueJob {
   current_revision: number;
   file_type: string;
   original_filename: string;
+  preferred_color: string | null;
   teacher_review_note: string | null;
   lab_tech_picked_up_at: string | null;
   // Phase 8.1d-22: machine_profile_id nullable post-migration 120;
@@ -757,6 +767,7 @@ export async function listFabricatorQueue(
     .select(
       `
       id, status, current_revision, file_type, original_filename,
+      preferred_color,
       teacher_review_note, lab_tech_picked_up_at, machine_profile_id,
       lab_id, machine_category,
       created_at, updated_at,
@@ -914,6 +925,7 @@ export async function listFabricatorQueue(
         currentRevision: raw.current_revision,
         fileSizeBytes: latestRev?.file_size_bytes ?? null,
         jobStatus: raw.status,
+        preferredColor: raw.preferred_color,
         createdAt: raw.created_at,
         approvedAt,
         pickedUpAt: raw.lab_tech_picked_up_at,
@@ -938,6 +950,7 @@ interface RawFabDetailJob {
   current_revision: number;
   file_type: string;
   original_filename: string;
+  preferred_color: string | null;
   created_at: string;
   teacher_review_note: string | null;
   lab_tech_picked_up_at: string | null;
@@ -999,6 +1012,7 @@ export async function getFabJobDetail(
     .select(
       `
       id, status, current_revision, file_type, original_filename, created_at,
+      preferred_color,
       teacher_review_note, lab_tech_picked_up_at, lab_tech_picked_up_by,
       completion_status, completion_note, completed_at, notifications_sent,
       student_id, class_id, unit_id, machine_profile_id, teacher_id,
@@ -1097,6 +1111,7 @@ export async function getFabJobDetail(
       completionStatus: rawJob.completion_status,
       completionNote: rawJob.completion_note,
       completedAt: rawJob.completed_at,
+      preferredColor: rawJob.preferred_color,
     },
     student: {
       id: rawJob.student_id,
