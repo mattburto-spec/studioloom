@@ -9232,18 +9232,125 @@ tables:
       basis: pseudonymous
 - name: student_tile_grade_events
   source_migration: 20260427133507_grading_v1_student_tile_grades.sql
-  status: dropped
-  applied_date: null
-  purpose: null
-  columns: {}
-  spec_drift: []
+  status: applied
+  applied_date: '2026-04-27'
+  purpose: |
+    Append-only audit log for student_tile_grades changes. One row per
+    (ai_pre_score | teacher_confirm | teacher_override | teacher_revise
+    | rollup_release | system_correction). Powers parent dispute
+    viewer, drift detection, and G4 consistency checker. RLS convention:
+    teachers may INSERT but not UPDATE/DELETE.
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    grade_id: UUID NOT NULL REFERENCES student_tile_grades(id) ON DELETE CASCADE
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    class_id: UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE
+    teacher_id: UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE
+    source: TEXT NOT NULL CHECK (source IN ('ai_pre_score','teacher_confirm','teacher_override','teacher_revise','rollup_release','system_correction'))
+    changed_by: UUID REFERENCES auth.users(id) ON DELETE SET NULL
+    prev_score: SMALLINT
+    new_score: SMALLINT
+    prev_confirmed: BOOLEAN
+    new_confirmed: BOOLEAN
+    ai_confidence: NUMERIC(3,2)
+    ai_model_version: TEXT
+    prompt_version: TEXT
+    note: TEXT
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  rls_enabled: true
+  applied_via:
+    - 20260427133507_grading_v1_student_tile_grades.sql
+  spec_drift:
+    - date: '2026-05-05'
+      finding: |
+        Same staleness as student_tile_grades — entry incorrectly
+        recorded status=dropped, columns={}, applied_date=null. Table
+        has been live since 27 Apr 2026 alongside student_tile_grades.
+        Discovered while fixing student_tile_grades during TG.0B
+        prod-apply failure.
+      action: |
+        Updated entry to reflect prod reality. See
+        FU-SCHEMA-REGISTRY-AUTO-SYNC (P1) for the live introspection
+        scanner that should make this self-healing.
 - name: student_tile_grades
   source_migration: 20260427133507_grading_v1_student_tile_grades.sql
-  status: dropped
-  applied_date: null
-  purpose: null
-  columns: {}
-  spec_drift: []
+  status: applied
+  applied_date: '2026-04-27'
+  purpose: |
+    Per-tile grade primitive for the G1 grading system. One row per
+    (student, unit, page, tile, class) tuple. Holds live teacher score,
+    AI pre-score, released-grade snapshot, and the framework-neutral
+    criterion_keys (8-key taxonomy). Read by the grading panel,
+    student-snapshot route, and Calibrate consistency checker. As of
+    TG.0B (5 May 2026) gains a nullable task_id linking the row to
+    assessment_tasks for summative-task scoring; existing rows roll
+    forward via TG.0G backfill (planned).
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    unit_id: UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE
+    page_id: TEXT NOT NULL  # originally UUID, ALTERed to TEXT in 20260428024002
+    tile_id: TEXT NOT NULL
+    class_id: UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE
+    teacher_id: UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE
+    graded_by: UUID REFERENCES auth.users(id) ON DELETE SET NULL
+    score: SMALLINT
+    confirmed: BOOLEAN NOT NULL DEFAULT false
+    override_note: TEXT
+    released_at: TIMESTAMPTZ
+    released_score: SMALLINT
+    released_criterion_keys: TEXT[]
+    ai_pre_score: SMALLINT
+    ai_quote: TEXT
+    ai_confidence: NUMERIC(3,2)
+    ai_reasoning: TEXT
+    ai_model_version: TEXT
+    prompt_version: TEXT
+    marking_session_id: UUID
+    criterion_keys: TEXT[] NOT NULL DEFAULT '{}'
+    graded_at: TIMESTAMPTZ
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    student_facing_comment: TEXT  # added in 20260428065351_add_student_facing_comment.sql
+    task_id: UUID REFERENCES assessment_tasks(id) ON DELETE SET NULL  # TG.0B (Path A ALTER) — 5 May 2026, nullable initially
+  rls_enabled: true
+  applied_via:
+    - 20260427133507_grading_v1_student_tile_grades.sql  # CREATE TABLE (25 cols) + RLS + trigger
+    - 20260428024002_fix_grading_v1_page_id_type.sql      # page_id UUID → TEXT
+    - 20260428065351_add_student_facing_comment.sql       # +student_facing_comment
+    - 20260505032750_task_system_v1_schema.sql            # +task_id (nullable, FK to assessment_tasks)
+  notes: |
+    Multi-criterion-per-row schema (criterion_keys is TEXT[] not single
+    column). One UNIQUE index across (student_id, unit_id, page_id,
+    tile_id, class_id) — task_id is intentionally NOT in the uniqueness
+    key during TG.0B because legacy rows have task_id=NULL and the
+    grading panel still keys on tile_id. A follow-up migration after
+    TG.0G backfill may add task_id to the uniqueness key.
+  spec_drift:
+    - date: '2026-05-05'
+      finding: |
+        TG.0B prod-apply failed with "column 'task_id' does not exist"
+        because schema-registry entry incorrectly recorded
+        status=dropped, columns={}, applied_date=null. Reality on prod:
+        table has been live since 27 Apr 2026 with 26 columns from 3
+        applied migrations. Registry was never updated when the table
+        was created. Pivot: TG.0B Path A (ALTER ADD task_id) instead of
+        CREATE TABLE.
+      action: |
+        Updated this entry to reflect prod reality (26 columns + 1 new
+        from TG.0B = 27). Filed FU-SCHEMA-REGISTRY-AUTO-SYNC (P1) to
+        build a live introspection mode for schema-registry — same
+        pattern as scan-api-routes.py and scan-ai-calls.py — so this
+        kind of drift is caught automatically. Manual maintenance has
+        gone significantly stale across the registry; one-shot fix is
+        not enough.
+      resolution: |
+        Path A migration `20260505032750_task_system_v1_schema.sql`
+        ALTERs the existing table to ADD task_id (nullable, FK to
+        assessment_tasks). Existing G1 RLS policies + trigger
+        preserved (the down migration explicitly refuses to drop
+        student_tile_grades and only removes the task_id column
+        added by TG.0B).
 - name: student_tool_sessions
   source_migration: 026_student_tool_sessions.sql
   status: applied

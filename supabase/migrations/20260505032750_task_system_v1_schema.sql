@@ -14,17 +14,27 @@
 --   This migration is PURELY ADDITIVE — no data migration, no row
 --   transformation. Just new tables + 1 ALTER on assessment_records.
 --
--- IMPACT (per brief §Data model + TG.0A F1 amendment):
---   6 NEW tables:
+-- IMPACT (per brief §Data model + TG.0A F1 amendment + TG.0B re-attempt finding):
+--   5 NEW tables:
 --     1. assessment_tasks         — unified primitive (formative | summative | peer | self)
 --     2. task_lesson_links        — many-to-many lessons ↔ tasks (Cowork correction #2)
 --     3. task_criterion_weights   — weight on the criterion-task EDGE (Cowork correction #3)
 --     4. submissions              — POLYMORPHIC source_kind (inquiry-mode future-proof)
 --     5. grade_entries            — criterion-scored against a submission
---     6. student_tile_grades      — RE-MINT with task_id NOT NULL FK (G1 roll-forward)
 --
---   1 ALTERed table (TG.0A F1 finding):
---     7. assessment_records       — ADD task_id UUID; SET NOT NULL deferred to TG.0K after legacy delete
+--   2 ALTERed tables:
+--     6. student_tile_grades      — ADD task_id UUID (Path A: keep existing 26-column G1
+--                                   shape live in prod from migs 20260427133507 +
+--                                   20260428024002 + 20260428065351; schema-registry was
+--                                   misleadingly marked status='dropped'). Lesson #54 +
+--                                   #68 caught at TG.0B re-attempt. The brief's
+--                                   "RE-MINT" plan was wrong from the start; existing
+--                                   schema (multi-criterion-per-row via criterion_keys
+--                                   ARRAY) is preserved. task_id starts NULLABLE; SET
+--                                   NOT NULL deferred to TG.0K cleanup pending Matt
+--                                   confirmation that existing rows are dummy/test.
+--     7. assessment_records       — ADD task_id UUID (TG.0A F1 finding). Nullable;
+--                                   SET NOT NULL deferred to TG.0K.
 --
 --   ~25 indexes total (FK-targeted + filter-targeted)
 --   ~12 RLS policies (school-scoped via is_school_admin() helper, teacher-scoped via class ownership)
@@ -291,58 +301,39 @@ COMMENT ON TABLE grade_entries IS
   'via /api/teacher/grading/release.';
 
 -- ============================================================
--- 6. student_tile_grades — RE-MINT with task_id NOT NULL FK
+-- 6. student_tile_grades.task_id — ALTER (Path A — preserve existing schema)
 -- ============================================================
--- This is the migration that was rolled back in the original G1 work
--- (status='dropped' in schema-registry.yaml). Re-minted here with the
--- missing task_id FK that makes per-tile calibration scopeable.
+-- TG.0B re-attempt finding (Lesson #54 + #68): student_tile_grades is
+-- LIVE on prod with 26 columns from 3 migrations:
+--   20260427133507_grading_v1_student_tile_grades.sql (original CREATE)
+--   20260428024002_fix_grading_v1_page_id_type.sql    (type fix)
+--   20260428065351_add_student_facing_comment.sql     (column add)
+-- The schema-registry's "status: dropped" was wrong — registry drifted.
+-- The brief's "RE-MINT with task_id NOT NULL FK" plan was based on
+-- believing the registry. Reality requires a surgical ALTER instead.
 --
--- G1's React components (ScorePill, ScoreSelector), lib helpers
--- (extractTilesFromPage, tileProgress, computeStudentRollup), and
--- the /teacher/marking page all roll forward to consume this re-minted
--- table. Calibrate becomes "tiles within this task." Synthesize
--- aggregates per criterion per task per student.
+-- Existing shape preserved (multi-criterion-per-row via criterion_keys
+-- ARRAY, smallint score, released_* snapshot fields, etc. — see
+-- schema-registry update in same commit). Calibrate / Synthesize G1
+-- UX continues to consume the existing shape; only addition is the
+-- task association.
+--
+-- task_id starts NULLABLE so existing rows aren't orphaned. TG.0K
+-- cleanup will SET NOT NULL after Matt confirms existing rows are
+-- dummy/test (extending OQ-2's no-backfill rule to this table).
 
-CREATE TABLE IF NOT EXISTS student_tile_grades (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  task_id UUID NOT NULL REFERENCES assessment_tasks(id) ON DELETE CASCADE,
-  -- ^ The FK that was missing in the rolled-back attempt
-  student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-  unit_id UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE,
-  class_id UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
-  page_id TEXT NOT NULL CHECK (length(trim(page_id)) > 0),
-  tile_id TEXT NOT NULL CHECK (length(trim(tile_id)) > 0),
-  -- 'activity_<nanoid>' | 'section_<idx>' per existing pattern
-  criterion_key TEXT NOT NULL CHECK (length(trim(criterion_key)) > 0),
-  achievement_level TEXT NOT NULL CHECK (length(trim(achievement_level)) > 0),
-  ai_pre_score NUMERIC,
-  ai_evidence_quote TEXT,
-  ai_confidence NUMERIC CHECK (ai_confidence IS NULL OR ai_confidence BETWEEN 0 AND 1),
-  confirmed BOOLEAN NOT NULL DEFAULT false,
-  override_note TEXT,
-  graded_by UUID NOT NULL REFERENCES auth.users(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE(task_id, student_id, page_id, tile_id, criterion_key)
-);
+ALTER TABLE student_tile_grades
+  ADD COLUMN IF NOT EXISTS task_id UUID
+    REFERENCES assessment_tasks(id) ON DELETE CASCADE;
 
 CREATE INDEX IF NOT EXISTS idx_student_tile_grades_task
-  ON student_tile_grades(task_id);
-CREATE INDEX IF NOT EXISTS idx_student_tile_grades_student
-  ON student_tile_grades(student_id);
-CREATE INDEX IF NOT EXISTS idx_student_tile_grades_class
-  ON student_tile_grades(class_id);
-CREATE INDEX IF NOT EXISTS idx_student_tile_grades_confirmed
-  ON student_tile_grades(confirmed) WHERE confirmed = true;
-CREATE INDEX IF NOT EXISTS idx_student_tile_grades_grader
-  ON student_tile_grades(graded_by);
+  ON student_tile_grades(task_id) WHERE task_id IS NOT NULL;
 
-COMMENT ON TABLE student_tile_grades IS
-  'TG v1 — per-tile calibration data, RE-MINT of the rolled-back '
-  'migration 20260427133507_grading_v1_student_tile_grades. The FK '
-  'that was missing then (task_id) is now NOT NULL. Calibrate / '
-  'Synthesize G1 UX rolls forward to consume this re-minted table. '
-  'Brief: docs/projects/task-system-architecture.md.';
+COMMENT ON COLUMN student_tile_grades.task_id IS
+  'TG v1 — task association added by mig 20260505032750. Nullable now '
+  '(existing 26-column G1 schema preserved per Path A); set NOT NULL '
+  'in a TG.0K follow-up after dummy-data cleanup. See brief and TG.0B '
+  're-attempt notes for context.';
 
 -- ============================================================
 -- 7. assessment_records.task_id — TG.0A finding F1 amendment
@@ -381,7 +372,7 @@ ALTER TABLE task_lesson_links ENABLE ROW LEVEL SECURITY;
 ALTER TABLE task_criterion_weights ENABLE ROW LEVEL SECURITY;
 ALTER TABLE submissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE grade_entries ENABLE ROW LEVEL SECURITY;
-ALTER TABLE student_tile_grades ENABLE ROW LEVEL SECURITY;
+-- student_tile_grades: RLS already enabled (existing G1 work). No re-enable.
 
 -- ─────────────────────────────────────────────────────────
 -- assessment_tasks RLS
@@ -392,7 +383,7 @@ CREATE POLICY "assessment_tasks_read_school"
   USING (
     school_id IN (
       SELECT school_id FROM teachers
-      WHERE user_id = auth.uid() AND school_id IS NOT NULL
+      WHERE id = auth.uid() AND school_id IS NOT NULL
     )
     OR (SELECT is_platform_admin FROM user_profiles WHERE id = auth.uid()) = true
     OR public.is_school_admin(auth.uid(), school_id)
@@ -483,7 +474,7 @@ CREATE POLICY "submissions_read_teacher_via_school"
       SELECT id FROM assessment_tasks
       WHERE school_id IN (
         SELECT school_id FROM teachers
-        WHERE user_id = auth.uid() AND school_id IS NOT NULL
+        WHERE id = auth.uid() AND school_id IS NOT NULL
       )
     )
   );
@@ -544,30 +535,12 @@ CREATE POLICY "grade_entries_write_grader_or_admin"
     )
   );
 
--- ─────────────────────────────────────────────────────────
--- student_tile_grades RLS — teachers only (calibration data)
--- ─────────────────────────────────────────────────────────
--- Tile grades are working calibration data; never directly student-
--- visible. Students see released grades via assessment_records.
-CREATE POLICY "student_tile_grades_teacher_only"
-  ON student_tile_grades FOR ALL
-  TO authenticated
-  USING (
-    graded_by = auth.uid()
-    OR (SELECT is_platform_admin FROM user_profiles WHERE id = auth.uid()) = true
-    OR task_id IN (
-      SELECT id FROM assessment_tasks
-      WHERE public.is_school_admin(auth.uid(), school_id)
-    )
-  )
-  WITH CHECK (
-    graded_by = auth.uid()
-    OR (SELECT is_platform_admin FROM user_profiles WHERE id = auth.uid()) = true
-    OR task_id IN (
-      SELECT id FROM assessment_tasks
-      WHERE public.is_school_admin(auth.uid(), school_id)
-    )
-  );
+-- student_tile_grades RLS: existing policies from G1 work stay in place.
+-- TG.0G phase will refactor /api/teacher/marking + lib/grading/* to be
+-- task-scoped (filtering rows by task_id at app layer). When that lands,
+-- a follow-up migration may add a new policy "student_tile_grades_via_task"
+-- if the existing policy doesn't already cover task-scoped access cleanly.
+-- For TG.0B, no policy changes — existing G1 access patterns continue working.
 
 -- ============================================================
 -- 9. updated_at triggers
@@ -591,32 +564,40 @@ CREATE TRIGGER trigger_submissions_updated_at
   BEFORE UPDATE ON submissions
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
-CREATE TRIGGER trigger_student_tile_grades_updated_at
-  BEFORE UPDATE ON student_tile_grades
-  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+-- student_tile_grades: existing trigger from G1 work stays.
 
 -- ============================================================
 -- 10. Sanity check
 -- ============================================================
 DO $$
 DECLARE
-  v_table_count INT;
+  v_new_table_count INT;
+  v_existing_table_count INT;
   v_assessment_records_task_col BOOLEAN;
+  v_student_tile_grades_task_col BOOLEAN;
   v_policy_count INT;
   v_index_count INT;
 BEGIN
-  -- 6 new tables exist
-  SELECT COUNT(*) INTO v_table_count
+  -- 5 NEW tables exist
+  SELECT COUNT(*) INTO v_new_table_count
   FROM information_schema.tables
   WHERE table_schema = 'public'
     AND table_name IN ('assessment_tasks', 'task_lesson_links',
                         'task_criterion_weights', 'submissions',
-                        'grade_entries', 'student_tile_grades');
-  IF v_table_count != 6 THEN
-    RAISE EXCEPTION 'Migration failed: expected 6 new tables, got %', v_table_count;
+                        'grade_entries');
+  IF v_new_table_count != 5 THEN
+    RAISE EXCEPTION 'Migration failed: expected 5 new tables, got %', v_new_table_count;
   END IF;
 
-  -- assessment_records gained task_id column
+  -- 2 ALTERed tables still exist + gained task_id column
+  SELECT COUNT(*) INTO v_existing_table_count
+  FROM information_schema.tables
+  WHERE table_schema = 'public'
+    AND table_name IN ('student_tile_grades', 'assessment_records');
+  IF v_existing_table_count != 2 THEN
+    RAISE EXCEPTION 'Migration failed: expected student_tile_grades + assessment_records to exist, got % of 2', v_existing_table_count;
+  END IF;
+
   SELECT EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public'
@@ -627,32 +608,46 @@ BEGIN
     RAISE EXCEPTION 'Migration failed: assessment_records.task_id column missing';
   END IF;
 
-  -- RLS policies across the 6 tables
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'student_tile_grades'
+      AND column_name = 'task_id'
+  ) INTO v_student_tile_grades_task_col;
+  IF NOT v_student_tile_grades_task_col THEN
+    RAISE EXCEPTION 'Migration failed: student_tile_grades.task_id column missing';
+  END IF;
+
+  -- RLS policies across the 5 new tables (existing student_tile_grades policies not counted here)
   SELECT COUNT(*) INTO v_policy_count
   FROM pg_policies
   WHERE schemaname = 'public'
     AND tablename IN ('assessment_tasks', 'task_lesson_links',
                        'task_criterion_weights', 'submissions',
-                       'grade_entries', 'student_tile_grades');
-  IF v_policy_count < 9 THEN
-    RAISE EXCEPTION 'Migration failed: expected at least 9 RLS policies, got %', v_policy_count;
+                       'grade_entries');
+  IF v_policy_count < 8 THEN
+    RAISE EXCEPTION 'Migration failed: expected at least 8 RLS policies on new tables, got %', v_policy_count;
   END IF;
 
-  -- ~24 indexes (6 tables + 1 on assessment_records)
+  -- Indexes: 5 new tables (~17 indexes total) + 1 on student_tile_grades.task_id + 1 on assessment_records.task_id
   SELECT COUNT(*) INTO v_index_count
   FROM pg_indexes
   WHERE schemaname = 'public'
-    AND (tablename IN ('assessment_tasks', 'task_lesson_links',
-                       'task_criterion_weights', 'submissions',
-                       'grade_entries', 'student_tile_grades')
-         OR (tablename = 'assessment_records' AND indexname = 'idx_assessment_records_task'))
+    AND (
+      tablename IN ('assessment_tasks', 'task_lesson_links',
+                    'task_criterion_weights', 'submissions',
+                    'grade_entries')
+      OR (tablename = 'student_tile_grades' AND indexname = 'idx_student_tile_grades_task')
+      OR (tablename = 'assessment_records' AND indexname = 'idx_assessment_records_task')
+    )
     AND indexname LIKE 'idx_%';
-  IF v_index_count < 18 THEN
-    RAISE EXCEPTION 'Migration failed: expected at least 18 indexes, got %', v_index_count;
+  IF v_index_count < 15 THEN
+    RAISE EXCEPTION 'Migration failed: expected at least 15 indexes, got %', v_index_count;
   END IF;
 
   RAISE NOTICE 'Migration task_system_v1_schema applied OK: '
-               '6 new tables, % RLS policies, % indexes, '
-               'assessment_records.task_id column added',
+               '5 new tables + 2 ALTERed (student_tile_grades, assessment_records), '
+               '% new RLS policies, % indexes, '
+               'task_id column added to assessment_records + student_tile_grades',
                v_policy_count, v_index_count;
 END $$;

@@ -2175,3 +2175,81 @@ the seed sets a stable id.
 
 **Definition of done:** Seed script passes a "run twice, no
 duplicates" smoke. ~5 min fix.
+
+---
+
+## FU-SCHEMA-REGISTRY-AUTO-SYNC — Build live introspection mode for schema-registry.yaml (P1)
+**Surfaced:** 5 May 2026 during TG.0B prod-apply failure
+**Priority:** P1 — manual maintenance has gone significantly stale; next
+schema-touching migration will keep walking on landmines until this is fixed
+**Target phase:** Before TG.0G (G1 roll-forward backfill) or any future
+phase that asserts pre-migration schema state from the registry
+
+**Symptom:** TG.0B migration FAILED on prod with `column 'task_id'
+does not exist` because schema-registry recorded
+`student_tile_grades` as `status: dropped, columns: {}, applied_date: null`.
+Reality on prod: table has been live since 27 Apr 2026 with 26 columns
+from 3 applied migrations. Diagnosis revealed the registry was never
+updated when the table was created and has gone significantly stale —
+not just for this table.
+
+**What we know:**
+- `docs/schema-registry.yaml` is purely manually maintained. It has no
+  scanner sibling.
+- `docs/api-registry.yaml` (266 routes) and `docs/ai-call-sites.yaml`
+  (47 calls) DO have scanners that auto-sync on saveme via
+  `scripts/registry/scan-api-routes.py` and
+  `scripts/registry/scan-ai-calls.py`. Schema-registry has no
+  equivalent — it relies on Claude remembering to update on every
+  migration, which is exactly the behaviour that drifted.
+- `student_tile_grades` is one confirmed drift; `student_tile_grade_events`
+  was identified as a sibling drift in the same fix. The full scope
+  of staleness across the ~72-table registry is unknown until a
+  systematic audit runs.
+- Sister FU-EE (no canonical migration-applied log) compounds the
+  problem: there's no single source of truth for what's actually
+  applied to prod, so a scanner has nothing to compare against
+  besides probing `information_schema.columns` directly.
+- Sister FU-PROD-MIGRATION-BACKLOG-AUDIT (P1) found prod is missing
+  migration 051 + much of Access Model v2 schema, which means the
+  scanner needs to introspect prod (not the repo migrations) to be
+  trustworthy.
+
+**Investigation steps:**
+1. Decide on data source: introspect live Supabase via service-role
+   `information_schema.columns` + `pg_catalog.pg_policies` query
+   (preferred — captures actual prod state including drift), or parse
+   `supabase/migrations/*.sql` lexically (cheaper but inherits FU-EE).
+   Recommendation: live introspection, mirror the api/ai scanner
+   pattern.
+2. Build `scripts/registry/scan-schema-registry.py` modelled on
+   scan-api-routes.py: connect via `SUPABASE_SERVICE_ROLE_KEY`,
+   pull tables + columns + RLS-enabled flag + policy names, diff
+   against `docs/schema-registry.yaml`, write
+   `docs/scanner-reports/schema-registry.json` for review, optionally
+   `--apply` to write back to yaml (preserve manual `purpose` +
+   `notes` + `spec_drift` blocks).
+3. Wire into saveme step 11 (sync registries) — replace the current
+   "manual review the session's migrations" step.
+4. Backfill: run scanner against current prod, review the diff,
+   commit a one-shot resync to fix accumulated drift across the
+   ~72 tables. Treat as a sister cleanup PR after the scanner ships.
+
+**Definition of done:** (a) scanner script exists and runs in CI,
+(b) `docs/scanner-reports/schema-registry.json` produced on saveme,
+(c) one-shot backfill PR resyncs all stale entries, (d) saveme step
+11(a) updated to "rerun scanner, no-op if no diff" matching
+api-registry/ai-call-sites pattern, (e) `student_tile_grades` no
+longer needs manual `spec_drift` entries to track this kind of drift.
+
+**Sister FUs:**
+- FU-EE (no canonical migration-applied log) — gates trustworthy
+  diff comparisons; live introspection sidesteps it.
+- FU-BB (schema-registry scanner misparses compound ADD COLUMN
+  migrations) — the existing partial scanner referenced there has
+  a parse bug; replace it with the live-introspection approach
+  rather than fix it.
+- FU-PROD-MIGRATION-BACKLOG-AUDIT (P1) — once this scanner ships,
+  rerun against prod to surface the rest of the migration backlog.
+- FU-AA (drop deprecated own_time_* tables from schema-registry) —
+  systematic resync would surface this and similar zombie entries.
