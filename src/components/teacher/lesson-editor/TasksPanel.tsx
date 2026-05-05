@@ -22,22 +22,29 @@ import {
   type TaskRowDisplay,
 } from "./TasksPanel.types";
 import { getCriterionLabels, type FrameworkId } from "@/lib/frameworks/adapter";
+import AddTaskChooser from "./AddTaskChooser";
+import QuickCheckRow from "./QuickCheckRow";
+
+type AddMode = "idle" | "chooser" | "quickCheck";
 
 interface TasksPanelProps {
   unitId: string;
+  classId?: string | null;
   framework?: string | null;
-  /** Optional: when TG.0C.4 lands, this opens the chooser. For TG.0C.3 it's a no-op stub. */
-  onAddTask?: () => void;
+  /** Lessons in the unit, for the QuickCheckRow linked-pages picker. */
+  pages?: ReadonlyArray<{ id: string; title: string }>;
 }
 
 export default function TasksPanel({
   unitId,
+  classId = null,
   framework,
-  onAddTask,
+  pages = [],
 }: TasksPanelProps) {
   const [tasks, setTasks] = useState<AssessmentTask[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [addMode, setAddMode] = useState<AddMode>("idle");
 
   useEffect(() => {
     let cancelled = false;
@@ -75,16 +82,21 @@ export default function TasksPanel({
     formatTaskRow(t, labelMap)
   );
 
+  function handleSaved(task: AssessmentTask) {
+    setTasks((prev) => [...(prev ?? []), task]);
+    setAddMode("idle");
+  }
+
   return (
     <div className="px-3 py-2.5 border-b border-[var(--le-hair)] flex-shrink-0">
       <div className="flex items-center justify-between mb-2">
         <div className="le-cap text-[var(--le-ink-3)]">
           Tasks{rows.length > 0 ? ` (${rows.length})` : ""}
         </div>
-        {onAddTask && (
+        {addMode === "idle" && (
           <button
             type="button"
-            onClick={onAddTask}
+            onClick={() => setAddMode("chooser")}
             className="text-[10.5px] text-[var(--le-ink-3)] hover:text-[var(--le-ink)] underline-offset-2 hover:underline"
             data-testid="tasks-panel-add"
           >
@@ -92,6 +104,24 @@ export default function TasksPanel({
           </button>
         )}
       </div>
+
+      {addMode === "chooser" && (
+        <AddTaskChooser
+          onChooseQuickCheck={() => setAddMode("quickCheck")}
+          onCancel={() => setAddMode("idle")}
+        />
+      )}
+
+      {addMode === "quickCheck" && (
+        <QuickCheckRow
+          unitId={unitId}
+          classId={classId}
+          framework={framework}
+          pages={pages}
+          onSaved={handleSaved}
+          onCancel={() => setAddMode("idle")}
+        />
+      )}
 
       {loading && (
         <div className="text-[10.5px] text-[var(--le-ink-3)] italic">

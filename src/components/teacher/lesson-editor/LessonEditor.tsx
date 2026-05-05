@@ -932,7 +932,15 @@ export default function LessonEditor({
             />
           </div>
           {/* Tasks panel — TG.0C (formative inline; summative drawer in TG.0D) */}
-          <TasksPanel unitId={unitId} framework={framework} />
+          <TasksPanel
+            unitId={unitId}
+            classId={classId}
+            framework={framework}
+            pages={pages.map((p) => ({
+              id: p.id ?? "",
+              title: p.title ?? "(untitled)",
+            }))}
+          />
           {/* Lesson list (takes remaining height) */}
           <div className="flex-1 min-h-0">
             <LessonSidebar
