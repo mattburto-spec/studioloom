@@ -1,21 +1,22 @@
 "use client";
 
 /**
- * TG.0C.4 — AddTaskChooser
+ * TG.0C.4 + TG.0D.5 — AddTaskChooser
  *
  * Inline 2-button chooser shown when teacher clicks "+ Add task" in TasksPanel.
- * Quick check (formative) → opens QuickCheckRow inline. Project task (summative)
- * → greyed-out with "Coming soon — TG.0D" tooltip per brief Q4 (Matt confirmed
- * default).
+ * Quick check (formative) → opens QuickCheckRow inline.
+ * Project task (summative) → opens TaskDrawer (TG.0D enabled).
  */
 
 interface AddTaskChooserProps {
   onChooseQuickCheck: () => void;
+  onChooseProjectTask: () => void;
   onCancel: () => void;
 }
 
 export default function AddTaskChooser({
   onChooseQuickCheck,
+  onChooseProjectTask,
   onCancel,
 }: AddTaskChooserProps) {
   return (
@@ -42,16 +43,15 @@ export default function AddTaskChooser({
         </button>
         <button
           type="button"
-          disabled
-          title="Coming soon — TG.0D will enable summative project tasks"
-          className="w-full text-left px-2 py-1.5 rounded text-[11px] cursor-not-allowed opacity-60"
+          onClick={onChooseProjectTask}
+          className="w-full text-left px-2 py-1.5 rounded text-[11px] hover:bg-white border border-transparent hover:border-[var(--le-hair)] transition-colors"
           data-testid="add-task-chooser-project"
         >
-          <div className="font-semibold text-[var(--le-ink-3)]">
+          <div className="font-semibold text-[var(--le-ink)]">
             🎯 Project task
           </div>
           <div className="text-[10px] text-[var(--le-ink-3)] mt-0.5">
-            Summative · 5-tab config · Coming soon (TG.0D)
+            Summative · 5-tab config drawer · GRASPS + rubric
           </div>
         </button>
       </div>
