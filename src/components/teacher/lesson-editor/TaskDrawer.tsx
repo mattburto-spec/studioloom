@@ -37,6 +37,11 @@ import {
 } from "./summative-form-state";
 import { isFormStateDirty } from "./TaskDrawer.types";
 import TaskDrawerTabNav from "./TaskDrawerTabNav";
+import GraspsTab from "./tabs/GraspsTab";
+import SubmissionTab from "./tabs/SubmissionTab";
+import RubricTab from "./tabs/RubricTab";
+import TimelineTab from "./tabs/TimelineTab";
+import PolicyTab from "./tabs/PolicyTab";
 
 interface TaskDrawerProps {
   unitId: string;
@@ -62,8 +67,8 @@ function buildInitialState(
 export default function TaskDrawer({
   unitId,
   classId = null,
-  framework: _framework, // TG.0D.4 wires this through to RubricTab + TimelineTab
-  pages: _pages = [],
+  framework,
+  pages = [],
   editingTask,
   onSaved,
   onClose,
@@ -236,14 +241,37 @@ export default function TaskDrawer({
           onTabChange={(tab) => dispatch({ type: "setActiveTab", tab })}
         />
 
-        {/* Tab content (placeholder — TG.0D.4 fills these with real components) */}
+        {/* Tab content */}
         <div
           id={`task-drawer-tab-panel-${state.activeTab}`}
           role="tabpanel"
           className="flex-1 overflow-y-auto p-4"
           data-testid={`task-drawer-tab-content-${state.activeTab}`}
         >
-          <PlaceholderTabContent activeTab={state.activeTab} />
+          {state.activeTab === "grasps" && (
+            <GraspsTab state={state} dispatch={dispatch} />
+          )}
+          {state.activeTab === "submission" && (
+            <SubmissionTab state={state} dispatch={dispatch} />
+          )}
+          {state.activeTab === "rubric" && (
+            <RubricTab
+              state={state}
+              dispatch={dispatch}
+              framework={framework}
+            />
+          )}
+          {state.activeTab === "timeline" && (
+            <TimelineTab
+              state={state}
+              dispatch={dispatch}
+              unitId={unitId}
+              pages={pages}
+            />
+          )}
+          {state.activeTab === "policy" && (
+            <PolicyTab state={state} dispatch={dispatch} />
+          )}
         </div>
 
         {/* Footer */}
@@ -297,17 +325,3 @@ export default function TaskDrawer({
   );
 }
 
-/**
- * Placeholder tab content. TG.0D.4 replaces this switch with imports of
- * GraspsTab / SubmissionTab / RubricTab / TimelineTab / PolicyTab — each
- * is a thin component reading + dispatching against the reducer.
- */
-function PlaceholderTabContent({ activeTab }: { activeTab: SummativeTabId }) {
-  const tabName = activeTab.charAt(0).toUpperCase() + activeTab.slice(1);
-  return (
-    <div className="text-[12px] text-[var(--le-ink-3)] italic">
-      <p className="font-semibold text-[var(--le-ink)]">{tabName} tab</p>
-      <p className="mt-2">Wired in TG.0D.4. The reducer + validators are already live, so save/publish + tab nav badges work end-to-end before the inputs render.</p>
-    </div>
-  );
-}
