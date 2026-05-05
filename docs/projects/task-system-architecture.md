@@ -1,6 +1,6 @@
 # Task System Architecture
 
-**Status:** ✅ BRIEF SIGNED OFF 5 May 2026 — all 7 open questions resolved (see § Open questions resolved). Ready for TG.0A pre-flight ritual.
+**Status:** ✅ BRIEF SIGNED OFF 5 May 2026 + TG.0A pre-flight COMPLETE. Two findings landed as brief amendments (`assessment_records` schema addition; `assessment_tasks.config` cross-framework extension docs). Ready for TG.0B (schema migration). Pre-flight report: [`task-system-tg0a-preflight.md`](task-system-tg0a-preflight.md).
 **Worktree:** `/Users/matt/CWORK/questerra` (or split into `/Users/matt/CWORK/questerra-tasks` if parallel-session collision becomes likely)
 **Branch:** `task-system-architecture` (off `main` @ today's tip)
 **Baseline tests:** 3700 passed / 11 skipped (post-Lever-MM + Tasks v1 prototype merge)
@@ -344,6 +344,52 @@ CREATE TABLE grade_entries (
 
 CREATE INDEX idx_grade_entries_submission ON grade_entries(submission_id);
 ```
+
+### `assessment_records` — published-grade endpoint (TG.0A finding F1, 5 May 2026)
+
+The brief's first draft missed this table. TG.0A audit caught it: `assessment_records` is the canonical published-grade lifecycle endpoint — what students/parents actually see, what data-subject exports include, what feeds G1's past-feedback memory. Stays as today; gains a task association.
+
+The flow: `student_tile_grades` (calibration working state) → `grade_entries` on `submissions` (synthesis working state) → **`assessment_records` (released, parent-visible snapshot, `is_draft=false`)**.
+
+```sql
+-- Existing schema preserved (migration 019_assessments.sql). Add task association:
+ALTER TABLE assessment_records
+  ADD COLUMN task_id UUID REFERENCES assessment_tasks(id) ON DELETE CASCADE;
+
+-- After TG.0K deletes legacy dummy data:
+ALTER TABLE assessment_records
+  ALTER COLUMN task_id SET NOT NULL;
+
+CREATE INDEX idx_assessment_records_task ON assessment_records(task_id);
+```
+
+Existing columns (preserved): `id`, `student_id`, `unit_id`, `class_id`, `teacher_id`, `data: JSONB NOT NULL` (holds `criterion_scores[]`, `overall_comment`, framework labels, snapshot data), `overall_grade: SMALLINT`, `is_draft: BOOLEAN NOT NULL DEFAULT true` (flips false on release), `assessed_at`, `created_at`, `updated_at`, `unit_version_id`.
+
+The release route (`/api/teacher/grading/release`) flow becomes task-scoped: reads `student_tile_grades` for `(student_id, task_id)` instead of `(student_id, unit_id, class_id)`; upserts `assessment_records` with `task_id`. No new readers/writers required — the 8 existing consumers (4 writers + 4 readers, per TG.0A F1 audit) keep working with task-scoped rows.
+
+Optional `submission_id UUID REFERENCES submissions(id)` column **deferred to v1.1** — not strictly needed since rollup data is embedded in `data.criterion_scores[]`. Add when reporting needs to cite the specific submission version.
+
+### `assessment_tasks.config` — extension point for cross-framework tagging (TG.0A finding F3, 5 May 2026)
+
+When **Lever 0 (manual unit designer)** ships, its Assessment section emits 1-4 `assessment_tasks` rows per unit. Lever 0 may also tag tasks with cross-framework context (CBCI generalization references, Paul-Elder element × standard intersections, Toulmin warrants, etc.). These tags don't get their own columns — they live in `assessment_tasks.config` JSONB:
+
+```typescript
+// Example task config from a Lever 0-authored unit:
+{
+  // Standard summative fields:
+  criteria: ['B', 'C'],
+  due_date: '2026-06-15',
+  submission_format: 'multi',
+  grasps: { goal: '...', role: '...', ... },
+  
+  // Lever 0 cross-framework tagging (extension point):
+  cbci_generalization_id: 'gen-3',  // FK-like reference into units.unit_planning_state.generalizations
+  paul_elder_intersection: { element: 'Information', standard: 'Depth' },
+  // ... future framework tags as new pedagogies arrive
+}
+```
+
+This is the canonical extension point for cross-framework tagging surfaced by Lever 0 (and any future pedagogy-aware unit-design surface). v1 grading UI doesn't need to surface these tags but they're queryable. Documented here so future devs don't try to add columns for each new framework.
 
 ### `student_tile_grades` — re-mint with task FK (G1 roll-forward)
 
