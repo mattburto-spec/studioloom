@@ -1548,11 +1548,13 @@ tables:
     created_at: TIMESTAMPTZ DEFAULT now()
     updated_at: TIMESTAMPTZ DEFAULT now()
     unit_version_id: UUID NULL REFERENCES unit_versions(id) ON DELETE SET NULL
+    task_id: UUID REFERENCES assessment_tasks(id) ON DELETE CASCADE  # TG.0B (5 May 2026), nullable initially; SET NOT NULL deferred to TG.0K
   indexes:
   - idx_assessment_records_student_unit ON (student_id, unit_id)
   - idx_assessment_records_class_unit ON (class_id, unit_id)
   - idx_assessment_records_teacher ON (teacher_id)
   - idx_assessment_records_draft ON (is_draft) WHERE is_draft = true
+  - idx_assessment_records_task ON (task_id) WHERE task_id IS NOT NULL  # TG.0B
   rls:
     read: Teachers manage assessments for their students (unknown); Service role full access assessments (unknown); Students
       read own published assessments (unknown)
@@ -1568,6 +1570,10 @@ tables:
     note: Phase 1.4 CS-1 — applied 20260429231124_phase_1_4_cs1_assessment_records_student_self_read.sql. Additive `Students
       read own published assessments` policy USING (is_draft = false AND student_id IN (SELECT id FROM students WHERE user_id
       = auth.uid())). Drafts remain teacher-only. Pre-positioned for CS-3 `grades` route switch.
+  - date: 2026-05-05
+    note: TG.0B — applied 20260505032750_task_system_v1_schema.sql. ADD COLUMN task_id UUID REFERENCES assessment_tasks(id) ON
+      DELETE CASCADE (nullable). Index idx_assessment_records_task added. SET NOT NULL deferred to TG.0K after dummy-data cleanup
+      (per OQ-2 sign-off). Surfaced via TG.0A pre-flight finding F1.
   classification:
     id:
       pii: true
@@ -10825,4 +10831,197 @@ tables:
   applied_date: null
   purpose: null
   columns: {}
+  spec_drift: []
+
+# ─────────────────────────────────────────────────────────────────
+# TG.0B (5 May 2026) — Task System Architecture v1
+# Migration: 20260505032750_task_system_v1_schema.sql
+# Brief: docs/projects/task-system-architecture.md
+# These 5 entries appended out-of-alphabetical-order pending the
+# FU-SCHEMA-REGISTRY-AUTO-SYNC scanner — manual maintenance is the
+# whole reason this work hit 2 prod-apply failures, so resorting
+# the file by hand is not the priority. Scanner will normalise.
+# ─────────────────────────────────────────────────────────────────
+- name: assessment_tasks
+  source_migration: 20260505032750_task_system_v1_schema.sql
+  status: applied
+  applied_date: '2026-05-05'
+  purpose: |
+    TG v1 unified primitive for gradeable events. task_type
+    discriminator (formative | summative | peer | self) drives the
+    UI surface (split per Tasks v1 prototype verdict — Claude
+    Design probe 4 May 2026), but data lives in one table.
+    Type-specific fields live in JSONB `config` (Cowork correction
+    #4) — CBCI generalizations, Paul-Elder element-standard
+    intersections, GRASPS scaffolding, late_policy, ai_use_policy,
+    resubmission settings, due_date, submission_format. Lever 0
+    unit designer writes here at task creation time.
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    unit_id: UUID REFERENCES units(id) ON DELETE CASCADE  # NULLABLE — cross-unit summative (Cowork correction #6)
+    class_id: UUID REFERENCES classes(id) ON DELETE CASCADE
+    school_id: UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE
+    title: TEXT NOT NULL CHECK (length(trim(title)) > 0)
+    task_type: TEXT NOT NULL DEFAULT 'formative' CHECK (task_type IN ('formative','summative','peer','self'))
+    status: TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published','closed'))  # task lifecycle, separate from submission.status (Cowork correction #1)
+    config: JSONB NOT NULL DEFAULT '{}'::jsonb  # extension point — see brief §`assessment_tasks.config`
+    created_by: UUID NOT NULL REFERENCES auth.users(id)
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  indexes:
+  - idx_assessment_tasks_unit ON (unit_id) WHERE unit_id IS NOT NULL
+  - idx_assessment_tasks_class ON (class_id) WHERE class_id IS NOT NULL
+  - idx_assessment_tasks_school ON (school_id)
+  - idx_assessment_tasks_type ON (task_type)
+  - idx_assessment_tasks_status ON (status)
+  - idx_assessment_tasks_creator ON (created_by)
+  rls_enabled: true
+  rls:
+    read: assessment_tasks_read_school (teachers in same school + platform admin + school admin)
+    write: assessment_tasks_write_creator_or_admin (creator + platform admin + school admin)
+  applied_via:
+  - 20260505032750_task_system_v1_schema.sql
+  spec_drift: []
+- name: task_lesson_links
+  source_migration: 20260505032750_task_system_v1_schema.sql
+  status: applied
+  applied_date: '2026-05-05'
+  purpose: |
+    TG v1 — many-to-many between tasks and lesson pages. Replaces
+    the task.page_ids[] array proposal (Cowork correction #2) so
+    the relationship is queryable from either side: "what tasks
+    does this lesson contribute to?" → WHERE unit_id, page_id;
+    "what lessons feed this task?" → WHERE task_id. page_id is
+    a TEXT identifier matching units.content_data.pages[].id (e.g.
+    'L01', 'A1').
+  columns:
+    task_id: UUID NOT NULL REFERENCES assessment_tasks(id) ON DELETE CASCADE
+    unit_id: UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE
+    page_id: TEXT NOT NULL CHECK (length(trim(page_id)) > 0)
+  primary_key: (task_id, unit_id, page_id)
+  indexes:
+  - idx_task_lesson_links_task ON (task_id)
+  - idx_task_lesson_links_unit_page ON (unit_id, page_id)
+  rls_enabled: true
+  rls:
+    read: task_lesson_links_read_via_task (gated by parent task RLS)
+    write: task_lesson_links_write_via_task (creator-or-admin via parent task)
+  applied_via:
+  - 20260505032750_task_system_v1_schema.sql
+  spec_drift: []
+- name: task_criterion_weights
+  source_migration: 20260505032750_task_system_v1_schema.sql
+  status: applied
+  applied_date: '2026-05-05'
+  purpose: |
+    TG v1 — weight + rubric descriptors per (task, criterion).
+    Cowork correction #3: task.weight is on the EDGE, not on the
+    task. MYP samples each criterion across multiple tasks; tasks
+    don't sum to 100% within a unit. Each row says "this task
+    assesses criterion X with weight Y; here are the rubric
+    descriptors at 4 achievement bands for criterion X."
+    criterion_key is framework-neutral (e.g. 'A','AO1','researching');
+    MYPflex resolves display labels per class.framework at render.
+  columns:
+    task_id: UUID NOT NULL REFERENCES assessment_tasks(id) ON DELETE CASCADE
+    criterion_key: TEXT NOT NULL CHECK (length(trim(criterion_key)) > 0)
+    weight: INTEGER NOT NULL DEFAULT 100 CHECK (weight BETWEEN 0 AND 100)
+    rubric_descriptors: JSONB  # { level1_2, level3_4, level5_6, level7_8 } for MYP; mapped per framework
+  primary_key: (task_id, criterion_key)
+  indexes:
+  - idx_task_criterion_weights_task ON (task_id)
+  rls_enabled: true
+  rls:
+    read: task_criterion_weights_read_via_task (gated by parent task RLS)
+    write: task_criterion_weights_write_via_task (creator-or-admin via parent task)
+  applied_via:
+  - 20260505032750_task_system_v1_schema.sql
+  spec_drift: []
+- name: submissions
+  source_migration: 20260505032750_task_system_v1_schema.sql
+  status: applied
+  applied_date: '2026-05-05'
+  purpose: |
+    TG v1 — student-submitted evidence with version-based
+    resubmissions. POLYMORPHIC source_kind: v1 only writes "task";
+    "milestone" and "project" reserved for inquiry-mode (sister
+    project) without schema migration. FK enforcement on source_id
+    is application-layer due to the polymorphism.
+
+    Lifecycle (status: draft → submitted → graded → returned) is
+    SEPARATE from task.status (Cowork correction #1). Versioning
+    via version + version_of_submission_id chain (Cowork correction
+    #5) — each resubmission attempt is its own row, never mutated
+    in place.
+
+    self_assessment JSONB is the Hattie d=1.33 scaffold —
+    required-before-submit for summative tasks per OQ-3 sign-off,
+    enforced at app layer.
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    source_kind: TEXT NOT NULL CHECK (source_kind IN ('task','milestone','project'))
+    source_id: UUID NOT NULL  # app-layer FK enforcement (varies by source_kind)
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    school_id: UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE
+    version: INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1)
+    version_of_submission_id: UUID REFERENCES submissions(id) ON DELETE SET NULL
+    text_response: TEXT
+    uploads: JSONB NOT NULL DEFAULT '[]'::jsonb  # [{ url, filename, mime, size_bytes, uploaded_at }, ...]
+    ai_use_declaration: TEXT
+    self_assessment: JSONB  # [{ criterion, level, evidence_note }, ...] — Hattie d=1.33 scaffold (OQ-3)
+    status: TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','submitted','graded','returned'))
+    draft_saved_at: TIMESTAMPTZ
+    submitted_at: TIMESTAMPTZ
+    late_days: INTEGER NOT NULL DEFAULT 0 CHECK (late_days >= 0)
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  unique_constraints:
+  - (source_kind, source_id, student_id, version)
+  indexes:
+  - idx_submissions_source ON (source_kind, source_id)
+  - idx_submissions_student ON (student_id)
+  - idx_submissions_school ON (school_id)
+  - idx_submissions_status ON (status)
+  - idx_submissions_version_chain ON (version_of_submission_id) WHERE version_of_submission_id IS NOT NULL
+  rls_enabled: true
+  rls:
+    read: submissions_read_teacher_via_school (teachers same-school via parent task)
+    write: submissions_admin_full (platform admin + school admin); student writes via service-role API routes
+  applied_via:
+  - 20260505032750_task_system_v1_schema.sql
+  spec_drift: []
+- name: grade_entries
+  source_migration: 20260505032750_task_system_v1_schema.sql
+  status: applied
+  applied_date: '2026-05-05'
+  purpose: |
+    TG v1 — per-criterion grades against a submission. Working state
+    for the teacher's Synthesize view; released en-masse into
+    assessment_records via /api/teacher/grading/release. is_published
+    is separate from task.status — controls student visibility of the
+    specific criterion's grade. achievement_level is framework-neutral
+    ('1-2','3-4','5-6','7-8' for MYP); MYPflex maps band labels per
+    class.framework at render.
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    submission_id: UUID NOT NULL REFERENCES submissions(id) ON DELETE CASCADE
+    criterion_key: TEXT NOT NULL CHECK (length(trim(criterion_key)) > 0)
+    achievement_level: TEXT NOT NULL CHECK (length(trim(achievement_level)) > 0)
+    numeric_score: NUMERIC  # optional; NULL when only level matters
+    feedback_text: TEXT
+    graded_by: UUID NOT NULL REFERENCES auth.users(id)
+    graded_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    is_published: BOOLEAN NOT NULL DEFAULT false
+  unique_constraints:
+  - (submission_id, criterion_key)
+  indexes:
+  - idx_grade_entries_submission ON (submission_id)
+  - idx_grade_entries_criterion ON (criterion_key)
+  - idx_grade_entries_published ON (is_published) WHERE is_published = true
+  rls_enabled: true
+  rls:
+    read: grade_entries_read_via_submission (gated by parent submission RLS)
+    write: grade_entries_write_grader_or_admin (graded_by + platform admin + school admin)
+  applied_via:
+  - 20260505032750_task_system_v1_schema.sql
   spec_drift: []
