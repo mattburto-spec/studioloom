@@ -9,8 +9,10 @@ import { describe, it, expect } from "vitest";
 import {
   buildSummativeCreateInput,
   errorCountsByTab,
+  errorsByTab,
   INITIAL_SUMMATIVE_STATE,
   isSummativeFormReady,
+  partitionTitleErrors,
   summativeReducer,
   validateSummativeForm,
   SUMMATIVE_TAB_ORDER,
@@ -408,6 +410,50 @@ describe("errorCountsByTab", () => {
     expect(counts.rubric).toBe(0);
     expect(counts.timeline).toBe(0);
     expect(counts.policy).toBe(0);
+  });
+});
+
+describe("errorsByTab + partitionTitleErrors (TG.0D smoke fix)", () => {
+  it("errorsByTab groups error objects per tab (not just counts)", () => {
+    const errors = validateSummativeForm({
+      ...INITIAL_SUMMATIVE_STATE,
+      title: "",
+    });
+    const grouped = errorsByTab(errors);
+    expect(grouped.grasps.length).toBeGreaterThan(0);
+    expect(grouped.grasps.every((e) => e.tab === "grasps")).toBe(true);
+    expect(grouped.submission).toEqual([]);
+    expect(grouped.policy).toEqual([]);
+  });
+
+  it("partitionTitleErrors splits title-only errors from tab errors", () => {
+    const titleOnlyErrors = validateSummativeForm(
+      ready({ title: "" })
+    );
+    const { title, rest } = partitionTitleErrors(titleOnlyErrors);
+    expect(title).toHaveLength(1);
+    expect(title[0].field).toBe("title");
+    expect(rest).toEqual([]);
+  });
+
+  it("partitionTitleErrors keeps tab errors in 'rest' even when title is empty", () => {
+    const allErrors = validateSummativeForm({
+      ...INITIAL_SUMMATIVE_STATE,
+      title: "",
+    });
+    const { title, rest } = partitionTitleErrors(allErrors);
+    expect(title.length).toBeGreaterThan(0);
+    expect(rest.length).toBeGreaterThan(0);
+    // None of the rest should have field='title'
+    expect(rest.every((e) => e.field !== "title")).toBe(true);
+  });
+
+  it("partitionTitleErrors returns empty title array on a ready state", () => {
+    const { title, rest } = partitionTitleErrors(
+      validateSummativeForm(ready())
+    );
+    expect(title).toEqual([]);
+    expect(rest).toEqual([]);
   });
 });
 
