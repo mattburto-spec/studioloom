@@ -83,7 +83,11 @@ export default function TasksPanel({
   );
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
+    null
+  );
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   function handleSaved(task: AssessmentTask) {
     setTasks((prev) => {
@@ -100,12 +104,13 @@ export default function TasksPanel({
     setEditingId(null);
   }
 
-  async function handleDelete(taskId: string, title: string) {
-    if (!window.confirm(`Delete "${title}"? This can't be undone.`)) return;
+  async function performDelete(taskId: string) {
     setDeletingId(taskId);
+    setDeleteError(null);
     try {
       await deleteTask(taskId);
       setTasks((prev) => (prev ?? []).filter((t) => t.id !== taskId));
+      setConfirmingDeleteId(null);
     } catch (err) {
       const msg =
         err instanceof TaskApiError
@@ -113,7 +118,7 @@ export default function TasksPanel({
           : err instanceof Error
             ? err.message
             : "Failed to delete";
-      window.alert(`Couldn't delete task: ${msg}`);
+      setDeleteError(msg);
     } finally {
       setDeletingId(null);
     }
@@ -178,6 +183,7 @@ export default function TasksPanel({
           {rows.map((row) => {
             const task = (tasks ?? []).find((t) => t.id === row.id)!;
             const isEditing = editingId === row.id;
+            const isConfirmingDelete = confirmingDeleteId === row.id;
             const isDeleting = deletingId === row.id;
             if (isEditing) {
               return (
@@ -191,6 +197,54 @@ export default function TasksPanel({
                     onSaved={handleSaved}
                     onCancel={() => setEditingId(null)}
                   />
+                </li>
+              );
+            }
+            if (isConfirmingDelete) {
+              return (
+                <li
+                  key={row.id}
+                  className="px-2 py-1.5 bg-rose-50 border border-rose-300 rounded text-[11px] leading-tight"
+                  data-testid="tasks-panel-row-confirm-delete"
+                  data-task-id={row.id}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span aria-hidden="true">🗑</span>
+                    <span className="font-semibold text-rose-900 truncate">
+                      Delete &ldquo;{row.title}&rdquo;?
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-rose-700 mt-0.5">
+                    This can&apos;t be undone.
+                  </div>
+                  {deleteError && (
+                    <div className="text-[10px] text-rose-700 mt-0.5">
+                      {deleteError}
+                    </div>
+                  )}
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => performDelete(row.id)}
+                      disabled={isDeleting}
+                      className="text-[10.5px] px-2 py-0.5 rounded bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                      data-testid={`tasks-panel-confirm-delete-${row.id}`}
+                    >
+                      {isDeleting ? "Deleting…" : "Delete"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfirmingDeleteId(null);
+                        setDeleteError(null);
+                      }}
+                      disabled={isDeleting}
+                      className="text-[10.5px] px-2 py-0.5 rounded text-rose-700 hover:text-rose-900 disabled:opacity-50"
+                      data-testid={`tasks-panel-cancel-delete-${row.id}`}
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </li>
               );
             }
@@ -223,9 +277,11 @@ export default function TasksPanel({
                     )}
                     <button
                       type="button"
-                      onClick={() => handleDelete(row.id, row.title)}
-                      disabled={isDeleting}
-                      className="text-[10px] text-[var(--le-ink-3)] hover:text-rose-600 px-1 disabled:opacity-50"
+                      onClick={() => {
+                        setConfirmingDeleteId(row.id);
+                        setDeleteError(null);
+                      }}
+                      className="text-[10px] text-[var(--le-ink-3)] hover:text-rose-600 px-1"
                       title="Delete"
                       data-testid={`tasks-panel-delete-${row.id}`}
                     >
