@@ -14,6 +14,71 @@
 
 ---
 
+## FU-COLOR-PREFERENCE — Per-machine `available_colors` filter (v2 of preferred-color)
+**Surfaced:** 4 May 2026 night, while building color-preference v1
+**Target phase:** Post-pilot UX expansion (gated on first fab feedback that the v1 hardcoded list is too generic)
+**Severity:** 🟢 LOW (feature growth, no current bug)
+
+**Origin:** v1 (shipped 5 May 2026, PR #25, commit `b52fe72`) gives
+students a hardcoded dropdown of common school-makerspace filament
+colors + an "Other (specify)" free-text escape hatch. Stored as plain
+text on `fabrication_jobs.preferred_color`. Works fine for the NIS pilot
+where the lab's filament library is broadly stable.
+
+**v2 promise (deferred):** *"later on it could be upgraded so that the
+fab can adjust the colours available on each machine but thats more
+work."*
+
+**v2 scope:**
+
+Move the canonical color list off `src/lib/fabrication/preferred-color-options.ts`
+(static array) and onto `machine_profiles.available_colors` (JSONB
+array of `{value, label}` per machine). The student picker would then:
+
+1. Read `available_colors` for the selected machine
+2. Show the union of "common defaults" + that machine's overrides
+3. Filter to only what's actually loaded on that printer
+4. Fab admin page gains a per-machine "Currently loaded" editor
+
+**Schema sketch:**
+
+```sql
+ALTER TABLE machine_profiles
+  ADD COLUMN available_colors JSONB
+    DEFAULT '[]'::jsonb
+    NOT NULL;
+
+-- shape: [{ "value": "PLA — Black", "label": "PLA — Black" }, ...]
+-- empty array means "fall back to platform defaults from preferred-color-options.ts"
+```
+
+**Why defer:**
+
+- v1 covers the actual student → fab handoff gap (fab knows what color
+  to load). v2 only solves the *"the dropdown is too long / has stuff
+  we don't stock"* problem, which Matt's NIS lab hasn't hit yet.
+- Adding per-machine config gives the fab another admin surface to
+  maintain — friction worth absorbing only when v1 friction is real.
+- v1 already has the `preferred_color` column + free-text fallback,
+  so v2 is purely additive (no data migration, no breaking change to
+  what's stored).
+
+**Trigger to revisit:**
+- A fab/teacher says "the dropdown shows stuff we don't carry" or "kids
+  keep picking colors we never stock"
+- Pilot expansion to a school with a heterogeneous machine fleet (one
+  printer is PETG-only, one is multi-material, etc)
+- "continue color v2" / "FU-COLOR-PREFERENCE" in any session
+
+**Definition of done:**
+(a) at least one pilot fab has formally requested machine-specific
+color filtering, (b) `machine_profiles.available_colors` JSONB column
+lands with admin editor UI, (c) student picker reads from the bound
+machine's list (with platform defaults as fallback), (d) v1 hardcoded
+list in `preferred-color-options.ts` becomes the platform-default seed.
+
+---
+
 ## FU-FAB-INVITE-SCHOOL-SCOPED — Fabricator invite still gates on teacher_id, not school_id (Phase 8-1 audit gap)
 **Status: ✅ RESOLVED 4 May 2026** (along with 4 sibling fab admin routes; see closure note at bottom)
 **Surfaced:** 29 Apr 2026, post-Access-v2 Preflight retest setup
