@@ -24,8 +24,9 @@ import {
 import { getCriterionLabels, type FrameworkId } from "@/lib/frameworks/adapter";
 import AddTaskChooser from "./AddTaskChooser";
 import QuickCheckRow from "./QuickCheckRow";
+import TaskDrawer from "./TaskDrawer";
 
-type AddMode = "idle" | "chooser" | "quickCheck";
+type AddMode = "idle" | "chooser" | "quickCheck" | "summative";
 
 interface TasksPanelProps {
   unitId: string;
@@ -83,6 +84,9 @@ export default function TasksPanel({
   );
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingDrawerTaskId, setEditingDrawerTaskId] = useState<string | null>(
+    null
+  );
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
     null
   );
@@ -145,6 +149,7 @@ export default function TasksPanel({
       {addMode === "chooser" && (
         <AddTaskChooser
           onChooseQuickCheck={() => setAddMode("quickCheck")}
+          onChooseProjectTask={() => setAddMode("summative")}
           onCancel={() => setAddMode("idle")}
         />
       )}
@@ -159,6 +164,33 @@ export default function TasksPanel({
           onCancel={() => setAddMode("idle")}
         />
       )}
+
+      {addMode === "summative" && (
+        <TaskDrawer
+          unitId={unitId}
+          classId={classId}
+          framework={framework}
+          pages={pages}
+          onSaved={handleSaved}
+          onClose={() => setAddMode("idle")}
+        />
+      )}
+
+      {editingDrawerTaskId && (() => {
+        const task = (tasks ?? []).find((t) => t.id === editingDrawerTaskId);
+        if (!task) return null;
+        return (
+          <TaskDrawer
+            unitId={unitId}
+            classId={classId}
+            framework={framework}
+            pages={pages}
+            editingTask={task}
+            onSaved={handleSaved}
+            onClose={() => setEditingDrawerTaskId(null)}
+          />
+        );
+      })()}
 
       {loading && (
         <div className="text-[10.5px] text-[var(--le-ink-3)] italic">
@@ -294,9 +326,17 @@ export default function TasksPanel({
                   {row.criterionLine && row.dueLine && <span>·</span>}
                   {row.dueLine && <span>{row.dueLine}</span>}
                   {row.isSummative && (
-                    <span className="ml-auto text-[var(--le-ink-2)]">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingDrawerTaskId(row.id);
+                      }}
+                      className="ml-auto text-[var(--le-ink-2)] hover:text-violet-700 hover:underline underline-offset-2"
+                      data-testid={`tasks-panel-configure-${row.id}`}
+                    >
                       [Configure →]
-                    </span>
+                    </button>
                   )}
                 </div>
               </li>

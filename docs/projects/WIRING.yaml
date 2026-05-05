@@ -1344,6 +1344,15 @@ systems:
       - src/components/teacher/lesson-editor/AddTaskChooser.tsx
       - src/components/teacher/lesson-editor/QuickCheckRow.tsx
       - src/components/teacher/lesson-editor/quick-check-form-state.ts
+      - src/components/teacher/lesson-editor/TaskDrawer.tsx
+      - src/components/teacher/lesson-editor/TaskDrawer.types.ts
+      - src/components/teacher/lesson-editor/TaskDrawerTabNav.tsx
+      - src/components/teacher/lesson-editor/summative-form-state.ts
+      - src/components/teacher/lesson-editor/tabs/GraspsTab.tsx
+      - src/components/teacher/lesson-editor/tabs/SubmissionTab.tsx
+      - src/components/teacher/lesson-editor/tabs/RubricTab.tsx
+      - src/components/teacher/lesson-editor/tabs/TimelineTab.tsx
+      - src/components/teacher/lesson-editor/tabs/PolicyTab.tsx
       - src/lib/nm/checkpoint-ops.ts
       - src/lib/tasks/types.ts
       - src/lib/tasks/validators.ts

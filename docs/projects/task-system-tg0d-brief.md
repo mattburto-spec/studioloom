@@ -1,5 +1,7 @@
 # Task System — TG.0D Brief: 5-Tab Summative Project-Task Drawer
 
+> **Status:** ✅ **BUILT 5 May 2026** — Foundation merged in PR #38 (TG.0D.1 types + .2 reducer). Drawer + tabs + wiring on branch `task-system-tg0d-drawer` (TG.0D.3-.6, 7 commits). 216/216 tests passing. Awaiting Matt's 12-step Checkpoint TG.0D.1 smoke before merge. Next: TG.0E (lesson card "Builds toward..." chip).
+>
 > **Goal:** Enable the greyed-out "🎯 Project task" button in `AddTaskChooser`. Click → a right-side drawer opens with 5 tabs in fixed order (GRASPS → Submission → Rubric → Timeline → Policy) — backward-design-forcing per Tasks v1 prototype verdict. Same chooser, same panel, same writes-three-tables pipeline as TG.0C; just a different config surface for `task_type='summative'`.
 > **Spec source:** [`task-system-architecture.md`](task-system-architecture.md) §Project task — 5-tab modal/drawer (lines 473–489).
 > **Prototype:** [`docs/prototypes/tasks-v1/`](../prototypes/tasks-v1/) — Artboard 2 → Project task surface is the design reference.
