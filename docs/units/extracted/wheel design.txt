@@ -1,0 +1,114 @@
+=== wheel design.pptx ===
+Wheel Design
+
+---SLIDE---
+1. Mass (Weight) and Newton’s Laws
+The Science:
+ Look at 
+Newton’s Second Law
+: Force = Mass \times Acceleration (F=ma).
+This can be rewritten as: 
+Acceleration = Force / Mass
+.
+The Constant:
+ Your CO2 cartridge provides a fixed amount of 
+Force
+.
+Research Task:
+ Find an image of a heavy "Steel Rim" and a light "Carbon Fiber Rim." Paste them below.
+The Logic Test (Circle the correct answers):
+ 
+If the 
+Mass
+ of the wheel increases, the 
+Acceleration
+ will ( Increase / Decrease ).
+Which of Newton's Laws explains why a heavy car is harder to push than a light car? 
+A) Newton's 1st Law 
+B) Newton's 2nd Law 
+C) Newton's 3rd Law 
+Design Decision:
+ 
+For my dragster, I need wheels with ( High / Low ) mass to maximize acceleration.
+
+---SLIDE---
+2. Width and Friction
+The Science:
+ 
+Friction
+ is a force that opposes motion.
+Research Task:
+ Find an image of a "Wide Dragster Tire" and a "Narrow Solar Car Tire."
+The Logic Test:
+ 
+Wide tires have a large "Contact Patch" (area touching the ground).
+Narrow tires have a small "Contact Patch."
+Hypothesis:
+ More contact with the ground creates ( More / Less ) friction.
+Critical Thinking:
+ Real dragsters use wide tires because they need grip to stop the wheels from spinning out. Your CO2 car is pushed by air, not by the wheels. Therefore: 
+Do you need grip? ( Yes / No )
+Should you choose wide or narrow wheels? ( Wide / Narrow )
+
+---SLIDE---
+3. Aerodynamics (Turbulence)
+The Science:
+ 
+Drag
+ is the air resisting your car. Objects that are "smooth" allow air to pass easily (Laminar Flow). Objects with holes or complex shapes churn the air (Turbulence).
+Research Task:
+ Find an image of a "Spoked Bicycle Wheel" and a "Solid Disc Wheel."
+The Logic Test:
+ 
+Look at the spokes. As they spin, they act like a fan, hitting the air. This creates ( Drag / Thrust ).
+Look at the solid disc. The air flows over the flat surface.
+Design Decision:
+ 
+To reduce air resistance, the most aerodynamic wheel shape is the ( Spoked / Solid ) wheel.
+
+---SLIDE---
+Ideate
+As an individual
+, based on your research, design 3 possible wheels (
+eg.
+ sketches on paper or 
+ipad
+) and insert them below. Annotations recommended
+
+---SLIDE---
+Choose
+Insert pictures of the designs below in row 1.Complete the comparison table to choose the best wheel design. Each criteria scored out of 5
+Criteria
+Design 1
+(insert pic here)
+Design 2
+(insert pic here)
+Design 3
+(insert pic here)
+Aerodynamics
+Weight
+Strength &amp; Durability
+Ease of CAD modelling
+Aesthetics
+Total
+
+---SLIDE---
+Step 5
+Once you're happy with a design, 
+as an individual 
+follow these video tutorials to make your wheel in 
+Onshape
+:
+wheel video 1
+Wheel video 2
+
+---SLIDE---
+Step 6
+Take a screenshot of your wheel and add this to the PPT
+
+---SLIDE---
+Step 7
+As an individual
+, write a justification of your design. This is a one paragraph summary of the reasons why you designed your wheel(s) this way. All members will choose the same wheel design from the previous slide, but each person’s justification will be different.
+
+---SLIDE---

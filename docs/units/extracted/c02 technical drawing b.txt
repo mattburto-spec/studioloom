@@ -1,0 +1,135 @@
+=== c02 technical drawing b.pptx ===
+The Goal:
+You have chosen your fastest design. Now you must translate your sketch into a precise 
+Engineering Blueprint
+.
+This drawing is 
+1:1 Scale
+. This means it is the 
+exact real-life size
+ of your future car.
+Why do we do this?
+CAM Preparation:
+ You will trace this drawing into the computer (CAD) later. If the drawing is wrong, the computer file will be wrong.
+The Rules:
+ We must check if your car fits the official race specifications
+Task: The Engineering Blueprint (1:1 Scale)
+
+---SLIDE---
+The working drawing is a precise, 1:1 scale drawing that describes your car, its dimensions, and its features. 
+Working drawings should have top and side, or profile, views. An accurate working drawing is important for two reasons: 1) A copy of the working drawing serves as a template for making a CAD model and 
+2) rough-cutting your car blank.  
+ 
+Step 1: 
+Choose your design
+Step 2: 
+Draw the top and side on the grid paper (supplied) 
+Make light projection lines from one view to the other to help you locate axle holes and other features of your design. Show the location of hidden details (such as the cartridge hole) by using dashed lines. Check the specifications.   Look at your design sketch to see how each spec applies to your design. You may find it necessary to take notes or even change your design. 
+Include all key dimensions 
+(
+eg.
+ 
+Total Length
+, 
+Width at wheels
+, and 
+Wheelbase)
+.
+Annotate key features.
+Task: The Engineering Blueprint (1:1 Scale)
+
+---SLIDE---
+Design Constraints #1
+
+---SLIDE---
+Design Constraints #2
+
+---SLIDE---
+Photo of working drawing
+Step 3
+: Take a photo of the paper 
+in the light box and upload to this task
+
+---SLIDE---
+Safety Checks (Must Pass Before Racing)
+PRODUCTION SPECIFICATIONS
+MIN
+MAX
+PASSED?
+A.
+Dragster body length
+200 mm
+305 mm
+☐
+B.
+Dragster body mass / weight with wheels
+45 g
+-
+☐
+C.
+Power plant: depth of hole
+50 mm
+52 mm
+☐
+D.
+Power plant: housing thickness (around entire housing)
+3 mm
+-
+☐
+E.
+Power plant: housing (diameter) (Use 3/4" Drill)
+19.5 mm
+3/4"
+☐
+F.
+Power plant: lowest point of chamber to race surface
+26 mm
+36 mm
+☐
+G.
+Screw eye or eyelet inside diameter
+4 mm
+-
+☐
+
+---SLIDE---
+HOW YOU ARE GRADED (Criterion B4)
+Level
+Title
+What does your drawing look like?
+1 - 2
+The Sketch
+• You drew by hand (no ruler).
+• The drawing is messy.
+• I cannot build a car from this.
+3 - 4
+The Diagram
+• You used a ruler, but lines are messy.
+• Top and Side views do not line up.
+• You forgot the Hidden Lines (CO2 hole).
+• 
+I have to guess the size.
+5 - 6
+The Working Drawing
+• 
+Scale is correct (1:1).
+• Top and Side views align correctly.
+• Dashed lines show the CO2 hole clearly.
+• I can see the dimensions.
+• 
+I can build this car.
+7 - 8
+The Blueprint
+• 
+Perfect alignment
+ (Projection lines are visible but light).
+• 
+High Quality:
+ Thick lines for the car, thin lines for dimensions.
+• 
+Zero Errors:
+ It is ready for the computer (CAD) immediately.
+• 
+A machine could read this.
+
+---SLIDE---
