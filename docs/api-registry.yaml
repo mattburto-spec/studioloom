@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 432
+# Total routes: 436
 
 routes:
 - path: /api/admin/ai-budget
@@ -4111,6 +4111,70 @@ routes:
   - students
   tables_written:
   - students
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/tasks
+  method: GET
+  file: src/app/api/teacher/tasks/route.ts
+  auth: teacher
+  tables_read:
+  - assessment_tasks
+  - task_criterion_weights
+  - task_lesson_links
+  - teachers
+  tables_written:
+  - assessment_tasks
+  - task_criterion_weights
+  - task_lesson_links
+  - teachers
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/tasks
+  method: POST
+  file: src/app/api/teacher/tasks/route.ts
+  auth: teacher
+  tables_read:
+  - assessment_tasks
+  - task_criterion_weights
+  - task_lesson_links
+  - teachers
+  tables_written:
+  - assessment_tasks
+  - task_criterion_weights
+  - task_lesson_links
+  - teachers
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/tasks/[id]
+  method: PATCH
+  file: src/app/api/teacher/tasks/[id]/route.ts
+  auth: teacher
+  tables_read:
+  - assessment_tasks
+  - task_criterion_weights
+  - task_lesson_links
+  tables_written:
+  - assessment_tasks
+  - task_criterion_weights
+  - task_lesson_links
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/tasks/[id]
+  method: DELETE
+  file: src/app/api/teacher/tasks/[id]/route.ts
+  auth: teacher
+  tables_read:
+  - assessment_tasks
+  - task_criterion_weights
+  - task_lesson_links
+  tables_written:
+  - assessment_tasks
+  - task_criterion_weights
+  - task_lesson_links
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null

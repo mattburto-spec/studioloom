@@ -19,6 +19,7 @@ import AITextField from "./AITextField";
 import ExtensionBlock from "./ExtensionBlock";
 import DimensionsSummaryBar from "./DimensionsSummaryBar";
 import UnitThumbnailEditor from "./UnitThumbnailEditor";
+import TasksPanel from "./TasksPanel";
 import { LessonSkillsPanel } from "@/components/skills/LessonSkillsPanel";
 import { autoPopulateBloomLevels } from "@/lib/dimensions/infer-bloom";
 import { buildNmElementBlocks, type BlockDefinition } from "./BlockPalette";
@@ -930,6 +931,16 @@ export default function LessonEditor({
               onThumbnailChange={setThumbnailUrl}
             />
           </div>
+          {/* Tasks panel — TG.0C (formative inline; summative drawer in TG.0D) */}
+          <TasksPanel
+            unitId={unitId}
+            classId={classId}
+            framework={framework}
+            pages={pages.map((p) => ({
+              id: p.id ?? "",
+              title: p.title ?? "(untitled)",
+            }))}
+          />
           {/* Lesson list (takes remaining height) */}
           <div className="flex-1 min-h-0">
             <LessonSidebar
