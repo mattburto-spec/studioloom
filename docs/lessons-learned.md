@@ -1002,5 +1002,32 @@ The repo's `vitest.config.ts` has no React/JSX plugin (no `@vitejs/plugin-react`
 
 **Long-term consideration:** if the codebase eventually wants component-level tests (mounting React, asserting rendered output), THAT's when `@vitejs/plugin-react` earns its place. Until then, pure-logic-in-`.ts` is the simpler boundary.
 
+### Lesson #72 — Manually-maintained schema-registry causes prod-apply failures; live introspection is non-optional once a project has >50 tables
+**The bug:** TG.0B's schema migration failed prod-apply twice in a row, both times because `docs/schema-registry.yaml` had drifted from prod reality:
+
+1. **First failure:** `column 'task_id' does not exist`. The brief said "RE-MINT student_tile_grades with task_id NOT NULL" because the registry recorded `student_tile_grades` as `status: dropped, columns: {}`. Reality: the table had been live on prod since 27 Apr 2026 with 26 columns from 3 applied migrations. Fix: pivot to Path A (ALTER ADD task_id), but only after burning a full session re-authoring the migration + tests + down-migration + registry entries.
+
+2. **Second failure (same migration, next attempt):** `column 'user_id' does not exist; HINT: Perhaps you meant assessment_tasks.unit_id`. Two RLS policies referenced `teachers.user_id` because I assumed the `teachers` table joined to `auth.users` via a `user_id` FK. Reality: `teachers.id` IS `auth.users.id` (1:1 relationship). The registry didn't capture the join column, so the assumption went unchecked.
+
+Both failures had the same root cause: **the registry has no auto-sync mechanism**, while the api-registry (266 routes) and ai-call-sites (47 calls) DO have scanners (`scripts/registry/scan-api-routes.py`, `scripts/registry/scan-ai-calls.py`) that run on every saveme. Without that loop, manual edits drift. The registry then becomes a confidence trap — *visibly populated entries* feel authoritative, but they reflect intent at write-time, not current prod state.
+
+Drift sources observed in this session alone:
+- `student_tile_grades` recorded as dropped while it was live (zombie entry from a rolled-back-then-reapplied migration)
+- `student_tile_grade_events` had the same staleness (sibling table from the same migration)
+- `teachers` join column not captured anywhere — only discoverable by grepping other migrations
+- Sister FU-PROD-MIGRATION-BACKLOG-AUDIT (P1) found prod is missing migration 051 + much of Access Model v2 schema, meaning the *repo migrations* aren't a trustworthy source of truth either — only live introspection is.
+
+**The fix (filed as FU-SCHEMA-REGISTRY-AUTO-SYNC P1):** build `scripts/registry/scan-schema-registry.py`. Connect via `SUPABASE_SERVICE_ROLE_KEY`, query `information_schema.columns` + `pg_catalog.pg_policies`, diff against the yaml, write `docs/scanner-reports/schema-registry.json`. Wire into saveme step 11. One-shot resync PR brings the existing 110 entries up to date.
+
+**The general rule (a sibling to Lesson #54 + #68):** **For any registry over ~50 entries, manual maintenance will go stale faster than humans notice. The minute a registry's cost-of-staleness includes "migration fails on prod-apply," it has earned a scanner.** Schema-registry is no different from api-registry; treating one as auto-synced and the other as manual was the original mistake.
+
+**Operational guidance:**
+1. **Don't trust registry entries that haven't been touched in 30+ days** — even ones that look complete. Probe `information_schema.columns` directly before designing any migration that ALTERs an existing table.
+2. **When two registry entries disagree about the same fact** (status: dropped vs applied_via: [migration list], 0 columns vs nonzero applied_date) — that's drift, not a typo. Trust the one that matches prod, not the one that matches your current commit.
+3. **The cost of a scanner is one afternoon. The cost of a failed prod-apply mid-session is one afternoon plus pivoting your migration plan plus re-running tests plus re-pasting the body to Matt twice.** Scanner ROI is positive on the first prevented failure.
+4. **Live introspection beats migration-file parsing** because of FU-EE (no canonical applied-migrations log) + FU-PROD-MIGRATION-BACKLOG-AUDIT (repo migrations ≠ applied set). The yaml needs to mirror prod, not the repo.
+
+**When this comes up:** any phase that ALTERs an existing table; any migration that asserts a foreign-key target column name; any `WHERE x = auth.uid()` site (the column name is *never* obvious — always grep prior migrations). For TG.0C onward, probe `information_schema.columns` via Supabase SQL editor before authoring SQL — same Lesson #68 pattern, applied earlier in the workflow.
+
 
 
