@@ -28,8 +28,10 @@ import type { AssessmentTask, UpdateTaskInput } from "@/lib/tasks/types";
 import {
   buildSummativeCreateInput,
   errorCountsByTab,
+  errorsByTab,
   INITIAL_SUMMATIVE_STATE,
   isSummativeFormReady,
+  partitionTitleErrors,
   summativeReducer,
   validateSummativeForm,
   type SummativeFormState,
@@ -82,8 +84,12 @@ export default function TaskDrawer({
 
   const dirty = isFormStateDirty(state, initial.current);
   const errors = validateSummativeForm(state);
-  const errorCounts = errorCountsByTab(errors);
   const ready = isSummativeFormReady(state);
+  const { title: titleErrors, rest: nonTitleErrors } = partitionTitleErrors(errors);
+  // Tab badges only count tab-renderable errors. Title errors live in
+  // the drawer header (no tab) so they don't roll up under any tab.
+  const errorCounts = errorCountsByTab(nonTitleErrors);
+  const errorsForActiveTab = errorsByTab(nonTitleErrors)[state.activeTab] ?? [];
 
   // Confirmed close — bypasses dirty guard
   function forceClose() {
@@ -135,12 +141,18 @@ export default function TaskDrawer({
 
   async function handleSave(intent: "draft" | "publish") {
     if (!ready) {
-      // Reveal the first errored tab so the teacher sees what's missing
-      const firstErroredTab = (
-        Object.entries(errorCounts) as Array<[SummativeTabId, number]>
-      ).find(([, n]) => n > 0)?.[0];
-      if (firstErroredTab) {
-        dispatch({ type: "setActiveTab", tab: firstErroredTab });
+      // If the only errors are title-only (which renders in the header,
+      // not in any tab content), don't bounce to a tab — the title input
+      // already has its inline error message + rose ring. Otherwise jump
+      // to the first non-title-errored tab so the teacher sees what's missing.
+      if (nonTitleErrors.length > 0) {
+        const nonTitleCounts = errorCountsByTab(nonTitleErrors);
+        const firstErroredTab = (
+          Object.entries(nonTitleCounts) as Array<[SummativeTabId, number]>
+        ).find(([, n]) => n > 0)?.[0];
+        if (firstErroredTab && firstErroredTab !== state.activeTab) {
+          dispatch({ type: "setActiveTab", tab: firstErroredTab });
+        }
       }
       return;
     }
@@ -219,9 +231,23 @@ export default function TaskDrawer({
                 dispatch({ type: "setTitle", title: e.target.value })
               }
               maxLength={200}
-              className="mt-1 w-full text-[14px] font-semibold px-2 py-1 -ml-2 rounded focus:outline-none focus:bg-[var(--le-paper)] focus:ring-1 focus:ring-violet-400"
+              aria-invalid={titleErrors.length > 0}
+              className={[
+                "mt-1 w-full text-[14px] font-semibold px-2 py-1 -ml-2 rounded focus:outline-none focus:bg-[var(--le-paper)] focus:ring-1",
+                titleErrors.length > 0
+                  ? "ring-1 ring-rose-400 bg-rose-50/40"
+                  : "focus:ring-violet-400",
+              ].join(" ")}
               data-testid="task-drawer-title"
             />
+            {titleErrors.length > 0 && (
+              <div
+                className="mt-0.5 ml-[-2px] text-[10.5px] text-rose-600"
+                data-testid="task-drawer-title-error"
+              >
+                {titleErrors[0].message}
+              </div>
+            )}
           </div>
           <button
             type="button"
@@ -248,6 +274,29 @@ export default function TaskDrawer({
           className="flex-1 overflow-y-auto p-4"
           data-testid={`task-drawer-tab-content-${state.activeTab}`}
         >
+          {errorsForActiveTab.length > 0 && (
+            <div
+              className="mb-3 px-2.5 py-2 bg-rose-50 border border-rose-200 rounded text-[11px]"
+              data-testid={`task-drawer-tab-errors-${state.activeTab}`}
+            >
+              <div className="font-semibold text-rose-700 mb-1">
+                {errorsForActiveTab.length === 1
+                  ? "1 thing to fix on this tab:"
+                  : `${errorsForActiveTab.length} things to fix on this tab:`}
+              </div>
+              <ul className="space-y-0.5 text-rose-700">
+                {errorsForActiveTab.map((e, i) => (
+                  <li
+                    key={`${e.tab}-${e.field}-${i}`}
+                    className="flex items-start gap-1"
+                  >
+                    <span className="text-rose-400">•</span>
+                    <span>{e.message}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {state.activeTab === "grasps" && (
             <GraspsTab state={state} dispatch={dispatch} />
           )}
@@ -285,8 +334,23 @@ export default function TaskDrawer({
             </div>
           )}
           {!submitError && !ready && (
-            <div className="text-[11px] text-[var(--le-ink-3)] mr-auto">
-              {errors.length} error{errors.length === 1 ? "" : "s"} — see tab badges
+            <div className="text-[11px] text-rose-600 mr-auto">
+              {(() => {
+                if (titleErrors.length > 0 && nonTitleErrors.length === 0) {
+                  return "Set a title above to save";
+                }
+                const tabsWithErrors = (
+                  Object.entries(errorCounts) as Array<
+                    [SummativeTabId, number]
+                  >
+                )
+                  .filter(([, n]) => n > 0)
+                  .map(([t]) => t);
+                if (tabsWithErrors.length === 1) {
+                  return `Fix ${errors.length} thing${errors.length === 1 ? "" : "s"} on the ${tabsWithErrors[0]} tab`;
+                }
+                return `${errors.length} error${errors.length === 1 ? "" : "s"} across ${tabsWithErrors.length} tabs — click a tab to see what's missing`;
+              })()}
             </div>
           )}
           {!submitError && ready && (

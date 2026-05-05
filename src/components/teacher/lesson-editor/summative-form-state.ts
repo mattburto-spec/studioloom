@@ -505,6 +505,47 @@ export function errorCountsByTab(
   return counts;
 }
 
+/**
+ * Group errors per tab so each tab's content area can render an inline
+ * checklist of what's missing. Helps teachers find the specific empty
+ * field instead of hunting through 6+ inputs.
+ */
+export function errorsByTab(
+  errors: readonly SummativeValidationError[]
+): Record<SummativeTabId, SummativeValidationError[]> {
+  const grouped: Record<SummativeTabId, SummativeValidationError[]> = {
+    grasps: [],
+    submission: [],
+    rubric: [],
+    timeline: [],
+    policy: [],
+  };
+  for (const e of errors) grouped[e.tab].push(e);
+  return grouped;
+}
+
+/**
+ * Title is currently validated as a grasps-tab error (so the count rolls
+ * up under tab 1) but it's rendered in the drawer header, NOT inside the
+ * grasps tab content. This filter splits header-rendered title errors
+ * away from the tab's inline error list, so the grasps tab doesn't show
+ * a phantom "Title required" entry that has no matching field on screen.
+ */
+export function partitionTitleErrors(
+  errors: readonly SummativeValidationError[]
+): {
+  title: SummativeValidationError[];
+  rest: readonly SummativeValidationError[];
+} {
+  const title: SummativeValidationError[] = [];
+  const rest: SummativeValidationError[] = [];
+  for (const e of errors) {
+    if (e.field === "title") title.push(e);
+    else rest.push(e);
+  }
+  return { title, rest };
+}
+
 // ─── Payload builder ─────────────────────────────────────────────────────────
 
 /**
