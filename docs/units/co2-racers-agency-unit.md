@@ -501,8 +501,22 @@ Decision deferred until audit completes.
 | Grade weighting | Metacurriculum ≥70% / car ≤30% |
 | Race day | Celebration, not assessment |
 | Teacher banner | "Don't rescue. Recovery IS the learning." |
+| Dashboard surfacing | **Per-unit cards** (one TimelineCard + one KanbanCard per active unit) — confirmed 5 May 2026. Lands Class 2-3 as polish, AFTER core tools are built and have student data to render against. ~1-1.5 days build cost. |
 
-### 5.5 Open questions / future work
+### 5.5 Phase 2 — Dashboard cards (after unit launch)
+
+The Timeline + Kanban tools store per-student state. Surfacing them on the Bold student dashboard as miniature cards:
+
+- **TimelineCard** — next milestone + days until + traffic-light status (✅ on track / ⚠ tight / 🔴 behind). Click → opens full timeline inside unit.
+- **KanbanCard** — column counts ("Backlog: 5 / This Class: 2 / Doing: 1 / Done: 8") + today's Doing card. Click → opens full Kanban.
+
+**Data design constraint banked:** the Kanban + Timeline storage shape (per-student JSONB or dedicated tables) MUST support a cheap "summary view" query — column counts + next milestone — without rehydrating the full state. Both card endpoints read the same data the tools write; no new endpoints, no schema additions.
+
+**Mount target:** Bold dashboard at `/Users/matt/CWORK/questerra-dashboard` worktree. Timing: Class 2-3 of unit (when student data is real, not empty).
+
+**Stack limit:** 2 cards per type max (most pressing units). Per-unit, not aggregated.
+
+### 5.6 Open questions / future work
 
 - Final NM rubric wording — needs to map cleanly to 8-key neutral criterion taxonomy or document its own lineage. To be drafted before Survey 1.
 - Specific 2-clip agency hook video — needs sourcing or filming. Backup: use Austin's Butterfly (EL Education canonical example).
