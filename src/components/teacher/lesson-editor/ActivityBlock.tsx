@@ -52,6 +52,7 @@ const RESPONSE_TYPE_LABELS: Record<ResponseType, string> = {
   "trade-off-sliders": "Trade-off Sliders",
   "toolkit-tool": "Toolkit Tool",
   canvas: "Canvas Drawing",
+  "structured-prompts": "Structured Prompts",
 };
 
 // Glyph + tint per response type — matches the warm-paper design.
@@ -67,6 +68,7 @@ const RESPONSE_ICON: Record<ResponseType, string> = {
   "trade-off-sliders": "🎚",
   "toolkit-tool": "🧭",
   canvas: "✏️",
+  "structured-prompts": "📓",
 };
 const RESPONSE_TINT: Record<ResponseType, string> = {
   text: "#9333EA",
@@ -80,6 +82,7 @@ const RESPONSE_TINT: Record<ResponseType, string> = {
   "trade-off-sliders": "#CA8A04",
   "toolkit-tool": "#EA580C",
   canvas: "#9333EA",
+  "structured-prompts": "#0EA5E9",
 };
 
 // ── Dimensions constants ──────────────────────────────────────────

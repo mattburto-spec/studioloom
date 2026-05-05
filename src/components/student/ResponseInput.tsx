@@ -13,6 +13,8 @@ import { UploadInput } from "./UploadInput";
 import { VoiceInput } from "./VoiceInput";
 import { LinkInput } from "./LinkInput";
 import { ToolkitResponseInput } from "./ToolkitResponseInput";
+import StructuredPromptsResponse from "./StructuredPromptsResponse";
+import type { StructuredPromptsConfig } from "@/lib/structured-prompts/types";
 
 interface ResponseInputProps {
   sectionIndex: number;
@@ -26,6 +28,12 @@ interface ResponseInputProps {
   allowedTypes?: ("text" | "upload" | "voice" | "link")[];
   toolId?: string;
   toolChallenge?: string;
+  /** For structured-prompts responseType (AG.1): the prompts array authored on the activity block. */
+  prompts?: StructuredPromptsConfig;
+  /** For structured-prompts responseType: require a photo before submit. Default false. */
+  requirePhoto?: boolean;
+  /** For structured-prompts responseType: callback fired after successful save (e.g. to seed AG.2 Kanban from the "next" prompt). */
+  onStructuredPromptsSaved?: (saved: { content: string; nextMove: string | null }) => void;
   /** Enable integrity monitoring on text input (for academic integrity tracking) */
   enableIntegrityMonitoring?: boolean;
   /** Callback to receive integrity metadata from MonitoredTextarea */
@@ -40,6 +48,9 @@ const TYPE_OPTIONS: { type: ResponseType; label: string; icon: string }[] = [
 ];
 
 export function ResponseInput({
+  prompts,
+  requirePhoto,
+  onStructuredPromptsSaved,
   sectionIndex,
   responseType,
   value,
@@ -179,6 +190,18 @@ export function ResponseInput({
           toolId={toolId}
           challenge={toolChallenge}
           onChange={onChange}
+        />
+      )}
+
+      {/* AG.1 — structured-prompts (journal entry, multi-prompt response) */}
+      {responseType === "structured-prompts" && prompts && unitId && pageId && (
+        <StructuredPromptsResponse
+          prompts={prompts}
+          unitId={unitId}
+          pageId={pageId}
+          sectionIndex={sectionIndex}
+          requirePhoto={requirePhoto}
+          onSaved={onStructuredPromptsSaved}
         />
       )}
     </div>
