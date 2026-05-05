@@ -1339,11 +1339,19 @@ systems:
       - src/components/teacher/lesson-editor/BlockPalette.tsx
       - src/components/teacher/lesson-editor/BlockPalette.types.ts
       - src/components/teacher/lesson-editor/nm-element-blocks.ts
+      - src/components/teacher/lesson-editor/TasksPanel.tsx
+      - src/components/teacher/lesson-editor/TasksPanel.types.ts
+      - src/components/teacher/lesson-editor/AddTaskChooser.tsx
+      - src/components/teacher/lesson-editor/QuickCheckRow.tsx
+      - src/components/teacher/lesson-editor/quick-check-form-state.ts
       - src/lib/nm/checkpoint-ops.ts
-    future_needs: Rich media editing (video embeds, interactive widgets), version history view. Legacy single-textarea editor at src/app/teacher/units/[unitId]/edit/page.tsx (still mounted for unassigned units) needs porting to SlotFieldEditor or removing once Phase 0.5 supersedes it for all entry points. Lever-MM v2 candidates — drag-and-drop NM elements onto lesson tiles (currently click-only); multi-competency-per-unit (currently single); FU-NM-SCHOOL-ADMIN-CENTRALIZATION (school-level toggle + principal-facing dashboard).
+      - src/lib/tasks/types.ts
+      - src/lib/tasks/validators.ts
+      - src/lib/tasks/client.ts
+    future_needs: Rich media editing (video embeds, interactive widgets), version history view. Legacy single-textarea editor at src/app/teacher/units/[unitId]/edit/page.tsx (still mounted for unassigned units) needs porting to SlotFieldEditor or removing once Phase 0.5 supersedes it for all entry points. Lever-MM v2 candidates — drag-and-drop NM elements onto lesson tiles (currently click-only); multi-competency-per-unit (currently single); FU-NM-SCHOOL-ADMIN-CENTRALIZATION (school-level toggle + principal-facing dashboard). TG.0D — 5-tab summative drawer (GRASPS / Submission / Rubric / Timeline / Policy); TG.0E — lesson card "Builds toward..." chip; TG.0F — student-side surfaces.
     adrs: ["010"]
     os_seam: ready
-    change_impacts: Changes to content_data schema require migration. Changes to ActivityBlock structure affect editor rendering. Lever 1 v2 — SlotFieldEditor writes to all 3 slot fields AND syncs the legacy `prompt` field on every keystroke (composed via composedPromptText) so non-migrated readers stay valid. Lever-MM — changes to NM block category UI affect teacher discovery / configuration of competency assessments; pure state-transition logic in lib/nm/checkpoint-ops.ts is the canonical contract (idempotency, zombie-pageId guard, orphan-element handling on competency switch — covered by 30 tests).
+    change_impacts: Changes to content_data schema require migration. Changes to ActivityBlock structure affect editor rendering. Lever 1 v2 — SlotFieldEditor writes to all 3 slot fields AND syncs the legacy `prompt` field on every keystroke (composed via composedPromptText) so non-migrated readers stay valid. Lever-MM — changes to NM block category UI affect teacher discovery / configuration of competency assessments; pure state-transition logic in lib/nm/checkpoint-ops.ts is the canonical contract (idempotency, zombie-pageId guard, orphan-element handling on competency switch — covered by 30 tests). TG.0C — TasksPanel mounts above LessonSidebar in the left column. Writes to assessment_tasks + task_criterion_weights + task_lesson_links via /api/teacher/tasks. Lever 0 manual unit designer can emit assessment_tasks rows natively from day one (TG.0B unblocked it).
 
   - id: unit-generation
     name: Unit Generation Wizard
