@@ -1,0 +1,312 @@
+=== G9 Design Science C02 task 1.pptx ===
+Unit 1: C02 Racers
+Problem:
+You are an automotive design engineer in the research and development department of the NIS
+ 
+Automotive Company. You have been assigned the task of designing the new, fuel efficient, aerodynamically sound, stylish, and futuristic automobile for the company. You will be in charge
+ 
+of the designing, constructing, and testing of the new vehicle. All cars in the company will be compared for excellence in design, craftsmanship, aerodynamics, and the fastest racing time.
+
+---SLIDE---
+Unit 1: C02 Racers
+Design Brief
+Design and build a C02 Racer within the design specifications and material constraints to race against the other teams
+The dragster needs to travel down the track while being propelled by a CO2 cartridge. It must be
+ 
+held and launched by the teacher using an eye hook to position the dragster and the launching
+ 
+apparatus to puncture the CO2 cartridge. 
+The dragster can be any shape as long as it it carved
+ 
+from the given blanks and meets the size requirements. The design should reflect the research
+ 
+that has been done in regards to aerodynamics and mechanical function.
+
+---SLIDE---
+Design Specs
+
+---SLIDE---
+How does one work?
+
+---SLIDE---
+Task 1: Research
+Look up the following words and paste in a definition. Add your home language:
+Aerodynamics
+Drag
+Streamline
+4. 
+P
+otential energy
+5. 
+K
+inetic energy
+
+---SLIDE---
+Task 1: Research
+Provocation:
+What do you think are the top 3 factors affecting the speed of the dragster?
+
+---SLIDE---
+Task 1: Research
+Newton's 3 Laws, with a bicycle - Joshua Manley
+Part 1: 
+Analyzing
+ Inertia (Newton’s 1st Law)
+The video states that "Inertia" is the resistance to change.
+The "Start-Up" Problem:
+Why requires more energy to take the first step of a run than it does to keep running at a steady speed?
+Sentence Starter:
+ It requires more energy to start because the object is at rest and wants to __________. To change this state, you must overcome __________.
+Design Application:
+Imagine your CO2 racer is sitting on the starting line. It has a mass of 150g. What must the CO2 cartridge provide to break the car's inertia?
+Answer:
+ The cartridge must provide an unbalanced 
+F
+__________.
+Part 2: Proportional Reasoning (Newton’s 2nd Law)
+The video explains the equation: Force = Mass × Acceleration ($F=ma$).
+The "Constant Force" Scenario:
+In our project, every student uses the exact same CO2 cartridge. This means the 
+Force
+ is constant (it does not change).
+If 
+Force
+ stays the same, but you increase the 
+Mass
+ of your car, what happens to the 
+Acceleration
+?
+Sentence Starter:
+ According to Newton's Second Law, if Force is constant and Mass increases, the Acceleration will __________ because Mass and Acceleration have an __________ relationship.
+
+---SLIDE---
+Task 1: Research
+Newton's 3 Laws, with a bicycle - Joshua Manley
+Mathematical Proof:
+Car A
+ has a mass of 50g.
+Car B
+ has a mass of 100g.
+Both are pushed with 10N of Force.
+Calculate:
+ Which car accelerates faster, and by how much?
+Answer:
+ Car ___ accelerates ___ times faster than Car ___.
+Part 3: Vector Analysis (Newton’s 3rd Law)
+The video explains Action and Reaction pairs.
+The Direction Paradox:
+To move the bicycle 
+Forward
+, the tires must apply a force to the ground in which direction? Explain why using the concept of "Reaction."
+Sentence Starter:
+ To move forward, the tires must push __________. The ground reacts by pushing __________ with an __________ amount of force.
+The "Earth" Question:
+The video claims the Earth "barely moves" when the bike pushes it. Why does the bike move a lot, but the Earth moves a little, even though the Force is the same? (Hint: Use Newton's 2nd Law).
+Sentence Starter:
+ Even though the force is equal, the Earth does not accelerate visibly because its __________ is extremely large compared to the bicycle.
+
+---SLIDE---
+Task 1: Research
+Newton's 3 Laws, with a bicycle - Joshua Manley
+Part 4: The Design Hypothesis (Criterion B Preparation)
+Synthesize all three laws.
+The Winning Strategy:
+Based on this video, write a hypothesis for your CO2 dragster. To get the fastest time, what must you minimize and what must you maximize? 
+Sentence Starter:
+ To achieve the highest acceleration, I must minimize the __________ of the car to reduce the resistance to the Force. However, I must ensure the wheels maintain contact with the ground to utilize the __________ force (Newton's 3rd Law).
+
+---SLIDE---
+Task 1: Research
+Watch this video 
+https://www.youtube.com/watch?v=189TD4czV3s
+Answer these questions
+Word
+Definition
+1. Gravity
+A. The force that pulls the car down to the ground.
+2. Friction
+B. The "push" or "pull" on an object.
+3. Mass
+C. When the air slows down the car.
+4. Air Resistance
+D. How heavy the car is.
+5. Force
+E. Rubbing between the wheels and the track.
+Part 1: Vocabulary Match
+Match the word to the definition.
+
+---SLIDE---
+Task 1: Research
+Watch this video 
+https://www.youtube.com/watch?v=189TD4czV3s
+Answer these questions
+Part 2: Newton’s 1st Law (Objects at Rest &amp; Motion)
+Circle the correct answer.
+At the Start:
+ The car sits on the launcher. It is at rest. What provides the "Unbalanced Force" to make it move?
+A. Gravity 
+B. The Air Pressure 
+C. The Wheels 
+While Moving:
+ The car slows down because of 
+three
+ unbalanced forces. Circle the 
+three
+ forces below:
+Gravity 
+Magic 
+Friction 
+Electricity 
+Air Resistance 
+Design Check:
+ Why did we put 
+plastic straws
+ around the axles?
+Sentence Starter:
+ We used straws to reduce ____________________. 
+
+---SLIDE---
+Task 1: Research
+Part 3: Newton’s 2nd Law (Force = Mass x Acceleration)
+The video says the Force (Air Pressure) is the same for everyone (75 psi).
+The Rule:
+More Mass (Heavy Car) = 
+[ Faster / Slower ]
+ Acceleration 
+Less Mass (Light Car) = 
+[ Faster / Slower ]
+ Acceleration 
+The Reason:
+Sentence Starter:
+ A heavier car is slower because the air pressure has to do more ___________ to get it moving. 
+Part 4: Newton’s 3rd Law (Action &amp; Reaction)
+Fill in the blanks using the words in the box.
+[ Forward / Backward / Wall / Air ]
+At the Start (The Launch):
+Action:
+ The ___________ pushes out the back of the car. 
+Reaction:
+ The car moves ___________ with the same amount of force. 
+At the Finish (The Stop):
+Action:
+ The car hits the foam ___________. 
+Reaction:
+ The car bounces ___________.
+
+---SLIDE---
+Task 1: Research
+Answer 1 paragraph each
+Explain how each of the above Laws of Motion is important to your CO2 dragster
+2. What causes a C02 dragster to decelerate?
+3
+. What happens to kinetic energy when your car stops at the end of the track?
+ 
+
+---SLIDE---
+Task 1: Research
+4. If there were no air or no gravity, what would happen to the car once it was started?
+5. Explain what happens when you puncture a C02 canister
+6. 
+How do you determine the speed of the C02 dragster?
+ 
+
+---SLIDE---
+Bibliography
+Add ASA style bibliography on this page for ALL sources used.
+If you used AI also include which one you used, and how you used it including the prompt you used.
+
+---SLIDE---
+Marking Guide
+Level
+Description of Physics Understanding
+Key "Design Science" Vocabulary Required
+Academic Honesty &amp; AI Usage
+0
+The student does not reach a standard described by any of the descriptors below.
+1-2
+Limited Understanding
+• 
+Q1-5:
+ Student states Newton's Laws but does not explain how they apply to the dragster. Answers are very short or copied from Google.
+• 
+Q6:
+ Student cannot explain how to calculate speed.
+• 
+Scaffold Check:
+ Student relies heavily on translation tools without editing.
+Must use basic terms:
+• Speed / Fast
+• Push / Pull
+• Heavy / Light
+Limited Honesty
+• No sources listed.
+• AI is used to write the answer for the student (Red Light).
+3-4
+Adequate Understanding
+• 
+Q1-5:
+ Student explains the laws and makes basic connections to the car (e.g., "Friction makes the car stop").
+• 
+Q6:
+ Student mentions "Speed" and "Time" but may miss the formula.
+• 
+Scaffold Check:
+ Explanations are correct but may lack scientific depth.
+Must use these terms:
+• Friction / Air Resistance
+• Weight / Mass
+• Force
+• Newton's 1st, 2nd, 3rd Law
+Adequate Honesty
+• A list of URLs is provided.
+• AI is used, but the student does not show the prompt.
+5-6
+Substantial Understanding
+• 
+Q1-5:
+ Student explains the 
+relationship
+ between variables (e.g., "According to F=ma, if I lower the mass, the acceleration increases"). Correctly identifies that gas pressure creates thrust.
+• 
+Q6:
+ Correctly identifies $Speed = \frac{Distance}{Time}$.
+• 
+Scaffold Check:
+ Student uses the physics to justify design choices.
+Must use these terms:
+• 
+F=ma
+ (Formula)
+• Inertia
+• Action / Reaction
+• Drag / Aerodynamics
+• Pressure
+Substantial Honesty
+• Sources are cited (Website name + URL).
+• 
+AI Declaration:
+ Student states "I used AI to check my grammar" or "I used AI to explain the concept."
+7-8
+Excellent Understanding
+• 
+Q1-5:
+ Student provides detailed scientific reasoning. Correctly identifies energy transfer (Kinetic $\to$ Heat/Sound) and theoretical physics (Vacuum = no drag = constant velocity).
+• 
+Q6:
+ Details the tools needed for measurement (light gates or stopwatch + measured track).
+• 
+Scaffold Check:
+ Answers demonstrate high-level applied physics.
+Must use these terms:
+• Kinetic Energy / Potential Energy
+• Conservation of Energy
+• Thrust
+• Vacuum / Gravity
+• Velocity
+Excellent Honesty
+• Full bibliography included.
+• 
+AI Transparency:
+ Student includes the specific prompt used and the original AI output, showing how they modified it.
+
+---SLIDE---

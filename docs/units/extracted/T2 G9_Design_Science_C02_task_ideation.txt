@@ -1,0 +1,174 @@
+=== T2 G9_Design_Science_C02_task_ideation.pptx ===
+C02 Racers
+Now is the time to get some of those race-car design ideas — undoubtedly floating around in your head — on paper. The best way to start is with concept sketches, also known as thumbnail sketches. Thumbnails are small, quick sketches used by engineers and designers to rapidly communicate ideas. They should not be detailed.  Be sure to experiment with different ideas and be as creative as possible. See the next slides for things to keep in mind and examples…
+
+---SLIDE---
+Task 2: Ideation
+The Objective
+Goal:
+ To generate 5 unique and creative design concepts for your CO2 dragster.
+Why?
+ The first idea is rarely the best idea. By exploring different shapes, aerodynamics, and structures, you ensure your final choice is the fastest and most efficient design possible.
+Constraint Checklist:
+ All 5 designs must adhere to the technical regulations (e.g., minimum length, axle hole placement, CO2 cartridge housing safety).
+
+---SLIDE---
+Task 2: Ideation
+What is a "Concept Sketch"?
+Not just a doodle:
+ A concept sketch communicates 
+how
+ the design works and 
+what
+ it looks like.
+Required Elements for Each Sketch:
+ 
+Side View (Profile):
+ Shows aerodynamics and height.
+Top View (Plan):
+ Shows width and body shape.
+Annotations:
+ Notes explaining your thinking (e.g., "Tapered back for reduced drag," "Hollow body for weight reduction").
+
+---SLIDE---
+Task 2: Ideation
+SCAMPER:
+ 
+S
+ubstitute (Change materials or shapes)
+C
+ombine (Merge two different car styles)
+A
+dapt (Look at nature—sharks, cheetahs, teardrops)
+M
+odify (Make the front thinner, the back wider)
+E
+liminate (Remove unnecessary material to reduce mass)
+Biomimicry:
+ Look at aerodynamic shapes found in nature.
+The "5 Concepts" 
+Concept 1:
+ The Safe Bet (A standard wedge shape).
+Concept 2:
+ The Rail Car (Minimalist body, wheels external).
+Concept 3:
+ The Shell Car (Wheels internal/covered – 
+check rules if allowed
+).
+Concept 4:
+ The Wildcard (Something creative and unique).
+Concept 5:
+ The Hybrid (Combining the best features of 1-4).
+Note: Do not draw the same car 5 times with tiny changes. They must be distinct!
+Ideation Strategies (How to get ideas)
+
+---SLIDE---
+Task 2: Ideation
+Annotation &amp; Justification
+Don't just draw; 
+explain
+.
+Use arrows to point out features.
+Key Vocabulary to use:
+ 
+Drag, Downforce, Mass, Turbulence, Friction, Aerodynamics, Streamlining.
+Example Annotation:
+ "I have rounded the nose cone here to split the air smoothly and reduce turbulence at the front of the vehicle."
+
+---SLIDE---
+Task 2: Ideation
+Things to keep in mind when designing:
+Newton’s 2
+nd
+ Law of Motion
+F = ma
+So for a fast car you need: Big force and light car
+2. 
+Mass
+There is a balancing act between a light car (that goes faster) and stability and durability
+3. 
+Drag minimization
+Smooth shaped cars have less drag so they go faster BUT these aerodynamically ‘clean’ cars are more difficult to build
+
+---SLIDE---
+Task 2: Ideation
+Keep these specs in mind to avoid being disqualified:
+
+---SLIDE---
+Task 2: Ideation
+4 main types of cars are usually designed:
+
+---SLIDE---
+Task 2: Ideation
+4 main types of cars are usually designed:
+
+---SLIDE---
+Task 2: Ideation
+4 main types of cars are usually designed:
+
+---SLIDE---
+Task 2: Ideation
+4 main types of cars are usually designed:
+
+---SLIDE---
+Task 2: Ideation
+Marking Criteria
+Achievement Level
+Descriptor
+Specific Indicators for this Task
+0
+The student does not reach a standard described by any of the descriptors below.
+No work submitted or work does not relate to CO2 cars.
+1–2
+Basic
+ 
+The student develops a 
+limited
+ range of design ideas. The ideas can be interpreted by others with 
+difficulty
+.
+• Draws fewer than 3 concepts.
+• Sketches are messy, lacking detail, or missing views (e.g., only side view).
+• Designs look very similar to each other.
+• Very few or no annotations explaining the design features.
+3–4
+Developing
+ 
+The student develops a range of 
+feasible
+ design ideas. The ideas can be interpreted by others.
+• Draws 3-4 distinct concepts.
+• Sketches are clear enough to understand the general shape.
+• Includes side and top views for most designs.
+• Basic annotations are present (e.g., "fast shape," "lightweight").
+• Designs generally follow the rules but may have minor feasibility issues.
+5–6
+Competent
+ 
+The student develops a range of 
+feasible
+ design ideas. The ideas can be 
+correctly interpreted
+ by others. The student presents the chosen design and outlines the reasons for its selection.
+• Draws 5 distinct concepts.
+• Sketches are neat and include clear Side and Top views.
+• Annotations use some technical terminology (drag, mass).
+• Designs are clearly different from one another.
+• It is clear how the car would be built based on the drawing.
+7–8
+Excellent
+ 
+The student develops a range of 
+feasible
+ design ideas. The ideas can be 
+correctly interpreted
+ by others. The student presents the chosen design and 
+justifies
+ its selection.
+• Draws 5 highly distinct and creative concepts.
+• Sketches are high quality, perhaps including isometric views or colour coding.
+• Annotations are detailed, linking specific design features to scientific principles (e.g., "Tapered rear to reduce flow separation").
+• All designs strictly adhere to the technical regulations (feasibility).
+• Clear evidence of "thinking on paper."
+
+---SLIDE---
