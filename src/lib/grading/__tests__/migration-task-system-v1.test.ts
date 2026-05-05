@@ -56,7 +56,7 @@ describe("Migration: 20260505032750_task_system_v1_schema (UP)", () => {
   const sql = loadMigration("_task_system_v1_schema.sql");
   const sqlBody = stripSqlComments(sql);
 
-  describe("creates 6 new tables", () => {
+  describe("creates 5 new tables (TG.0B re-attempt — student_tile_grades was already live)", () => {
     it("assessment_tasks (the unified primitive)", () => {
       expect(sqlBody).toMatch(/CREATE TABLE IF NOT EXISTS assessment_tasks/);
     });
@@ -74,8 +74,41 @@ describe("Migration: 20260505032750_task_system_v1_schema (UP)", () => {
     it("grade_entries (per-criterion scores)", () => {
       expect(sqlBody).toMatch(/CREATE TABLE IF NOT EXISTS grade_entries/);
     });
-    it("student_tile_grades (G1 re-mint with task_id)", () => {
-      expect(sqlBody).toMatch(/CREATE TABLE IF NOT EXISTS student_tile_grades/);
+    it("does NOT recreate student_tile_grades (preserves existing 26-column G1 schema)", () => {
+      // Path A: schema-registry was wrong about status='dropped'. Table is live.
+      // Migration ALTERs instead of CREATEs to preserve existing G1 work.
+      expect(sqlBody).not.toMatch(/CREATE TABLE IF NOT EXISTS student_tile_grades/);
+    });
+  });
+
+  describe("ALTERs 2 existing tables (Path A — preserve schemas)", () => {
+    it("ALTER TABLE student_tile_grades ADD COLUMN task_id (the missing FK)", () => {
+      expect(sqlBody).toMatch(
+        /ALTER TABLE student_tile_grades[\s\S]*?ADD COLUMN IF NOT EXISTS task_id UUID/
+      );
+    });
+    it("student_tile_grades.task_id REFERENCES assessment_tasks", () => {
+      expect(sqlBody).toMatch(
+        /ALTER TABLE student_tile_grades[\s\S]*?REFERENCES assessment_tasks\(id\) ON DELETE CASCADE/
+      );
+    });
+    it("student_tile_grades.task_id is NULLABLE in v1 (existing rows aren't orphaned)", () => {
+      // No `ALTER COLUMN task_id SET NOT NULL` should appear in this migration
+      expect(sqlBody).not.toMatch(
+        /ALTER TABLE student_tile_grades[\s\S]*?ALTER COLUMN task_id SET NOT NULL/
+      );
+    });
+    it("idx_student_tile_grades_task partial index on non-null", () => {
+      expect(sqlBody).toMatch(
+        /CREATE INDEX IF NOT EXISTS idx_student_tile_grades_task[\s\S]*?WHERE task_id IS NOT NULL/
+      );
+    });
+    it("does NOT touch existing student_tile_grades RLS policies", () => {
+      // No CREATE POLICY for student_tile_grades — existing policies stay
+      expect(sqlBody).not.toMatch(/CREATE POLICY[^\n]*student_tile_grades/);
+    });
+    it("does NOT add trigger_student_tile_grades_updated_at (existing trigger stays)", () => {
+      expect(sqlBody).not.toMatch(/CREATE TRIGGER trigger_student_tile_grades_updated_at/);
     });
   });
 
@@ -181,23 +214,8 @@ describe("Migration: 20260505032750_task_system_v1_schema (UP)", () => {
     });
   });
 
-  describe("student_tile_grades shape (G1 re-mint with task_id)", () => {
-    it("task_id is NOT NULL (the FK that was missing in the rolled-back attempt)", () => {
-      expect(sqlBody).toMatch(
-        /task_id UUID NOT NULL REFERENCES assessment_tasks\(id\) ON DELETE CASCADE/
-      );
-    });
-    it("UNIQUE on (task_id, student_id, page_id, tile_id, criterion_key)", () => {
-      expect(sqlBody).toMatch(
-        /UNIQUE\(task_id, student_id, page_id, tile_id, criterion_key\)/
-      );
-    });
-    it("ai_confidence CHECK 0..1 when set", () => {
-      expect(sqlBody).toMatch(
-        /ai_confidence NUMERIC[\s\S]*?CHECK \(ai_confidence IS NULL OR ai_confidence BETWEEN 0 AND 1\)/
-      );
-    });
-  });
+  // student_tile_grades shape assertions removed — the table predates this
+  // migration. ALTER assertions live in §"ALTERs 2 existing tables" above.
 
   describe("assessment_records.task_id (TG.0A F1 amendment)", () => {
     it("ALTER TABLE assessment_records ADD COLUMN task_id present", () => {
@@ -223,14 +241,13 @@ describe("Migration: 20260505032750_task_system_v1_schema (UP)", () => {
     });
   });
 
-  describe("RLS — enabled on all 6 new tables", () => {
+  describe("RLS — enabled on the 5 new tables (student_tile_grades skipped: already enabled)", () => {
     const newTables = [
       "assessment_tasks",
       "task_lesson_links",
       "task_criterion_weights",
       "submissions",
       "grade_entries",
-      "student_tile_grades",
     ];
     for (const table of newTables) {
       it(`${table} has ROW LEVEL SECURITY enabled`, () => {
@@ -238,6 +255,9 @@ describe("Migration: 20260505032750_task_system_v1_schema (UP)", () => {
         expect(sqlBody).toMatch(re);
       });
     }
+    it("student_tile_grades RLS is NOT re-enabled (existing G1 RLS preserved)", () => {
+      expect(sqlBody).not.toMatch(/ALTER TABLE student_tile_grades ENABLE ROW LEVEL SECURITY/);
+    });
   });
 
   describe("RLS — uses is_school_admin() helper (Lesson #64 — SECURITY DEFINER)", () => {
@@ -248,7 +268,7 @@ describe("Migration: 20260505032750_task_system_v1_schema (UP)", () => {
     });
   });
 
-  describe("updated_at triggers", () => {
+  describe("updated_at triggers (only the 2 new tables that need them)", () => {
     it("trigger on assessment_tasks", () => {
       expect(sqlBody).toMatch(
         /CREATE TRIGGER trigger_assessment_tasks_updated_at[\s\S]*?BEFORE UPDATE ON assessment_tasks/
@@ -259,9 +279,9 @@ describe("Migration: 20260505032750_task_system_v1_schema (UP)", () => {
         /CREATE TRIGGER trigger_submissions_updated_at[\s\S]*?BEFORE UPDATE ON submissions/
       );
     });
-    it("trigger on student_tile_grades", () => {
-      expect(sqlBody).toMatch(
-        /CREATE TRIGGER trigger_student_tile_grades_updated_at[\s\S]*?BEFORE UPDATE ON student_tile_grades/
+    it("does NOT add trigger on student_tile_grades (existing G1 trigger stays)", () => {
+      expect(sqlBody).not.toMatch(
+        /CREATE TRIGGER trigger_student_tile_grades_updated_at/
       );
     });
   });
@@ -272,12 +292,17 @@ describe("Migration: 20260505032750_task_system_v1_schema (UP)", () => {
         /RAISE NOTICE 'Migration task_system_v1_schema applied OK/
       );
     });
-    it("DO block asserts 6 new tables exist", () => {
-      expect(sqlBody).toMatch(/expected 6 new tables/);
+    it("DO block asserts 5 new tables exist (TG.0B re-attempt)", () => {
+      expect(sqlBody).toMatch(/expected 5 new tables/);
     });
     it("DO block asserts assessment_records.task_id column added", () => {
       expect(sqlBody).toMatch(
         /assessment_records\.task_id column missing/
+      );
+    });
+    it("DO block asserts student_tile_grades.task_id column added", () => {
+      expect(sqlBody).toMatch(
+        /student_tile_grades\.task_id column missing/
       );
     });
   });
@@ -296,18 +321,17 @@ describe("Migration: 20260505032750_task_system_v1_schema (DOWN)", () => {
         /Refusing rollback: assessment_records\.task_id is NOT NULL/
       );
     });
+    it("refuses if student_tile_grades.task_id is NOT NULL", () => {
+      expect(downSqlBody).toMatch(
+        /Refusing rollback: student_tile_grades\.task_id is NOT NULL/
+      );
+    });
     it("refuses if any submissions reference non-task source", () => {
       expect(downSqlBody).toMatch(/Inquiry-mode is live/);
     });
   });
 
   describe("drop order (reverse dependency)", () => {
-    it("drops student_tile_grades before assessment_tasks", () => {
-      const stgIdx = downSqlBody.indexOf("DROP TABLE IF EXISTS student_tile_grades");
-      const atIdx = downSqlBody.indexOf("DROP TABLE IF EXISTS assessment_tasks");
-      expect(stgIdx).toBeGreaterThan(0);
-      expect(atIdx).toBeGreaterThan(stgIdx);
-    });
     it("drops grade_entries before submissions", () => {
       const geIdx = downSqlBody.indexOf("DROP TABLE IF EXISTS grade_entries");
       const subIdx = downSqlBody.indexOf("DROP TABLE IF EXISTS submissions");
@@ -321,18 +345,34 @@ describe("Migration: 20260505032750_task_system_v1_schema (DOWN)", () => {
     });
   });
 
-  describe("removes assessment_records.task_id", () => {
-    it("drops the index first", () => {
+  describe("removes task_id from BOTH ALTERed tables", () => {
+    it("drops idx_assessment_records_task", () => {
       expect(downSqlBody).toMatch(/DROP INDEX IF EXISTS idx_assessment_records_task/);
     });
-    it("drops the column", () => {
+    it("drops idx_student_tile_grades_task", () => {
+      expect(downSqlBody).toMatch(/DROP INDEX IF EXISTS idx_student_tile_grades_task/);
+    });
+    it("drops assessment_records.task_id", () => {
       expect(downSqlBody).toMatch(
         /ALTER TABLE assessment_records[\s\S]*?DROP COLUMN IF EXISTS task_id/
       );
     });
+    it("drops student_tile_grades.task_id", () => {
+      expect(downSqlBody).toMatch(
+        /ALTER TABLE student_tile_grades[\s\S]*?DROP COLUMN IF EXISTS task_id/
+      );
+    });
   });
 
-  describe("preserves shared infrastructure", () => {
+  describe("does NOT drop existing tables/infrastructure", () => {
+    it("does NOT drop student_tile_grades (predates this migration)", () => {
+      expect(downSqlBody).not.toMatch(/DROP TABLE IF EXISTS student_tile_grades(?!_)/);
+    });
+    it("final assertion verifies student_tile_grades still exists", () => {
+      expect(downSqlBody).toMatch(
+        /Rollback safety violation: student_tile_grades was dropped/
+      );
+    });
     it("does NOT drop set_updated_at function (shared with class_units etc.)", () => {
       expect(downSqlBody).not.toMatch(/DROP FUNCTION[\s\S]*?set_updated_at/);
     });
