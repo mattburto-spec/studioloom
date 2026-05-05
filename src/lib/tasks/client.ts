@@ -9,8 +9,10 @@
 import type {
   AssessmentTask,
   CreateTaskInput,
+  SummativeConfig,
   UpdateTaskInput,
 } from "./types";
+import type { NeutralCriterionKey } from "@/lib/pipeline/stages/stage4-neutral-validator";
 
 class TaskApiError extends Error {
   public readonly status: number;
@@ -94,6 +96,30 @@ export async function createQuickCheck(args: {
     },
     criteria: args.criteria,
     linked_pages: args.linked_pages,
+  });
+}
+
+/**
+ * Convenience — Summative project task from the 5-tab drawer.
+ * Wraps createTask with task_type='summative' + a full SummativeConfig.
+ */
+export async function createSummativeTask(args: {
+  unit_id: string;
+  class_id?: string | null;
+  title: string;
+  config: SummativeConfig;
+  criteria: Array<{ key: NeutralCriterionKey; weight?: number }>;
+  status?: "draft" | "published";
+}): Promise<AssessmentTask> {
+  return createTask({
+    unit_id: args.unit_id,
+    class_id: args.class_id ?? null,
+    title: args.title,
+    task_type: "summative",
+    status: args.status ?? "draft",
+    config: args.config,
+    criteria: args.criteria,
+    linked_pages: args.config.timeline.linked_pages,
   });
 }
 

@@ -48,7 +48,7 @@ function buildInitialState(
   task: AssessmentTask | undefined
 ): QuickCheckFormState {
   if (!task) return INITIAL_FORM_STATE;
-  const config = task.config as Record<string, unknown>;
+  const config = task.config as unknown as Record<string, unknown>;
   return {
     title: task.title,
     criterion: (task.criteria[0] as QuickCheckFormState["criterion"]) ?? null,
