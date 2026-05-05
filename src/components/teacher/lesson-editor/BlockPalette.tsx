@@ -614,10 +614,14 @@ export default function BlockPalette({
   // and the competency selector would become inaccessible (teacher
   // couldn't switch back).
   //
-  // 5 May 2026 declutter pass: NM_CATEGORY_VISIBLE flag hides the NM
-  // category visually pending lesson-editor UI redesign. Set to `true`
-  // to restore. Code path stays intact.
-  const NM_CATEGORY_VISIBLE = false;
+  // History — 5 May 2026 declutter pass briefly set NM_CATEGORY_VISIBLE
+  // to false on a misinterpretation of "remove the NM yellow bar"
+  // (Matt's intent was the amber checkpoint strip on lesson cards in
+  // LessonEditor.tsx — SHOW_NM_CHECKPOINT_STRIP — NOT this BlockPalette
+  // category, which is the AUTHORING PATH for NM checkpoints/surveys).
+  // Restored same day. The yellow checkpoint strip stays hidden via
+  // SHOW_NM_CHECKPOINT_STRIP in LessonEditor.tsx.
+  const NM_CATEGORY_VISIBLE = true;
   const activeCategories = (Object.keys(CATEGORIES) as BlockCategory[]).filter(
     (cat) => {
       if (cat === "new_metrics") {
