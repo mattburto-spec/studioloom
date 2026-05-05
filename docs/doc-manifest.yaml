@@ -596,6 +596,24 @@ docs:
     max_age_days: 365
     last_scanned: null
 
+  - path: docs/projects/task-system-architecture.md
+    title: "Task System Architecture (TG brief)"
+    purpose: "Unified architectural brief for gradeable events in StudioLoom — single assessment_tasks table with task_type discriminator, SPLIT teacher UI surfaces, polymorphic submissions for inquiry-mode future-proofing, ManageBac as export-not-integration. 855 lines. Replaces grading-phase-g1-brief.md (G1 was a 3-day cut that sidestepped the assessment_tasks question). Three-layer architecture explicit: Layer 1 = shared infra (rubric_descriptors, polymorphic submissions, grade_entries); Layer 2 = cross-mode PM tools (placeholder); Layer 3 = mode-specific (STRUCTURED = this brief; INQUIRY = sister project). Cowork's 7 spec corrections applied. G1 code rolls forward with task_id FK on student_tile_grades. ~16 days end-to-end. Build sequence: TG.0A pre-flight → TG.0B schema (gates Lever 0) → TG.0C-K parallel → Matt Checkpoint TG.1. Status: BRIEF SIGNED OFF 5 May 2026 (PR #23 commit 2a948a3); awaiting TG.0B implementation start."
+    category: projects
+    last_verified: "2026-05-05"
+    referenced_from: ["ALL-PROJECTS.md Task System Architecture entry", "CLAUDE.md What's next (when next saveme runs)", "decisions-log.md 5 May 2026 entries", "grading.md (master spec, this picks up the assessment_tasks vision)", "tasks-v1 prototype README"]
+    max_age_days: 365
+    last_scanned: null
+
+  - path: docs/prototypes/tasks-v1/
+    title: "Tasks v1 Architecture Probe — Claude Design prototype"
+    purpose: "Three-artboard design probe testing whether formative + summative tasks should share one config surface or split. Verdict: Ship SPLIT surfaces. Data model stays UNIFIED. Three named teacher-friction moments justify the split (Ms. Okafor 11:42am exit ticket; Mr. Patel Sunday 8pm backward-design; first-year MYP teacher writing GRASPS — 'the UI taught her the practice'). Cited verbatim in task-system-architecture.md and decisions-log.md 5 May 2026 entries. Visual reference for TG.0C (Tasks panel + chooser) and TG.0D (5-tab summative config drawer) implementation."
+    category: prototypes
+    last_verified: "2026-05-05"
+    referenced_from: ["task-system-architecture.md (verdict + friction moments quoted verbatim)", "decisions-log.md 5 May 2026 SPLIT teacher UI entry", "ALL-PROJECTS.md Task System Architecture entry"]
+    max_age_days: 365
+    last_scanned: null
+
   - path: docs/projects/dimensions3-audit.md
     title: "Dimensions3 Audit"
     purpose: "Audit findings for Dimensions3 pipeline implementation"
