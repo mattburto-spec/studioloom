@@ -2253,3 +2253,40 @@ longer needs manual `spec_drift` entries to track this kind of drift.
   rerun against prod to surface the rest of the migration backlog.
 - FU-AA (drop deprecated own_time_* tables from schema-registry) —
   systematic resync would surface this and similar zombie entries.
+
+---
+
+## FU-LESSON-SIDEBAR-LAYOUT — Move Editing/History/Class-Settings out of left column (P2)
+**Surfaced:** 5 May 2026 during TG.0C smoke
+**Priority:** P2 — UX-blocker for lessons-list visibility once Tasks panel landed; not a regression but the column is now over-stuffed
+**Target phase:** Before TG.0D ships (TG.0D will further crowd the right-side editor area, so left column needs breathing room first)
+
+**Symptom:** With the Tasks panel mounted between the unit thumbnail and the lesson list, the left sidebar (`w-64` / 256px) is now stuffed with 6 zones in this order:
+1. Unit thumbnail (was 16:9 = ~144px tall; reduced to 16:5 = ~80px in TG.0C polish)
+2. Tasks panel (TG.0C — new)
+3. Unit title strip (LessonSidebar header)
+4. **Editing** — All-classes vs This-class radio (~80px)
+5. Lessons list (the actual primary surface — scroll-bounded)
+6. **History** — version list (~30–60px depending on count)
+7. **Class Settings** + **Apply to All Classes** button (~80px)
+
+User can only see ~2 lessons at a time on a typical screen. Adding even more to the panel (lesson chips for tasks in TG.0E) makes it worse.
+
+**What we know:**
+- All 3 of the candidate moves (Editing, History, Class Settings) are unit-level chrome, not per-lesson actions. They don't need to be visible while editing a single lesson.
+- Editing radio is the most-used (toggles "All classes" vs "This class only" — affects every save). Could move to the editor's top bar near the save status indicator.
+- History is rarely-used (read-only browse). Could be a popover triggered by a clock icon in the top bar.
+- Class Settings + "Apply to All Classes" are infrequent. Could be a kebab/cog menu.
+
+**Investigation steps:**
+1. Audit the LessonSidebar.tsx file — count lines per section, identify which functions own each zone (radio handlers, fork-promote handlers, etc.).
+2. Look at LessonHeader.tsx (the editor's top bar) — does it have space for the Editing radio? Or should we add a compact dropdown there?
+3. Mock the new layout in plain HTML before refactoring. Validate that with Tasks + lesson chips visible, the lessons list still gets ≥4 visible at default zoom.
+4. Decide: keep history + class-settings inline (compressed) vs move to popover/menu? Inline-compressed is less work; menu is cleaner.
+
+**Definition of done:** (a) Editing radio moved to top bar or hidden behind a compact toggle, (b) History accessible but not always-rendered (popover or click-to-expand), (c) Class Settings + Apply-to-All in a menu, (d) ≥4 lessons visible by default in `w-64` sidebar with Tasks panel mounted, (e) no functional regression on fork-promote / version-restore / class-switching.
+
+**Sister:** TG.0E (lesson card "Builds toward..." chip) will add 1 more line per lesson card; this FU has to land first or the lessons list visibility gets worse.
+
+**Smoke evidence:** Matt's TG.0C smoke screenshot 5 May 2026 — only 2 lessons visible (A: Investigate, B: Develop) with the rest scrolled out of view.
+

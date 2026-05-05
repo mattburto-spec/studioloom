@@ -88,7 +88,7 @@ export default function UnitThumbnailEditor({
     <div className="relative group">
       {/* Thumbnail preview */}
       <div
-        className="w-full aspect-[16/9] rounded-lg overflow-hidden cursor-pointer border border-gray-200"
+        className="w-full aspect-[16/5] rounded-lg overflow-hidden cursor-pointer border border-gray-200"
         onClick={() => fileInputRef.current?.click()}
       >
         {thumbnailUrl ? (
