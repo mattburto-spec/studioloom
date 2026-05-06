@@ -121,54 +121,76 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
 
   return (
     <div
-      className="flex flex-col gap-2"
+      className="flex flex-col gap-3"
       data-testid="kanban-board"
       data-unit-id={unitId}
     >
-      {/* Save indicator */}
-      <div className="flex items-center gap-2 text-[10.5px] text-gray-500 px-1">
-        <span className="font-semibold uppercase tracking-wide">
+      {/* Save indicator + estimate calibration */}
+      <div className="flex items-center gap-2 text-[10.5px] text-gray-500">
+        <span className="font-extrabold uppercase tracking-wider text-gray-700">
           Project board
         </span>
-        <span className="text-gray-300">·</span>
+        <span
+          className="inline-block w-1 h-1 rounded-full bg-gray-300"
+          aria-hidden="true"
+        />
         {save.isSaving ? (
-          <span data-testid="kanban-save-status">Saving...</span>
+          <span
+            className="inline-flex items-center gap-1 text-violet-700 font-semibold"
+            data-testid="kanban-save-status"
+          >
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse" />
+            Saving…
+          </span>
         ) : save.error ? (
-          <span className="text-rose-600" data-testid="kanban-save-status">
+          <span
+            className="inline-flex items-center gap-1 text-rose-700 font-semibold"
+            data-testid="kanban-save-status"
+          >
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-rose-500" />
             Save failed.{" "}
             <button
               type="button"
               onClick={flushSave}
-              className="underline underline-offset-2"
+              className="underline underline-offset-2 ml-0.5"
             >
               Retry
             </button>
           </span>
         ) : save.isDirty ? (
-          <span data-testid="kanban-save-status">Pending changes...</span>
+          <span
+            className="inline-flex items-center gap-1 text-amber-700"
+            data-testid="kanban-save-status"
+          >
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500" />
+            Pending changes…
+          </span>
         ) : save.lastSavedAt ? (
-          <span data-testid="kanban-save-status">Saved</span>
+          <span
+            className="inline-flex items-center gap-1 text-emerald-700"
+            data-testid="kanban-save-status"
+          >
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            Saved
+          </span>
         ) : (
           <span data-testid="kanban-save-status">Up to date</span>
         )}
 
         {accuracy !== null && (
-          <>
-            <span className="text-gray-300">·</span>
-            <span
-              className="ml-auto"
-              title={`Across ${accuracy.cardsCompared} completed card${accuracy.cardsCompared === 1 ? "" : "s"}, your actual time / estimate ratio is ${accuracy.ratio.toFixed(2)}. Closer to 1.0 = better calibrated.`}
-              data-testid="kanban-estimate-accuracy"
-            >
-              ⏱ Estimate calibration: {accuracy.ratio.toFixed(2)}× ({accuracy.cardsCompared}{" "}
-              card{accuracy.cardsCompared === 1 ? "" : "s"})
-            </span>
-          </>
+          <span
+            className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-50 text-violet-800 text-[10px] font-semibold"
+            title={`Across ${accuracy.cardsCompared} completed card${accuracy.cardsCompared === 1 ? "" : "s"}, your actual time / estimate ratio is ${accuracy.ratio.toFixed(2)}. Closer to 1.0 = better calibrated.`}
+            data-testid="kanban-estimate-accuracy"
+          >
+            ⏱ Calibration {accuracy.ratio.toFixed(2)}×
+          </span>
         )}
       </div>
 
-      {/* 4-column grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+      {/* 4-column grid — wider gaps now that the drawer has more
+          horizontal real estate (round 16 widened from 540 → 720px). */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {KANBAN_COLUMNS.map((col) => {
           const meta = COLUMN_META[col];
           const cards = cardsByStatus(state, col);

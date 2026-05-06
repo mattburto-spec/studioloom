@@ -1,17 +1,16 @@
 "use client";
 
 /**
- * Smoke-fix round 6 — generic in-page slide-in drawer for the lesson
- * page's right-side tools rail.
+ * Generic in-page slide-in drawer used by the lesson page's right-
+ * side tools rail to wrap <KanbanBoard /> or <TimelineBoard />.
  *
- * Wraps either <KanbanBoard /> or <TimelineBoard /> so a student can
- * peek at their project tools without leaving the lesson. The full
- * board page at /(student)/unit/[unitId]/board still mounts both side-
- * by-side; this drawer is the in-lesson surface.
+ * Round 16 (6 May 2026) — match the PortfolioPanel slide animation
+ * pattern (drawer stays mounted, slides via translate-x with
+ * pointer-events gating + scrim opacity transition). Previous
+ * version unmounted on close → sudden appearance with no motion.
  *
- * Mirrors the visual language of PortfolioPanel — full-height right
- * drawer, scrim, ESC + outside-click to close, header with the title
- * and a close button.
+ * Also widened: min(100%, 720px) so the Kanban's 4 columns don't
+ * cramp + the Timeline's milestone list breathes.
  */
 
 import { useEffect, type ReactNode } from "react";
@@ -35,7 +34,7 @@ export function BoardDrawer({
   fullBoardHref,
   children,
 }: BoardDrawerProps) {
-  // ESC to close
+  // ESC to close — only when open so we don't compete with other handlers
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
@@ -45,26 +44,34 @@ export function BoardDrawer({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  if (!open) return null;
-
   return (
     <>
+      {/* Scrim — always mounted; opacity transitions cleanly. */}
       <div
-        className="fixed inset-0 bg-black/30 z-40"
+        className={
+          "fixed inset-0 z-40 bg-black/40 transition-opacity duration-300 " +
+          (open ? "opacity-100" : "opacity-0 pointer-events-none")
+        }
         onClick={onClose}
         aria-hidden="true"
         data-testid="board-drawer-scrim"
       />
+      {/* Drawer — always mounted; slides in via translate-x. Wider
+          (720px) so the Kanban + Timeline have room. */}
       <aside
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="fixed top-0 right-0 bottom-0 z-50 w-full sm:w-[min(100%,540px)] bg-white shadow-2xl flex flex-col overflow-hidden"
+        aria-hidden={!open}
+        className={
+          "fixed top-0 right-0 z-50 h-full w-full sm:w-[min(100%,720px)] bg-white shadow-2xl flex flex-col overflow-hidden transition-transform duration-300 ease-out " +
+          (open ? "translate-x-0" : "translate-x-full pointer-events-none")
+        }
         data-testid="board-drawer"
       >
-        <header className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-200">
+        <header className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-200 flex-shrink-0">
           <div className="flex-1 min-w-0">
-            <h2 className="text-[15px] font-extrabold text-gray-900 leading-tight">
+            <h2 className="text-[16px] font-extrabold text-gray-900 leading-tight">
               {title}
             </h2>
             {subtitle && (
@@ -105,7 +112,7 @@ export function BoardDrawer({
             </button>
           </div>
         </header>
-        <div className="flex-1 overflow-y-auto p-4">{children}</div>
+        <div className="flex-1 overflow-y-auto p-5">{children}</div>
       </aside>
     </>
   );

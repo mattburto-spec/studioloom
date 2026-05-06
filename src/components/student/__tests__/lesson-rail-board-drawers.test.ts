@@ -137,8 +137,21 @@ describe("pace-feedback popup retired (round 7)", () => {
 });
 
 describe("BoardDrawer", () => {
-  it("renders nothing when open=false (no scrim, no aside)", () => {
-    expect(DRAWER_SRC).toMatch(/if \(!open\) return null/);
+  it("stays mounted always; slides via translate-x + opacity (round 16 motion match)", () => {
+    // Round 16: replaced `if (!open) return null` with always-mounted
+    // pattern matching PortfolioPanel — translate-x-full when closed,
+    // translate-x-0 when open, with pointer-events-none gating.
+    expect(DRAWER_SRC).not.toMatch(/if \(!open\) return null/);
+    expect(DRAWER_SRC).toContain("translate-x-full pointer-events-none");
+    expect(DRAWER_SRC).toContain("translate-x-0");
+    expect(DRAWER_SRC).toContain("transition-transform duration-300 ease-out");
+    // Scrim opacity transition
+    expect(DRAWER_SRC).toContain("transition-opacity duration-300");
+    expect(DRAWER_SRC).toContain("opacity-0 pointer-events-none");
+  });
+
+  it("widened to min(100%, 720px) so Kanban has room", () => {
+    expect(DRAWER_SRC).toContain("sm:w-[min(100%,720px)]");
   });
 
   it("scrim click + close button + ESC key all close", () => {
