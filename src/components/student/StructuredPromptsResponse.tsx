@@ -72,6 +72,15 @@ interface StructuredPromptsResponseProps {
    * because it filters auto-captured entries out by design.
    */
   onChange?: (composedContent: string) => void;
+  /**
+   * Round 11 (6 May 2026) — bypass-debounce save. When provided, the
+   * journal save uses this instead of `onChange` so the lesson
+   * progress persists immediately (not after the parent's 2s
+   * autosave). Without this, a student who saves a journal and
+   * navigates away within 2s loses the entry on reload because
+   * student_progress.responses never gets the composed content.
+   */
+  onSaveImmediate?: (composedContent: string) => Promise<void>;
   /** Called after a successful save. Parent uses this to refresh portfolio panel, mark activity done, etc. */
   onSaved?: (savedPayload: { content: string; nextMove: string | null }) => void;
 }
@@ -85,6 +94,7 @@ export default function StructuredPromptsResponse({
   autoCreateKanbanCardOnSave = false,
   savedValue,
   onChange,
+  onSaveImmediate,
   onSaved,
 }: StructuredPromptsResponseProps) {
   const hasSavedEntry = (savedValue ?? "").trim().length > 0;
@@ -242,7 +252,23 @@ export default function StructuredPromptsResponse({
       // up. Narrative deliberately filters out auto-captured portfolio
       // entries; the lesson responses path is the canonical place for
       // structured-prompts content to live.
-      onChange?.(content);
+      //
+      // Round 11 — prefer onSaveImmediate (bypass debounce) so the
+      // journal survives a navigate-within-2s. Fall back to onChange
+      // if the parent didn't wire the immediate-save path. Either way,
+      // failures here don't undo the portfolio save above — the entry
+      // is at minimum recoverable from portfolio_entries.
+      if (onSaveImmediate) {
+        try {
+          await onSaveImmediate(content);
+        } catch (err) {
+          console.warn("[journal] immediate progress save failed", err);
+          // Fall through to onChange so the autosave still has a chance
+          onChange?.(content);
+        }
+      } else {
+        onChange?.(content);
+      }
 
       onSaved?.({ content, nextMove });
 

@@ -75,7 +75,7 @@ function UnitPageViewInner({
     getTrackingPayload,
   } = useActivityTracking(pageId, {});
 
-  const { responses, setResponses, saving, showSaveToast, saveProgress, moderationError } =
+  const { responses, setResponses, saving, showSaveToast, saveProgress, saveResponseImmediate, moderationError } =
     usePageResponses(unitId, pageId, currentPage, data, integrityMetadataRef, getTrackingPayload);
 
   const { student, classInfo } = useStudent();
@@ -303,6 +303,14 @@ function UnitPageViewInner({
                       ...prev,
                       [responseKey]: val,
                     }));
+                  }}
+                  // Round 11 — pass through to allow Process Journal saves
+                  // to bypass the 2s debounce. Other response types fall
+                  // back to the debounced setResponses path above.
+                  onSaveResponseImmediate={(val) => {
+                    recordInteraction(responseKey);
+                    recordResponseChange(responseKey, typeof val === "string" ? val : JSON.stringify(val));
+                    return saveResponseImmediate(responseKey, val);
                   }}
                   isLast={true}
                   arrowOffset={0}

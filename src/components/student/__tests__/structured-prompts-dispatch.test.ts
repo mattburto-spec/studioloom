@@ -129,11 +129,32 @@ describe("StructuredPromptsResponse — module hygiene", () => {
     expect(STRUCTURED_PROMPTS_SRC).toMatch(/onChange\?\.\(content\)/);
   });
 
+  // Round 11 — immediate-save bypasses the autosave debounce.
+  it("prefers onSaveImmediate when provided (round 11 — bypass-debounce)", () => {
+    expect(STRUCTURED_PROMPTS_SRC).toMatch(
+      /if\s*\(onSaveImmediate\)\s*\{[\s\S]{0,400}await onSaveImmediate\(content\)/
+    );
+  });
+
+  it("falls back to onChange when onSaveImmediate fails or is absent", () => {
+    // Catch block re-runs onChange; else branch runs onChange
+    const idx = STRUCTURED_PROMPTS_SRC.indexOf("await onSaveImmediate(content)");
+    expect(idx).toBeGreaterThan(0);
+    const after = STRUCTURED_PROMPTS_SRC.slice(idx, idx + 600);
+    expect(after).toContain("onChange?.(content)");
+    // Else branch — when onSaveImmediate is undefined
+    expect(STRUCTURED_PROMPTS_SRC).toMatch(
+      /\}\s*else\s*\{\s*onChange\?\.\(content\);\s*\}/
+    );
+  });
+
   it("collapses to saved-preview state after successful save", () => {
-    // After save, editing flips off + responses reset.
+    // After save, editing flips off + responses reset. Window widened
+    // round 11 to accommodate the new immediate-save try/catch block
+    // that sits between the toast and the editing reset.
     const saveIdx = STRUCTURED_PROMPTS_SRC.indexOf("setSavedToast(\"Saved to portfolio\")");
     expect(saveIdx).toBeGreaterThan(0);
-    const after = STRUCTURED_PROMPTS_SRC.slice(saveIdx, saveIdx + 800);
+    const after = STRUCTURED_PROMPTS_SRC.slice(saveIdx, saveIdx + 1500);
     expect(after).toContain("setEditing(false)");
     expect(after).toContain("setResponses({})");
   });

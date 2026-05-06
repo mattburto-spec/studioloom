@@ -300,6 +300,28 @@ function ResponseDisplay({ value }: { value: unknown }) {
 
   const str = typeof value === "string" ? value : JSON.stringify(value);
 
+  // Round 11 (6 May 2026) — structured-prompts markdown.
+  // composeContent emits "## label\nbody\n\n## label\nbody". Parse it
+  // back into headings + bodies and render as a structured journal
+  // block instead of dumping raw markdown text into the PDF.
+  const structured = parseStructuredPromptsResponse(str);
+  if (structured && structured.length > 0) {
+    return (
+      <div className="space-y-3 my-1" data-narrative-structured-prompts>
+        {structured.map((entry, i) => (
+          <div key={i}>
+            <h4 className="text-[12px] font-bold uppercase tracking-wide text-gray-500 mb-0.5">
+              {entry.label}
+            </h4>
+            <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+              {entry.body}
+            </p>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   // Try to parse as JSON response object
   if (str.startsWith("{") || str.startsWith("[")) {
     try {
@@ -521,4 +543,44 @@ function PortfolioEntryBlock({ entry }: { entry: PortfolioEntry }) {
       </div>
     </div>
   );
+}
+
+
+/* ------------------------------------------------------------------ */
+/*  Structured-prompts markdown parser (round 11, 6 May 2026)         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * composeContent emits "## label\nbody" sections. Parse it back so the
+ * narrative + PDF render structured sub-headings instead of leaking
+ * raw markdown into the page. Returns null if the input doesn't look
+ * like composed structured-prompts content.
+ */
+function parseStructuredPromptsResponse(
+  input: string
+): Array<{ label: string; body: string }> | null {
+  if (!input.includes("## ")) return null;
+  const lines = input.split(/\r?\n/);
+  const out: Array<{ label: string; body: string }> = [];
+  let currentLabel: string | null = null;
+  let currentBody: string[] = [];
+  function flush() {
+    if (currentLabel === null) return;
+    out.push({
+      label: currentLabel,
+      body: currentBody.join("\n").replace(/^\s+/, "").replace(/\s+$/, ""),
+    });
+  }
+  for (const line of lines) {
+    if (line.startsWith("## ")) {
+      flush();
+      currentLabel = line.slice(3).trim();
+      currentBody = [];
+    } else if (currentLabel !== null) {
+      currentBody.push(line);
+    }
+  }
+  flush();
+  const filtered = out.filter((e) => e.body.length > 0);
+  return filtered.length > 0 ? filtered : null;
 }

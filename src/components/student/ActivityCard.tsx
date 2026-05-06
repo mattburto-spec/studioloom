@@ -17,6 +17,12 @@ interface ActivityCardProps {
   ellLevel: number;
   responseValue: string;
   onResponseChange: (value: string) => void;
+  /**
+   * Round 11 — bypass-the-debounce save. Used by Process Journal (and
+   * any other "explicit Save button" response type) so the value
+   * survives a navigation within the autosave debounce window.
+   */
+  onSaveResponseImmediate?: (value: string) => Promise<void>;
   cardRef?: (el: HTMLDivElement | null) => void;
   isLast: boolean;
   arrowOffset: number;
@@ -112,6 +118,7 @@ export function ActivityCard({
   ellLevel,
   responseValue,
   onResponseChange,
+  onSaveResponseImmediate,
   cardRef,
   isLast,
   allowedTypes,
@@ -242,6 +249,7 @@ export function ActivityCard({
               prompts={section.prompts}
               requirePhoto={section.requirePhoto}
               autoCreateKanbanCardOnSave={section.autoCreateKanbanCardOnSave}
+              onSaveResponseImmediate={onSaveResponseImmediate}
               enableIntegrityMonitoring={enableIntegrityMonitoring}
               onIntegrityUpdate={
                 onIntegrityUpdate
