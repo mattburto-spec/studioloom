@@ -93,6 +93,17 @@ All six sync via saveme. When in doubt about which to check: SYSTEM-level change
 - **Before starting any non-trivial build phase**, read `docs/build-methodology.md` and write a phase brief that includes pre-flight steps, stop triggers, a "don't stop for" list, and named checkpoints. Treat sandbox/simulator/dryRun as first-class spec components, not optional scaffolding.
 - **When making decisions about student profiling, measurement, cultural adaptation, language scaffolding, peer grouping, or any feature that touches student identity/wellbeing**, read `docs/research/student-influence-factors.md` first. It contains Hattie-style effect sizes for 24 factors (cultural, linguistic, psychological, environmental) with measurability ratings and interaction effects. This is the research foundation for the Student Learning Profile and Discovery Engine profiling.
 
+### Per-project follow-up trackers
+Each active build project gets its own `docs/projects/<project>-followups.md`. Items surfaced during the build that are NOT blockers but should be picked up later. Append-only; resolved items move to a "Resolved" section at the bottom. Trackers in active use:
+
+- [`docs/projects/preflight-followups.md`](docs/projects/preflight-followups.md) — Preflight (fabrication pipeline)
+- [`docs/projects/dimensions3-followups.md`](docs/projects/dimensions3-followups.md) — Dimensions3 (generation pipeline rebuild)
+- [`docs/projects/grading-followups.md`](docs/projects/grading-followups.md) — Grading (TG.* sub-phases)
+- [`docs/projects/access-model-v2-followups.md`](docs/projects/access-model-v2-followups.md) — Access Model v2
+- [`docs/projects/co2-racers-followups.md`](docs/projects/co2-racers-followups.md) — **CO2 Racers agency unit (AG.*)** — created 6 May 2026
+
+When a smoke round or build phase surfaces a deferred item, file it in the matching tracker under the convention: `## FU-<PROJECT-PREFIX>-<SHORT-TAG>` followed by the surfaced/target/severity/origin/scope template used by all five files. New project? Create `docs/projects/<project>-followups.md` and add it to this list.
+
 ## Loominary Context
 StudioLoom is the first product in the **Loominary** product family (10 education apps sharing reusable code libraries). Each product is its own independently deployed app with its own database — "Loominary OS" is a shared package layer, not a runtime platform. Full Loominary docs live ONE LEVEL UP at `../Loominary/docs/`. **Important: always mount the parent folder (not just questerra/) so these `../Loominary/` paths resolve.** Key points for StudioLoom sessions:
 
