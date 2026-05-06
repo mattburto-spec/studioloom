@@ -21,6 +21,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Student } from "@/types";
 import { useSidebarSlot } from "./SidebarSlotContext";
+import { useBellCount, type NotificationItem } from "./BellCountContext";
 import { CommandPalette } from "@/components/search/CommandPalette";
 
 // ================= SESSION STUDENT =================
@@ -466,25 +467,11 @@ export function BoldTopNav({
         >
           <Icon name="search" size={16} />
         </button>
-        <button
-          onClick={() => {
-            // On dashboard → smooth scroll to priority queue. Elsewhere → navigate.
-            if (onDashboard) {
-              scrollTo("dashboard-priority");
-            } else {
-              window.location.href = "/dashboard#dashboard-priority";
-            }
-          }}
-          className="w-9 h-9 rounded-full hover:bg-white flex items-center justify-center text-[var(--sl-ink-2)] relative"
-          aria-label={bellCount > 0 ? `${bellCount} urgent items — open priority queue` : "Notifications"}
-        >
-          <Icon name="bell" size={16} />
-          {bellCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-[#DC2626] border-2 border-[var(--sl-bg)] text-white text-[9px] font-extrabold tnum flex items-center justify-center leading-none">
-              {bellCount > 9 ? "9+" : bellCount}
-            </span>
-          )}
-        </button>
+        {/* Round 11 (6 May 2026) — bell now opens an inline popover
+            with the actual notification items instead of navigating to
+            /dashboard#dashboard-priority. Per Matt: "shouldn't take
+            students to another page". */}
+        <BellPopoverButton bellCount={bellCount} onDashboard={onDashboard} scrollTo={scrollTo} />
 
         {/* Avatar dropdown — click to reveal Studio Settings + Log out */}
         <div className="relative" ref={menuRef}>
@@ -548,5 +535,195 @@ export function BoldTopNav({
         searchUrl="/api/student/search"
       />
     </header>
+  );
+}
+
+// ================= BELL POPOVER (round 11) =================
+/**
+ * BellPopoverButton — bell icon + count badge + click-to-open popover
+ * with the actual urgent / today / soon notification items.
+ *
+ * Round 11 replacement for the previous behaviour, which scrolled to
+ * /dashboard#dashboard-priority on click. Matt: "clicking on it
+ * should just have a little pop up with the important notifications."
+ *
+ * Items come from BellCountContext (populated by DashboardClient).
+ * "View all" link still scrolls / navigates to the priority queue
+ * for students who want the full surface.
+ */
+function BellPopoverButton({
+  bellCount,
+  onDashboard,
+  scrollTo,
+}: {
+  bellCount: number;
+  onDashboard: boolean;
+  scrollTo: (anchor: string | null) => void;
+}) {
+  const { items } = useBellCount();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  // Close on outside click + ESC
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (!ref.current) return;
+      if (!ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("mousedown", onDoc);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onDoc);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-9 h-9 rounded-full hover:bg-white flex items-center justify-center text-[var(--sl-ink-2)] relative"
+        aria-label={
+          bellCount > 0
+            ? `${bellCount} urgent items — open notifications`
+            : "Notifications"
+        }
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        data-testid="bell-popover-toggle"
+      >
+        <Icon name="bell" size={16} />
+        {bellCount > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-[#DC2626] border-2 border-[var(--sl-bg)] text-white text-[9px] font-extrabold tnum flex items-center justify-center leading-none">
+            {bellCount > 9 ? "9+" : bellCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div
+          role="dialog"
+          aria-label="Notifications"
+          className="absolute right-0 mt-2 w-[320px] bg-white rounded-2xl shadow-2xl border border-[var(--sl-hair)] overflow-hidden z-50"
+          data-testid="bell-popover"
+        >
+          <header className="px-4 py-3 border-b border-[var(--sl-hair)] flex items-center justify-between">
+            <span className="text-[12.5px] font-extrabold uppercase tracking-wide text-[var(--sl-ink-2)]">
+              Notifications
+            </span>
+            {bellCount > 0 && (
+              <span
+                className="text-[10.5px] font-extrabold text-white bg-[#DC2626] px-2 py-0.5 rounded-full leading-none"
+                data-testid="bell-popover-count"
+              >
+                {bellCount} urgent
+              </span>
+            )}
+          </header>
+
+          <div className="max-h-[420px] overflow-y-auto" data-testid="bell-popover-list">
+            {items.length === 0 ? (
+              <div
+                className="px-4 py-6 text-center text-[12px] text-[var(--sl-ink-3)]"
+                data-testid="bell-popover-empty"
+              >
+                Nothing urgent right now. Keep going.
+              </div>
+            ) : (
+              <ul className="divide-y divide-[var(--sl-hair)]">
+                {items.map((item) => (
+                  <BellPopoverRow
+                    key={item.id}
+                    item={item}
+                    onClick={() => setOpen(false)}
+                  />
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {items.length > 0 && (
+            <footer className="px-4 py-2.5 border-t border-[var(--sl-hair)] bg-[var(--sl-bg)]">
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  if (onDashboard) {
+                    scrollTo("dashboard-priority");
+                  } else {
+                    window.location.href = "/dashboard#dashboard-priority";
+                  }
+                }}
+                className="w-full text-[11px] font-extrabold text-[var(--sl-ink-2)] hover:text-[var(--sl-ink)] transition"
+                data-testid="bell-popover-view-all"
+              >
+                View all on dashboard →
+              </button>
+            </footer>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BellPopoverRow({
+  item,
+  onClick,
+}: {
+  item: NotificationItem;
+  onClick: () => void;
+}) {
+  const tone =
+    item.kind === "overdue"
+      ? "text-[#DC2626]"
+      : item.kind === "today"
+      ? "text-[#D97706]"
+      : "text-[var(--sl-ink-3)]";
+
+  const inner = (
+    <div className="px-4 py-2.5 hover:bg-[var(--sl-bg)] transition flex items-start gap-3">
+      <span
+        className={`text-[9.5px] uppercase font-extrabold tracking-wide pt-0.5 ${tone}`}
+        style={{ minWidth: 56 }}
+      >
+        {item.dueText}
+      </span>
+      <div className="flex-1 min-w-0">
+        <div className="text-[12.5px] font-bold text-[var(--sl-ink)] leading-tight truncate">
+          {item.title}
+        </div>
+        {item.sub && (
+          <div className="text-[10.5px] text-[var(--sl-ink-3)] truncate mt-0.5">
+            {item.sub}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  if (item.href) {
+    return (
+      <li>
+        <Link
+          href={item.href}
+          onClick={onClick}
+          className="block"
+          data-testid={`bell-popover-row-${item.kind}`}
+        >
+          {inner}
+        </Link>
+      </li>
+    );
+  }
+  return (
+    <li onClick={onClick} data-testid={`bell-popover-row-${item.kind}`}>
+      {inner}
+    </li>
   );
 }

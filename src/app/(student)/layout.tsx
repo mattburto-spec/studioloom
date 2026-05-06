@@ -37,6 +37,9 @@ export default function StudentLayout({
   // BoldTopNav bell badge — Dashboard sets this via context after its
   // insights fetch. Other routes leave it at 0 for now.
   const [bellCount, setBellCount] = useState(0);
+  const [bellItems, setBellItems] = useState<
+    import("@/components/student/BellCountContext").NotificationItem[]
+  >([]);
 
   // BoldTopNav mobile hamburger — /unit/[id]/layout.tsx registers a handler
   // to open its lesson drawer; other routes leave it null (no button shown).
@@ -210,7 +213,14 @@ export default function StudentLayout({
 
   return (
     <StudentContext.Provider value={{ student, classInfo: effectiveClassInfo }}>
-      <BellCountContext.Provider value={{ count: bellCount, setCount: setBellCount }}>
+      <BellCountContext.Provider
+        value={{
+          count: bellCount,
+          setCount: setBellCount,
+          items: bellItems,
+          setItems: setBellItems,
+        }}
+      >
         <SidebarSlotContext.Provider value={{ handler: sidebarHandler, setHandler: setSidebarHandler }}>
         <div className="sl-v2">
           <BoldTopNav
