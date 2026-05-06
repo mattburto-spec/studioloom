@@ -211,6 +211,11 @@ export const BLOCK_LIBRARY: BlockDefinition[] = [
     // Decided/Next preset is the CO2 Racers default (and a good fit for
     // any maker / design unit). Auto-creates a Kanban backlog card from
     // the "Next" prompt on save.
+    //
+    // portfolioCapture=true so the entry always surfaces in the
+    // Narrative view (round 5 fix — without it, units that have other
+    // portfolioCapture-flagged blocks would exclude the journal under
+    // narrative-utils' usePortfolioFilter branch).
     id: "process-journal",
     label: "Process Journal",
     icon: "📓",
@@ -224,6 +229,7 @@ export const BLOCK_LIBRARY: BlockDefinition[] = [
       durationMinutes: 5,
       prompts: JOURNAL_PROMPTS,
       autoCreateKanbanCardOnSave: true,
+      portfolioCapture: true,
     }),
   },
   // ── Content ──
