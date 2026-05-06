@@ -11,8 +11,13 @@ import { usePageResponses } from "@/hooks/usePageResponses";
 import { ActivityCard } from "@/components/student/ActivityCard";
 import { SectionDivider } from "@/components/student/SectionDivider";
 import { MobileBottomNav } from "@/components/student/MobileBottomNav";
-import { PlanningPanelV2 as PlanningPanel } from "@/components/planning/PlanningPanelV2";
-import { GanttPanel } from "@/components/planning/GanttPanel";
+// Smoke-fix round 6 — rail buttons swapped: "My Plan" (PlanningPanelV2)
+// and "Schedule" (GanttPanel) replaced by in-page drawers wrapping the
+// CO2 Racers Kanban + Timeline boards. Old planning components left in
+// the codebase for now (used by other surfaces? — TODO: audit).
+import KanbanBoard from "@/components/student/kanban/KanbanBoard";
+import TimelineBoard from "@/components/student/timeline/TimelineBoard";
+import { BoardDrawer } from "@/components/student/BoardDrawer";
 import { QuickCaptureFAB } from "@/components/portfolio/QuickCaptureFAB";
 import { PortfolioPanel } from "@/components/portfolio/PortfolioPanel";
 import { ExportPagePdf } from "@/components/student/ExportPagePdf";
@@ -75,9 +80,12 @@ function UnitPageViewInner({
 
   const { student, classInfo } = useStudent();
   const openStudio = useOpenStudio(unitId);
-  const [planOpen, setPlanOpen] = useState(false);
+  // Smoke-fix round 6 — renamed for honest mapping to the surfaces they
+  // open. Old names (planOpen / ganttOpen) opened MYP-criteria + Gantt
+  // panels that have been replaced by Kanban + Timeline drawers.
+  const [kanbanOpen, setKanbanOpen] = useState(false);
   const [portfolioOpen, setPortfolioOpen] = useState(false);
-  const [ganttOpen, setGanttOpen] = useState(false);
+  const [timelineOpen, setTimelineOpen] = useState(false);
   const [narrativeOpen, setNarrativeOpen] = useState(false);
   const [showFeedbackPulse, setShowFeedbackPulse] = useState(false);
   const [pendingNavTarget, setPendingNavTarget] = useState<string | null>(null);
@@ -422,7 +430,18 @@ function UnitPageViewInner({
       )}
 
       {/* Panels */}
-      <PlanningPanel unitId={unitId} open={planOpen} onClose={() => setPlanOpen(false)} pages={allPages} />
+      {/* Smoke-fix round 6 — Kanban drawer (was: PlanningPanel V2 with MYP
+          criteria, ripped out per Matt's request — agency unit doesn't
+          use criterion-by-criterion planning). */}
+      <BoardDrawer
+        open={kanbanOpen}
+        title="Project Board"
+        subtitle="Pull from Backlog → This Class → Doing → Done. WIP=1: finish before you start."
+        onClose={() => setKanbanOpen(false)}
+        fullBoardHref={`/unit/${unitId}/board`}
+      >
+        <KanbanBoard unitId={unitId} />
+      </BoardDrawer>
       <PortfolioPanel
         unitId={unitId}
         open={portfolioOpen}
@@ -437,14 +456,18 @@ function UnitPageViewInner({
         unitTitle={data.unit.title}
         studentName={data.studentName}
       />
-      <GanttPanel
-        unitId={unitId}
-        open={ganttOpen}
-        onClose={() => setGanttOpen(false)}
-        pageDueDates={data.pageDueDates || {}}
-        currentPageId={pageId}
-        pages={allPages}
-      />
+      {/* Smoke-fix round 6 — Timeline drawer (was: GanttPanel; ripped
+          out per Matt's request — milestones with race-day variance
+          replace the page-due-date Gantt for agency-style units). */}
+      <BoardDrawer
+        open={timelineOpen}
+        title="Timeline & Milestones"
+        subtitle="Backward-map from race day. Variance dots flip as deadlines approach."
+        onClose={() => setTimelineOpen(false)}
+        fullBoardHref={`/unit/${unitId}/board`}
+      >
+        <TimelineBoard unitId={unitId} />
+      </BoardDrawer>
       <NarrativeModal
         open={narrativeOpen}
         onClose={() => setNarrativeOpen(false)}
@@ -496,12 +519,18 @@ function UnitPageViewInner({
 
       {/* NM pulse removed from here — moved inline above Complete & Continue */}
 
-      {/* ── Right-side tools rail — Portfolio / My Plan / Schedule / Gallery ──
-          Smoke-fix 6 May 2026: button label was "Journal" but the panel
-          that opens shows ALL portfolio entries (notes, photos, links,
-          journal entries) under a "Portfolio" heading. Renamed to match
-          the panel for honest labeling. */}
-      {!planOpen && !portfolioOpen && !ganttOpen && (
+      {/* ── Right-side tools rail — Portfolio / Project Board / Timeline ──
+          Smoke-fix round 6 (6 May 2026):
+            - "My Plan" (MYP-criteria PlanningPanelV2) → Project Board
+              (Kanban drawer)
+            - "Schedule" (page-due-date GanttPanel) → Timeline (milestones
+              + variance drawer)
+            - Class Gallery temporarily removed — Matt: "not something I
+              have time for right now"
+          The drawer pattern keeps students inside the lesson while
+          reviewing their project surfaces; the full board page is one
+          click away via the drawer's "Full board →" link. */}
+      {!kanbanOpen && !portfolioOpen && !timelineOpen && (
         <LessonToolsRail
           tools={(
             [
@@ -517,40 +546,30 @@ function UnitPageViewInner({
                 ),
               },
               {
-                id: "plan",
-                label: "My Plan",
-                onClick: () => setPlanOpen(true),
+                id: "project-board",
+                label: "Project Board",
+                onClick: () => setKanbanOpen(true),
+                // Kanban-style 4-rect icon (matches the LH sidebar CTA)
                 icon: (
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 11l3 3L22 4" />
-                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                    <rect x="3" y="3" width="7" height="9" rx="1.5" />
+                    <rect x="14" y="3" width="7" height="5" rx="1.5" />
+                    <rect x="14" y="12" width="7" height="9" rx="1.5" />
+                    <rect x="3" y="16" width="7" height="5" rx="1.5" />
                   </svg>
                 ),
               },
               {
-                id: "schedule",
-                label: "Schedule",
-                onClick: () => setGanttOpen(true),
+                id: "timeline",
+                label: "Timeline",
+                onClick: () => setTimelineOpen(true),
+                // Milestones-on-a-line icon
                 icon: (
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                    <line x1="16" y1="2" x2="16" y2="6" />
-                    <line x1="8" y1="2" x2="8" y2="6" />
-                    <line x1="3" y1="10" x2="21" y2="10" />
-                  </svg>
-                ),
-              },
-              {
-                id: "gallery",
-                label: "Class Gallery",
-                accent: true,
-                onClick: () => window.open("/dashboard#gallery", "_blank"),
-                icon: (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="7" height="7" rx="1" />
-                    <rect x="14" y="3" width="7" height="7" rx="1" />
-                    <rect x="3" y="14" width="7" height="7" rx="1" />
-                    <rect x="14" y="14" width="7" height="7" rx="1" />
+                    <line x1="3" y1="12" x2="21" y2="12" />
+                    <circle cx="6" cy="12" r="2" />
+                    <circle cx="12" cy="12" r="2" />
+                    <circle cx="18" cy="12" r="2" />
                   </svg>
                 ),
               },
