@@ -16,7 +16,7 @@
  * pre-emptive validate calls.
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import {
   validateMove,
   type MoveValidation,
@@ -90,6 +90,34 @@ export default function KanbanCardModal({
     card.estimateMinutes?.toString() ?? ""
   );
   const [becauseDraft, setBecauseDraft] = useState<string>(card.becauseClause ?? "");
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Smoke-feedback 6 May 2026 — DoD-field disappearing bug:
+  // ───────────────────────────────────────────────────────────────────────
+  // Original move-to flow eagerly committed each keystroke via
+  // onUpdateDoD(). Once card.dod was non-empty, the visibility gate
+  // (`(card.dod?.trim() ?? "").length === 0`) flipped false and the
+  // textarea unmounted mid-typing. Fix: capture "DoD was empty when we
+  // entered this move-to context" once per (mode, moveTarget) transition
+  // and keep the field visible for the duration of the move-to flow.
+  const moveContextKeyRef = useRef<string>("");
+  const dodWasInitiallyEmptyRef = useRef<boolean>(false);
+  useEffect(() => {
+    if (mode !== "move-to" || !moveTarget) {
+      moveContextKeyRef.current = "";
+      return;
+    }
+    const key = `${mode}:${moveTarget}`;
+    if (moveContextKeyRef.current !== key) {
+      // Just entered move-to (or switched target) — capture once.
+      moveContextKeyRef.current = key;
+      dodWasInitiallyEmptyRef.current =
+        (card.dod?.trim() ?? "").length === 0;
+    }
+    // Intentionally NOT depending on card.dod — the whole point is to
+    // freeze the snapshot at entry time. eslint will warn; suppress is fine.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, moveTarget]);
 
   // Pre-emptive validation for the move target — drives error display + Save button
   const moveValidation: MoveValidation | null = useMemo(() => {
@@ -208,6 +236,29 @@ export default function KanbanCardModal({
                 />
               </label>
 
+              {/* Because clause display — Done cards only. Smoke-feedback
+                  6 May 2026: previously captured during move-to-Done but
+                  never surfaced again, so students couldn't see what
+                  evidence they'd recorded. Read-only for v1; editing is
+                  a follow-up (needs an updateBecauseClause reducer action). */}
+              {card.status === "done" &&
+                (card.becauseClause?.trim() ?? "").length > 0 && (
+                  <div className="block">
+                    <span className="text-[10.5px] font-semibold text-gray-700 uppercase tracking-wide block mb-1">
+                      Because…
+                    </span>
+                    <p className="text-[10px] text-gray-500 mb-1">
+                      Three Cs evidence captured when this card was finished.
+                    </p>
+                    <div
+                      className="w-full text-[12px] px-2 py-1.5 bg-emerald-50 border border-emerald-200 rounded text-emerald-900 whitespace-pre-wrap"
+                      data-testid="kanban-modal-because-display"
+                    >
+                      {card.becauseClause}
+                    </div>
+                  </div>
+                )}
+
               {/* Move-to picker */}
               <div className="pt-1 border-t border-gray-100">
                 <span className="text-[10.5px] font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
@@ -274,11 +325,12 @@ export default function KanbanCardModal({
                 <em>{COLUMN_LABELS[moveTarget]}</em>.
               </p>
 
-              {/* DoD field if missing + needed */}
+              {/* DoD field if missing + needed (gated by initial-empty
+                  snapshot — see dodWasInitiallyEmptyRef above for rationale) */}
               {(moveTarget === "this_class" ||
                 moveTarget === "doing" ||
                 moveTarget === "done") &&
-                (card.dod?.trim() ?? "").length === 0 && (
+                dodWasInitiallyEmptyRef.current && (
                   <label className="block">
                     <span className="text-[10.5px] font-semibold text-gray-700 uppercase tracking-wide block mb-1">
                       Definition of Done <span className="text-rose-500">*</span>
@@ -291,7 +343,9 @@ export default function KanbanCardModal({
                       value={dodDraft}
                       onChange={(e) => {
                         setDodDraft(e.target.value);
-                        // Eagerly commit so validateMove sees the new DoD
+                        // Eagerly commit so validateMove sees the new DoD;
+                        // visibility is gated on dodWasInitiallyEmptyRef so
+                        // this no longer unmounts the field mid-typing.
                         onUpdateDoD(e.target.value);
                       }}
                       rows={2}
