@@ -163,9 +163,13 @@ describe("Student board page (/unit/[unitId]/board)", () => {
     expect(BOARD_PAGE_SRC).toContain("<KanbanBoard unitId={unitId}");
   });
 
-  it("provides nav links to Narrative + Dashboard", () => {
-    expect(BOARD_PAGE_SRC).toMatch(/href=\{`\/unit\/\$\{unitId\}\/narrative`\}/);
-    expect(BOARD_PAGE_SRC).toMatch(/href=["']\/dashboard["']/);
+  // Smoke-feedback 6 May 2026: in-page nav (Narrative + Dashboard links)
+  // removed because the top-nav already handles dashboard navigation and
+  // Narrative had no real route content yet. When Narrative ships, restore
+  // as a tab strip rather than a row of header links.
+  it("does NOT render in-page Narrative or Dashboard nav links", () => {
+    expect(BOARD_PAGE_SRC).not.toMatch(/href=\{`\/unit\/\$\{unitId\}\/narrative`\}/);
+    expect(BOARD_PAGE_SRC).not.toMatch(/href=["']\/dashboard["']/);
   });
 
   it("uses async params (Next.js 15+ pattern)", () => {

@@ -239,6 +239,9 @@ export function ActivityCard({
               allowedTypes={allowedTypes}
               toolId={section.toolId}
               toolChallenge={section.toolChallenge}
+              prompts={section.prompts}
+              requirePhoto={section.requirePhoto}
+              autoCreateKanbanCardOnSave={section.autoCreateKanbanCardOnSave}
               enableIntegrityMonitoring={enableIntegrityMonitoring}
               onIntegrityUpdate={
                 onIntegrityUpdate

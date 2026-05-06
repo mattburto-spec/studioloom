@@ -143,10 +143,12 @@ export function LessonSidebar({ data, unitId, sidebarOpen, onClose }: LessonSide
   const groups = useMemo(() => buildGroups(data.enabledPages, framework), [data.enabledPages, framework]);
   const hasMultipleGroups = groups.length > 1 || (groups.length === 1 && groups[0].label !== "Lessons");
 
-  // Progress stats
-  const completedCount = data.progress.filter((p) => p.status === "complete").length;
-  const totalCount = data.enabledPages.length;
-  const pct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  // Progress stats — retired from sidebar 6 May 2026 (replaced by the
+  // prominent Project Board CTA). Kept the data path comment as a hint
+  // for the future progress-card revival; uncomment to wire back in.
+  // const completedCount = data.progress.filter((p) => p.status === "complete").length;
+  // const totalCount = data.enabledPages.length;
+  // const pct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
   function toggleGroup(key: string) {
     setCollapsedGroups((prev) => {
@@ -183,24 +185,57 @@ export function LessonSidebar({ data, unitId, sidebarOpen, onClose }: LessonSide
         >
           {data.unit.title}
         </h2>
-        {/* Progress bar */}
-        <div className="mt-3">
-          <div
-            className="w-full h-1.5 rounded-full overflow-hidden"
-            style={{ background: "var(--sl-hair)" }}
+
+        {/* Project Board button — replaces the unit progress bar 6 May 2026.
+            Sized + styled to be the prominent landing CTA of the sidebar so
+            the agency-unit project surface is one click away from any lesson. */}
+        <button
+          onClick={() => router.push(`/unit/${unitId}/board`)}
+          className="group mt-4 w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl font-bold transition-all duration-200 hover:-translate-y-0.5"
+          style={{
+            background: "var(--sl-ink)",
+            color: "var(--sl-paper)",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.08)",
+          }}
+          data-testid="lesson-sidebar-project-board"
+          aria-label="Open project board"
+        >
+          {/* Kanban-style icon — 4 stacked rectangles */}
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.25"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="flex-shrink-0 transition-transform group-hover:scale-110"
+            aria-hidden="true"
           >
-            <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${pct}%`, background: "var(--sl-ink)" }}
-            />
-          </div>
-          <p
-            className="text-[10px] font-bold uppercase tracking-wider mt-1.5"
-            style={{ color: "var(--sl-ink-3)" }}
+            <rect x="3" y="3" width="7" height="9" rx="1.5" />
+            <rect x="14" y="3" width="7" height="5" rx="1.5" />
+            <rect x="14" y="12" width="7" height="9" rx="1.5" />
+            <rect x="3" y="16" width="7" height="5" rx="1.5" />
+          </svg>
+          <span className="flex-1 text-left text-[12.5px] leading-tight tracking-tight">
+            Project Board
+          </span>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="flex-shrink-0 opacity-50 transition-all group-hover:opacity-100 group-hover:translate-x-0.5"
+            aria-hidden="true"
           >
-            {pct}% Complete
-          </p>
-        </div>
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
       </div>
 
       {/* Lesson nav */}
@@ -283,18 +318,9 @@ export function LessonSidebar({ data, unitId, sidebarOpen, onClose }: LessonSide
         })}
       </nav>
 
-      {/* Project board link (AG.2.4 — agency unit Kanban) */}
-      <div className="px-3 pt-2">
-        <button
-          onClick={() => router.push(`/unit/${unitId}/board`)}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors hover:bg-[var(--sl-bg)]"
-          style={{ color: "var(--sl-ink-2)" }}
-          data-testid="lesson-sidebar-project-board"
-        >
-          <span aria-hidden="true">📋</span>
-          Project board
-        </button>
-      </div>
+      {/* Project Board link moved to the top of the sidebar (under unit
+          title) on 6 May 2026 — see the prominent button above. The
+          tucked-away link here was redundant once the top CTA shipped. */}
 
       {/* Back to dashboard */}
       <div

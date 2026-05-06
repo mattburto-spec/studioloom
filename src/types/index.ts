@@ -389,6 +389,8 @@ export interface ActivitySection {
   prompts?: import("@/lib/structured-prompts/types").StructuredPromptsConfig;
   /** For structured-prompts responseType: require a photo before submit. Default false. */
   requirePhoto?: boolean;
+  /** For structured-prompts responseType (AG.2.4): when true, after a successful save, fire-and-forget append a Kanban backlog card from the "next" prompt's response. Default false. Set to true on the Process Journal palette block. */
+  autoCreateKanbanCardOnSave?: boolean;
 
   // --- Dimensions v2 fields (29 Mar 2026) ---
 

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { nanoid } from "nanoid";
 import type { ActivitySection, ResponseType } from "@/types";
 import { useDndContext } from "./DndContext";
+import { JOURNAL_PROMPTS } from "@/lib/structured-prompts/presets";
 import type { BlockDefinition, BlockCategory } from "./BlockPalette.types";
 // Lever-MM: re-exported from BlockPalette.types so existing consumers
 // keep importing types from `BlockPalette` (public surface unchanged).
@@ -203,6 +204,26 @@ export const BLOCK_LIBRARY: BlockDefinition[] = [
       prompt: "Sketch your idea.",
       responseType: "canvas" as ResponseType,
       durationMinutes: 10,
+    }),
+  },
+  {
+    // AG.1 / AG.2.4 — Process Journal block. The 4-prompt Did/Noticed/
+    // Decided/Next preset is the CO2 Racers default (and a good fit for
+    // any maker / design unit). Auto-creates a Kanban backlog card from
+    // the "Next" prompt on save.
+    id: "process-journal",
+    label: "Process Journal",
+    icon: "📓",
+    category: "response",
+    description: "4-prompt reflection journal — Did / Noticed / Decided / Next. Auto-creates Kanban card from Next.",
+    defaultPhase: "debrief",
+    create: () => ({
+      activityId: nanoid(8),
+      prompt: "Take 5 minutes to journal what just happened.",
+      responseType: "structured-prompts" as ResponseType,
+      durationMinutes: 5,
+      prompts: JOURNAL_PROMPTS,
+      autoCreateKanbanCardOnSave: true,
     }),
   },
   // ── Content ──
