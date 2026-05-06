@@ -212,6 +212,8 @@ export function ResponseInput({
           onChange={onChange}
           onSaveImmediate={onSaveResponseImmediate}
           onSaved={onStructuredPromptsSaved}
+          enableIntegrityMonitoring={enableIntegrityMonitoring}
+          onIntegrityUpdate={onIntegrityUpdate}
         />
       )}
     </div>
