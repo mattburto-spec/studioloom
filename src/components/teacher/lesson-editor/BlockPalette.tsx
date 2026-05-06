@@ -5,7 +5,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { nanoid } from "nanoid";
 import type { ActivitySection, ResponseType } from "@/types";
 import { useDndContext } from "./DndContext";
-import { JOURNAL_PROMPTS } from "@/lib/structured-prompts/presets";
+import {
+  JOURNAL_PROMPTS,
+  STRATEGY_CANVAS_PROMPTS,
+  SELF_REREAD_PROMPTS,
+  FINAL_REFLECTION_PROMPTS,
+} from "@/lib/structured-prompts/presets";
 import type { BlockDefinition, BlockCategory } from "./BlockPalette.types";
 // Lever-MM: re-exported from BlockPalette.types so existing consumers
 // keep importing types from `BlockPalette` (public surface unchanged).
@@ -229,6 +234,67 @@ export const BLOCK_LIBRARY: BlockDefinition[] = [
       durationMinutes: 5,
       prompts: JOURNAL_PROMPTS,
       autoCreateKanbanCardOnSave: true,
+      portfolioCapture: true,
+    }),
+  },
+  {
+    // AG.5 / Round 12 — Strategy Canvas (Class 1 anchor activity).
+    // 3 first-day commitments per docs/units/co2-racers-agency-unit.md
+    // §4.11. Re-prompted at Class 7 ("anything changed?"). Kanban
+    // auto-create OFF — these aren't tasks.
+    id: "strategy-canvas",
+    label: "Strategy Canvas",
+    icon: "🧭",
+    category: "response",
+    description: "Class 1 anchor — Design philosophy / Biggest risk / Fallback plan. Re-prompt at Class 7.",
+    defaultPhase: "workTime",
+    create: () => ({
+      activityId: nanoid(8),
+      prompt: "Lock in your three first-day commitments. You'll re-read these mid-unit.",
+      responseType: "structured-prompts" as ResponseType,
+      durationMinutes: 10,
+      prompts: STRATEGY_CANVAS_PROMPTS,
+      autoCreateKanbanCardOnSave: false,
+      portfolioCapture: true,
+    }),
+  },
+  {
+    // AG.5 / Round 12 — Self-Reread (Class 7 anchor activity).
+    // Single deep prompt. Per agency-unit §4.6 the highest-leverage
+    // intervention. Schön reflection-on-action.
+    id: "self-reread",
+    label: "Self-Reread",
+    icon: "🔁",
+    category: "response",
+    description: "Class 7 anchor — re-read your last 3 journal entries and name the pattern.",
+    defaultPhase: "miniLesson",
+    create: () => ({
+      activityId: nanoid(8),
+      prompt: "Open your Portfolio. Read your last 3 journal entries. Then write below.",
+      responseType: "structured-prompts" as ResponseType,
+      durationMinutes: 10,
+      prompts: SELF_REREAD_PROMPTS,
+      autoCreateKanbanCardOnSave: false,
+      portfolioCapture: true,
+    }),
+  },
+  {
+    // AG.5 / Round 12 — Final Reflection (Class 14 anchor activity).
+    // 5 deep prompts comparing baseline (Class 1) to now. Per
+    // agency-unit §4.4 Class 14: deeper than mid-unit surveys.
+    id: "final-reflection",
+    label: "Final Reflection",
+    icon: "🎯",
+    category: "response",
+    description: "Class 14 anchor — 5 deep reflection prompts comparing baseline to now.",
+    defaultPhase: "debrief",
+    create: () => ({
+      activityId: nanoid(8),
+      prompt: "Big-picture reflection. Take your time — this anchors the agency evidence in your final grade.",
+      responseType: "structured-prompts" as ResponseType,
+      durationMinutes: 15,
+      prompts: FINAL_REFLECTION_PROMPTS,
+      autoCreateKanbanCardOnSave: false,
       portfolioCapture: true,
     }),
   },
