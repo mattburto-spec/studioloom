@@ -70,6 +70,27 @@ describe("NarrativeView — keep auto entries that have a photo", () => {
   });
 });
 
+describe("PortfolioPanel — rich-text content rendering (round 15)", () => {
+  it("imports looksLikeRichText to detect HTML content", () => {
+    expect(PANEL_SRC).toContain(
+      'from "@/components/student/RichTextEditor"'
+    );
+    expect(PANEL_SRC).toContain("looksLikeRichText");
+  });
+
+  it("renders rich-text content via dangerouslySetInnerHTML (matches narrative pattern)", () => {
+    expect(PANEL_SRC).toMatch(
+      /looksLikeRichText\(entry\.content\)\s*\?\s*\(\s*<div[\s\S]{0,300}dangerouslySetInnerHTML=\{\{\s*__html:\s*entry\.content\s*\}\}/
+    );
+  });
+
+  it("plain-text fallback uses whitespace-pre-wrap so newlines survive", () => {
+    expect(PANEL_SRC).toMatch(
+      /<p[^>]+whitespace-pre-wrap[^>]*>\s*\{entry\.content\}/
+    );
+  });
+});
+
 describe("PortfolioPanel — Export PPT button retired (round 10)", () => {
   it('drops "next/dynamic" import + ExportPortfolioPpt dynamic factory', () => {
     expect(PANEL_SRC).not.toMatch(/from\s*"next\/dynamic"/);
