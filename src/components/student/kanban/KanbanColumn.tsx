@@ -9,10 +9,17 @@
  *     position transitions when cards move between columns
  *   - WIP slot indicator on Doing — empty slot vs filled slot vs over
  *   - Larger empty-state copy with clearer call-to-action
- *   - Sticky column header so it stays visible while scrolling cards
+ *
+ * Round 19 (6 May 2026) — drag-and-drop:
+ *   - Each card's wrapper motion.div now carries `drag` props
+ *   - Column outer div registers itself with the board via columnRef
+ *     callback so the board can hit-test pointer position on drop
+ *   - Visual: drop-zone highlight + glow when a draggable card is
+ *     hovered over us mid-drag
  */
 
-import { motion, AnimatePresence } from "framer-motion";
+import { useRef, useEffect } from "react";
+import { motion, AnimatePresence, type PanInfo } from "framer-motion";
 import type {
   KanbanCard as KanbanCardType,
   KanbanColumn as KanbanColumnId,
@@ -30,6 +37,23 @@ interface KanbanColumnProps {
   allowAdd: boolean;
   onAddCard: () => void;
   onCardClick: (cardId: string) => void;
+  /**
+   * Round 19 — drag-and-drop hooks. The board passes:
+   *   - registerColumnEl: cb to capture this column's DOM node so
+   *     it can read the column rect for hit-testing on drop
+   *   - draggingCardId: which card is currently being dragged
+   *     (null when no drag is active)
+   *   - hoverColumnId: which column the dragged card is currently
+   *     over — drives the drop-zone highlight
+   *   - onCardDragStart / onCardDrag / onCardDragEnd: lifecycle
+   *     callbacks bubbled from each card's motion.div
+   */
+  registerColumnEl?: (id: KanbanColumnId, el: HTMLElement | null) => void;
+  draggingCardId?: string | null;
+  hoverColumnId?: KanbanColumnId | null;
+  onCardDragStart?: (cardId: string) => void;
+  onCardDrag?: (cardId: string, info: PanInfo) => void;
+  onCardDragEnd?: (cardId: string, info: PanInfo) => void;
 }
 
 /**
@@ -87,16 +111,49 @@ export default function KanbanColumn({
   allowAdd,
   onAddCard,
   onCardClick,
+  registerColumnEl,
+  draggingCardId,
+  hoverColumnId,
+  onCardDragStart,
+  onCardDrag,
+  onCardDragEnd,
 }: KanbanColumnProps) {
   const count = cards.length;
   const overLimit = wipLimit !== undefined && count > wipLimit;
   const atLimit = wipLimit !== undefined && count === wipLimit;
   const tone = COLUMN_TONE[columnId];
 
+  // Round 19 — register our DOM node with the board so it can read
+  // our rect during pointer hit-testing.
+  const elRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (registerColumnEl) registerColumnEl(columnId, elRef.current);
+    return () => {
+      if (registerColumnEl) registerColumnEl(columnId, null);
+    };
+  }, [columnId, registerColumnEl]);
+
+  // Highlight when the dragged card is hovered over THIS column AND
+  // it isn't where the card already lives.
+  const isDropTarget =
+    draggingCardId !== null &&
+    draggingCardId !== undefined &&
+    hoverColumnId === columnId;
+  const draggedCard = cards.find((c) => c.id === draggingCardId) ?? null;
+  const isOriginColumn = draggedCard !== null;
+
   return (
     <div
-      className={`flex flex-col rounded-xl border ${tone.bg} ${tone.border} p-3 min-w-0 min-h-[14rem]`}
+      ref={elRef}
+      className={[
+        `flex flex-col rounded-xl border ${tone.bg} ${tone.border} p-3 min-w-0 min-h-[14rem] transition-all duration-150`,
+        // Drop-target glow — only when a foreign card is hovering
+        isDropTarget && !isOriginColumn
+          ? "ring-2 ring-violet-400 ring-offset-2 ring-offset-white"
+          : "",
+      ].join(" ")}
       data-testid={`kanban-column-${columnId}`}
+      data-is-drop-target={isDropTarget && !isOriginColumn ? "true" : "false"}
     >
       {/* Header — accent dot + title + count */}
       <div className="flex items-center justify-between mb-1.5">
@@ -147,24 +204,56 @@ export default function KanbanColumn({
               {EMPTY_STATE[columnId]}
             </motion.div>
           ) : (
-            cards.map((card) => (
-              <motion.div
-                key={card.id}
-                layout
-                layoutId={`kanban-card-${card.id}`}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                transition={{
-                  type: "spring",
-                  stiffness: 320,
-                  damping: 28,
-                  mass: 0.8,
-                }}
-              >
-                <KanbanCard card={card} onClick={() => onCardClick(card.id)} />
-              </motion.div>
-            ))
+            cards.map((card) => {
+              const isThisDragging = draggingCardId === card.id;
+              return (
+                <motion.div
+                  key={card.id}
+                  layout={!isThisDragging /* don't fight the drag */}
+                  layoutId={`kanban-card-${card.id}`}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                  transition={{
+                    type: "spring",
+                    stiffness: 320,
+                    damping: 28,
+                    mass: 0.8,
+                  }}
+                  // Round 19 — drag prop. Only enabled when the
+                  // board provides drag callbacks (omitted in tests
+                  // / preview).
+                  drag={!!onCardDragEnd}
+                  dragSnapToOrigin
+                  dragMomentum={false}
+                  dragElastic={0.18}
+                  whileDrag={{
+                    scale: 1.04,
+                    rotate: -1.2,
+                    zIndex: 50,
+                  }}
+                  onDragStart={() => onCardDragStart?.(card.id)}
+                  onDrag={(_e, info: PanInfo) => onCardDrag?.(card.id, info)}
+                  onDragEnd={(_e, info: PanInfo) =>
+                    onCardDragEnd?.(card.id, info)
+                  }
+                  style={{
+                    // Subtle dim on non-dragging cards while a drag
+                    // is in progress, to focus the eye.
+                    opacity:
+                      draggingCardId !== null && draggingCardId !== card.id
+                        ? 0.55
+                        : 1,
+                  }}
+                >
+                  <KanbanCard
+                    card={card}
+                    onClick={() => onCardClick(card.id)}
+                    isDragging={isThisDragging}
+                  />
+                </motion.div>
+              );
+            })
           )}
         </AnimatePresence>
       </div>

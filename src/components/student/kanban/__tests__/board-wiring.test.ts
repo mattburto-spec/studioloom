@@ -208,6 +208,88 @@ describe("KanbanColumn", () => {
     expect(COLUMN_SRC).toContain('mode="popLayout"');
   });
 
+  // ─── Round 19 (6 May 2026) — drag-and-drop guards ────────────────────
+
+  it("each card's motion.div carries drag props (dragSnapToOrigin, callbacks)", () => {
+    expect(COLUMN_SRC).toContain("dragSnapToOrigin");
+    expect(COLUMN_SRC).toContain("onDragStart={() => onCardDragStart?.(card.id)}");
+    expect(COLUMN_SRC).toMatch(/onDragEnd=\{[\s\S]{0,80}onCardDragEnd\?\.\(card\.id/);
+  });
+
+  it("layout animation disabled while THIS card is dragging (don't fight drag)", () => {
+    expect(COLUMN_SRC).toMatch(/layout=\{!isThisDragging/);
+  });
+
+  it("column registers its DOM element with the board for hit-testing", () => {
+    expect(COLUMN_SRC).toContain("registerColumnEl");
+    expect(COLUMN_SRC).toMatch(/registerColumnEl\(columnId,\s*elRef\.current\)/);
+  });
+
+  it("column glows when a foreign card is hovered over it (drop target)", () => {
+    expect(COLUMN_SRC).toContain('data-is-drop-target');
+    expect(COLUMN_SRC).toMatch(/ring-2\s+ring-violet-400/);
+  });
+
+  it("non-dragging cards dim to 0.55 opacity during a drag", () => {
+    expect(COLUMN_SRC).toMatch(/opacity:\s*[\s\S]{0,80}0\.55/);
+  });
+});
+
+describe("KanbanBoard — drag-and-drop wiring (round 19)", () => {
+  it("imports findDropTargetColumn + classifyDrop from drag-drop module", () => {
+    expect(BOARD_SRC).toContain('from "@/lib/unit-tools/kanban/drag-drop"');
+    expect(BOARD_SRC).toContain("findDropTargetColumn");
+    expect(BOARD_SRC).toContain("classifyDrop");
+  });
+
+  it("tracks draggingCardId + hoverColumnId state", () => {
+    expect(BOARD_SRC).toMatch(/setDraggingCardId/);
+    expect(BOARD_SRC).toMatch(/setHoverColumnId/);
+  });
+
+  it("reads column rects via columnElsRef (Map<columnId, HTMLElement>)", () => {
+    expect(BOARD_SRC).toContain("columnElsRef");
+    expect(BOARD_SRC).toMatch(/getBoundingClientRect/);
+  });
+
+  it("drag end dispatches moveCard for 'ok' classification", () => {
+    expect(BOARD_SRC).toMatch(
+      /case "ok":[\s\S]{0,300}dispatch\(\{[\s\S]{0,100}type:\s*"moveCard"/
+    );
+  });
+
+  it("drag end opens move-to modal for 'needsModal' classification", () => {
+    expect(BOARD_SRC).toMatch(
+      /case "needsModal":[\s\S]{0,400}setOpenCardId\(card\.id\)[\s\S]{0,200}setModalMode\("move-to"\)/
+    );
+  });
+
+  it("drag end shows toast for 'blocked' classification (WIP cap)", () => {
+    expect(BOARD_SRC).toMatch(
+      /case "blocked":[\s\S]{0,300}setDropToast\(action\.reason\)/
+    );
+    expect(BOARD_SRC).toContain('data-testid="kanban-drop-toast"');
+  });
+
+  it("'noop' classification snaps back without dispatch (no-op return)", () => {
+    expect(BOARD_SRC).toMatch(
+      /case "noop":[\s\S]{0,200}return;/
+    );
+  });
+
+  it("registerColumnEl + drag callbacks passed down to <KanbanColumn>", () => {
+    // Anchor on the JSX element, not the type usage <KanbanColumnId> in state decl.
+    const idx = BOARD_SRC.indexOf("<KanbanColumn\n");
+    expect(idx).toBeGreaterThan(0);
+    const slice = BOARD_SRC.slice(idx, idx + 1500);
+    expect(slice).toContain("registerColumnEl={registerColumnEl}");
+    expect(slice).toContain("draggingCardId={draggingCardId}");
+    expect(slice).toContain("hoverColumnId={hoverColumnId}");
+    expect(slice).toContain("onCardDragStart={handleCardDragStart}");
+    expect(slice).toContain("onCardDrag={handleCardDrag}");
+    expect(slice).toContain("onCardDragEnd={handleCardDragEnd}");
+  });
+
   it("only renders Add card affordance when allowAdd=true", () => {
     expect(COLUMN_SRC).toMatch(/allowAdd\s*&&[\s\S]{0,30}<button/);
   });
