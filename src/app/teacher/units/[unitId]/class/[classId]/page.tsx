@@ -887,15 +887,22 @@ export default function ClassHubPage({
                             </span>
                           </th>
                         )}
-                        {unitPages.map((page) => {
+                        {unitPages.map((page, pageIdx) => {
                           const color = getPageColor(page);
                           const completion = getPageCompletion(page.id);
                           const pct = students.length > 0 ? Math.round((completion / students.length) * 100) : 0;
+                          // Round 13 (6 May 2026) — show position (1-based)
+                          // instead of the raw page id. Legacy IDs like "L1"
+                          // used to strip cleanly via the ^L0? regex; modern
+                          // auto-generated IDs (`page-1778052965342-eo3geu5`)
+                          // bypass it and leak the slug into the header.
+                          // Position-based labels are deterministic + readable.
+                          const headerLabel = String(pageIdx + 1);
                           return (
                             <th key={page.id} className="px-1 py-2 text-center text-xs font-medium min-w-[36px] cursor-default border-b-2"
-                              title={`${page.id}: ${page.title}\n${completion}/${students.length} complete (${pct}%)`}
+                              title={`${pageIdx + 1}. ${page.title || page.id}\n${completion}/${students.length} complete (${pct}%)`}
                               style={{ color, borderBottomColor: color }}>
-                              {page.id.replace(/^L0?/, "")}
+                              {headerLabel}
                             </th>
                           );
                         })}

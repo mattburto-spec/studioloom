@@ -242,13 +242,24 @@ export function useLessonEditor({
 
         const newContent = structuredClone(prev);
         const pages = (newContent as any).pages;
-        pages[pageIndex] = {
+        const merged = {
           ...pages[pageIndex],
           content: {
             ...pages[pageIndex].content,
             ...partial,
           },
         };
+        // Round 13 (6 May 2026) — keep page.title (top-level) in sync
+        // with content.title. The student-facing sidebar + the teacher
+        // progress grid both read page.title, while the editor's title
+        // input writes to content.title via onUpdate. Without this
+        // mirror, renaming a lesson from the editor leaves the student
+        // sidebar showing "New Lesson" and the progress grid showing
+        // the raw page-id slug.
+        if (typeof partial.title === "string") {
+          merged.title = partial.title;
+        }
+        pages[pageIndex] = merged;
 
         // Push to undo stack
         undoManagerRef.current.push(newContent);
