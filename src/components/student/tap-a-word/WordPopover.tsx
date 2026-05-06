@@ -95,6 +95,25 @@ export function WordPopover({
     stateRef.current = state;
   }, [state]);
 
+  // Round 24 (6 May 2026) — grace period after the lookup transitions to
+  // a terminal state (loaded / error). Per Matt: "sometimes pops up for
+  // a sec and then disappears". Cache hits resolve in <100ms, by which
+  // time a student's cursor or finger may already be moving — the next
+  // mousedown anywhere outside the popover dismisses it before they
+  // read the definition. We stamp the moment we hit a terminal state
+  // and gate the click-outside dismissal on a 500ms minimum-readable
+  // window. Esc still dismisses immediately (deliberate user intent).
+  const terminalAtRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (state === "loaded" || state === "error") {
+      if (terminalAtRef.current === null) {
+        terminalAtRef.current = Date.now();
+      }
+    } else {
+      terminalAtRef.current = null;
+    }
+  }, [state]);
+
   // SSR safety: createPortal needs document — only render after mount.
   useEffect(() => {
     setMounted(true);
@@ -202,6 +221,11 @@ export function WordPopover({
     const onClick = (e: MouseEvent) => {
       // Don't dismiss while loading — wait for the definition (or error) to land.
       if (stateRef.current === "loading") return;
+      // Round 24 — minimum 500ms readable window after entering a
+      // terminal state. Defends against the cache-hit-and-cursor-
+      // already-moved race that made the popover feel flaky.
+      const terminalAt = terminalAtRef.current;
+      if (terminalAt !== null && Date.now() - terminalAt < 500) return;
       const node = popoverRef.current;
       if (!node) return;
       if (e.target instanceof Node && !node.contains(e.target)) {
