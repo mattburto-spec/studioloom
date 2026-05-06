@@ -3,16 +3,13 @@
 /**
  * KanbanCard — single-card render. Click → opens detail modal.
  *
- * Round 16 (6 May 2026) UI overhaul:
- *   - Cleaner spacing + typography hierarchy
- *   - Status-based subtle left-border colour
- *   - Polished blocked state (rose ring + small block-type pill)
- *   - Estimate badge with dual estimate/actual when both present
- *   - Whileskip-on-touch hover/press transitions for feedback
- *
- * Pure presentation. Animation lives in the parent KanbanColumn's
- * AnimatePresence + motion.div wrapper (so the card itself stays
- * a button, not a motion.button — keeps focus + a11y semantics).
+ * Round 16 — visual hierarchy + status-coded border + blocked pill
+ * Round 19 — drag-to-move lives on the parent KanbanColumn's
+ *   motion.div wrapper (it already owns the layout animation).
+ *   Putting drag here would nest two motion components and they'd
+ *   fight each other's transforms. KanbanCard stays a plain
+ *   button + delegates "did the user actually drag" via
+ *   isDraggingRef + onClickGuarded.
  */
 
 import type { KanbanCard as KanbanCardType } from "@/lib/unit-tools/kanban/types";
@@ -20,6 +17,17 @@ import type { KanbanCard as KanbanCardType } from "@/lib/unit-tools/kanban/types
 interface KanbanCardProps {
   card: KanbanCardType;
   onClick: () => void;
+  /**
+   * Round 19 — when true, suppress click (the pointer-up after a
+   * drag fires a synthetic click; the column's drag controller
+   * sets this flag so the modal doesn't open mid-drop).
+   */
+  suppressClick?: boolean;
+  /**
+   * Round 19 — set when this card is the one currently being
+   * dragged. Adds a tiny grab cursor + slight visual lift hint.
+   */
+  isDragging?: boolean;
 }
 
 const BLOCK_LABELS: Record<NonNullable<KanbanCardType["blockType"]>, string> = {
@@ -45,20 +53,36 @@ const STATUS_BORDER: Record<KanbanCardType["status"], string> = {
   done: "border-l-emerald-500",
 };
 
-export default function KanbanCard({ card, onClick }: KanbanCardProps) {
+export default function KanbanCard({
+  card,
+  onClick,
+  suppressClick,
+  isDragging,
+}: KanbanCardProps) {
   const isBlocked = card.blockType !== null;
   const isJournalCreated = card.source === "journal_next";
   const statusBorder = STATUS_BORDER[card.status];
 
+  function handleClick(e: React.MouseEvent) {
+    if (suppressClick) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    onClick();
+  }
+
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={handleClick}
       className={[
         "group w-full text-left p-2.5 pl-3 rounded-lg border-l-[3px] border-y border-r",
-        "bg-white transition-all duration-200",
+        "bg-white transition-shadow duration-200",
         "hover:shadow-md hover:-translate-y-0.5 active:translate-y-0",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400",
+        "cursor-grab active:cursor-grabbing",
+        isDragging ? "shadow-2xl" : "",
         statusBorder,
         isBlocked
           ? "border-y-rose-300 border-r-rose-300 bg-rose-50/40"
@@ -67,6 +91,7 @@ export default function KanbanCard({ card, onClick }: KanbanCardProps) {
       data-testid={`kanban-card-${card.id}`}
       data-card-status={card.status}
       data-card-blocked={isBlocked ? "true" : "false"}
+      data-card-dragging={isDragging ? "true" : "false"}
     >
       {/* Title row — icons left, title right */}
       <div className="flex items-start gap-1.5">

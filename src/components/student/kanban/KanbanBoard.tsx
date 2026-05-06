@@ -10,7 +10,8 @@
  * Pure orchestration — no fetch logic here (lives in the hook).
  */
 
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import type { PanInfo } from "framer-motion";
 import {
   KANBAN_COLUMNS,
   type KanbanColumn as KanbanColumnId,
@@ -20,6 +21,11 @@ import {
   cardsByStatus,
   estimateAccuracy,
 } from "@/lib/unit-tools/kanban/reducer";
+import {
+  classifyDrop,
+  findDropTargetColumn,
+  type ColumnRect,
+} from "@/lib/unit-tools/kanban/drag-drop";
 import KanbanColumn from "./KanbanColumn";
 import KanbanCardModal, { type ModalMode } from "./KanbanCardModal";
 import { useKanbanBoard } from "./use-kanban-board";
@@ -62,6 +68,90 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   const [openCardId, setOpenCardId] = useState<string | null>(null);
   const [modalMode, setModalMode] = useState<ModalMode>("edit");
   const [moveTarget, setMoveTarget] = useState<KanbanColumnId | null>(null);
+
+  // Round 19 — drag-and-drop state
+  const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
+  const [hoverColumnId, setHoverColumnId] = useState<KanbanColumnId | null>(null);
+  const [dropToast, setDropToast] = useState<string | null>(null);
+  const columnElsRef = useRef<Map<KanbanColumnId, HTMLElement | null>>(
+    new Map()
+  );
+
+  const registerColumnEl = useCallback(
+    (id: KanbanColumnId, el: HTMLElement | null) => {
+      columnElsRef.current.set(id, el);
+    },
+    []
+  );
+
+  /** Capture column rects from the registered DOM nodes. */
+  function readColumnRects(): ColumnRect[] {
+    const rects: ColumnRect[] = [];
+    for (const [columnId, el] of columnElsRef.current) {
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      rects.push({
+        columnId,
+        left: r.left,
+        top: r.top,
+        right: r.right,
+        bottom: r.bottom,
+      });
+    }
+    return rects;
+  }
+
+  function handleCardDragStart(cardId: string) {
+    setDraggingCardId(cardId);
+    setHoverColumnId(null);
+  }
+
+  function handleCardDrag(_cardId: string, info: PanInfo) {
+    const rects = readColumnRects();
+    const target = findDropTargetColumn(
+      { x: info.point.x, y: info.point.y },
+      rects
+    );
+    setHoverColumnId(target);
+  }
+
+  function handleCardDragEnd(cardId: string, info: PanInfo) {
+    const card = state.cards.find((c) => c.id === cardId);
+    setDraggingCardId(null);
+    setHoverColumnId(null);
+    if (!card) return;
+
+    const rects = readColumnRects();
+    const target = findDropTargetColumn(
+      { x: info.point.x, y: info.point.y },
+      rects
+    );
+    const action = classifyDrop(state, card, target);
+
+    switch (action.kind) {
+      case "noop":
+        // Snap back via dragSnapToOrigin; nothing else to do.
+        return;
+      case "blocked":
+        setDropToast(action.reason);
+        setTimeout(() => setDropToast(null), 2400);
+        return;
+      case "ok":
+        dispatch({
+          type: "moveCard",
+          cardId: card.id,
+          toStatus: action.toStatus,
+        });
+        return;
+      case "needsModal":
+        // Open the modal pre-set on move-to mode + target column.
+        // Existing modal flow handles DoD / estimate / because.
+        setOpenCardId(card.id);
+        setModalMode("move-to");
+        setMoveTarget(action.toStatus);
+        return;
+    }
+  }
 
   function openCardModal(cardId: string, mode: ModalMode = "edit") {
     setOpenCardId(cardId);
@@ -205,10 +295,42 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
               allowAdd={meta.allowAdd}
               onAddCard={() => handleAddCard(col)}
               onCardClick={(cardId) => openCardModal(cardId)}
+              registerColumnEl={registerColumnEl}
+              draggingCardId={draggingCardId}
+              hoverColumnId={hoverColumnId}
+              onCardDragStart={handleCardDragStart}
+              onCardDrag={handleCardDrag}
+              onCardDragEnd={handleCardDragEnd}
             />
           );
         })}
       </div>
+
+      {/* Drop toast — fires when a drag is rejected (e.g. WIP cap) */}
+      {dropToast && (
+        <div
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 bg-rose-600 text-white text-[12px] font-semibold rounded-full shadow-lg flex items-center gap-2"
+          role="alert"
+          data-testid="kanban-drop-toast"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          {dropToast}
+        </div>
+      )}
 
       {/* Card modal */}
       {openCard && (
