@@ -316,12 +316,29 @@ export default function TeacherUnitsPage() {
     }
 
     const supabase = createClient();
+    // Round 25 (6 May 2026 PM) — set author_teacher_id (+ teacher_id) on
+    // the insert. The "Teachers insert units" RLS policy gates INSERT on
+    // `author_teacher_id = auth.uid()`. The original manual-create code
+    // omitted both columns, so every manual-create attempt failed with
+    // "new row violates row-level security policy for table units".
+    // The wizard flow at /teacher/units/create already does this — line
+    // 939 of that file is the precedent.
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setError("Not signed in. Reload the page and try again.");
+      setCreating(false);
+      return;
+    }
     const { data: unitData, error: dbError } = await supabase
       .from("units")
       .insert({
         title: title.trim(),
         description: description.trim() || null,
         content_data: contentData,
+        author_teacher_id: user.id,
+        teacher_id: user.id,
       })
       .select("id")
       .single();
