@@ -28,6 +28,7 @@ import {
 } from "@/lib/unit-tools/kanban/drag-drop";
 import KanbanColumn from "./KanbanColumn";
 import KanbanCardModal, { type ModalMode } from "./KanbanCardModal";
+import KanbanAddCardModal from "./KanbanAddCardModal";
 import { useKanbanBoard } from "./use-kanban-board";
 
 interface KanbanBoardProps {
@@ -77,6 +78,18 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
     new Map()
   );
 
+  // Round 21 — Add Card composer state. Null when closed; the target
+  // column when open. Replaces the v1 native window-prompt flow.
+  const [addCardForColumn, setAddCardForColumn] =
+    useState<KanbanColumnId | null>(null);
+
+  // Round 21 — drag-end ghost-click suppression. Framer Motion releases
+  // pointer events at drag-end; if the dropped card lands on top of the
+  // "+ Add card" button, that button's onClick fires the synthetic
+  // click and the Add modal opens unintentionally. We set this ref for
+  // ~250ms after a drag ends to swallow any clicks during that window.
+  const dragJustEndedRef = useRef<number>(0);
+
   const registerColumnEl = useCallback(
     (id: KanbanColumnId, el: HTMLElement | null) => {
       columnElsRef.current.set(id, el);
@@ -119,6 +132,10 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
     const card = state.cards.find((c) => c.id === cardId);
     setDraggingCardId(null);
     setHoverColumnId(null);
+    // Round 21 — stamp the moment the drag ended so the next ~250ms of
+    // synthetic clicks (e.g. on the "+ Add card" button under the drop
+    // point) are swallowed by handleAddCard.
+    dragJustEndedRef.current = Date.now();
     if (!card) return;
 
     const rects = readColumnRects();
@@ -165,9 +182,18 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   }
 
   function handleAddCard(toStatus: KanbanColumnId) {
-    const title = window.prompt("Card title:");
-    if (!title?.trim()) return;
-    dispatch({ type: "createCard", title, status: toStatus });
+    // Round 21 — ghost-click guard. If the user just dropped a card and
+    // the synthetic click landed on this column's "+ Add card" button,
+    // ignore it. 250ms covers the framer-motion drag-end → click delay
+    // without being long enough to swallow a deliberate click.
+    if (Date.now() - dragJustEndedRef.current < 250) return;
+    setAddCardForColumn(toStatus);
+  }
+
+  function handleAddCardSubmit(title: string) {
+    if (!addCardForColumn) return;
+    dispatch({ type: "createCard", title, status: addCardForColumn });
+    setAddCardForColumn(null);
   }
 
   const accuracy = estimateAccuracy(state);
@@ -330,6 +356,15 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
           </svg>
           {dropToast}
         </div>
+      )}
+
+      {/* Round 21 — Add card modal (replaces native v1 prompt) */}
+      {addCardForColumn && (
+        <KanbanAddCardModal
+          toStatus={addCardForColumn}
+          onSubmit={handleAddCardSubmit}
+          onClose={() => setAddCardForColumn(null)}
+        />
       )}
 
       {/* Card modal */}

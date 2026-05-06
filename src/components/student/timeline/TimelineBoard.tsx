@@ -7,7 +7,7 @@
  *   - Save indicator
  *   - Race day input (informational anchor)
  *   - Ordered list of milestones (orderedMilestones helper)
- *   - "+ Add milestone" affordance (window.prompt for v1; mirrors Kanban pattern)
+ *   - "+ Add milestone" affordance (modal composer — round 21; was window prompt in v1)
  *   - Up/down reorder buttons per row
  *
  * Backward-mapping flow: student sets race day → adds milestones with
@@ -21,6 +21,7 @@ import {
   findNextPendingTargeted,
 } from "@/lib/unit-tools/timeline/reducer";
 import TimelineMilestoneRow from "./TimelineMilestoneRow";
+import TimelineAddMilestoneModal from "./TimelineAddMilestoneModal";
 import { useTimelineBoard } from "./use-timeline-board";
 
 interface TimelineBoardProps {
@@ -35,6 +36,10 @@ export default function TimelineBoard({ unitId, nowIso }: TimelineBoardProps) {
 
   // For variance computations, use prop or current time
   const [renderNowIso] = useState(() => nowIso ?? new Date().toISOString());
+
+  // Round 21 — Add Milestone composer state. Replaces the v1 native
+  // window-prompt-x2 flow with a proper modal (label + date picker).
+  const [addOpen, setAddOpen] = useState(false);
 
   // ─── LOAD STATES ─────────────────────────────────────────────────────────
 
@@ -72,20 +77,13 @@ export default function TimelineBoard({ unitId, nowIso }: TimelineBoardProps) {
   const ordered = orderedMilestones(state);
   const next = findNextPendingTargeted(state);
 
-  function handleAddMilestone() {
-    const label = window.prompt("New milestone label:");
-    if (!label?.trim()) return;
-    const targetDate = window.prompt(
-      "Target date (YYYY-MM-DD), or leave empty:"
-    );
+  function handleAddMilestoneSubmit(label: string, targetDate: string | null) {
     dispatch({
       type: "addMilestone",
       label,
-      targetDate:
-        targetDate && /^\d{4}-\d{2}-\d{2}$/.test(targetDate)
-          ? targetDate
-          : null,
+      targetDate,
     });
+    setAddOpen(false);
   }
 
   function handleSetRaceDate(value: string) {
@@ -214,12 +212,20 @@ export default function TimelineBoard({ unitId, nowIso }: TimelineBoardProps) {
 
       <button
         type="button"
-        onClick={handleAddMilestone}
+        onClick={() => setAddOpen(true)}
         className="self-start text-[11px] text-gray-500 hover:text-violet-700 hover:bg-violet-50 border border-dashed border-gray-300 hover:border-violet-300 rounded px-3 py-1 transition-colors"
         data-testid="timeline-add-milestone"
       >
         + Add milestone
       </button>
+
+      {/* Round 21 — Add milestone modal (replaces native v1 prompt x2) */}
+      {addOpen && (
+        <TimelineAddMilestoneModal
+          onSubmit={handleAddMilestoneSubmit}
+          onClose={() => setAddOpen(false)}
+        />
+      )}
     </div>
   );
 }
