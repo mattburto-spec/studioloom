@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 // Lever-MM (4 May 2026): NMConfigPanel no longer mounted from this surface
 // — configuration moved to the lesson editor's New Metrics block category.
 // Component kept in @/components/nm/index for potential reuse.
-import { NMResultsPanel, ObservationSnap } from "@/components/nm";
+import { NMResultsPanel, NMElementsPanel, ObservationSnap } from "@/components/nm";
 import { BadgesTab } from "@/components/teacher/class-hub/BadgesTab";
 import { LessonSchedule } from "@/components/teacher/LessonSchedule";
 import type { ScheduleOverrides } from "@/components/teacher/LessonSchedule";
@@ -26,7 +26,7 @@ import { PaceFeedbackSummary } from "@/components/teacher/PaceFeedbackSummary";
 import IntegrityReport from "@/components/teacher/IntegrityReport";
 import { StudentResponseValue } from "@/components/teacher/StudentResponseValue";
 import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
-import { analyzeIntegrity } from "@/lib/integrity/analyze-integrity";
+import { analyzeIntegrity, worstIntegrityLevel } from "@/lib/integrity/analyze-integrity";
 import { ClassProfileOverview } from "@/components/teacher/ClassProfileOverview";
 import { GalleryRoundCreator, GalleryMonitor, GalleryRoundCard, GalleryCanvasModal } from "@/components/gallery";
 import { getYearLevelNumber } from "@/lib/utils/year-level";
@@ -64,6 +64,16 @@ interface ProgressCell {
   hasResponses: boolean;
   timeSpent: number;
   hasIntegrityData: boolean;
+  /**
+   * Worst integrity level across all sections in this page's response
+   * metadata. Round 8 (6 May 2026): the dot used to render whenever
+   * data was collected (always blue), which made every actively-used
+   * lesson look "flagged". Now only dots when there's a real concern.
+   *   - "high" or null  → no dot (green/clean)
+   *   - "medium"        → amber dot (warning)
+   *   - "low"           → rose dot (concern)
+   */
+  integrityLevel: "high" | "medium" | "low" | null;
 }
 
 type GradingStatus = "ungraded" | "draft" | "published";
@@ -394,11 +404,27 @@ export default function ClassHubPage({
         if (!map[p.student_id]) map[p.student_id] = {};
         const raw = p as unknown as Record<string, unknown>;
         const integrityMeta = raw.integrity_metadata;
+        const hasIntegrityData =
+          integrityMeta !== null &&
+          integrityMeta !== undefined &&
+          typeof integrityMeta === "object" &&
+          Object.keys(integrityMeta as Record<string, unknown>).length > 0;
+        // Round 8 — compute the worst level across all sections so the
+        // dot only renders for actual concerns, not "we collected data".
+        const integrityLevel = hasIntegrityData
+          ? worstIntegrityLevel(
+              integrityMeta as Record<string, IntegrityMetadata>
+            )
+          : null;
         map[p.student_id][p.page_id] = {
           status: p.status as "not_started" | "in_progress" | "complete",
-          hasResponses: p.responses !== null && typeof p.responses === "object" && Object.keys(p.responses as Record<string, unknown>).length > 0,
+          hasResponses:
+            p.responses !== null &&
+            typeof p.responses === "object" &&
+            Object.keys(p.responses as Record<string, unknown>).length > 0,
           timeSpent: p.time_spent || 0,
-          hasIntegrityData: integrityMeta !== null && integrityMeta !== undefined && typeof integrityMeta === "object" && Object.keys(integrityMeta as Record<string, unknown>).length > 0,
+          hasIntegrityData,
+          integrityLevel,
         };
       });
       setProgressMap(map);
@@ -947,8 +973,17 @@ export default function ClassHubPage({
                                     >
                                       {getStatusIcon(cell?.status)}
                                     </button>
-                                    {cell?.hasIntegrityData && (
-                                      <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-blue-500 ring-1 ring-white" title="Integrity monitoring data available" />
+                                    {cell?.integrityLevel === "low" && (
+                                      <span
+                                        className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-rose-500 ring-1 ring-white"
+                                        title="Integrity concern flagged — open to review"
+                                      />
+                                    )}
+                                    {cell?.integrityLevel === "medium" && (
+                                      <span
+                                        className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-500 ring-1 ring-white"
+                                        title="Integrity warning — minor concern, open to review"
+                                      />
                                     )}
                                   </div>
                                 </td>
@@ -1437,27 +1472,52 @@ export default function ClassHubPage({
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* NEW METRICS TAB — Lever-MM (4 May 2026):                         */}
-      {/* Configuration moved to the lesson editor's "New Metrics" block   */}
-      {/* category. This tab now hosts the RESULTS view only.              */}
-      {/* NMConfigPanel.tsx kept in repo for reuse but no longer mounted.  */}
+      {/* NEW METRICS TAB — Round 8 restoration (6 May 2026):                */}
+      {/* Mat: "the teacher part needs to come back". The 3-step             */}
+      {/* NMConfigPanel was removed on 4 May Lever-MM declutter, but that    */}
+      {/* left teachers with no way to choose WHICH elements get tracked.    */}
+      {/* New slim NMElementsPanel handles competency + element selection;   */}
+      {/* per-lesson checkpoints still live in the lesson editor's NM block  */}
+      {/* category (so the two surfaces don't fight over the same data).    */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {activeTab === "metrics" && (
         <div>
           {globalNmEnabled ? (
             <>
-              {/* Where-do-I-configure banner — points teachers at the new
-                  location. Renders unconditionally above the results so
-                  even teachers WITHOUT any checkpoints yet learn how to
-                  add them. */}
-              <div className="mb-6 px-4 py-3 rounded-xl border border-yellow-200 bg-yellow-50 flex items-start gap-3">
-                <span className="text-yellow-700 text-lg flex-shrink-0">🎯</span>
+              {/* Setup panel: pick competency + elements. Persists via
+                  /api/teacher/nm-config. checkpoints field is preserved
+                  from the existing config (lesson editor owns it). */}
+              <div className="mb-6">
+                <NMElementsPanel
+                  currentConfig={nmConfig}
+                  onSave={async (next) => {
+                    const previous = nmConfig;
+                    setNmConfig(next);
+                    try {
+                      const res = await fetch("/api/teacher/nm-config", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ unitId, classId, config: next }),
+                      });
+                      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    } catch (err) {
+                      console.error("[NMElementsPanel] save failed:", err);
+                      setNmConfig(previous);
+                      throw err;
+                    }
+                  }}
+                />
+              </div>
+              {/* Where-do-I-configure-checkpoints helper — points teachers
+                  at the lesson editor for per-lesson timing. */}
+              <div className="mb-6 px-4 py-3 rounded-xl border border-violet-200 bg-violet-50/60 flex items-start gap-3">
+                <span className="text-violet-700 text-lg flex-shrink-0">🎯</span>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-text-primary text-sm mb-0.5">
-                    Configure NM checkpoints in the lesson editor
+                    Per-lesson checkpoints live in the lesson editor
                   </h3>
                   <p className="text-xs text-text-secondary leading-relaxed">
-                    Open any lesson, expand the <strong>New Metrics</strong> block category in the Blocks pane (gold dot), and click an element to register a checkpoint on that lesson. Results from teacher observations and student self-assessments display below.
+                    The panel above controls WHICH elements you track. To choose WHEN students rate themselves, open any lesson, expand the <strong>New Metrics</strong> block category in the Blocks pane, and click an element to register a checkpoint on that lesson.
                   </p>
                 </div>
               </div>

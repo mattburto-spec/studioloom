@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { analyzeIntegrity, getScoreColor, getScoreLabel } from "../analyze-integrity";
+import {
+  analyzeIntegrity,
+  getScoreColor,
+  getScoreLabel,
+  worstIntegrityLevel,
+} from "../analyze-integrity";
 import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
 
 function makeMetadata(overrides: Partial<IntegrityMetadata> = {}): IntegrityMetadata {
@@ -285,5 +290,76 @@ describe("getScoreLabel", () => {
     expect(getScoreLabel("high")).toBe("Likely Independent");
     expect(getScoreLabel("medium")).toBe("Review Recommended");
     expect(getScoreLabel("low")).toBe("Flagged for Review");
+  });
+});
+
+// ─── worstIntegrityLevel — round 8 (6 May 2026) ────────────────────────────
+
+describe("worstIntegrityLevel — class hub progress dot driver", () => {
+  function clean(): IntegrityMetadata {
+    // High-confidence, no anomalies — long active time, organic
+    // keystrokes, normal pasting.
+    return makeMetadata({
+      characterCount: 800,
+      keystrokeCount: 900,
+      totalTimeActive: 600,
+      pasteEvents: [],
+    });
+  }
+
+  function flagged(): IntegrityMetadata {
+    // High paste ratio (>70% of content) — triggers paste_heavy concern,
+    // -40 points → score 60 → "medium" actually. Need to also pile on a
+    // bulk_entry concern (snapshot jump > 500 chars in < 30s) to push
+    // below 40 → "low".
+    return makeMetadata({
+      characterCount: 800,
+      keystrokeCount: 30,
+      totalTimeActive: 60, // long enough to skip the speed-anomaly rule
+      pasteEvents: [
+        { timestamp: 100, length: 700, content: "x".repeat(100) },
+      ],
+      snapshots: [
+        { timestamp: 0, text: "" },
+        { timestamp: 5000, text: "x".repeat(700) }, // 700 chars in 5s = bulk
+      ],
+    });
+  }
+
+  it("returns null for empty / nullish input", () => {
+    expect(worstIntegrityLevel(null)).toBeNull();
+    expect(worstIntegrityLevel(undefined)).toBeNull();
+    expect(worstIntegrityLevel({})).toBeNull();
+  });
+
+  it("returns 'high' when every section is clean", () => {
+    expect(
+      worstIntegrityLevel({
+        section_0: clean(),
+        section_1: clean(),
+      })
+    ).toBe("high");
+  });
+
+  it("returns 'low' when any section is flagged at concern severity", () => {
+    // Any low-section short-circuits — class-level dot should reflect
+    // the worst, not the average.
+    expect(
+      worstIntegrityLevel({
+        section_0: clean(),
+        section_1: flagged(),
+        section_2: clean(),
+      })
+    ).toBe("low");
+  });
+
+  it("ignores entries that aren't valid metadata objects", () => {
+    expect(
+      worstIntegrityLevel({
+        section_0: clean(),
+        bogus: null as unknown as IntegrityMetadata,
+        also_bogus: undefined as unknown as IntegrityMetadata,
+      })
+    ).toBe("high");
   });
 });
