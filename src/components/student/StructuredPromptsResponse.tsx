@@ -19,7 +19,7 @@
  * the JSX shell + side-effects (fetch, photo handling, state).
  */
 
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { compressImage } from "@/lib/compress-image";
 import {
   checkClientImage,
@@ -39,6 +39,8 @@ import type {
   StructuredPromptResponses,
   StructuredPromptsConfig,
 } from "@/lib/structured-prompts/types";
+import { useIntegrityTracking } from "@/hooks/useIntegrityTracking";
+import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
 
 interface StructuredPromptsResponseProps {
   prompts: StructuredPromptsConfig;
@@ -83,6 +85,15 @@ interface StructuredPromptsResponseProps {
   onSaveImmediate?: (composedContent: string) => Promise<void>;
   /** Called after a successful save. Parent uses this to refresh portfolio panel, mark activity done, etc. */
   onSaved?: (savedPayload: { content: string; nextMove: string | null }) => void;
+  /**
+   * Round 18 (6 May 2026) — academic integrity tracking. Mirrors the
+   * MonitoredTextarea contract used by other response types (text /
+   * upload / etc.) so the teacher's Writing Playback + integrity score
+   * surfaces work identically for structured-prompts content. When
+   * disabled (default), the hook is a no-op.
+   */
+  enableIntegrityMonitoring?: boolean;
+  onIntegrityUpdate?: (metadata: IntegrityMetadata) => void;
 }
 
 export default function StructuredPromptsResponse({
@@ -96,6 +107,8 @@ export default function StructuredPromptsResponse({
   onChange,
   onSaveImmediate,
   onSaved,
+  enableIntegrityMonitoring = false,
+  onIntegrityUpdate,
 }: StructuredPromptsResponseProps) {
   const hasSavedEntry = (savedValue ?? "").trim().length > 0;
   // When an entry is already saved on this section_index, start in the
@@ -107,6 +120,22 @@ export default function StructuredPromptsResponse({
   const [responses, setResponses] = useState<StructuredPromptResponses>(() =>
     hasSavedEntry ? parseComposedContent(prompts, savedValue ?? "") : {}
   );
+
+  // Round 18 — keep a ref to the latest composed text so the integrity
+  // hook can compute keystroke/paste metrics against the FULL combined
+  // value (not a single field) without re-creating the hook on every
+  // keystroke.
+  const responsesRef = useRef(responses);
+  responsesRef.current = responses;
+
+  const integrity = useIntegrityTracking({
+    enabled: enableIntegrityMonitoring,
+    onIntegrityUpdate,
+    getCombinedText: useCallback(
+      () => composeContent(prompts, responsesRef.current),
+      [prompts]
+    ),
+  });
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -243,6 +272,12 @@ export default function StructuredPromptsResponse({
             console.warn("[journal] kanban auto-create failed", err);
           });
       }
+
+      // Round 18 — flush integrity metrics before lesson save fires so
+      // the parent's integrityMetadataRef has the latest snapshot when
+      // the autosave (and the immediate save below) compose the
+      // /api/student/progress payload.
+      integrity.flush();
 
       setSavedToast("Saved to portfolio");
       setShowFieldErrors(false);
@@ -383,6 +418,10 @@ export default function StructuredPromptsResponse({
             <textarea
               value={response}
               onChange={(e) => setResponseFor(prompt.id, e.target.value)}
+              onPaste={integrity.handlers.onPaste}
+              onKeyDown={integrity.handlers.onKeyDown}
+              onFocus={integrity.handlers.onFocus}
+              onBlur={integrity.handlers.onBlur}
               placeholder={prompt.placeholder}
               rows={3}
               className={`w-full text-[12px] px-2 py-1.5 bg-white border rounded resize-y focus:outline-none focus:ring-1 focus:ring-violet-300 focus:border-violet-500 ${
