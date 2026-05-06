@@ -304,18 +304,56 @@ systems:
   - id: student-pm
     name: Student Project Management Tools
     category: Student Experience
-    status: planned
-    currentVersion: 0
-    summary: Lightweight PM tools (Gantt timeline, Kanban board) for self-directed project work. Phase 2 feature.
-    depends_on: [scheduling, student-open-studio]
-    affects: [student-dashboard, student-data]
+    status: in_progress
+    currentVersion: 1
+    summary: |
+      Lightweight per-student-per-unit PM tools — Kanban board (4-column
+      forward flow) + Timeline (backward-mapped milestones from race day)
+      + Teacher Attention-Rotation Panel. v1 shipped 6 May 2026 for the
+      CO2 Racers agency unit (AG.1–AG.4). Pure reducers + server-side
+      validators in @/lib/unit-tools/{kanban,timeline,attention}; UI in
+      @/components/student/{kanban,timeline} + components/teacher/
+      UnitAttentionPanel.
+    depends_on: [scheduling, student-open-studio, lesson-editor]
+    affects: [student-dashboard, student-data, attention-rotation]
     docs:
       - path: docs/specs/planning-tools-ux-spec.md
         purpose: Student PM design
-    future_needs: Milestone-aware check-ins, AI-suggested adjustments, peer collaboration.
+      - path: docs/units/co2-racers-build-brief.md
+        purpose: AG.1–AG.6 critical path including all unit-tools sub-phases
+      - path: docs/units/co2-racers-agency-unit.md
+        purpose: Agency-unit pedagogy + Three Cs rationale + dashboard cards Phase 2 spec
+    data_fields:
+      - table: student_unit_kanban
+        columns: [student_id, unit_id, state, wip_limit_doing, backlog_count, doing_count, done_count, blocked_count, last_move_at]
+        notes: AG.2.1 — JSONB state + denormalised counts, server recomputes on every POST
+      - table: student_unit_timeline
+        columns: [student_id, unit_id, milestones, race_date, next_milestone_label, next_milestone_target_date, pending_count, done_count, last_updated_at]
+        notes: AG.3.1 — JSONB milestones + race_date + denormalised summary
+    key_files:
+      - src/lib/unit-tools/kanban/{types,reducer,client,server-validators}.ts
+      - src/lib/unit-tools/timeline/{types,reducer,client,server-validators}.ts
+      - src/lib/unit-tools/attention/{types,client,aggregate}.ts
+      - src/components/student/kanban/{KanbanBoard,KanbanColumn,KanbanCard,KanbanCardModal}.tsx + use-kanban-board.ts
+      - src/components/student/timeline/{TimelineBoard,TimelineMilestoneRow}.tsx + use-timeline-board.ts
+      - src/components/teacher/UnitAttentionPanel.tsx + unit-attention-helpers.ts
+      - src/app/(student)/unit/[unitId]/board/page.tsx (mounts both Timeline + Kanban)
+      - src/app/api/student/{kanban,timeline}/route.ts
+      - src/app/api/teacher/student-attention/route.ts
+    future_needs: |
+      Milestone-aware check-ins (Open Studio v2 integration). AI-suggested
+      adjustments. Peer collaboration. Calibration mini-view (side-by-side
+      self vs teacher rating + 2-min discussion notes). Phase 2 dashboard
+      cards. AG.5 anchor lesson content + AG.6 smoke is the immediate
+      remaining work.
     adrs: ["008"]
-    os_seam: none
-    change_impacts: Will require new student_planning_sessions table and scheduling integration.
+    os_seam: ready
+    change_impacts: |
+      Kanban + Timeline reducers are pure — UI, hooks, and validators all
+      depend on them; changes need source-static guards on all consumers.
+      Three Cs aggregation in attention/aggregate.ts feeds both the
+      Attention-Rotation Panel and any future "1:1 today" rotation
+      surface; changes ripple into Cowork-pedagogy alignment.
 
   - id: student-open-studio
     name: Open Studio (Self-Directed Mode)

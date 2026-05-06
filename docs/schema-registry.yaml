@@ -9509,6 +9509,102 @@ tables:
       ai_exportable: full
       retention_days: 2555
       basis: pseudonymous
+- name: student_unit_kanban
+  source_migration: 20260506000324_student_unit_kanban_v1.sql
+  status: applied
+  applied_date: '2026-05-06'
+  purpose: |
+    Per-student-per-unit Kanban board state for the CO2 Racers agency
+    unit (and any future unit-tools client). One row per (student_id,
+    unit_id). JSONB `state` holds the full KanbanState (cards array +
+    column WIP limits). Denormalised count columns
+    (backlog_count / doing_count / done_count / blocked_count) +
+    last_move_at let the dashboard surface "what's hot" without
+    rehydrating the JSONB. Server recomputes counts on every POST so
+    columns can never drift from the source of truth (recomputeCounts
+    in @/lib/unit-tools/kanban/server-validators).
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    unit_id: UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE
+    state: JSONB NOT NULL DEFAULT '{}'
+    wip_limit_doing: INTEGER NOT NULL DEFAULT 1 CHECK (wip_limit_doing BETWEEN 1 AND 3)
+    backlog_count: INTEGER NOT NULL DEFAULT 0
+    doing_count: INTEGER NOT NULL DEFAULT 0
+    done_count: INTEGER NOT NULL DEFAULT 0
+    blocked_count: INTEGER NOT NULL DEFAULT 0
+    last_move_at: TIMESTAMPTZ
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  unique_constraints:
+    - "(student_id, unit_id)"
+  rls_enabled: true
+  rls_policies:
+    - name: students_manage_own
+      action: ALL
+      target: student
+      check: "student_id IN (SELECT id FROM students WHERE user_id = auth.uid())"
+    - name: teachers_read
+      action: SELECT
+      target: teacher
+      check: |
+        teacher owns at least one class enrolling this student (mirrors
+        AG.2 read-only teacher visibility for the Attention-Rotation
+        Panel; service-role admin client bypasses)
+  writers:
+    - /api/student/kanban (POST whole-state upsert)
+  readers:
+    - /api/student/kanban (GET)
+    - /api/teacher/student-attention (GET, last_move_at + counts)
+  applied_via:
+    - 20260506000324_student_unit_kanban_v1.sql
+- name: student_unit_timeline
+  source_migration: 20260506010518_student_unit_timeline_v1.sql
+  status: applied
+  applied_date: '2026-05-06'
+  purpose: |
+    Per-student-per-unit Timeline state. Mirror of student_unit_kanban
+    but for backward-mapped milestones (race day → milestones working
+    backwards) instead of forward Kanban flow. JSONB `milestones` +
+    `race_date` are the source of truth; denormalised
+    next_milestone_label / next_milestone_target_date / pending_count /
+    done_count / last_updated_at recomputed by the server on every
+    POST (recomputeSummary in @/lib/unit-tools/timeline/
+    server-validators). Variance traffic-lights computed at READ time
+    in the UI (computeVariance, takes nowIso for test determinism).
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    unit_id: UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE
+    milestones: JSONB NOT NULL DEFAULT '[]'
+    race_date: DATE
+    next_milestone_label: TEXT
+    next_milestone_target_date: DATE
+    pending_count: INTEGER NOT NULL DEFAULT 0
+    done_count: INTEGER NOT NULL DEFAULT 0
+    last_updated_at: TIMESTAMPTZ
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  unique_constraints:
+    - "(student_id, unit_id)"
+  rls_enabled: true
+  rls_policies:
+    - name: students_manage_own
+      action: ALL
+      target: student
+      check: "student_id IN (SELECT id FROM students WHERE user_id = auth.uid())"
+    - name: teachers_read
+      action: SELECT
+      target: teacher
+      check: |
+        Mirrors student_unit_kanban — teacher owns class enrolling
+        student. Service-role admin client bypasses.
+  writers:
+    - /api/student/timeline (POST whole-state upsert)
+  readers:
+    - /api/student/timeline (GET)
+  applied_via:
+    - 20260506010518_student_unit_timeline_v1.sql
 - name: students
   source_migration: 001_initial_schema.sql
   status: applied
