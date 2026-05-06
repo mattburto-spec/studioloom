@@ -86,6 +86,7 @@ export default function LessonEditor({
     unitTitle,
     thumbnailUrl,
     setThumbnailUrl,
+    renameUnit,
     framework,
     selectedPageIndex,
     setSelectedPageIndex,
@@ -974,6 +975,7 @@ export default function LessonEditor({
               classId={classId}
               unitTitle={unitTitle}
               thumbnailUrl={thumbnailUrl}
+              onRenameUnit={renameUnit}
             />
           </div>
         </div>
