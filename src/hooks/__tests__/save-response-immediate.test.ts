@@ -36,6 +36,35 @@ const RESPONSE_INPUT_SRC = readFileSync(
   "utf-8"
 );
 
+describe("usePageResponses — onPersistedExplicit refresh hook (round 17)", () => {
+  it("usePageResponses signature accepts onPersistedExplicit as the 7th arg", () => {
+    expect(HOOK_SRC).toMatch(
+      /onPersistedExplicit\?:\s*\(\)\s*=>\s*Promise<void>\s*\|\s*void/
+    );
+  });
+
+  it("saveResponseImmediate awaits onPersistedExplicit after the saveProgress POST", () => {
+    const idx = HOOK_SRC.indexOf("const saveResponseImmediate = useCallback");
+    expect(idx).toBeGreaterThan(0);
+    const fn = HOOK_SRC.slice(idx, idx + 1500);
+    // saveProgress fires first
+    expect(fn).toContain('await saveProgress("in_progress"');
+    // then onPersistedExplicit (best-effort, wrapped in try/catch)
+    expect(fn).toMatch(/await onPersistedExplicit\(\)/);
+    expect(fn).toMatch(/onPersistedExplicit failed/);
+  });
+
+  it("onPersistedExplicit is in the useCallback deps", () => {
+    expect(HOOK_SRC).toMatch(
+      /\[saveProgress,\s*onPersistedExplicit\]/
+    );
+  });
+
+  it("lesson page wires unitNav.refreshProgress as onPersistedExplicit", () => {
+    expect(PAGE_SRC).toContain("unitNav ? () => unitNav.refreshProgress() : undefined");
+  });
+});
+
 describe("usePageResponses — saveResponseImmediate exposure (round 11)", () => {
   it("declares saveResponseImmediate in the return type", () => {
     expect(HOOK_SRC).toMatch(
