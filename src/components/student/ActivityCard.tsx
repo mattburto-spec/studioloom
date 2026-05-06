@@ -276,6 +276,7 @@ export function ActivityCard({
                       pageId={pageId}
                       sectionIndex={index}
                       value={responseValue}
+                      onSaveResponseImmediate={onSaveResponseImmediate}
                     />
                   </div>
                 )}

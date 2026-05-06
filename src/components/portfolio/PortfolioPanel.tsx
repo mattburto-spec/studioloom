@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { timeAgo, getDomain } from "@/lib/utils";
+import { looksLikeRichText } from "@/components/student/RichTextEditor";
 import type { PortfolioEntry } from "@/types";
 
 // Round 10 (6 May 2026) — ExportPortfolioPpt button removed per Matt
@@ -320,11 +321,24 @@ function TimelineEntry({
       )}
 
       <div className="p-3.5">
-        {/* Note */}
+        {/* Note — round 15 (6 May 2026): when content is rich-text HTML
+            (typed via RichTextEditor and sent via the new "Send to
+            Portfolio" affordance), render it with dangerouslySetInnerHTML
+            so <div>/<br>/<p>/etc. tags don't leak as raw text. The
+            looksLikeRichText helper is the same conservative check the
+            narrative uses; safe because the editor only emits the
+            inline tag set listed there. */}
         {entry.content && (
-          <p className="text-sm text-text-primary leading-relaxed mb-2">
-            {entry.content}
-          </p>
+          looksLikeRichText(entry.content) ? (
+            <div
+              className="text-sm text-text-primary leading-relaxed mb-2 rich-response"
+              dangerouslySetInnerHTML={{ __html: entry.content }}
+            />
+          ) : (
+            <p className="text-sm text-text-primary leading-relaxed mb-2 whitespace-pre-wrap">
+              {entry.content}
+            </p>
+          )
         )}
 
         {/* Link */}

@@ -66,6 +66,26 @@ describe("PortfolioCaptureAffordance", () => {
   it("button has affordance testid for smoke selectors", () => {
     expect(AFFORDANCE_SRC).toContain('data-testid="portfolio-capture-affordance"');
   });
+
+  // Round 15 (6 May 2026) — also persist lesson progress so narrative
+  // sees the entry without waiting on the 2s autosave debounce.
+  it("calls onSaveResponseImmediate (in parallel with portfolio POST) when prop is provided", () => {
+    expect(AFFORDANCE_SRC).toMatch(
+      /onSaveResponseImmediate\(value\)/
+    );
+    // Best-effort: catch + console.warn so portfolio POST still fires
+    expect(AFFORDANCE_SRC).toMatch(
+      /onSaveResponseImmediate[\s\S]{0,400}\.catch\(\(err\)/
+    );
+  });
+
+  it("awaits the lesson-save promise before flashing 'Sent' so narrative is ready", () => {
+    // Both writes settle before status flips to "sent"
+    expect(AFFORDANCE_SRC).toMatch(/await lessonSavePromise/);
+    const idx = AFFORDANCE_SRC.indexOf("await lessonSavePromise");
+    const after = AFFORDANCE_SRC.slice(idx, idx + 200);
+    expect(after).toContain('setStatus("sent")');
+  });
 });
 
 describe("ActivityCard mounts the affordance with correct gating", () => {
@@ -93,14 +113,15 @@ describe("ActivityCard mounts the affordance with correct gating", () => {
     );
   });
 
-  it("affordance gets unitId + pageId + sectionIndex + value props", () => {
+  it("affordance gets unitId + pageId + sectionIndex + value + onSaveResponseImmediate props", () => {
     const idx = ACTIVITY_CARD_SRC.indexOf("<PortfolioCaptureAffordance");
     expect(idx).toBeGreaterThan(0);
-    const slice = ACTIVITY_CARD_SRC.slice(idx, idx + 400);
+    const slice = ACTIVITY_CARD_SRC.slice(idx, idx + 600);
     expect(slice).toContain("unitId={unitId}");
     expect(slice).toContain("pageId={pageId}");
     expect(slice).toContain("sectionIndex={index}");
     expect(slice).toContain("value={responseValue}");
+    expect(slice).toContain("onSaveResponseImmediate={onSaveResponseImmediate}");
   });
 
   it("affordance row carries a stable testid so smoke can find the slot", () => {

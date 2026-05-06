@@ -41,6 +41,20 @@ interface PortfolioCaptureAffordanceProps {
   sectionIndex: number;
   /** Raw response value. May be string OR JSON-encoded payload (upload/link/canvas/etc.) */
   value: string;
+  /**
+   * Round 15 (6 May 2026) — bypass-debounce save of the same value
+   * to the lesson's student_progress.responses. Without this, the
+   * "Send to Portfolio" click writes only to portfolio_entries but
+   * the autosave for student_progress hasn't fired yet (2s debounce),
+   * so the Narrative aggregator (which reads from
+   * student_progress.responses) shows nothing for this section.
+   * Calling this in parallel with the portfolio POST locks both
+   * surfaces in sync.
+   *
+   * Optional + best-effort — if it throws, we continue with the
+   * portfolio POST so the Portfolio panel still gets the entry.
+   */
+  onSaveResponseImmediate?: (value: string) => Promise<void>;
 }
 
 export function PortfolioCaptureAffordance({
@@ -48,6 +62,7 @@ export function PortfolioCaptureAffordance({
   pageId,
   sectionIndex,
   value,
+  onSaveResponseImmediate,
 }: PortfolioCaptureAffordanceProps) {
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">(
     "idle"
@@ -61,6 +76,22 @@ export function PortfolioCaptureAffordance({
     if (isEmpty || status === "sending") return;
     setStatus("sending");
     setErrorMsg(null);
+
+    // Round 15 — fire the lesson-progress immediate save FIRST and in
+    // parallel with the portfolio POST. The lesson save is what the
+    // Narrative aggregator reads; without this, narrative shows the
+    // section as empty until the (separately-debounced) autosave fires.
+    // Best-effort: if it throws, log and continue so the Portfolio
+    // panel still gets the entry.
+    let lessonSavePromise: Promise<void> = Promise.resolve();
+    if (onSaveResponseImmediate) {
+      lessonSavePromise = onSaveResponseImmediate(value).catch((err) => {
+        console.warn(
+          "[portfolio-capture] lesson-progress immediate save failed; portfolio POST will still fire",
+          err
+        );
+      });
+    }
 
     // Try to detect upload-style JSON values so we extract media_url
     // properly. Otherwise treat the whole value as plain content.
@@ -105,6 +136,9 @@ export function PortfolioCaptureAffordance({
         };
         throw new Error(body.error || `HTTP ${res.status}`);
       }
+      // Wait for the lesson-progress save to settle so the user can
+      // confidently open Narrative and see their entry rendered.
+      await lessonSavePromise;
       setStatus("sent");
       setTimeout(() => setStatus("idle"), 2400);
     } catch (err) {
