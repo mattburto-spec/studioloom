@@ -17,6 +17,13 @@ import {
   type NMElement,
 } from "@/lib/nm/constants";
 
+/** One historical entry — student or teacher, oldest first. */
+export interface CalibrationHistoryEntry {
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+}
+
 /** One element's pre-loaded ratings — drives the mini-view per-element row. */
 export interface ElementCalibrationState {
   element: NMElement;
@@ -28,6 +35,16 @@ export interface ElementCalibrationState {
   teacherRating: number | null;
   teacherComment: string | null;
   teacherRatedAt: string | null;
+  /**
+   * Round 9 (6 May 2026) — full history of teacher observations on this
+   * element (newest first). Drives the collapsible "Past observations"
+   * panel in the mini-view so a teacher can see prior ratings + comments
+   * + dates from earlier 1:1s with the same student. Excludes the
+   * current/latest entry which is shown above as the active rating.
+   */
+  teacherHistory: CalibrationHistoryEntry[];
+  /** Same for student self-ratings. */
+  studentHistory: CalibrationHistoryEntry[];
 }
 
 export interface CalibrationLoad {
@@ -110,6 +127,10 @@ export async function loadCalibrationForStudent(args: {
 
   // Pick the latest assessment per (element, source) pair.
   const latest = pickLatestPerElementAndSource(studentEntry.assessments);
+  // Round 9 — also build a per-(element, source) FULL history sorted
+  // newest-first, with the latest entry stripped out (already shown as
+  // the active rating).
+  const history = groupHistoryByElementAndSource(studentEntry.assessments);
 
   // Derive the active competency from any rated assessment, OR fall
   // back to agency_in_learning (the v1 default).
@@ -128,6 +149,9 @@ export async function loadCalibrationForStudent(args: {
     elements: elements.map((el) => {
       const self = latest.get(`${el.id}::student_self`);
       const teacher = latest.get(`${el.id}::teacher_observation`);
+      const teacherHistoryAll =
+        history.get(`${el.id}::teacher_observation`) ?? [];
+      const studentHistoryAll = history.get(`${el.id}::student_self`) ?? [];
       return {
         element: el,
         studentRating: self?.rating ?? null,
@@ -136,9 +160,38 @@ export async function loadCalibrationForStudent(args: {
         teacherRating: teacher?.rating ?? null,
         teacherComment: teacher?.comment ?? null,
         teacherRatedAt: teacher?.created_at ?? null,
+        // Drop the latest entry — it's already shown above. Newest-first
+        // so the most recent past observation surfaces first.
+        teacherHistory: teacherHistoryAll.slice(1),
+        studentHistory: studentHistoryAll.slice(1),
       };
     }),
   };
+}
+
+/**
+ * Group all assessments by `${element}::${source}` and return a
+ * newest-first sorted history per group. Pure helper — exported for
+ * testing.
+ */
+export function groupHistoryByElementAndSource(
+  rows: NmObservationStudentResult["assessments"]
+): Map<string, CalibrationHistoryEntry[]> {
+  const result = new Map<string, CalibrationHistoryEntry[]>();
+  for (const row of rows) {
+    const key = `${row.element}::${row.source}`;
+    if (!result.has(key)) result.set(key, []);
+    result.get(key)!.push({
+      rating: row.rating,
+      comment: row.comment,
+      createdAt: row.created_at,
+    });
+  }
+  // Sort each group descending by createdAt (newest first)
+  for (const list of result.values()) {
+    list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  }
+  return result;
 }
 
 /**

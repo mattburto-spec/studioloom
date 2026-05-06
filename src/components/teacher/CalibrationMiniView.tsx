@@ -391,7 +391,7 @@ function ElementRow({
       </div>
 
       {/* Self-rating chip */}
-      <div className="flex items-center gap-2 text-[11px]">
+      <div className="flex items-center gap-2 text-[11px] flex-wrap">
         <span className="text-gray-500 font-semibold uppercase tracking-wide text-[9.5px]">
           Self-rating
         </span>
@@ -412,6 +412,15 @@ function ElementRow({
             data-testid="calibration-self-rating-empty"
           >
             Not rated yet
+          </span>
+        )}
+        {element.studentRatedAt && (
+          <span
+            className="text-[10px] text-gray-500"
+            title={`Recorded ${new Date(element.studentRatedAt).toLocaleString()}`}
+            data-testid="calibration-self-rating-date"
+          >
+            · {formatRelative(element.studentRatedAt)}
           </span>
         )}
         {element.studentComment && (
@@ -454,9 +463,13 @@ function ElementRow({
             );
           })}
         </div>
-        {element.teacherRating !== null && pendingRating === element.teacherRating && (
-          <span className="text-[10.5px] text-gray-500 italic">
-            (current)
+        {element.teacherRating !== null && pendingRating === element.teacherRating && element.teacherRatedAt && (
+          <span
+            className="text-[10.5px] text-gray-500 italic"
+            title={`Recorded ${new Date(element.teacherRatedAt).toLocaleString()}`}
+            data-testid="calibration-teacher-current-date"
+          >
+            current · {formatRelative(element.teacherRatedAt)}
           </span>
         )}
       </div>
@@ -471,6 +484,75 @@ function ElementRow({
         className="w-full text-[11.5px] px-2.5 py-1.5 bg-white border border-gray-200 rounded resize-y focus:outline-none focus:ring-1 focus:ring-violet-300 focus:border-violet-500"
         data-testid={`calibration-comment-${element.element.id}`}
       />
+
+      {/* Round 9: Past observations history (collapsed by default) */}
+      {element.teacherHistory.length > 0 && (
+        <details
+          className="text-[11px]"
+          data-testid={`calibration-history-${element.element.id}`}
+        >
+          <summary className="cursor-pointer text-gray-600 hover:text-violet-700 font-semibold py-1">
+            Past observations ({element.teacherHistory.length})
+          </summary>
+          <ul className="mt-1.5 space-y-1.5 pl-3 border-l-2 border-gray-100">
+            {element.teacherHistory.map((entry, i) => {
+              const scaleEntry = TEACHER_RATING_SCALE.find(
+                (r) => r.value === entry.rating
+              );
+              return (
+                <li
+                  key={`${entry.createdAt}-${i}`}
+                  className="text-[10.5px] text-gray-700 leading-snug"
+                >
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 font-semibold tabular-nums">
+                      {entry.rating}
+                      <span className="font-normal text-gray-500">
+                        {scaleEntry ? `· ${scaleEntry.label}` : ""}
+                      </span>
+                    </span>
+                    <span
+                      className="text-gray-500"
+                      title={new Date(entry.createdAt).toLocaleString()}
+                    >
+                      {formatRelative(entry.createdAt)}
+                    </span>
+                  </div>
+                  {entry.comment && (
+                    <div className="text-gray-600 italic mt-0.5 ml-1 whitespace-pre-wrap">
+                      &ldquo;{entry.comment}&rdquo;
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+      )}
     </div>
   );
+}
+
+/**
+ * Format an ISO timestamp as a short "X mins ago" / "today" / "Mar 5"
+ * label. Pure helper kept inline since it's only used here. Hover the
+ * span for the full timestamp via title attribute (set by the caller).
+ */
+function formatRelative(iso: string): string {
+  const ts = Date.parse(iso);
+  if (Number.isNaN(ts)) return "—";
+  const now = Date.now();
+  const diffMs = now - ts;
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  const date = new Date(ts);
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
 }

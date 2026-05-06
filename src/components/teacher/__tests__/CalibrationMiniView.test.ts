@@ -107,6 +107,43 @@ describe("CalibrationMiniView", () => {
   it("element row has color-coded left border from element.color", () => {
     expect(MINIVIEW_SRC).toMatch(/borderLeft:\s*`4px solid \$\{element\.element\.color\}`/);
   });
+
+  // ─── Round 9 (6 May 2026) — history + date stamps ────────────────────────
+
+  it("self-rating chip carries a relative date stamp + tooltip", () => {
+    expect(MINIVIEW_SRC).toContain('data-testid="calibration-self-rating-date"');
+    expect(MINIVIEW_SRC).toMatch(/formatRelative\(element\.studentRatedAt\)/);
+  });
+
+  it("teacher 'current' label shows relative date alongside the rating", () => {
+    expect(MINIVIEW_SRC).toContain('data-testid="calibration-teacher-current-date"');
+    expect(MINIVIEW_SRC).toMatch(/formatRelative\(element\.teacherRatedAt\)/);
+  });
+
+  it("renders a 'Past observations' details section when history exists", () => {
+    expect(MINIVIEW_SRC).toMatch(
+      /data-testid=\{`calibration-history-\$\{element\.element\.id\}`\}/
+    );
+    expect(MINIVIEW_SRC).toContain("Past observations");
+    // Gated on history.length > 0
+    expect(MINIVIEW_SRC).toMatch(
+      /element\.teacherHistory\.length\s*>\s*0/
+    );
+  });
+
+  it("history entries map TEACHER_RATING_SCALE label per entry", () => {
+    expect(MINIVIEW_SRC).toMatch(
+      /element\.teacherHistory\.map\(\(entry,\s*i\)\s*=>/
+    );
+    // Multiline regex — the .find call wraps onto two lines in the source.
+    expect(MINIVIEW_SRC).toMatch(
+      /TEACHER_RATING_SCALE\.find\([\s\S]{0,80}r\.value\s*===\s*entry\.rating[\s\S]{0,30}\)/
+    );
+  });
+
+  it("formatRelative helper exists at the bottom of the file", () => {
+    expect(MINIVIEW_SRC).toMatch(/function formatRelative\(iso:\s*string\):\s*string/);
+  });
 });
 
 describe("UnitAttentionPanel — calibration row click wiring", () => {

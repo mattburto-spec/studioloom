@@ -7,7 +7,10 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { pickLatestPerElementAndSource } from "../calibration-client";
+import {
+  pickLatestPerElementAndSource,
+  groupHistoryByElementAndSource,
+} from "../calibration-client";
 
 function row(over: {
   element: string;
@@ -116,5 +119,83 @@ describe("pickLatestPerElementAndSource", () => {
     const kept = out.get("being_reflective::teacher_observation");
     expect(kept?.comment).toBe("Strong reflection in the chat");
     expect(kept?.created_at).toBe("2026-05-04T12:00:00Z");
+  });
+});
+
+// ─── Round 9 — history grouping (drives the "Past observations" panel) ────
+
+describe("groupHistoryByElementAndSource", () => {
+  it("returns empty map for empty input", () => {
+    expect(groupHistoryByElementAndSource([]).size).toBe(0);
+  });
+
+  it("groups by (element, source) and sorts each group newest-first", () => {
+    const out = groupHistoryByElementAndSource([
+      row({
+        element: "acting_with_autonomy",
+        source: "teacher_observation",
+        rating: 1,
+        created_at: "2026-04-01T10:00:00Z",
+        comment: "first chat",
+      }),
+      row({
+        element: "acting_with_autonomy",
+        source: "teacher_observation",
+        rating: 3,
+        created_at: "2026-05-06T10:00:00Z",
+        comment: "third chat",
+      }),
+      row({
+        element: "acting_with_autonomy",
+        source: "teacher_observation",
+        rating: 2,
+        created_at: "2026-04-15T10:00:00Z",
+        comment: "second chat",
+      }),
+    ]);
+    const list = out.get("acting_with_autonomy::teacher_observation");
+    expect(list).toBeDefined();
+    expect(list?.length).toBe(3);
+    // Newest first
+    expect(list?.[0].rating).toBe(3);
+    expect(list?.[1].rating).toBe(2);
+    expect(list?.[2].rating).toBe(1);
+  });
+
+  it("keeps student_self and teacher_observation in separate keys", () => {
+    const out = groupHistoryByElementAndSource([
+      row({
+        element: "acting_with_autonomy",
+        source: "student_self",
+        rating: 2,
+        created_at: "2026-05-01T10:00:00Z",
+      }),
+      row({
+        element: "acting_with_autonomy",
+        source: "teacher_observation",
+        rating: 4,
+        created_at: "2026-05-05T10:00:00Z",
+      }),
+    ]);
+    expect(out.get("acting_with_autonomy::student_self")?.length).toBe(1);
+    expect(out.get("acting_with_autonomy::teacher_observation")?.length).toBe(1);
+  });
+
+  it("preserves rating + comment + createdAt on each entry", () => {
+    const out = groupHistoryByElementAndSource([
+      row({
+        element: "being_reflective",
+        source: "teacher_observation",
+        rating: 3,
+        comment: "good metacognition today",
+        created_at: "2026-05-06T15:00:00Z",
+      }),
+    ]);
+    const entry = out.get("being_reflective::teacher_observation")?.[0];
+    expect(entry).toEqual({
+      rating: 3,
+      comment: "good metacognition today",
+      createdAt: "2026-05-06T15:00:00Z",
+    });
   });
 });
