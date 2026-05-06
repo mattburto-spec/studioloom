@@ -83,9 +83,14 @@ describe("KanbanBoard — Add Card flow wiring", () => {
     expect(BOARD_SRC).toMatch(/dragJustEndedRef\.current\s*=\s*Date\.now\(\)/);
   });
 
-  it("handleAddCard ignores clicks within 250ms of a drag-end", () => {
+  // Round 26 — bumped the window from 250ms → 350ms because the React
+  // render cycle + framer-motion drag-end → click latency stretched
+  // beyond 250ms in some browsers (Matt's repro: card-click modal still
+  // opening after a drop). 350ms still doesn't swallow a deliberate
+  // click but reliably catches the synthetic one.
+  it("handleAddCard ignores clicks within 350ms of a drag-end", () => {
     expect(BOARD_SRC).toMatch(
-      /Date\.now\(\)\s*-\s*dragJustEndedRef\.current\s*<\s*250/
+      /Date\.now\(\)\s*-\s*dragJustEndedRef\.current\s*<\s*350/
     );
   });
 });

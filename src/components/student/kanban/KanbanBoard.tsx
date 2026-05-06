@@ -88,16 +88,19 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   // pointer events at drag-end; if the dropped card lands on top of the
   // "+ Add card" button, that button's onClick fires the synthetic
   // click and the Add modal opens unintentionally. We set this ref for
-  // ~250ms after a drag ends to swallow any clicks during that window.
+  // ~350ms after a drag ends to swallow any clicks during that window.
   //
-  // Round 23 — same problem applied to the cards themselves: the
-  // pointer-up after a drag-end fires synthetic click on the dragged
-  // card, which opens the detail modal. Per Matt: "i dont want these
-  // white popups each time i move a card. only when i click on a
-  // card". `suppressCardClick` state is the React-visible mirror of
-  // dragJustEndedRef so KanbanCard's handleClick can short-circuit.
+  // Round 23 → Round 26 (6 May 2026 PM) — earlier we tried mirroring
+  // the ref into a `suppressCardClick` state and propagating it down
+  // through KanbanColumn → KanbanCard.suppressClick. That was wrong:
+  // the React state setter is async, so the synthetic click fires
+  // with stale prop value before React re-renders. Matt's repro:
+  // dragged a card → modal still opened.
+  //
+  // Round 26 fix: synchronous ref check at the BOARD level. handleCardClick
+  // wraps openCardModal and bails when the ref says we just dropped a
+  // card. No state, no prop propagation, no render-timing race.
   const dragJustEndedRef = useRef<number>(0);
-  const [suppressCardClick, setSuppressCardClick] = useState(false);
 
   const registerColumnEl = useCallback(
     (id: KanbanColumnId, el: HTMLElement | null) => {
@@ -141,15 +144,11 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
     const card = state.cards.find((c) => c.id === cardId);
     setDraggingCardId(null);
     setHoverColumnId(null);
-    // Round 21 — stamp the moment the drag ended so the next ~250ms of
-    // synthetic clicks (e.g. on the "+ Add card" button under the drop
-    // point) are swallowed by handleAddCard.
-    // Round 23 — same window suppresses synthetic clicks on the cards
-    // themselves so the post-drop pointer-up doesn't open the detail
-    // modal.
+    // Round 21 + 26 — stamp the moment the drag ended. handleAddCard +
+    // handleCardClick both gate on this ref synchronously; no React
+    // state involved so no render-timing race against the synthetic
+    // click that fires immediately after pointerup.
     dragJustEndedRef.current = Date.now();
-    setSuppressCardClick(true);
-    setTimeout(() => setSuppressCardClick(false), 250);
     if (!card) return;
 
     const rects = readColumnRects();
@@ -190,6 +189,15 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
     setMoveTarget(null);
   }
 
+  // Round 26 — synchronous ref-check wrapper around card clicks.
+  // KanbanCard's onClick comes through KanbanColumn.onCardClick which
+  // is bound to THIS function, so the guard runs at click time on the
+  // latest ref value rather than on a stale prop value.
+  function handleCardClick(cardId: string) {
+    if (Date.now() - dragJustEndedRef.current < 350) return;
+    openCardModal(cardId);
+  }
+
   function closeCardModal() {
     setOpenCardId(null);
     setMoveTarget(null);
@@ -198,9 +206,11 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   function handleAddCard(toStatus: KanbanColumnId) {
     // Round 21 — ghost-click guard. If the user just dropped a card and
     // the synthetic click landed on this column's "+ Add card" button,
-    // ignore it. 250ms covers the framer-motion drag-end → click delay
-    // without being long enough to swallow a deliberate click.
-    if (Date.now() - dragJustEndedRef.current < 250) return;
+    // ignore it. 350ms covers the framer-motion drag-end → click delay
+    // (round 26 bumped from 250ms — some browsers + the React render
+    // cycle stretch this beyond 250ms) without being long enough to
+    // swallow a deliberate click.
+    if (Date.now() - dragJustEndedRef.current < 350) return;
     setAddCardForColumn(toStatus);
   }
 
@@ -334,14 +344,13 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
               wipLimit={col === "doing" ? state.wipLimitDoing : undefined}
               allowAdd={meta.allowAdd}
               onAddCard={() => handleAddCard(col)}
-              onCardClick={(cardId) => openCardModal(cardId)}
+              onCardClick={handleCardClick}
               registerColumnEl={registerColumnEl}
               draggingCardId={draggingCardId}
               hoverColumnId={hoverColumnId}
               onCardDragStart={handleCardDragStart}
               onCardDrag={handleCardDrag}
               onCardDragEnd={handleCardDragEnd}
-              suppressCardClick={suppressCardClick}
             />
           );
         })}

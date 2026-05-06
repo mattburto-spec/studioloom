@@ -34,32 +34,41 @@ const MODAL_SRC = readFileSync(
   "utf-8"
 );
 
-describe("KanbanBoard — drag-end suppresses post-drop card click", () => {
-  it("declares suppressCardClick state", () => {
+// Round 26 superseded the round-23 state-mirror approach. The state
+// propagation was async, so the synthetic click after a drag fired
+// with the stale prop value before React re-rendered. Now the board
+// does the ref check directly in handleCardClick.
+describe("KanbanBoard — drag-end suppresses post-drop card click (round 26 ref-based)", () => {
+  it("does NOT use state setters for suppression (state is async — was the round-23 bug)", () => {
+    // Comments may reference the old approach for context — assert that
+    // no actual setSuppressCardClick(...) CALL appears (parens).
+    expect(BOARD_SRC).not.toMatch(/setSuppressCardClick\(/);
+    expect(BOARD_SRC).not.toMatch(/\[suppressCardClick,\s*setSuppressCardClick\]/);
+  });
+
+  it("stamps dragJustEndedRef on drag-end (synchronous, not state)", () => {
+    expect(BOARD_SRC).toMatch(/dragJustEndedRef\.current\s*=\s*Date\.now\(\)/);
+  });
+
+  it("handleCardClick gates on ref before opening the modal", () => {
+    expect(BOARD_SRC).toMatch(/function handleCardClick\(cardId: string\)/);
     expect(BOARD_SRC).toMatch(
-      /\[suppressCardClick,\s*setSuppressCardClick\][\s\S]{0,80}useState/
+      /handleCardClick[\s\S]{0,200}Date\.now\(\)\s*-\s*dragJustEndedRef\.current\s*<\s*350[\s\S]{0,80}return/
     );
   });
 
-  it("flips suppressCardClick on every drag-end + clears after 250ms", () => {
-    expect(BOARD_SRC).toMatch(/setSuppressCardClick\(true\)/);
-    expect(BOARD_SRC).toMatch(
-      /setTimeout\(\(\)\s*=>\s*setSuppressCardClick\(false\),\s*250\)/
-    );
-  });
-
-  it("forwards suppressCardClick to each KanbanColumn", () => {
-    expect(BOARD_SRC).toContain("suppressCardClick={suppressCardClick}");
+  it("KanbanColumn receives onCardClick={handleCardClick} (not an inline arrow)", () => {
+    expect(BOARD_SRC).toMatch(/onCardClick=\{handleCardClick\}/);
   });
 });
 
-describe("KanbanColumn — passes suppressClick to each card", () => {
-  it("accepts suppressCardClick prop", () => {
-    expect(COLUMN_SRC).toMatch(/suppressCardClick\?:\s*boolean/);
+describe("KanbanColumn — no longer passes suppressCardClick (round 26 cleanup)", () => {
+  it("does not declare a suppressCardClick prop", () => {
+    expect(COLUMN_SRC).not.toMatch(/suppressCardClick\?:\s*boolean/);
   });
 
-  it("forwards it to the KanbanCard render as suppressClick", () => {
-    expect(COLUMN_SRC).toMatch(/suppressClick=\{suppressCardClick\}/);
+  it("does not pass suppressClick down to KanbanCard from this layer", () => {
+    expect(COLUMN_SRC).not.toMatch(/suppressClick=\{suppressCardClick\}/);
   });
 });
 
