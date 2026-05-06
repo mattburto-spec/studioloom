@@ -129,6 +129,15 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   function handleCardDragStart(cardId: string) {
     setDraggingCardId(cardId);
     setHoverColumnId(null);
+    // Round 28 (7 May 2026 AM) — also stamp on drag-START so the
+    // entire drag duration + 1s after is covered. Belt + suspenders
+    // for browsers / devices where the drag-end → click latency
+    // exceeds 350ms.
+    dragJustEndedRef.current = Date.now();
+    if (process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.debug("[kanban] dragStart", { cardId });
+    }
   }
 
   function handleCardDrag(_cardId: string, info: PanInfo) {
@@ -144,11 +153,23 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
     const card = state.cards.find((c) => c.id === cardId);
     setDraggingCardId(null);
     setHoverColumnId(null);
-    // Round 21 + 26 — stamp the moment the drag ended. handleAddCard +
-    // handleCardClick both gate on this ref synchronously; no React
-    // state involved so no render-timing race against the synthetic
-    // click that fires immediately after pointerup.
+    // Round 21 + 26 + 28 — stamp the moment the drag ended.
+    // handleAddCard + handleCardClick both gate on this ref
+    // synchronously; no React state involved so no render-timing
+    // race against the synthetic click that fires after pointerup.
+    // Round 28 — also stamped on drag-START + window bumped to
+    // 1000ms (was 350ms) per Matt 7 May AM: "kanban board is still
+    // having popups each time i move a card". Some browsers / touch
+    // devices fire the synthetic click hundreds of ms after pointerup.
     dragJustEndedRef.current = Date.now();
+    if (process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.debug("[kanban] dragEnd", {
+        cardId,
+        offset: info.offset,
+        velocity: info.velocity,
+      });
+    }
     if (!card) return;
 
     const rects = readColumnRects();
@@ -193,8 +214,30 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   // KanbanCard's onClick comes through KanbanColumn.onCardClick which
   // is bound to THIS function, so the guard runs at click time on the
   // latest ref value rather than on a stale prop value.
+  //
+  // Round 28 — window bumped 350ms → 1000ms after Matt repro'd "popups
+  // each time i move a card" with the round-26 fix live. The
+  // dragJustEndedRef is also stamped on drag-START now, so this gate
+  // covers the entire drag duration + 1s after — defends against
+  // touch devices / browsers where the synthetic click fires hundreds
+  // of ms after pointerup. 1000ms is still well under the duration of
+  // a deliberate click (which typically takes 50-200ms on touch).
   function handleCardClick(cardId: string) {
-    if (Date.now() - dragJustEndedRef.current < 350) return;
+    const sinceDragMs = Date.now() - dragJustEndedRef.current;
+    if (sinceDragMs < 1000) {
+      if (process.env.NODE_ENV !== "production") {
+        // eslint-disable-next-line no-console
+        console.debug("[kanban] click suppressed (recent drag)", {
+          cardId,
+          sinceDragMs,
+        });
+      }
+      return;
+    }
+    if (process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.debug("[kanban] click → openCardModal", { cardId });
+    }
     openCardModal(cardId);
   }
 
@@ -204,13 +247,11 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   }
 
   function handleAddCard(toStatus: KanbanColumnId) {
-    // Round 21 — ghost-click guard. If the user just dropped a card and
-    // the synthetic click landed on this column's "+ Add card" button,
-    // ignore it. 350ms covers the framer-motion drag-end → click delay
-    // (round 26 bumped from 250ms — some browsers + the React render
-    // cycle stretch this beyond 250ms) without being long enough to
-    // swallow a deliberate click.
-    if (Date.now() - dragJustEndedRef.current < 350) return;
+    // Round 21 + 26 + 28 — ghost-click guard. If the user just dropped
+    // a card and the synthetic click landed on this column's "+ Add
+    // card" button, ignore it. 1000ms (round 28 bump) covers the
+    // entire drag + click-delay window across browsers / devices.
+    if (Date.now() - dragJustEndedRef.current < 1000) return;
     setAddCardForColumn(toStatus);
   }
 
