@@ -251,3 +251,33 @@ export function getScoreLabel(level: IntegrityAnalysis["level"]): string {
       return "Flagged for Review";
   }
 }
+
+/**
+ * Find the worst (most-concerning) integrity level across a per-section
+ * integrity metadata map. Used by teacher progress views to render a
+ * single dot per lesson cell rather than one per section.
+ *
+ * Round 8 (6 May 2026): replaces the boolean `hasIntegrityData` signal
+ * that made every actively-used lesson look "flagged" in the Class
+ * Hub progress grid. Only flags when there's a real concern.
+ *
+ * Severity order: low (rose) > medium (amber) > high (clean).
+ * Returns null when the map is empty.
+ */
+export function worstIntegrityLevel(
+  metadataMap: Record<string, IntegrityMetadata> | null | undefined
+): "high" | "medium" | "low" | null {
+  if (!metadataMap || typeof metadataMap !== "object") return null;
+  const entries = Object.values(metadataMap);
+  if (entries.length === 0) return null;
+  let worst: "high" | "medium" | "low" = "high";
+  for (const meta of entries) {
+    if (!meta || typeof meta !== "object") continue;
+    const analysis = analyzeIntegrity(meta);
+    if (analysis.level === "low") return "low"; // can't get worse
+    if (analysis.level === "medium" && worst === "high") {
+      worst = "medium";
+    }
+  }
+  return worst;
+}
