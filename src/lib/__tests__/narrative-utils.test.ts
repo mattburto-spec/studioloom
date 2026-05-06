@@ -13,12 +13,16 @@ import { describe, it, expect } from "vitest";
 import { buildNarrativeSections } from "../narrative-utils";
 import type { UnitPage, StudentProgress } from "@/types";
 
-function makePage(over: Partial<UnitPage> & { id: string }): UnitPage {
+function makePage(over: {
+  id: string;
+  title?: string;
+  type?: string;
+  content?: unknown;
+}): UnitPage {
   return {
-    id: over.id,
-    title: over.title ?? `Page ${over.id}`,
-    type: over.type ?? "lesson",
-    content: over.content ?? null,
+    title: `Page ${over.id}`,
+    type: "lesson",
+    content: null,
     ...over,
   } as unknown as UnitPage;
 }

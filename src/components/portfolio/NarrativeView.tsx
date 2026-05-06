@@ -46,7 +46,17 @@ export function NarrativeView({
       year: "numeric",
     });
 
-  const manualPortfolioEntries = portfolioEntries.filter((e) => e.type !== "auto");
+  // Round 10 (6 May 2026) — include auto-captured entries that have a
+  // media URL. Pre-fix the filter dropped EVERY type='auto' entry to
+  // avoid duplicating the journal text (which is also rendered via the
+  // sections path from student_progress.responses). But that lost the
+  // PHOTOS attached to journal entries — those aren't duplicated in
+  // sections (which only carry text). Now we keep auto entries with
+  // a non-empty media_url and drop pure-text duplicates.
+  const manualPortfolioEntries = portfolioEntries.filter((e) => {
+    if (e.type !== "auto") return true; // notes / links / photos from QuickCaptureFAB
+    return Boolean(e.media_url); // journal photos kept; pure-text auto entries skipped
+  });
 
   if (sections.length === 0 && manualPortfolioEntries.length === 0) {
     return (

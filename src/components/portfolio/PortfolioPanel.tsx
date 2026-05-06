@@ -1,14 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import dynamic from "next/dynamic";
 import { timeAgo, getDomain } from "@/lib/utils";
 import type { PortfolioEntry } from "@/types";
 
-const ExportPortfolioPpt = dynamic(
-  () => import("./ExportPortfolioPpt").then((m) => ({ default: m.ExportPortfolioPpt })),
-  { ssr: false, loading: () => null }
-);
+// Round 10 (6 May 2026) — ExportPortfolioPpt button removed per Matt
+// (filed as FU-AGENCY-PPT-EXPORT-RESTORE). Dynamic import dropped to
+// keep tsc clean; restore both the import and the button render below
+// when the FU is picked up. ExportPortfolioPpt.tsx is untouched.
 
 interface PortfolioPanelProps {
   unitId: string;
@@ -138,13 +137,13 @@ export function PortfolioPanel({
                 Narrative
               </button>
             )}
-            {!loading && entries.length > 0 && (
-              <ExportPortfolioPpt
-                entries={entries}
-                unitTitle={unitTitle || "Portfolio"}
-                studentName={studentName}
-              />
-            )}
+            {/* Round 10 (6 May 2026) — ExportPortfolioPpt removed per
+                Matt: "remove the download as PPT in portfolio view".
+                Filed as FU-AGENCY-PPT-EXPORT-RESTORE in
+                docs/projects/co2-racers-followups.md for later
+                consideration. ExportPortfolioPpt component + dynamic
+                import + the dependency are left in place — easy to
+                restore. */}
             <button
               onClick={onClose}
               className="w-8 h-8 rounded-full hover:bg-surface-alt flex items-center justify-center text-text-secondary hover:text-text-primary transition"

@@ -23,16 +23,42 @@ export function NarrativeModal({
 }: NarrativeModalProps) {
   const [portfolioEntries, setPortfolioEntries] = useState<PortfolioEntry[]>([]);
   const [loadingPortfolio, setLoadingPortfolio] = useState(false);
+  // Round 10 (6 May 2026) — fetch FRESH progress on open. The `progress`
+  // prop is stale: it's the snapshot from when the parent lesson page
+  // mounted, which is BEFORE the student saved their journal. Without
+  // this fetch, journal entries written in the current session never
+  // surface in the narrative even though student_progress.responses
+  // does have them on the server.
+  const [freshProgress, setFreshProgress] = useState<StudentProgress[] | null>(
+    null
+  );
 
-  // Fetch portfolio entries when modal opens
+  // Fetch portfolio entries + fresh progress when modal opens
   useEffect(() => {
     if (!open) return;
     setLoadingPortfolio(true);
-    fetch(`/api/student/portfolio?unitId=${unit.id}`)
+
+    const portfolioPromise = fetch(`/api/student/portfolio?unitId=${unit.id}`)
       .then((res) => (res.ok ? res.json() : { entries: [] }))
       .then((data) => setPortfolioEntries(data.entries || []))
-      .catch(() => setPortfolioEntries([]))
-      .finally(() => setLoadingPortfolio(false));
+      .catch(() => setPortfolioEntries([]));
+
+    // Refresh progress so just-saved journal entries (and any other
+    // autosaved responses) appear in the narrative immediately.
+    const progressPromise = fetch(`/api/student/unit?unitId=${unit.id}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.progress) {
+          setFreshProgress(data.progress as StudentProgress[]);
+        } else {
+          setFreshProgress(null);
+        }
+      })
+      .catch(() => setFreshProgress(null));
+
+    Promise.allSettled([portfolioPromise, progressPromise]).finally(() =>
+      setLoadingPortfolio(false)
+    );
   }, [open, unit.id]);
 
   // Escape to close
@@ -47,13 +73,17 @@ export function NarrativeModal({
 
   if (!open) return null;
 
+  // Round 10 — prefer freshProgress (just-fetched) over the stale prop.
+  // Falls back to the prop if the refresh failed (or hasn't fired yet).
+  const effectiveProgress = freshProgress ?? progress;
+
   // Build narrative sections from progress + pages (with portfolio filtering)
   const allPages = getPageList(unit.content_data);
-  const sections = buildNarrativeSections(allPages, progress);
+  const sections = buildNarrativeSections(allPages, effectiveProgress);
 
   // Date range
   const dates = [
-    ...progress.map((p) => p.updated_at),
+    ...effectiveProgress.map((p) => p.updated_at),
     ...portfolioEntries.map((e) => e.created_at),
   ]
     .filter(Boolean)
