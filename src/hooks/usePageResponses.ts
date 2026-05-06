@@ -28,7 +28,23 @@ export function usePageResponses(
   currentPage: UnitPage | undefined,
   data: UnitPageData | null,
   integrityMetadataRef?: React.RefObject<Record<string, unknown> | null>,
-  getTrackingPayload?: () => Record<string, ActivityTrackingData>
+  getTrackingPayload?: () => Record<string, ActivityTrackingData>,
+  /**
+   * Round 17 (6 May 2026) — optional callback fired after explicit
+   * saves (saveResponseImmediate) succeed. The lesson page wires
+   * UnitNavContext.refreshProgress here so the in-memory cache that
+   * UnitNavProvider holds gets invalidated. Without this, a student
+   * who saves a journal, navigates to another lesson, and comes
+   * back sees an empty form because data.progress in the cached
+   * context still reflects pre-save state.
+   *
+   * Intentionally NOT called from the debounced autosave — that
+   * fires per-keystroke after 2s and a refresh on every batch
+   * would generate huge bandwidth. Only the explicit "Save" path
+   * (Process Journal / Strategy Canvas / Self-Reread / Final
+   * Reflection / Send to Portfolio) needs this.
+   */
+  onPersistedExplicit?: () => Promise<void> | void
 ): UsePageResponsesReturn {
   const [responses, setResponses] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -237,14 +253,27 @@ export function usePageResponses(
   // both the ref AND state so saveProgress reads the new value, then
   // awaits the POST. Designed for explicit save buttons that mustn't
   // race the autosave (Process Journal "Save").
+  //
+  // Round 17 — also fires the optional onPersistedExplicit callback
+  // (typically UnitNavContext.refreshProgress) so the cached unit
+  // data gets refreshed and a navigate-away/come-back shows the
+  // saved value, not the stale pre-save snapshot.
   const saveResponseImmediate = useCallback(
     async (key: string, value: string) => {
       const next = { ...responsesRef.current, [key]: value };
       responsesRef.current = next;
       setResponses(next);
       await saveProgress("in_progress", { silent: true });
+      if (onPersistedExplicit) {
+        try {
+          await onPersistedExplicit();
+        } catch (err) {
+          // Best-effort — refresh failure shouldn't undo the save.
+          console.warn("[usePageResponses] onPersistedExplicit failed", err);
+        }
+      }
     },
-    [saveProgress]
+    [saveProgress, onPersistedExplicit]
   );
 
   return {

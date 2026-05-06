@@ -76,7 +76,19 @@ function UnitPageViewInner({
   } = useActivityTracking(pageId, {});
 
   const { responses, setResponses, saving, showSaveToast, saveProgress, saveResponseImmediate, moderationError } =
-    usePageResponses(unitId, pageId, currentPage, data, integrityMetadataRef, getTrackingPayload);
+    usePageResponses(
+      unitId,
+      pageId,
+      currentPage,
+      data,
+      integrityMetadataRef,
+      getTrackingPayload,
+      // Round 17 — invalidate the cached unit data after explicit
+      // saves so navigate-away + come-back shows the saved value.
+      // refreshProgress is a no-op when unitNav isn't mounted (mock
+      // /direct-load mode), so wrapping is safe.
+      unitNav ? () => unitNav.refreshProgress() : undefined
+    );
 
   const { student, classInfo } = useStudent();
   const openStudio = useOpenStudio(unitId);
