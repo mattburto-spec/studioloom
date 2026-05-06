@@ -7,17 +7,28 @@ import { themeForMentor } from "@/lib/student/onboarding-images";
 import { VisualPicksScreen } from "./VisualPicksScreen";
 
 // ============================================================================
-// "Set Up Your Studio" — First-login onboarding experience (v1)
+// "Set Up Your Studio" — First-login onboarding experience.
 //
-// 4 screens:
-//   1. Visual Picks (pick 2–3 aesthetic mood tiles → suggests a mentor)
-//   2. Choose Your Mentor (Kit / Sage / Spark — suggested one pre-selected)
-//   3. Mentor Conversation (Learning Profile questions, skippable)
-//   4. Welcome Reveal (quick dashboard preview)
+// Round 27 (7 May 2026, NIS Class 1 day): trimmed from 4 screens → 2.
+// Per Matt: "remove the parts of the student onboarding that ask to choose
+// the different design styles from a picture and the mentor."
 //
-// Theme is auto-derived from mentor (kit→warm, sage→clean, spark→bold) — no
-// theme picker in v1 onboarding. Settings cog still exposes the full picker.
-// v2 destination: docs/projects/studioloom-designer-mentor-spec.md.
+// 2 screens (live):
+//   1. Mentor Conversation (Learning Profile questions, skippable)
+//      → 5 sub-steps: languages / confidence / working / feedback /
+//        learning_diffs
+//   2. Welcome Reveal (quick dashboard preview)
+//
+// Default mentor = "kit" (warm + hands-on, the most agnostic of the three).
+// Default theme = "warm" (auto-derived from kit via themeForMentor).
+// Both are still editable via the Settings cog post-onboarding — students
+// who care about the mentor can change later, students who don't never
+// have to think about it.
+//
+// Why we kept the JSX for the removed screens: dead branches don't render
+// (Screen state never enters "visualPicks" or "mentor"), and the v2
+// Designer Mentor spec re-introduces a richer version of those screens.
+// Easier to gate them via initial-state than rip the rendering code out.
 //
 // Metaphor: setting up your own design studio workspace.
 // Mental model: character creation in a game.
@@ -104,15 +115,20 @@ const CONVO_STEPS: ConvoStep[] = ["languages", "confidence", "working", "feedbac
 
 export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
   // --- Screen state ---
-  const [screen, setScreen] = useState<Screen>("visualPicks");
-  const [selectedMentor, setSelectedMentor] = useState<MentorId | null>(null);
-  const [selectedTheme, setSelectedTheme] = useState<ThemeId | null>(null);
+  // Round 27 — start directly at the conversation screen with kit/warm
+  // pre-selected. The visualPicks + mentor screens are bypassed.
+  const [screen, setScreen] = useState<Screen>("conversation");
+  const [selectedMentor, setSelectedMentor] = useState<MentorId | null>("kit");
+  const [selectedTheme, setSelectedTheme] = useState<ThemeId | null>("warm");
 
-  // --- Visual picks state (Screen 1) ---
+  // --- Visual picks state (Screen 1, retained for v2 reactivation) ---
   // Persisted to students.onboarding_picks (migration 20260504225635) so the
   // v2 Designer Mentor System can re-run cosine-similarity matching against
-  // the 20-designer pool without re-onboarding existing students.
+  // the 20-designer pool without re-onboarding existing students. Stays as
+  // an empty array in round 27 — the column accepts empty arrays.
   const [pickedImageIds, setPickedImageIds] = useState<string[]>([]);
+  // Round 27 — no longer surfaced; declared so existing handlers compile.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [suggestedMentor, setSuggestedMentor] = useState<MentorId | null>(null);
 
   // --- Conversation state ---
@@ -145,6 +161,17 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => setShowReaction(true));
     });
+  }, []);
+
+  // Round 27 — fire the mentor greeting on mount (used to fire from
+  // proceedFromMentor when the student exited the picker, but now the
+  // picker is bypassed). Empty deps array so it only runs once.
+  useEffect(() => {
+    if (!mentor) return;
+    showMentorReaction(
+      `Hey ${studentName.split(" ")[0]}! ${mentor.greeting} Let me ask you a few quick things.`
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // --- Navigation ---
@@ -274,9 +301,9 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
         transition: "background 0.6s ease",
       }}
     >
-      {/* Progress dots */}
+      {/* Progress dots — round 27 trimmed to the 2 live screens. */}
       <div className="fixed top-6 left-1/2 -translate-x-1/2 flex items-center gap-2 z-50">
-        {(["visualPicks", "mentor", "conversation", "welcome"] as Screen[]).map((s, i) => (
+        {(["conversation", "welcome"] as Screen[]).map((s, i) => (
           <div
             key={s}
             className="rounded-full transition-all duration-500"
@@ -285,7 +312,7 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
               height: 8,
               background: screen === s
                 ? (mentor?.accent || "#7B2FF2")
-                : (["visualPicks", "mentor", "conversation", "welcome"].indexOf(screen) > i
+                : (["conversation", "welcome"].indexOf(screen) > i
                     ? (mentor?.accent || "#7B2FF2")
                     : "rgba(255,255,255,0.2)"),
               opacity: screen === s ? 1 : 0.6,

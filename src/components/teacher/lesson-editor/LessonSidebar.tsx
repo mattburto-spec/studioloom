@@ -45,6 +45,14 @@ interface LessonSidebarProps {
   // Unit info
   unitTitle?: string | null;
   thumbnailUrl?: string | null;
+
+  /**
+   * Round 27 (7 May 2026) — inline rename. Clicking the unit title in
+   * the sidebar header switches it to a text input; blur or Enter
+   * commits via this callback. Optional — when omitted, the title is
+   * read-only (used by mounts without write authority).
+   */
+  onRenameUnit?: (newTitle: string) => Promise<void> | void;
 }
 
 function formatDate(dateStr: string): string {
@@ -78,9 +86,34 @@ export function LessonSidebar({
   classId,
   unitTitle,
   thumbnailUrl,
+  onRenameUnit,
 }: LessonSidebarProps) {
   const [showPromoteConfirm, setShowPromoteConfirm] = useState(false);
+  // Round 27 — rename state. Null = display, string = editing draft.
+  const [titleDraft, setTitleDraft] = useState<string | null>(null);
+  const [savingTitle, setSavingTitle] = useState(false);
   const { colors: PHASE_COLORS } = getDesignProcessPhases(framework);
+
+  async function commitTitleEdit() {
+    if (titleDraft === null) return;
+    const trimmed = titleDraft.trim();
+    if (!trimmed || trimmed === unitTitle) {
+      // Empty or unchanged → bail without writing
+      setTitleDraft(null);
+      return;
+    }
+    if (!onRenameUnit) {
+      setTitleDraft(null);
+      return;
+    }
+    setSavingTitle(true);
+    try {
+      await onRenameUnit(trimmed);
+    } finally {
+      setSavingTitle(false);
+      setTitleDraft(null);
+    }
+  }
 
   // Group pages by phaseLabel for visual grouping
   let lastPhase = "";
@@ -90,14 +123,51 @@ export function LessonSidebar({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Unit title strip — cover lives in UnitThumbnailEditor above this component */}
+      {/* Unit title strip — cover lives in UnitThumbnailEditor above this
+          component. Round 27: click to rename when onRenameUnit is wired. */}
       {unitTitle && (
         <div className="px-3 pt-2 pb-2 border-b border-[var(--le-hair)] flex-shrink-0">
           <div className="flex items-center gap-1.5">
             <span className="text-[12px]">🎒</span>
-            <div className="text-[11.5px] font-extrabold truncate text-[var(--le-ink)]">
-              {unitTitle}
-            </div>
+            {titleDraft === null ? (
+              <button
+                type="button"
+                onClick={() => onRenameUnit && setTitleDraft(unitTitle)}
+                disabled={!onRenameUnit}
+                title={onRenameUnit ? "Click to rename" : undefined}
+                className={[
+                  "text-[11.5px] font-extrabold truncate text-[var(--le-ink)] flex-1 text-left",
+                  onRenameUnit
+                    ? "hover:underline hover:decoration-dotted underline-offset-2 cursor-text"
+                    : "cursor-default",
+                ].join(" ")}
+                data-testid="lesson-sidebar-unit-title"
+              >
+                {unitTitle}
+              </button>
+            ) : (
+              <input
+                type="text"
+                autoFocus
+                value={titleDraft}
+                disabled={savingTitle}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onBlur={commitTitleEdit}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    e.currentTarget.blur(); // → commitTitleEdit
+                  }
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    setTitleDraft(null);
+                  }
+                }}
+                maxLength={120}
+                className="text-[11.5px] font-extrabold flex-1 bg-white border border-violet-300 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-violet-400"
+                data-testid="lesson-sidebar-unit-title-input"
+              />
+            )}
           </div>
         </div>
       )}

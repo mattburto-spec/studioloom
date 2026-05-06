@@ -9,6 +9,7 @@ import {
 import { useAutoSave } from "./useAutoSave";
 import { UndoManager } from "./UndoManager";
 import { normalizeToV2 } from "@/lib/unit-adapter";
+import { createClient } from "@/lib/supabase/client";
 import type { UnitContentData, UnitContentDataV2, PageContent } from "@/types";
 
 type EditMode = "all" | "class";
@@ -36,6 +37,13 @@ interface UseLessonEditorReturn {
   unitTitle: string | null;
   thumbnailUrl: string | null;
   setThumbnailUrl: (url: string) => void;
+  /**
+   * Round 27 — rename the unit. Updates local state immediately +
+   * persists to units.title via the user's anon-client (RLS allows
+   * authors to update their own units). Throws on persistence failure
+   * so the caller can revert if needed.
+   */
+  renameUnit: (newTitle: string) => Promise<void>;
   framework: string; // Framework for design phases and context
 
   // Selection & UI state
@@ -373,6 +381,31 @@ export function useLessonEditor({
     }
   }, []);
 
+  // Round 27 (7 May 2026) — rename the unit. Updates local state
+  // optimistically, then persists via supabase. RLS on units allows
+  // authors to update their own units (author_teacher_id = auth.uid()).
+  // On failure, the caller can revert by calling renameUnit(unitTitle)
+  // again — local state mirrors the last successful write.
+  const renameUnit = useCallback(
+    async (newTitle: string) => {
+      const trimmed = newTitle.trim();
+      if (!trimmed || trimmed === unitTitle) return;
+      const previous = unitTitle;
+      setUnitTitle(trimmed);
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("units")
+        .update({ title: trimmed })
+        .eq("id", unitId);
+      if (error) {
+        setUnitTitle(previous);
+        console.error("[useLessonEditor] renameUnit failed:", error.message);
+        throw new Error(error.message);
+      }
+    },
+    [unitId, unitTitle]
+  );
+
   // Auto-save hook — routes to master or fork based on editMode
   // Only enabled after initial content load succeeds (prevents empty saves on 404 or loading state)
   const saveStatus = useAutoSave({
@@ -390,6 +423,7 @@ export function useLessonEditor({
     unitTitle,
     thumbnailUrl,
     setThumbnailUrl,
+    renameUnit,
     framework,
     selectedPageIndex,
     setSelectedPageIndex,
