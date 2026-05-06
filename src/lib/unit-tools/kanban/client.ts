@@ -67,4 +67,41 @@ export async function saveKanbanState(
   return parseOrThrow<KanbanFetchResult>(res);
 }
 
+/**
+ * AG.2.4 — append a single card to the student's Kanban backlog for a unit.
+ *
+ * Used by the journal "Next" prompt auto-create flow: when a student
+ * saves a structured-prompts journal with a non-empty `next` response,
+ * we drop the next-move into the backlog as a card with
+ * source='journal_next'.
+ *
+ * Fire-and-forget: read current state, create card via reducer, save back.
+ * Idempotent under concurrent calls IF a single client is the only writer
+ * (class of 9, single-student-per-board — safe).
+ *
+ * Returns the post-save result OR throws KanbanApiError if the read or
+ * write fails (caller should fire-and-forget; toast on error optional).
+ */
+export async function appendBacklogCard(
+  unitId: string,
+  args: {
+    title: string;
+    lessonLink?: { unit_id: string; page_id: string; section_index: number };
+  }
+): Promise<KanbanFetchResult> {
+  // Lazy import to avoid pulling reducer into the client lib's surface
+  // when callers only need load/save. Keeps the module dependency graph
+  // shallow.
+  const { kanbanReducer } = await import("./reducer");
+  const current = await loadKanbanState(unitId);
+  const next = kanbanReducer(current.kanban, {
+    type: "createCard",
+    title: args.title,
+    status: "backlog",
+    source: "journal_next",
+    lessonLink: args.lessonLink ?? null,
+  });
+  return saveKanbanState(unitId, next);
+}
+
 export { KanbanApiError };

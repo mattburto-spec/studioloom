@@ -32,6 +32,8 @@ interface ResponseInputProps {
   prompts?: StructuredPromptsConfig;
   /** For structured-prompts responseType: require a photo before submit. Default false. */
   requirePhoto?: boolean;
+  /** For structured-prompts responseType (AG.2.4): when true, after save, fire-and-forget append a Kanban backlog card from the "next" prompt's response. Default false. */
+  autoCreateKanbanCardOnSave?: boolean;
   /** For structured-prompts responseType: callback fired after successful save (e.g. to seed AG.2 Kanban from the "next" prompt). */
   onStructuredPromptsSaved?: (saved: { content: string; nextMove: string | null }) => void;
   /** Enable integrity monitoring on text input (for academic integrity tracking) */
@@ -50,6 +52,7 @@ const TYPE_OPTIONS: { type: ResponseType; label: string; icon: string }[] = [
 export function ResponseInput({
   prompts,
   requirePhoto,
+  autoCreateKanbanCardOnSave,
   onStructuredPromptsSaved,
   sectionIndex,
   responseType,
@@ -201,6 +204,7 @@ export function ResponseInput({
           pageId={pageId}
           sectionIndex={sectionIndex}
           requirePhoto={requirePhoto}
+          autoCreateKanbanCardOnSave={autoCreateKanbanCardOnSave}
           onSaved={onStructuredPromptsSaved}
         />
       )}
