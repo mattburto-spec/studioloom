@@ -60,6 +60,38 @@ export function usePageResponses(
   // so we don't overwrite user typing when data ref changes
   const loadedPageRef = useRef<string | null>(null);
 
+  // Round 20 (6 May 2026 PM) — Active-tab time accumulator. Counts seconds
+  // while document.visibilityState === "visible". `pendingDeltaRef` holds
+  // unsaved seconds; saveProgress reads it, sends as `timeSpentDelta`, and
+  // resets to 0. This is the source of truth for the Hours stat in
+  // student_progress.time_spent — previously the column was never written.
+  const pendingDeltaRef = useRef(0);
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    let lastTick = Date.now();
+    const tick = () => {
+      const now = Date.now();
+      const elapsedMs = now - lastTick;
+      lastTick = now;
+      // Only count when the tab is foregrounded.
+      if (document.visibilityState === "visible") {
+        // Cap a single tick at 5s to defend against laptop-sleep / clock skew.
+        pendingDeltaRef.current += Math.min(Math.round(elapsedMs / 1000), 5);
+      }
+    };
+    const id = setInterval(tick, 1000);
+    const onVisibility = () => {
+      // Reset the timer base on visibility change so a long background
+      // period doesn't dump a huge delta the next time the tab refocuses.
+      lastTick = Date.now();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
   // Load saved responses when data arrives (only once per page)
   useEffect(() => {
     if (!data) return;
@@ -174,6 +206,15 @@ export function usePageResponses(
           payload.integrityMetadata = integrityMetadataRef.current;
         }
 
+        // Round 20 — drain accumulated active-tab seconds into the save.
+        // Snapshot then reset BEFORE the await so additional ticks during
+        // the network round-trip aren't lost on the next save.
+        const deltaToSend = pendingDeltaRef.current;
+        if (deltaToSend > 0) {
+          payload.timeSpentDelta = deltaToSend;
+          pendingDeltaRef.current = 0;
+        }
+
         // Phase 2 instrumentation — diagnoses the debounce/autosave race.
         // Gated behind localStorage so normal users never see it.
         // Enable in browser console: localStorage.setItem("SL_INTEGRITY_DEBUG", "1")
@@ -219,6 +260,11 @@ export function usePageResponses(
           if (sections) {
             syncPortfolioCaptures(sections, currentResponses, currentPage.id);
           }
+        }
+        // Round 20 — if the save failed, restore the time-on-page delta so
+        // it's retried with the next autosave instead of silently lost.
+        if (!res.ok && deltaToSend > 0) {
+          pendingDeltaRef.current += deltaToSend;
         }
       } finally {
         setSaving(false);
