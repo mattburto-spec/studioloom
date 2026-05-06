@@ -30,6 +30,8 @@ import {
   composeContent,
   extractNextMove,
   isReadyToSubmit,
+  parseComposedContent,
+  submitButtonLabel,
   validateResponses,
   type PromptValidationError,
 } from "@/lib/structured-prompts/payload";
@@ -87,10 +89,14 @@ export default function StructuredPromptsResponse({
 }: StructuredPromptsResponseProps) {
   const hasSavedEntry = (savedValue ?? "").trim().length > 0;
   // When an entry is already saved on this section_index, start in the
-  // "saved preview" state. Edit re-opens the form (responses stay empty —
-  // re-typing replaces the saved entry). Smoke-fix 6 May 2026.
+  // "saved preview" state. Edit re-opens the form pre-filled with the
+  // saved responses (parsed back from the composed markdown via
+  // parseComposedContent — round 4 fix; round 3 left it as an empty form
+  // which forced students to re-type).
   const [editing, setEditing] = useState(!hasSavedEntry);
-  const [responses, setResponses] = useState<StructuredPromptResponses>({});
+  const [responses, setResponses] = useState<StructuredPromptResponses>(() =>
+    hasSavedEntry ? parseComposedContent(prompts, savedValue ?? "") : {}
+  );
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -278,7 +284,12 @@ export default function StructuredPromptsResponse({
           </div>
           <button
             type="button"
-            onClick={() => setEditing(true)}
+            onClick={() => {
+              // Round 4 fix: pre-fill the form with the saved responses
+              // when re-opening so students don't have to retype.
+              setResponses(parseComposedContent(prompts, savedValue ?? ""));
+              setEditing(true);
+            }}
             className="text-[11.5px] text-emerald-700 hover:text-emerald-900 font-semibold underline underline-offset-2"
             data-testid="structured-prompts-edit"
           >
@@ -444,7 +455,13 @@ export default function StructuredPromptsResponse({
           }`}
           data-testid="structured-prompts-submit"
         >
-          {submitting ? "Saving…" : "Send to portfolio"}
+          {submitting
+            ? "Saving…"
+            : submitButtonLabel({
+                hasSavedEntry,
+                autoCreateKanbanCardOnSave,
+                hasNextMove: extractNextMove(responses) !== null,
+              })}
         </button>
         {!ready && !submitting && fieldErrors.length > 0 && (
           <span className="text-[10.5px] text-gray-500">
@@ -455,3 +472,6 @@ export default function StructuredPromptsResponse({
     </div>
   );
 }
+
+// `submitButtonLabel` lives in @/lib/structured-prompts/payload as a pure
+// helper so tests can import it without the JSX boundary (Lesson #71).

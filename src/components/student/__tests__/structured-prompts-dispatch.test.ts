@@ -148,11 +148,34 @@ describe("StructuredPromptsResponse — module hygiene", () => {
     );
   });
 
-  it("Edit button reopens the form (sets editing=true)", () => {
+  it("Edit button reopens the form AND pre-fills responses via parseComposedContent (round 4)", () => {
     const idx = STRUCTURED_PROMPTS_SRC.indexOf('data-testid="structured-prompts-edit"');
     expect(idx).toBeGreaterThan(0);
-    const before = STRUCTURED_PROMPTS_SRC.slice(Math.max(0, idx - 400), idx);
+    const before = STRUCTURED_PROMPTS_SRC.slice(Math.max(0, idx - 600), idx);
     expect(before).toContain("setEditing(true)");
+    // Round 4: re-fill the form rather than starting empty
+    expect(before).toContain("parseComposedContent(prompts, savedValue ?? \"\")");
+    expect(before).toContain("setResponses(parseComposedContent");
+  });
+
+  it("initialises form responses from savedValue when entry already exists (round 4)", () => {
+    // Initial useState seeds responses from parsed savedValue when
+    // hasSavedEntry, so reloading the lesson while already in edit mode
+    // doesn't lose data.
+    expect(STRUCTURED_PROMPTS_SRC).toMatch(
+      /useState[^;]*?hasSavedEntry\s*\?\s*parseComposedContent\(prompts,\s*savedValue\s*\?\?\s*""\)/s
+    );
+  });
+
+  it("submit button label is dynamic via submitButtonLabel helper (round 4)", () => {
+    // Static label removed; now calls submitButtonLabel() with side-effect flags.
+    expect(STRUCTURED_PROMPTS_SRC).not.toContain('"Send to portfolio"');
+    expect(STRUCTURED_PROMPTS_SRC).toContain("submitButtonLabel({");
+    const idx = STRUCTURED_PROMPTS_SRC.indexOf("submitButtonLabel({");
+    const slice = STRUCTURED_PROMPTS_SRC.slice(idx, idx + 300);
+    expect(slice).toContain("hasSavedEntry");
+    expect(slice).toContain("autoCreateKanbanCardOnSave");
+    expect(slice).toContain("hasNextMove");
   });
 
   it("renders one textarea per prompt with data-testid keyed by promptId", () => {

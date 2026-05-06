@@ -11,6 +11,8 @@ import {
   composeContent,
   extractNextMove,
   isReadyToSubmit,
+  parseComposedContent,
+  submitButtonLabel,
   validateResponses,
 } from "../payload";
 import { JOURNAL_PROMPTS } from "../presets";
@@ -241,5 +243,154 @@ describe("charCountStatus — UI char-count hint", () => {
     const prompt = { id: "x", label: "X", softCharCap: 100 };
     expect(charCountStatus(prompt, "x".repeat(101))).toBe("over");
     expect(charCountStatus(prompt, "x".repeat(500))).toBe("over");
+  });
+});
+
+// ─── parseComposedContent — round-trip on Edit (smoke-fix round 4) ──────────
+
+describe("parseComposedContent — inverse of composeContent for Edit re-fill", () => {
+  it("returns empty map for empty input", () => {
+    expect(parseComposedContent(JOURNAL_PROMPTS, "")).toEqual({});
+    expect(parseComposedContent(JOURNAL_PROMPTS, "   ")).toEqual({});
+  });
+
+  it("round-trips a full journal entry exactly", () => {
+    const original = {
+      did: "Cut the profile on bandsaw",
+      noticed: "The blade pulled to the right at the curve",
+      decided:
+        "I'll re-cut from 1mm outside the line because chasing the line caused tear-out",
+      next: "Mass check then top-view cut",
+    };
+    const composed = composeContent(JOURNAL_PROMPTS, original);
+    const parsed = parseComposedContent(JOURNAL_PROMPTS, composed);
+    expect(parsed).toEqual(original);
+  });
+
+  it("round-trips entries with only some prompts answered (sparse)", () => {
+    const original = {
+      did: "Sanded the wheel hub",
+      decided: "Switch to 220 grit",
+    };
+    const composed = composeContent(JOURNAL_PROMPTS, original);
+    const parsed = parseComposedContent(JOURNAL_PROMPTS, composed);
+    expect(parsed).toEqual(original);
+    // Empty prompts not represented in parsed map
+    expect(parsed.noticed).toBeUndefined();
+    expect(parsed.next).toBeUndefined();
+  });
+
+  it("preserves multi-line response bodies", () => {
+    const original = {
+      did: "Line 1\nLine 2\nLine 3",
+      next: "Single line",
+    };
+    const composed = composeContent(JOURNAL_PROMPTS, original);
+    const parsed = parseComposedContent(JOURNAL_PROMPTS, composed);
+    expect(parsed.did).toBe("Line 1\nLine 2\nLine 3");
+    expect(parsed.next).toBe("Single line");
+  });
+
+  it("preserves '##' that appears mid-response (only line-start ## is a heading)", () => {
+    const original = {
+      did: "Used 2 markers: ## meaning 'urgent' on the rough side",
+    };
+    const composed = composeContent(JOURNAL_PROMPTS, original);
+    const parsed = parseComposedContent(JOURNAL_PROMPTS, composed);
+    expect(parsed.did).toBe("Used 2 markers: ## meaning 'urgent' on the rough side");
+  });
+
+  it("drops chunks whose heading doesn't match a current prompt label", () => {
+    // Prompt label changed mid-unit — old saved entry references a heading
+    // that no longer exists.
+    const oldComposed =
+      "## Old Heading\nstale content\n\n## What did you DO?\nfresh did";
+    const parsed = parseComposedContent(JOURNAL_PROMPTS, oldComposed);
+    // Old heading dropped, current prompt's content captured
+    expect(parsed.did).toBe("fresh did");
+    expect(Object.keys(parsed)).not.toContain("Old Heading");
+  });
+
+  it("matches by exact label string (case-sensitive)", () => {
+    const composed = "## what did you do?\nlowercase heading body";
+    const parsed = parseComposedContent(JOURNAL_PROMPTS, composed);
+    // Lowercase label doesn't match the canonical "What did you DO?"
+    expect(parsed.did).toBeUndefined();
+  });
+
+  it("trims trailing whitespace from response bodies", () => {
+    const composed = "## What did you DO?\nbody text   \n\n";
+    const parsed = parseComposedContent(JOURNAL_PROMPTS, composed);
+    expect(parsed.did).toBe("body text");
+  });
+
+  it("ignores text that appears before the first heading (composeContent never emits a preamble)", () => {
+    const composed =
+      "preamble nonsense\n\n## What did you DO?\nactual response";
+    const parsed = parseComposedContent(JOURNAL_PROMPTS, composed);
+    expect(parsed.did).toBe("actual response");
+    expect(Object.values(parsed)).not.toContain("preamble nonsense");
+  });
+
+  it("works with custom (non-JOURNAL) prompts configs", () => {
+    const customPrompts: StructuredPromptsConfig = [
+      { id: "alpha", label: "Alpha Heading" },
+      { id: "beta", label: "Beta Heading" },
+    ];
+    const composed = "## Alpha Heading\na text\n\n## Beta Heading\nb text";
+    const parsed = parseComposedContent(customPrompts, composed);
+    expect(parsed).toEqual({ alpha: "a text", beta: "b text" });
+  });
+});
+
+// ─── submitButtonLabel — UX clarity (round 4) ────────────────────────────
+
+describe("submitButtonLabel", () => {
+  it('"Update saved entry" when re-saving an existing entry', () => {
+    expect(
+      submitButtonLabel({
+        hasSavedEntry: true,
+        autoCreateKanbanCardOnSave: true,
+        hasNextMove: true,
+      })
+    ).toBe("Update saved entry");
+    // hasSavedEntry wins regardless of other flags
+    expect(
+      submitButtonLabel({
+        hasSavedEntry: true,
+        autoCreateKanbanCardOnSave: false,
+        hasNextMove: false,
+      })
+    ).toBe("Update saved entry");
+  });
+
+  it('"Save journal & update Project Board" on first save when Kanban auto-create is on AND a next-move was typed', () => {
+    expect(
+      submitButtonLabel({
+        hasSavedEntry: false,
+        autoCreateKanbanCardOnSave: true,
+        hasNextMove: true,
+      })
+    ).toBe("Save journal & update Project Board");
+  });
+
+  it('"Save to Portfolio" on first save when Kanban auto-create is off', () => {
+    expect(
+      submitButtonLabel({
+        hasSavedEntry: false,
+        autoCreateKanbanCardOnSave: false,
+        hasNextMove: true,
+      })
+    ).toBe("Save to Portfolio");
+  });
+
+  it('"Save to Portfolio" on first save when Kanban auto-create is on BUT no next-move yet (avoids promising a Kanban update that won\'t happen)', () => {
+    expect(
+      submitButtonLabel({
+        hasSavedEntry: false,
+        autoCreateKanbanCardOnSave: true,
+        hasNextMove: false,
+      })
+    ).toBe("Save to Portfolio");
   });
 });

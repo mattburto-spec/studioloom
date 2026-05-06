@@ -111,6 +111,74 @@ export function composeContent(
   return sections.join("\n\n");
 }
 
+// ─── Inverse of composeContent — re-parse on Edit (smoke-fix 6 May 2026) ──
+// Round 3 deferred this saying it was fragile. Round 4 needed it: students
+// shouldn't have to retype a saved journal to make a small edit.
+//
+// Strategy: split the composed text on lines that start with `## `, then
+// match each chunk's heading against the current prompts list by exact
+// label string. Any chunk whose heading doesn't match a current prompt is
+// dropped (graceful degradation when prompt labels were edited mid-unit).
+//
+// Important: composeContent skips empty responses entirely, so the parsed
+// map will contain ONLY the prompts that had non-empty answers. Callers
+// that want a "fully populated by id" map should fold this result into
+// the empty-string default themselves.
+
+/**
+ * Parse a composed-content markdown string back into a per-prompt
+ * responses map. Best-effort: matches each `## <label>\n<value>` chunk
+ * to a prompt by exact label. Unknown labels are silently dropped.
+ */
+export function parseComposedContent(
+  prompts: StructuredPromptsConfig,
+  composed: string
+): StructuredPromptResponses {
+  const result: StructuredPromptResponses = {};
+  if (!composed || composed.trim().length === 0) return result;
+
+  const labelToId = new Map<string, string>();
+  for (const prompt of prompts) {
+    labelToId.set(prompt.label, prompt.id);
+  }
+
+  // Split on lines that start with "## " — keep the heading attached to its body.
+  // We scan line-by-line so we don't break responses that contain "##" inside text.
+  const lines = composed.split(/\r?\n/);
+  let currentLabel: string | null = null;
+  let currentBody: string[] = [];
+
+  function flush() {
+    if (currentLabel === null) return;
+    const id = labelToId.get(currentLabel);
+    if (id) {
+      result[id] = currentBody.join("\n").trimEnd();
+    }
+    currentLabel = null;
+    currentBody = [];
+  }
+
+  for (const line of lines) {
+    if (line.startsWith("## ")) {
+      flush();
+      currentLabel = line.slice(3).trim();
+      currentBody = [];
+    } else if (currentLabel !== null) {
+      currentBody.push(line);
+    }
+    // Lines before the first heading are dropped — composeContent never
+    // emits a preamble, so this is the right behaviour for round-trips.
+  }
+  flush();
+
+  // Strip leading/trailing blank lines from each captured body.
+  for (const id of Object.keys(result)) {
+    result[id] = result[id].replace(/^\s+/, "").replace(/\s+$/, "");
+  }
+
+  return result;
+}
+
 // ─── Next-move extraction (AG.2 Kanban wiring) ──────────────────────────────
 
 /**
@@ -126,6 +194,32 @@ export function extractNextMove(
 ): string | null {
   const value = (responses[nextPromptId] ?? "").trim();
   return value.length > 0 ? value : null;
+}
+
+// ─── Submit-button label (round 4 — UX clarity) ──────────────────────────
+
+/**
+ * Decide the submit-button label based on save side-effects so the
+ * student knows what's about to happen:
+ *
+ *   - First save + Kanban auto-create + has next-move text →
+ *     "Save journal & update Project Board"
+ *   - First save + no Kanban side-effect → "Save to Portfolio"
+ *   - Re-save (entry already exists) → "Update saved entry"
+ *
+ * Pure helper so it's importable by tests + by the .tsx component without
+ * crossing the JSX boundary in either direction.
+ */
+export function submitButtonLabel(args: {
+  hasSavedEntry: boolean;
+  autoCreateKanbanCardOnSave: boolean;
+  hasNextMove: boolean;
+}): string {
+  if (args.hasSavedEntry) return "Update saved entry";
+  if (args.autoCreateKanbanCardOnSave && args.hasNextMove) {
+    return "Save journal & update Project Board";
+  }
+  return "Save to Portfolio";
 }
 
 // ─── Char count helpers (UI hint, not validation) ────────────────────────────
