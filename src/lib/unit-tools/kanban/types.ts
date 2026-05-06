@@ -8,10 +8,12 @@
  * Cowork pedagogical anchors:
  * - 4 columns (Backlog → This Class → Doing → Done)
  * - WIP limit on Doing = 1 (default; range 1-3)
- * - Definition of Done required for cards in This Class+
+ * - Definition of Done — encouraged for This Class+ but no longer
+ *   gated (round 22, see FU-AG-DOD-NUDGE in co2-racers-followups.md)
  * - Time-estimation loop (estimate at Doing, actual at Done)
  * - Blockage triage with 4 types (Tool/Skill/Decision/Help)
- * - "Because" clause required when moved to Done (Three Cs evidence)
+ * - "What did you learn" reflection on Done — encouraged but no
+ *   longer gated (round 22, see FU-AG-BECAUSE-NUDGE)
  */
 
 /** 4-column board. Order matters for the reducer's WIP enforcement. */

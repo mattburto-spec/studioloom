@@ -189,6 +189,94 @@ restore: trim the question set first so it's a single-tap emoji.
 
 ---
 
+## FU-AG-DOD-NUDGE — Soft Definition-of-Done nudge for cards in This Class+
+**Surfaced:** 6 May 2026, smoke round (post round-19 drag-drop + round-21 modals)
+**Target phase:** v2 of the project board, after a real class has used the v1 friction-free version
+**Severity:** 🟢 LOW (pedagogically valuable, not critical for v1 pilot)
+
+**Origin:** Matt: *"when moving cards im forced to add definition of
+done. for now this is a bit annoying. can it be removed? … perhaps put
+these down as FUs for later but i just want the kids using the board
+without hitting pop ups each time they move a tile"*.
+
+The v1 implementation (round 16) gated every move to `this_class` /
+`doing` / `done` on a non-empty DoD. Round 22 softened this so DoD is
+no longer a blocker — the field is still present in the move-to modal
+labelled `(optional)`, the column-header copy still mentions it, and
+the card-detail edit view still has the field, but `validateMove` no
+longer rejects on it.
+
+**What v2 should reintroduce** (soft, non-blocking):
+- A small amber dot or "DoD missing" pill on cards without a DoD once
+  they're in This Class+, visible in the column view (no modal popup).
+- A teacher-side filter: "Cards in Doing without a Definition of Done"
+  in the per-class progress view, surfacing students who consistently
+  skip the field.
+- A one-time prompt the FIRST time a student moves a card into Doing
+  without a DoD ("Want to add a 'done when…' note? You can skip this.")
+  — explicitly opt-in, dismissible, suppressed thereafter via
+  localStorage.
+
+**Out of scope for v2**: hard-blocking the move. The pedagogy is
+"useful prompts, not gates" — students who are blocked on DoD spend
+the cognitive budget on satisfying a form instead of making.
+
+**Pointers:**
+- Reducer: `src/lib/unit-tools/kanban/reducer.ts` `validateMove()`
+  (round 22 commented out the DoD branch; v2 reinstates as a separate
+  `validateMove({ strict: true })` overload or a sibling `lintCard()`)
+- Modal: `src/components/student/kanban/KanbanCardModal.tsx` move-to
+  flow already shows the field as optional — v2 changes the visual
+  treatment, not the behaviour.
+
+---
+
+## FU-AG-BECAUSE-NUDGE — Soft reflection nudge for Done cards
+**Surfaced:** 6 May 2026, same smoke as FU-AG-DOD-NUDGE
+**Target phase:** v2 of the project board, alongside FU-AG-DOD-NUDGE
+**Severity:** 🟢 LOW
+
+**Origin:** Matt: *"same for moving into 'done' column. it says because
+but the example is talking about sandpaper. i dont really know what
+its asking me to do."*
+
+Two issues with v1:
+1. The "Because…" label + "Three Cs evidence" copy was teacher-jargon
+   that didn't land for kids.
+2. The `220 grit / 80 grit` sandpaper example was specific to a wood
+   project and confused students on a CO2-racer / marble-run unit.
+3. The field was REQUIRED to mark a card Done, blocking the move.
+
+Round 22 fixes all three:
+- Label: "What did you learn?" (plain English).
+- Helper copy: "A quick note — what worked, what changed, or what
+  you'd do differently next time."
+- Example: "Glue dried faster than I thought — next time I'll start
+  the next step sooner."
+- Validation: optional, no longer blocks the move.
+
+**What v2 should reintroduce** (soft, non-blocking):
+- A teacher-side analytics surface: "Done cards without reflection"
+  per student, so the teacher can prompt during a 1:1 conversation
+  rather than the system enforcing it.
+- A weekly "what did you learn this week?" pulse that aggregates
+  empty `becauseClause` cards into a single reflection prompt — one
+  modal a week instead of one per card.
+- Optional class-wide weighting: the teacher can flip a setting that
+  re-introduces the hard gate per class (some teachers will want it,
+  some won't). Default off.
+
+**Pointers:**
+- Reducer: same `validateMove` softening as DoD.
+- Done-card display: `src/components/student/kanban/KanbanCard.tsx`
+  already pins the becauseClause as a small italic quote on Done cards.
+  v2 might add a `+ Add note` link when the clause is empty.
+- Read-only display in card-detail edit view:
+  `src/components/student/kanban/KanbanCardModal.tsx` — relabelled
+  "What you learned" in round 22.
+
+---
+
 ## Resolved
 
 ### ✅ FU-AGENCY-CALIBRATION-MINIVIEW (6 May 2026, PR #65)

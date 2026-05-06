@@ -114,14 +114,20 @@ describe("TimelineBoard top-level component", () => {
     expect(BOARD_SRC).toMatch(/ordered\.length === 0/);
   });
 
-  it("Add milestone uses window.prompt for label + targetDate (mirrors Kanban)", () => {
-    expect(BOARD_SRC).toMatch(/window\.prompt\(\s*"New milestone label/);
-    expect(BOARD_SRC).toMatch(/window\.prompt\(\s*"Target date/);
+  // Round 21 — replaced window.prompt x2 with TimelineAddMilestoneModal
+  it("Add milestone opens TimelineAddMilestoneModal (no native window.prompt)", () => {
+    expect(BOARD_SRC).not.toMatch(/window\.prompt\(/);
+    expect(BOARD_SRC).toContain("TimelineAddMilestoneModal");
+    // The button toggles addOpen state, the modal does the data entry.
+    expect(BOARD_SRC).toContain("setAddOpen(true)");
+    expect(BOARD_SRC).toMatch(/handleAddMilestoneSubmit/);
   });
 
-  it("rejects malformed targetDate from prompt (passes null instead)", () => {
+  it("malformed targetDate from the modal is normalised to null in the dispatch path", () => {
+    // The format guard now lives inside TimelineAddMilestoneModal —
+    // the board-level handler just trusts the modal's contract.
     expect(BOARD_SRC).toMatch(
-      /\/\^\\d\{4\}-\\d\{2\}-\\d\{2\}\$\/\.test\(targetDate\)/
+      /handleAddMilestoneSubmit\(\s*label:\s*string,\s*targetDate:\s*string\s*\|\s*null/
     );
   });
 

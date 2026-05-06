@@ -245,10 +245,10 @@ export default function KanbanCardModal({
                 (card.becauseClause?.trim() ?? "").length > 0 && (
                   <div className="block">
                     <span className="text-[10.5px] font-semibold text-gray-700 uppercase tracking-wide block mb-1">
-                      Because…
+                      What you learned
                     </span>
                     <p className="text-[10px] text-gray-500 mb-1">
-                      Three Cs evidence captured when this card was finished.
+                      The note you left when you marked this Done.
                     </p>
                     <div
                       className="w-full text-[12px] px-2 py-1.5 bg-emerald-50 border border-emerald-200 rounded text-emerald-900 whitespace-pre-wrap"
@@ -325,32 +325,36 @@ export default function KanbanCardModal({
                 <em>{COLUMN_LABELS[moveTarget]}</em>.
               </p>
 
-              {/* DoD field if missing + needed (gated by initial-empty
-                  snapshot — see dodWasInitiallyEmptyRef above for rationale) */}
+              {/* DoD field — Round 22: now optional (was required in v1).
+                  Only surfaced when DoD is empty so students who already
+                  set one don't see a redundant field. Visibility is gated
+                  on dodWasInitiallyEmptyRef so it doesn't unmount mid-typing. */}
               {(moveTarget === "this_class" ||
                 moveTarget === "doing" ||
                 moveTarget === "done") &&
                 dodWasInitiallyEmptyRef.current && (
                   <label className="block">
                     <span className="text-[10.5px] font-semibold text-gray-700 uppercase tracking-wide block mb-1">
-                      Definition of Done <span className="text-rose-500">*</span>
+                      Definition of Done{" "}
+                      <span className="text-gray-400 font-normal normal-case">
+                        (optional)
+                      </span>
                     </span>
                     <p className="text-[10px] text-gray-500 mb-1">
-                      Required for this column. &quot;I&apos;ll know this is
-                      done when...&quot;
+                      How will you know this is done? You can fill this in
+                      later from the card if you&apos;re not sure yet.
                     </p>
                     <textarea
                       value={dodDraft}
                       onChange={(e) => {
                         setDodDraft(e.target.value);
-                        // Eagerly commit so validateMove sees the new DoD;
-                        // visibility is gated on dodWasInitiallyEmptyRef so
-                        // this no longer unmounts the field mid-typing.
+                        // Eagerly commit so the card detail reflects what
+                        // the student typed even if they hit Move now.
                         onUpdateDoD(e.target.value);
                       }}
                       rows={2}
                       maxLength={500}
-                      placeholder="e.g. Smooth, ≤35g, no flat spots"
+                      placeholder="e.g. Sketch shows top + side view"
                       className="w-full text-[12px] px-2 py-1.5 bg-white border border-gray-300 rounded resize-y focus:outline-none focus:ring-1 focus:ring-violet-300 focus:border-violet-500"
                       data-testid="kanban-move-dod-input"
                     />
@@ -381,22 +385,28 @@ export default function KanbanCardModal({
                 </label>
               )}
 
-              {/* Because clause for Done */}
+              {/* Because clause for Done — Round 22: now optional (was
+                  required in v1). The "Three Cs" example was confusing
+                  ("220 grit / 80 grit" is sandpaper jargon — kids on a
+                  CO2-racer or marble-run unit won't map onto it). */}
               {moveTarget === "done" && (
                 <label className="block">
                   <span className="text-[10.5px] font-semibold text-gray-700 uppercase tracking-wide block mb-1">
-                    Because… <span className="text-rose-500">*</span>
+                    What did you learn?{" "}
+                    <span className="text-gray-400 font-normal normal-case">
+                      (optional)
+                    </span>
                   </span>
                   <p className="text-[10px] text-gray-500 mb-1">
-                    Three Cs evidence — what changed because of this work?
-                    &quot;I switched to 220 grit because 80 was too aggressive.&quot;
+                    A quick note — what worked, what changed, or what
+                    you&apos;d do differently next time.
                   </p>
                   <textarea
                     value={becauseDraft}
                     onChange={(e) => setBecauseDraft(e.target.value)}
                     rows={3}
                     maxLength={1000}
-                    placeholder="I decided/learned/changed X because Y..."
+                    placeholder="e.g. Glue dried faster than I thought — next time I&apos;ll start the next step sooner."
                     className="w-full text-[12px] px-2 py-1.5 bg-white border border-gray-300 rounded resize-y focus:outline-none focus:ring-1 focus:ring-violet-300 focus:border-violet-500"
                     data-testid="kanban-move-because-input"
                   />

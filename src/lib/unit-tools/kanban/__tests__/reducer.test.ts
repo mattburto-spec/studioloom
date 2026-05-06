@@ -162,14 +162,17 @@ describe("kanbanReducer — updateTitle + updateDoD", () => {
 // ─── moveCard — happy paths + WIP + DoD + because ────────────────────────────
 
 describe("validateMove + moveCard — happy paths", () => {
-  it("move backlog → this_class needs DoD", () => {
+  // Round 22 — DoD requirement softened (no longer blocks move).
+  // FU-AG-DOD-NUDGE in co2-racers-followups.md tracks bringing this
+  // back as a soft nudge in v2.
+  it("move backlog → this_class with NO DoD now succeeds (round 22)", () => {
     const state: KanbanState = {
       ...emptyKanbanState(),
       cards: [makeCardLike({ id: "c1", status: "backlog", dod: null })],
     };
     const v = validateMove(state, "c1", "this_class", {});
-    expect(v.ok).toBe(false);
-    expect(v.errors[0].field).toBe("dod");
+    expect(v.ok).toBe(true);
+    expect(v.errors).toEqual([]);
   });
 
   it("move backlog → this_class with DoD succeeds", () => {
@@ -258,29 +261,33 @@ describe("validateMove — WIP enforcement", () => {
   });
 });
 
-describe("validateMove + moveCard — Done requires becauseClause", () => {
-  it("blocks move to done with no because clause", () => {
+describe("validateMove + moveCard — Done becauseClause (now optional)", () => {
+  // Round 22 — because-clause requirement softened (no longer blocks
+  // move to Done). FU-AG-BECAUSE-NUDGE in co2-racers-followups.md
+  // tracks bringing this back as a soft reflection nudge in v2.
+  it("move to done with NO because clause now succeeds (round 22)", () => {
     const state: KanbanState = {
       ...emptyKanbanState(),
       cards: [makeCardLike({ id: "c1", status: "doing", dod: "x" })],
     };
     const v = validateMove(state, "c1", "done", {});
-    expect(v.ok).toBe(false);
-    expect(v.errors[0].field).toBe("because");
+    expect(v.ok).toBe(true);
+    expect(v.errors).toEqual([]);
   });
 
-  it("accepts move to done when because supplied", () => {
+  it("accepts move to done when because supplied (still optional but captured if filled)", () => {
     const state: KanbanState = {
       ...emptyKanbanState(),
       cards: [makeCardLike({ id: "c1", status: "doing", dod: "x" })],
     };
     const v = validateMove(state, "c1", "done", {
-      becauseClause: "Switched to 220 grit because 80 was too aggressive",
+      becauseClause:
+        "Glue dried faster than I thought — next time I'll start the next step sooner.",
     });
     expect(v.ok).toBe(true);
   });
 
-  it("preserves existing because on the card if no new one supplied (e.g. card already had it)", () => {
+  it("preserves existing because on the card if no new one supplied", () => {
     const state: KanbanState = {
       ...emptyKanbanState(),
       cards: [makeCardLike({

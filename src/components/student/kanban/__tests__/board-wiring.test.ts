@@ -158,8 +158,11 @@ describe("KanbanBoard top-level component", () => {
   });
 
   it("dispatching createCard wires title + status from the user input", () => {
+    // Round 21 — flow now: handleAddCardSubmit receives the title
+    // from KanbanAddCardModal and dispatches createCard with the
+    // captured target column from addCardForColumn state.
     expect(BOARD_SRC).toMatch(
-      /dispatch\(\{\s*type:\s*"createCard",\s*title,\s*status:\s*toStatus/
+      /dispatch\(\{\s*type:\s*"createCard",\s*title,\s*status:\s*addCardForColumn/
     );
   });
 
