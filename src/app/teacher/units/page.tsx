@@ -316,18 +316,40 @@ export default function TeacherUnitsPage() {
     }
 
     const supabase = createClient();
-    // Round 25 (6 May 2026 PM) — set author_teacher_id (+ teacher_id) on
-    // the insert. The "Teachers insert units" RLS policy gates INSERT on
-    // `author_teacher_id = auth.uid()`. The original manual-create code
-    // omitted both columns, so every manual-create attempt failed with
-    // "new row violates row-level security policy for table units".
-    // The wizard flow at /teacher/units/create already does this — line
-    // 939 of that file is the precedent.
+    // Round 25 (6 May 2026 PM) — set author_teacher_id + teacher_id +
+    // school_id on the insert. Two NOT NULL / RLS constraints stack here:
+    //
+    //   1. "Teachers insert units" RLS policy gates INSERT on
+    //      author_teacher_id = auth.uid(). Without it: "new row violates
+    //      row-level security policy for table units".
+    //   2. units.school_id was tightened to NOT NULL by migration
+    //      20260428222049_phase_0_8b. Without it: "null value in column
+    //      school_id of relation units violates not-null constraint".
+    //
+    // Both constraints exist on the API route at /api/teacher/units
+    // (route.ts:158-180) and the AI-wizard create flow. The manual modal
+    // was the last call site missing both. Lesson #67-style audit: when
+    // a NOT NULL constraint or RLS policy lands, audit ALL writers.
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
       setError("Not signed in. Reload the page and try again.");
+      setCreating(false);
+      return;
+    }
+    // Resolve teacher's school_id — required for the units insert.
+    // teachers table has self-read RLS; this query returns the caller's
+    // own row.
+    const { data: teacherRow, error: teacherErr } = await supabase
+      .from("teachers")
+      .select("school_id")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (teacherErr || !teacherRow?.school_id) {
+      setError(
+        "Your teacher account isn't linked to a school. Ask the platform admin to set your school before creating units."
+      );
       setCreating(false);
       return;
     }
@@ -339,6 +361,7 @@ export default function TeacherUnitsPage() {
         content_data: contentData,
         author_teacher_id: user.id,
         teacher_id: user.id,
+        school_id: teacherRow.school_id,
       })
       .select("id")
       .single();
