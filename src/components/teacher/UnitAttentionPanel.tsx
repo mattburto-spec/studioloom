@@ -145,7 +145,14 @@ export default function UnitAttentionPanel({
             <dt className="inline font-semibold text-gray-800">Three Cs:</dt>{" "}
             <dd className="inline">
               Choice / Causation / Change. Comes from New Metrics survey
-              blocks (student self-rating) plus your teacher observations.
+              blocks (student self-rating, 1–3) plus your teacher
+              observations (1–4).{" "}
+              <span className="text-amber-700 font-semibold">
+                Reflects the rating button picked, NOT the quality of the
+                written answer.
+              </span>{" "}
+              Use it to spot rotation targets, then verify the entries
+              behind it during the 1-on-1 chat.
               <span className="text-gray-500"> Add a New Metrics block in any lesson to start collecting.</span>
             </dd>
           </div>
@@ -374,7 +381,7 @@ function ThreeCsBadge({ aggregate }: { aggregate: number | null }) {
         "text-[11px] font-semibold tabular-nums px-2 py-1 rounded " + tone
       }
       data-testid="attention-threecs-badge"
-      title={`Three Cs aggregate (Choice / Causation / Change). Avg of latest ratings per dimension. Higher = stronger agency evidence.`}
+      title={`Three Cs aggregate. Average of self-rating values picked by the student (1–3 scale) and any teacher observations (1–4 scale). Reflects which BUTTON they chose, NOT the quality of their written response — verify the underlying entries before drawing conclusions.`}
     >
       {rounded.toFixed(1)}
     </span>
