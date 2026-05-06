@@ -104,15 +104,15 @@ describe("classifyDrop", () => {
     });
   });
 
-  it("needsModal when target is this_class + no DoD", () => {
+  // Round 22 — DoD requirement softened. Drop-to-This-Class with no
+  // DoD now goes straight through (was: blocked with needsModal modal).
+  it("ok when target is this_class even with no DoD (round 22)", () => {
     const card = makeCard({ id: "c1", status: "backlog", dod: null });
     const state = makeState([card]);
-    const out = classifyDrop(state, card, "this_class");
-    expect(out.kind).toBe("needsModal");
-    if (out.kind === "needsModal") {
-      expect(out.toStatus).toBe("this_class");
-      expect(out.missingFields).toContain("dod");
-    }
+    expect(classifyDrop(state, card, "this_class")).toEqual({
+      kind: "ok",
+      toStatus: "this_class",
+    });
   });
 
   it("blocked when target is doing + WIP would exceed", () => {
@@ -147,7 +147,9 @@ describe("classifyDrop", () => {
     });
   });
 
-  it("needsModal when target is done + no becauseClause yet (DoD is set)", () => {
+  // Round 22 — because-clause requirement softened. Drop-to-Done with
+  // no because clause now goes straight through (was: needsModal).
+  it("ok when target is done even with no becauseClause (round 22)", () => {
     const card = makeCard({
       id: "c1",
       status: "doing",
@@ -155,11 +157,10 @@ describe("classifyDrop", () => {
       becauseClause: null,
     });
     const state = makeState([card]);
-    const out = classifyDrop(state, card, "done");
-    expect(out.kind).toBe("needsModal");
-    if (out.kind === "needsModal") {
-      expect(out.missingFields).toContain("because");
-    }
+    expect(classifyDrop(state, card, "done")).toEqual({
+      kind: "ok",
+      toStatus: "done",
+    });
   });
 
   it("ok when target is done + DoD + becauseClause both set", () => {
@@ -176,10 +177,10 @@ describe("classifyDrop", () => {
     });
   });
 
-  it("WIP block precedence over DoD — student fixes WIP first, doesn't waste time on a fixable error", () => {
-    // Card going to doing without DoD AND WIP full — the blocked
-    // (WIP) case wins. Student needs to free a slot before any
-    // modal interaction is useful.
+  // Round 22 — only WIP can still produce a "blocked" result. DoD is
+  // no longer a competing error so the precedence test simplifies to
+  // just confirming WIP-block fires when the cap is reached.
+  it("WIP block fires when the cap is reached (only remaining hard rule)", () => {
     const occupant = makeCard({
       id: "occ",
       status: "doing",

@@ -89,29 +89,21 @@ export function validateMove(
     }
   }
 
-  // DoD required for cards entering This Class or beyond
-  const dodRequiredFrom: KanbanColumn[] = ["this_class", "doing", "done"];
-  if (dodRequiredFrom.includes(toStatus)) {
-    const dod = card.dod?.trim() ?? "";
-    if (dod.length === 0) {
-      errors.push({
-        field: "dod",
-        message:
-          "Definition of Done required (\"I'll know this is done when...\")",
-      });
-    }
-  }
-
-  // Because clause required when moving to Done
-  if (toStatus === "done") {
-    const becauseRaw = args.becauseClause?.trim() ?? card.becauseClause?.trim() ?? "";
-    if (becauseRaw.length === 0) {
-      errors.push({
-        field: "because",
-        message: "Add a because clause before marking Done (Three Cs evidence)",
-      });
-    }
-  }
+  // Round 22 (6 May 2026 PM) — DoD + because-clause requirements
+  // softened to NOT BLOCK the move. Per Matt: "im forced to add
+  // definition of done. for now this is a bit annoying… i just want
+  // the kids using the board without hitting pop ups each time they
+  // move a tile". The fields stay editable on the card detail modal,
+  // and we keep them surfaced as gentle nudges in the UI, but they
+  // no longer reject the move.
+  //
+  // FU-AG-DOD-NUDGE / FU-AG-BECAUSE-NUDGE (filed in
+  // co2-racers-followups.md) — re-introduce as a softer gate later
+  // (e.g. quiet badge + teacher review filter) once Matt has watched
+  // a class of kids actually use the board for a session.
+  //
+  // WIP cap on Doing stays — that's the one rule the spec calls
+  // pedagogically essential and Matt didn't push back on it.
 
   return { ok: errors.length === 0, errors };
 }
