@@ -64,11 +64,33 @@ describe("UnitAttentionPanel — row rendering", () => {
     expect(PANEL_SRC).toContain("data-suggested-one-on-one={row.suggestedOneOnOne}");
   });
 
-  it("Suggested 1:1 badge gated by row flag", () => {
+  it("Suggested 1-on-1 badge gated by row flag (round 7 — clearer label)", () => {
     expect(PANEL_SRC).toMatch(
-      /row\.suggestedOneOnOne\s*&&[\s\S]*?Suggested 1:1/
+      /row\.suggestedOneOnOne\s*&&[\s\S]*?Suggested 1-on-1/
     );
     expect(PANEL_SRC).toContain('data-testid="attention-1on1-badge"');
+  });
+
+  it("renders an expandable legend explaining 1:1 / Three Cs / Calibration / Journal-Kanban (round 7)", () => {
+    expect(PANEL_SRC).toContain('data-testid="attention-legend"');
+    // All four legend items present
+    expect(PANEL_SRC).toContain("Suggested 1:1:");
+    expect(PANEL_SRC).toContain("Three Cs:");
+    expect(PANEL_SRC).toContain("Calibration:");
+    expect(PANEL_SRC).toContain("Journal / Kanban:");
+  });
+
+  it("each signal cell carries an explanatory title tooltip (round 7)", () => {
+    // SignalCell now accepts + renders a `tooltip` prop on the outer span.
+    expect(PANEL_SRC).toMatch(/title=\{tooltip\}/);
+    // Specific tooltip text passed at the call sites
+    expect(PANEL_SRC).toContain("Last Process Journal entry");
+    expect(PANEL_SRC).toContain("Last time the student moved a card");
+    expect(PANEL_SRC).toContain("Last time YOU recorded a teacher observation");
+  });
+
+  it("'no rating' badge tooltip explains where ratings come from (round 7)", () => {
+    expect(PANEL_SRC).toContain("Add a New Metrics block to a lesson");
   });
 
   it("renders 3 signal cells (journal / kanban / calibration)", () => {
