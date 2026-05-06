@@ -1,11 +1,11 @@
 {
   "registry": "audit-coverage",
-  "timestamp": "2026-05-04T22:20:42.417160+00:00",
+  "timestamp": "2026-05-06T01:49:29.428182+00:00",
   "version": 1,
   "stats": {
-    "total_mutation_routes": 233,
+    "total_mutation_routes": 237,
     "covered": 7,
-    "skipped": 226,
+    "skipped": 230,
     "missing": 0
   },
   "covered": [
@@ -400,6 +400,13 @@
       "reason": "routine learner activity, low audit value"
     },
     {
+      "file": "src/app/api/student/kanban/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "AG.2.3a \u2014 student Kanban CRUD via token session. Storage in"
+    },
+    {
       "file": "src/app/api/student/learning-profile/route.ts",
       "methods": [
         "PATCH",
@@ -555,6 +562,13 @@
         "POST"
       ],
       "reason": "routine learner activity, low audit value"
+    },
+    {
+      "file": "src/app/api/student/timeline/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "AG.3.3 \u2014 student Timeline CRUD via token session. Storage in"
     },
     {
       "file": "src/app/api/student/tool-sessions/[id]/route.ts",
@@ -1302,6 +1316,21 @@
         "POST"
       ],
       "reason": "routine teacher pedagogy ops, low audit value"
+    },
+    {
+      "file": "src/app/api/teacher/tasks/[id]/route.ts",
+      "methods": [
+        "DELETE",
+        "PATCH"
+      ],
+      "reason": "TG.0C.5 task PATCH/DELETE; same auth pattern as parent"
+    },
+    {
+      "file": "src/app/api/teacher/tasks/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "TG.0C teacher CRUD on assessment_tasks; orchestration mirrors"
     },
     {
       "file": "src/app/api/teacher/teach/on-the-fly/route.ts",
