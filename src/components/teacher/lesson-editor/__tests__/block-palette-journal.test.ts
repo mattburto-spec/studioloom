@@ -34,10 +34,13 @@ describe("Process Journal block in BlockPalette", () => {
   it("uses responseType='structured-prompts' in create() factory", () => {
     const idx = PALETTE_SRC.indexOf('id: "process-journal"');
     expect(idx).toBeGreaterThan(0);
-    const block = PALETTE_SRC.slice(idx, idx + 700);
+    const block = PALETTE_SRC.slice(idx, idx + 1000);
     expect(block).toContain('responseType: "structured-prompts"');
     expect(block).toContain("prompts: JOURNAL_PROMPTS");
     expect(block).toContain("autoCreateKanbanCardOnSave: true");
+    // Round 5: surfaces the entry in Narrative even when other blocks
+    // in the unit are portfolioCapture-flagged.
+    expect(block).toContain("portfolioCapture: true");
   });
 
   it("category=response (so it surfaces in the Student Response group)", () => {

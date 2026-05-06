@@ -30,20 +30,40 @@ export function buildNarrativeSections(
     const responses =
       (pageProgress?.responses as Record<string, unknown>) || {};
 
-    // Filter responses based on portfolioCapture flags
+    // Filter responses based on portfolioCapture flags.
+    //
+    // Smoke-fix 6 May 2026 (round 5): the lesson page stores responses
+    // under TWO different key schemes:
+    //   - "section_${i}"            — legacy sections without activityId
+    //   - "activity_${activityId}"  — modern activity blocks (Process
+    //                                  Journal, custom blocks, anything
+    //                                  authored via BlockPalette)
+    // Narrative was only ever reading section_${i}, so any new-style
+    // block (including the AG.1 Process Journal) silently fell off the
+    // narrative even though student_progress.responses held the data.
+    // We now try the activity_ key first, falling back to section_ for
+    // legacy. The output is still keyed by section_${i} so the
+    // downstream renderer doesn't have to know about the dual scheme.
     const filteredResponses: Record<string, unknown> = {};
     if (page.content?.sections) {
       page.content.sections.forEach((section, i) => {
-        const key = `section_${i}`;
-        const value = responses[key];
+        const sectionKey = `section_${i}`;
+        const activityKey = section.activityId
+          ? `activity_${section.activityId}`
+          : null;
+        // Prefer activityId-keyed value (modern); fall back to
+        // section-index-keyed (legacy).
+        const value =
+          (activityKey ? responses[activityKey] : undefined) ??
+          responses[sectionKey];
         if (value === null || value === undefined || value === "") return;
 
         if (usePortfolioFilter) {
           if (section.portfolioCapture) {
-            filteredResponses[key] = value;
+            filteredResponses[sectionKey] = value;
           }
         } else {
-          filteredResponses[key] = value;
+          filteredResponses[sectionKey] = value;
         }
       });
     }
