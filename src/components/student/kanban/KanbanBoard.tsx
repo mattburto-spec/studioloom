@@ -20,6 +20,7 @@ import {
 import {
   cardsByStatus,
   estimateAccuracy,
+  validateMove,
 } from "@/lib/unit-tools/kanban/reducer";
 import {
   classifyDrop,
@@ -88,7 +89,15 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   // "+ Add card" button, that button's onClick fires the synthetic
   // click and the Add modal opens unintentionally. We set this ref for
   // ~250ms after a drag ends to swallow any clicks during that window.
+  //
+  // Round 23 — same problem applied to the cards themselves: the
+  // pointer-up after a drag-end fires synthetic click on the dragged
+  // card, which opens the detail modal. Per Matt: "i dont want these
+  // white popups each time i move a card. only when i click on a
+  // card". `suppressCardClick` state is the React-visible mirror of
+  // dragJustEndedRef so KanbanCard's handleClick can short-circuit.
   const dragJustEndedRef = useRef<number>(0);
+  const [suppressCardClick, setSuppressCardClick] = useState(false);
 
   const registerColumnEl = useCallback(
     (id: KanbanColumnId, el: HTMLElement | null) => {
@@ -135,7 +144,12 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
     // Round 21 — stamp the moment the drag ended so the next ~250ms of
     // synthetic clicks (e.g. on the "+ Add card" button under the drop
     // point) are swallowed by handleAddCard.
+    // Round 23 — same window suppresses synthetic clicks on the cards
+    // themselves so the post-drop pointer-up doesn't open the detail
+    // modal.
     dragJustEndedRef.current = Date.now();
+    setSuppressCardClick(true);
+    setTimeout(() => setSuppressCardClick(false), 250);
     if (!card) return;
 
     const rects = readColumnRects();
@@ -327,6 +341,7 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
               onCardDragStart={handleCardDragStart}
               onCardDrag={handleCardDrag}
               onCardDragEnd={handleCardDragEnd}
+              suppressCardClick={suppressCardClick}
             />
           );
         })}
@@ -382,6 +397,26 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
             dispatch({ type: "updateDoD", cardId: openCard.id, dod })
           }
           onMove={(toStatus, args) => {
+            // Round 23 — validate before dispatch so a WIP-blocked move
+            // surfaces as a toast (same as the drag-drop "blocked"
+            // path) instead of silently no-op'ing inside the reducer.
+            // Round 22's softened validation means only WIP can fail
+            // here, but defensive validation keeps the UX consistent
+            // if FU-AG-DOD-NUDGE re-tightens things later.
+            const v = validateMove(state, openCard.id, toStatus, {
+              estimateMinutes: args.estimateMinutes,
+              becauseClause: args.becauseClause,
+            });
+            if (!v.ok) {
+              const wipErr = v.errors.find((e) => e.field === "wip");
+              if (wipErr) {
+                setDropToast(wipErr.message);
+                setTimeout(() => setDropToast(null), 2400);
+              }
+              // Keep modal open if validation failed for any reason —
+              // the student can pick a different column or close.
+              return;
+            }
             dispatch({
               type: "moveCard",
               cardId: openCard.id,
