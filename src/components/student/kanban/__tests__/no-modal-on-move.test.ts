@@ -52,18 +52,27 @@ describe("KanbanBoard — drag-end suppresses post-drop card click (round 26 ref
 
   it("handleCardClick gates on ref before opening the modal", () => {
     expect(BOARD_SRC).toMatch(/function handleCardClick\(cardId: string\)/);
-    // Round 28 — window bumped 350ms → 1000ms.
-    expect(BOARD_SRC).toMatch(/sinceDragMs\s*<\s*1000/);
-    // And the bail return path is present right after.
+    // Round 28 → Round 29 — window stays at 1000ms (proven safe). The
+    // round-28 sinceDragMs intermediate variable + console.debug calls
+    // were stripped in round 29 to minimise the diff back to known-good
+    // shape.
     expect(BOARD_SRC).toMatch(
-      /if\s*\(sinceDragMs\s*<\s*1000\)\s*\{[\s\S]{0,500}return\s*;/
+      /Date\.now\(\)\s*-\s*dragJustEndedRef\.current\s*<\s*1000/
     );
   });
 
-  it("dragJustEndedRef is also stamped on dragStart (round 28 belt+suspenders)", () => {
-    expect(BOARD_SRC).toMatch(
-      /function handleCardDragStart[\s\S]{0,400}dragJustEndedRef\.current\s*=\s*Date\.now\(\)/
-    );
+  // Round 29 — dragStart stamp REVERTED after Matt repro'd "can't drag
+  // and drop the cards at all". The drag-end stamp + 1000ms window in
+  // handleCardClick is the proven part. Asserting the drag-START
+  // function is back to a no-stamp shape so we don't accidentally
+  // re-add the suspect line.
+  it("dragStart does NOT stamp dragJustEndedRef (round 29 revert)", () => {
+    const startIdx = BOARD_SRC.indexOf("function handleCardDragStart(");
+    expect(startIdx).toBeGreaterThan(0);
+    // Look at the body of handleCardDragStart only (until the next function).
+    const nextFnIdx = BOARD_SRC.indexOf("function ", startIdx + 1);
+    const body = BOARD_SRC.slice(startIdx, nextFnIdx);
+    expect(body).not.toMatch(/dragJustEndedRef\.current\s*=\s*Date\.now\(\)/);
   });
 
   it("KanbanColumn receives onCardClick={handleCardClick} (not an inline arrow)", () => {
