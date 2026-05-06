@@ -461,16 +461,23 @@ describe("computeVariance", () => {
     expect(computeVariance("2026-05-10", "2026-05-12T10:00:00Z")).toBe("behind");
   });
 
-  it("'tight' when target is today", () => {
-    expect(computeVariance("2026-05-12", "2026-05-12T15:00:00Z")).toBe("tight");
+  // Smoke-feedback 6 May 2026 — wider thresholds so colour shifts visibly.
+  it("'behind' when target is today (≤2 days = urgent)", () => {
+    expect(computeVariance("2026-05-12", "2026-05-12T15:00:00Z")).toBe("behind");
   });
 
-  it("'tight' when target is tomorrow", () => {
-    expect(computeVariance("2026-05-13", "2026-05-12T15:00:00Z")).toBe("tight");
+  it("'behind' when target is 1-2 days away (urgent)", () => {
+    expect(computeVariance("2026-05-13", "2026-05-12T15:00:00Z")).toBe("behind");
+    expect(computeVariance("2026-05-14", "2026-05-12T15:00:00Z")).toBe("behind");
   });
 
-  it("'on_track' when target is 2+ days away", () => {
-    expect(computeVariance("2026-05-15", "2026-05-12T15:00:00Z")).toBe("on_track");
+  it("'tight' when target is 3-6 days away (start working on it)", () => {
+    expect(computeVariance("2026-05-15", "2026-05-12T15:00:00Z")).toBe("tight");
+    expect(computeVariance("2026-05-18", "2026-05-12T15:00:00Z")).toBe("tight");
+  });
+
+  it("'on_track' when target is 7+ days away", () => {
+    expect(computeVariance("2026-05-19", "2026-05-12T15:00:00Z")).toBe("on_track");
     expect(computeVariance("2026-06-11", "2026-05-12T15:00:00Z")).toBe("on_track");
   });
 });
@@ -535,24 +542,95 @@ describe("summarizeTimeline", () => {
 // ─── milestonesByStatus + orderedMilestones ─────────────────────────────────
 
 describe("milestonesByStatus + orderedMilestones", () => {
-  const state: TimelineState = {
-    ...emptyTimelineState(),
-    milestones: [
-      makeMilestoneLike({ id: "1", order: 2 }),
-      makeMilestoneLike({ id: "2", order: 0, status: "done" }),
-      makeMilestoneLike({ id: "3", order: 1 }),
-    ],
-  };
-
   it("milestonesByStatus returns sorted by order, filtered by status", () => {
+    // Note: milestonesByStatus uses raw `order` field (not the new
+    // date-aware sort) because callers want the manual reorder index
+    // for that filtered subset.
+    const state: TimelineState = {
+      ...emptyTimelineState(),
+      milestones: [
+        makeMilestoneLike({ id: "1", order: 2 }),
+        makeMilestoneLike({ id: "2", order: 0, status: "done" }),
+        makeMilestoneLike({ id: "3", order: 1 }),
+      ],
+    };
     const pending = milestonesByStatus(state, "pending");
     expect(pending.map((m) => m.id)).toEqual(["3", "1"]);
     const done = milestonesByStatus(state, "done");
     expect(done.map((m) => m.id)).toEqual(["2"]);
   });
 
-  it("orderedMilestones returns ALL milestones sorted by order", () => {
+  // Smoke-feedback 6 May 2026 — orderedMilestones now sorts by target
+  // date primarily (with status/null/order tiebreakers), not raw order.
+  it("orderedMilestones sorts pending before done", () => {
+    const state: TimelineState = {
+      ...emptyTimelineState(),
+      milestones: [
+        makeMilestoneLike({
+          id: "1",
+          targetDate: "2026-05-10",
+          status: "done",
+          order: 0,
+        }),
+        makeMilestoneLike({
+          id: "2",
+          targetDate: "2026-05-20",
+          status: "pending",
+          order: 1,
+        }),
+      ],
+    };
     const out = orderedMilestones(state);
-    expect(out.map((m) => m.id)).toEqual(["2", "3", "1"]);
+    // pending wins despite later target date
+    expect(out.map((m) => m.id)).toEqual(["2", "1"]);
+  });
+
+  it("orderedMilestones sorts pending milestones by target date asc", () => {
+    const state: TimelineState = {
+      ...emptyTimelineState(),
+      milestones: [
+        makeMilestoneLike({
+          id: "later",
+          targetDate: "2026-06-15",
+          order: 0,
+        }),
+        makeMilestoneLike({
+          id: "earlier",
+          targetDate: "2026-05-20",
+          order: 1,
+        }),
+        makeMilestoneLike({
+          id: "middle",
+          targetDate: "2026-06-01",
+          order: 2,
+        }),
+      ],
+    };
+    const out = orderedMilestones(state);
+    expect(out.map((m) => m.id)).toEqual(["earlier", "middle", "later"]);
+  });
+
+  it("orderedMilestones puts null target dates last within their status group", () => {
+    const state: TimelineState = {
+      ...emptyTimelineState(),
+      milestones: [
+        makeMilestoneLike({ id: "no-date", targetDate: null, order: 0 }),
+        makeMilestoneLike({ id: "dated", targetDate: "2026-05-20", order: 1 }),
+      ],
+    };
+    const out = orderedMilestones(state);
+    expect(out.map((m) => m.id)).toEqual(["dated", "no-date"]);
+  });
+
+  it("orderedMilestones uses order as tiebreaker for same target date", () => {
+    const state: TimelineState = {
+      ...emptyTimelineState(),
+      milestones: [
+        makeMilestoneLike({ id: "second", targetDate: "2026-05-20", order: 5 }),
+        makeMilestoneLike({ id: "first", targetDate: "2026-05-20", order: 2 }),
+      ],
+    };
+    const out = orderedMilestones(state);
+    expect(out.map((m) => m.id)).toEqual(["first", "second"]);
   });
 });

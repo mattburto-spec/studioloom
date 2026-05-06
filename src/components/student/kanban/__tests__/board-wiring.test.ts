@@ -294,7 +294,40 @@ describe("KanbanCardModal", () => {
     // committed-on-blur value). Anchor on the move-to DoD testid.
     expect(MODAL_SRC).toContain('data-testid="kanban-move-dod-input"');
     const idx = MODAL_SRC.indexOf('data-testid="kanban-move-dod-input"');
-    const before = MODAL_SRC.slice(Math.max(0, idx - 600), idx);
+    const before = MODAL_SRC.slice(Math.max(0, idx - 800), idx);
     expect(before).toContain("onUpdateDoD(e.target.value)");
+  });
+
+  // Smoke-feedback 6 May 2026 — DoD field unmount-mid-typing fix.
+  it("DoD visibility gated on dodWasInitiallyEmptyRef snapshot (not live card.dod)", () => {
+    expect(MODAL_SRC).toContain("dodWasInitiallyEmptyRef");
+    expect(MODAL_SRC).toContain("moveContextKeyRef");
+    // Captured once per (mode, moveTarget) transition; not on every card.dod change.
+    expect(MODAL_SRC).toMatch(
+      /moveContextKeyRef\.current\s*!==\s*key[\s\S]{0,300}dodWasInitiallyEmptyRef\.current\s*=/
+    );
+    // Conditional uses the ref, not (card.dod?.trim() ?? "").length === 0
+    const moveDodIdx = MODAL_SRC.indexOf('data-testid="kanban-move-dod-input"');
+    const sliceForCondition = MODAL_SRC.slice(
+      Math.max(0, moveDodIdx - 1500),
+      moveDodIdx
+    );
+    expect(sliceForCondition).toContain(
+      "dodWasInitiallyEmptyRef.current"
+    );
+  });
+
+  // Smoke-feedback 6 May 2026 — because-clause display fix.
+  it("Done card edit view surfaces the captured because clause", () => {
+    expect(MODAL_SRC).toContain('data-testid="kanban-modal-because-display"');
+    // Gated on Done status + non-empty becauseClause
+    expect(MODAL_SRC).toMatch(
+      /card\.status === "done"[\s\S]{0,200}card\.becauseClause\?\.trim/
+    );
+    // Read-only div (not a textarea) for v1 — editing is a follow-up
+    const idx = MODAL_SRC.indexOf('data-testid="kanban-modal-because-display"');
+    const before = MODAL_SRC.slice(Math.max(0, idx - 400), idx);
+    expect(before).toContain("<div");
+    expect(before).toContain("bg-emerald-50");
   });
 });

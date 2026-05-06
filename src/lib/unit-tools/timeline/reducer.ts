@@ -223,9 +223,14 @@ export function findNextPendingTargeted(
 
 /**
  * Variance status — computed at READ time against a reference now.
- * - 'on_track': target is in the future, ≥ 2 days away
- * - 'tight':    target is in 0-1 days OR same day
- * - 'behind':   target is in the past
+ * - 'on_track': target is ≥ 7 days away (plenty of time)
+ * - 'tight':    target is 3-6 days away (start working on it)
+ * - 'behind':   target is in the past OR ≤ 2 days away (urgent)
+ *
+ * Smoke-feedback 6 May 2026: original 2-day "tight" + only-past "behind"
+ * thresholds didn't fire any color change for typical race-day planning
+ * (milestones 1-2 weeks out). Widened so the traffic light actually
+ * shifts as a milestone approaches.
  *
  * Caller passes nowIso to make this testable. If milestone is done, we
  * still compute variance against original target — but typically callers
@@ -245,7 +250,8 @@ export function computeVariance(
   const todayMs = new Date(today + "T00:00:00Z").getTime();
   const targetMs = new Date(targetDate + "T00:00:00Z").getTime();
   const days = Math.round((targetMs - todayMs) / 86400000);
-  if (days <= 1) return "tight";
+  if (days <= 2) return "behind";
+  if (days < 7) return "tight";
   return "on_track";
 }
 
@@ -280,7 +286,30 @@ export function milestonesByStatus(
     .sort((a, b) => a.order - b.order);
 }
 
-/** Get all milestones in render order (ascending order index). */
+/**
+ * Get all milestones in render order. Sort priority:
+ *   1. Pending before done (active work surfaces first)
+ *   2. Earliest target date first (nulls treated as "no deadline" → bottom)
+ *   3. order index as a stable tiebreaker (manual drag for same-date items)
+ *
+ * Smoke-feedback 6 May 2026: original sort was order-only, so newly-added
+ * milestones appeared at the bottom regardless of target date. Backward-
+ * mapping pedagogy depends on seeing the timeline laid out by deadline,
+ * so we now sort by date primarily.
+ */
 export function orderedMilestones(state: TimelineState): TimelineMilestone[] {
-  return state.milestones.slice().sort((a, b) => a.order - b.order);
+  return state.milestones.slice().sort((a, b) => {
+    // Done milestones drop to the bottom.
+    if (a.status !== b.status) {
+      return a.status === "done" ? 1 : -1;
+    }
+    // Within same status: sort by target date asc, nulls last.
+    if (a.targetDate !== b.targetDate) {
+      if (a.targetDate === null) return 1;
+      if (b.targetDate === null) return -1;
+      return a.targetDate < b.targetDate ? -1 : 1;
+    }
+    // Same status + same target date: stable tiebreaker by order.
+    return a.order - b.order;
+  });
 }
