@@ -496,14 +496,18 @@ function UnitPageViewInner({
 
       {/* NM pulse removed from here — moved inline above Complete & Continue */}
 
-      {/* ── Right-side tools rail — Journal / My Plan / Schedule / Gallery ── */}
+      {/* ── Right-side tools rail — Portfolio / My Plan / Schedule / Gallery ──
+          Smoke-fix 6 May 2026: button label was "Journal" but the panel
+          that opens shows ALL portfolio entries (notes, photos, links,
+          journal entries) under a "Portfolio" heading. Renamed to match
+          the panel for honest labeling. */}
       {!planOpen && !portfolioOpen && !ganttOpen && (
         <LessonToolsRail
           tools={(
             [
               {
-                id: "journal",
-                label: "Journal",
+                id: "portfolio",
+                label: "Portfolio",
                 onClick: () => setPortfolioOpen(true),
                 icon: (
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
