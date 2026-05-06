@@ -52,8 +52,17 @@ describe("KanbanBoard — drag-end suppresses post-drop card click (round 26 ref
 
   it("handleCardClick gates on ref before opening the modal", () => {
     expect(BOARD_SRC).toMatch(/function handleCardClick\(cardId: string\)/);
+    // Round 28 — window bumped 350ms → 1000ms.
+    expect(BOARD_SRC).toMatch(/sinceDragMs\s*<\s*1000/);
+    // And the bail return path is present right after.
     expect(BOARD_SRC).toMatch(
-      /handleCardClick[\s\S]{0,200}Date\.now\(\)\s*-\s*dragJustEndedRef\.current\s*<\s*350[\s\S]{0,80}return/
+      /if\s*\(sinceDragMs\s*<\s*1000\)\s*\{[\s\S]{0,500}return\s*;/
+    );
+  });
+
+  it("dragJustEndedRef is also stamped on dragStart (round 28 belt+suspenders)", () => {
+    expect(BOARD_SRC).toMatch(
+      /function handleCardDragStart[\s\S]{0,400}dragJustEndedRef\.current\s*=\s*Date\.now\(\)/
     );
   });
 
