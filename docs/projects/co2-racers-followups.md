@@ -146,6 +146,36 @@ block. To restore: re-add the entry to the `tools` array in
 
 ---
 
+## FU-AGENCY-PPT-EXPORT-RESTORE — Restore PowerPoint export button on Portfolio panel
+**Surfaced:** 6 May 2026, smoke round 10 (Matt: *"remove the download as PPT in portfolio view. add it as a follow up later."*)
+**Target phase:** When a real teacher / student wants to export the portfolio for an exhibition or report
+**Severity:** 🟢 LOW (intentional removal, not a regression)
+
+**Origin:** PortfolioPanel had an ExportPortfolioPpt button (top-right
+of the panel header) that generates a .pptx with one slide per entry.
+Removed in round 10 because it cluttered the panel UX and isn't part
+of the agency-unit pilot scope.
+
+**Restore steps:**
+- `src/components/portfolio/PortfolioPanel.tsx`:
+  - Re-add `import dynamic from "next/dynamic"`
+  - Re-add `const ExportPortfolioPpt = dynamic(() => import("./ExportPortfolioPpt").then((m) => ({ default: m.ExportPortfolioPpt })), { ssr: false, loading: () => null });`
+  - Re-add the conditional render block (replace the round-10 doc comment) at line ~140:
+    ```tsx
+    {!loading && entries.length > 0 && (
+      <ExportPortfolioPpt
+        entries={entries}
+        unitTitle={unitTitle || "Portfolio"}
+        studentName={studentName}
+      />
+    )}
+    ```
+
+`src/components/portfolio/ExportPortfolioPpt.tsx` is untouched — the
+component still works, just nothing mounts it now.
+
+---
+
 ## FU-AGENCY-PACE-PULSE — Reinstate end-of-lesson pace pulse with fewer questions
 **Surfaced:** 6 May 2026, smoke round 7 (Matt: *"too many questions"*)
 **Target phase:** When the timing model needs the data again
