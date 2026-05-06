@@ -1,0 +1,218 @@
+/**
+ * AG.4 follow-up — calibration mini-view data fetcher.
+ *
+ * Wraps the existing /api/teacher/nm-observation endpoints so the
+ * attention panel can open a row and immediately show:
+ *   - The active competency + its element list (from nm_config)
+ *   - The student's most-recent self-rating per element
+ *   - The student's most-recent teacher-observation per element (if any)
+ *
+ * Same shape as the kanban/timeline client modules — typed wrapper, no
+ * Supabase imports, the route is the auth boundary.
+ */
+
+import {
+  AGENCY_ELEMENTS,
+  getElementsForCompetency,
+  type NMElement,
+} from "@/lib/nm/constants";
+
+/** One element's pre-loaded ratings — drives the mini-view per-element row. */
+export interface ElementCalibrationState {
+  element: NMElement;
+  /** Student's latest self-rating for this element (1..3) or null. */
+  studentRating: number | null;
+  studentComment: string | null;
+  studentRatedAt: string | null;
+  /** Teacher's latest observation rating for this element (1..4) or null. */
+  teacherRating: number | null;
+  teacherComment: string | null;
+  teacherRatedAt: string | null;
+}
+
+export interface CalibrationLoad {
+  studentId: string;
+  studentDisplayName: string;
+  unitId: string;
+  classId: string;
+  /** Active competency ID for this class+unit (from nm_config). */
+  competencyId: string;
+  /** All elements teachers can rate against. */
+  elements: ElementCalibrationState[];
+}
+
+class CalibrationApiError extends Error {
+  public readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "CalibrationApiError";
+    this.status = status;
+  }
+}
+
+interface NmObservationStudentResult {
+  student: { id: string; display_name: string };
+  assessments: Array<{
+    element: string;
+    rating: number;
+    source: "student_self" | "teacher_observation";
+    comment: string | null;
+    created_at: string;
+    competency: string;
+  }>;
+}
+
+interface NmObservationGetResponse {
+  data: NmObservationStudentResult[];
+}
+
+/**
+ * Load one student's calibration state. Uses the existing GET
+ * /api/teacher/nm-observation endpoint (returns the whole class) and
+ * filters down to the requested studentId — wasteful for large classes
+ * but the agency unit's class size is ~9, so the cost is negligible
+ * and avoids surfacing a new endpoint.
+ */
+export async function loadCalibrationForStudent(args: {
+  unitId: string;
+  classId: string;
+  studentId: string;
+}): Promise<CalibrationLoad> {
+  const { unitId, classId, studentId } = args;
+
+  const url = `/api/teacher/nm-observation?unitId=${encodeURIComponent(
+    unitId
+  )}&classId=${encodeURIComponent(classId)}`;
+  const res = await fetch(url, { method: "GET" });
+  if (!res.ok) {
+    let body: unknown = null;
+    try {
+      body = await res.json();
+    } catch {
+      // ignore
+    }
+    const obj = (body || {}) as Record<string, unknown>;
+    throw new CalibrationApiError(
+      res.status,
+      (obj.error as string) || `HTTP ${res.status}`
+    );
+  }
+
+  const payload = (await res.json()) as NmObservationGetResponse;
+  const studentEntry = payload.data.find((d) => d.student.id === studentId);
+
+  if (!studentEntry) {
+    throw new CalibrationApiError(
+      404,
+      "Student not found in this class — refresh the panel."
+    );
+  }
+
+  // Pick the latest assessment per (element, source) pair.
+  const latest = pickLatestPerElementAndSource(studentEntry.assessments);
+
+  // Derive the active competency from any rated assessment, OR fall
+  // back to agency_in_learning (the v1 default).
+  const firstRow = studentEntry.assessments[0];
+  const competencyId = firstRow?.competency || "agency_in_learning";
+  const lookupElements = getElementsForCompetency(competencyId);
+  const elements: NMElement[] =
+    lookupElements && lookupElements.length > 0 ? lookupElements : AGENCY_ELEMENTS;
+
+  return {
+    studentId,
+    studentDisplayName: studentEntry.student.display_name,
+    unitId,
+    classId,
+    competencyId,
+    elements: elements.map((el) => {
+      const self = latest.get(`${el.id}::student_self`);
+      const teacher = latest.get(`${el.id}::teacher_observation`);
+      return {
+        element: el,
+        studentRating: self?.rating ?? null,
+        studentComment: self?.comment ?? null,
+        studentRatedAt: self?.created_at ?? null,
+        teacherRating: teacher?.rating ?? null,
+        teacherComment: teacher?.comment ?? null,
+        teacherRatedAt: teacher?.created_at ?? null,
+      };
+    }),
+  };
+}
+
+/**
+ * Group assessments by `${element}::${source}` and keep the latest
+ * (max created_at) per group. Pure helper — exported for testing.
+ */
+export function pickLatestPerElementAndSource(
+  rows: NmObservationStudentResult["assessments"]
+): Map<
+  string,
+  NmObservationStudentResult["assessments"][number]
+> {
+  const result = new Map<
+    string,
+    NmObservationStudentResult["assessments"][number]
+  >();
+  for (const row of rows) {
+    const key = `${row.element}::${row.source}`;
+    const existing = result.get(key);
+    if (!existing || existing.created_at < row.created_at) {
+      result.set(key, row);
+    }
+  }
+  return result;
+}
+
+/**
+ * Submit a calibration session (one POST per Save click). Each entry
+ * becomes a `teacher_observation` row in competency_assessments. Empty
+ * ratings are skipped — the teacher may rate only some elements.
+ */
+export async function saveCalibration(args: {
+  unitId: string;
+  classId: string;
+  studentId: string;
+  pageId?: string;
+  assessments: Array<{
+    element: string;
+    rating: number;
+    comment?: string;
+  }>;
+}): Promise<{ count: number }> {
+  if (args.assessments.length === 0) {
+    return { count: 0 };
+  }
+
+  const res = await fetch("/api/teacher/nm-observation", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      studentId: args.studentId,
+      unitId: args.unitId,
+      classId: args.classId,
+      pageId: args.pageId,
+      assessments: args.assessments,
+    }),
+  });
+
+  if (!res.ok) {
+    let body: unknown = null;
+    try {
+      body = await res.json();
+    } catch {
+      // ignore
+    }
+    const obj = (body || {}) as Record<string, unknown>;
+    throw new CalibrationApiError(
+      res.status,
+      (obj.error as string) || `HTTP ${res.status}`
+    );
+  }
+
+  const payload = (await res.json()) as { success: boolean; count: number };
+  return { count: payload.count };
+}
+
+export { CalibrationApiError };

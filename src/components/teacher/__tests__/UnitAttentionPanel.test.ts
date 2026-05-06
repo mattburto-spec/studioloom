@@ -53,8 +53,8 @@ describe("UnitAttentionPanel — wiring", () => {
     expect(PANEL_SRC).toMatch(/if \(cancelled\) return/);
   });
 
-  it("re-loads when unitId or classId change", () => {
-    expect(PANEL_SRC).toMatch(/\[unitId,\s*classId\]/);
+  it("re-loads when unitId, classId, or refreshKey change (refreshKey added in calibration round)", () => {
+    expect(PANEL_SRC).toMatch(/\[unitId,\s*classId,\s*refreshKey\]/);
   });
 });
 
