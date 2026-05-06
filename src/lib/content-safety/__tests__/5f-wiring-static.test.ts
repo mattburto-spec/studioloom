@@ -20,7 +20,9 @@ const WIRED_ENDPOINTS = [
   { file: 'quest/contract/route.ts', marker: 'moderateAndLog' },
   { file: 'quest/sharing/route.ts', marker: 'moderateAndLog' },
   { file: 'open-studio/session/route.ts', marker: 'moderateAndLog' },
-  { file: 'planning/route.ts', marker: 'moderateAndLog' },
+  // planning/route.ts removed 6 May 2026 (FU-AGENCY-PLANNINGPANEL-CLEANUP)
+  // along with the orphaned PlanningPanel + GanttPanel components.
+  // planning_tasks table left intact in prod for safety.
   { file: 'avatar/route.ts', marker: 'moderateAndLog' },
 ];
 
@@ -36,7 +38,7 @@ describe('5F-a wiring: moderateAndLog present in endpoints', () => {
     });
   }
 
-  it('covers exactly 15 endpoint files', () => {
-    expect(WIRED_ENDPOINTS).toHaveLength(15);
+  it('covers exactly 14 endpoint files (15 → 14 after planning route deletion 6 May 2026)', () => {
+    expect(WIRED_ENDPOINTS).toHaveLength(14);
   });
 });
