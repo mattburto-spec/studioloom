@@ -34,6 +34,8 @@ interface ResponseInputProps {
   requirePhoto?: boolean;
   /** For structured-prompts responseType (AG.2.4): when true, after save, fire-and-forget append a Kanban backlog card from the "next" prompt's response. Default false. */
   autoCreateKanbanCardOnSave?: boolean;
+  /** Round 11 — explicit-save flow that bypasses the lesson autosave debounce. */
+  onSaveResponseImmediate?: (value: string) => Promise<void>;
   /** For structured-prompts responseType: callback fired after successful save (e.g. to seed AG.2 Kanban from the "next" prompt). */
   onStructuredPromptsSaved?: (saved: { content: string; nextMove: string | null }) => void;
   /** Enable integrity monitoring on text input (for academic integrity tracking) */
@@ -53,6 +55,7 @@ export function ResponseInput({
   prompts,
   requirePhoto,
   autoCreateKanbanCardOnSave,
+  onSaveResponseImmediate,
   onStructuredPromptsSaved,
   sectionIndex,
   responseType,
@@ -207,6 +210,7 @@ export function ResponseInput({
           autoCreateKanbanCardOnSave={autoCreateKanbanCardOnSave}
           savedValue={value}
           onChange={onChange}
+          onSaveImmediate={onSaveResponseImmediate}
           onSaved={onStructuredPromptsSaved}
         />
       )}

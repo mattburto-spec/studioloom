@@ -12,6 +12,13 @@ interface UsePageResponsesReturn {
   saving: boolean;
   showSaveToast: boolean;
   saveProgress: (newStatus?: string, opts?: { silent?: boolean }) => Promise<void>;
+  /**
+   * Round 11 (6 May 2026) — write a single response key + value AND
+   * immediately persist to /api/student/progress, bypassing the 2s
+   * debounced autosave. Used by Process Journal "Save" so the journal
+   * survives if the student navigates away within 2 seconds.
+   */
+  saveResponseImmediate: (key: string, value: string) => Promise<void>;
   moderationError: string | null;
 }
 
@@ -226,5 +233,27 @@ export function usePageResponses(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, currentPage]);
 
-  return { responses, setResponses, saving, showSaveToast, saveProgress, moderationError };
+  // Round 11 — immediate save helper (bypasses the 2s debounce). Updates
+  // both the ref AND state so saveProgress reads the new value, then
+  // awaits the POST. Designed for explicit save buttons that mustn't
+  // race the autosave (Process Journal "Save").
+  const saveResponseImmediate = useCallback(
+    async (key: string, value: string) => {
+      const next = { ...responsesRef.current, [key]: value };
+      responsesRef.current = next;
+      setResponses(next);
+      await saveProgress("in_progress", { silent: true });
+    },
+    [saveProgress]
+  );
+
+  return {
+    responses,
+    setResponses,
+    saving,
+    showSaveToast,
+    saveProgress,
+    saveResponseImmediate,
+    moderationError,
+  };
 }

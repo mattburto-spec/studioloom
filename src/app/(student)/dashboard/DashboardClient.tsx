@@ -382,6 +382,24 @@ function insightToQueueItem(insight: InsightRow, kind: QueueItem["kind"]): Queue
 
 type PriorityBuckets = { overdue: QueueItem[]; today: QueueItem[]; soon: QueueItem[] };
 
+/**
+ * Round 11 (6 May 2026) — map QueueItem to the slim NotificationItem
+ * shape consumed by the bell popover. Drops icon + color (popover is
+ * text-only); composes a stable id from kind + due + title.
+ */
+function toNotification(
+  q: QueueItem
+): import("@/components/student/BellCountContext").NotificationItem {
+  return {
+    id: `${q.kind}:${q.due}:${q.title}`,
+    kind: q.kind,
+    title: q.title,
+    sub: q.sub,
+    dueText: q.dueText,
+    href: q.href,
+  };
+}
+
 const MOCK_BUCKETS: PriorityBuckets = {
   overdue: QUEUE_MOCK.filter((q) => q.kind === "overdue"),
   today:   QUEUE_MOCK.filter((q) => q.kind === "today"),
@@ -1152,9 +1170,12 @@ export default function DashboardClient() {
   const { student, classInfo } = useStudent();
   const sessionStudent: SessionStudent = studentToSession(student, classInfo?.name);
 
-  // The nav's bell badge is provided via BellCountContext — dashboard owns
-  // the insights fetch, so it pushes the count up to the layout-owned nav.
-  const { setCount: setBellCount } = useBellCount();
+  // The nav's bell badge + popover items are provided via BellCountContext —
+  // dashboard owns the insights fetch, so it pushes both the count AND
+  // the actual notification items up to the layout-owned nav.
+  // Round 11 (6 May 2026): items added so the bell renders an inline
+  // popover instead of navigating away.
+  const { setCount: setBellCount, setItems: setBellItems } = useBellCount();
 
   // Initial state is null so we render skeletons until the fetch resolves.
   // On success → real data. On 401/error → fall back to MOCK (preview mode).
@@ -1171,10 +1192,24 @@ export default function DashboardClient() {
   // Phase 12 — focus mode. Hides everything except the current next step.
   const [focusMode, setFocusMode] = useState(false);
 
-  // Keep the nav's bell badge in sync with the priority queue.
+  // Keep the nav's bell badge + popover items in sync with the priority
+  // queue. Round 11 — items added so the bell renders inline.
   useEffect(() => {
-    setBellCount((buckets?.overdue.length ?? 0) + (buckets?.today.length ?? 0));
-  }, [buckets, setBellCount]);
+    const overdue = buckets?.overdue ?? [];
+    const today = buckets?.today ?? [];
+    const soon = buckets?.soon ?? [];
+    setBellCount(overdue.length + today.length);
+
+    // Map QueueItem → NotificationItem (slim shape, no icon — popover
+    // is text-only). Order: overdue first (most urgent), then today,
+    // then a few soon for context.
+    const items = [
+      ...overdue.map(toNotification),
+      ...today.map(toNotification),
+      ...soon.slice(0, 5).map(toNotification),
+    ];
+    setBellItems(items);
+  }, [buckets, setBellCount, setBellItems]);
 
   // Load badges (earned + pending) from the safety API (Phase 6).
   // Sets MOCK on 401/error so preview mode still renders, just without
