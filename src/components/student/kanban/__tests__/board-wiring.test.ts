@@ -137,7 +137,9 @@ describe("KanbanBoard top-level component", () => {
 
   it("renders estimate-accuracy ratio when at least one card has both estimate + actual", () => {
     expect(BOARD_SRC).toContain('data-testid="kanban-estimate-accuracy"');
-    expect(BOARD_SRC).toMatch(/Estimate calibration[\s\S]{0,200}\.toFixed\(2\)/);
+    // Round 16: shorter "Calibration {ratio}×" pill instead of the
+    // verbose "Estimate calibration: {ratio}× ({n} cards)" line
+    expect(BOARD_SRC).toMatch(/Calibration[\s\S]{0,80}\.toFixed\(2\)/);
   });
 
   it("loading state renders before ready", () => {
@@ -173,12 +175,37 @@ describe("KanbanBoard top-level component", () => {
 
 describe("KanbanColumn", () => {
   it("renders count + WIP indicator when wipLimit prop set", () => {
-    expect(COLUMN_SRC).toMatch(/wipLimit !== undefined[\s\S]{0,80}\$\{count\} \/ \$\{wipLimit\}/);
+    // Round 16: format is `{count}/{wipLimit}` (no spaces)
+    expect(COLUMN_SRC).toMatch(/wipLimit !== undefined[\s\S]{0,120}\$\{count\}\/\$\{wipLimit\}/);
   });
 
-  it("color codes count: rose when over, amber when at, gray when under", () => {
-    expect(COLUMN_SRC).toMatch(/overLimit[\s\S]{0,200}text-rose-600/);
-    expect(COLUMN_SRC).toMatch(/atLimit[\s\S]{0,200}text-amber-600/);
+  it("color codes count: rose-600 bg when over, amber-500 bg when at (round 16 pill)", () => {
+    expect(COLUMN_SRC).toMatch(/overLimit[\s\S]{0,200}bg-rose-600/);
+    expect(COLUMN_SRC).toMatch(/atLimit[\s\S]{0,200}bg-amber-500/);
+  });
+
+  // ─── Round 16 (6 May 2026) — UI overhaul guards ──────────────────────
+
+  it("imports framer-motion AnimatePresence + motion for card animation", () => {
+    expect(COLUMN_SRC).toContain('from "framer-motion"');
+    expect(COLUMN_SRC).toMatch(/import\s*\{[^}]*motion[^}]*\}/);
+    expect(COLUMN_SRC).toMatch(/import\s*\{[^}]*AnimatePresence/);
+  });
+
+  it("each card wrapped in motion.div with layout + spring transition", () => {
+    expect(COLUMN_SRC).toMatch(/<motion\.div\s+key=\{card\.id\}\s+layout/);
+    expect(COLUMN_SRC).toMatch(/type:\s*"spring"/);
+  });
+
+  it("per-column tone palette covers all 4 columns (subtle bg + accent dot)", () => {
+    expect(COLUMN_SRC).toMatch(/COLUMN_TONE/);
+    for (const col of ["backlog", "this_class", "doing", "done"]) {
+      expect(COLUMN_SRC).toMatch(new RegExp(`${col}:\\s*\\{`));
+    }
+  });
+
+  it("popLayout mode used so leaving cards don't fight the spring", () => {
+    expect(COLUMN_SRC).toContain('mode="popLayout"');
   });
 
   it("only renders Add card affordance when allowAdd=true", () => {
@@ -194,14 +221,16 @@ describe("KanbanColumn", () => {
 describe("KanbanCard", () => {
   it("shows blocked indicator when card.blockType is non-null", () => {
     expect(CARD_SRC).toContain("isBlocked");
-    // Just check the literal "Blocked:" prefix + BLOCK_LABELS lookup
-    expect(CARD_SRC).toContain("Blocked:");
+    // Round 16: blocked pill renders the icon + label (no longer the
+    // "Blocked:" prefix); BLOCK_LABELS + BLOCK_ICONS lookups stay.
     expect(CARD_SRC).toContain("BLOCK_LABELS[card.blockType!]");
+    expect(CARD_SRC).toContain("BLOCK_ICONS[card.blockType!]");
   });
 
   it("renders journal-next icon when source === 'journal_next'", () => {
+    // Round 16: layout-motion wrapper changed proximity; widen window
     expect(CARD_SRC).toMatch(
-      /isJournalCreated\s*&&[\s\S]{0,200}📔/
+      /isJournalCreated\s*&&[\s\S]{0,400}📔/
     );
   });
 

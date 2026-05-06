@@ -1,21 +1,18 @@
 "use client";
 
 /**
- * AG.2.3b — KanbanCard
+ * KanbanCard — single-card render. Click → opens detail modal.
  *
- * Single-card render. Click → opens detail modal (parent owns).
- * Pure presentation — all state lives in KanbanBoard's reducer.
+ * Round 16 (6 May 2026) UI overhaul:
+ *   - Cleaner spacing + typography hierarchy
+ *   - Status-based subtle left-border colour
+ *   - Polished blocked state (rose ring + small block-type pill)
+ *   - Estimate badge with dual estimate/actual when both present
+ *   - Whileskip-on-touch hover/press transitions for feedback
  *
- * Visual signals:
- *   - Title (bold)
- *   - DoD chip (when set, gray pill)
- *   - Time estimate badge (⏱ 25m) when set
- *   - Blocked indicator (rose dot + block-type label) when blocked
- *   - Lesson link icon when card is lesson-attached
- *   - Source badge (📔) for journal-next cards
- *
- * Per Lesson #71: zero pure logic in this file — everything formattable
- * comes from the card object directly. Tests stay in reducer + helpers.
+ * Pure presentation. Animation lives in the parent KanbanColumn's
+ * AnimatePresence + motion.div wrapper (so the card itself stays
+ * a button, not a motion.button — keeps focus + a11y semantics).
  */
 
 import type { KanbanCard as KanbanCardType } from "@/lib/unit-tools/kanban/types";
@@ -32,29 +29,50 @@ const BLOCK_LABELS: Record<NonNullable<KanbanCardType["blockType"]>, string> = {
   help: "Help",
 };
 
+const BLOCK_ICONS: Record<NonNullable<KanbanCardType["blockType"]>, string> = {
+  tool: "🔧",
+  skill: "🧠",
+  decision: "🤔",
+  help: "🙋",
+};
+
+// Status → subtle left border colour. Matches the column accents in
+// KanbanColumn.tsx.
+const STATUS_BORDER: Record<KanbanCardType["status"], string> = {
+  backlog: "border-l-slate-400",
+  this_class: "border-l-amber-500",
+  doing: "border-l-violet-500",
+  done: "border-l-emerald-500",
+};
+
 export default function KanbanCard({ card, onClick }: KanbanCardProps) {
   const isBlocked = card.blockType !== null;
   const isJournalCreated = card.source === "journal_next";
+  const statusBorder = STATUS_BORDER[card.status];
 
   return (
     <button
       type="button"
       onClick={onClick}
       className={[
-        "w-full text-left p-2 rounded-md border transition-shadow",
-        "bg-white hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400",
+        "group w-full text-left p-2.5 pl-3 rounded-lg border-l-[3px] border-y border-r",
+        "bg-white transition-all duration-200",
+        "hover:shadow-md hover:-translate-y-0.5 active:translate-y-0",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400",
+        statusBorder,
         isBlocked
-          ? "border-rose-300 ring-1 ring-rose-100"
-          : "border-gray-200 hover:border-violet-300",
+          ? "border-y-rose-300 border-r-rose-300 bg-rose-50/40"
+          : "border-y-gray-200 border-r-gray-200 hover:border-y-gray-300 hover:border-r-gray-300",
       ].join(" ")}
       data-testid={`kanban-card-${card.id}`}
       data-card-status={card.status}
       data-card-blocked={isBlocked ? "true" : "false"}
     >
+      {/* Title row — icons left, title right */}
       <div className="flex items-start gap-1.5">
         {isJournalCreated && (
           <span
-            className="text-[11px] mt-0.5 flex-shrink-0"
+            className="text-[12px] mt-0.5 flex-shrink-0 opacity-70"
             title="Created from journal Next prompt"
             aria-label="From journal"
           >
@@ -63,55 +81,86 @@ export default function KanbanCard({ card, onClick }: KanbanCardProps) {
         )}
         {card.lessonLink && (
           <span
-            className="text-[11px] mt-0.5 flex-shrink-0"
+            className="text-[12px] mt-0.5 flex-shrink-0 opacity-60"
             title="Linked to a lesson activity"
             aria-label="Linked to lesson"
           >
             🔗
           </span>
         )}
-        <span className="flex-1 text-[12px] font-semibold text-gray-900 leading-snug break-words">
+        <span className="flex-1 text-[13px] font-bold text-gray-900 leading-snug break-words">
           {card.title}
         </span>
       </div>
 
-      {/* Meta line — DoD, estimate, blocked */}
-      <div className="mt-1.5 flex items-center flex-wrap gap-1 text-[10px]">
-        {card.dod && (
-          <span
-            className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 max-w-full"
-            title={card.dod}
-          >
-            <span className="mr-0.5">✓</span>
-            <span className="truncate" style={{ maxWidth: "10rem" }}>
-              {card.dod}
-            </span>
-          </span>
-        )}
-        {card.estimateMinutes !== null && card.estimateMinutes > 0 && (
-          <span
-            className="inline-flex items-center px-1.5 py-0.5 rounded bg-violet-50 text-violet-700"
-            title={
-              card.actualMinutes !== null
-                ? `Estimate ${card.estimateMinutes}m / Actual ${card.actualMinutes}m`
-                : `Estimated ${card.estimateMinutes}m`
-            }
-          >
-            ⏱ {card.estimateMinutes}m
-            {card.actualMinutes !== null && (
-              <span className="ml-0.5 text-gray-600">
-                /{card.actualMinutes}m
+      {/* Meta line — DoD, estimate, blocked. Only renders when there
+          IS something to show, so simple cards don't have a wasted
+          empty row. */}
+      {(card.dod ||
+        (card.estimateMinutes !== null && card.estimateMinutes > 0) ||
+        isBlocked) && (
+        <div className="mt-2 flex items-center flex-wrap gap-1.5 text-[10.5px]">
+          {card.dod && (
+            <span
+              className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-700 max-w-full"
+              title={card.dod}
+            >
+              <svg
+                width="9"
+                height="9"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mr-1 text-emerald-600 flex-shrink-0"
+                aria-hidden="true"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <span className="truncate" style={{ maxWidth: "9rem" }}>
+                {card.dod}
               </span>
-            )}
-          </span>
-        )}
-        {isBlocked && (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">
-            <span className="w-1 h-1 rounded-full bg-rose-500 mr-1" />
-            Blocked: {BLOCK_LABELS[card.blockType!]}
-          </span>
-        )}
-      </div>
+            </span>
+          )}
+          {card.estimateMinutes !== null && card.estimateMinutes > 0 && (
+            <span
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-violet-100 text-violet-800 font-semibold tabular-nums"
+              title={
+                card.actualMinutes !== null
+                  ? `Estimate ${card.estimateMinutes}m / Actual ${card.actualMinutes}m`
+                  : `Estimated ${card.estimateMinutes}m`
+              }
+            >
+              ⏱ {card.estimateMinutes}m
+              {card.actualMinutes !== null && (
+                <span className="text-violet-500 font-normal">
+                  /{card.actualMinutes}m
+                </span>
+              )}
+            </span>
+          )}
+          {isBlocked && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-700 font-semibold">
+              <span className="text-[11px]" aria-hidden="true">
+                {BLOCK_ICONS[card.blockType!]}
+              </span>
+              {BLOCK_LABELS[card.blockType!]}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Done card — surface the becauseClause as a small pinned quote */}
+      {card.status === "done" && card.becauseClause && (
+        <div
+          className="mt-2 pt-2 border-t border-emerald-100 text-[10.5px] text-emerald-900 italic leading-snug truncate"
+          title={card.becauseClause}
+        >
+          &ldquo;{card.becauseClause}&rdquo;
+        </div>
+      )}
     </button>
   );
 }
