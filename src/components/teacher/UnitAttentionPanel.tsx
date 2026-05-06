@@ -102,16 +102,63 @@ export default function UnitAttentionPanel({
     );
   }
 
+  const suggestedCount = data.rows.filter((r) => r.suggestedOneOnOne).length;
+
   return (
     <div className="flex flex-col gap-3" data-testid="attention-panel">
       <DontRescueBanner />
+
+      {/* Round 7 — short legend so teachers know what each signal means.
+          Without it "1:1", "Calibration: never", and "no rating" all
+          read as cryptic. */}
+      <details
+        className="text-[11px] text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2"
+        data-testid="attention-legend"
+      >
+        <summary className="cursor-pointer font-semibold text-gray-700 hover:text-violet-700">
+          What do these mean?
+        </summary>
+        <dl className="mt-2 space-y-1.5 leading-snug">
+          <div>
+            <dt className="inline font-semibold text-gray-800">Suggested 1:1:</dt>{" "}
+            <dd className="inline">
+              Bottom-third by Three Cs aggregate — the rotation target for a
+              quick one-on-one mentor chat today.
+            </dd>
+          </div>
+          <div>
+            <dt className="inline font-semibold text-gray-800">Three Cs:</dt>{" "}
+            <dd className="inline">
+              Choice / Causation / Change. Comes from New Metrics survey
+              blocks (student self-rating) plus your teacher observations.
+              <span className="text-gray-500"> Add a New Metrics block in any lesson to start collecting.</span>
+            </dd>
+          </div>
+          <div>
+            <dt className="inline font-semibold text-gray-800">Calibration:</dt>{" "}
+            <dd className="inline">
+              When you last recorded a teacher observation for that student
+              (side-by-side rating against their self-rating). &ldquo;Never&rdquo; means no
+              observation recorded yet for this unit.
+            </dd>
+          </div>
+          <div>
+            <dt className="inline font-semibold text-gray-800">Journal / Kanban:</dt>{" "}
+            <dd className="inline">
+              When the student last saved a Process Journal entry / moved a
+              card on their Project Board.
+            </dd>
+          </div>
+        </dl>
+      </details>
+
       <div className="text-[10.5px] uppercase tracking-wide text-gray-500 px-1 flex items-center gap-2">
         <span className="font-semibold">Attention rotation</span>
         <span className="text-gray-300">·</span>
         <span>{data.rows.length} students</span>
         <span className="text-gray-300">·</span>
-        <span>
-          {data.rows.filter((r) => r.suggestedOneOnOne).length} suggested 1:1
+        <span title="Bottom-third by Three Cs aggregate score">
+          {suggestedCount} suggested for 1-on-1
         </span>
       </div>
       <ul className="flex flex-col gap-1.5">
@@ -183,9 +230,10 @@ function AttentionRowItem({ row, nowIso }: AttentionRowItemProps) {
           {row.suggestedOneOnOne && (
             <span
               className="text-[9.5px] uppercase tracking-wide bg-violet-600 text-white px-1.5 py-0.5 rounded"
+              title="Bottom-third by Three Cs aggregate. Quick mentor chat suggested today."
               data-testid="attention-1on1-badge"
             >
-              Suggested 1:1
+              Suggested 1-on-1
             </span>
           )}
         </div>
@@ -194,18 +242,21 @@ function AttentionRowItem({ row, nowIso }: AttentionRowItemProps) {
             label="Journal"
             iso={row.lastJournalAt}
             nowIso={nowIso}
+            tooltip="Last Process Journal entry the student saved in this unit."
             testId="attention-signal-journal"
           />
           <SignalCell
             label="Kanban"
             iso={row.lastKanbanMoveAt}
             nowIso={nowIso}
+            tooltip="Last time the student moved a card on their Project Board."
             testId="attention-signal-kanban"
           />
           <SignalCell
             label="Calibration"
             iso={row.lastCalibrationAt}
             nowIso={nowIso}
+            tooltip="Last time YOU recorded a teacher observation for this student. 'Never' = no observation logged for this unit yet."
             testId="attention-signal-calibration"
           />
         </div>
@@ -221,13 +272,19 @@ interface SignalCellProps {
   label: string;
   iso: string | null;
   nowIso: string;
+  /** Native-title tooltip explaining what this signal means. */
+  tooltip?: string;
   testId: string;
 }
 
-function SignalCell({ label, iso, nowIso, testId }: SignalCellProps) {
+function SignalCell({ label, iso, nowIso, tooltip, testId }: SignalCellProps) {
   const formatted = formatRelative(iso, nowIso);
   return (
-    <span className="flex items-center gap-1" data-testid={testId}>
+    <span
+      className="flex items-center gap-1"
+      title={tooltip}
+      data-testid={testId}
+    >
       <span className="text-gray-400">{label}:</span>
       <span
         className={
@@ -250,7 +307,7 @@ function ThreeCsBadge({ aggregate }: { aggregate: number | null }) {
       <span
         className="text-[10px] uppercase tracking-wide bg-gray-100 text-gray-500 px-2 py-1 rounded"
         data-testid="attention-threecs-badge"
-        title="Three Cs not yet rated"
+        title="No Three Cs rating yet for this student. Add a New Metrics block to a lesson — students self-rate at the end, or you can record a teacher observation directly."
       >
         no rating
       </span>
@@ -269,7 +326,7 @@ function ThreeCsBadge({ aggregate }: { aggregate: number | null }) {
         "text-[11px] font-semibold tabular-nums px-2 py-1 rounded " + tone
       }
       data-testid="attention-threecs-badge"
-      title="Three Cs aggregate (Choice / Causation / Change)"
+      title={`Three Cs aggregate (Choice / Causation / Change). Avg of latest ratings per dimension. Higher = stronger agency evidence.`}
     >
       {rounded.toFixed(1)}
     </span>

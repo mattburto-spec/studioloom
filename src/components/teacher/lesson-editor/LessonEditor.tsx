@@ -67,7 +67,11 @@ const SAVE_STATUS_LABELS: Record<string, { text: string; color: string }> = {
 // narrows downstream gates (`pageContent?.sections && ...`) correctly.
 const SHOW_LESSON_HEALTH: boolean = false;
 const SHOW_LESSON_SKILLS_PANEL: boolean = false;
-const SHOW_NM_CHECKPOINT_STRIP: boolean = false;
+// Smoke-fix round 7 (6 May 2026) — flipped back ON. Matt: "now that the
+// top NM yellow area is removed there is no evidence that they [NM
+// blocks] are there." Restored visibility but redesigned the strip to
+// be cleaner (see render block at line ~1140).
+const SHOW_NM_CHECKPOINT_STRIP: boolean = true;
 
 export default function LessonEditor({
   unitId,
@@ -1129,18 +1133,40 @@ export default function LessonEditor({
               )}
 
               {/* ─── Lever-MM: NM checkpoint chips ─── */}
-              {/* Renders the NM elements registered on this lesson as removable
-                  chips. Hidden when no checkpoints exist on this lesson (and
-                  thus the strip is empty) — avoids visual clutter on lessons
-                  without NM. Add via the "New Metrics" block category in the
-                  palette; remove by clicking × on a chip.
-                  5 May 2026 declutter: yellow strip hidden pending lesson-
-                  editor UI redesign. Flip SHOW_NM_CHECKPOINT_STRIP to restore. */}
+              {/* Round 7 redesign: less garish than the original yellow strip,
+                  reads as "metadata block" rather than "warning". Each chip
+                  shows the competency name + remove button. No add affordance
+                  here — adding goes through the palette's "New Metrics"
+                  category, same as before. */}
               {SHOW_NM_CHECKPOINT_STRIP && useNewMetrics && activeNmElementIds.length > 0 && (
-                <div className="mt-3 px-3 py-2 rounded-lg border border-yellow-200 bg-yellow-50">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-yellow-700 text-[10px] font-extrabold tracking-wider uppercase">
-                      🎯 NM checkpoints on this lesson
+                <div
+                  className="mt-3 px-4 py-3 rounded-xl border border-violet-200 bg-violet-50/60"
+                  data-testid="nm-checkpoint-strip"
+                >
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <div className="flex items-center gap-2">
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.25"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="text-violet-700"
+                        aria-hidden="true"
+                      >
+                        <circle cx="12" cy="12" r="10" />
+                        <circle cx="12" cy="12" r="6" />
+                        <circle cx="12" cy="12" r="2" />
+                      </svg>
+                      <span className="text-violet-900 text-[11px] font-bold tracking-wide uppercase">
+                        Three Cs checkpoints on this lesson
+                      </span>
+                    </div>
+                    <span className="text-violet-600 text-[10.5px]">
+                      Students rate themselves against these elements at the end of the lesson.
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
@@ -1150,14 +1176,15 @@ export default function LessonEditor({
                       return (
                         <span
                           key={elementId}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border border-yellow-300 text-[11px] text-yellow-800"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white border border-violet-200 text-[11px] text-violet-900 font-medium shadow-sm"
                           style={meta?.color ? { borderLeft: `3px solid ${meta.color}` } : undefined}
+                          data-testid={`nm-checkpoint-chip-${elementId}`}
                         >
                           <span>{label}</span>
                           <button
                             type="button"
                             onClick={() => handleRemoveNmCheckpoint(elementId)}
-                            className="ml-1 text-yellow-700 hover:text-rose-600 transition-colors"
+                            className="text-violet-400 hover:text-rose-600 transition-colors leading-none text-[14px]"
                             title={`Remove ${label} from this lesson`}
                             aria-label={`Remove ${label} checkpoint`}
                           >

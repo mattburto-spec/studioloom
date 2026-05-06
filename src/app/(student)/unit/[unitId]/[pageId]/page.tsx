@@ -406,11 +406,12 @@ function UnitPageViewInner({
           }
           onComplete={async () => {
             await saveProgress("complete");
-            if (student?.id) {
-              // Show feedback pulse before navigating — feeds timing model.
-              setPendingNavTarget(nextPage ? `/unit/${unitId}/${nextPage.id}` : null);
-              setShowFeedbackPulse(true);
-            } else if (nextPage) {
+            // Smoke-fix round 7 (6 May 2026) — pace-feedback popup
+            // removed per Matt: "too many questions". The modal still
+            // exists at line ~500 (gated on showFeedbackPulse) but is
+            // no longer triggered. To restore: replace this block with
+            // setPendingNavTarget(...) + setShowFeedbackPulse(true).
+            if (nextPage) {
               router.push(`/unit/${unitId}/${nextPage.id}`);
             }
           }}

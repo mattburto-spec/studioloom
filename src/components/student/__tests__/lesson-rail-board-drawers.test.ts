@@ -115,6 +115,27 @@ describe("lesson page — rail rewire (round 6)", () => {
   });
 });
 
+describe("pace-feedback popup retired (round 7)", () => {
+  it("onComplete handler no longer triggers setShowFeedbackPulse (executable code only)", () => {
+    // Matt: "remove the end of lesson popup feedback about lesson pace
+    // as there are too many questions". Trigger removed; navigation
+    // proceeds straight to next page. Strip line comments so the
+    // explanatory doc-comment doesn't false-match.
+    const onCompleteIdx = PAGE_SRC.indexOf("onComplete={async ()");
+    expect(onCompleteIdx).toBeGreaterThan(0);
+    const handlerWithComments = PAGE_SRC.slice(onCompleteIdx, onCompleteIdx + 1000);
+    const handler = handlerWithComments
+      .split("\n")
+      .filter((l) => !l.trim().startsWith("//"))
+      .join("\n");
+    expect(handler).not.toContain("setShowFeedbackPulse(true)");
+    expect(handler).not.toContain("setPendingNavTarget(");
+    // saveProgress + nextPage push still present
+    expect(handler).toContain('saveProgress("complete")');
+    expect(handler).toContain("router.push(`/unit/${unitId}/${nextPage.id}`)");
+  });
+});
+
 describe("BoardDrawer", () => {
   it("renders nothing when open=false (no scrim, no aside)", () => {
     expect(DRAWER_SRC).toMatch(/if \(!open\) return null/);
