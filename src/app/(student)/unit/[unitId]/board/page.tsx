@@ -1,16 +1,17 @@
 /**
- * AG.2.4 — Student Kanban board page (per unit).
+ * AG.2.4 + AG.3.4 — Student project board page (per unit).
  *
- * Mounts <KanbanBoard /> for the per-student-per-unit project board.
- * Auth via Supabase student session; unit existence verified before
- * rendering. The board itself fetches its own state via
- * /api/student/kanban (already auth-gated by token-session pattern).
+ * Mounts both <TimelineBoard /> + <KanbanBoard /> for the per-student-per-unit
+ * project surface. Timeline above (backward-mapped milestones) sets the macro
+ * pace; Kanban below (4-column) handles micro per-class flow. Both fetch
+ * their own state via /api/student/{timeline,kanban}.
  */
 
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStudentSession } from "@/lib/access-v2/actor-session";
 import KanbanBoard from "@/components/student/kanban/KanbanBoard";
+import TimelineBoard from "@/components/student/timeline/TimelineBoard";
 import Link from "next/link";
 
 export default async function StudentUnitBoardPage({
@@ -63,7 +64,10 @@ export default async function StudentUnitBoardPage({
         </nav>
       </header>
 
-      <KanbanBoard unitId={unitId} />
+      <div className="flex flex-col gap-6">
+        <TimelineBoard unitId={unitId} />
+        <KanbanBoard unitId={unitId} />
+      </div>
     </div>
   );
 }
