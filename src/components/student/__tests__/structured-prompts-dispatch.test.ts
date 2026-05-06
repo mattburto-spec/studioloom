@@ -47,7 +47,7 @@ describe("ResponseInput — structured-prompts dispatch", () => {
     );
   });
 
-  it("passes prompts + unitId + pageId + sectionIndex + requirePhoto + onSaved to the component", () => {
+  it("passes prompts + unitId + pageId + sectionIndex + requirePhoto + onSaved + savedValue + onChange to the component", () => {
     const idx = RESPONSE_INPUT_SRC.indexOf("<StructuredPromptsResponse");
     expect(idx).toBeGreaterThan(0);
     const slice = RESPONSE_INPUT_SRC.slice(idx, idx + 500);
@@ -57,6 +57,9 @@ describe("ResponseInput — structured-prompts dispatch", () => {
     expect(slice).toContain("sectionIndex={sectionIndex}");
     expect(slice).toContain("requirePhoto={requirePhoto}");
     expect(slice).toContain("onSaved={onStructuredPromptsSaved}");
+    // Smoke-fix 6 May 2026 — narrative aggregation wiring
+    expect(slice).toContain("savedValue={value}");
+    expect(slice).toContain("onChange={onChange}");
   });
 
   it("guards on prompts + unitId + pageId being defined before rendering (defensive)", () => {
@@ -119,6 +122,37 @@ describe("StructuredPromptsResponse — module hygiene", () => {
     expect(STRUCTURED_PROMPTS_SRC).toMatch(
       /onSaved\?\.\(\{\s*content,\s*nextMove\s*\}\)/
     );
+  });
+
+  // Smoke-fix 6 May 2026 — narrative aggregation wiring.
+  it("writes composed text to lesson responses via onChange after save", () => {
+    expect(STRUCTURED_PROMPTS_SRC).toMatch(/onChange\?\.\(content\)/);
+  });
+
+  it("collapses to saved-preview state after successful save", () => {
+    // After save, editing flips off + responses reset.
+    const saveIdx = STRUCTURED_PROMPTS_SRC.indexOf("setSavedToast(\"Saved to portfolio\")");
+    expect(saveIdx).toBeGreaterThan(0);
+    const after = STRUCTURED_PROMPTS_SRC.slice(saveIdx, saveIdx + 800);
+    expect(after).toContain("setEditing(false)");
+    expect(after).toContain("setResponses({})");
+  });
+
+  it("renders the saved-preview block when savedValue is non-empty + not editing", () => {
+    expect(STRUCTURED_PROMPTS_SRC).toContain('data-testid="structured-prompts-saved-preview"');
+    expect(STRUCTURED_PROMPTS_SRC).toContain('data-testid="structured-prompts-edit"');
+    expect(STRUCTURED_PROMPTS_SRC).toContain('data-mode="saved"');
+    // Gate condition: not editing AND savedValue non-empty
+    expect(STRUCTURED_PROMPTS_SRC).toMatch(
+      /if\s*\(\s*!editing\s*&&\s*\(savedValue\s*\?\?\s*""\)\.trim\(\)\.length\s*>\s*0\s*\)/
+    );
+  });
+
+  it("Edit button reopens the form (sets editing=true)", () => {
+    const idx = STRUCTURED_PROMPTS_SRC.indexOf('data-testid="structured-prompts-edit"');
+    expect(idx).toBeGreaterThan(0);
+    const before = STRUCTURED_PROMPTS_SRC.slice(Math.max(0, idx - 400), idx);
+    expect(before).toContain("setEditing(true)");
   });
 
   it("renders one textarea per prompt with data-testid keyed by promptId", () => {

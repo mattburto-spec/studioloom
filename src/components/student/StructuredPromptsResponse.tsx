@@ -53,6 +53,23 @@ interface StructuredPromptsResponseProps {
    * (kanban save errors don't block the journal save).
    */
   autoCreateKanbanCardOnSave?: boolean;
+  /**
+   * Smoke-fix 6 May 2026 — the lesson's existing response value for this
+   * section_index, if previously saved. Non-empty means the student has
+   * already written this journal once; we render the saved content as a
+   * preview with an Edit button instead of a fresh empty form. This is
+   * also what feeds the Narrative aggregator (Narrative reads from
+   * student_progress.responses, not portfolio_entries).
+   */
+  savedValue?: string;
+  /**
+   * Smoke-fix 6 May 2026 — write the composed journal text into
+   * student_progress.responses[section_${i}] so the Narrative view picks
+   * it up. Without this, journals saved successfully to portfolio_entries
+   * but the Narrative empty-state ("No responses yet") still showed
+   * because it filters auto-captured entries out by design.
+   */
+  onChange?: (composedContent: string) => void;
   /** Called after a successful save. Parent uses this to refresh portfolio panel, mark activity done, etc. */
   onSaved?: (savedPayload: { content: string; nextMove: string | null }) => void;
 }
@@ -64,8 +81,15 @@ export default function StructuredPromptsResponse({
   sectionIndex,
   requirePhoto = false,
   autoCreateKanbanCardOnSave = false,
+  savedValue,
+  onChange,
   onSaved,
 }: StructuredPromptsResponseProps) {
+  const hasSavedEntry = (savedValue ?? "").trim().length > 0;
+  // When an entry is already saved on this section_index, start in the
+  // "saved preview" state. Edit re-opens the form (responses stay empty —
+  // re-typing replaces the saved entry). Smoke-fix 6 May 2026.
+  const [editing, setEditing] = useState(!hasSavedEntry);
   const [responses, setResponses] = useState<StructuredPromptResponses>({});
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -206,7 +230,25 @@ export default function StructuredPromptsResponse({
 
       setSavedToast("Saved to portfolio");
       setShowFieldErrors(false);
+
+      // Smoke-fix 6 May 2026 — also write the composed text into the
+      // lesson's responses object so the Narrative aggregator picks it
+      // up. Narrative deliberately filters out auto-captured portfolio
+      // entries; the lesson responses path is the canonical place for
+      // structured-prompts content to live.
+      onChange?.(content);
+
       onSaved?.({ content, nextMove });
+
+      // Collapse to the saved-preview view so the student sees what was
+      // saved (and the Edit button to re-open if they want to revise).
+      setEditing(false);
+      setResponses({});
+      setPhotoFile(null);
+      if (photoPreview) {
+        URL.revokeObjectURL(photoPreview);
+        setPhotoPreview(null);
+      }
 
       // Clear after a moment so the student sees the toast then a clean form state
       setTimeout(() => {
@@ -219,10 +261,50 @@ export default function StructuredPromptsResponse({
     }
   }
 
+  // ─── SAVED PREVIEW MODE ────────────────────────────────────────────────
+  // Smoke-fix 6 May 2026 — when a journal has been saved previously, show
+  // the composed text as a read-only preview with an Edit affordance,
+  // rather than re-prompting with an empty form.
+  if (!editing && (savedValue ?? "").trim().length > 0) {
+    return (
+      <div
+        className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg"
+        data-testid="structured-prompts-response"
+        data-mode="saved"
+      >
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <div className="text-[10.5px] font-semibold text-emerald-800 uppercase tracking-wide flex items-center gap-1.5">
+            <span aria-hidden="true">✓</span> Journal saved
+          </div>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="text-[11.5px] text-emerald-700 hover:text-emerald-900 font-semibold underline underline-offset-2"
+            data-testid="structured-prompts-edit"
+          >
+            Edit
+          </button>
+        </div>
+        <pre
+          className="whitespace-pre-wrap text-[12.5px] text-gray-800 font-sans leading-relaxed"
+          data-testid="structured-prompts-saved-preview"
+        >
+          {savedValue}
+        </pre>
+        <p className="text-[10.5px] text-emerald-700 mt-2">
+          This entry is also visible in your Portfolio panel. Editing will
+          replace the saved version.
+        </p>
+      </div>
+    );
+  }
+
+  // ─── EDIT / FRESH-FORM MODE ────────────────────────────────────────────
   return (
     <div
       className="space-y-3 p-4 bg-white border border-gray-200 rounded-lg"
       data-testid="structured-prompts-response"
+      data-mode="editing"
     >
       {prompts.map((prompt) => {
         const response = responses[prompt.id] ?? "";

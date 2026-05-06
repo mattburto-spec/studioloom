@@ -205,6 +205,8 @@ export function ResponseInput({
           sectionIndex={sectionIndex}
           requirePhoto={requirePhoto}
           autoCreateKanbanCardOnSave={autoCreateKanbanCardOnSave}
+          savedValue={value}
+          onChange={onChange}
           onSaved={onStructuredPromptsSaved}
         />
       )}
