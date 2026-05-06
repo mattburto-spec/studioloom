@@ -54,6 +54,13 @@ interface KanbanColumnProps {
   onCardDragStart?: (cardId: string) => void;
   onCardDrag?: (cardId: string, info: PanInfo) => void;
   onCardDragEnd?: (cardId: string, info: PanInfo) => void;
+  /**
+   * Round 23 (6 May 2026 PM) — when true, the next click on any card
+   * is swallowed. Set by the board for ~250ms after a drag-end so the
+   * synthetic pointer-up click on the dragged card doesn't open the
+   * detail modal. Same pattern as the "+ Add card" ghost-click guard.
+   */
+  suppressCardClick?: boolean;
 }
 
 /**
@@ -117,6 +124,7 @@ export default function KanbanColumn({
   onCardDragStart,
   onCardDrag,
   onCardDragEnd,
+  suppressCardClick,
 }: KanbanColumnProps) {
   const count = cards.length;
   const overLimit = wipLimit !== undefined && count > wipLimit;
@@ -250,6 +258,7 @@ export default function KanbanColumn({
                     card={card}
                     onClick={() => onCardClick(card.id)}
                     isDragging={isThisDragging}
+                    suppressClick={suppressCardClick}
                   />
                 </motion.div>
               );

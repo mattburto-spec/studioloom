@@ -218,11 +218,14 @@ export default function KanbanCardModal({
 
               <label className="block">
                 <span className="text-[10.5px] font-semibold text-gray-700 uppercase tracking-wide block mb-1">
-                  Definition of Done
+                  Definition of Done{" "}
+                  <span className="text-gray-400 font-normal normal-case">
+                    (optional)
+                  </span>
                 </span>
                 <p className="text-[10px] text-gray-500 mb-1">
-                  Required when moving to This Class or beyond. &quot;I&apos;ll
-                  know this is done when...&quot;
+                  How will you know this is done? Helps you stay honest
+                  about whether the card&apos;s actually finished.
                 </p>
                 <textarea
                   value={dodDraft}
@@ -230,7 +233,7 @@ export default function KanbanCardModal({
                   onBlur={commitDoD}
                   rows={2}
                   maxLength={500}
-                  placeholder="e.g. Smooth to touch, no flat spots, weight ≤ 35g"
+                  placeholder="e.g. Sketch shows top + side view"
                   className="w-full text-[12px] px-2 py-1.5 bg-white border border-gray-300 rounded resize-y focus:outline-none focus:ring-1 focus:ring-violet-300 focus:border-violet-500"
                   data-testid="kanban-modal-dod-input"
                 />
@@ -259,7 +262,14 @@ export default function KanbanCardModal({
                   </div>
                 )}
 
-              {/* Move-to picker */}
+              {/* Move-to picker — Round 23: buttons now direct-dispatch
+                  the move + close the modal. Per Matt: "i dont want
+                  these white popups each time i move a card." The old
+                  flow opened a sub-mode that asked for DoD/estimate/
+                  because, even with round-22's softened validation
+                  making them all optional. WIP cap on Doing still
+                  fires via the reducer's no-op fallback; the parent's
+                  drop-toast pattern surfaces it. */}
               <div className="pt-1 border-t border-gray-100">
                 <span className="text-[10.5px] font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
                   Move to
@@ -269,7 +279,7 @@ export default function KanbanCardModal({
                     <button
                       key={col}
                       type="button"
-                      onClick={() => onChangeMode("move-to", col)}
+                      onClick={() => onMove(col, {})}
                       className="text-[11px] px-2 py-1 rounded border border-gray-200 hover:border-violet-300 hover:bg-violet-50 text-gray-700 hover:text-violet-700"
                       data-testid={`kanban-modal-move-${col}`}
                     >
