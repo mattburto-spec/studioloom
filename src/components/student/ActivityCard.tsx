@@ -1,6 +1,7 @@
 "use client";
 
 import { ResponseInput } from "@/components/student/ResponseInput";
+import { PortfolioCaptureAffordance } from "@/components/student/PortfolioCaptureAffordance";
 import { TextToSpeech } from "@/components/student/TextToSpeech";
 import { stripMarkdown } from "@/components/student/MarkdownPrompt";
 import { ComposedPrompt } from "@/components/student/ComposedPrompt";
@@ -235,28 +236,50 @@ export function ActivityCard({
             )}
 
           {section.responseType && (
-            <ResponseInput
-              sectionIndex={index}
-              responseType={section.responseType}
-              value={responseValue}
-              onChange={onResponseChange}
-              sentenceStarters={sentenceStarters}
-              unitId={unitId}
-              pageId={pageId}
-              allowedTypes={allowedTypes}
-              toolId={section.toolId}
-              toolChallenge={section.toolChallenge}
-              prompts={section.prompts}
-              requirePhoto={section.requirePhoto}
-              autoCreateKanbanCardOnSave={section.autoCreateKanbanCardOnSave}
-              onSaveResponseImmediate={onSaveResponseImmediate}
-              enableIntegrityMonitoring={enableIntegrityMonitoring}
-              onIntegrityUpdate={
-                onIntegrityUpdate
-                  ? (metadata) => onIntegrityUpdate(index, metadata)
-                  : undefined
-              }
-            />
+            // Round 14 (6 May 2026) — wrap the response in a `group`
+            // container so the subtle PortfolioCaptureAffordance can
+            // appear on hover. Affordance hidden for structured-prompts
+            // (own Save flow) and for already-portfolioCapture-flagged
+            // sections (auto-saved on the autosave debounce).
+            <div className="group relative">
+              <ResponseInput
+                sectionIndex={index}
+                responseType={section.responseType}
+                value={responseValue}
+                onChange={onResponseChange}
+                sentenceStarters={sentenceStarters}
+                unitId={unitId}
+                pageId={pageId}
+                allowedTypes={allowedTypes}
+                toolId={section.toolId}
+                toolChallenge={section.toolChallenge}
+                prompts={section.prompts}
+                requirePhoto={section.requirePhoto}
+                autoCreateKanbanCardOnSave={section.autoCreateKanbanCardOnSave}
+                onSaveResponseImmediate={onSaveResponseImmediate}
+                enableIntegrityMonitoring={enableIntegrityMonitoring}
+                onIntegrityUpdate={
+                  onIntegrityUpdate
+                    ? (metadata) => onIntegrityUpdate(index, metadata)
+                    : undefined
+                }
+              />
+
+              {section.responseType !== "structured-prompts" &&
+                !section.portfolioCapture && (
+                  <div
+                    className="flex items-center justify-end mt-1.5 min-h-[16px]"
+                    data-testid="portfolio-capture-row"
+                  >
+                    <PortfolioCaptureAffordance
+                      unitId={unitId}
+                      pageId={pageId}
+                      sectionIndex={index}
+                      value={responseValue}
+                    />
+                  </div>
+                )}
+            </div>
           )}
 
           {/* Example response (collapsible) — restored to pre-Sub-Phase-3
