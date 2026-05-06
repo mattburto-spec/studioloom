@@ -1,6 +1,6 @@
 {
   "registry": "audit-coverage",
-  "timestamp": "2026-05-06T02:06:50.311964+00:00",
+  "timestamp": "2026-05-06T11:20:02.139110+00:00",
   "version": 1,
   "stats": {
     "total_mutation_routes": 237,
@@ -446,15 +446,6 @@
     {
       "file": "src/app/api/student/pace-feedback/route.ts",
       "methods": [
-        "POST"
-      ],
-      "reason": "routine learner activity, low audit value"
-    },
-    {
-      "file": "src/app/api/student/planning/route.ts",
-      "methods": [
-        "DELETE",
-        "PATCH",
         "POST"
       ],
       "reason": "routine learner activity, low audit value"
@@ -1300,6 +1291,14 @@
       "file": "src/app/api/teacher/student-projects/route.ts",
       "methods": [
         "POST"
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
+    },
+    {
+      "file": "src/app/api/teacher/students/[studentId]/route.ts",
+      "methods": [
+        "DELETE",
+        "PATCH"
       ],
       "reason": "routine teacher pedagogy ops, low audit value"
     },

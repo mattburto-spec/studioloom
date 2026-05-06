@@ -71,7 +71,12 @@ export interface BadgeInput {
 export interface BadgeStats {
   totalToolsUsed: number;
   totalPagesComplete: number;
-  totalTimeMs: number;
+  /**
+   * Round 20 (6 May 2026) — `student_progress.time_spent` is now written
+   * by the client autosave loop in seconds (was: never written, treated
+   * inconsistently as ms). Surface seconds here and let consumers convert.
+   */
+  totalTimeSeconds: number;
   badgesEarned: number;
   badgesTotal: number;
 }
@@ -413,7 +418,7 @@ function computeGrowthBadge(
     const thoughtfulReflections = input.progress.filter(
       (p) =>
         p.status === 'complete' &&
-        (p.time_spent || 0) > 120 * 1000 // 2+ minutes spent = thoughtful
+        (p.time_spent || 0) > 120 // 2+ minutes spent = thoughtful (seconds, post-Round 20)
     ).length;
     const threshold = 5;
     const earned = thoughtfulReflections >= threshold;
@@ -567,7 +572,7 @@ export function computeStats(input: BadgeInput): BadgeStats {
   return {
     totalToolsUsed: uniqueTools.size,
     totalPagesComplete: completedPages,
-    totalTimeMs: totalTime,
+    totalTimeSeconds: totalTime,
     badgesEarned: earned,
     badgesTotal: BADGE_DEFINITIONS.length,
   };

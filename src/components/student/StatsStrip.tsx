@@ -6,14 +6,23 @@ interface StatsStripProps {
   stats: {
     totalToolsUsed: number;
     totalPagesComplete: number;
-    totalTimeMs: number;
+    /**
+     * Round 20 (6 May 2026) — seconds-on-page across the student's units,
+     * accumulated by the autosave loop. Was previously named `totalTimeMs`
+     * but the column was never written, so the rename is non-breaking.
+     */
+    totalTimeSeconds: number;
     badgesEarned: number;
     badgesTotal: number;
   };
 }
 
 export function StatsStrip({ stats }: StatsStripProps) {
-  const hours = (stats.totalTimeMs / (1000 * 60 * 60)).toFixed(1);
+  // Round 20 — Show fractional hours when below 1, integer-hour-and-minute
+  // formatting would be nicer but the existing UI sets a `2.5` aesthetic.
+  const hoursValue = stats.totalTimeSeconds / 3600;
+  const hours =
+    hoursValue >= 1 ? hoursValue.toFixed(1) : hoursValue.toFixed(2);
 
   const items = [
     { value: String(stats.totalPagesComplete), label: "Pages Done", color: "#7C3AED" },

@@ -69,6 +69,16 @@ export default function TeacherStudentView({
   const [activeTab, setActiveTab] = useState<"overview" | "discovery" | "fabrication" | "support">(initialTab);
   const [hasDiscovery, setHasDiscovery] = useState(false);
 
+  // Round 20 — edit-name + delete-student state
+  const [editNameOpen, setEditNameOpen] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   async function loadAll() {
     const supabase = createClient();
 
@@ -220,6 +230,59 @@ export default function TeacherStudentView({
     loadAll();
   }
 
+  // Round 20 — Persist display_name via PATCH /api/teacher/students/[id]
+  async function saveDisplayName() {
+    setNameError(null);
+    setSavingName(true);
+    try {
+      const res = await fetch(`/api/teacher/students/${studentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayName: nameDraft }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setNameError(j.error || `Save failed (${res.status})`);
+        return;
+      }
+      const j = await res.json();
+      // Optimistically update local state from the response
+      if (student) {
+        setStudent({
+          ...student,
+          display_name: j.student?.display_name ?? null,
+        });
+      }
+      setEditNameOpen(false);
+    } catch (e: any) {
+      setNameError(e?.message || "Save failed");
+    } finally {
+      setSavingName(false);
+    }
+  }
+
+  // Round 20 — Hard-delete the student via DELETE /api/teacher/students/[id]
+  async function deleteStudent() {
+    setDeleteError(null);
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/teacher/students/${studentId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setDeleteError(j.error || `Delete failed (${res.status})`);
+        return;
+      }
+      // Successful delete → bounce back to dashboard.
+      window.location.href = "/teacher/dashboard";
+    } catch (e: any) {
+      setDeleteError(e?.message || "Delete failed");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   // Stats computation
   const stats = useMemo(() => {
     const allProgress = units.flatMap((unit) => {
@@ -327,6 +390,32 @@ export default function TeacherStudentView({
             <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-purple-100 text-purple-600 rounded-full">
               Teacher View
             </span>
+            {/* Round 20 — edit-name affordance */}
+            <button
+              type="button"
+              onClick={() => {
+                setNameDraft(student.display_name || "");
+                setNameError(null);
+                setEditNameOpen(true);
+              }}
+              className="text-[11px] text-gray-500 hover:text-purple-700 underline underline-offset-2 ml-1"
+              data-testid="student-edit-name"
+            >
+              Edit name
+            </button>
+            {/* Round 20 — delete-student affordance */}
+            <button
+              type="button"
+              onClick={() => {
+                setDeleteConfirm("");
+                setDeleteError(null);
+                setDeleteOpen(true);
+              }}
+              className="text-[11px] text-rose-500 hover:text-rose-700 underline underline-offset-2 ml-1"
+              data-testid="student-delete"
+            >
+              Delete
+            </button>
           </div>
           <p className="text-sm text-gray-500">@{student.username}</p>
         </div>
@@ -680,6 +769,127 @@ export default function TeacherStudentView({
                 style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
               >
                 {assigning ? "Enrolling..." : "Enroll"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Round 20 — Edit Name Modal */}
+      {editNameOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          onClick={() => !savingName && setEditNameOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6"
+            onClick={(e) => e.stopPropagation()}
+            data-testid="student-edit-name-modal"
+          >
+            <h3 className="text-lg font-extrabold text-gray-900 mb-1">Edit display name</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Shown to {student.display_name || student.username} and other teachers.
+              Leave blank to fall back to the username.
+            </p>
+            <input
+              type="text"
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              maxLength={80}
+              autoFocus
+              placeholder={student.username}
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 mb-2"
+              data-testid="student-edit-name-input"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !savingName) saveDisplayName();
+                if (e.key === "Escape") setEditNameOpen(false);
+              }}
+            />
+            {nameError && (
+              <p className="text-xs text-rose-600 mb-2" data-testid="student-edit-name-error">
+                {nameError}
+              </p>
+            )}
+            <div className="flex items-center justify-end gap-2 mt-3">
+              <button
+                onClick={() => setEditNameOpen(false)}
+                disabled={savingName}
+                className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveDisplayName}
+                disabled={savingName}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition disabled:opacity-50"
+                style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
+                data-testid="student-edit-name-save"
+              >
+                {savingName ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Round 20 — Delete Student Modal */}
+      {deleteOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          onClick={() => !deleting && setDeleteOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6"
+            onClick={(e) => e.stopPropagation()}
+            data-testid="student-delete-modal"
+          >
+            <h3 className="text-lg font-extrabold text-rose-700 mb-1">Delete student</h3>
+            <p className="text-sm text-gray-700 mb-3">
+              This permanently removes <span className="font-semibold">{student.display_name || student.username}</span> from
+              every class on your roster, deletes their progress, and revokes their login.
+              Portfolios, fabrication jobs, and audit logs are preserved.
+            </p>
+            <p className="text-xs text-gray-500 mb-3">
+              Type <span className="font-mono font-bold">{student.username}</span> to confirm.
+            </p>
+            <input
+              type="text"
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              autoFocus
+              placeholder={student.username}
+              className="w-full px-3 py-2 border border-rose-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/30 focus:border-rose-400 mb-2 font-mono"
+              data-testid="student-delete-confirm-input"
+              onKeyDown={(e) => {
+                if (
+                  e.key === "Enter" &&
+                  !deleting &&
+                  deleteConfirm === student.username
+                )
+                  deleteStudent();
+                if (e.key === "Escape") setDeleteOpen(false);
+              }}
+            />
+            {deleteError && (
+              <p className="text-xs text-rose-600 mb-2" data-testid="student-delete-error">
+                {deleteError}
+              </p>
+            )}
+            <div className="flex items-center justify-end gap-2 mt-3">
+              <button
+                onClick={() => setDeleteOpen(false)}
+                disabled={deleting}
+                className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deleteStudent}
+                disabled={deleting || deleteConfirm !== student.username}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                data-testid="student-delete-confirm"
+              >
+                {deleting ? "Deleting..." : "Delete student"}
               </button>
             </div>
           </div>

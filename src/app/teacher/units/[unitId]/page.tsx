@@ -730,6 +730,46 @@ export default function UnitDetailPage({
           {isTimelineUnit || isJourneyUnit ? "Lessons" : "Pages"}
         </h2>
 
+        {/* Round 20 (6 May 2026) — class-fork hint. When any assigned
+            class has forked the unit (via the lesson editor's "This
+            class only" toggle), the master pages list above doesn't
+            reflect those class-specific lessons. Surface a hint so
+            teachers know where to look. */}
+        {forks.length > 0 && (
+          <div
+            className="mb-4 px-3.5 py-2.5 rounded-lg border border-violet-200 bg-violet-50/60 flex items-start gap-2.5"
+            data-testid="unit-class-forks-hint"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.25"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-violet-700 flex-shrink-0 mt-0.5"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="6" r="3" />
+              <circle cx="6" cy="18" r="3" />
+              <circle cx="18" cy="18" r="3" />
+              <path d="M12 9v3" />
+              <path d="M6 15a6 6 0 0 1 12 0" />
+            </svg>
+            <div className="flex-1 min-w-0">
+              <div className="text-[11.5px] font-bold text-violet-900 leading-snug">
+                {forks.length} {forks.length === 1 ? "class has" : "classes have"} customized this unit
+              </div>
+              <div className="text-[10.5px] text-violet-800 mt-0.5 leading-snug">
+                The master pages below don&apos;t reflect class-specific lessons.
+                Open the Class Hub to see + edit per-class content.
+              </div>
+            </div>
+          </div>
+        )}
+
       {(isTimelineUnit ? (
         <div className="space-y-6">
           {phaseGroups.map((phase) => (

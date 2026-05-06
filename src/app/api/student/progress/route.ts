@@ -63,7 +63,7 @@ export const POST = withErrorHandler("student/progress:POST", async (request: Ne
   if (session instanceof NextResponse) return session;
   const studentId = session.studentId;
 
-  const { unitId, pageId, status, responses, timeSpent, integrityMetadata } =
+  const { unitId, pageId, status, responses, timeSpent, timeSpentDelta, integrityMetadata } =
     await request.json();
 
   if (!unitId || !pageId) {
@@ -121,6 +121,11 @@ export const POST = withErrorHandler("student/progress:POST", async (request: Ne
   }
 
   // Build upsert payload
+  // NOTE: `timeSpent` is the absolute-value path (rarely used). `timeSpentDelta`
+  // is the additive path used by the autosave loop — applied AFTER the upsert
+  // via a follow-up UPDATE so the active-time counter accumulates across
+  // page revisits and across the student/teacher dashboard rather than
+  // getting clobbered on each autosave.
   const upsertPayload: Record<string, unknown> = {
     student_id: studentId,
     unit_id: unitId,
@@ -202,6 +207,31 @@ export const POST = withErrorHandler("student/progress:POST", async (request: Ne
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Round 20 (6 May 2026 PM) — additive time-on-page tracking.
+  // Client autosave sends `timeSpentDelta` (seconds, integer) representing
+  // active-tab seconds since the last save. We add to the existing column
+  // so cumulative time accrues across repeated page visits, not just the
+  // most recent session. Read-then-write race is acceptable here: a single
+  // student's autosaves are sequential (one client tab), and the worst-case
+  // race outcome is losing one 2-second delta — invisible at the Hours
+  // granularity surfaced in the teacher dashboard.
+  if (
+    typeof timeSpentDelta === "number" &&
+    Number.isFinite(timeSpentDelta) &&
+    timeSpentDelta > 0 &&
+    data?.id
+  ) {
+    const cleanedDelta = Math.min(Math.round(timeSpentDelta), 3600); // clamp to 1h/save
+    const currentValue = (data.time_spent ?? 0) as number;
+    const nextValue = currentValue + cleanedDelta;
+    await supabase
+      .from("student_progress")
+      .update({ time_spent: nextValue })
+      .eq("id", data.id);
+    // Mutate the response payload so the client sees the new value.
+    (data as { time_spent?: number }).time_spent = nextValue;
   }
 
   // Phase 3B: Fire-and-forget integrity-flag dispatcher.
