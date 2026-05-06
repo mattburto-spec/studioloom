@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 436
+# Total routes: 441
 
 routes:
 - path: /api/admin/ai-budget
@@ -1202,6 +1202,28 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/student/kanban
+  method: GET
+  file: src/app/api/student/kanban/route.ts
+  auth: student
+  tables_read:
+  - student_unit_kanban
+  tables_written:
+  - student_unit_kanban
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'student_unit_kanban' — not in schema-registry
+- path: /api/student/kanban
+  method: POST
+  file: src/app/api/student/kanban/route.ts
+  auth: student
+  tables_read:
+  - student_unit_kanban
+  tables_written:
+  - student_unit_kanban
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'student_unit_kanban' — not in schema-registry
 - path: /api/student/learning-profile
   method: GET
   file: src/app/api/student/learning-profile/route.ts
@@ -1884,6 +1906,28 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/student/timeline
+  method: GET
+  file: src/app/api/student/timeline/route.ts
+  auth: student
+  tables_read:
+  - student_unit_timeline
+  tables_written:
+  - student_unit_timeline
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'student_unit_timeline' — not in schema-registry
+- path: /api/student/timeline
+  method: POST
+  file: src/app/api/student/timeline/route.ts
+  auth: student
+  tables_read:
+  - student_unit_timeline
+  tables_written:
+  - student_unit_timeline
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'student_unit_timeline' — not in schema-registry
 - path: /api/student/tool-sessions
   method: GET
   file: src/app/api/student/tool-sessions/route.ts
@@ -4035,6 +4079,20 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/teacher/student-attention
+  method: GET
+  file: src/app/api/teacher/student-attention/route.ts
+  auth: teacher
+  tables_read:
+  - class_students
+  - competency_assessments
+  - portfolio_entries
+  - student_unit_kanban
+  - students
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'student_unit_kanban' — not in schema-registry
 - path: /api/teacher/student-projects
   method: GET
   file: src/app/api/teacher/student-projects/route.ts

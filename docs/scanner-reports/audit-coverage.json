@@ -1,6 +1,6 @@
 {
   "registry": "audit-coverage",
-  "timestamp": "2026-05-06T01:49:29.428182+00:00",
+  "timestamp": "2026-05-06T02:06:50.311964+00:00",
   "version": 1,
   "stats": {
     "total_mutation_routes": 237,
