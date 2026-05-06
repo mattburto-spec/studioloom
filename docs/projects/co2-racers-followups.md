@@ -70,28 +70,7 @@ HTTP probes is the live-environment confirmation step.
 
 ---
 
-## FU-AGENCY-CALIBRATION-MINIVIEW — Click-through to record teacher observations
-**Surfaced:** 28 Apr build (AG.4 brief, item #2 sub-bullet)
-**Target phase:** Post-pilot, after Matt's used the Attention Panel for ~2 weeks
-**Severity:** 🟡 MEDIUM (degrades the rotation flow but doesn't block it — observations can be recorded via existing `/api/teacher/nm-observation` from elsewhere)
-
-**Origin:** AG.4.2 spec called for clicking a row → opening a calibration
-mini-view: side-by-side self-rating vs teacher-rating + 2-min discussion
-notes field. v1 ships with rows as read-only metadata only.
-
-**What's missing:**
-- Click row in `<UnitAttentionPanel>` → modal/drawer slides in with:
-  - Student's most recent self-rating per Three Cs dimension
-  - Teacher's rating slider (writes to `competency_assessments` with
-    `source='teacher_observation'`)
-  - "2-minute discussion notes" textarea → stored where? Either a new
-    column on `competency_assessments` or a new `calibration_notes`
-    table. Decide before building.
-
-**Why deferred:** the teacher can already record observations via the NM
-results dashboard (existing pre-AG.4 surface). The click-through is a
-UX smoothing, not a new capability. Better to ship the panel as
-read-only and learn what teachers actually want to do from there.
+_(FU-AGENCY-CALIBRATION-MINIVIEW resolved 6 May 2026 — see Resolved section below.)_
 
 ---
 
@@ -150,23 +129,7 @@ stay as a plain string with `mediaUrl` as a sibling prop.
 
 ---
 
-## FU-AGENCY-PLANNINGPANEL-CLEANUP — Drop orphaned MYP-criteria + Gantt panels
-**Surfaced:** 6 May 2026, smoke round 6
-**Target phase:** When Matt confirms no other surface mounts them
-**Severity:** 🟢 LOW (dead code, not a runtime issue)
-
-**Origin:** Round 6 ripped `<PlanningPanelV2>` and `<GanttPanel>` out of
-the lesson page rail and replaced them with Kanban + Timeline drawers.
-The components themselves still exist:
-- `src/components/planning/PlanningPanel.tsx` (legacy)
-- `src/components/planning/PlanningPanelV2.tsx`
-- `src/components/planning/GanttPanel.tsx`
-
-**Audit needed:** grep for `<PlanningPanel`, `<PlanningPanelV2`,
-`<GanttPanel` across `src/app` and other component directories. If no
-mounts remain, delete + remove the planning-related API routes (if any
-became orphaned). If something else still uses them, leave in place
-and note the consumers.
+_(FU-AGENCY-PLANNINGPANEL-CLEANUP resolved 6 May 2026 — see Resolved section below.)_
 
 ---
 
@@ -198,4 +161,30 @@ restore: trim the question set first so it's a single-tap emoji.
 
 ## Resolved
 
-_(none yet — smoke rounds 1–7 closed inline as PRs)_
+### ✅ FU-AGENCY-CALIBRATION-MINIVIEW (6 May 2026, PR #65)
+Built the row-click → modal flow end-to-end. Side-by-side self-rating
+chip vs 4 teacher rating buttons (Emerging/Developing/Applying/Extending)
++ per-element comment textarea + auto-close after save. Panel
+re-fetches via a refreshKey state so Calibration timestamps + Three Cs
+aggregates update immediately. Posts via the existing
+/api/teacher/nm-observation route. 25 new tests, tsc strict clean.
+
+### ✅ FU-AGENCY-PLANNINGPANEL-CLEANUP (6 May 2026, PR #66)
+Deleted 6 orphaned files after grep audit confirmed no remaining
+consumers in `src/`:
+- `src/components/planning/PlanningPanel.tsx`
+- `src/components/planning/PlanningPanelV2.tsx`
+- `src/components/planning/GanttPanel.tsx`
+- `src/components/planning/DesignPlanBoard.tsx`
+- `src/components/planning/DueDateDisplay.tsx`
+- `src/components/planning/FloatingTimer.tsx`
+- `src/app/api/student/planning/route.ts` (the only consumer of the
+  `planning_tasks` table from app code)
+
+Empty `src/components/planning/` and `src/app/api/student/planning/`
+directories removed. `5f-wiring-static.test.ts` updated (planning
+route removed from list; expected count 15 → 14).
+
+**`planning_tasks` table left intact in prod** — table still exists
++ has historical data; no migration filed yet. If we want to drop it,
+file a separate followup with a migration + Matt sign-off.
