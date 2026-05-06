@@ -13,13 +13,14 @@
  * component is render-only.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   loadAttentionPanel,
   AttentionApiError,
 } from "@/lib/unit-tools/attention/client";
 import type { AttentionPanelData, AttentionRow } from "@/lib/unit-tools/attention/types";
 import { formatRelative, isStale } from "./unit-attention-helpers";
+import CalibrationMiniView from "./CalibrationMiniView";
 
 interface UnitAttentionPanelProps {
   unitId: string;
@@ -35,6 +36,20 @@ export default function UnitAttentionPanel({
   const [data, setData] = useState<AttentionPanelData | null>(null);
   const [status, setStatus] = useState<LoadStatus>("idle");
   const [error, setError] = useState<string | null>(null);
+  // Calibration mini-view state — opens when a row is clicked. Holds
+  // just the student identity; the modal fetches its own per-element
+  // data on mount.
+  const [calibrationFor, setCalibrationFor] = useState<{
+    studentId: string;
+    studentDisplayName: string;
+  } | null>(null);
+  // Bumped every time the calibration modal saves — re-trigger panel
+  // load so the row's "Calibration: today" + Three Cs aggregate update.
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const reload = useCallback(() => {
+    setRefreshKey((k) => k + 1);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,7 +75,7 @@ export default function UnitAttentionPanel({
     return () => {
       cancelled = true;
     };
-  }, [unitId, classId]);
+  }, [unitId, classId, refreshKey]);
 
   if (status === "loading" || status === "idle") {
     return (
@@ -163,9 +178,30 @@ export default function UnitAttentionPanel({
       </div>
       <ul className="flex flex-col gap-1.5">
         {data.rows.map((row) => (
-          <AttentionRowItem key={row.studentId} row={row} nowIso={data.nowIso} />
+          <AttentionRowItem
+            key={row.studentId}
+            row={row}
+            nowIso={data.nowIso}
+            onClick={() =>
+              setCalibrationFor({
+                studentId: row.studentId,
+                studentDisplayName: row.displayName,
+              })
+            }
+          />
         ))}
       </ul>
+
+      {calibrationFor && (
+        <CalibrationMiniView
+          unitId={unitId}
+          classId={classId}
+          studentId={calibrationFor.studentId}
+          studentDisplayName={calibrationFor.studentDisplayName}
+          onClose={() => setCalibrationFor(null)}
+          onSaved={reload}
+        />
+      )}
     </div>
   );
 }
@@ -206,19 +242,31 @@ export function DontRescueBanner() {
 interface AttentionRowItemProps {
   row: AttentionRow;
   nowIso: string;
+  /** Click → open the calibration mini-view for this student. */
+  onClick: () => void;
 }
 
-function AttentionRowItem({ row, nowIso }: AttentionRowItemProps) {
+function AttentionRowItem({ row, nowIso, onClick }: AttentionRowItemProps) {
   const aggregate = row.threeCs.aggregate;
 
   return (
     <li
       className={
-        "flex items-center gap-3 px-3 py-2 rounded border " +
+        "flex items-center gap-3 px-3 py-2 rounded border cursor-pointer transition-colors " +
         (row.suggestedOneOnOne
-          ? "bg-violet-50 border-violet-300"
-          : "bg-white border-gray-200 hover:border-gray-300")
+          ? "bg-violet-50 border-violet-300 hover:bg-violet-100"
+          : "bg-white border-gray-200 hover:border-violet-300 hover:bg-violet-50/40")
       }
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      title={`Open calibration mini-view for ${row.displayName}`}
       data-testid={`attention-row-${row.studentId}`}
       data-suggested-one-on-one={row.suggestedOneOnOne}
     >
