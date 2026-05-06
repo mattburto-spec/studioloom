@@ -9,6 +9,7 @@ import { l1DisplayLabel, type L1Target } from "@/lib/tap-a-word/language-mapping
 import { resolveStudentSettings } from "@/lib/student-support/resolve-settings";
 import { resolveStudentClassId } from "@/lib/student-support/resolve-class-id";
 import { withAIBudget } from "@/lib/access-v2/ai-budget/middleware";
+import { withErrorHandler } from "@/lib/api/error-handler";
 
 /**
  * POST /api/student/word-lookup
@@ -60,7 +61,21 @@ interface WordLookupBody {
   unitId?: unknown;
 }
 
-export async function POST(request: NextRequest) {
+// Round 24 (6 May 2026) — wrapped in withErrorHandler. Previously bare,
+// so unhandled exceptions in the Anthropic call / Supabase / withAIBudget
+// surfaced as default Next.js 500 with no Sentry capture. Per Matt:
+// "the word definition lookup is still struggling… once had a fail
+// message. any way to check it out?". The wrapper tags the route name
+// + method on Sentry so we can grep for word-lookup failures going
+// forward. structured-log helper keeps the success-path noise low.
+function logErr(
+  reason: string,
+  ctx: Record<string, unknown> = {}
+) {
+  console.error("[word-lookup]", reason, JSON.stringify(ctx));
+}
+
+export const POST = withErrorHandler("student/word-lookup:POST", async (request: NextRequest) => {
   const auth = await requireStudentSession(request);
   if (auth instanceof NextResponse) return auth;
 
@@ -68,6 +83,7 @@ export async function POST(request: NextRequest) {
   try {
     body = (await request.json()) as WordLookupBody;
   } catch {
+    logErr("invalid_json_body", { studentId: auth.studentId });
     return NextResponse.json({ error: "invalid JSON body" }, { status: 400, headers: CACHE_HEADERS });
   }
 
@@ -78,6 +94,7 @@ export async function POST(request: NextRequest) {
   const rawUnitId = typeof body?.unitId === "string" ? body.unitId : undefined;
 
   if (!rawWord || rawWord.length < 2 || rawWord.length > 50) {
+    logErr("word_length_invalid", { studentId: auth.studentId, wordLength: rawWord.length });
     return NextResponse.json(
       { error: "word must be 2–50 chars" },
       { status: 400, headers: CACHE_HEADERS }
@@ -154,6 +171,7 @@ export async function POST(request: NextRequest) {
   // Live Anthropic path (default in dev + prod; gated to RUN_E2E=1 in tests).
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
+    logErr("anthropic_api_key_missing", { studentId: auth.studentId, word: rawWord });
     return NextResponse.json(
       { error: "ANTHROPIC_API_KEY not configured" },
       { status: 500, headers: CACHE_HEADERS }
@@ -230,6 +248,12 @@ export async function POST(request: NextRequest) {
 
   if (!budgetResult.ok) {
     if (budgetResult.reason === "over_cap") {
+      logErr("budget_exceeded", {
+        studentId: auth.studentId,
+        word: rawWord,
+        cap: budgetResult.cap,
+        used: budgetResult.used,
+      });
       return NextResponse.json(
         {
           error: "budget_exceeded",
@@ -241,6 +265,13 @@ export async function POST(request: NextRequest) {
       );
     }
     // 'truncated' — model hit max_tokens. Return 502 (Lesson #39 — don't bill, surface).
+    logErr("model_truncated", {
+      studentId: auth.studentId,
+      word: rawWord,
+      maxTokens,
+      model: MODEL,
+      l1Target,
+    });
     return NextResponse.json(
       {
         error: "model_truncated",
@@ -253,6 +284,11 @@ export async function POST(request: NextRequest) {
   const response = budgetResult.result;
   const block = response.content.find((b) => b.type === "tool_use");
   if (!block || block.type !== "tool_use") {
+    logErr("no_tool_use_block", {
+      studentId: auth.studentId,
+      word: rawWord,
+      stopReason: response.stop_reason,
+    });
     return NextResponse.json(
       { error: "model did not return a tool_use block" },
       { status: 502, headers: CACHE_HEADERS }
@@ -270,6 +306,11 @@ export async function POST(request: NextRequest) {
     wantsL1 && typeof input?.l1_translation === "string" ? input.l1_translation : null;
 
   if (!definition) {
+    logErr("empty_definition", {
+      studentId: auth.studentId,
+      word: rawWord,
+      blockKeys: Object.keys(input ?? {}),
+    });
     return NextResponse.json(
       { error: "model returned empty definition" },
       { status: 502, headers: CACHE_HEADERS }
@@ -295,4 +336,4 @@ export async function POST(request: NextRequest) {
     },
     { headers: CACHE_HEADERS }
   );
-}
+});

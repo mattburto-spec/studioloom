@@ -168,9 +168,16 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
     const currentClassId = classId;
     const currentUnitId = unitId;
     // Hard-cap the loading window. If neither response nor abort lands in
-    // this window, force the popover to error state with a retry button —
-    // matches Matt's smoke complaint of "Looking up… then disappears".
-    loadingTimeoutRef.current = setTimeout(() => {
+    // this window, force the popover to error state with a retry button.
+    //
+    // Round 24 (6 May 2026) — capture the timeout handle locally so the
+    // fetch's finally block only clears OUR timeout, not whatever the
+    // ref currently points at. Previous code: tapping word B while word
+    // A's fetch was in flight aborted A → A's finally fired → A's
+    // finally cleared loadingTimeoutRef.current, which by that point
+    // was B's timeout. Result: B's loading window was uncapped. If B's
+    // fetch hung, popover sat in "Looking up…" forever.
+    const myTimeoutHandle = setTimeout(() => {
       if (inFlightRef.current) {
         inFlightRef.current.abort();
         inFlightRef.current = null;
@@ -178,6 +185,7 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
       setState("error");
       setErrorMessage("Lookup timed out. Tap retry to try again.");
     }, LOADING_TIMEOUT_MS);
+    loadingTimeoutRef.current = myTimeoutHandle;
 
     debounceRef.current = setTimeout(async () => {
       const controller = new AbortController();
@@ -210,8 +218,33 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
         }
         if (!res.ok) {
           const body = await res.json().catch(() => ({ error: "lookup failed" }));
+          const code = typeof body?.error === "string" ? body.error : "lookup failed";
+          // Round 24 — translate server reason codes to student-friendly
+          // copy. Keeps the underlying code in console.warn for diagnosis
+          // but shows something readable in the popover.
+          const friendly =
+            code === "budget_exceeded"
+              ? "Your AI word-lookup limit is up for now. Try again later or ask your teacher."
+              : code === "model_truncated"
+                ? "The lookup got cut off. Tap retry."
+                : code === "model did not return a tool_use block" ||
+                    code === "model returned empty definition"
+                  ? "Couldn't get a clean definition for this word. Tap retry."
+                  : code === "ANTHROPIC_API_KEY not configured"
+                    ? "The lookup service isn't set up. Tell your teacher."
+                    : code === "Unauthorized"
+                      ? "Your session expired. Refresh the page and try again."
+                      : "Couldn't load the definition. Tap retry.";
+          if (process.env.NODE_ENV !== "production") {
+            // eslint-disable-next-line no-console
+            console.warn("[tap-a-word] server error", {
+              word: normalized,
+              status: res.status,
+              code,
+            });
+          }
           setState("error");
-          setErrorMessage(typeof body?.error === "string" ? body.error : "lookup failed");
+          setErrorMessage(friendly);
           return;
         }
         const data = (await res.json()) as {
@@ -226,7 +259,7 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
         const l1tgt = typeof data?.l1Target === "string" ? data.l1Target : null;
         if (!def) {
           setState("error");
-          setErrorMessage("no definition returned");
+          setErrorMessage("Couldn't get a clean definition for this word. Tap retry.");
           return;
         }
         // Phase 2C: synchronous image lookup against the static dictionary.
@@ -261,13 +294,18 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
           });
         }
         setState("error");
-        setErrorMessage(err instanceof Error ? err.message : "network error");
+        setErrorMessage(
+          "Couldn't reach the lookup service. Check your connection and tap retry."
+        );
       } finally {
         if (inFlightRef.current === controller) {
           inFlightRef.current = null;
         }
-        if (loadingTimeoutRef.current) {
-          clearTimeout(loadingTimeoutRef.current);
+        // Round 24 — only clear OUR timeout. If a sibling lookup has
+        // since stomped loadingTimeoutRef.current with its own timeout,
+        // leave it alone — it's still arming the cap for the new fetch.
+        clearTimeout(myTimeoutHandle);
+        if (loadingTimeoutRef.current === myTimeoutHandle) {
           loadingTimeoutRef.current = null;
         }
       }
