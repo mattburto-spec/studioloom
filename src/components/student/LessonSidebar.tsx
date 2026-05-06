@@ -283,6 +283,19 @@ export function LessonSidebar({ data, unitId, sidebarOpen, onClose }: LessonSide
         })}
       </nav>
 
+      {/* Project board link (AG.2.4 — agency unit Kanban) */}
+      <div className="px-3 pt-2">
+        <button
+          onClick={() => router.push(`/unit/${unitId}/board`)}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors hover:bg-[var(--sl-bg)]"
+          style={{ color: "var(--sl-ink-2)" }}
+          data-testid="lesson-sidebar-project-board"
+        >
+          <span aria-hidden="true">📋</span>
+          Project board
+        </button>
+      </div>
+
       {/* Back to dashboard */}
       <div
         className="p-3"

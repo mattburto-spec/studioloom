@@ -45,6 +45,14 @@ interface StructuredPromptsResponseProps {
   sectionIndex: number;
   /** When true, photo is required before submit. Default false. */
   requirePhoto?: boolean;
+  /**
+   * AG.2.4 — when true, after a successful save, fire-and-forget append
+   * a Kanban backlog card with the "next" prompt's response (if non-empty).
+   * Card carries source='journal_next' + lessonLink so the student can
+   * trace the card back to the lesson it came from. Failures are silent
+   * (kanban save errors don't block the journal save).
+   */
+  autoCreateKanbanCardOnSave?: boolean;
   /** Called after a successful save. Parent uses this to refresh portfolio panel, mark activity done, etc. */
   onSaved?: (savedPayload: { content: string; nextMove: string | null }) => void;
 }
@@ -55,6 +63,7 @@ export default function StructuredPromptsResponse({
   pageId,
   sectionIndex,
   requirePhoto = false,
+  autoCreateKanbanCardOnSave = false,
   onSaved,
 }: StructuredPromptsResponseProps) {
   const [responses, setResponses] = useState<StructuredPromptResponses>({});
@@ -174,6 +183,26 @@ export default function StructuredPromptsResponse({
       }
 
       const nextMove = extractNextMove(responses);
+
+      // AG.2.4 — fire-and-forget Kanban auto-create when configured + nextMove
+      // present. Failures are silent (don't undo the journal save).
+      if (autoCreateKanbanCardOnSave && nextMove) {
+        // Lazy import keeps Kanban out of the StructuredPrompts module graph
+        // for activities that don't enable this flag.
+        import("@/lib/unit-tools/kanban/client")
+          .then(({ appendBacklogCard }) =>
+            appendBacklogCard(unitId, {
+              title: nextMove,
+              lessonLink: { unit_id: unitId, page_id: pageId, section_index: sectionIndex },
+            })
+          )
+          .catch((err) => {
+            // Silent failure — journal save already succeeded; don't
+            // surface a Kanban-specific error to the student. Log for
+            // teacher debugging only.
+            console.warn("[journal] kanban auto-create failed", err);
+          });
+      }
 
       setSavedToast("Saved to portfolio");
       setShowFieldErrors(false);
