@@ -385,8 +385,13 @@ function UnitPageViewInner({
             Pace feedback is now collected via StudentFeedbackPulse modal
             on "Complete & Continue" — feeds the timing model. ── */}
 
-        {/* ── NM Competency Pulse — above Complete & Continue ── */}
-        {nmCheckpoint && !nmCompleted && (
+        {/* ── NM Competency Pulse — above Complete & Continue ──
+            Round 32: removed the !nmCompleted gate. CompetencyPulse now
+            shows a permanent pop-art "Feedback Done!" celebration after
+            submission AND on subsequent loads (it fetches its own
+            already-submitted state). Parent's nmCompleted is still set
+            via onComplete in case other UI hooks gate on it later. */}
+        {nmCheckpoint && (
           <div className="max-w-5xl mx-auto px-6 mt-10 mb-2">
             <CompetencyPulse
               pageId={pageId}

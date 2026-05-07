@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NMElement, STUDENT_RATING_SCALE } from "@/lib/nm/constants";
 
 interface CompetencyPulseProps {
@@ -49,6 +49,34 @@ export function CompetencyPulse({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Round 32 (7 May 2026, NIS Class 1) — detect prior submission on
+  // mount. Per Matt: "after a student completes the NM survey it
+  // shows a big pop art 'New Metrics Feedback Done!' as i dont need
+  // them to ever go back to a lesson and do it again."
+  //
+  // GET /api/student/nm-assessment?unitId=&pageId= → { submitted: bool }.
+  // If true, jump straight to the celebration view; the form never
+  // shows. No-op (silent fail) if the request errors — we'd rather
+  // let the student attempt to submit again than block them on a
+  // network blip.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(
+      `/api/student/nm-assessment?unitId=${encodeURIComponent(unitId)}&pageId=${encodeURIComponent(pageId)}`
+    )
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        if (data?.submitted) setSubmitted(true);
+      })
+      .catch(() => {
+        // Silent — see comment above.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [unitId, pageId]);
+
   const allRated = elements.every((e) => ratings[e.id] !== undefined);
 
   const handleRating = (elementId: string, value: number) => {
@@ -87,8 +115,14 @@ export function CompetencyPulse({
         }),
       });
       if (res.ok) {
+        // Round 32 — celebration is now PERMANENT (was 1.5s then
+        // unmounted). Per Matt: students should NOT be able to
+        // re-do the survey on this lesson; future lessons offer
+        // fresh NM checkpoints. Still call onComplete so the
+        // parent can track that a submission landed (e.g. for
+        // analytics / engagement signals).
         setSubmitted(true);
-        setTimeout(() => onComplete(), 1500);
+        onComplete();
       } else {
         const errData = await res.json().catch(() => ({}));
         console.error("Assessment save failed:", res.status, errData);
@@ -103,21 +137,129 @@ export function CompetencyPulse({
   };
 
   if (submitted) {
+    // Round 32 — big persistent pop-art "FEEDBACK DONE!" replacing
+    // the v1 1.5s "POW! Reflection complete!". Stays on screen for
+    // the rest of the session — no opportunity to re-do.
     return (
-      <div style={{
-        borderRadius: "16px", border: `3px solid ${POP.black}`, background: POP.electricYellow,
-        padding: "32px", textAlign: "center", position: "relative", overflow: "hidden",
-        animation: "nmPopIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
-        boxShadow: `6px 6px 0px ${POP.black}`,
-      }}>
-        <div style={{ fontSize: "48px", marginBottom: "8px" }}>POW!</div>
-        <p style={{ margin: 0, fontSize: "18px", fontWeight: 900, color: POP.black, fontFamily: "'Arial Black', 'Impact', sans-serif", letterSpacing: "0.5px" }}>
-          Reflection complete!
+      <div
+        style={{
+          borderRadius: "20px",
+          border: `4px solid ${POP.black}`,
+          background: POP.electricYellow,
+          padding: "48px 32px",
+          textAlign: "center",
+          position: "relative",
+          overflow: "hidden",
+          animation: "nmPopIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)",
+          boxShadow: `8px 8px 0px ${POP.black}`,
+        }}
+        data-testid="nm-survey-complete"
+      >
+        {/* Halftone dots overlay */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage:
+              "radial-gradient(circle, rgba(0,0,0,0.10) 1.5px, transparent 1.5px)",
+            backgroundSize: "10px 10px",
+            pointerEvents: "none",
+          }}
+        />
+
+        {/* Starburst rays — 8 lines radiating from center */}
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            width: "0",
+            height: "0",
+            pointerEvents: "none",
+          }}
+        >
+          {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => (
+            <div
+              key={deg}
+              style={{
+                position: "absolute",
+                top: "0",
+                left: "0",
+                width: "180px",
+                height: "8px",
+                background: POP.hotPink,
+                transformOrigin: "0 50%",
+                transform: `translate(-50%, -50%) rotate(${deg}deg)`,
+                opacity: 0.18,
+              }}
+            />
+          ))}
+        </div>
+
+        {/* "POW!" speech-bubble badge — top-right corner */}
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: "12px",
+            right: "16px",
+            background: POP.hotPink,
+            color: POP.white,
+            fontFamily: "'Arial Black', 'Impact', sans-serif",
+            fontSize: "20px",
+            fontWeight: 900,
+            padding: "6px 14px",
+            border: `3px solid ${POP.black}`,
+            borderRadius: "999px",
+            letterSpacing: "1px",
+            transform: "rotate(8deg)",
+            boxShadow: `3px 3px 0 ${POP.black}`,
+          }}
+        >
+          POW!
+        </div>
+
+        {/* The headline */}
+        <h2
+          style={{
+            position: "relative",
+            margin: "0 0 12px",
+            fontSize: "clamp(28px, 5vw, 44px)",
+            lineHeight: 1.05,
+            fontWeight: 900,
+            color: POP.black,
+            fontFamily: "'Arial Black', 'Impact', sans-serif",
+            letterSpacing: "1px",
+            textTransform: "uppercase",
+            WebkitTextStroke: "0",
+          }}
+        >
+          New Metrics
+          <br />
+          Feedback Done!
+        </h2>
+
+        {/* Subtext */}
+        <p
+          style={{
+            position: "relative",
+            margin: 0,
+            fontSize: "14px",
+            fontWeight: 700,
+            color: POP.black,
+            fontFamily: "'Arial Black', 'Impact', sans-serif",
+            letterSpacing: "0.5px",
+            opacity: 0.78,
+          }}
+        >
+          You&apos;ll get another chance to reflect in a future lesson.
         </p>
+
         <style>{`
           @keyframes nmPopIn {
-            0% { transform: scale(0.8) rotate(-2deg); opacity: 0; }
-            50% { transform: scale(1.05) rotate(1deg); }
+            0% { transform: scale(0.7) rotate(-3deg); opacity: 0; }
+            55% { transform: scale(1.08) rotate(1.5deg); }
             100% { transform: scale(1) rotate(0deg); opacity: 1; }
           }
         `}</style>
