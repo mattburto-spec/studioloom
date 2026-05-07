@@ -10,7 +10,7 @@
  * Pure orchestration — no fetch logic here (lives in the hook).
  */
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { PanInfo } from "framer-motion";
 import {
   KANBAN_COLUMNS,
@@ -111,6 +111,42 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   // is the layer below React events — if THIS doesn't work, the
   // modal isn't being opened by a click in the first place.
   const boardRootRef = useRef<HTMLDivElement | null>(null);
+
+  // Round 34 (7 May 2026 AM, NIS Class 1) — DOCUMENT-LEVEL click
+  // capture. The board-root onClickCapture (round 31) and the DOM
+  // pointer-events:none mutation (round 33) STILL didn't fix the
+  // modal-on-drop on Matt's setup. The KanbanCardModal renders via a
+  // portal at document.body — outside the kanban-board's pointer-
+  // events scope. If the click somehow lands at document level
+  // (browser quirk, framer-motion synthetic dispatch), our board-
+  // scoped guards miss it. A document-level capture-phase listener
+  // is the OUTERMOST possible interception. If sinceDragMs < 1500ms,
+  // any click anywhere on the document gets stopped before any
+  // descendant handler can run.
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      const sinceDragMs = Date.now() - dragJustEndedRef.current;
+      if (sinceDragMs >= 1500) return;
+      // Only suppress clicks WITHIN the kanban-board (or on its
+      // descendants). Clicks elsewhere on the page (sidebar, header
+      // nav, portfolio drawer, etc.) must pass through normally.
+      const root = boardRootRef.current;
+      if (!root) return;
+      const target = e.target as Node | null;
+      if (!target || !root.contains(target)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      // eslint-disable-next-line no-console
+      console.warn("[kanban] click suppressed at document level (recent drag)", {
+        sinceDragMs,
+        target: (e.target as HTMLElement)?.tagName,
+      });
+    }
+    document.addEventListener("click", handler, true); // capture phase
+    return () => {
+      document.removeEventListener("click", handler, true);
+    };
+  }, []);
 
   const registerColumnEl = useCallback(
     (id: KanbanColumnId, el: HTMLElement | null) => {
