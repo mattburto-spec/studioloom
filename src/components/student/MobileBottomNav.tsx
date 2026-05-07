@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import type { UnitPage } from "@/types";
 
 interface MobileBottomNavProps {
@@ -18,7 +17,6 @@ export function MobileBottomNav({
   pageColor,
   onDone,
 }: MobileBottomNavProps) {
-  const router = useRouter();
   const currentIndex = enabledPages.findIndex((p) => p.id === currentPageId);
   const prevPage = currentIndex > 0 ? enabledPages[currentIndex - 1] : null;
   const nextPage = currentIndex < enabledPages.length - 1 ? enabledPages[currentIndex + 1] : null;
@@ -30,7 +28,10 @@ export function MobileBottomNav({
         {/* Prev */}
         {prevPage ? (
           <button
-            onClick={() => router.push(`/unit/${unitId}/${prevPage.id}`)}
+            onClick={() => {
+              // Hard nav — see LessonSidebar.navigateToPage for rationale.
+              window.location.href = `/unit/${unitId}/${prevPage.id}`;
+            }}
             className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-text-secondary hover:text-text-primary transition"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -57,7 +58,10 @@ export function MobileBottomNav({
           </button>
         ) : nextPage ? (
           <button
-            onClick={() => router.push(`/unit/${unitId}/${nextPage.id}`)}
+            onClick={() => {
+              // Hard nav — see LessonSidebar.navigateToPage for rationale.
+              window.location.href = `/unit/${unitId}/${nextPage.id}`;
+            }}
             className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-text-secondary hover:text-text-primary transition"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
