@@ -19,7 +19,7 @@
  * the JSX shell + side-effects (fetch, photo handling, state).
  */
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { compressImage } from "@/lib/compress-image";
 import {
   checkClientImage,
@@ -121,6 +121,38 @@ export default function StructuredPromptsResponse({
     hasSavedEntry ? parseComposedContent(prompts, savedValue ?? "") : {}
   );
 
+  // Round 30 (7 May 2026, NIS Class 1) — late-arriving savedValue sync.
+  // Per Matt during Class 1: "if i refresh page then the form appears
+  // blank again (good thing data still visible in portfolio)".
+  //
+  // Repro: fresh page load. usePageData fetches /api/student/progress
+  // asynchronously — at first render, savedValue is "" because the
+  // parent's responses state is still {}. Component mounts with
+  // editing=true, responses={}. Then the server response arrives,
+  // parent re-renders with savedValue=<saved markdown>. But the
+  // component's useState initializer ran ONCE on mount — internal
+  // state stays empty. Result: button label flips to "Update saved
+  // entry" (re-evaluated each render via hasSavedEntry) but the form
+  // textareas show placeholders.
+  //
+  // Fix: useEffect watches savedValue. When it transitions from
+  // empty → non-empty AND the user hasn't started editing yet, sync
+  // internal state from the parsed saved content + flip to saved-
+  // preview mode (editing=false). userHasEditedRef ensures we don't
+  // clobber in-progress edits.
+  const userHasEditedRef = useRef(false);
+  useEffect(() => {
+    const has = (savedValue ?? "").trim().length > 0;
+    if (has && !userHasEditedRef.current) {
+      setResponses(parseComposedContent(prompts, savedValue ?? ""));
+      setEditing(false);
+    }
+    // Deliberately not depending on `prompts` even though we use it —
+    // prompts is stable across the page lifetime; we only re-run when
+    // savedValue arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedValue]);
+
   // Round 18 — keep a ref to the latest composed text so the integrity
   // hook can compute keystroke/paste metrics against the FULL combined
   // value (not a single field) without re-creating the hook on every
@@ -154,6 +186,10 @@ export default function StructuredPromptsResponse({
   });
 
   function setResponseFor(promptId: string, value: string) {
+    // Round 30 — mark that the user has started editing so the
+    // savedValue-arrival useEffect doesn't clobber in-progress text
+    // if the parent re-renders mid-edit.
+    userHasEditedRef.current = true;
     setResponses((prev) => ({ ...prev, [promptId]: value }));
     if (showFieldErrors) {
       // Recompute on next render — clearing the show-errors state keeps the UI calm
@@ -311,6 +347,10 @@ export default function StructuredPromptsResponse({
       // saved (and the Edit button to re-open if they want to revise).
       setEditing(false);
       setResponses({});
+      // Round 30 — reset the user-edited flag so a subsequent savedValue
+      // arrival (e.g. from a navigate-away/come-back triggering a fresh
+      // load) can sync internal state cleanly.
+      userHasEditedRef.current = false;
       setPhotoFile(null);
       if (photoPreview) {
         URL.revokeObjectURL(photoPreview);
