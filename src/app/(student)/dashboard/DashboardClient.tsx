@@ -13,6 +13,7 @@ import {
   type SessionStudent,
   studentToSession,
 } from "@/components/student/BoldTopNav";
+import { NextActionCard } from "@/components/student/NextActionCard";
 
 /* ================================================================
  * Student Dashboard v2 — Bold redesign
@@ -28,6 +29,9 @@ import {
 // Task card + teacher note still mock — Phase 3B wires the task card;
 // teacher note is deferred pending the general-notes system.
 type HeroUnit = {
+  /** Unit id — used by sibling cards (e.g. NextActionCard) to fetch
+   *  per-unit data without re-deriving from continueHref. */
+  unitId: string;
   unitTitle: string;
   unitSub: string;
   class: string;
@@ -49,6 +53,7 @@ type HeroUnit = {
 };
 
 const HERO_MOCK: HeroUnit = {
+  unitId: "00000000-0000-0000-0000-000000000000",
   unitTitle: "Biomimicry",
   unitSub: "Plastic pouch inspired by nature",
   class: "7 Design",
@@ -161,6 +166,7 @@ function buildHeroUnit(unit: UnitRow): HeroUnit {
   const continueHref = resumePageId ? `/unit/${unit.id}/${resumePageId}` : null;
 
   return {
+    unitId: unit.id,
     unitTitle: unit.title,
     unitSub: unit.description || "",
     class: unit.class_name || "",
@@ -1323,6 +1329,12 @@ export default function DashboardClient() {
         : heroLoaded
           ? <EmptyHero firstName={sessionStudent.first} />
           : <HeroSkeleton />}
+      {/* Project-management Next Action — sandwiched between the
+          lesson-side hero and the priority queue. Renders only for the
+          hero unit, only once we have a real id (skip the mock UUID). */}
+      {hero && hero.unitId && hero.unitId !== HERO_MOCK.unitId && (
+        <NextActionCard unitId={hero.unitId} accentColor={hero.color} />
+      )}
       {buckets && badges
         ? <MiddleRow buckets={buckets} badges={badges} />
         : <MiddleRowSkeleton />}
