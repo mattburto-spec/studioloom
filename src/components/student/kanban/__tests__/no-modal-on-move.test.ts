@@ -46,33 +46,41 @@ describe("KanbanBoard — drag-end suppresses post-drop card click (round 26 ref
     expect(BOARD_SRC).not.toMatch(/\[suppressCardClick,\s*setSuppressCardClick\]/);
   });
 
-  it("stamps dragJustEndedRef on drag-end (synchronous, not state)", () => {
-    expect(BOARD_SRC).toMatch(/dragJustEndedRef\.current\s*=\s*Date\.now\(\)/);
-  });
-
-  it("handleCardClick gates on ref before opening the modal", () => {
-    expect(BOARD_SRC).toMatch(/function handleCardClick\(cardId: string\)/);
-    // Round 28 → Round 29 — window stays at 1000ms (proven safe). The
-    // round-28 sinceDragMs intermediate variable + console.debug calls
-    // were stripped in round 29 to minimise the diff back to known-good
-    // shape.
-    expect(BOARD_SRC).toMatch(
-      /Date\.now\(\)\s*-\s*dragJustEndedRef\.current\s*<\s*1000/
-    );
-  });
-
-  // Round 29 — dragStart stamp REVERTED after Matt repro'd "can't drag
-  // and drop the cards at all". The drag-end stamp + 1000ms window in
-  // handleCardClick is the proven part. Asserting the drag-START
-  // function is back to a no-stamp shape so we don't accidentally
-  // re-add the suspect line.
-  it("dragStart does NOT stamp dragJustEndedRef (round 29 revert)", () => {
+  // Round 37 (proven load-bearing in prod) replaced the round-28
+  // timestamp gate with a stateful boolean ref. The ref is true from
+  // dragStart until 350ms after dragEnd. handleCardClick + handleAddCard
+  // bail synchronously when it's true.
+  it("handleCardDragStart claims isDraggingRef synchronously", () => {
     const startIdx = BOARD_SRC.indexOf("function handleCardDragStart(");
     expect(startIdx).toBeGreaterThan(0);
-    // Look at the body of handleCardDragStart only (until the next function).
     const nextFnIdx = BOARD_SRC.indexOf("function ", startIdx + 1);
     const body = BOARD_SRC.slice(startIdx, nextFnIdx);
-    expect(body).not.toMatch(/dragJustEndedRef\.current\s*=\s*Date\.now\(\)/);
+    expect(body).toMatch(/isDraggingRef\.current\s*=\s*true/);
+  });
+
+  it("handleCardDragEnd schedules isDraggingRef release", () => {
+    const startIdx = BOARD_SRC.indexOf("function handleCardDragEnd(");
+    expect(startIdx).toBeGreaterThan(0);
+    const nextFnIdx = BOARD_SRC.indexOf("function ", startIdx + 1);
+    const body = BOARD_SRC.slice(startIdx, nextFnIdx);
+    expect(body).toMatch(/isDraggingRef\.current\s*=\s*false/);
+    expect(body).toMatch(/setTimeout/);
+  });
+
+  it("handleCardClick gates on isDraggingRef before opening the modal", () => {
+    expect(BOARD_SRC).toMatch(/function handleCardClick\(cardId: string\)/);
+    const startIdx = BOARD_SRC.indexOf("function handleCardClick(");
+    const nextFnIdx = BOARD_SRC.indexOf("function ", startIdx + 1);
+    const body = BOARD_SRC.slice(startIdx, nextFnIdx);
+    expect(body).toMatch(/if\s*\(isDraggingRef\.current\)\s*return/);
+  });
+
+  it("handleAddCard gates on isDraggingRef before opening the composer", () => {
+    const startIdx = BOARD_SRC.indexOf("function handleAddCard(");
+    expect(startIdx).toBeGreaterThan(0);
+    const nextFnIdx = BOARD_SRC.indexOf("function ", startIdx + 1);
+    const body = BOARD_SRC.slice(startIdx, nextFnIdx);
+    expect(body).toMatch(/if\s*\(isDraggingRef\.current\)\s*return/);
   });
 
   it("KanbanColumn receives onCardClick={handleCardClick} (not an inline arrow)", () => {
@@ -101,11 +109,13 @@ describe("KanbanBoard — drag-end suppresses post-drop card click (round 26 ref
     expect(BOARD_SRC).not.toMatch(/document\.removeEventListener\("click"/);
   });
 
-  it("dragEnd diagnostic console.warn kept for visibility", () => {
-    // The console.warn in handleCardDragEnd survives — it's a diagnostic
-    // that helps the next investigation round know whether the drag-end
-    // is firing.
-    expect(BOARD_SRC).toMatch(/console\.warn\([^)]*kanban[^)]*dragEnd/i);
+  // Round 42 cleanup: the dragEnd / dragStart / phantom diagnostics
+  // were stripped after round 41 (the save-race fix) proved the actual
+  // root cause was at the persistence layer. Asserting the diagnostics
+  // are GONE so future debugging starts from a clean console.
+  it("no leftover [kanban] diagnostic console.warn calls", () => {
+    expect(BOARD_SRC).not.toMatch(/console\.warn\([^)]*\[kanban\]/i);
+    expect(BOARD_SRC).not.toMatch(/console\.trace\([^)]*\[kanban\]/i);
   });
 });
 
