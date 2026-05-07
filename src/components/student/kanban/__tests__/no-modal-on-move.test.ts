@@ -79,60 +79,33 @@ describe("KanbanBoard — drag-end suppresses post-drop card click (round 26 ref
     expect(BOARD_SRC).toMatch(/onCardClick=\{handleCardClick\}/);
   });
 
-  // Round 31 — capture-phase gate at the board root. Earliest possible
-  // click interception in React's event system; if the bubble-phase
-  // gate at handleCardClick is missing the synthetic click somehow,
-  // this catches it before any child handler fires.
-  it("board root has onClickCapture wired to a recent-drag gate", () => {
-    expect(BOARD_SRC).toMatch(/function handleBoardClickCapture/);
-    expect(BOARD_SRC).toMatch(/onClickCapture=\{handleBoardClickCapture\}/);
-    expect(BOARD_SRC).toMatch(
-      /handleBoardClickCapture[\s\S]{0,400}sinceDragMs\s*<\s*1000[\s\S]{0,200}e\.preventDefault\(\)[\s\S]{0,80}e\.stopPropagation\(\)/
+  // Round 35 — REVERTED rounds 31 / 33 / 34. The progressively-aggressive
+  // click suppression layers collectively broke drag mechanics during
+  // NIS Class 1. Drag-with-modal > no-drag-no-modal. Asserting the
+  // suspect code is gone so we don't accidentally re-add it without
+  // understanding why it broke drag.
+  it("does NOT register a board-root onClickCapture handler (round 35 revert)", () => {
+    expect(BOARD_SRC).not.toMatch(/function handleBoardClickCapture/);
+    expect(BOARD_SRC).not.toMatch(/onClickCapture=\{handleBoardClickCapture\}/);
+  });
+
+  it("does NOT mutate pointer-events on the board (round 35 revert of round 33)", () => {
+    expect(BOARD_SRC).not.toMatch(/boardRootRef\.current\.style\.pointerEvents/);
+    expect(BOARD_SRC).not.toMatch(
+      /useRef<HTMLDivElement\s*\|\s*null>\(null\)\s*\/\/.*board/i
     );
   });
 
-  it("dragEnd + click-suppression both log to console.warn for diagnostic visibility", () => {
-    // console.warn (not debug — debug is filtered) so we can see in
-    // prod DevTools when the gate fires vs misses.
+  it("does NOT register a document-level click listener (round 35 revert of round 34)", () => {
+    expect(BOARD_SRC).not.toMatch(/document\.addEventListener\("click"/);
+    expect(BOARD_SRC).not.toMatch(/document\.removeEventListener\("click"/);
+  });
+
+  it("dragEnd diagnostic console.warn kept for visibility", () => {
+    // The console.warn in handleCardDragEnd survives — it's a diagnostic
+    // that helps the next investigation round know whether the drag-end
+    // is firing.
     expect(BOARD_SRC).toMatch(/console\.warn\([^)]*kanban[^)]*dragEnd/i);
-    expect(BOARD_SRC).toMatch(/console\.warn\([^)]*kanban[^)]*click suppressed/i);
-  });
-
-  // Round 33 — nuclear option: direct DOM mutation to disable pointer
-  // events on the board for 600ms after drop. Synchronous; the
-  // synthetic click can't reach any descendant.
-  it("declares boardRootRef + ref attached to the board root div", () => {
-    expect(BOARD_SRC).toMatch(/boardRootRef\s*=\s*useRef<HTMLDivElement\s*\|\s*null>\(null\)/);
-    expect(BOARD_SRC).toMatch(/ref=\{boardRootRef\}/);
-  });
-
-  it("handleCardDragEnd disables pointer events on the board for 600ms", () => {
-    expect(BOARD_SRC).toMatch(
-      /boardRootRef\.current\.style\.pointerEvents\s*=\s*"none"/
-    );
-    expect(BOARD_SRC).toMatch(
-      /setTimeout\([\s\S]{0,200}boardRootRef\.current\.style\.pointerEvents\s*=\s*""[\s\S]{0,80}600\)/
-    );
-  });
-
-  // Round 34 — outermost layer. Document-level capture-phase click
-  // listener that suppresses any click WITHIN the kanban-board for
-  // 1500ms after a drag-end. Catches anything that slipped past the
-  // board-root onClickCapture or the pointer-events:none mutation.
-  // Scoped to clicks where target is contained by the board root —
-  // outside clicks (sidebar, header nav) pass through normally.
-  it("registers a document-level capture-phase click listener scoped to the board", () => {
-    expect(BOARD_SRC).toMatch(
-      /document\.addEventListener\("click",\s*handler,\s*true\)/
-    );
-    expect(BOARD_SRC).toMatch(
-      /document\.removeEventListener\("click",\s*handler,\s*true\)/
-    );
-    // Window is 1500ms (longer than the 1000ms handleCardClick gate
-    // because we're at document-level — covers slower-firing clicks).
-    expect(BOARD_SRC).toMatch(/sinceDragMs\s*>=\s*1500/);
-    // Only suppresses clicks inside the board.
-    expect(BOARD_SRC).toMatch(/root\.contains\(target\)/);
   });
 });
 

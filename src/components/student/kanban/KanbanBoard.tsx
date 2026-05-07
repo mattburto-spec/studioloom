@@ -10,7 +10,7 @@
  * Pure orchestration — no fetch logic here (lives in the hook).
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { PanInfo } from "framer-motion";
 import {
   KANBAN_COLUMNS,
@@ -100,53 +100,21 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   // Round 26 fix: synchronous ref check at the BOARD level. handleCardClick
   // wraps openCardModal and bails when the ref says we just dropped a
   // card. No state, no prop propagation, no render-timing race.
+  //
+  // Round 35 (7 May 2026 AM, NIS Class 1) — REVERTED rounds 31 / 33 /
+  // 34. Per Matt during Class 1: "now the column doesnt glow purple
+  // anymore when i drag a card onto it, the cards dont stay and the
+  // popups are still there". The progressively-aggressive click
+  // suppression (round 31 capture-phase handler, round 33 pointer-
+  // events:none mutation, round 34 document-level capture handler)
+  // collectively interfered with framer-motion's pointer event
+  // detection, breaking drag mechanics entirely.
+  //
+  // Drag-working-with-modal > no-drag-no-modal. Reverted to round-26
+  // baseline (handleCardClick gate). Modal-on-drop is now a known
+  // outstanding bug — needs `setOpenCardId` instrumentation to find
+  // the actual code path opening it. Filed post-class.
   const dragJustEndedRef = useRef<number>(0);
-  // Round 33 (7 May 2026 AM) — nuclear option: direct DOM ref to the
-  // kanban-board root. handleCardDragEnd mutates `style.pointerEvents`
-  // = "none" SYNCHRONOUSLY on this ref so the synthetic click that
-  // fires next has no valid target inside the board. Bypasses React
-  // entirely. After 600ms, restore pointer-events. Per Matt 7 May:
-  // capture-phase + bubble-phase gates from rounds 26 / 28 / 31 all
-  // fail to suppress the modal-on-drop on his setup. DOM mutation
-  // is the layer below React events — if THIS doesn't work, the
-  // modal isn't being opened by a click in the first place.
-  const boardRootRef = useRef<HTMLDivElement | null>(null);
-
-  // Round 34 (7 May 2026 AM, NIS Class 1) — DOCUMENT-LEVEL click
-  // capture. The board-root onClickCapture (round 31) and the DOM
-  // pointer-events:none mutation (round 33) STILL didn't fix the
-  // modal-on-drop on Matt's setup. The KanbanCardModal renders via a
-  // portal at document.body — outside the kanban-board's pointer-
-  // events scope. If the click somehow lands at document level
-  // (browser quirk, framer-motion synthetic dispatch), our board-
-  // scoped guards miss it. A document-level capture-phase listener
-  // is the OUTERMOST possible interception. If sinceDragMs < 1500ms,
-  // any click anywhere on the document gets stopped before any
-  // descendant handler can run.
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      const sinceDragMs = Date.now() - dragJustEndedRef.current;
-      if (sinceDragMs >= 1500) return;
-      // Only suppress clicks WITHIN the kanban-board (or on its
-      // descendants). Clicks elsewhere on the page (sidebar, header
-      // nav, portfolio drawer, etc.) must pass through normally.
-      const root = boardRootRef.current;
-      if (!root) return;
-      const target = e.target as Node | null;
-      if (!target || !root.contains(target)) return;
-      e.preventDefault();
-      e.stopPropagation();
-      // eslint-disable-next-line no-console
-      console.warn("[kanban] click suppressed at document level (recent drag)", {
-        sinceDragMs,
-        target: (e.target as HTMLElement)?.tagName,
-      });
-    }
-    document.addEventListener("click", handler, true); // capture phase
-    return () => {
-      document.removeEventListener("click", handler, true);
-    };
-  }, []);
 
   const registerColumnEl = useCallback(
     (id: KanbanColumnId, el: HTMLElement | null) => {
@@ -201,26 +169,12 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
     const card = state.cards.find((c) => c.id === cardId);
     setDraggingCardId(null);
     setHoverColumnId(null);
-    // Round 21 + 26 + 31 — stamp the moment the drag ended.
-    // handleAddCard + handleCardClick + the round-31 board-root
-    // onClickCapture handler all gate on this ref synchronously.
+    // Round 21 + 26 — stamp the moment the drag ended.
+    // handleAddCard + handleCardClick gate on this ref synchronously.
+    // Round 35 (7 May 2026 AM) reverted the round-33 pointer-events
+    // mutation along with round-34 doc-level handler; both broke drag
+    // mechanics. Drag-with-modal-popup > no-drag.
     dragJustEndedRef.current = Date.now();
-    // Round 33 — DOM mutation: disable pointer events on the entire
-    // kanban board for 600ms. SYNCHRONOUS (no React render race).
-    // The synthetic click that fires after pointerup has no valid
-    // target inside the board — browser dispatches it elsewhere or
-    // drops it. After 600ms we restore pointer-events so subsequent
-    // interactions work.
-    if (boardRootRef.current) {
-      boardRootRef.current.style.pointerEvents = "none";
-      setTimeout(() => {
-        if (boardRootRef.current) {
-          boardRootRef.current.style.pointerEvents = "";
-        }
-      }, 600);
-    }
-    // Round 31 — visible diagnostic so Matt can confirm the drag-end
-    // is actually firing. console.warn (not debug) so it survives prod.
     // eslint-disable-next-line no-console
     console.warn("[kanban] dragEnd fired", {
       cardId,
@@ -357,40 +311,15 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
 
   // ─── BOARD ────────────────────────────────────────────────────────────────
 
-  // Round 31 (7 May 2026, NIS Class 1) — capture-phase click suppressor
-  // at the board root. Per Matt: kanban-modal-on-drop bug PERSISTS
-  // through rounds 23 / 26 / 28 / 29 and is now hitting students live
-  // in Class 1. Hypothesis: the previous bubble-phase gate at
-  // handleCardClick isn't reliably reached, OR the synthetic click
-  // dispatches differently than I assumed. Capture-phase handler at
-  // the board root is THE earliest possible interception in React's
-  // event system — fires before any child onClick. If it stops
-  // propagation, no child handler runs.
-  //
-  // Diagnostic: console.warn on every blocked click so we can see
-  // in DevTools when the gate fires (warns aren't filtered like debugs).
-  function handleBoardClickCapture(e: React.MouseEvent) {
-    const sinceDragMs = Date.now() - dragJustEndedRef.current;
-    if (sinceDragMs < 1000) {
-      e.preventDefault();
-      e.stopPropagation();
-      // Visible diagnostic in dev + prod console. Strip when bug confirmed
-      // dead.
-      // eslint-disable-next-line no-console
-      console.warn("[kanban] click suppressed at board root (recent drag)", {
-        sinceDragMs,
-        target: (e.target as HTMLElement)?.dataset?.testid,
-      });
-    }
-  }
+  // Round 35 (7 May 2026 AM, NIS Class 1) — REVERTED round-31's
+  // handleBoardClickCapture + onClickCapture, and the boardRootRef.
+  // Both contributed to the drag breakage Matt reported live.
 
   return (
     <div
-      ref={boardRootRef}
       className="flex flex-col gap-3"
       data-testid="kanban-board"
       data-unit-id={unitId}
-      onClickCapture={handleBoardClickCapture}
     >
       {/* Save indicator + estimate calibration */}
       <div className="flex items-center gap-2 text-[10.5px] text-gray-500">
