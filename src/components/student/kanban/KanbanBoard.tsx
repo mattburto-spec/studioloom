@@ -169,6 +169,18 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
     null
   );
 
+  // Round 39 (7 May 2026, post-Class-1) — phantom dragEnd guard.
+  // framer-motion fires onDragEnd TWICE per drag (real drop + snap-back
+  // animation, see round 37). Round 37 stopped the modal opening from
+  // the click between them. This guard stops the SECOND dragEnd from
+  // re-running classifyDrop / dispatching moveCard. Symptom without
+  // it: card lands in new column, then "flies back" because the
+  // snap-back's info.point lands near the origin column and looks like
+  // a valid move from the (now-updated) card.status back to origin.
+  // Set at dragStart, cleared by the first dragEnd. Second dragEnd
+  // sees null and bails before any state change.
+  const activeDragCardRef = useRef<string | null>(null);
+
   const registerColumnEl = useCallback(
     (id: KanbanColumnId, el: HTMLElement | null) => {
       columnElsRef.current.set(id, el);
@@ -207,6 +219,10 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
       clearTimeout(dragReleaseTimeoutRef.current);
       dragReleaseTimeoutRef.current = null;
     }
+    // Round 39 — claim ownership of the drag session for this card.
+    // The first dragEnd will clear this; the phantom second dragEnd
+    // will see null and bail.
+    activeDragCardRef.current = cardId;
   }
 
   // Round 38 (7 May 2026, NIS Class 1) — coord-system bug.
@@ -233,6 +249,21 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   }
 
   function handleCardDragEnd(cardId: string, info: PanInfo) {
+    // Round 39 — phantom dragEnd guard. framer-motion fires onDragEnd
+    // twice per drag in our setup (real + snap-back). Only the FIRST
+    // fire should run classify/dispatch logic. The second sees a
+    // cleared ref and bails before touching any state.
+    if (activeDragCardRef.current !== cardId) {
+      // eslint-disable-next-line no-console
+      console.warn("[kanban] phantom dragEnd ignored", {
+        cardId,
+        offsetX: info.offset?.x,
+        offsetY: info.offset?.y,
+      });
+      return;
+    }
+    activeDragCardRef.current = null;
+
     const card = state.cards.find((c) => c.id === cardId);
     setDraggingCardId(null);
     setHoverColumnId(null);
