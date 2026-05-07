@@ -78,19 +78,21 @@ describe("KanbanBoard — Add Card flow wiring", () => {
     );
   });
 
-  it("drag-end stamps dragJustEndedRef so the next click is swallowed", () => {
-    expect(BOARD_SRC).toContain("dragJustEndedRef");
-    expect(BOARD_SRC).toMatch(/dragJustEndedRef\.current\s*=\s*Date\.now\(\)/);
+  // Round 37 (proven load-bearing) replaced the round-28 timestamp
+  // gate with a stateful boolean ref. Set true at dragStart, released
+  // 350ms after dragEnd via setTimeout. handleAddCard bails when true
+  // so the synthetic click that follows a drag pointer-release can't
+  // open the composer.
+  it("dragStart claims isDraggingRef so the post-drop click is swallowed", () => {
+    expect(BOARD_SRC).toContain("isDraggingRef");
+    expect(BOARD_SRC).toMatch(/isDraggingRef\.current\s*=\s*true/);
   });
 
-  // Round 28 — bumped 350ms → 1000ms after Matt repro'd the modal
-  // STILL opening on drop with the round-26 fix live. Some browsers /
-  // touch devices fire the synthetic click far later than the React
-  // commit cycle. 1000ms covers any realistic gap and is well under
-  // the duration of a deliberate click.
-  it("handleAddCard ignores clicks within 1000ms of a drag-end", () => {
-    expect(BOARD_SRC).toMatch(
-      /Date\.now\(\)\s*-\s*dragJustEndedRef\.current\s*<\s*1000/
-    );
+  it("handleAddCard ignores clicks while isDraggingRef is true", () => {
+    const startIdx = BOARD_SRC.indexOf("function handleAddCard(");
+    expect(startIdx).toBeGreaterThan(0);
+    const nextFnIdx = BOARD_SRC.indexOf("function ", startIdx + 1);
+    const body = BOARD_SRC.slice(startIdx, nextFnIdx);
+    expect(body).toMatch(/if\s*\(isDraggingRef\.current\)\s*return/);
   });
 });

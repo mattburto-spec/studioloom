@@ -67,26 +67,7 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   const { state, loadStatus, loadError, save, dispatch, flushSave } = board;
 
   // Modal state — independent of the hook's persistence layer
-  const [openCardIdRaw, setOpenCardIdRaw] = useState<string | null>(null);
-  const openCardId = openCardIdRaw;
-  // Round 36 (7 May 2026 AM, NIS Class 1) — DIAGNOSTIC INSTRUMENTATION.
-  // 4 layers of click suppression couldn't fix the modal-on-drop, so
-  // the modal is probably NOT being opened by a click event we can
-  // intercept. This wrapper logs every call to setOpenCardId with a
-  // stack trace, so the next time Matt sees the modal pop on drop,
-  // DevTools console will show the EXACT call path. We can then
-  // surgically fix that path instead of guessing.
-  //
-  // Wrapped so all existing call sites (handleCardDragEnd's
-  // "needsModal" case, openCardModal, closeCardModal) flow through
-  // here without code change.
-  const setOpenCardId = useCallback((value: string | null) => {
-    if (value !== null) {
-      // eslint-disable-next-line no-console
-      console.trace("[kanban] setOpenCardId called with", value);
-    }
-    setOpenCardIdRaw(value);
-  }, []);
+  const [openCardId, setOpenCardId] = useState<string | null>(null);
   const [modalMode, setModalMode] = useState<ModalMode>("edit");
   const [moveTarget, setMoveTarget] = useState<KanbanColumnId | null>(null);
 
@@ -103,96 +84,16 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   const [addCardForColumn, setAddCardForColumn] =
     useState<KanbanColumnId | null>(null);
 
-  // Round 21 — drag-end ghost-click suppression. Framer Motion releases
-  // pointer events at drag-end; if the dropped card lands on top of the
-  // "+ Add card" button, that button's onClick fires the synthetic
-  // click and the Add modal opens unintentionally. We set this ref for
-  // ~350ms after a drag ends to swallow any clicks during that window.
-  //
-  // Round 23 → Round 26 (6 May 2026 PM) — earlier we tried mirroring
-  // the ref into a `suppressCardClick` state and propagating it down
-  // through KanbanColumn → KanbanCard.suppressClick. That was wrong:
-  // the React state setter is async, so the synthetic click fires
-  // with stale prop value before React re-renders. Matt's repro:
-  // dragged a card → modal still opened.
-  //
-  // Round 26 fix: synchronous ref check at the BOARD level. handleCardClick
-  // wraps openCardModal and bails when the ref says we just dropped a
-  // card. No state, no prop propagation, no render-timing race.
-  //
-  // Round 35 (7 May 2026 AM, NIS Class 1) — REVERTED rounds 31 / 33 /
-  // 34. Per Matt during Class 1: "now the column doesnt glow purple
-  // anymore when i drag a card onto it, the cards dont stay and the
-  // popups are still there". The progressively-aggressive click
-  // suppression (round 31 capture-phase handler, round 33 pointer-
-  // events:none mutation, round 34 document-level capture handler)
-  // collectively interfered with framer-motion's pointer event
-  // detection, breaking drag mechanics entirely.
-  //
-  // Drag-working-with-modal > no-drag-no-modal. Reverted to round-26
-  // baseline (handleCardClick gate). Modal-on-drop is now a known
-  // outstanding bug — needs `setOpenCardId` instrumentation to find
-  // the actual code path opening it. Filed post-class.
-  const dragJustEndedRef = useRef<number>(0);
-
-  // Round 37 (7 May 2026 AM, NIS Class 1) — THE ACTUAL FIX.
-  //
-  // Round 36's console.trace instrumentation caught the bug live.
-  // Trace showed:
-  //   1. dragEnd fired (offset 363, real drag movement)
-  //   2. setOpenCardId called (modal opens)
-  //   3. dragEnd fired AGAIN (offset -282 — the snap-back animation!)
-  //
-  // framer-motion fires onDragEnd TWICE per drag in our setup —
-  // once for the real drag, once when dragSnapToOrigin animates the
-  // card back. The click event fires BETWEEN these two events.
-  //
-  // The previous gate (Date.now() - dragJustEndedRef.current < 1000)
-  // SHOULD have caught the click in this window — the first dragEnd
-  // stamps the ref, then click fires within milliseconds, gate sees
-  // sinceDragMs ≈ 5ms < 1000 → suppress. But the modal still opens.
-  //
-  // Conclusion: handleCardClick's gate isn't reaching the click event,
-  // OR the click is bypassing handleCardClick entirely. Either way,
-  // a TIMESTAMP-based gate isn't reliable.
-  //
-  // Switch to a STATEFUL flag: `isDraggingRef` is true from the
-  // moment dragStart fires until 350ms after dragEnd. Updated
-  // synchronously at the ref level so no render-timing race.
-  // handleCardClick bails immediately if isDraggingRef.current
-  // is true. The 350ms post-dragEnd buffer covers the snap-back
-  // animation + any deferred synthetic clicks.
+  // Drag-click suppression. The synthetic click that fires after
+  // framer-motion's pointer release would otherwise open the modal
+  // (or the Add Card composer if the drop lands on the + button).
+  // isDraggingRef is true from dragStart until 350ms after dragEnd —
+  // synchronous ref read so there's no render-timing race.
+  // handleCardClick + handleAddCard bail when it's true.
   const isDraggingRef = useRef<boolean>(false);
-  // Tracks the pending "release isDraggingRef" timeout so back-to-back
-  // drags don't race — each new dragStart cancels the previous release.
   const dragReleaseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
-
-  // Round 39 (7 May 2026, post-Class-1) — phantom dragEnd guard.
-  // framer-motion fires onDragEnd TWICE per drag (real drop + snap-back
-  // animation, see round 37). Round 37 stopped the modal opening from
-  // the click between them. This guard stops the SECOND dragEnd from
-  // re-running classifyDrop / dispatching moveCard. Symptom without
-  // it: card lands in new column, then "flies back" because the
-  // snap-back's info.point lands near the origin column and looks like
-  // a valid move from the (now-updated) card.status back to origin.
-  // Set at dragStart, cleared by the first dragEnd. Second dragEnd
-  // sees null and bails before any state change.
-  const activeDragCardRef = useRef<string | null>(null);
-
-  // Round 40 (7 May 2026) — second layer of phantom defense.
-  // Round 39's ref guard fails when something re-claims the ref between
-  // the real dragEnd and the phantom (suspected: snap-back animation
-  // triggers a phantom dragStart). Empirical evidence from the Round 39
-  // ship: two dragEnds for the same card with offsets summing to ~zero
-  // (-327,+2 then +319,-21), which is a snap-back negation pattern, not
-  // two independent user drags.
-  // Timestamp debounce per cardId — within 350ms of a successful
-  // dragEnd, any further dragEnd for that same card is treated as
-  // phantom regardless of ref state. 350ms covers the snap-back
-  // animation duration; legit re-drag is rare in that window.
-  const lastDragEndAtRef = useRef<Map<string, number>>(new Map());
 
   const registerColumnEl = useCallback(
     (id: KanbanColumnId, el: HTMLElement | null) => {
@@ -221,26 +122,11 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   function handleCardDragStart(cardId: string) {
     setDraggingCardId(cardId);
     setHoverColumnId(null);
-    // Round 37 — flip the stateful flag at dragStart and cancel any
-    // pending release from a previous drag. From this moment until
-    // 350ms after dragEnd, handleCardClick / handleAddCard bail.
-    // Refs don't trigger re-renders so this is safe (the round-28
-    // breakage was unrelated — that round added a TIMESTAMP stamp
-    // here that some downstream gate misread; this is just a boolean).
     isDraggingRef.current = true;
     if (dragReleaseTimeoutRef.current !== null) {
       clearTimeout(dragReleaseTimeoutRef.current);
       dragReleaseTimeoutRef.current = null;
     }
-    // Round 39 — claim ownership of the drag session for this card.
-    // The first dragEnd will clear this; the phantom second dragEnd
-    // will see null and bail.
-    activeDragCardRef.current = cardId;
-    // Round 40 — diagnostic. If a phantom dragEnd is slipping past the
-    // ref guard, something must be re-claiming the ref. This warn
-    // proves whether dragStart fires extra times during snap-back.
-    // eslint-disable-next-line no-console
-    console.warn("[kanban] dragStart fired", { cardId });
   }
 
   // Round 38 (7 May 2026, NIS Class 1) — coord-system bug.
@@ -267,56 +153,11 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   }
 
   function handleCardDragEnd(cardId: string, info: PanInfo) {
-    // Round 39 — phantom dragEnd guard. framer-motion fires onDragEnd
-    // twice per drag in our setup (real + snap-back). Only the FIRST
-    // fire should run classify/dispatch logic. The second sees a
-    // cleared ref and bails before touching any state.
-    if (activeDragCardRef.current !== cardId) {
-      // eslint-disable-next-line no-console
-      console.warn("[kanban] phantom dragEnd ignored (ref guard)", {
-        cardId,
-        offsetX: info.offset?.x,
-        offsetY: info.offset?.y,
-      });
-      return;
-    }
-    activeDragCardRef.current = null;
-
-    // Round 40 — second-layer phantom guard: timestamp debounce per
-    // cardId. Catches phantoms that slip past the ref guard because
-    // something (suspected: snap-back animation) re-claimed the ref
-    // via a phantom dragStart. 350ms window matches the snap-back
-    // animation duration; a legit user re-drag of the SAME card in
-    // <350ms is unlikely.
-    const lastDragEndAt = lastDragEndAtRef.current.get(cardId) ?? 0;
-    const sinceLastMs = Date.now() - lastDragEndAt;
-    if (sinceLastMs < 350) {
-      // eslint-disable-next-line no-console
-      console.warn("[kanban] phantom dragEnd ignored (timestamp guard)", {
-        cardId,
-        sinceLastMs,
-        offsetX: info.offset?.x,
-        offsetY: info.offset?.y,
-      });
-      return;
-    }
-    lastDragEndAtRef.current.set(cardId, Date.now());
-
     const card = state.cards.find((c) => c.id === cardId);
     setDraggingCardId(null);
     setHoverColumnId(null);
-    // Round 21 + 26 — stamp the moment the drag ended.
-    // handleAddCard + handleCardClick gate on this ref synchronously.
-    // Round 35 (7 May 2026 AM) reverted the round-33 pointer-events
-    // mutation along with round-34 doc-level handler; both broke drag
-    // mechanics. Drag-with-modal-popup > no-drag.
-    dragJustEndedRef.current = Date.now();
-    // Round 37 — schedule release of the stateful drag flag. 350ms
-    // covers framer-motion's snap-back animation (which fires a
-    // SECOND dragEnd) and any synthetic click that may follow. Any
-    // existing pending release was already cleared at dragStart, but
-    // we defensively clear here too in case dragEnd fires twice
-    // (which it does — that's the bug we're working around).
+    // Schedule release of isDraggingRef. 350ms buffer absorbs the
+    // synthetic click that fires after pointer-up across browsers.
     if (dragReleaseTimeoutRef.current !== null) {
       clearTimeout(dragReleaseTimeoutRef.current);
     }
@@ -324,12 +165,6 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
       isDraggingRef.current = false;
       dragReleaseTimeoutRef.current = null;
     }, 350);
-    // eslint-disable-next-line no-console
-    console.warn("[kanban] dragEnd fired", {
-      cardId,
-      offsetX: info.offset?.x,
-      offsetY: info.offset?.y,
-    });
     if (!card) return;
 
     const rects = readColumnRects();
@@ -367,41 +202,11 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
     setMoveTarget(null);
   }
 
-  // Round 26 — synchronous ref-check wrapper around card clicks.
-  // KanbanCard's onClick comes through KanbanColumn.onCardClick which
-  // is bound to THIS function, so the guard runs at click time on the
-  // latest ref value rather than on a stale prop value.
-  //
-  // Round 28 — window bumped 350ms → 1000ms after Matt repro'd "popups
-  // each time i move a card" with the round-26 fix live. The
-  // dragJustEndedRef is also stamped on drag-START now, so this gate
-  // covers the entire drag duration + 1s after — defends against
-  // touch devices / browsers where the synthetic click fires hundreds
-  // of ms after pointerup. 1000ms is still well under the duration of
-  // a deliberate click (which typically takes 50-200ms on touch).
   function handleCardClick(cardId: string) {
-    // Round 37 — primary gate. isDraggingRef is true from dragStart
-    // until 350ms after dragEnd, regardless of how many times
-    // framer-motion fires onDragEnd or where the synthetic click
-    // lands in the sequence. Synchronous, no render-timing race.
-    if (isDraggingRef.current) {
-      // eslint-disable-next-line no-console
-      console.warn("[kanban] click suppressed by isDraggingRef", { cardId });
-      return;
-    }
-    // Round 28 — belt-and-suspenders timestamp gate kept in case the
-    // ref-flag misses an edge case (e.g. release fired early due to a
-    // missed dragEnd). 1000ms covers the entire drag + click-delay
-    // window across browsers / devices.
-    const sinceDragMs = Date.now() - dragJustEndedRef.current;
-    if (sinceDragMs < 1000) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        "[kanban] click suppressed at handleCardClick (timestamp gate)",
-        { cardId, sinceDragMs }
-      );
-      return;
-    }
+    // Drop the synthetic click that follows a drag-end pointer release.
+    // The ref read happens at click time so there's no stale-prop race
+    // (the round-23 attempt mirrored the ref into state and broke).
+    if (isDraggingRef.current) return;
     openCardModal(cardId);
   }
 
@@ -411,11 +216,10 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   }
 
   function handleAddCard(toStatus: KanbanColumnId) {
-    // Round 37 — same dual-gate as handleCardClick. The Add-card
-    // button is on the same surface as cards, so the ghost-click
-    // problem applies identically.
+    // Same drag-click suppression as handleCardClick — the + Add card
+    // button sits on the same surface as cards, so a drop landing on
+    // top would otherwise open the composer.
     if (isDraggingRef.current) return;
-    if (Date.now() - dragJustEndedRef.current < 1000) return;
     setAddCardForColumn(toStatus);
   }
 
@@ -463,10 +267,6 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
     : null;
 
   // ─── BOARD ────────────────────────────────────────────────────────────────
-
-  // Round 35 (7 May 2026 AM, NIS Class 1) — REVERTED round-31's
-  // handleBoardClickCapture + onClickCapture, and the boardRootRef.
-  // Both contributed to the drag breakage Matt reported live.
 
   return (
     <div
