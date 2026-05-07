@@ -209,12 +209,26 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
     }
   }
 
+  // Round 38 (7 May 2026, NIS Class 1) — coord-system bug.
+  // framer-motion's `info.point` returns PAGE coords (event.pageX/Y,
+  // include document scroll) while getBoundingClientRect() returns
+  // VIEWPORT coords (no scroll). When the page is scrolled at all,
+  // info.point.y > rect.bottom for every column and findDropTargetColumn
+  // returns null → no glow → drop classified as noop → card snaps back.
+  // Symptom: works when scrollY=0, breaks when user scrolls. This was
+  // latent since round 19 — surfaced now that the student dashboard is
+  // tall enough to scroll on more viewports.
+  // Fix: convert info.point from page → viewport by subtracting scroll.
+  function viewportPoint(info: PanInfo): { x: number; y: number } {
+    return {
+      x: info.point.x - window.scrollX,
+      y: info.point.y - window.scrollY,
+    };
+  }
+
   function handleCardDrag(_cardId: string, info: PanInfo) {
     const rects = readColumnRects();
-    const target = findDropTargetColumn(
-      { x: info.point.x, y: info.point.y },
-      rects
-    );
+    const target = findDropTargetColumn(viewportPoint(info), rects);
     setHoverColumnId(target);
   }
 
@@ -250,10 +264,7 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
     if (!card) return;
 
     const rects = readColumnRects();
-    const target = findDropTargetColumn(
-      { x: info.point.x, y: info.point.y },
-      rects
-    );
+    const target = findDropTargetColumn(viewportPoint(info), rects);
     const action = classifyDrop(state, card, target);
 
     switch (action.kind) {
