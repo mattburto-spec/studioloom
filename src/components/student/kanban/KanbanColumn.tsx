@@ -271,14 +271,16 @@ export default function KanbanColumn({
         </AnimatePresence>
       </div>
 
-      {/* Add card affordance + optional Ideate button (Backlog only). */}
+      {/* Add card affordance + optional Ideate helper (Backlog only).
+          Stacked vertically — Add card is the primary, frequent action;
+          Ideate is the secondary "I'm stuck" helper below it. */}
       {(allowAdd || onIdeate) && (
-        <div className="mt-2.5 flex items-center gap-2">
+        <div className="mt-2.5 flex flex-col gap-1.5">
           {allowAdd && (
             <button
               type="button"
               onClick={onAddCard}
-              className={`flex-1 text-[11.5px] text-gray-500 hover:${tone.label} hover:bg-white border border-dashed border-gray-300 hover:border-current rounded-lg px-2.5 py-1.5 transition-all duration-150 font-semibold`}
+              className={`w-full text-[11.5px] text-gray-500 hover:${tone.label} hover:bg-white border border-dashed border-gray-300 hover:border-current rounded-lg px-2.5 py-1.5 transition-all duration-150 font-semibold`}
               data-testid={`kanban-column-${columnId}-add`}
             >
               + Add card
@@ -288,11 +290,11 @@ export default function KanbanColumn({
             <button
               type="button"
               onClick={onIdeate}
-              className="text-[11.5px] text-violet-700 hover:text-white hover:bg-violet-600 border border-violet-300 hover:border-violet-600 rounded-lg px-2.5 py-1.5 transition-all duration-150 font-semibold whitespace-nowrap"
+              className="w-full text-[11px] text-violet-700 hover:text-white hover:bg-violet-600 border border-violet-300 hover:border-violet-600 rounded-lg px-2.5 py-1.5 transition-all duration-150 font-semibold leading-snug"
               data-testid={`kanban-column-${columnId}-ideate`}
-              title="Get help thinking of backlog items — AI asks questions, you write the cards."
+              title="AI asks questions, you write the cards. Never gives you lists."
             >
-              ✨ Ideate
+              <span aria-hidden="true">✨</span> Help me come up with more cards
             </button>
           )}
         </div>
