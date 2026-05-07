@@ -41,6 +41,15 @@ export interface AttentionRow {
   lastJournalAt: string | null;
   /** student_unit_kanban.last_move_at. NULL if no kanban activity. */
   lastKanbanMoveAt: string | null;
+  /**
+   * Total cards on the student's kanban for this unit (sum of all four
+   * column counts). 0 means the board has never been populated. Drives
+   * the teacher's at-a-glance "is this student using the project board?"
+   * pulse check.
+   */
+  kanbanTotalCards: number;
+  /** Cards in the Done column. Engagement + completion signal. */
+  kanbanDoneCount: number;
   /** Most recent competency_assessments row with source='teacher_observation'. */
   lastCalibrationAt: string | null;
   /** Combined Three Cs rating snapshot. */

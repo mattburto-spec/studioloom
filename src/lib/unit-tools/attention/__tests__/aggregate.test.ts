@@ -284,6 +284,7 @@ describe("buildAttentionPanel", () => {
       students: [],
       journalByStudent: {},
       kanbanMoveByStudent: {},
+      kanbanCountsByStudent: {},
       competencyByStudent: {},
     });
     expect(out.unitId).toBe("u-1");
@@ -300,6 +301,7 @@ describe("buildAttentionPanel", () => {
       students: [{ studentId: "s1", displayName: "Alice" }],
       journalByStudent: { s1: "2026-05-05T00:00:00Z" },
       kanbanMoveByStudent: { s1: "2026-05-04T00:00:00Z" },
+      kanbanCountsByStudent: { s1: { total: 4, done: 1 } },
       competencyByStudent: {
         s1: [
           ca(
@@ -319,6 +321,24 @@ describe("buildAttentionPanel", () => {
     expect(r.lastCalibrationAt).toBe("2026-05-03T00:00:00Z");
     expect(r.threeCs.choice).toBe(3);
     expect(r.threeCs.aggregate).toBe(3);
+    // Kanban pulse counts come through from input
+    expect(r.kanbanTotalCards).toBe(4);
+    expect(r.kanbanDoneCount).toBe(1);
+  });
+
+  it("defaults kanban counts to zero when student has no kanban row", () => {
+    const out = buildAttentionPanel({
+      unitId: "u-1",
+      classId: "c-1",
+      nowIso: NOW,
+      students: [{ studentId: "s-no-board", displayName: "Empty" }],
+      journalByStudent: {},
+      kanbanMoveByStudent: {},
+      kanbanCountsByStudent: {}, // student missing from map → zeros
+      competencyByStudent: {},
+    });
+    expect(out.rows[0].kanbanTotalCards).toBe(0);
+    expect(out.rows[0].kanbanDoneCount).toBe(0);
   });
 
   it("sorts highest-priority first end-to-end", () => {
@@ -332,6 +352,7 @@ describe("buildAttentionPanel", () => {
       ],
       journalByStudent: { s1: NOW, s2: null }, // s2 never journalled
       kanbanMoveByStudent: { s1: NOW, s2: null },
+      kanbanCountsByStudent: { s1: { total: 5, done: 2 }, s2: { total: 0, done: 0 } },
       competencyByStudent: {
         s1: [
           ca(
@@ -360,6 +381,7 @@ describe("buildAttentionPanel", () => {
       ],
       journalByStudent: {},
       kanbanMoveByStudent: {},
+      kanbanCountsByStudent: {},
       competencyByStudent: {
         s1: [ca(THREE_CS_COMPETENCIES.choice, 4, "student_self", NOW)],
         s2: [ca(THREE_CS_COMPETENCIES.choice, 3, "student_self", NOW)],

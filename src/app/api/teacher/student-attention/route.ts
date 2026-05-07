@@ -121,18 +121,40 @@ export const GET = withErrorHandler(
       }
     }
 
-    // 6. Per-student last_move_at from student_unit_kanban
+    // 6. Per-student last_move_at + denormalized counts from student_unit_kanban.
+    //    Counts power the at-a-glance "is this student using their project
+    //    board?" pulse check shown alongside the timestamp.
     const kanbanMoveByStudent: Record<string, string | null> = {};
+    const kanbanCountsByStudent: Record<
+      string,
+      { total: number; done: number }
+    > = {};
     {
       const { data: rows } = await db
         .from("student_unit_kanban")
-        .select("student_id, last_move_at")
+        .select(
+          "student_id, last_move_at, backlog_count, this_class_count, doing_count, done_count"
+        )
         .eq("unit_id", unitId)
         .in("student_id", studentIds);
       for (const r of rows || []) {
-        const sid = (r as { student_id: string }).student_id;
-        const ts = (r as { last_move_at: string | null }).last_move_at;
-        kanbanMoveByStudent[sid] = ts;
+        const row = r as {
+          student_id: string;
+          last_move_at: string | null;
+          backlog_count: number;
+          this_class_count: number;
+          doing_count: number;
+          done_count: number;
+        };
+        kanbanMoveByStudent[row.student_id] = row.last_move_at;
+        kanbanCountsByStudent[row.student_id] = {
+          total:
+            row.backlog_count +
+            row.this_class_count +
+            row.doing_count +
+            row.done_count,
+          done: row.done_count,
+        };
       }
     }
 
@@ -172,6 +194,7 @@ export const GET = withErrorHandler(
       students,
       journalByStudent,
       kanbanMoveByStudent,
+      kanbanCountsByStudent,
       competencyByStudent,
     });
 

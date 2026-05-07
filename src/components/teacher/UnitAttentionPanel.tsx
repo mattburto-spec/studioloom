@@ -171,6 +171,16 @@ export default function UnitAttentionPanel({
               card on their Project Board.
             </dd>
           </div>
+          <div>
+            <dt className="inline font-semibold text-gray-800">Cards:</dt>{" "}
+            <dd className="inline">
+              Pulse check on Project Board engagement —{" "}
+              <span className="font-mono">N · M done</span> means N total
+              cards across all four columns, M of them in Done.{" "}
+              <span className="text-rose-700 font-medium">none</span> = the
+              student hasn&apos;t added any cards yet.
+            </dd>
+          </div>
         </dl>
       </details>
 
@@ -307,6 +317,10 @@ function AttentionRowItem({ row, nowIso, onClick }: AttentionRowItemProps) {
             tooltip="Last time the student moved a card on their Project Board."
             testId="attention-signal-kanban"
           />
+          <KanbanPulseCell
+            total={row.kanbanTotalCards}
+            done={row.kanbanDoneCount}
+          />
           <SignalCell
             label="Calibration"
             iso={row.lastCalibrationAt}
@@ -351,6 +365,37 @@ function SignalCell({ label, iso, nowIso, tooltip, testId }: SignalCellProps) {
         }
       >
         {formatted}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Compact "📋 N · ✅ M" pill showing total card count + done count for the
+ * student's kanban on this unit. Pulse-check signal: zero = no engagement,
+ * low total = barely using the board, healthy ratio of done/total = active
+ * project management.
+ */
+function KanbanPulseCell({ total, done }: { total: number; done: number }) {
+  const tone =
+    total === 0
+      ? "text-rose-600 font-medium"
+      : total < 3
+      ? "text-amber-700"
+      : "text-gray-700";
+  return (
+    <span
+      className="flex items-center gap-1"
+      title={
+        total === 0
+          ? "Empty project board — student hasn't added any cards yet."
+          : `${total} card${total === 1 ? "" : "s"} on board, ${done} done.`
+      }
+      data-testid="attention-signal-kanban-pulse"
+    >
+      <span className="text-gray-400">Cards:</span>
+      <span className={tone}>
+        {total === 0 ? "none" : `${total} · ${done} done`}
       </span>
     </span>
   );
