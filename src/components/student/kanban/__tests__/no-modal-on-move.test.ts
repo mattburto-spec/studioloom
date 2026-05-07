@@ -97,6 +97,23 @@ describe("KanbanBoard — drag-end suppresses post-drop card click (round 26 ref
     expect(BOARD_SRC).toMatch(/console\.warn\([^)]*kanban[^)]*dragEnd/i);
     expect(BOARD_SRC).toMatch(/console\.warn\([^)]*kanban[^)]*click suppressed/i);
   });
+
+  // Round 33 — nuclear option: direct DOM mutation to disable pointer
+  // events on the board for 600ms after drop. Synchronous; the
+  // synthetic click can't reach any descendant.
+  it("declares boardRootRef + ref attached to the board root div", () => {
+    expect(BOARD_SRC).toMatch(/boardRootRef\s*=\s*useRef<HTMLDivElement\s*\|\s*null>\(null\)/);
+    expect(BOARD_SRC).toMatch(/ref=\{boardRootRef\}/);
+  });
+
+  it("handleCardDragEnd disables pointer events on the board for 600ms", () => {
+    expect(BOARD_SRC).toMatch(
+      /boardRootRef\.current\.style\.pointerEvents\s*=\s*"none"/
+    );
+    expect(BOARD_SRC).toMatch(
+      /setTimeout\([\s\S]{0,200}boardRootRef\.current\.style\.pointerEvents\s*=\s*""[\s\S]{0,80}600\)/
+    );
+  });
 });
 
 describe("KanbanColumn — no longer passes suppressCardClick (round 26 cleanup)", () => {
