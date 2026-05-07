@@ -135,6 +135,40 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   // the actual code path opening it. Filed post-class.
   const dragJustEndedRef = useRef<number>(0);
 
+  // Round 37 (7 May 2026 AM, NIS Class 1) — THE ACTUAL FIX.
+  //
+  // Round 36's console.trace instrumentation caught the bug live.
+  // Trace showed:
+  //   1. dragEnd fired (offset 363, real drag movement)
+  //   2. setOpenCardId called (modal opens)
+  //   3. dragEnd fired AGAIN (offset -282 — the snap-back animation!)
+  //
+  // framer-motion fires onDragEnd TWICE per drag in our setup —
+  // once for the real drag, once when dragSnapToOrigin animates the
+  // card back. The click event fires BETWEEN these two events.
+  //
+  // The previous gate (Date.now() - dragJustEndedRef.current < 1000)
+  // SHOULD have caught the click in this window — the first dragEnd
+  // stamps the ref, then click fires within milliseconds, gate sees
+  // sinceDragMs ≈ 5ms < 1000 → suppress. But the modal still opens.
+  //
+  // Conclusion: handleCardClick's gate isn't reaching the click event,
+  // OR the click is bypassing handleCardClick entirely. Either way,
+  // a TIMESTAMP-based gate isn't reliable.
+  //
+  // Switch to a STATEFUL flag: `isDraggingRef` is true from the
+  // moment dragStart fires until 350ms after dragEnd. Updated
+  // synchronously at the ref level so no render-timing race.
+  // handleCardClick bails immediately if isDraggingRef.current
+  // is true. The 350ms post-dragEnd buffer covers the snap-back
+  // animation + any deferred synthetic clicks.
+  const isDraggingRef = useRef<boolean>(false);
+  // Tracks the pending "release isDraggingRef" timeout so back-to-back
+  // drags don't race — each new dragStart cancels the previous release.
+  const dragReleaseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+
   const registerColumnEl = useCallback(
     (id: KanbanColumnId, el: HTMLElement | null) => {
       columnElsRef.current.set(id, el);
@@ -162,17 +196,17 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   function handleCardDragStart(cardId: string) {
     setDraggingCardId(cardId);
     setHoverColumnId(null);
-    // Round 29 (7 May 2026 AM, Class 1 day) — REVERTED the round-28
-    // dragStart stamp. Per Matt: "now i cant drag and drop the cards
-    // at all". Round 28 added a ref stamp + console.debug here as
-    // belt+suspenders for the click suppression. Refs don't trigger
-    // re-renders so the stamp itself shouldn't break drag, but
-    // reverting in panic mode to get drag working again BEFORE
-    // class. The drag-end stamp (kept below) plus the 1000ms click
-    // window (kept in handleCardClick) are the proven half of round
-    // 28 — they're what suppress the post-drop click. Removing the
-    // dragStart stamp loses the in-drag-click suppression, but the
-    // user can't click during a drag anyway (mouse is held down).
+    // Round 37 — flip the stateful flag at dragStart and cancel any
+    // pending release from a previous drag. From this moment until
+    // 350ms after dragEnd, handleCardClick / handleAddCard bail.
+    // Refs don't trigger re-renders so this is safe (the round-28
+    // breakage was unrelated — that round added a TIMESTAMP stamp
+    // here that some downstream gate misread; this is just a boolean).
+    isDraggingRef.current = true;
+    if (dragReleaseTimeoutRef.current !== null) {
+      clearTimeout(dragReleaseTimeoutRef.current);
+      dragReleaseTimeoutRef.current = null;
+    }
   }
 
   function handleCardDrag(_cardId: string, info: PanInfo) {
@@ -194,6 +228,19 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
     // mutation along with round-34 doc-level handler; both broke drag
     // mechanics. Drag-with-modal-popup > no-drag.
     dragJustEndedRef.current = Date.now();
+    // Round 37 — schedule release of the stateful drag flag. 350ms
+    // covers framer-motion's snap-back animation (which fires a
+    // SECOND dragEnd) and any synthetic click that may follow. Any
+    // existing pending release was already cleared at dragStart, but
+    // we defensively clear here too in case dragEnd fires twice
+    // (which it does — that's the bug we're working around).
+    if (dragReleaseTimeoutRef.current !== null) {
+      clearTimeout(dragReleaseTimeoutRef.current);
+    }
+    dragReleaseTimeoutRef.current = setTimeout(() => {
+      isDraggingRef.current = false;
+      dragReleaseTimeoutRef.current = null;
+    }, 350);
     // eslint-disable-next-line no-console
     console.warn("[kanban] dragEnd fired", {
       cardId,
@@ -253,17 +300,24 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   // of ms after pointerup. 1000ms is still well under the duration of
   // a deliberate click (which typically takes 50-200ms on touch).
   function handleCardClick(cardId: string) {
-    // Round 31 — defense-in-depth gate. The board-root onClickCapture
-    // SHOULD have already stopped this click if it was a recent-drag
-    // synthetic. If we get here, either the capture-phase blocker
-    // didn't fire (which is the bug we're hunting) or this is a
-    // legitimate click. Log the recent-drag-gate hit so DevTools shows
-    // when it catches what the capture-phase missed.
+    // Round 37 — primary gate. isDraggingRef is true from dragStart
+    // until 350ms after dragEnd, regardless of how many times
+    // framer-motion fires onDragEnd or where the synthetic click
+    // lands in the sequence. Synchronous, no render-timing race.
+    if (isDraggingRef.current) {
+      // eslint-disable-next-line no-console
+      console.warn("[kanban] click suppressed by isDraggingRef", { cardId });
+      return;
+    }
+    // Round 28 — belt-and-suspenders timestamp gate kept in case the
+    // ref-flag misses an edge case (e.g. release fired early due to a
+    // missed dragEnd). 1000ms covers the entire drag + click-delay
+    // window across browsers / devices.
     const sinceDragMs = Date.now() - dragJustEndedRef.current;
     if (sinceDragMs < 1000) {
       // eslint-disable-next-line no-console
       console.warn(
-        "[kanban] click suppressed at handleCardClick (capture-phase missed it!)",
+        "[kanban] click suppressed at handleCardClick (timestamp gate)",
         { cardId, sinceDragMs }
       );
       return;
@@ -277,10 +331,10 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   }
 
   function handleAddCard(toStatus: KanbanColumnId) {
-    // Round 21 + 26 + 28 — ghost-click guard. If the user just dropped
-    // a card and the synthetic click landed on this column's "+ Add
-    // card" button, ignore it. 1000ms (round 28 bump) covers the
-    // entire drag + click-delay window across browsers / devices.
+    // Round 37 — same dual-gate as handleCardClick. The Add-card
+    // button is on the same surface as cards, so the ghost-click
+    // problem applies identically.
+    if (isDraggingRef.current) return;
     if (Date.now() - dragJustEndedRef.current < 1000) return;
     setAddCardForColumn(toStatus);
   }
