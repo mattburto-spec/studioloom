@@ -22,7 +22,6 @@ import {
   type MoveValidation,
 } from "@/lib/unit-tools/kanban/reducer";
 import {
-  KANBAN_COLUMNS,
   type BlockType,
   type KanbanCard,
   type KanbanColumn,
@@ -262,32 +261,13 @@ export default function KanbanCardModal({
                   </div>
                 )}
 
-              {/* Move-to picker — Round 23: buttons now direct-dispatch
-                  the move + close the modal. Per Matt: "i dont want
-                  these white popups each time i move a card." The old
-                  flow opened a sub-mode that asked for DoD/estimate/
-                  because, even with round-22's softened validation
-                  making them all optional. WIP cap on Doing still
-                  fires via the reducer's no-op fallback; the parent's
-                  drop-toast pattern surfaces it. */}
-              <div className="pt-1 border-t border-gray-100">
-                <span className="text-[10.5px] font-semibold text-gray-700 uppercase tracking-wide block mb-1.5">
-                  Move to
-                </span>
-                <div className="flex flex-wrap gap-1">
-                  {KANBAN_COLUMNS.filter((c) => c !== card.status).map((col) => (
-                    <button
-                      key={col}
-                      type="button"
-                      onClick={() => onMove(col, {})}
-                      className="text-[11px] px-2 py-1 rounded border border-gray-200 hover:border-violet-300 hover:bg-violet-50 text-gray-700 hover:text-violet-700"
-                      data-testid={`kanban-modal-move-${col}`}
-                    >
-                      → {COLUMN_LABELS[col]}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {/* Round 34 (7 May 2026 AM, NIS Class 1) — Move-to picker
+                  REMOVED. Per Matt: "the pop ups have a 'move to' option
+                  but this isn't needed because we can drag them". Drag-
+                  and-drop is the canonical move interaction; redundant
+                  buttons just add visual noise. KANBAN_COLUMNS is no
+                  longer referenced from this file — TypeScript may flag
+                  the import as unused but ESLint will pick it up if so. */}
 
               {/* Block / unblock */}
               <div className="pt-1 border-t border-gray-100">

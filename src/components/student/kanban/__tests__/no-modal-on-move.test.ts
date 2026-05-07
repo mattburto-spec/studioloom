@@ -114,6 +114,26 @@ describe("KanbanBoard — drag-end suppresses post-drop card click (round 26 ref
       /setTimeout\([\s\S]{0,200}boardRootRef\.current\.style\.pointerEvents\s*=\s*""[\s\S]{0,80}600\)/
     );
   });
+
+  // Round 34 — outermost layer. Document-level capture-phase click
+  // listener that suppresses any click WITHIN the kanban-board for
+  // 1500ms after a drag-end. Catches anything that slipped past the
+  // board-root onClickCapture or the pointer-events:none mutation.
+  // Scoped to clicks where target is contained by the board root —
+  // outside clicks (sidebar, header nav) pass through normally.
+  it("registers a document-level capture-phase click listener scoped to the board", () => {
+    expect(BOARD_SRC).toMatch(
+      /document\.addEventListener\("click",\s*handler,\s*true\)/
+    );
+    expect(BOARD_SRC).toMatch(
+      /document\.removeEventListener\("click",\s*handler,\s*true\)/
+    );
+    // Window is 1500ms (longer than the 1000ms handleCardClick gate
+    // because we're at document-level — covers slower-firing clicks).
+    expect(BOARD_SRC).toMatch(/sinceDragMs\s*>=\s*1500/);
+    // Only suppresses clicks inside the board.
+    expect(BOARD_SRC).toMatch(/root\.contains\(target\)/);
+  });
 });
 
 describe("KanbanColumn — no longer passes suppressCardClick (round 26 cleanup)", () => {
@@ -134,15 +154,19 @@ describe("KanbanCard — already had suppressClick wiring (round 19)", () => {
   });
 });
 
-describe("KanbanCardModal — edit-mode 'Move to' buttons direct-dispatch", () => {
-  it("does NOT call onChangeMode for move-target buttons (no sub-mode)", () => {
-    // Find the Move-to picker block and confirm the button onClick is
-    // onMove(col, {}) and not onChangeMode("move-to", col).
-    const idx = MODAL_SRC.indexOf('data-testid={`kanban-modal-move-${col}`}');
-    expect(idx).toBeGreaterThan(0);
-    const slice = MODAL_SRC.slice(Math.max(0, idx - 600), idx);
-    expect(slice).toContain("onMove(col, {})");
-    expect(slice).not.toMatch(/onChangeMode\("move-to",\s*col\)/);
+// Round 34 — "Move to" buttons removed entirely from edit mode (per
+// Matt: "the pop ups have a 'move to' option but this isn't needed
+// because we can drag them"). Drag-and-drop is the canonical move
+// interaction. The previous round-22/23 test for direct-dispatch is
+// retargeted to assert the buttons are GONE.
+describe("KanbanCardModal — edit-mode 'Move to' buttons removed (round 34)", () => {
+  it("no longer renders kanban-modal-move-${col} buttons in edit mode", () => {
+    expect(MODAL_SRC).not.toMatch(/data-testid=\{`kanban-modal-move-\$\{col\}`\}/);
+  });
+
+  it("does not import KANBAN_COLUMNS at the top of the file (cleanup)", () => {
+    // The import was only used for the move-to picker iteration.
+    expect(MODAL_SRC).not.toMatch(/^\s*KANBAN_COLUMNS,\s*$/m);
   });
 });
 
