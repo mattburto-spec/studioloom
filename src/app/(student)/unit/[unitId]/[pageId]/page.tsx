@@ -426,7 +426,10 @@ function UnitPageViewInner({
         <LessonFooter
           onPrev={
             prevPage
-              ? () => router.push(`/unit/${unitId}/${prevPage.id}`)
+              ? () => {
+                  // Hard navigation — see onComplete below for rationale.
+                  window.location.href = `/unit/${unitId}/${prevPage.id}`;
+                }
               : undefined
           }
           onComplete={async () => {
@@ -437,7 +440,10 @@ function UnitPageViewInner({
             // no longer triggered. To restore: replace this block with
             // setPendingNavTarget(...) + setShowFeedbackPulse(true).
             if (nextPage) {
-              router.push(`/unit/${unitId}/${nextPage.id}`);
+              // Hard navigation — see LessonSidebar.navigateToPage
+              // for the rationale. router.push silently no-ops when
+              // navigating to recently-created [pageId] segments.
+              window.location.href = `/unit/${unitId}/${nextPage.id}`;
             }
           }}
           saving={saving}
@@ -622,7 +628,8 @@ function UnitPageViewInner({
         onDone={async () => {
           await saveProgress("complete");
           if (nextPage) {
-            router.push(`/unit/${unitId}/${nextPage.id}`);
+            // Hard navigation — see onComplete in LessonFooter above.
+            window.location.href = `/unit/${unitId}/${nextPage.id}`;
           }
         }}
       />

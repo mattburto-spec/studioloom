@@ -160,7 +160,12 @@ export function LessonSidebar({ data, unitId, sidebarOpen, onClose }: LessonSide
   }
 
   function navigateToPage(pageId: string) {
-    router.push(`/unit/${unitId}/${pageId}`);
+    // Hard navigation (full reload) instead of router.push. Next.js 15's
+    // soft-nav silently no-ops when pushing to recently-created
+    // [pageId] segments — the click handler fires (verified) but the
+    // URL doesn't change. Hard nav bypasses whichever RSC cache layer
+    // is stale. Tracked: see follow-up — fix the soft-nav path later.
+    window.location.href = `/unit/${unitId}/${pageId}`;
     onClose();
   }
 

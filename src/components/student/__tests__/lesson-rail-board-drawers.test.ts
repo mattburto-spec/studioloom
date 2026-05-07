@@ -132,7 +132,13 @@ describe("pace-feedback popup retired (round 7)", () => {
     expect(handler).not.toContain("setPendingNavTarget(");
     // saveProgress + nextPage push still present
     expect(handler).toContain('saveProgress("complete")');
-    expect(handler).toContain("router.push(`/unit/${unitId}/${nextPage.id}`)");
+    // Round 43 (7 May 2026) — switched from router.push to window.location.href
+    // (hard nav) because Next.js 15's soft-nav silently no-ops when pushing
+    // to recently-created [pageId] segments. See LessonSidebar.navigateToPage
+    // for the rationale. Test asserts the navigation lands on nextPage.id.
+    expect(handler).toContain(
+      "window.location.href = `/unit/${unitId}/${nextPage.id}`"
+    );
   });
 });
 
