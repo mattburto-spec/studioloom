@@ -129,15 +129,17 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   function handleCardDragStart(cardId: string) {
     setDraggingCardId(cardId);
     setHoverColumnId(null);
-    // Round 28 (7 May 2026 AM) — also stamp on drag-START so the
-    // entire drag duration + 1s after is covered. Belt + suspenders
-    // for browsers / devices where the drag-end → click latency
-    // exceeds 350ms.
-    dragJustEndedRef.current = Date.now();
-    if (process.env.NODE_ENV !== "production") {
-      // eslint-disable-next-line no-console
-      console.debug("[kanban] dragStart", { cardId });
-    }
+    // Round 29 (7 May 2026 AM, Class 1 day) — REVERTED the round-28
+    // dragStart stamp. Per Matt: "now i cant drag and drop the cards
+    // at all". Round 28 added a ref stamp + console.debug here as
+    // belt+suspenders for the click suppression. Refs don't trigger
+    // re-renders so the stamp itself shouldn't break drag, but
+    // reverting in panic mode to get drag working again BEFORE
+    // class. The drag-end stamp (kept below) plus the 1000ms click
+    // window (kept in handleCardClick) are the proven half of round
+    // 28 — they're what suppress the post-drop click. Removing the
+    // dragStart stamp loses the in-drag-click suppression, but the
+    // user can't click during a drag anyway (mouse is held down).
   }
 
   function handleCardDrag(_cardId: string, info: PanInfo) {
@@ -153,23 +155,13 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
     const card = state.cards.find((c) => c.id === cardId);
     setDraggingCardId(null);
     setHoverColumnId(null);
-    // Round 21 + 26 + 28 — stamp the moment the drag ended.
-    // handleAddCard + handleCardClick both gate on this ref
-    // synchronously; no React state involved so no render-timing
-    // race against the synthetic click that fires after pointerup.
-    // Round 28 — also stamped on drag-START + window bumped to
-    // 1000ms (was 350ms) per Matt 7 May AM: "kanban board is still
-    // having popups each time i move a card". Some browsers / touch
-    // devices fire the synthetic click hundreds of ms after pointerup.
+    // Round 21 + 26 — stamp the moment the drag ended. handleAddCard
+    // + handleCardClick both gate on this ref synchronously; no React
+    // state involved so no render-timing race against the synthetic
+    // click that fires after pointerup. 1000ms window in handleCardClick
+    // (round 28 bump from 350ms) covers any realistic browser/device
+    // gap between pointerup and the synthetic click.
     dragJustEndedRef.current = Date.now();
-    if (process.env.NODE_ENV !== "production") {
-      // eslint-disable-next-line no-console
-      console.debug("[kanban] dragEnd", {
-        cardId,
-        offset: info.offset,
-        velocity: info.velocity,
-      });
-    }
     if (!card) return;
 
     const rects = readColumnRects();
@@ -223,21 +215,7 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   // of ms after pointerup. 1000ms is still well under the duration of
   // a deliberate click (which typically takes 50-200ms on touch).
   function handleCardClick(cardId: string) {
-    const sinceDragMs = Date.now() - dragJustEndedRef.current;
-    if (sinceDragMs < 1000) {
-      if (process.env.NODE_ENV !== "production") {
-        // eslint-disable-next-line no-console
-        console.debug("[kanban] click suppressed (recent drag)", {
-          cardId,
-          sinceDragMs,
-        });
-      }
-      return;
-    }
-    if (process.env.NODE_ENV !== "production") {
-      // eslint-disable-next-line no-console
-      console.debug("[kanban] click → openCardModal", { cardId });
-    }
+    if (Date.now() - dragJustEndedRef.current < 1000) return;
     openCardModal(cardId);
   }
 
