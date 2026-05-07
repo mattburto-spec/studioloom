@@ -181,6 +181,19 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   // sees null and bails before any state change.
   const activeDragCardRef = useRef<string | null>(null);
 
+  // Round 40 (7 May 2026) — second layer of phantom defense.
+  // Round 39's ref guard fails when something re-claims the ref between
+  // the real dragEnd and the phantom (suspected: snap-back animation
+  // triggers a phantom dragStart). Empirical evidence from the Round 39
+  // ship: two dragEnds for the same card with offsets summing to ~zero
+  // (-327,+2 then +319,-21), which is a snap-back negation pattern, not
+  // two independent user drags.
+  // Timestamp debounce per cardId — within 350ms of a successful
+  // dragEnd, any further dragEnd for that same card is treated as
+  // phantom regardless of ref state. 350ms covers the snap-back
+  // animation duration; legit re-drag is rare in that window.
+  const lastDragEndAtRef = useRef<Map<string, number>>(new Map());
+
   const registerColumnEl = useCallback(
     (id: KanbanColumnId, el: HTMLElement | null) => {
       columnElsRef.current.set(id, el);
@@ -223,6 +236,11 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
     // The first dragEnd will clear this; the phantom second dragEnd
     // will see null and bail.
     activeDragCardRef.current = cardId;
+    // Round 40 — diagnostic. If a phantom dragEnd is slipping past the
+    // ref guard, something must be re-claiming the ref. This warn
+    // proves whether dragStart fires extra times during snap-back.
+    // eslint-disable-next-line no-console
+    console.warn("[kanban] dragStart fired", { cardId });
   }
 
   // Round 38 (7 May 2026, NIS Class 1) — coord-system bug.
@@ -255,7 +273,7 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
     // cleared ref and bails before touching any state.
     if (activeDragCardRef.current !== cardId) {
       // eslint-disable-next-line no-console
-      console.warn("[kanban] phantom dragEnd ignored", {
+      console.warn("[kanban] phantom dragEnd ignored (ref guard)", {
         cardId,
         offsetX: info.offset?.x,
         offsetY: info.offset?.y,
@@ -263,6 +281,26 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
       return;
     }
     activeDragCardRef.current = null;
+
+    // Round 40 — second-layer phantom guard: timestamp debounce per
+    // cardId. Catches phantoms that slip past the ref guard because
+    // something (suspected: snap-back animation) re-claimed the ref
+    // via a phantom dragStart. 350ms window matches the snap-back
+    // animation duration; a legit user re-drag of the SAME card in
+    // <350ms is unlikely.
+    const lastDragEndAt = lastDragEndAtRef.current.get(cardId) ?? 0;
+    const sinceLastMs = Date.now() - lastDragEndAt;
+    if (sinceLastMs < 350) {
+      // eslint-disable-next-line no-console
+      console.warn("[kanban] phantom dragEnd ignored (timestamp guard)", {
+        cardId,
+        sinceLastMs,
+        offsetX: info.offset?.x,
+        offsetY: info.offset?.y,
+      });
+      return;
+    }
+    lastDragEndAtRef.current.set(cardId, Date.now());
 
     const card = state.cards.find((c) => c.id === cardId);
     setDraggingCardId(null);
