@@ -216,6 +216,11 @@ export interface AttentionInputs {
   journalByStudent: Record<string, string | null>;
   /** student_unit_kanban.last_move_at per student. */
   kanbanMoveByStudent: Record<string, string | null>;
+  /**
+   * Per-student kanban counts: total = sum of all column counts,
+   * done = done_count column. Missing entry = no kanban row yet (zeros).
+   */
+  kanbanCountsByStudent: Record<string, { total: number; done: number }>;
   /** All competency_assessments rows for the unit, grouped by student. */
   competencyByStudent: Record<string, CompetencyAssessmentLike[]>;
 }
@@ -236,6 +241,10 @@ export function buildAttentionPanel(
     const lastCalibrationAt = computeLastCalibrationAt(ca);
     const lastJournalAt = input.journalByStudent[s.studentId] ?? null;
     const lastKanbanMoveAt = input.kanbanMoveByStudent[s.studentId] ?? null;
+    const counts = input.kanbanCountsByStudent[s.studentId] ?? {
+      total: 0,
+      done: 0,
+    };
     const attentionPriority = computeAttentionPriority({
       lastJournalAt,
       lastKanbanMoveAt,
@@ -248,6 +257,8 @@ export function buildAttentionPanel(
       displayName: s.displayName,
       lastJournalAt,
       lastKanbanMoveAt,
+      kanbanTotalCards: counts.total,
+      kanbanDoneCount: counts.done,
       lastCalibrationAt,
       threeCs,
       attentionPriority,
