@@ -67,7 +67,26 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   const { state, loadStatus, loadError, save, dispatch, flushSave } = board;
 
   // Modal state — independent of the hook's persistence layer
-  const [openCardId, setOpenCardId] = useState<string | null>(null);
+  const [openCardIdRaw, setOpenCardIdRaw] = useState<string | null>(null);
+  const openCardId = openCardIdRaw;
+  // Round 36 (7 May 2026 AM, NIS Class 1) — DIAGNOSTIC INSTRUMENTATION.
+  // 4 layers of click suppression couldn't fix the modal-on-drop, so
+  // the modal is probably NOT being opened by a click event we can
+  // intercept. This wrapper logs every call to setOpenCardId with a
+  // stack trace, so the next time Matt sees the modal pop on drop,
+  // DevTools console will show the EXACT call path. We can then
+  // surgically fix that path instead of guessing.
+  //
+  // Wrapped so all existing call sites (handleCardDragEnd's
+  // "needsModal" case, openCardModal, closeCardModal) flow through
+  // here without code change.
+  const setOpenCardId = useCallback((value: string | null) => {
+    if (value !== null) {
+      // eslint-disable-next-line no-console
+      console.trace("[kanban] setOpenCardId called with", value);
+    }
+    setOpenCardIdRaw(value);
+  }, []);
   const [modalMode, setModalMode] = useState<ModalMode>("edit");
   const [moveTarget, setMoveTarget] = useState<KanbanColumnId | null>(null);
 
