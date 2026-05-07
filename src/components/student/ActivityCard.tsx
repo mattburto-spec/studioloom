@@ -51,7 +51,7 @@ const CONTENT_STYLE_CONFIG = {
     border: "border border-blue-200/70",
     badgeBg: "bg-blue-500",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-white">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-white">
         <circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" />
       </svg>
     ),
@@ -63,7 +63,7 @@ const CONTENT_STYLE_CONFIG = {
     border: "border border-amber-200/70",
     badgeBg: "bg-amber-500",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-white">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-white">
         <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
       </svg>
     ),
@@ -75,7 +75,7 @@ const CONTENT_STYLE_CONFIG = {
     border: "border border-emerald-200/70",
     badgeBg: "bg-emerald-500",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-white">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-white">
         <path d="M9 18h6" /><path d="M10 22h4" /><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14" />
       </svg>
     ),
@@ -95,7 +95,7 @@ const CONTENT_STYLE_CONFIG = {
     border: "border border-violet-200/70",
     badgeBg: "bg-violet-500",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-white">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-white">
         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
       </svg>
     ),
@@ -107,7 +107,7 @@ const CONTENT_STYLE_CONFIG = {
     border: "border border-indigo-200/70",
     badgeBg: "bg-indigo-500",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-white">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-white">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
       </svg>
     ),
@@ -119,7 +119,7 @@ const CONTENT_STYLE_CONFIG = {
     border: "border border-orange-200/70",
     badgeBg: "bg-orange-500",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-white">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-white">
         <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
       </svg>
     ),
@@ -164,26 +164,35 @@ export function ActivityCard({
           so click-for-word-definition (TappableText) keeps working. */}
       {isContentOnly && style ? (
         <div
-          className={`rounded-2xl p-5 md:p-6 shadow-sm transition-shadow duration-200 hover:shadow-md ${style.bg} ${style.border}`}
+          className={`relative rounded-3xl p-6 md:p-8 shadow-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 ${style.bg} ${style.border} overflow-hidden`}
         >
+          {/* Subtle decorative top accent — adds presence without
+              shouting. Inherits the badge color so each block style
+              has its own thin signature stripe. */}
+          {style.badgeBg && (
+            <div
+              className={`absolute top-0 left-0 right-0 h-1 ${style.badgeBg} opacity-70`}
+              aria-hidden="true"
+            />
+          )}
           {style.label && (
-            <div className="flex items-center gap-3 mb-3">
+            <div className="flex items-center gap-3 mb-4">
               {style.icon && (
                 <div
-                  className={`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center shadow-sm ${style.badgeBg}`}
+                  className={`flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center shadow-md ${style.badgeBg}`}
                   aria-hidden="true"
                 >
                   {style.icon}
                 </div>
               )}
               <span
-                className={`text-[11px] font-bold uppercase tracking-wider ${style.labelColor}`}
+                className={`text-[12px] font-bold uppercase tracking-[0.12em] ${style.labelColor}`}
               >
                 {style.label}
               </span>
             </div>
           )}
-          <div className="text-[15px] md:text-base text-gray-800 leading-relaxed">
+          <div className="text-[17px] md:text-[18px] text-gray-800 leading-[1.65] font-normal">
             <ComposedPrompt section={section} variant="compact" tappable />
           </div>
 
