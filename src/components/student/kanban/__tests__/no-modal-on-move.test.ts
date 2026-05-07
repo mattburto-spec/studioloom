@@ -78,6 +78,25 @@ describe("KanbanBoard — drag-end suppresses post-drop card click (round 26 ref
   it("KanbanColumn receives onCardClick={handleCardClick} (not an inline arrow)", () => {
     expect(BOARD_SRC).toMatch(/onCardClick=\{handleCardClick\}/);
   });
+
+  // Round 31 — capture-phase gate at the board root. Earliest possible
+  // click interception in React's event system; if the bubble-phase
+  // gate at handleCardClick is missing the synthetic click somehow,
+  // this catches it before any child handler fires.
+  it("board root has onClickCapture wired to a recent-drag gate", () => {
+    expect(BOARD_SRC).toMatch(/function handleBoardClickCapture/);
+    expect(BOARD_SRC).toMatch(/onClickCapture=\{handleBoardClickCapture\}/);
+    expect(BOARD_SRC).toMatch(
+      /handleBoardClickCapture[\s\S]{0,400}sinceDragMs\s*<\s*1000[\s\S]{0,200}e\.preventDefault\(\)[\s\S]{0,80}e\.stopPropagation\(\)/
+    );
+  });
+
+  it("dragEnd + click-suppression both log to console.warn for diagnostic visibility", () => {
+    // console.warn (not debug — debug is filtered) so we can see in
+    // prod DevTools when the gate fires vs misses.
+    expect(BOARD_SRC).toMatch(/console\.warn\([^)]*kanban[^)]*dragEnd/i);
+    expect(BOARD_SRC).toMatch(/console\.warn\([^)]*kanban[^)]*click suppressed/i);
+  });
 });
 
 describe("KanbanColumn — no longer passes suppressCardClick (round 26 cleanup)", () => {

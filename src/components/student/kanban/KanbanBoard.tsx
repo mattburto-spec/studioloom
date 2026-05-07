@@ -155,13 +155,18 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
     const card = state.cards.find((c) => c.id === cardId);
     setDraggingCardId(null);
     setHoverColumnId(null);
-    // Round 21 + 26 — stamp the moment the drag ended. handleAddCard
-    // + handleCardClick both gate on this ref synchronously; no React
-    // state involved so no render-timing race against the synthetic
-    // click that fires after pointerup. 1000ms window in handleCardClick
-    // (round 28 bump from 350ms) covers any realistic browser/device
-    // gap between pointerup and the synthetic click.
+    // Round 21 + 26 + 31 — stamp the moment the drag ended.
+    // handleAddCard + handleCardClick + the round-31 board-root
+    // onClickCapture handler all gate on this ref synchronously.
     dragJustEndedRef.current = Date.now();
+    // Round 31 — visible diagnostic so Matt can confirm the drag-end
+    // is actually firing. console.warn (not debug) so it survives prod.
+    // eslint-disable-next-line no-console
+    console.warn("[kanban] dragEnd fired", {
+      cardId,
+      offsetX: info.offset?.x,
+      offsetY: info.offset?.y,
+    });
     if (!card) return;
 
     const rects = readColumnRects();
@@ -215,7 +220,21 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   // of ms after pointerup. 1000ms is still well under the duration of
   // a deliberate click (which typically takes 50-200ms on touch).
   function handleCardClick(cardId: string) {
-    if (Date.now() - dragJustEndedRef.current < 1000) return;
+    // Round 31 — defense-in-depth gate. The board-root onClickCapture
+    // SHOULD have already stopped this click if it was a recent-drag
+    // synthetic. If we get here, either the capture-phase blocker
+    // didn't fire (which is the bug we're hunting) or this is a
+    // legitimate click. Log the recent-drag-gate hit so DevTools shows
+    // when it catches what the capture-phase missed.
+    const sinceDragMs = Date.now() - dragJustEndedRef.current;
+    if (sinceDragMs < 1000) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        "[kanban] click suppressed at handleCardClick (capture-phase missed it!)",
+        { cardId, sinceDragMs }
+      );
+      return;
+    }
     openCardModal(cardId);
   }
 
@@ -278,11 +297,39 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
 
   // ─── BOARD ────────────────────────────────────────────────────────────────
 
+  // Round 31 (7 May 2026, NIS Class 1) — capture-phase click suppressor
+  // at the board root. Per Matt: kanban-modal-on-drop bug PERSISTS
+  // through rounds 23 / 26 / 28 / 29 and is now hitting students live
+  // in Class 1. Hypothesis: the previous bubble-phase gate at
+  // handleCardClick isn't reliably reached, OR the synthetic click
+  // dispatches differently than I assumed. Capture-phase handler at
+  // the board root is THE earliest possible interception in React's
+  // event system — fires before any child onClick. If it stops
+  // propagation, no child handler runs.
+  //
+  // Diagnostic: console.warn on every blocked click so we can see
+  // in DevTools when the gate fires (warns aren't filtered like debugs).
+  function handleBoardClickCapture(e: React.MouseEvent) {
+    const sinceDragMs = Date.now() - dragJustEndedRef.current;
+    if (sinceDragMs < 1000) {
+      e.preventDefault();
+      e.stopPropagation();
+      // Visible diagnostic in dev + prod console. Strip when bug confirmed
+      // dead.
+      // eslint-disable-next-line no-console
+      console.warn("[kanban] click suppressed at board root (recent drag)", {
+        sinceDragMs,
+        target: (e.target as HTMLElement)?.dataset?.testid,
+      });
+    }
+  }
+
   return (
     <div
       className="flex flex-col gap-3"
       data-testid="kanban-board"
       data-unit-id={unitId}
+      onClickCapture={handleBoardClickCapture}
     >
       {/* Save indicator + estimate calibration */}
       <div className="flex items-center gap-2 text-[10.5px] text-gray-500">
