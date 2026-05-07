@@ -101,6 +101,16 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   // wraps openCardModal and bails when the ref says we just dropped a
   // card. No state, no prop propagation, no render-timing race.
   const dragJustEndedRef = useRef<number>(0);
+  // Round 33 (7 May 2026 AM) — nuclear option: direct DOM ref to the
+  // kanban-board root. handleCardDragEnd mutates `style.pointerEvents`
+  // = "none" SYNCHRONOUSLY on this ref so the synthetic click that
+  // fires next has no valid target inside the board. Bypasses React
+  // entirely. After 600ms, restore pointer-events. Per Matt 7 May:
+  // capture-phase + bubble-phase gates from rounds 26 / 28 / 31 all
+  // fail to suppress the modal-on-drop on his setup. DOM mutation
+  // is the layer below React events — if THIS doesn't work, the
+  // modal isn't being opened by a click in the first place.
+  const boardRootRef = useRef<HTMLDivElement | null>(null);
 
   const registerColumnEl = useCallback(
     (id: KanbanColumnId, el: HTMLElement | null) => {
@@ -159,6 +169,20 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
     // handleAddCard + handleCardClick + the round-31 board-root
     // onClickCapture handler all gate on this ref synchronously.
     dragJustEndedRef.current = Date.now();
+    // Round 33 — DOM mutation: disable pointer events on the entire
+    // kanban board for 600ms. SYNCHRONOUS (no React render race).
+    // The synthetic click that fires after pointerup has no valid
+    // target inside the board — browser dispatches it elsewhere or
+    // drops it. After 600ms we restore pointer-events so subsequent
+    // interactions work.
+    if (boardRootRef.current) {
+      boardRootRef.current.style.pointerEvents = "none";
+      setTimeout(() => {
+        if (boardRootRef.current) {
+          boardRootRef.current.style.pointerEvents = "";
+        }
+      }, 600);
+    }
     // Round 31 — visible diagnostic so Matt can confirm the drag-end
     // is actually firing. console.warn (not debug) so it survives prod.
     // eslint-disable-next-line no-console
@@ -326,6 +350,7 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
 
   return (
     <div
+      ref={boardRootRef}
       className="flex flex-col gap-3"
       data-testid="kanban-board"
       data-unit-id={unitId}
