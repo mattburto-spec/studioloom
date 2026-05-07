@@ -181,6 +181,8 @@ describe("sortByAttention", () => {
       displayName: over.displayName ?? `S-${over.studentId}`,
       lastJournalAt: null,
       lastKanbanMoveAt: null,
+      kanbanTotalCards: 0,
+      kanbanDoneCount: 0,
       lastCalibrationAt: null,
       threeCs: { choice: null, causation: null, change: null, aggregate: null },
       suggestedOneOnOne: false,
@@ -223,6 +225,8 @@ describe("flagSuggestedOneOnOne", () => {
       displayName: `S-${studentId}`,
       lastJournalAt: null,
       lastKanbanMoveAt: null,
+      kanbanTotalCards: 0,
+      kanbanDoneCount: 0,
       lastCalibrationAt: null,
       threeCs: {
         choice: agg,

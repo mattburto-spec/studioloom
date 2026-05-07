@@ -30,6 +30,7 @@ import {
 import KanbanColumn from "./KanbanColumn";
 import KanbanCardModal, { type ModalMode } from "./KanbanCardModal";
 import KanbanAddCardModal from "./KanbanAddCardModal";
+import KanbanIdeationModal from "./KanbanIdeationModal";
 import { useKanbanBoard } from "./use-kanban-board";
 
 interface KanbanBoardProps {
@@ -83,6 +84,11 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
   // column when open. Replaces the v1 native window-prompt flow.
   const [addCardForColumn, setAddCardForColumn] =
     useState<KanbanColumnId | null>(null);
+
+  // Backlog Ideation modal state. Open = student is mid-Socratic flow.
+  // Per-open sessionId so the AI rate-limit bucket resets between opens.
+  const [ideationOpen, setIdeationOpen] = useState(false);
+  const [ideationSessionId, setIdeationSessionId] = useState<string>("");
 
   // Drag-click suppression. The synthetic click that fires after
   // framer-motion's pointer release would otherwise open the modal
@@ -229,6 +235,25 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
     setAddCardForColumn(null);
   }
 
+  function openIdeation() {
+    if (isDraggingRef.current) return;
+    // Fresh sessionId per open so AI rate-limit bucket resets between
+    // sessions (e.g. student opens, gets ideas, closes, opens again).
+    setIdeationSessionId(
+      `ideate-${unitId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    );
+    setIdeationOpen(true);
+  }
+
+  function handleIdeationConvert(ideas: string[]) {
+    // Bulk-create cards in Backlog using the student's typed words —
+    // the modal already enforces non-empty + min length per idea.
+    for (const title of ideas) {
+      dispatch({ type: "createCard", title, status: "backlog" });
+    }
+    setIdeationOpen(false);
+  }
+
   const accuracy = estimateAccuracy(state);
 
   // ─── LOAD STATES ───────────────────────────────────────────────────────────
@@ -353,6 +378,7 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
               wipLimit={col === "doing" ? state.wipLimitDoing : undefined}
               allowAdd={meta.allowAdd}
               onAddCard={() => handleAddCard(col)}
+              onIdeate={col === "backlog" ? openIdeation : undefined}
               onCardClick={handleCardClick}
               registerColumnEl={registerColumnEl}
               draggingCardId={draggingCardId}
@@ -397,6 +423,15 @@ export default function KanbanBoard({ unitId }: KanbanBoardProps) {
           toStatus={addCardForColumn}
           onSubmit={handleAddCardSubmit}
           onClose={() => setAddCardForColumn(null)}
+        />
+      )}
+
+      {/* Backlog Ideation modal — Socratic helper for populating Backlog. */}
+      {ideationOpen && (
+        <KanbanIdeationModal
+          sessionId={ideationSessionId}
+          onConvert={handleIdeationConvert}
+          onClose={() => setIdeationOpen(false)}
         />
       )}
 

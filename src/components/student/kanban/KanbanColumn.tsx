@@ -36,6 +36,12 @@ interface KanbanColumnProps {
   /** Whether to show the "+ Add card" affordance. */
   allowAdd: boolean;
   onAddCard: () => void;
+  /**
+   * Optional. Only set for the Backlog column — shows a "✨ Ideate"
+   * button alongside "+ Add card" that opens the Socratic ideation
+   * modal. Other columns leave this undefined.
+   */
+  onIdeate?: () => void;
   onCardClick: (cardId: string) => void;
   /**
    * Round 19 — drag-and-drop hooks. The board passes:
@@ -123,6 +129,7 @@ export default function KanbanColumn({
   onCardDragStart,
   onCardDrag,
   onCardDragEnd,
+  onIdeate,
 }: KanbanColumnProps) {
   const count = cards.length;
   const overLimit = wipLimit !== undefined && count > wipLimit;
@@ -264,16 +271,31 @@ export default function KanbanColumn({
         </AnimatePresence>
       </div>
 
-      {/* Add card affordance */}
-      {allowAdd && (
-        <button
-          type="button"
-          onClick={onAddCard}
-          className={`mt-2.5 text-[11.5px] text-gray-500 hover:${tone.label} hover:bg-white border border-dashed border-gray-300 hover:border-current rounded-lg px-2.5 py-1.5 transition-all duration-150 font-semibold`}
-          data-testid={`kanban-column-${columnId}-add`}
-        >
-          + Add card
-        </button>
+      {/* Add card affordance + optional Ideate button (Backlog only). */}
+      {(allowAdd || onIdeate) && (
+        <div className="mt-2.5 flex items-center gap-2">
+          {allowAdd && (
+            <button
+              type="button"
+              onClick={onAddCard}
+              className={`flex-1 text-[11.5px] text-gray-500 hover:${tone.label} hover:bg-white border border-dashed border-gray-300 hover:border-current rounded-lg px-2.5 py-1.5 transition-all duration-150 font-semibold`}
+              data-testid={`kanban-column-${columnId}-add`}
+            >
+              + Add card
+            </button>
+          )}
+          {onIdeate && (
+            <button
+              type="button"
+              onClick={onIdeate}
+              className="text-[11.5px] text-violet-700 hover:text-white hover:bg-violet-600 border border-violet-300 hover:border-violet-600 rounded-lg px-2.5 py-1.5 transition-all duration-150 font-semibold whitespace-nowrap"
+              data-testid={`kanban-column-${columnId}-ideate`}
+              title="Get help thinking of backlog items — AI asks questions, you write the cards."
+            >
+              ✨ Ideate
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
