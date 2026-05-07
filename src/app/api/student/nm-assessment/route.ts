@@ -42,6 +42,55 @@ function checkRateLimit(studentId: string): boolean {
   return true;
 }
 
+/**
+ * Round 32 (7 May 2026, NIS Class 1) — GET handler so CompetencyPulse
+ * can detect whether the student has already submitted a self-
+ * assessment for this checkpoint on mount. Per Matt: "after a student
+ * completes the NM survey it shows a big pop art 'New Metrics Feedback
+ * Done!' as i dont need them to ever go back to a lesson and do it
+ * again." On refresh, the component fetches this and skips straight
+ * to the celebration if a prior submission exists.
+ *
+ * GET /api/student/nm-assessment?unitId=&pageId=
+ *   → { submitted: boolean }
+ *   200 with submitted=true if at least one competency_assessment row
+ *   exists for (student, unit, page) with source='student_self'.
+ *   200 with submitted=false otherwise. Auth-required.
+ */
+export async function GET(request: NextRequest) {
+  const session = await requireStudentSession(request);
+  if (session instanceof NextResponse) return session;
+  const studentId = session.studentId;
+
+  const url = new URL(request.url);
+  const unitId = url.searchParams.get("unitId");
+  const pageId = url.searchParams.get("pageId");
+
+  if (!unitId || !pageId) {
+    return NextResponse.json(
+      { error: "unitId and pageId required" },
+      { status: 400 }
+    );
+  }
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("competency_assessments")
+    .select("id")
+    .eq("student_id", studentId)
+    .eq("unit_id", unitId)
+    .eq("page_id", pageId)
+    .eq("source", "student_self")
+    .limit(1);
+
+  if (error) {
+    console.error("[nm-assessment GET] supabase error:", error.message);
+    return NextResponse.json({ error: "Lookup failed" }, { status: 500 });
+  }
+
+  return NextResponse.json({ submitted: (data?.length ?? 0) > 0 });
+}
+
 export async function POST(request: NextRequest) {
   const session = await requireStudentSession(request);
   if (session instanceof NextResponse) return session;
