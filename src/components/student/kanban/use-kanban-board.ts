@@ -129,11 +129,25 @@ export function useKanbanBoard(
     setSave((s) => ({ ...s, isSaving: true, error: null }));
     try {
       const result = await saveKanbanState(unitId, snapshot);
-      // Replace state with server canonical (counts re-derived server-side)
-      baseDispatch({ type: "loadState", state: result.kanban });
+      // Round 41 (7 May 2026) — race fix. The server-canonical
+      // loadState dispatch below was clobbering any drag that landed
+      // DURING the save's network roundtrip. Symptom: card "flies
+      // back" to its pre-snapshot position because the server response
+      // doesn't know about the in-flight local change. Only apply the
+      // server response if state hasn't changed since snapshot.
+      // useReducer returns a new object reference on every dispatch,
+      // so reference inequality is a reliable change signal.
+      const stateChangedDuringSave = stateRef.current !== snapshot;
+      if (!stateChangedDuringSave) {
+        // Replace state with server canonical (counts re-derived server-side)
+        baseDispatch({ type: "loadState", state: result.kanban });
+      }
       setSave({
         isSaving: false,
-        isDirty: false,
+        // Stay dirty if a change landed during save — the dispatch
+        // that made the change already scheduled a follow-up save
+        // via the debounce timer.
+        isDirty: stateChangedDuringSave,
         lastSavedAt: new Date().toISOString(),
         error: null,
       });
