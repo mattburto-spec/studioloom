@@ -21,6 +21,10 @@ interface CoverageGradeInput {
   confirmed: boolean;
   criterion_keys: string[];
   score: number | null;
+  /** Polish-3 — NA = teacher said "not applicable for this student/tile".
+   * Counts as covered (the teacher made a decision) but doesn't feed
+   * rollup averages. */
+  score_na?: boolean;
 }
 
 export interface CriterionCoverage {
@@ -92,7 +96,9 @@ export function computeCriterionCoverage(
     const studentsWithConfirmed = new Set<string>();
     for (const g of grades) {
       if (!g.confirmed) continue;
-      if (g.score === null) continue;
+      // Polish-3: NA counts as covered (teacher made a decision); plain
+      // null score = still ungraded.
+      if (g.score === null && !g.score_na) continue;
       if (!studentSet.has(g.student_id)) continue;
       if (!g.criterion_keys.includes(criterionKey)) continue;
       studentsWithConfirmed.add(g.student_id);

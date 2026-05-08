@@ -27,6 +27,8 @@ export interface TileGradeForRollup {
   confirmed: boolean;
   criterion_keys: string[];
   graded_at: string | null;
+  /** Polish-3 — NA tiles are confirmed but contribute nothing to averages. */
+  score_na?: boolean;
 }
 
 export interface CriterionRollup {
@@ -56,6 +58,7 @@ export function computeStudentRollup(
 
   for (const g of grades) {
     if (!g.confirmed) continue;
+    if (g.score_na) continue; // Polish-3: NA tiles are excluded from averages
     if (g.score === null) continue;
     if (g.criterion_keys.length === 0) continue;
     for (const key of g.criterion_keys) {

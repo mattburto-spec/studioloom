@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
   // Pull all confirmed tile grades for this student in this class+unit.
   const { data: gradeRows } = await supabaseAdmin
     .from("student_tile_grades")
-    .select("id, tile_id, page_id, score, confirmed, criterion_keys, graded_at")
+    .select("id, tile_id, page_id, score, confirmed, criterion_keys, graded_at, score_na")
     .eq("class_id", class_id)
     .eq("unit_id", unit_id)
     .eq("student_id", student_id);
@@ -108,7 +108,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const confirmedRows = rows.filter((r) => r.confirmed && r.score !== null);
+  // NA rows are confirmed but contribute no score — exclude from the
+  // "is there anything to release?" gate AND from snapshot writes below.
+  const confirmedRows = rows.filter(
+    (r) => r.confirmed && r.score !== null && !r.score_na,
+  );
   if (confirmedRows.length === 0) {
     return NextResponse.json(
       { error: "No confirmed tile grades to release. Confirm at least one tile first." },
