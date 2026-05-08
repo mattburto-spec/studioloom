@@ -21,7 +21,8 @@
  * generators.
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
+import { callAnthropicMessages } from "@/lib/ai/call";
 import { MODELS } from "@/lib/ai/models";
 import {
   CONTROLLED_VERBS,
@@ -207,7 +208,6 @@ function extractJsonArray<T>(text: string): T[] {
 export async function suggestDemoOfCompetency(
   draft: CardDraft
 ): Promise<string[]> {
-  const anthropic = new Anthropic();
   const verbList = CONTROLLED_VERBS.join(" / ");
 
   const system = `You are a curriculum design assistant for a skill card library used by secondary teachers (ages 11-18). You write the "demo of competency" line — the single sentence a student must demonstrate to earn the card. Always return a JSON array of strings, no commentary.`;
@@ -231,13 +231,20 @@ Return a JSON array of exactly 3-5 strings.
 Example: ["Demonstrate ...", "Produce ...", "Explain ..."]
 Return ONLY the JSON array, nothing else.`;
 
-  const response = await anthropic.messages.create({
+  const callResult = await callAnthropicMessages({
+    endpoint: "lib/skills/ai-helpers/demo",
     model: MODELS.HAIKU,
-    max_tokens: 600,
+    maxTokens: 600,
     system,
     messages: [{ role: "user", content: user }],
   });
 
+  if (!callResult.ok) {
+    if (callResult.reason === "api_error") throw callResult.error;
+    throw new Error(`suggestDemoOfCompetency: ${callResult.reason}`);
+  }
+
+  const response = callResult.response;
   const text =
     response.content[0]?.type === "text" ? response.content[0].text : "";
   const arr = extractJsonArray<string>(text)
@@ -271,8 +278,6 @@ Return ONLY the JSON array, nothing else.`;
 export async function suggestLearningOutcomes(
   draft: CardDraft
 ): Promise<string[]> {
-  const anthropic = new Anthropic();
-
   const existing = (draft.learning_outcomes ?? [])
     .map((o) => o.trim())
     .filter((o) => o.length > 0);
@@ -299,13 +304,20 @@ Return a JSON array of exactly 3 strings.
 Example: ["Student can identify …", "Student can produce …", "Student can explain …"]
 Return ONLY the JSON array, nothing else.`;
 
-  const response = await anthropic.messages.create({
+  const callResult = await callAnthropicMessages({
+    endpoint: "lib/skills/ai-helpers/outcomes",
     model: MODELS.HAIKU,
-    max_tokens: 500,
+    maxTokens: 500,
     system,
     messages: [{ role: "user", content: user }],
   });
 
+  if (!callResult.ok) {
+    if (callResult.reason === "api_error") throw callResult.error;
+    throw new Error(`suggestLearningOutcomes: ${callResult.reason}`);
+  }
+
+  const response = callResult.response;
   const text =
     response.content[0]?.type === "text" ? response.content[0].text : "";
   return extractJsonArray<string>(text)
@@ -360,8 +372,6 @@ const FRAMEWORK_VOCAB: Record<FrameworkAnchor["framework"], string[]> = {
 export async function suggestFrameworkAnchors(
   draft: CardDraft
 ): Promise<FrameworkAnchor[]> {
-  const anthropic = new Anthropic();
-
   const vocabBlock = (Object.keys(FRAMEWORK_VOCAB) as Array<
     keyof typeof FRAMEWORK_VOCAB
   >)
@@ -398,13 +408,20 @@ The "label" must be from the allowed list for that framework.
 
 Return ONLY the JSON array, nothing else.`;
 
-  const response = await anthropic.messages.create({
+  const callResult = await callAnthropicMessages({
+    endpoint: "lib/skills/ai-helpers/anchors",
     model: MODELS.HAIKU,
-    max_tokens: 400,
+    maxTokens: 400,
     system,
     messages: [{ role: "user", content: user }],
   });
 
+  if (!callResult.ok) {
+    if (callResult.reason === "api_error") throw callResult.error;
+    throw new Error(`suggestFrameworkAnchors: ${callResult.reason}`);
+  }
+
+  const response = callResult.response;
   const text =
     response.content[0]?.type === "text" ? response.content[0].text : "";
   const raw = extractJsonArray<{ framework?: string; label?: string }>(text);
@@ -524,8 +541,6 @@ export async function generateQuizQuestions(
         ? "Mix: ~70% true_false, ~30% multiple_choice. Use true_false for clear-cut facts."
         : "Mix: roughly half multiple_choice, half true_false.";
 
-  const anthropic = new Anthropic();
-
   const system = `You write quiz questions for a single skill card in a secondary-school skill library (ages 11-18). Quizzes gate the "earned" state, so questions must be answerable by anyone who has read the card and not by guesswork. Use the emit_quiz_questions tool to return your output — never plain text.`;
 
   const user = `${buildIdentityLine(draft)}
@@ -550,15 +565,22 @@ Rules:
 
 Use the emit_quiz_questions tool to return your output.`;
 
-  const response = await anthropic.messages.create({
+  const callResult = await callAnthropicMessages({
+    endpoint: "lib/skills/ai-helpers/quiz",
     model: MODELS.SONNET,
-    max_tokens: 4000,
+    maxTokens: 4000,
     temperature: 0.4,
     system,
     messages: [{ role: "user", content: user }],
     tools: [QUIZ_GENERATION_TOOL],
-    tool_choice: { type: "tool", name: QUIZ_GENERATION_TOOL.name },
+    toolChoice: { type: "tool", name: QUIZ_GENERATION_TOOL.name },
   });
+
+  if (!callResult.ok) {
+    if (callResult.reason === "api_error") throw callResult.error;
+    throw new Error(`generateQuizQuestions: ${callResult.reason}`);
+  }
+  const response = callResult.response;
 
   const toolUseBlock = response.content.find(
     (block) => block.type === "tool_use"

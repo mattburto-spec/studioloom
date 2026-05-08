@@ -8,7 +8,7 @@
 // Image handling: accepts Buffer, base64-encodes for Haiku vision.
 // No server-side resize — client already compresses via compressImage().
 
-import Anthropic from "@anthropic-ai/sdk";
+import { callAnthropicMessages } from "@/lib/ai/call";
 import { MODELS } from "@/lib/ai/models";
 import type {
   ModerationResult,
@@ -194,31 +194,39 @@ export async function moderateContent(
     ? buildImageContent(input, mimeType || "image/jpeg", context)
     : buildTextContent(input as string, context);
 
-  const client = new Anthropic({ apiKey, maxRetries: 4 });
-
   try {
     // NOTE: tool_choice + thinking cannot coexist (CLAUDE.md constraint).
-    const response = await client.messages.create({
+    const callResult = await callAnthropicMessages({
+      apiKey,
+      endpoint: "lib/content-safety/server-moderation",
       model: MODELS.HAIKU,
       system: MODERATION_SYSTEM_PROMPT,
       messages: [{ role: "user", content }],
-      max_tokens: 1024,
+      maxTokens: 1024,
       temperature: 0.1,
       tools: [MODERATION_TOOL_SCHEMA],
-      tool_choice: { type: "tool", name: "moderate_content" },
+      toolChoice: { type: "tool", name: "moderate_content" },
     });
 
-    // Lesson #39: inspect stop_reason for max_tokens truncation
-    if (response.stop_reason === "max_tokens") {
-      console.error(
-        `[server-moderation] max_tokens hit: configured=1024, output_tokens=${response.usage?.output_tokens}, model=${MODELS.HAIKU}`
-      );
+    // Lesson #39: helper handles max_tokens truncation centrally.
+    if (!callResult.ok) {
+      if (callResult.reason === "truncated") {
+        console.error(
+          `[server-moderation] max_tokens hit: configured=1024, model=${MODELS.HAIKU}`
+        );
+        return pendingResult(
+          `max_tokens truncation`,
+          Date.now() - startTime
+        );
+      }
+      if (callResult.reason === "api_error") throw callResult.error;
       return pendingResult(
-        `max_tokens truncation (output_tokens=${response.usage?.output_tokens})`,
+        `helper failed: ${callResult.reason}`,
         Date.now() - startTime
       );
     }
 
+    const response = callResult.response;
     const toolBlock = response.content.find((b) => b.type === "tool_use");
     if (!toolBlock || toolBlock.type !== "tool_use") {
       return pendingResult(
@@ -233,8 +241,8 @@ export async function moderateContent(
     const flags = mapFlags(rawFlags);
     const status = deriveStatus(flags);
 
-    const inputTokens = response.usage?.input_tokens ?? 0;
-    const outputTokens = response.usage?.output_tokens ?? 0;
+    const inputTokens = callResult.usage.input_tokens;
+    const outputTokens = callResult.usage.output_tokens;
 
     return {
       moderation: {
