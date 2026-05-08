@@ -6,7 +6,11 @@ import {
   freeToolRateLimitKey,
   isValidEmail,
 } from "@/lib/tools/free-tool-limits";
-import { buildReportWriterPrompt } from "@/lib/tools/report-writer-prompt";
+import {
+  buildReportWriterPrompt,
+  STUDENT_NAME_PLACEHOLDER,
+  restoreStudentName,
+} from "@/lib/tools/report-writer-prompt";
 import { callAnthropicMessages } from "@/lib/ai/call";
 import * as Sentry from "@sentry/nextjs";
 import { MODELS } from "@/lib/ai/models";
@@ -119,8 +123,11 @@ export async function POST(request: NextRequest) {
     }
 
     // --- Build prompt & call Haiku ---
+    // PII: never send the teacher-provided student name to Anthropic.
+    // Substitute with a placeholder; restore on the response.
+    const realStudentName = body.studentName.trim();
     const systemPrompt = buildReportWriterPrompt({
-      studentName: body.studentName.trim(),
+      studentName: STUDENT_NAME_PLACEHOLDER,
       pronouns: body.pronouns,
       subject: body.subject.trim(),
       gradeLevel: body.gradeLevel.trim(),
@@ -191,7 +198,7 @@ export async function POST(request: NextRequest) {
     // logUsage handled by callAnthropicMessages helper
 
     return NextResponse.json({
-      report,
+      report: restoreStudentName(report, realStudentName),
       remaining: limit.remaining,
     });
   } catch (error) {

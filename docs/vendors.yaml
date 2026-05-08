@@ -35,7 +35,14 @@ vendors:
     student_data_eligible: true
     certifications: [soc2_type2]
     contract_type: standard
-    notes: "DPA pending — Anthropic offers Zero Data Retention addendum; needs signing"
+    notes: |
+      DPA pending — Anthropic offers Zero Data Retention addendum; needs signing.
+      PII handling: the Report Writer free tool (tools/report-writer +
+      tools/report-writer/bulk) accepts a teacher-provided student name as
+      input. The name is substituted with a "Student" placeholder before the
+      prompt is sent to Anthropic and restored on the response client-side via
+      restoreStudentName() in src/lib/tools/report-writer-prompt.ts. No
+      student names leave the platform on this path.
 
   supabase:
     name: Supabase
