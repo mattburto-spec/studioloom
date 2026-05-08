@@ -41,6 +41,23 @@ export async function GET(request: NextRequest) {
   }
 
   const db = createAdminClient();
+
+  // TFL.1.2 — bump read receipt BEFORE the SELECT, so the response always
+  // reflects the just-written timestamp. Filter to rows that actually have
+  // a comment (empty/null student_facing_comment = nothing the student is
+  // "reading", no false receipt). No write to student_tile_grade_events;
+  // receipts are not audit-worthy at the per-load grain (would explode
+  // the events table). Idempotent — repeat hits just refresh the timestamp.
+  const seenAt = new Date().toISOString();
+  await db
+    .from("student_tile_grades")
+    .update({ student_seen_comment_at: seenAt })
+    .eq("student_id", session.studentId)
+    .eq("unit_id", unitId)
+    .eq("page_id", pageId)
+    .not("student_facing_comment", "is", null)
+    .neq("student_facing_comment", "");
+
   const { data, error } = await db
     .from("student_tile_grades")
     .select("tile_id, page_id, student_facing_comment, score, released_at")
