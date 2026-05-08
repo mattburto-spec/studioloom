@@ -7,7 +7,7 @@ import { getMentor } from '@/lib/quest/mentors';
 import { buildQuestPrompt } from '@/lib/quest/build-quest-prompt';
 import type { MentorId, QuestInteractionType } from '@/lib/quest/types';
 import { MODELS } from '@/lib/ai/models';
-import { withAIBudget } from '@/lib/access-v2/ai-budget/middleware';
+import { callAnthropicMessages } from '@/lib/ai/call';
 
 /**
  * PATCH — Select a mentor for the quest journey
@@ -165,55 +165,47 @@ export async function POST(request: NextRequest) {
     });
 
     // Call AI — Haiku for student-facing interactions (fast + cheap).
-    // Phase 5.3 — wrapped in withAIBudget for per-student cap enforcement
-    // + automatic 80%-warning audit emission + truncation guard (Lesson #39).
-    const Anthropic = (await import('@anthropic-ai/sdk')).default;
-    const anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
-
-    const budgetResult = await withAIBudget(supabase, studentId, async () => {
-      const aiResponse = await anthropic.messages.create({
-        model: MODELS.HAIKU,
-        max_tokens: 400,
-        system: systemPrompt,
-        messages: [
-          {
-            role: 'user',
-            content: message || `[${interactionType} triggered]`,
-          },
-        ],
-      });
-      return {
-        result: aiResponse,
-        usage: {
-          input_tokens: aiResponse.usage.input_tokens,
-          output_tokens: aiResponse.usage.output_tokens,
-          stop_reason: aiResponse.stop_reason ?? 'end_turn',
+    // Helper handles withAIBudget cap enforcement + Lesson #39 truncation guard
+    // when studentId is provided.
+    const callResult = await callAnthropicMessages({
+      supabase,
+      studentId,
+      endpoint: '/api/student/quest/mentor',
+      model: MODELS.HAIKU,
+      maxTokens: 400,
+      system: systemPrompt,
+      messages: [
+        {
+          role: 'user',
+          content: message || `[${interactionType} triggered]`,
         },
-      };
+      ],
     });
 
-    if (!budgetResult.ok) {
-      if (budgetResult.reason === 'over_cap') {
+    if (!callResult.ok) {
+      if (callResult.reason === 'over_cap') {
         return NextResponse.json(
           {
             error: 'budget_exceeded',
-            cap: budgetResult.cap,
-            used: budgetResult.used,
-            reset_at: budgetResult.resetAt,
+            cap: callResult.cap,
+            used: callResult.used,
+            reset_at: callResult.resetAt,
           },
           { status: 429 }
         );
       }
-      // 'truncated' — Anthropic hit max_tokens. Surface (Lesson #39 — don't bill).
-      return NextResponse.json(
-        { error: 'model_truncated', message: 'AI response truncated; try a shorter message.' },
-        { status: 502 }
-      );
+      if (callResult.reason === 'truncated') {
+        // Lesson #39 — don't bill on truncation.
+        return NextResponse.json(
+          { error: 'model_truncated', message: 'AI response truncated; try a shorter message.' },
+          { status: 502 }
+        );
+      }
+      if (callResult.reason === 'api_error') throw callResult.error;
+      return NextResponse.json({ error: `AI call failed: ${callResult.reason}` }, { status: 502 });
     }
 
-    const aiResponse = budgetResult.result;
+    const aiResponse = callResult.response;
     const mentorResponse = aiResponse.content
       .filter(b => b.type === 'text')
       .map(b => (b as any).text)
