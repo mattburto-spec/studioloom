@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 
 interface PhaseSectionProps {
@@ -64,6 +64,22 @@ export default function PhaseSection({
 }: PhaseSectionProps) {
   const [editingDuration, setEditingDuration] = useState(false);
   const [durationDraft, setDurationDraft] = useState(phaseDuration.toString());
+
+  // While the height collapse animation is running we keep overflow:hidden
+  // so children don't visually overflow the shrinking/growing box. Once the
+  // animation settles we release it so absolute popovers (e.g. AITextField
+  // suggestions) aren't clipped by this wrapper.
+  const [animating, setAnimating] = useState(false);
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    setAnimating(true);
+    const t = setTimeout(() => setAnimating(false), 500);
+    return () => clearTimeout(t);
+  }, [isOpen]);
 
   const config = PHASE_CONFIG[phase];
   const missingTiming = phaseDuration === 0;
@@ -130,12 +146,12 @@ export default function PhaseSection({
         </div>
       </div>
 
-      {/* Children — indented with colored left rail */}
+      {/* Children — indented with colored left rail. */}
       <motion.div
         initial={false}
         animate={{ height: isOpen ? "auto" : 0, opacity: isOpen ? 1 : 0 }}
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className="overflow-hidden"
+        className={isOpen && !animating ? "" : "overflow-hidden"}
       >
         <div
           className="ml-7 border-l-2 pl-4 space-y-2"
