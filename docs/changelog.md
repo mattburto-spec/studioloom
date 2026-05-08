@@ -4,6 +4,48 @@
 
 ---
 
+## 8 May 2026 (afternoon/evening) — AI Provider Abstraction Phase A SHIPPED — single chokepoint for every Anthropic call
+
+**One-line:** Built `callAnthropicMessages` helper at `src/lib/ai/call.ts` and migrated 30+ direct-callers (18 SDK + 13 HTTP-based) onto it. Phase A complete — every Anthropic Messages API call in production now routes through one file. Phase B (per-feature provider swap to DeepSeek/Qwen/etc.) is now a one-config-line change.
+
+**Triggered by:** Matt asking about a test student burning tokens on the AI Budget admin page (the timezone question). Investigation showed the helper-as-chokepoint was missing despite the existing `withAIBudget` middleware doing partial coverage. Spawned the breakdown-view follow-up first (PR #119, shipped same day), then committed to building the chokepoint properly.
+
+**3 PRs merged + 1 docs PR in flight:**
+- **PR #122** (A.1 + A.2 combined, +1497/-2738) — helper at `src/lib/ai/call.ts`, 12 unit tests + NC, 18 SDK direct-callers migrated (8 routes + 7 lib services + 3 pipeline stages). WIRING `ai-provider` corrected (Lesson #54: paper `key_files` pointed at non-existent `providers.ts`/`provider-factory.ts`). Helper extensions: `apiKey?` (config-driven callers), `metadata?` (per-call attribution), `thinking?` (extended thinking for admin sandbox), `supabase?` made optional, `fireLogUsage` hardened with try/catch.
+- **PR #129** (A.3, +542/-963) — 13 HTTP fetch sites migrated. Big leverage: `lib/toolkit/shared-api.ts` `callHaiku()` is the single helper used by 25+ toolkit routes (scamper, kanban-ideation, mind-map, etc.) — one file change routes the entire toolkit through helper. Added `skipLogUsage?` to prevent double-logging when `logToolkitUsage` does richer per-tool attribution. design-assistant: `withAIBudget` moved from route into helper via studentId; route catches typed errors instead of wrapping. Open-studio routes (check-in + discovery) now budget-enforced (previously bypassed). Scanner threshold bumped 30%→60% for `dynamic` model count (post-chokepoint reality). WIRING `ai-provider` flips: `partial/0.7 → complete/1`. `ai-call-sites.yaml` collapses 54 → 22 sites (only helper + AnthropicProvider remain).
+- **PR #132** (docs, in flight) — CLAUDE.md gets new "AI calls — single chokepoint" instruction section + bold call-out at top of "Code that implements the brain" list. Future sessions writing new AI calls will see the discipline at session start.
+
+**Smoke validated in prod (same day):** Matt confirmed tap-a-word, wizard autoconfig, generate-unit, lesson-editor AI suggestions all working. AI Budget dashboard shows 5 NIS students at 34,740 tokens for the day with healthy attribution. SQL spot-check confirms breakdown rows for migrated endpoints (`student/word-lookup`, `teacher/wizard-suggest`, `lib/toolkit/*`, etc.).
+
+**Behaviour changes worth knowing (flagged for future sessions):**
+- Open Studio interactions now count against student daily caps (previously bypassed `withAIBudget`).
+- HTTP-based callers' `max_tokens` truncation is now loud (502 with helpful error) — previously silent malformed responses.
+- Routes that previously bypassed `logUsage` now write to `ai_usage_log` — token visibility went up. The 5 active students may see slightly higher cap utilization in the breakdown view.
+- design-assistant route no longer wraps in `withAIBudget` directly — helper does it. `middleware-retrofit-catalog.test.ts` updated to verify the new pattern.
+
+**Spawned follow-ups (shipped same day):**
+- **PR #125** (endpoint normalization) — drop `/api/` prefix from all `endpoint:` strings for breakdown-view consistency. Spawned during smoke when Matt noticed inconsistent grouping; Code shipped while we worked.
+- **PR #127** (lesson-editor AI suggestions popover unclip) — separate UI bug; API was working fine, popover was visually broken. Code spawned, shipped while we worked.
+- **Cost & Usage rebuild** — task spawned but not started. Will replace the broken (`HTTP 500`) admin/cost-usage page with a unified spend-by-endpoint view that covers all attribution types.
+
+**Open follow-ups (filed in this session):**
+- **FU-AI-SCAN-CHOKEPOINT** (P3) — teach `scan-ai-calls.py` to recognise `callAnthropicMessages` as a single chokepoint instead of N dynamic sites. Threshold bumped 30→60% as workaround.
+- **FU-CONVERT-LESSON-CACHE** (P3) — convert-lesson lost its prompt-caching beta header during migration. Reinstate via the helper if/when convert-lesson is unquarantined.
+- **WIRING.yaml line 1035 parse error** (P3 — pre-existing Lever 1 entry, Lesson #33 unquoted-colons class).
+- **`quality-evaluator.ts` hardcodes `"claude-haiku-4-5"`** without date suffix (P3 — should use `MODELS.HAIKU`).
+
+**Files touched (across all merged PRs today):** ~106 files, net **−2,300 lines**. The chokepoint deletes more boilerplate (per-site SDK construction, manual `stop_reason` guards, ad-hoc `logUsage` calls, withAIBudget wrappers) than the helper adds.
+
+**Lessons banked:** #76 (TS narrowing breaks on dead code after early returns), #77 (scanner thresholds expire when chokepoints land), #78 (helper migrations need `skipLogUsage` not partial migration when caller has its own logging discipline). Brought lessons-learned.md to 36 entries.
+
+**Decisions banked:** chokepoint pattern; helper extension policy (justified per real call site, never speculative); withAIBudget moved into helper for design-assistant; endpoint string convention (path-shaped, no `/api/` prefix); scanner threshold bumped post-chokepoint with FU to fix root cause.
+
+**Briefs filed:** 3 new docs at `docs/projects/ai-provider-abstraction-phase-a{,-a2,-a3}-brief.md` — added to doc-manifest.yaml.
+
+**Next:** Phase B is gated entirely on Matt deciding which feature(s) to swap to a cheaper provider (DeepSeek likely). When he does, it's a one-config-line change inside `src/lib/ai/call.ts`. No urgency — chokepoint is the leverage; provider routing is the lever pull.
+
+---
+
 ## 7-8 May 2026 — Marathon: kanban drag-and-drop saga, dashboard consolidation, analytics swap, admin session-takeover defenses
 
 **Context:** Two-day session spanning the start of NIS Class 1 (7 May) through Class 2 prep (8 May). Started as a kanban modal-on-drop bugfight, expanded into student dashboard polish, ideation tool build, analytics consolidation, and a series of admin-shell defenses after diagnosing a real auth-cookie collision bug.
