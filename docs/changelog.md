@@ -4,6 +4,64 @@
 
 ---
 
+## 8 May 2026 — Preflight Pilot Mode SHIPPED — override + teacher inbox + dev surface + fab flag
+
+**Context:** Matt's student David tried submitting a fab job and got
+knocked back by the Preflight scanner, with no escape path and no
+visibility for Matt as teacher. This session shipped a temporary
+"Pilot Mode" posture closing all three gaps + extending the visibility
+through to the fab tech surface.
+
+**What changed (5 PRs to main):**
+
+- **PR #113 — Pilot Mode P1+P2+P3+admin nav (squashed `f945f00`):**
+  Migration `20260508021922_fabrication_jobs_pilot_override.sql` adds
+  nullable `pilot_override_at TIMESTAMPTZ` + `pilot_override_rule_ids
+  TEXT[]`. Applied to prod 8 May. New `src/lib/fabrication/pilot-mode.ts`
+  → `PILOT_MODE_ENABLED` constant (`true`). `canSubmit()` accepts
+  `pilotMode` + `overrideBlocks` params; bypass returns `pilotOverride.
+  ruleIds`. WARN acks still required. `submitJob` writes both override
+  columns in same UPDATE. Submit endpoint parses optional
+  `{ overrideBlocks }` body. Student UI: amber "Override and proceed"
+  panel with explicit confirm checkbox. Teacher view: new first tab
+  "Needs attention" — cross-status, surfaces pending rows with rule
+  findings + any-status rows with overrides; amber `⚠ Override (N)`
+  chip. Dev review: `/admin/preflight/flagged` (platform-admin only) —
+  rule histogram + filter chips + signed-URL download. Admin nav adds
+  "Preflight" tab between Bug Reports and Audit Log. Tests 4835 → 4868
+  (+33 net).
+- **PR #117 — Pilot Mode P4 (fab flag, squashed `172e6eb`):**
+  `FabJobRow` + `FabJobDetail.job` gain `pilotOverrideAt` +
+  `pilotOverrideRuleIds`. Red "⚠ Flagged · may not print" chip on
+  incoming + queued fab cards. Prominent red banner above teacher's
+  note on `/fab/jobs/[jobId]`. Tests +2.
+- **PR #118 — inspect link on incoming cards (squashed `22da297`):**
+  Eye icon at top-right of incoming cards so fab can inspect
+  override-flagged jobs before Send-to.
+- **PR #120 — surface eye + trash on incoming cards (squashed `dc9e019`):**
+  Smoke caught corner icons at `ink-3` were missed. Moved both under
+  the thumbnail in a small action row. Eye → `ink-1`, trash →
+  red-300. Bumped sizes 11→13/14, padding 1→1.5.
+
+**Smoke status:** End-to-end verified with Scott's whale-not-watertight.
+stl → override → Needs Attention → admin flagged page (rule histogram
+showing R-STL-01 fired+overridden 1).
+
+**Systems affected:** preflight-pipeline (override columns, dev surface,
+fab flag), admin (nav tab + route).
+
+**Decisions banked (see decisions-log):** override is a separate
+intentional act not ack; WARN acks still required during override;
+pilot mode as hardcoded constant not admin_settings flag; dev review
+surface is read-only triage; auto-orient deferred until histogram
+data justifies the ~2-3d build.
+
+**Lessons banked:** Layout-tabs guardrail test caught a missing TABS
+count update post-nav addition. Same-pattern source-static guardrails
+are cheap insurance.
+
+---
+
 ## 4 May 2026 — Preflight Phase 8-1 audit gap CLOSURE ROUND 2 — 7 same-family fixes + 2 UX bugs
 
 **Context:** Matt's post-Access-v2 Preflight smoke (he'd just finished

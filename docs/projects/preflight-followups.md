@@ -14,6 +14,69 @@
 
 ---
 
+## FU-PILOT-FLAGGED-API-TEST — Add unit tests for /api/admin/preflight/flagged
+**Surfaced:** 8 May 2026, Pilot Mode P3
+**Target phase:** Trigger when the surface gains a mutation action (not before)
+**Severity:** 🟢 LOW (read-only Matt-only triage; deeper coverage on rule-buckets + teacher-orch already covers shape contract)
+
+**Origin:** PR #113 P3 commit message flagged this. Route over-fetches
+recent jobs (4× cap) then filters in TS for the rule-count predicate
+that doesn't translate cleanly to SQL. No test harness for it today.
+
+**When to revisit:** if/when this surface gains an action button (e.g.
+"Mark this rule as known false-positive" → updates a rules registry),
+add a route test before the action ships. While read-only the
+filtering logic is straightforward enough that a regression would
+surface immediately on any visit.
+
+---
+
+## FU-PILOT-MODE-FLIP-CRITERIA — Decide when to flip PILOT_MODE_ENABLED to false
+**Surfaced:** 8 May 2026, Pilot Mode P1
+**Target phase:** Pilot review milestone (~2-4 weeks of real usage)
+**Severity:** 🟡 MEDIUM (every override past the safe threshold is a teaching-moment cost)
+
+**Origin:** [src/lib/fabrication/pilot-mode.ts](../../src/lib/fabrication/pilot-mode.ts)
+embeds the criteria in its docstring: ≥100 real submissions through,
+override rate <5%, zero "scanner was wrong" stories, ruleset tuned
+based on histogram. Set as a PR-flippable boolean for v1.
+
+**Action when criteria met:** flip the constant to `false`, ship the
+PR, prod redeploy. Pre-pilot data on `/admin/preflight/flagged` should
+inform the call.
+
+**Promote to admin_settings flag IF:** multiple schools land on the
+codebase with different pilot windows. Today there's one school + one
+Matt who can ship a flip in 2 commits — runtime flag would be premature.
+
+---
+
+## FU-PILOT-AUTO-ORIENT — Server-side STL auto-orientation
+**Surfaced:** 8 May 2026, deferred at start of Pilot Mode build
+**Target phase:** Post-pilot, gated on histogram data
+**Severity:** 🟢 LOW until pilot data shows otherwise
+
+**Origin:** Conversation about David's wheel rejection raised the
+question of building auto-orient into the scanner itself. Matt's
+estimate: 5 seconds in Bambu Studio vs 2-3 days server-side build.
+Deferred.
+
+**Build when:** R-STL-13 (flat-base coverage) shows up as the top
+firer in `/admin/preflight/flagged` rule histogram AND students
+consistently override it on files that print fine.
+
+**Implementation sketch:** trimesh `convex_hull` → score each face by
+contact-area / overhang-ratio / support-volume → return best face's
+rotation matrix → re-export STL → re-scan. Would land as a "Re-scan
+with auto-orient" button on the BLOCK rule card; auto-applies the
+rotation, replaces the storage path, increments revision_number.
+
+**Risk:** silently overrides student-intentional orientation on
+artistic models. Mitigation: opt-in (button, not auto-apply) + side-
+by-side preview (original vs proposed) before commit.
+
+---
+
 ## FU-COLOR-PREFERENCE — Per-machine `available_colors` filter (v2 of preferred-color)
 **Surfaced:** 4 May 2026 night, while building color-preference v1
 **Target phase:** Post-pilot UX expansion (gated on first fab feedback that the v1 hardcoded list is too generic)
