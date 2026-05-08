@@ -49,6 +49,15 @@ interface WhoAmI {
   teacherId: string | null;
 }
 
+/**
+ * Auth state for the admin shell:
+ *  - "checking"     → waiting on the first whoami response
+ *  - "admin"        → confirmed admin; render the chrome + children
+ *  - "redirecting"  → whoami returned 401/403; router.replace to /admin/login
+ *                     is in flight. Don't render chrome.
+ */
+type AdminAuthState = "checking" | "admin" | "redirecting";
+
 export default function AdminLayout({
   children,
 }: {
@@ -58,6 +67,7 @@ export default function AdminLayout({
   const router = useRouter();
   const [pendingTeacherRequests, setPendingTeacherRequests] = useState<number>(0);
   const [whoami, setWhoami] = useState<WhoAmI | null>(null);
+  const [authState, setAuthState] = useState<AdminAuthState>("checking");
   const [menuOpen, setMenuOpen] = useState(false);
 
   // Lightweight badge count for the Teachers tab — surfaces the
@@ -86,17 +96,24 @@ export default function AdminLayout({
   //   - whoami returns ok → set the dropdown email as before
   useEffect(() => {
     if (pathname === "/admin/login" || pathname === null) return;
+    setAuthState("checking");
     fetch("/api/admin/whoami")
       .then(async (r) => {
         if (r.status === 401 || r.status === 403) {
-          // Session-takeover or expired — bounce to login with reason
+          // Session-takeover or expired — bounce to login with reason.
+          // Set state BEFORE replace so we don't render chrome between
+          // ticks while router.replace is in flight.
+          setAuthState("redirecting");
           router.replace("/admin/login?reason=session-changed");
           return null;
         }
         return r.ok ? r.json() : null;
       })
       .then((d) => {
-        if (d?.ok) setWhoami({ email: d.email ?? null, teacherId: d.teacherId ?? null });
+        if (d?.ok) {
+          setWhoami({ email: d.email ?? null, teacherId: d.teacherId ?? null });
+          setAuthState("admin");
+        }
       })
       .catch(() => { /* silent — header just shows "Admin" */ });
   }, [pathname, router]);
@@ -118,6 +135,29 @@ export default function AdminLayout({
   // render) to avoid a chrome flash before the client hydrates.
   if (pathname === null || pathname === "/admin/login") {
     return <>{children}</>;
+  }
+
+  // Defense in depth: don't render the admin chrome until whoami has
+  // confirmed admin status. Middleware should already redirect unauth'd
+  // requests at the network layer, but if a stale cookie or CDN/cache
+  // edge case sneaks through, this prevents the brief flash of admin
+  // chrome that an unauthorised viewer would otherwise see while
+  // router.replace fires in the useEffect above.
+  if (authState !== "admin") {
+    return (
+      <div
+        className="min-h-screen bg-surface-alt flex items-center justify-center"
+        data-testid="admin-auth-checking"
+      >
+        <div className="text-text-secondary text-sm flex items-center gap-2">
+          <span
+            className="inline-block w-2 h-2 rounded-full bg-brand-purple animate-pulse"
+            aria-hidden="true"
+          />
+          {authState === "redirecting" ? "Redirecting…" : "Verifying admin access…"}
+        </div>
+      </div>
+    );
   }
 
   function isActive(href: string) {
