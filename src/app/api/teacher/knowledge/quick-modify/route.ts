@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { MODELS } from "@/lib/ai/models";
+import { callAnthropicMessages } from "@/lib/ai/call";
 import {
   QUICK_MODIFY_SYSTEM_PROMPT,
   buildQuickModifyPrompt,
@@ -51,13 +52,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json(
-      { error: "ANTHROPIC_API_KEY not configured" },
-      { status: 400 }
-    );
-  }
-
   const body = await request.json();
   const { prompt, ...context } = body as {
     prompt: string;
@@ -80,29 +74,29 @@ export async function POST(request: NextRequest) {
   try {
     const userPrompt = buildQuickModifyPrompt(prompt, context);
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY!,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: MODELS.SONNET,
-        max_tokens: 4096,
-        system: QUICK_MODIFY_SYSTEM_PROMPT,
-        messages: [{ role: "user", content: userPrompt }],
-      }),
+    const callResult = await callAnthropicMessages({
+      endpoint: "teacher/knowledge/quick-modify",
+      teacherId,
+      model: MODELS.SONNET,
+      maxTokens: 4096,
+      system: QUICK_MODIFY_SYSTEM_PROMPT,
+      messages: [{ role: "user", content: userPrompt }],
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`AI API error (${response.status}): ${errText}`);
+    if (!callResult.ok) {
+      if (callResult.reason === "no_credentials") {
+        return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 400 });
+      }
+      if (callResult.reason === "truncated") {
+        throw new Error("AI response truncated (max_tokens hit)");
+      }
+      if (callResult.reason === "api_error") throw callResult.error;
+      throw new Error(`AI call failed: ${callResult.reason}`);
     }
 
-    const data = await response.json();
-    const text =
-      data.content?.[0]?.type === "text" ? data.content[0].text : "";
+    const response = callResult.response;
+    const textBlock = response.content?.[0];
+    const text = textBlock?.type === "text" ? textBlock.text : "";
 
     // Extract JSON from response
     const jsonMatch =
