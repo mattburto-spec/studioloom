@@ -16,19 +16,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        {/* Plausible Analytics — privacy-friendly, no cookies, COPPA/GDPR safe.
-            Vercel Analytics + Speed Insights run alongside Plausible since
-            8 May 2026 (Pro plan, included). Decide later whether to keep
-            both or consolidate to just Vercel — see Vercel dashboard for
-            the page-views / Web Vitals data once it accumulates. */}
-        <script async src="https://plausible.io/js/pa-zQXWAmLhvFxtvFofMXkEb.js"></script>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)};plausible.init=plausible.init||function(i){plausible.o=i||{}};plausible.init();`,
-          }}
-        />
-      </head>
       <body className="antialiased">
         {/* Catches Supabase auth hash fragments that land on any page and
             forwards them to /auth/callback for completion. */}
