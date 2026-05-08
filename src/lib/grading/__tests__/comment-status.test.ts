@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   UNREAD_THRESHOLD_MS,
   classifyCommentReadState,
+  commentChipTooltip,
   formatRelativeAgo,
   isCommentUnread,
 } from "../comment-status";
@@ -218,5 +219,44 @@ describe("formatRelativeAgo", () => {
   it("returns 'Xd ago' for day-resolution deltas", () => {
     expect(formatRelativeAgo(new Date(NOW - 24 * HOUR), NOW)).toBe("1d ago");
     expect(formatRelativeAgo(new Date(NOW - 5 * 24 * HOUR), NOW)).toBe("5d ago");
+  });
+});
+
+describe("commentChipTooltip", () => {
+  // Drives BOTH the dot colour AND the hover copy. Single source of
+  // truth so they can never disagree (Lesson #38).
+
+  it("returns null for the 'unsent' state (no dot, no tooltip)", () => {
+    expect(commentChipTooltip("unsent", null, null, NOW)).toBeNull();
+  });
+
+  it("returns 'Seen Xm ago' for seen-current", () => {
+    const sent = new Date(NOW - 5 * HOUR);
+    const seen = new Date(NOW - 3 * 60 * 1000);
+    expect(commentChipTooltip("seen-current", sent, seen, NOW)).toBe(
+      "Seen 3m ago",
+    );
+  });
+
+  it("flags 'older version' when teacher edited after the student last viewed", () => {
+    const sent = new Date(NOW - HOUR); // recent edit
+    const seen = new Date(NOW - 5 * HOUR); // student saw earlier version
+    expect(commentChipTooltip("seen-stale", sent, seen, NOW)).toBe(
+      "Seen the older version (5h ago)",
+    );
+  });
+
+  it("returns 'Sent Xh ago, not yet seen' for unread-fresh", () => {
+    const sent = new Date(NOW - 2 * HOUR);
+    expect(commentChipTooltip("unread-fresh", sent, null, NOW)).toBe(
+      "Sent 2h ago, not yet seen",
+    );
+  });
+
+  it("returns 'Sent Xd ago, unread' for unread-stale (past 48h)", () => {
+    const sent = new Date(NOW - 3 * 24 * HOUR);
+    expect(commentChipTooltip("unread-stale", sent, null, NOW)).toBe(
+      "Sent 3d ago, unread",
+    );
   });
 });

@@ -84,6 +84,34 @@ export function isCommentUnread(input: CommentReadInput): boolean {
 }
 
 /**
+ * TFL.1.3 — tooltip copy for the read-receipt dot on the marking-page
+ * row chip. Returns null for the 'unsent' state (no dot rendered, no
+ * tooltip needed). Drives both the visual treatment and the hover
+ * copy from a single source of truth so the dot color and the
+ * tooltip text can never disagree.
+ */
+export function commentChipTooltip(
+  state: CommentReadState,
+  commentSentAt: Date | string | null,
+  seenAt: Date | string | null,
+  now?: Date | number,
+): string | null {
+  if (state === "unsent") return null;
+  const sentAgo = formatRelativeAgo(commentSentAt, now);
+  const seenAgo = formatRelativeAgo(seenAt, now);
+  switch (state) {
+    case "seen-current":
+      return `Seen ${seenAgo}`;
+    case "seen-stale":
+      return `Seen the older version (${seenAgo})`;
+    case "unread-fresh":
+      return `Sent ${sentAgo}, not yet seen`;
+    case "unread-stale":
+      return `Sent ${sentAgo}, unread`;
+  }
+}
+
+/**
  * Format a relative-time string for the chip tooltip ("3m ago",
  * "2h ago", "3d ago"). Caps at days; weeks/months land outside the
  * 48h window anyway and the tooltip just says "X days ago".
