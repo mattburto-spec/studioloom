@@ -702,6 +702,109 @@ describe("submitJob — DB failures", () => {
 });
 
 // ============================================================
+// Pilot Mode P1 — overrideBlocks integration
+// ============================================================
+
+describe("submitJob — Pilot Mode override", () => {
+  it("with overrideBlocks=true, transitions a BLOCK-firing job to approved + writes pilot_override_at + rule_ids", async () => {
+    const { client, log } = makeClient({
+      currentRevRules: [
+        { id: "R-STL-01", severity: "block" },
+        { id: "R-STL-04", severity: "block" },
+      ],
+      requiresTeacherApproval: false,
+    });
+    const r = await submitJob(client, {
+      studentId: "student-1",
+      jobId: "job-1",
+      overrideBlocks: true,
+    });
+    if (isOrchestrationError(r)) {
+      throw new Error(`unexpected error: ${r.error.message}`);
+    }
+    expect(r.newStatus).toBe("approved");
+    expect(r.pilotOverride?.ruleIds).toEqual(["R-STL-01", "R-STL-04"]);
+    expect(typeof r.pilotOverride?.at).toBe("string");
+
+    const update = log.find(
+      (e) =>
+        e.table === "fabrication_jobs" &&
+        e.op === "update" &&
+        (e.payload as { pilot_override_rule_ids?: string[] })
+          .pilot_override_rule_ids !== undefined
+    );
+    expect(update).toBeDefined();
+    const payload = update!.payload as {
+      status: string;
+      pilot_override_at: string;
+      pilot_override_rule_ids: string[];
+    };
+    expect(payload.status).toBe("approved");
+    expect(payload.pilot_override_rule_ids).toEqual(["R-STL-01", "R-STL-04"]);
+    expect(payload.pilot_override_at).toMatch(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/
+    );
+  });
+
+  it("without overrideBlocks, BLOCK rules still force re-upload (default behaviour unchanged)", async () => {
+    const { client, log } = makeClient({
+      currentRevRules: [{ id: "R-STL-01", severity: "block" }],
+      requiresTeacherApproval: false,
+    });
+    const r = await submitJob(client, {
+      studentId: "student-1",
+      jobId: "job-1",
+    });
+    if (!isOrchestrationError(r)) throw new Error("expected error");
+    expect(r.error.status).toBe(400);
+    expect(r.error.message).toContain("R-STL-01");
+    // No status update should have been attempted.
+    const update = log.find(
+      (e) => e.table === "fabrication_jobs" && e.op === "update"
+    );
+    expect(update).toBeUndefined();
+  });
+
+  it("clean job with overrideBlocks=true does NOT set pilot_override_* (no BLOCK rules to override)", async () => {
+    const { client, log } = makeClient({
+      currentRevRules: [],
+      requiresTeacherApproval: false,
+    });
+    const r = await submitJob(client, {
+      studentId: "student-1",
+      jobId: "job-1",
+      overrideBlocks: true,
+    });
+    if (isOrchestrationError(r)) throw new Error("expected success");
+    expect(r.newStatus).toBe("approved");
+    expect(r.pilotOverride).toBeUndefined();
+
+    const update = log.find(
+      (e) => e.table === "fabrication_jobs" && e.op === "update"
+    );
+    const payload = update!.payload as { pilot_override_at?: string };
+    expect(payload.pilot_override_at).toBeUndefined();
+  });
+
+  it("override does NOT waive WARN acks — still 400s when warns are un-acked", async () => {
+    const { client } = makeClient({
+      currentRevRules: [
+        { id: "R-STL-01", severity: "block" },
+        { id: "R-STL-13", severity: "warn" },
+      ],
+      requiresTeacherApproval: false,
+    });
+    const r = await submitJob(client, {
+      studentId: "student-1",
+      jobId: "job-1",
+      overrideBlocks: true,
+    });
+    if (!isOrchestrationError(r)) throw new Error("expected error");
+    expect(r.error.message).toMatch(/Missing.*R-STL-13/);
+  });
+});
+
+// ============================================================
 // listRevisions (Phase 5-5)
 // ============================================================
 //

@@ -95,10 +95,35 @@ export interface CanSubmitParams {
   acknowledgedWarnings: AcknowledgedWarnings | null | undefined;
   /** Which revision to validate acks against — typically current_revision. */
   revisionNumber: number;
+  /**
+   * Pilot Mode P1 (May 2026): when true, an explicit `overrideBlocks`
+   * flag promotes BLOCK-severity rules from "force re-upload" to
+   * "force-acknowledge via override". The override is logged on the
+   * job at submit time. When false/omitted, pre-pilot behaviour:
+   * BLOCK rules force re-upload regardless of override. Caller is
+   * the submit endpoint reading PILOT_MODE_ENABLED from
+   * src/lib/fabrication/pilot-mode.ts.
+   */
+  pilotMode?: boolean;
+  /**
+   * Pilot Mode P1: student has explicitly acknowledged the BLOCK
+   * rules via the "Override and proceed" UX. Only honoured when
+   * pilotMode is true. WARN acks are still required separately —
+   * override does not waive the per-warning acknowledgement.
+   */
+  overrideBlocks?: boolean;
 }
 
 export type CanSubmitResult =
-  | { ok: true }
+  | {
+      ok: true;
+      /**
+       * Set when pilot mode override was used to bypass BLOCK rules.
+       * The submit handler reads `ruleIds` to populate the
+       * `pilot_override_rule_ids` column on fabrication_jobs.
+       */
+      pilotOverride?: { ruleIds: string[] };
+    }
   | {
       ok: false;
       reason: "blockers_present" | "missing_acks";
@@ -119,11 +144,19 @@ export type CanSubmitResult =
  *
  * Rationale: BLOCKs require a re-upload, not an ack. If both categories
  * fire, the student's next action is "re-upload", not "click more radios".
+ *
+ * Pilot Mode (P1): when `pilotMode && overrideBlocks` are both set,
+ * the blockers_present gate is bypassed. WARN acks are still required.
+ * The returned `pilotOverride.ruleIds` lists the BLOCK rules that were
+ * overridden so the submit handler can log them on the job.
  */
 export function canSubmit(params: CanSubmitParams): CanSubmitResult {
   const { mustFix, shouldFix } = classifyRules(params.results);
 
-  if (mustFix.length > 0) {
+  const pilotBypass =
+    mustFix.length > 0 && !!params.pilotMode && !!params.overrideBlocks;
+
+  if (mustFix.length > 0 && !pilotBypass) {
     const ids = mustFix.map((r) => r.id);
     return {
       ok: false,
@@ -151,6 +184,9 @@ export function canSubmit(params: CanSubmitParams): CanSubmitResult {
     };
   }
 
+  if (pilotBypass) {
+    return { ok: true, pilotOverride: { ruleIds: mustFix.map((r) => r.id) } };
+  }
   return { ok: true };
 }
 

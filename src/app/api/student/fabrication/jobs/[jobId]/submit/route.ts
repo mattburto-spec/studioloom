@@ -10,13 +10,17 @@
  * Validates, in order:
  *   1. Job is in a submittable state (guards double-submit races)
  *   2. Latest revision's scan_status is 'done'
- *   3. Zero BLOCK-severity rules in scan_results
+ *   3. Zero BLOCK-severity rules in scan_results — UNLESS Pilot Mode
+ *      is on AND body has `overrideBlocks: true`, in which case BLOCK
+ *      rules are force-acknowledged and logged on the job.
  *   4. Every WARN-severity rule has an ack for the current revision
  *
  * Auth: student cookie-token session; verifies ownership.
  * Cache: private, no-cache.
  *
- * Response 200: { jobId, newStatus, requiresTeacherApproval }
+ * Body (optional): { overrideBlocks?: true } — Pilot Mode P1.
+ *
+ * Response 200: { jobId, newStatus, requiresTeacherApproval, pilotOverride? }
  * Errors:
  *   400 scan not done / must-fix still firing / missing warning acks
  *   401 unauthenticated
@@ -49,10 +53,23 @@ export async function POST(
     );
   }
 
+  // Pilot Mode P1: optional `overrideBlocks` body flag. Empty body =
+  // normal submit (back-compat with the pre-pilot no-body POST).
+  let overrideBlocks = false;
+  try {
+    const body = await request.json();
+    if (body && typeof body === "object" && body.overrideBlocks === true) {
+      overrideBlocks = true;
+    }
+  } catch {
+    // No body / non-JSON — fine, treat as normal submit.
+  }
+
   const db = createAdminClient();
   const result = await submitJob(db, {
     studentId: session.studentId,
     jobId,
+    overrideBlocks,
   });
 
   if (isOrchestrationError(result)) {
@@ -67,6 +84,7 @@ export async function POST(
       jobId: result.jobId,
       newStatus: result.newStatus,
       requiresTeacherApproval: result.requiresTeacherApproval,
+      ...(result.pilotOverride ? { pilotOverride: result.pilotOverride } : {}),
     },
     { status: 200, headers: NO_CACHE_HEADERS }
   );
