@@ -97,7 +97,7 @@ ${JSON.stringify(blockCatalog, null, 2)}
 Suggest 2-4 blocks that would make this lesson stronger.`;
 
     const callResult = await callAnthropicMessages({
-      endpoint: "/api/teacher/lesson-editor/suggest",
+      endpoint: "teacher/lesson-editor/suggest",
       teacherId: auth.teacherId,
       model: HAIKU_MODEL,
       maxTokens: 800,

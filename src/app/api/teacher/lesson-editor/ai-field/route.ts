@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     const role = roleMap[unitType] || "design & technology teachers";
 
     const callResult = await callAnthropicMessages({
-      endpoint: "/api/teacher/lesson-editor/ai-field",
+      endpoint: "teacher/lesson-editor/ai-field",
       teacherId: auth.teacherId,
       model: MODELS.HAIKU,
       maxTokens: 500,
