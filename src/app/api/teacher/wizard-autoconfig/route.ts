@@ -166,7 +166,7 @@ export async function POST(request: NextRequest) {
     if (creds.provider === "anthropic") {
       const callResult = await callAnthropicMessages({
         apiKey: creds.apiKey,
-        endpoint: "/api/teacher/wizard-autoconfig",
+        endpoint: "teacher/wizard-autoconfig",
         teacherId: user.id,
         model: creds.modelName,
         system: systemPrompt,

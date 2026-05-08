@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
     const callResult = await callAnthropicMessages(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       {
-        endpoint: "/api/admin/ai-model/test-lesson",
+        endpoint: "admin/ai-model/test-lesson",
         teacherId: user!.id,
         model: MODELS.SONNET,
         maxTokens: 16000,

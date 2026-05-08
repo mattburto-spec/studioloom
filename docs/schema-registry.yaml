@@ -3852,6 +3852,9 @@ tables:
     notifications_sent: JSONB
     lab_id: UUID, ADD COLUMN IF NOT EXISTS machine_category TEXT
     unit_version_id: UUID NULL REFERENCES unit_versions(id) ON DELETE SET NULL
+    preferred_color: TEXT NULL
+    pilot_override_at: TIMESTAMPTZ NULL
+    pilot_override_rule_ids: TEXT[] NULL
   indexes:
   - idx_fabrication_jobs_teacher_status ON (teacher_id, status)
   - idx_fabrication_jobs_student_status ON (student_id, status)
@@ -3870,11 +3873,17 @@ tables:
   - src/lib/preflight/email.ts
   readers:
   - src/lib/fabrication/machine-orchestration.ts
+  - src/app/api/admin/preflight/flagged/route.ts
   spec_drift:
   - date: 2026-04-30
     note: Phase 1.5b — applied 20260429133401_phase_1_5b_fabrication_jobs_and_scan_jobs_student_read.sql. Additive `fabrication_jobs_student_self_read`
       USING canonical chain via students.user_id → auth.uid(). Pre-positioned for Phase 1.4 client-switch; not load-bearing
       yet.
+  - date: 2026-05-08
+    note: Pilot Mode P1 — applied 20260508021922_fabrication_jobs_pilot_override.sql. Additive nullable `pilot_override_at`
+      TIMESTAMPTZ + `pilot_override_rule_ids` TEXT[]. Logged when student uses Pilot Mode "Override and proceed" to bypass
+      BLOCK rules. Read by /admin/preflight/flagged dev review surface + teacher Needs Attention tab + fab queue/detail
+      override flag. Pilot flag controlled in src/lib/fabrication/pilot-mode.ts (PILOT_MODE_ENABLED constant).
   notes: 'lab_tech_picked_up_by intentionally has no FK to fabricators(id) — table not yet existed at migration time. FK hardening
     deferred. Dual-visibility RLS uses direct teacher_id fallback rather than Lesson #29 junction UNION because teacher_id
     column covers the NULL class_id case cleanly.'

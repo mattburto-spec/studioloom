@@ -4,6 +4,112 @@
 
 ---
 
+## 8 May 2026 — Admin AI Budget per-student token breakdown (3 PRs end-to-end)
+
+**Context:** Matt could see per-student daily totals on `/admin/ai-budget` (e.g. testv22 at 10,005 tokens) but had no way to attribute spend to a feature. He'd just spotted unexpected token use on a test student and couldn't tell whether it was an agent loop, a stuck tab, or a real session. Built end-to-end visibility through three sequential PRs in this session.
+
+**Three PRs shipped + merged to main:**
+
+1. **[PR #116](https://github.com/mattburto-spec/studioloom/pull/116)** — `feat(admin): per-student token breakdown on AI Budget page`
+   - New `GET /api/admin/ai-budget/[studentId]/breakdown` route — admin-gated, school-tz day boundary, groups today's `ai_usage_log` by `(endpoint, model)`, returns calls + input/output/total tokens + last_call_at.
+   - New helper `src/lib/access-v2/ai-budget/day-boundary.ts` — `startOfDayInTz()` mirrors the SQL formula in `atomic_increment_ai_budget()` so totals reconcile exactly with the cap counter. 9 unit tests cover Asia/Shanghai (no DST), UTC, PST/PDT, AEST, edges around local midnight, invalid tz.
+   - UI: chevron + accordion expandable rows on `src/app/admin/ai-budget/page.tsx`, lazy-fetch on expand. **Reconciliation gap callout** rendered inline when `ai_budget_state.tokens_used_today` doesn't match `SUM(ai_usage_log.input + output)` for the day.
+   - Test count: 49 → 58 (+9 day-boundary tests).
+
+2. **[PR #119](https://github.com/mattburto-spec/studioloom/pull/119)** — `fix(usage): attribute student tokens in ai_usage_log (bridge for AI Budget breakdown)`
+   - Reconciliation gap callout from PR #116 surfaced on every active student → 100% gap. Investigation revealed two distinct bugs:
+     - **`word-lookup` and `quest/mentor` use `withAIBudget` for cap enforcement but never call `logUsage` at all** — tokens hit the cap counter but leave no diagnostic trail.
+     - **`design-assistant`, `open-studio/check-in`, `open-studio/discovery` call `logUsage` but don't pass `studentId`** → rows land with `student_id=NULL`.
+   - Bridge fix: 5 student-facing routes patched (2 added new logUsage calls, 3 added studentId arg to existing calls). Toolkit shared-api skipped on purpose — those routes are public anonymous free tools, no studentId concept exists.
+   - **Why a bridge:** Phase A.2 of the AI Provider Abstraction (then in flight) absorbs `logUsage` + `withAIBudget` + stop_reason guard into `callAnthropicMessages()`. This PR's inline calls are superseded by Phase A.2 (and were, cleanly — confirmed end-of-session).
+
+3. **[PR #121](https://github.com/mattburto-spec/studioloom/pull/121)** — `perf(word-lookup): cut input tokens ~25% by stripping schema verbosity`
+   - First post-attribution data showed Scott averaging ~940 tokens per word lookup — surprisingly high.
+   - Three changes: (a) move all constraints from tool-schema property descriptions into a single `system` prompt, (b) tighten userPrompt to `Word: "X". Context: "..."`, (c) cap `contextSentence` at 200 chars (was 500).
+   - **Actual impact:** ~840 → ~750 input tokens per call (~11% reduction, less than the projected 25-30%). Anthropic's tool-call overhead is the residual floor.
+   - **Cost reality:** 6 lookups = $0.006. Cap math: pro-tier 100k ÷ 750 = ~133 lookups/student/day. The optimization is more about cap headroom than dollars.
+   - Quality preserved by moving "Max 20 words" + L1 native-script rule into the system prompt. 15/15 word-lookup unit tests still pass.
+
+**Confirmation that #121 survived A.2:** read `origin/main:src/app/api/student/word-lookup/route.ts` after Phase A.2 (PR #122 by another session) — minimal tool schema ✅, empty tool description ✅, system prompt with rules ✅, terse userPrompt ✅, 200-char context cap ✅. Phase A.2 migrated the call through `callAnthropicMessages()` and absorbed the inline `logUsage` from PR #119 cleanly. Nothing duplicated, nothing lost.
+
+**Strategic position:** AI cost visibility is now end-to-end and stabilized. The diagnostic surface (per-student × per-feature × token attribution) caught the missing-studentId bug it was designed to catch. Next-level token reduction is a Phase B (provider switching — DeepSeek/Qwen/Moonshot are 5-10x cheaper than Haiku) or Phase C (prompt caching via the central helper) concern, not a tactical patching concern.
+
+**Out of scope (deferred):**
+- $ cost column on the breakdown table (`ai_usage_log.estimated_cost_usd` is already populated by `logUsage`; ~10-line UI addition). Matt to call it later if useful.
+- Toolkit attribution (kanban-ideation, scamper, etc.) — they're public anonymous free tools and use a separate `logToolkitUsage()` helper. Phase A.2/A.3 will absorb them into `callAnthropicMessages()` automatically.
+- Filters / date pickers / charts / historical trends — explicitly out of scope per the original brief.
+
+**Lessons banked:**
+- **L#73 (this session)** — `ai_budget_state` (cap counter) and `ai_usage_log` (diagnostic trail) are independent pipelines maintained by separate code paths. Routes can write to one but not both, leaving silent attribution gaps that look like spend-without-explanation. The reconciliation-gap callout is the cheapest invariant check and surfaced this drift on first deploy. Recorded in `docs/lessons-learned.md`.
+
+**Files changed end-to-end across the three PRs (8 total):**
+- NEW: `src/lib/access-v2/ai-budget/day-boundary.ts`, `src/lib/access-v2/ai-budget/__tests__/day-boundary.test.ts`, `src/app/api/admin/ai-budget/[studentId]/breakdown/route.ts`
+- MODIFIED: `src/app/admin/ai-budget/page.tsx`, `src/app/api/student/word-lookup/route.ts`, `src/app/api/student/quest/mentor/route.ts`, `src/lib/design-assistant/conversation.ts`, `src/app/api/student/open-studio/check-in/route.ts`, `src/app/api/student/open-studio/discovery/route.ts`
+
+**Systems affected:** `ai-budget` (gained admin diagnostic surface), `ai-provider` (absorbed PR #119's bridge attribution into Phase A.2 helper).
+
+**Test count:** Net +9 unit tests (day-boundary). All other changes covered by existing route tests; no regressions.
+
+---
+
+## 8 May 2026 — Preflight Pilot Mode SHIPPED — override + teacher inbox + dev surface + fab flag
+
+**Context:** Matt's student David tried submitting a fab job and got
+knocked back by the Preflight scanner, with no escape path and no
+visibility for Matt as teacher. This session shipped a temporary
+"Pilot Mode" posture closing all three gaps + extending the visibility
+through to the fab tech surface.
+
+**What changed (5 PRs to main):**
+
+- **PR #113 — Pilot Mode P1+P2+P3+admin nav (squashed `f945f00`):**
+  Migration `20260508021922_fabrication_jobs_pilot_override.sql` adds
+  nullable `pilot_override_at TIMESTAMPTZ` + `pilot_override_rule_ids
+  TEXT[]`. Applied to prod 8 May. New `src/lib/fabrication/pilot-mode.ts`
+  → `PILOT_MODE_ENABLED` constant (`true`). `canSubmit()` accepts
+  `pilotMode` + `overrideBlocks` params; bypass returns `pilotOverride.
+  ruleIds`. WARN acks still required. `submitJob` writes both override
+  columns in same UPDATE. Submit endpoint parses optional
+  `{ overrideBlocks }` body. Student UI: amber "Override and proceed"
+  panel with explicit confirm checkbox. Teacher view: new first tab
+  "Needs attention" — cross-status, surfaces pending rows with rule
+  findings + any-status rows with overrides; amber `⚠ Override (N)`
+  chip. Dev review: `/admin/preflight/flagged` (platform-admin only) —
+  rule histogram + filter chips + signed-URL download. Admin nav adds
+  "Preflight" tab between Bug Reports and Audit Log. Tests 4835 → 4868
+  (+33 net).
+- **PR #117 — Pilot Mode P4 (fab flag, squashed `172e6eb`):**
+  `FabJobRow` + `FabJobDetail.job` gain `pilotOverrideAt` +
+  `pilotOverrideRuleIds`. Red "⚠ Flagged · may not print" chip on
+  incoming + queued fab cards. Prominent red banner above teacher's
+  note on `/fab/jobs/[jobId]`. Tests +2.
+- **PR #118 — inspect link on incoming cards (squashed `22da297`):**
+  Eye icon at top-right of incoming cards so fab can inspect
+  override-flagged jobs before Send-to.
+- **PR #120 — surface eye + trash on incoming cards (squashed `dc9e019`):**
+  Smoke caught corner icons at `ink-3` were missed. Moved both under
+  the thumbnail in a small action row. Eye → `ink-1`, trash →
+  red-300. Bumped sizes 11→13/14, padding 1→1.5.
+
+**Smoke status:** End-to-end verified with Scott's whale-not-watertight.
+stl → override → Needs Attention → admin flagged page (rule histogram
+showing R-STL-01 fired+overridden 1).
+
+**Systems affected:** preflight-pipeline (override columns, dev surface,
+fab flag), admin (nav tab + route).
+
+**Decisions banked (see decisions-log):** override is a separate
+intentional act not ack; WARN acks still required during override;
+pilot mode as hardcoded constant not admin_settings flag; dev review
+surface is read-only triage; auto-orient deferred until histogram
+data justifies the ~2-3d build.
+
+**Lessons banked:** Layout-tabs guardrail test caught a missing TABS
+count update post-nav addition. Same-pattern source-static guardrails
+are cheap insurance.
+
+---
+
 ## 4 May 2026 — Preflight Phase 8-1 audit gap CLOSURE ROUND 2 — 7 same-family fixes + 2 UX bugs
 
 **Context:** Matt's post-Access-v2 Preflight smoke (he'd just finished

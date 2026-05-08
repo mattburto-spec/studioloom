@@ -24,9 +24,9 @@ docs:
     title: "Session Changelog"
     purpose: "Rolling log of changes across sessions for cross-session context"
     category: root
-    last_verified: "2026-04-29"
+    last_verified: "2026-05-08"
     max_age_days: 90
-    last_scanned: "2026-04-29"
+    last_scanned: "2026-05-08"
 
   - path: docs/decisions-log.md
     title: "Key Decisions Log"
@@ -38,9 +38,9 @@ docs:
 
   - path: docs/lessons-learned.md
     title: "Lessons Learned"
-    purpose: "53 hard-won lessons from production bugs, build disasters, Supabase/Vercel gotchas. #51-53 (14-22 Apr 2026): Supabase dashboard mis-parses PL/pgSQL variable names as tables, REVOKE EXECUTE FROM PUBLIC doesn't revoke Supabase anon/authenticated auto-grants, denormalised columns need explicit writes (JSONB doesn't fan out to columns)."
+    purpose: "73 hard-won lessons from production bugs, build disasters, Supabase/Vercel gotchas. Latest #73 (8 May 2026): cap counters and usage logs are independent pipelines — bills can rise without leaving an attribution trail; pair them with a chokepoint helper or a reconciliation gap detector on the same admin surface as the count."
     category: root
-    last_verified: "2026-04-22"
+    last_verified: "2026-05-08"
     max_age_days: 90
     last_scanned: null
 
@@ -465,10 +465,10 @@ docs:
     title: "WIRING — Machine-Readable System Registry"
     purpose: "82+ systems with dependencies, affects relationships, data fields, docs, change impacts. CRITICAL: check before making changes."
     category: projects
-    last_verified: "2026-04-22"
+    last_verified: "2026-05-08"
     referenced_from: ["CLAUDE.md impact analysis section"]
     max_age_days: 30
-    last_scanned: "2026-04-22"
+    last_scanned: "2026-05-08"
 
   - path: docs/schema-registry.yaml
     title: "Schema Registry — Table-Level Truth"
@@ -481,9 +481,9 @@ docs:
 
   - path: docs/api-registry.yaml
     title: "API Registry — Route-Level Truth"
-    purpose: "~266 (path, method) entries from src/app/api/**/route.ts. Auth type, tables read/written, AI call sites per endpoint. Sync: scripts/registry/scan-api-routes.py"
+    purpose: "443 (path, method) entries from src/app/api/**/route.ts. Auth type, tables read/written, AI call sites per endpoint. Sync: scripts/registry/scan-api-routes.py"
     category: root
-    last_verified: "2026-04-14"
+    last_verified: "2026-05-08"
     referenced_from: ["CLAUDE.md registries section"]
     max_age_days: 30
     last_scanned: null
@@ -2437,9 +2437,17 @@ docs:
     title: "Preflight — Fabrication Submission Pipeline (master spec)"
     purpose: "Full spec for the Preflight submission pipeline: 5 stages (upload → scan → gate → route → pickup → complete), 17 STL rules + 15 SVG rules, machine profile schema, Fabricator UX, Python worker infra on Fly.io, retention policy, 9-phase build plan"
     category: projects
-    last_verified: "2026-04-20"
+    last_verified: "2026-05-08"
     max_age_days: 90
-    last_scanned: "2026-04-20"
+    last_scanned: "2026-05-08"
+
+  - path: docs/projects/preflight-pilot-mode-brief.md
+    title: "Preflight Pilot Mode — Brief"
+    purpose: "Pilot Mode build brief: P1 student override path (canSubmit + migration + UI), P2 teacher Needs Attention tab + override chip, P3 admin /preflight/flagged dev review surface, P4 fab queue + detail flag, P5/P5b inspect link + prominence. Auto-orient explicitly deferred. Shipped 8 May 2026 across PRs #113/#117/#118/#120."
+    category: projects
+    last_verified: "2026-05-08"
+    max_age_days: 90
+    last_scanned: "2026-05-08"
 
   - path: docs/projects/preflight-phase-1a-brief.md
     title: "Preflight Phase 1A Brief — Schema + RLS + Seed"
