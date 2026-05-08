@@ -1760,6 +1760,21 @@ function IncomingCard({
       className={`${styles.card2} relative shrink-0`}
       style={{ width: 240 }}
     >
+      {/* Pilot Mode P5: inspect link at top-right. Pre-assignment,
+           the only path to the detail page was via the QueuedJobCard's
+           eye button — but a fab who wants to look at the file (e.g.
+           when an override-flagged job lands) needs the option BEFORE
+           hitting Send to. Sits to the left of the trash button so the
+           corner reads [eye] [trash]. */}
+      <Link
+        href={`/fab/jobs/${job.jobId}`}
+        title="View job details"
+        aria-label="View job details"
+        className="absolute top-1.5 right-7 p-1 rounded transition hover:bg-[var(--surface-2)]"
+        style={{ color: "var(--ink-3)", zIndex: 2 }}
+      >
+        <EyeIcon size={11} />
+      </Link>
       {/* Phase 8.1d-31: corner trash. Tucked top-right so it
            doesn't compete with Send-to but is still reachable
            with one click. Only enabled when no other mutation is
