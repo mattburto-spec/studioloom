@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { callAnthropicMessages } from "@/lib/ai/call";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 import { buildSuggestSystemPrompt, buildSuggestPrompt } from "@/lib/ai/prompts";
 import type { SuggestContext } from "@/lib/ai/prompts";
 import {
@@ -117,14 +118,10 @@ function validateSuggestions(raw: Record<string, unknown>): SuggestResponse {
 // Un-quarantined (9 Apr 2026) — Dimensions3 pipeline complete, wizard routes restored.
 
 export async function POST(request: NextRequest) {
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
   const supabase = createSupabaseServer(request);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   const body = await request.json();
   const { tier, context, unitType, framework } = body as { tier: 1 | 2 | 3; context: SuggestContext; unitType?: string; framework?: string };
@@ -134,7 +131,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Resolve AI credentials (teacher key → platform key fallback)
-  const creds = await resolveCredentials(supabase, user.id);
+  const creds = await resolveCredentials(supabase, teacherId);
 
   if (!creds) {
     // No AI available at all — return empty suggestions silently
@@ -170,7 +167,7 @@ export async function POST(request: NextRequest) {
       const baseOpts = {
         apiKey: creds.apiKey,
         endpoint: "teacher/wizard-suggest",
-        teacherId: user.id,
+        teacherId,
         system: systemPrompt,
         messages: [{ role: "user" as const, content: userPrompt }],
         maxTokens,

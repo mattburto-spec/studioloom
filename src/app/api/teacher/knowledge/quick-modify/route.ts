@@ -1,33 +1,14 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { MODELS } from "@/lib/ai/models";
 import { callAnthropicMessages } from "@/lib/ai/call";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 import {
   QUICK_MODIFY_SYSTEM_PROMPT,
   buildQuickModifyPrompt,
 } from "@/lib/knowledge/analysis-prompts";
 
 // Un-quarantined (9 Apr 2026) — Knowledge pipeline restored.
-
-async function getTeacherId(request: NextRequest): Promise<string | null> {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id || null;
-}
 
 /**
  * POST: Quick-modify a lesson on the fly.
@@ -47,10 +28,9 @@ async function getTeacherId(request: NextRequest): Promise<string | null> {
  * }
  */
 export async function POST(request: NextRequest) {
-  const teacherId = await getTeacherId(request);
-  if (!teacherId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const body = await request.json();
   const { prompt, ...context } = body as {

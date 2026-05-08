@@ -1,6 +1,6 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
-import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 import { callAnthropicMessages } from "@/lib/ai/call";
 import { MODELS } from "@/lib/ai/models";
 
@@ -33,8 +33,8 @@ One should be about process, one about content, one about connections.`,
 };
 
 export async function POST(req: NextRequest) {
-  const auth = await requireTeacherAuth(req);
-  if ("error" in auth) return auth.error;
+  const auth = await requireTeacher(req);
+  if (auth.error) return auth.error;
 
   try {
     const body = await req.json();

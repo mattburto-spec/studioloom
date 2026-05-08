@@ -1,6 +1,7 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 import { decrypt } from "@/lib/encryption";
 import { createAIProvider } from "@/lib/ai";
 import { UNIT_SYSTEM_PROMPT, buildUnitSystemPrompt, getGradeTimingProfile, buildTimingContext } from "@/lib/ai/prompts";
@@ -42,14 +43,10 @@ function createSupabaseServer(request: NextRequest) {
  * Body: { unitId, pageId, instruction? }
  */
 export async function POST(request: NextRequest) {
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
   const supabase = createSupabaseServer(request);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   const body = await request.json();
   const { unitId, pageId, instruction } = body as {
@@ -106,7 +103,7 @@ export async function POST(request: NextRequest) {
   const { data: settings } = await supabase
     .from("ai_settings")
     .select("*")
-    .eq("teacher_id", user.id)
+    .eq("teacher_id", teacherId)
     .single();
 
   if (!settings) {
@@ -137,7 +134,7 @@ export async function POST(request: NextRequest) {
         query: `${unit.title} ${unit.topic || ""} ${criterionInfo.name} ${unit.grade_level || ""}`,
         gradeLevel: unit.grade_level || undefined,
         criteria: [criterion],
-        teacherId: user.id,
+        teacherId,
         maxProfiles: 2,
       });
       if (profiles.length > 0) {

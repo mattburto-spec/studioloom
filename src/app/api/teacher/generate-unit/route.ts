@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { withErrorHandler } from "@/lib/api/error-handler";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 import type { UnitWizardInput } from "@/types";
 import { onUnitCreated } from "@/lib/teacher-style/profile-service";
 import { runPipeline } from "@/lib/pipeline/orchestrator";
@@ -33,14 +34,10 @@ function createSupabaseServer(request: NextRequest) {
  * Returns: { pages, qualityReport, costSummary, runId }
  */
 export const POST = withErrorHandler("teacher/generate-unit:POST", async (request: NextRequest) => {
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
   const supabase = createSupabaseServer(request);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   const body = await request.json();
   const { wizardInput } = body as { wizardInput: UnitWizardInput };
@@ -56,7 +53,7 @@ export const POST = withErrorHandler("teacher/generate-unit:POST", async (reques
     // Configure the orchestrator
     const config: OrchestratorConfig = {
       supabase,
-      teacherId: user.id,
+      teacherId,
       apiKey: process.env.ANTHROPIC_API_KEY!,
       sandboxMode: false,
       modelId: MODELS.SONNET,
@@ -79,7 +76,7 @@ export const POST = withErrorHandler("teacher/generate-unit:POST", async (reques
     }
 
     // Signal teacher style profile: unit generated
-    onUnitCreated(user.id).catch(() => {});
+    onUnitCreated(teacherId).catch(() => {});
 
     return NextResponse.json({
       pages: pagesRecord,
