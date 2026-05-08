@@ -1029,5 +1029,33 @@ Drift sources observed in this session alone:
 
 **When this comes up:** any phase that ALTERs an existing table; any migration that asserts a foreign-key target column name; any `WHERE x = auth.uid()` site (the column name is *never* obvious — always grep prior migrations). For TG.0C onward, probe `information_schema.columns` via Supabase SQL editor before authoring SQL — same Lesson #68 pattern, applied earlier in the workflow.
 
+### Lesson #73 — Cap counters and usage logs are independent pipelines; bills can rise without leaving an attribution trail
+**The bug:** Built `/admin/ai-budget/[studentId]/breakdown` (PR #116) to show where each student's daily tokens went — grouped by endpoint × model. On first deploy, every active student's expanded row showed the same message: *"No `ai_usage_log` rows for this student today, but `ai_budget_state.tokens_used_today` = X. Reconciliation gap."* 100% gap on every row.
+
+The investigation surfaced two distinct bugs in `logUsage` plumbing across student-facing AI routes:
+
+1. **`word-lookup` and `quest/mentor` use `withAIBudget` for cap enforcement but never call `logUsage` at all.** The cap counter (`ai_budget_state.tokens_used_today`) ticked up on every call via the SQL function `atomic_increment_ai_budget()`, but no row was ever written to `ai_usage_log`. The student was being billed against the cap, but the diagnostic table didn't know.
+2. **`design-assistant`, `open-studio/check-in`, `open-studio/discovery` call `logUsage` but don't pass `studentId`.** Rows landed in `ai_usage_log` with `student_id = NULL`, so any per-student query missed them. The diagnostic table knew, but couldn't attribute.
+
+Both bugs were silently invisible until the breakdown view existed. Per-student daily totals (which only need `ai_budget_state`) had been correct the whole time. The drift was in the *attribution* layer.
+
+**Why this is a Lesson #38 + #54 sibling:** Lesson #38 said "verify expected values, not just non-null." Lesson #54 said "registries drift when not auto-synced." This is the runtime version: **two write paths to two different tables, both of which need to receive the same event, and no compile-time or runtime invariant tying them together.** A route can call `withAIBudget(...)` without `logUsage(...)` and the program runs fine — the bug only shows up if anyone ever asks "where did the tokens go?"
+
+**The fix that landed:** PR #119 (5 student-facing routes patched — 2 added new logUsage calls with studentId, 3 added studentId arg to existing calls). Phase A.2 (PR #122 by another session) then absorbed the inline `logUsage` + `withAIBudget` calls into a single `callAnthropicMessages()` helper at `src/lib/ai/call.ts`, structurally eliminating the class of bug — the helper writes to both tables in one place, so route authors can't forget one.
+
+**The general rule:** **Whenever two tables track different aspects of the same event (counter vs log, queue vs ledger, denormalized cache vs source-of-truth row), one of two things must be true:**
+- **Either** the writes happen through a shared chokepoint that updates both atomically (Phase A.2 outcome — preferred), **or**
+- **A reconciliation gap detector visible on the same surface as the count** runs continuously, so drift is impossible to miss the first time someone looks (PR #116's amber callout — what surfaced this bug).
+
+**Both patterns combined are best.** A chokepoint prevents new drift; a reconciliation detector catches drift from existing routes that haven't migrated yet. PR #116 → #119 → #122 was that exact sequence: build the diagnostic, find the gap, ship the bridge fix, then absorb the call sites into the chokepoint that prevents recurrence.
+
+**Operational guidance:**
+1. **When designing a new metrics/audit/log table fed by code (not a trigger),** always pair it with at least one invariant check that compares the log against an independent counter or aggregate. Put the check on the same admin surface as the count — not buried in a CI report. Ten lines of UI catches what zero lines never will.
+2. **When a feature reads from two tables that should match,** explicitly compute and surface the gap. Don't show the two numbers separately and trust the reader to subtract.
+3. **For new routes calling AI/expensive APIs,** prefer the centralised helper over inline calls (post-Phase A.2 this is `callAnthropicMessages()` in StudioLoom). The helper is the chokepoint that makes the two-write problem impossible.
+4. **For "drift surfaced by a new view" bugs in general,** investigate which write path is missing or mis-attributed before patching the view. The view is doing its job by surfacing the gap; the underlying writes are what needs fixing.
+
+**When this comes up:** any new admin diagnostic that aggregates over a usage/audit/log table; any feature that bills (cap counter) and logs (audit trail) in separate code paths; any reconciliation between a denormalized counter and a per-row source. The amber callout pattern (`Reconciliation gap: A is N tokens ahead of B. Some site bypasses logUsage()`) generalises — it's "an invariant the reader can act on" rather than "two numbers the reader has to compare."
+
 
 
