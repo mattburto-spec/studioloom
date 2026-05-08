@@ -33,6 +33,7 @@
 // rule-buckets module imports only types from this file, so no cycle.
 import { canSubmit } from "./rule-buckets";
 import { validatePreferredColor } from "./preferred-color-options";
+import { PILOT_MODE_ENABLED } from "./pilot-mode";
 
 export const MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB — Supabase Free Plan ceiling
 export const FABRICATION_UPLOAD_BUCKET = "fabrication-uploads";
@@ -992,6 +993,13 @@ export async function acknowledgeWarning(
 export interface SubmitJobRequest {
   studentId: string;
   jobId: string;
+  /**
+   * Pilot Mode P1: when true, the student has clicked "Override and
+   * proceed" on the BLOCK rules. Server only honours this when
+   * PILOT_MODE_ENABLED is true. Override is logged on the job
+   * (pilot_override_at + pilot_override_rule_ids).
+   */
+  overrideBlocks?: boolean;
 }
 
 export type SubmitJobResult =
@@ -999,6 +1007,8 @@ export type SubmitJobResult =
       jobId: string;
       newStatus: "pending_approval" | "approved";
       requiresTeacherApproval: boolean;
+      /** Pilot Mode P1: present only when override was used. */
+      pilotOverride?: { ruleIds: string[]; at: string };
     }
   | OrchestrationError;
 
@@ -1077,10 +1087,17 @@ export async function submitJob(
   //    predicate the results viewer uses to enable the Submit button.
   //    Lesson #39: pattern bugs get fixed in one place, not duplicated.
   //    rule-buckets uses type-only imports from this file so no cycle.
+  //
+  //    Pilot Mode P1 (May 2026): when PILOT_MODE_ENABLED is on AND
+  //    the student passed overrideBlocks=true in the submit body, the
+  //    BLOCK gate is bypassed. The override is logged below so
+  //    teachers + the dev review surface can see what was waived.
   const gate = canSubmit({
     results: revResult.data.scan_results ?? { rules: [] },
     acknowledgedWarnings: job.acknowledged_warnings ?? {},
     revisionNumber: revResult.data.revision_number,
+    pilotMode: PILOT_MODE_ENABLED,
+    overrideBlocks: req.overrideBlocks ?? false,
   });
   if (!gate.ok) {
     return {
@@ -1148,10 +1165,25 @@ export async function submitJob(
     ? "pending_approval"
     : "approved";
 
-  // 6. Transition status.
+  // 6. Transition status. Pilot Mode P1: if the override was used,
+  //    log pilot_override_at + pilot_override_rule_ids in the same
+  //    UPDATE so the teacher Needs-Attention tab + dev review
+  //    surface can flag the job. Lesson #53 — explicit column
+  //    writes only.
+  const overrideUsed = gate.pilotOverride !== undefined;
+  const overrideAt = overrideUsed ? new Date().toISOString() : null;
+  const updatePayload: {
+    status: "pending_approval" | "approved";
+    pilot_override_at?: string;
+    pilot_override_rule_ids?: string[];
+  } = { status: newStatus };
+  if (overrideUsed && gate.pilotOverride) {
+    updatePayload.pilot_override_at = overrideAt!;
+    updatePayload.pilot_override_rule_ids = gate.pilotOverride.ruleIds;
+  }
   const write = await db
     .from("fabrication_jobs")
-    .update({ status: newStatus })
+    .update(updatePayload)
     .eq("id", req.jobId);
   if (write.error) {
     return {
@@ -1166,6 +1198,9 @@ export async function submitJob(
     jobId: req.jobId,
     newStatus,
     requiresTeacherApproval,
+    ...(overrideUsed && gate.pilotOverride
+      ? { pilotOverride: { ruleIds: gate.pilotOverride.ruleIds, at: overrideAt! } }
+      : {}),
   };
 }
 

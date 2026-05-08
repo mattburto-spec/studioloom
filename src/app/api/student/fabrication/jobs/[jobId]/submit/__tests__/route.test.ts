@@ -65,6 +65,75 @@ describe("POST /api/student/fabrication/jobs/[jobId]/submit", () => {
     expect(submitSpy.mock.calls[0][1]).toEqual({
       studentId: "student-1",
       jobId: "job-xyz",
+      overrideBlocks: false,
+    });
+  });
+
+  // Pilot Mode P1 — body parsing for the override flag.
+  it("forwards overrideBlocks=true to submitJob when body has it", async () => {
+    submitSpy.mockResolvedValueOnce({
+      jobId: "job-1",
+      newStatus: "approved",
+      requiresTeacherApproval: false,
+      pilotOverride: { ruleIds: ["R-STL-01"], at: "2026-05-08T10:00:00Z" },
+    });
+    const req = new NextRequest(
+      `http://localhost/api/student/fabrication/jobs/job-1/submit`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ overrideBlocks: true }),
+      }
+    );
+    const context = { params: Promise.resolve({ jobId: "job-1" }) };
+    await POST(req, context);
+    expect(submitSpy.mock.calls[0][1]).toEqual({
+      studentId: "student-1",
+      jobId: "job-1",
+      overrideBlocks: true,
+    });
+  });
+
+  it("forwards overrideBlocks=false when body is missing the flag", async () => {
+    submitSpy.mockResolvedValueOnce({
+      jobId: "job-1",
+      newStatus: "approved",
+      requiresTeacherApproval: false,
+    });
+    const req = new NextRequest(
+      `http://localhost/api/student/fabrication/jobs/job-1/submit`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      }
+    );
+    const context = { params: Promise.resolve({ jobId: "job-1" }) };
+    await POST(req, context);
+    expect(submitSpy.mock.calls[0][1].overrideBlocks).toBe(false);
+  });
+
+  it("includes pilotOverride in the response body when override was used", async () => {
+    submitSpy.mockResolvedValueOnce({
+      jobId: "job-1",
+      newStatus: "approved",
+      requiresTeacherApproval: false,
+      pilotOverride: { ruleIds: ["R-STL-01", "R-STL-04"], at: "2026-05-08T10:00:00Z" },
+    });
+    const req = new NextRequest(
+      `http://localhost/api/student/fabrication/jobs/job-1/submit`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ overrideBlocks: true }),
+      }
+    );
+    const context = { params: Promise.resolve({ jobId: "job-1" }) };
+    const res = await POST(req, context);
+    const body = await res.json();
+    expect(body.pilotOverride).toEqual({
+      ruleIds: ["R-STL-01", "R-STL-04"],
+      at: "2026-05-08T10:00:00Z",
     });
   });
 

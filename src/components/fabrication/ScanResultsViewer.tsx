@@ -59,6 +59,17 @@ export interface ScanResultsViewerProps {
    *  to a sidebar card alongside the revision history). Bucket
    *  sections + actions still render. */
   hideHeaderStrip?: boolean;
+  /** Pilot Mode P1: enables the "Override and proceed" CTA for jobs
+   *  with BLOCK rules during the early pilot. The override is
+   *  surfaced only when canSubmitState is failing for blockers
+   *  (server enforces this independently). When false/omitted, pre-
+   *  pilot behaviour: BLOCK rules force re-upload. */
+  pilotMode?: boolean;
+  /** Pilot Mode P1: handler when the student clicks "Override and
+   *  proceed". Caller is expected to POST /submit with
+   *  overrideBlocks=true. Only used when pilotMode is true and at
+   *  least one BLOCK rule fired. */
+  onOverrideSubmit?: () => void;
 }
 
 export function ScanResultsViewer(props: ScanResultsViewerProps) {
@@ -79,6 +90,8 @@ export function ScanResultsViewer(props: ScanResultsViewerProps) {
     readOnly = false,
     hideSubmit = false,
     hideHeaderStrip = false,
+    pilotMode = false,
+    onOverrideSubmit,
   } = props;
 
   const buckets = classifyRules(scanResults);
@@ -86,6 +99,27 @@ export function ScanResultsViewer(props: ScanResultsViewerProps) {
   const acksForRevision = acknowledgedWarnings?.[revisionKey] ?? {};
 
   const disabledFromAction = isSubmitting || isAckInFlight;
+
+  // Pilot Mode P1: show override CTA only when the gate has failed
+  // for blockers AND pilot mode is on. The override is a deliberate
+  // act, not a reflex — the strong-warning copy + explicit confirm
+  // checkbox below ensure students don't tap through accidentally.
+  const showOverrideCta =
+    !readOnly &&
+    !hideSubmit &&
+    pilotMode &&
+    !canSubmitState.ok &&
+    canSubmitState.reason === "blockers_present" &&
+    typeof onOverrideSubmit === "function";
+
+  const [overrideConfirmed, setOverrideConfirmed] = React.useState(false);
+
+  // Reset the confirm checkbox if the gate changes (e.g. student
+  // re-uploaded a different file with different rules) so a stale
+  // tick doesn't carry into a fresh decision.
+  React.useEffect(() => {
+    setOverrideConfirmed(false);
+  }, [canSubmitState.ok, canSubmitState.ok ? "" : canSubmitState.reason]);
 
   return (
     <div className="space-y-8">
@@ -247,9 +281,62 @@ export function ScanResultsViewer(props: ScanResultsViewerProps) {
           {!hideSubmit && !canSubmitState.ok && canSubmitState.reason && (
             <p role="status" className="text-xs text-gray-600 italic">
               {canSubmitState.reason === "blockers_present"
-                ? "Submit is disabled until all must-fix issues are resolved in a re-uploaded version."
+                ? pilotMode
+                  ? "Submit is disabled until you re-upload a fix — or, during the pilot, you can override and proceed below."
+                  : "Submit is disabled until all must-fix issues are resolved in a re-uploaded version."
                 : "Submit is disabled until every should-fix warning has an acknowledgement above."}
             </p>
+          )}
+
+          {/* Pilot Mode P1: "Override and proceed" panel — only when
+              BLOCK rules fired AND pilot mode is on. Strong amber
+              warning, explicit confirm checkbox, and a clearly
+              secondary visual treatment vs the normal Submit CTA. */}
+          {showOverrideCta && (
+            <div
+              role="region"
+              aria-label="Pilot mode override"
+              className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 space-y-3"
+            >
+              <div className="flex items-start gap-3">
+                <span aria-hidden="true" className="text-xl leading-none">⚠️</span>
+                <div className="space-y-1.5">
+                  <p className="text-sm font-semibold text-amber-900">
+                    Pilot mode: override and proceed anyway
+                  </p>
+                  <p className="text-xs text-amber-900/85 leading-relaxed">
+                    The scanner flagged this file with a must-fix issue. We&apos;re
+                    in the early testing window for Preflight, so you can choose
+                    to push the file through to your teacher even when the
+                    scanner says no — but your teacher will see that you
+                    overrode the check. If the scanner is wrong, this is the
+                    right move; if your file really is broken, your teacher
+                    will catch it.
+                  </p>
+                </div>
+              </div>
+              <label className="flex items-start gap-2 cursor-pointer text-xs text-amber-900">
+                <input
+                  type="checkbox"
+                  checked={overrideConfirmed}
+                  onChange={(e) => setOverrideConfirmed(e.target.checked)}
+                  disabled={disabledFromAction}
+                  className="mt-0.5"
+                />
+                <span>
+                  I understand the scanner flagged a must-fix issue and I want
+                  to send this file to my teacher anyway.
+                </span>
+              </label>
+              <button
+                type="button"
+                onClick={onOverrideSubmit}
+                disabled={!overrideConfirmed || disabledFromAction}
+                className="w-full sm:w-auto px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-semibold transition-all hover:bg-amber-700 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+              >
+                {isSubmitting ? "Submitting…" : "Override and proceed"}
+              </button>
+            </div>
           )}
         </>
       )}

@@ -39,6 +39,10 @@ export function TeacherQueueTabs({
       {QUEUE_TABS.map((tab) => {
         const isActive = tab === activeTab;
         const count = counts[tab];
+        // Pilot Mode P2: amber styling for the Needs Attention tab
+        // when count > 0 — pulls the teacher's eye when scanner
+        // findings or pilot overrides are sitting in the queue.
+        const isAttentionHot = tab === "attention" && count > 0;
         return (
           <button
             key={tab}
@@ -49,17 +53,23 @@ export function TeacherQueueTabs({
             className={[
               "relative px-3 py-2 text-sm font-medium -mb-px border-b-2 transition-all active:scale-[0.97]",
               isActive
-                ? "border-brand-purple text-brand-purple"
-                : "border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300",
+                ? isAttentionHot
+                  ? "border-amber-500 text-amber-700"
+                  : "border-brand-purple text-brand-purple"
+                : isAttentionHot
+                  ? "border-transparent text-amber-700 hover:text-amber-800 hover:border-amber-300"
+                  : "border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300",
             ].join(" ")}
           >
             <span>{tabLabel(tab)}</span>
             <span
               className={[
                 "ml-2 inline-flex items-center justify-center min-w-[1.5rem] px-1.5 py-0.5 rounded-full text-xs font-semibold",
-                isActive
-                  ? "bg-brand-purple/10 text-brand-purple"
-                  : "bg-gray-100 text-gray-700",
+                isAttentionHot
+                  ? "bg-amber-100 text-amber-800"
+                  : isActive
+                    ? "bg-brand-purple/10 text-brand-purple"
+                    : "bg-gray-100 text-gray-700",
               ].join(" ")}
             >
               {count}

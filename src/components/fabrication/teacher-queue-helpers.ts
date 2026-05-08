@@ -24,6 +24,7 @@ import type { QueueRow } from "@/lib/fabrication/teacher-orchestration";
 
 /** Tab keys used in URL params and component state. */
 export const QUEUE_TABS = [
+  "attention",
   "pending",
   "approved",
   "revision",
@@ -39,6 +40,14 @@ export type QueueTab = (typeof QUEUE_TABS)[number];
  */
 export function statusesForTab(tab: QueueTab): string[] | null {
   switch (tab) {
+    case "attention":
+      // Pilot Mode P2: cross-status filter — pending_approval rows
+      // with rule findings OR a pilot_override_at set, regardless of
+      // status. Returns null (no server-side status filter); the
+      // client-side `needsAttention(row)` predicate does the actual
+      // filtering. We keep the queue API "no status filter" semantics
+      // unchanged.
+      return null;
     case "pending":
       return ["pending_approval"];
     case "approved":
@@ -50,6 +59,19 @@ export function statusesForTab(tab: QueueTab): string[] | null {
     case "all":
       return null;
   }
+}
+
+/**
+ * Pilot Mode P2: a row "needs attention" if the student submitted
+ * with rule findings (BLOCK or WARN — FYI doesn't qualify) and the
+ * job is still in pending_approval, OR the student used the Pilot
+ * Mode "Override and proceed" path (regardless of current status,
+ * because override is a teaching moment even after approval).
+ */
+export function needsAttention(row: QueueRow): boolean {
+  if (row.pilotOverrideAt) return true;
+  if (row.jobStatus !== "pending_approval") return false;
+  return row.ruleCounts.block > 0 || row.ruleCounts.warn > 0;
 }
 
 /**
@@ -76,9 +98,24 @@ export function tabForStatus(jobStatus: string): QueueTab {
   }
 }
 
+/**
+ * Same shape as `tabForStatus` but routes "needs attention" rows
+ * (rule findings or pilot override) into the `attention` tab. Uses
+ * `needsAttention(row)` first, then falls back to `tabForStatus` for
+ * the row's underlying status. Note that a row that needs attention
+ * still also appears in its status-bucket tab — the attention tab is
+ * a *view* on the queue, not an exclusive bucket.
+ */
+export function tabForRow(row: QueueRow): QueueTab {
+  if (needsAttention(row)) return "attention";
+  return tabForStatus(row.jobStatus);
+}
+
 /** Human-facing label for the tab bar. */
 export function tabLabel(tab: QueueTab): string {
   switch (tab) {
+    case "attention":
+      return "Needs attention";
     case "pending":
       return "Pending approval";
     case "approved":
@@ -95,6 +132,8 @@ export function tabLabel(tab: QueueTab): string {
 /** Empty-state copy shown when the active tab has zero rows. */
 export function emptyMessageForTab(tab: QueueTab): string {
   switch (tab) {
+    case "attention":
+      return "No submissions need your attention right now — no scanner findings, no overrides.";
     case "pending":
       return "No submissions are waiting for your approval.";
     case "approved":
@@ -112,19 +151,30 @@ export function emptyMessageForTab(tab: QueueTab): string {
  * Filter a flat `QueueRow[]` down to one tab's rows. Used when we do a
  * single "all" fetch and slice client-side rather than re-fetch per
  * tab switch. "all" returns the list unchanged.
+ *
+ * Pilot Mode P2: the `attention` tab is a cross-status view — it
+ * surfaces rows that match `needsAttention(row)` regardless of
+ * their `jobStatus`. Rows that need attention also still appear
+ * under their status-bucket tab (pending / approved / etc.) — the
+ * attention tab is a triage view, not an exclusive bucket.
  */
 export function bucketRowsForTab(rows: QueueRow[], tab: QueueTab): QueueRow[] {
   if (tab === "all") return rows;
+  if (tab === "attention") return rows.filter(needsAttention);
   return rows.filter((r) => tabForStatus(r.jobStatus) === tab);
 }
 
 /**
  * Count rows per tab for the tab-bar badges. Iterates the full list
  * once — O(n) — and handles "all" as "rows.length" (every row shows
- * up under All even if its status maps to a specific tab too).
+ * up under All even if its status maps to a specific tab too). The
+ * `attention` count counts the same row under attention AND its
+ * status tab — totals across tabs will exceed total rows, which
+ * matches the "this row needs attention AND is pending" UX read.
  */
 export function countRowsPerTab(rows: QueueRow[]): Record<QueueTab, number> {
   const counts: Record<QueueTab, number> = {
+    attention: 0,
     pending: 0,
     approved: 0,
     revision: 0,
@@ -132,6 +182,7 @@ export function countRowsPerTab(rows: QueueRow[]): Record<QueueTab, number> {
     all: rows.length,
   };
   for (const r of rows) {
+    if (needsAttention(r)) counts.attention += 1;
     const t = tabForStatus(r.jobStatus);
     // `tabForStatus` already returns "all" for uploaded/scanning/
     // cancelled, which we don't increment anywhere except the "all"
@@ -151,7 +202,8 @@ export function shouldFlagRevisionCount(currentRevision: number): boolean {
 
 /**
  * Parse the ?tab= URL param defensively. Invalid values fall back to
- * the spec-default "pending" (first tab).
+ * the spec-default "pending" (first non-attention tab — keeping the
+ * pre-Pilot-Mode default landing experience for clean queues).
  */
 export function parseTabParam(raw: string | null): QueueTab {
   if (!raw) return "pending";
