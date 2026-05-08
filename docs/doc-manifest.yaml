@@ -24,23 +24,23 @@ docs:
     title: "Session Changelog"
     purpose: "Rolling log of changes across sessions for cross-session context"
     category: root
-    last_verified: "2026-04-29"
+    last_verified: "2026-05-08"
     max_age_days: 90
-    last_scanned: "2026-04-29"
+    last_scanned: "2026-05-08"
 
   - path: docs/decisions-log.md
     title: "Key Decisions Log"
-    purpose: "203+ architectural and design decisions from 17 Mar – 29 Apr 2026. Last: bug-report system design — role-hint auth, JSONB client_context, screenshot bounds, dedupe, Sentry tie-in, rAF yield (29 Apr 2026)."
+    purpose: "215+ architectural and design decisions. Latest 8 May 2026: kanban save-race fix, hard-nav for Next.js 15 silent fail, Vercel Analytics consolidation, auto-merge default, Backlog Ideation tool design, NextActionPill in hero, defense-in-depth admin chrome flash."
     category: root
-    last_verified: "2026-04-29"
+    last_verified: "2026-05-08"
     max_age_days: 90
     last_scanned: null
 
   - path: docs/lessons-learned.md
     title: "Lessons Learned"
-    purpose: "53 hard-won lessons from production bugs, build disasters, Supabase/Vercel gotchas. #51-53 (14-22 Apr 2026): Supabase dashboard mis-parses PL/pgSQL variable names as tables, REVOKE EXECUTE FROM PUBLIC doesn't revoke Supabase anon/authenticated auto-grants, denormalised columns need explicit writes (JSONB doesn't fan out to columns)."
+    purpose: "74 hard-won lessons from production bugs, build disasters, Supabase/Vercel gotchas. #73-74 (8 May 2026): instrument before adding more guards in the same layer; same-layer guards keep failing → bug is probably in adjacent layer."
     category: root
-    last_verified: "2026-04-22"
+    last_verified: "2026-05-08"
     max_age_days: 90
     last_scanned: null
 
@@ -465,10 +465,10 @@ docs:
     title: "WIRING — Machine-Readable System Registry"
     purpose: "82+ systems with dependencies, affects relationships, data fields, docs, change impacts. CRITICAL: check before making changes."
     category: projects
-    last_verified: "2026-04-22"
+    last_verified: "2026-05-08"
     referenced_from: ["CLAUDE.md impact analysis section"]
     max_age_days: 30
-    last_scanned: "2026-04-22"
+    last_scanned: "2026-05-08"
 
   - path: docs/schema-registry.yaml
     title: "Schema Registry — Table-Level Truth"
@@ -481,18 +481,18 @@ docs:
 
   - path: docs/api-registry.yaml
     title: "API Registry — Route-Level Truth"
-    purpose: "~266 (path, method) entries from src/app/api/**/route.ts. Auth type, tables read/written, AI call sites per endpoint. Sync: scripts/registry/scan-api-routes.py"
+    purpose: "~270 (path, method) entries from src/app/api/**/route.ts including the new /api/tools/kanban-ideation. Auth type, tables read/written, AI call sites per endpoint. Sync: scripts/registry/scan-api-routes.py"
     category: root
-    last_verified: "2026-04-14"
+    last_verified: "2026-05-08"
     referenced_from: ["CLAUDE.md registries section"]
     max_age_days: 30
-    last_scanned: null
+    last_scanned: "2026-05-08"
 
   - path: docs/ai-call-sites.yaml
     title: "AI Call Sites Registry — LLM Call-Level Truth"
-    purpose: "~47 LLM call sites via 3-layer detection (direct SDK, wrapper consumers, HTTP-based). Provider, model, max_tokens, stop_reason, cost category. Sync: scripts/registry/scan-ai-calls.py"
+    purpose: "~49 LLM call sites including the 2 new Haiku calls in /api/tools/kanban-ideation (probe + nudge). Provider, model, max_tokens, stop_reason, cost category. Sync: scripts/registry/scan-ai-calls.py"
     category: root
-    last_verified: "2026-04-14"
+    last_verified: "2026-05-08"
     referenced_from: ["CLAUDE.md registries section"]
     max_age_days: 30
     last_scanned: null
@@ -2332,11 +2332,11 @@ docs:
 
   - path: docs/vendors.yaml
     title: "Vendor / DPA Registry"
-    purpose: "Third-party vendor / DPA registry — 9 vendors with data categories and legal bases"
+    purpose: "Third-party vendor / DPA registry — 9 vendors with data categories and legal bases. Vercel entry expanded 8 May 2026 with analytics_pageviews + analytics_web_vitals categories (Web Analytics + Speed Insights enabled on Pro)."
     category: root
-    last_verified: "2026-04-14"
+    last_verified: "2026-05-08"
     max_age_days: 30
-    last_scanned: null
+    last_scanned: "2026-05-08"
 
   - path: docs/vendors-taxonomy.md
     title: "Vendor / DPA Registry Taxonomy"

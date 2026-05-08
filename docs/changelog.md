@@ -62,6 +62,86 @@ are cheap insurance.
 
 ---
 
+## 7-8 May 2026 — Marathon: kanban drag-and-drop saga, dashboard consolidation, analytics swap, admin session-takeover defenses
+
+**Context:** Two-day session spanning the start of NIS Class 1 (7 May) through Class 2 prep (8 May). Started as a kanban modal-on-drop bugfight, expanded into student dashboard polish, ideation tool build, analytics consolidation, and a series of admin-shell defenses after diagnosing a real auth-cookie collision bug.
+
+20 PRs merged: #96 → #112, #114, #115. Plus one empty-commit deploy trigger (`8c80f28`) and one prod-applied migration (`20260501103415_fix_handle_new_teacher_skip_students` — applied manually via Supabase dashboard, not via repo push).
+
+**Workflow change banked as memory:** auto-merge-PRs-once-green is now the default for fix PRs in this user's environment. Memory file at `~/.claude/projects/-Users-matt-CWORK/memory/feedback_auto_merge_default.md`.
+
+### A. Kanban drag-and-drop saga (rounds 36 → 43)
+
+Started as "modal opens after every kanban card drop." Spent 6 rounds adding progressively-aggressive click-suppression layers that didn't work, then added a `console.trace` (round 36) which revealed framer-motion fired `onDragEnd` twice. Then 4 more rounds chasing different theories before finding the actual cause was at the **persistence layer, not the gesture layer**.
+
+| PR | Round | Change |
+|---|---|---|
+| #96  | 37 | `isDraggingRef` stateful gate (modal-on-drop) — load-bearing, kept |
+| #97  | 38 | `viewportPoint(info)` — convert framer-motion `pageX/Y` to viewport coords; fixes "drag breaks when scrolled" — load-bearing, kept |
+| #98  | 39 | `activeDragCardRef` phantom dragEnd guard — proven unnecessary, stripped |
+| #99  | 40 | `lastDragEndAtRef` timestamp guard + `dragStart fired` diagnostic — diagnostic disproved phantom-dragStart hypothesis; both stripped |
+| #100 | 41 | **THE actual fix.** `useKanbanBoard.flushSave` was clobbering local state with the server's canonical `loadState` response, wiping any drag that landed during the save's network roundtrip. Fix: only apply server response if `stateRef.current === snapshot` (no change during save). Cards now stick where dropped |
+| #101 | 42 | Cleanup — strip diagnostics + dead suppression layers (-188 lines) |
+| #102 | 43 | Lesson-to-lesson nav switched from `router.push` → `window.location.href` (hard nav). Next.js 15 silently no-ops soft-nav to recently-created `[pageId]` segments — confirmed by programmatic `btn.click()` not changing URL |
+
+Two real bugs (modal-on-drop + scroll coords + save race + Next.js 15 soft-nav) fixed; two dead-end hypotheses stripped. Net +load-bearing logic, -188 lines of cruft.
+
+### B. Kanban + dashboard new features
+
+- **#103 Kanban pulse pill** in Class Hub Attention tab — extends `student-attention` endpoint with `kanbanTotalCards` + `kanbanDoneCount` from the existing denormalized counts. Per-student `Cards: N · M done` row (rose if 0, amber 1-2, gray 3+).
+- **#104 Backlog Ideation tool** — Socratic helper on Backlog column. POST `/api/tools/kanban-ideation` (Haiku, 2 actions: `probe` + `nudge`). Effort-gated 3-phase modal (description ≥40 chars → 3 rough first ideas → loop with AI nudges). 8 source-static contract tests lock the "AI never lists ideas, only asks questions" pedagogical promise. Convert N to Backlog bulk-creates kanban cards.
+- **#105** Stack Add/Ideate buttons vertically; rename `✨ Ideate` → `✨ Help me come up with more cards`.
+- **#106** First version of standalone `NextActionCard` between hero + middle row — superseded by #109.
+- **#109 Dashboard layout consolidation:**
+  - Standalone `NextActionCard` removed in favor of compact `NextActionPill` mounted INSIDE `ResumeHero` next to Continue (replacing the Focus button per Matt: "the focus button on the hero card can be replaced with the new kanban next action").
+  - "Next to unlock" column removed; "Coming Up" expanded from `md:col-span-3` to `md:col-span-7`.
+  - State-coloured pill: `▶ Doing: <title>` / `✱ Today: <title>` / `→ Pull from Backlog` / `+ Add to Backlog`.
+- **#107 + #108** Content-block visual refresh (info / warning / tip / context / activity / speaking / practical):
+  - v1: gradient bg, full borders, colored icon badges, larger body text.
+  - v2: corners `rounded-2xl` → `rounded-3xl`, padding `p-5 md:p-6` → `p-6 md:p-8`, body `text-[15px] md:text-base` → `text-[17px] md:text-[18px]`, badge `w-9 h-9` → `w-11 h-11`, hover lift `shadow-md` → `shadow-lg + -translate-y-0.5`, top accent stripe added.
+  - `ComposedPrompt` with `tappable=true` unchanged → click-for-word-definition still works.
+
+### C. Analytics consolidation
+
+- **#110** Vercel Web Analytics + Speed Insights (Pro plan, included). 2 deps + 4 lines in `src/app/layout.tsx`. No env vars needed (Vercel auto-configures).
+- **#111** Plausible Analytics removed. Was on a paid v2 endpoint that lapsed → script loaded but no dashboard. Dead weight.
+- `docs/vendors.yaml` Vercel entry expanded with `analytics_pageviews` + `analytics_web_vitals` data_sent categories.
+
+### D. Admin shell hardening (after diagnosing real auth bug)
+
+Matt reported: admin tab kept "logging out" silently, then logging back in worked. Investigation:
+
+1. Decoded the session cookie via Console — revealed a STUDENT JWT (user_type: 'student', email pattern `student-{uuid}@students.studioloom.local`). The admin's session had been overwritten.
+2. Root cause: Supabase auth cookie is set on `studioloom.org` domain — **all incognito windows in the same Chrome profile share one cookie jar**. When `/api/auth/student-classcode-login` fired in any window, it overwrote the admin session.
+3. Adjacent finding: 14 leaked `student-{uuid}@students.studioloom.local` rows in the `teachers` table — caused by the original `handle_new_teacher` trigger creating teacher rows on every `auth.users` INSERT, including the new student auth users from access-v2 Phase 1. Migration `20260501103415_fix_handle_new_teacher_skip_students` (already in repo, never applied to prod) adds a guard + backfill-deletes leaked rows. Matt applied via Supabase dashboard SQL editor; rows now gone.
+
+Defenses shipped:
+
+- **#112** "Back to teacher dashboard" link removed from admin user-menu (Matt: admin role intentionally separable from teacher role).
+- **#114** Auto-redirect to `/admin/login?reason=session-changed` when `whoami` returns 401/403. Login page reads the reason and shows a friendly banner.
+- **#115** Defense in depth: admin layout renders `Verifying admin access…` loading shell until `whoami` confirms; never flashes admin chrome to unauth'd viewers (in case middleware is somehow bypassed by stale cookies / CDN edge cases).
+
+Workaround for the underlying constraint: separate **Chrome profiles** (not just incognito windows) for admin vs student/teacher testing. Matt now runs 3 browsers (Chrome teacher, Firefox admin, etc).
+
+### E. Bonus: trigger-deploy + manual prod migration
+
+- Empty commit `8c80f28` pushed to main after #108 + #109 prod builds got stuck "Initializing" then cancelled. Matt cancelled both stuck deploys; this triggered a fresh build from main HEAD that combined both PRs' changes.
+- Migration `20260501103415_fix_handle_new_teacher_skip_students` applied to prod via Supabase dashboard. Idempotent + safety-asserted (refuses to delete leaked rows that have FK references). Cleaned the leaked teacher list to baseline.
+
+**Systems affected:**
+- `kanban-system` (rounds 37/38/41 in KanbanBoard.tsx + use-kanban-board.ts; new ideation modal + API)
+- `attention-rotation-panel` (kanban pulse pill)
+- `student-dashboard-v2` (NextActionPill, MiddleRow consolidation, ContentBlock visual refresh)
+- `auth-system` (admin shell defenses, leaked-teachers migration applied)
+- `vendors` (Vercel Analytics added, Plausible removed)
+- `lesson-navigation` (hard-nav workaround for Next.js 15 soft-nav silent fail)
+
+**Open follow-ups filed:**
+- `FU-LESSON-NAV-SOFT-NAV` (P3) — investigate Next.js 15 router.push silent fail when navigating to recently-created dynamic routes; restore SPA-style lesson nav once root cause known.
+- Adjacent: registry drift in feature-flags (orphaned `SENTRY_AUTH_TOKEN`, `auth.permission_helper_rollout`; missing `RUN_E2E`) — pre-existing, not from this session.
+
+---
+
 ## 4 May 2026 — Preflight Phase 8-1 audit gap CLOSURE ROUND 2 — 7 same-family fixes + 2 UX bugs
 
 **Context:** Matt's post-Access-v2 Preflight smoke (he'd just finished
