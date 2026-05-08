@@ -22,6 +22,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { saveTileGrade } from "@/lib/grading/save-tile-grade";
 import { generateAiPrescore } from "@/lib/grading/ai-prescore";
+import { restoreStudentName } from "@/lib/security/student-name-placeholder";
 import { extractTilesFromPage } from "@/lib/grading/lesson-tiles";
 import { getPageList } from "@/lib/unit-adapter";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
@@ -161,7 +162,11 @@ export async function POST(request: NextRequest) {
         ? `letter (${scale.labels?.join("–") ?? ""})`
         : `numeric ${scale.min}–${scale.max}`;
 
-  // Load responses + display names for every requested student in one round-trip.
+  // Load responses + display names for every requested student.
+  // Names are NEVER passed to Anthropic — generateAiPrescore uses
+  // STUDENT_NAME_PLACEHOLDER throughout. We load names here so the route
+  // can RESTORE the placeholder on the returned feedback_draft via
+  // restoreStudentName() before persisting (security-overview.md §1.3).
   const [progressRes, studentsRes] = await Promise.all([
     supabaseAdmin
       .from("student_progress")
@@ -183,6 +188,8 @@ export async function POST(request: NextRequest) {
     const tileText = p.responses && typeof p.responses === "object" ? p.responses[tile_id] : null;
     if (typeof tileText === "string") responseByStudent[p.student_id] = tileText;
   }
+  // Display names — used ONLY for client-side restoreStudentName() on the
+  // returned feedback_draft. Never passed to generateAiPrescore.
   const studentNames: Record<string, string> = {};
   for (const s of (studentsRes.data ?? []) as StudentRow[]) {
     studentNames[s.id] = s.display_name?.trim() || s.username?.trim() || "Student";
@@ -226,8 +233,16 @@ export async function POST(request: NextRequest) {
         scaleMin: scale.min,
         scaleMax: scale.max,
         scaleLabel,
-        studentDisplayName: studentNames[studentId],
       });
+
+      // PII restore (security-overview.md §1.3): the helper returns
+      // feedback_draft with STUDENT_NAME_PLACEHOLDER ("Student") wherever it
+      // addresses the student. Swap to the real name BEFORE persisting +
+      // returning to the client.
+      const realName = studentNames[studentId] ?? "Student";
+      const feedbackDraftRestored = ai.feedbackDraft
+        ? restoreStudentName(ai.feedbackDraft, realName)
+        : null;
 
       await saveTileGrade(supabaseAdmin, {
         student_id: studentId,
@@ -243,7 +258,7 @@ export async function POST(request: NextRequest) {
         ai_quote: ai.evidenceQuote ?? undefined,
         ai_confidence: ai.confidence,
         ai_reasoning: ai.reasoning ?? undefined,
-        ai_comment_draft: ai.feedbackDraft ?? null,
+        ai_comment_draft: feedbackDraftRestored ?? null,
         ai_model_version: ai.modelVersion,
         prompt_version: ai.promptVersion,
       });
@@ -254,7 +269,7 @@ export async function POST(request: NextRequest) {
         ai_score: ai.score,
         ai_quote: ai.evidenceQuote,
         ai_confidence: ai.confidence,
-        ai_comment_draft: ai.feedbackDraft,
+        ai_comment_draft: feedbackDraftRestored,
       });
     } catch (err) {
       results.push({

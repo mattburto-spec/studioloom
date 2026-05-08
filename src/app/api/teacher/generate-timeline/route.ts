@@ -1,6 +1,7 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
 import { createAIProvider } from "@/lib/ai";
 import { TIMELINE_SYSTEM_PROMPT, buildRAGTimelinePrompt, buildRAGPerLessonPrompt } from "@/lib/ai/prompts";
@@ -108,14 +109,10 @@ function createSupabaseServer(request: NextRequest) {
  * }
  */
 export async function POST(request: NextRequest) {
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
   const supabase = createSupabaseServer(request);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   const body = await request.json();
   const {
@@ -160,7 +157,7 @@ export async function POST(request: NextRequest) {
     const { data: profile } = await supabase
       .from("teacher_profiles")
       .select("typical_period_minutes")
-      .eq("user_id", user.id)
+      .eq("user_id", teacherId)
       .single();
 
     if (profile?.typical_period_minutes && !journeyInput.lessonLengthMinutes) {
@@ -173,7 +170,7 @@ export async function POST(request: NextRequest) {
   if (!journeyInput.lessonsPerWeek) journeyInput.lessonsPerWeek = 3;
 
   // Resolve AI credentials
-  const creds = await resolveCredentials(supabase, user.id);
+  const creds = await resolveCredentials(supabase, teacherId);
   if (!creds) {
     return NextResponse.json(
       { error: "AI provider not configured. Go to Settings to add your API key." },
@@ -198,7 +195,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Fetch teaching context for framework vocab + school context
-    const teachingContext = await getTeachingContext(user.id);
+    const teachingContext = await getTeachingContext(teacherId);
 
     // Build prompts — per-lesson (skeleton-based) or per-phase (legacy)
     let userPrompt: string;
@@ -210,7 +207,7 @@ export async function POST(request: NextRequest) {
         journeyInput,
         lessonSkeleton,
         fullSkeleton,
-        user.id,
+        teacherId,
         teachingContext
       );
       userPrompt = result.prompt;
@@ -219,7 +216,7 @@ export async function POST(request: NextRequest) {
       // Legacy: phase-based generation
       const result = await buildRAGTimelinePrompt(
         journeyInput,
-        user.id,
+        teacherId,
         selectedOutline,
         phaseToGenerate,
         previousActivitiesSummary,

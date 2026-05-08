@@ -1,6 +1,6 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
-import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 import { callAnthropicMessages } from "@/lib/ai/call";
 import { BLOCK_LIBRARY } from "@/components/teacher/lesson-editor/BlockPalette";
 import { MODELS } from "@/lib/ai/models";
@@ -29,7 +29,7 @@ interface SuggestionRequest {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireTeacherAuth(request);
+  const auth = await requireTeacher(request);
   if (auth.error) return auth.error;
 
   try {

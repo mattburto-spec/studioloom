@@ -15,33 +15,14 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { FAB_PRIVATE_CACHE_HEADERS } from "@/lib/fab/auth";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 import {
   createLab,
   listMyLabs,
   isOrchestrationError,
 } from "@/lib/fabrication/lab-orchestration";
-
-async function getTeacherUser(request: NextRequest) {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
-}
 
 function privateJson(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: FAB_PRIVATE_CACHE_HEADERS });
@@ -52,11 +33,12 @@ function privateJson(body: unknown, status = 200) {
 // -----------------------------------------------------------------
 
 export async function GET(request: NextRequest) {
-  const user = await getTeacherUser(request);
-  if (!user) return privateJson({ error: "Unauthorized" }, 401);
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const admin = createAdminClient();
-  const result = await listMyLabs(admin, { teacherId: user.id });
+  const result = await listMyLabs(admin, { teacherId });
   if (isOrchestrationError(result)) {
     return privateJson(
       { error: result.error.message },
@@ -80,8 +62,9 @@ interface CreateLabBody {
 }
 
 export async function POST(request: NextRequest) {
-  const user = await getTeacherUser(request);
-  if (!user) return privateJson({ error: "Unauthorized" }, 401);
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   let body: CreateLabBody;
   try {
@@ -92,7 +75,7 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
   const result = await createLab(admin, {
-    teacherId: user.id,
+    teacherId,
     name: typeof body.name === "string" ? body.name : "",
     description:
       typeof body.description === "string" || body.description === null

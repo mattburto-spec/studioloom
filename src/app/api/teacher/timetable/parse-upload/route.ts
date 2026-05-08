@@ -17,7 +17,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 import { callAnthropicMessages } from "@/lib/ai/call";
 
 // Claude vision calls on complex timetable images can take 30-60s
@@ -26,7 +26,7 @@ export const maxDuration = 120;
 const SONNET_MODEL = "claude-sonnet-4-6";
 
 export async function POST(request: NextRequest) {
-  const auth = await requireTeacherAuth(request);
+  const auth = await requireTeacher(request);
   if (auth.error) return auth.error;
 
   try {

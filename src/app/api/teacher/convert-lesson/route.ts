@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { withErrorHandler } from "@/lib/api/error-handler";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 import { extractDocument } from "@/lib/ingestion/document-extract";
 import { analysePass0 } from "@/lib/knowledge/analyse";
 import { extractLessonStructure, type LessonStructureExtraction, type ExtractedResource, type ExtractedRubric } from "@/lib/converter/extract-lesson-structure";
@@ -60,23 +61,20 @@ export const maxDuration = 300;
 // See docs/quarantine.md for full rationale.
 const QUARANTINE_RESPONSE = NextResponse.json({ error: "Lesson converter quarantined — pending architecture rebuild. See docs/quarantine.md" }, { status: 410 });
 
-export const POST = withErrorHandler("teacher/convert-lesson:POST", async (request: NextRequest) => {
+export const POST = withErrorHandler("teacher/convert-lesson:POST", async (request: NextRequest): Promise<NextResponse> => {
   return QUARANTINE_RESPONSE;
-  const supabase = createSupabaseServer(request);
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error as NextResponse;
+  const teacherId = auth.teacherId!;
 
   // Detect phase from content type
   const contentType = request.headers.get("content-type") || "";
   const isFormData = contentType.includes("multipart/form-data");
 
   if (isFormData) {
-    return handleExtraction(request, user!.id);
+    return handleExtraction(request, teacherId);
   } else {
-    return handleGeneration(request, user!.id);
+    return handleGeneration(request, teacherId);
   }
 });
 

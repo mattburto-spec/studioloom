@@ -651,11 +651,13 @@ This is likely intentional (service-role-only tables), but the pattern is undocu
 
 ---
 
-## FU-O — No co-teacher / dept head / school admin access model
+## FU-O ✅ RESOLVED 4 May 2026 — No co-teacher / dept head / school admin access model
 
 **Surfaced:** Phase 6 Checkpoint 5.1 Step 9 (14 Apr 2026)
-**Target phase:** Post-Dimensions3 architecture phase ("Loominary OS Access Model")
-**Priority:** P1 (hard blocker for school deployments — no sales past first teacher)
+**Resolved:** Access Model v2 Phase 1 → Phase 6 (Checkpoint A7 PILOT-READY, 4 May 2026)
+**Resolution:** `class_members` table shipped Phase 1 with role enum `lead_teacher | co_teacher | dept_head | mentor | lab_tech | observer`. `can(actor, action, resource)` permission helper shipped Phase 3 with `has_class_role(class_id, role?)` + `has_student_mentorship(student_id, programme?)` + `has_school_responsibility(school_id, type?)` 3-way scope lookup. RLS policies migrated off `teacher_id = auth.uid()` → membership-join pattern; `verifyTeacherCanManageStudent` re-grounded as the base class-level permission with class roles adding on top. Platform-admin path is `auth.users.is_platform_admin` flag gating `/admin/school/[id]`. School-admin role intentionally NOT introduced — flat school membership + two-tier governance (low-stakes instant + high-stakes 48h two-teacher confirm) covers the use case (§8 governance decision). See [`access-model-v2-phase-6-checkpoint-a7.md`](access-model-v2-phase-6-checkpoint-a7.md). Original symptom + design sketch retained below for archive.
+
+---
 
 **Symptom:** Every RLS policy in the codebase hardcodes `teacher_id = auth.uid()` as the ownership predicate. Concrete blockers this creates:
 - Co-taught classes (two teachers sharing a class) — one teacher is invisible to their own class data.
@@ -685,11 +687,13 @@ This is likely intentional (service-role-only tables), but the pattern is undocu
 
 ---
 
-## FU-P — No school / organization entity (flat teacher→class→student hierarchy)
+## FU-P ✅ RESOLVED 4 May 2026 — No school / organization entity (flat teacher→class→student hierarchy)
 
 **Surfaced:** Phase 6 Checkpoint 5.1 review (14 Apr 2026)
-**Target phase:** Post-Dimensions3 architecture phase (pairs with FU-O)
-**Priority:** P1 (table stakes for MAT/district deployments)
+**Resolved:** `schools` entity shipped via Preflight Phase 8 (28 Apr 2026, mig 085) + Access Model v2 Phase 0 backfill (4 May 2026)
+**Resolution:** `schools` table EXISTS with `parent_school_id` (district seam), `subscription_tier`, `default_locale`, `status` lifecycle enum, `region`, `bootstrap_expires_at`. `school_id` populated NOT NULL on `teachers`, `classes`, `students`, `units`, `machine_profiles`, `fabricators`, `fabrication_labs`. Every existing teacher backfilled with a personal `school_id` during Phase 0 — no NULL school_id rows post-Phase-0. `current_teacher_school_id()` SECURITY DEFINER helper drives school-scoped RLS, validated in prod across 3 NIS Matt personas via Phase 8 multi-teacher smoke. School Library browse view (Phase 4) reads `units.school_id`. Domain-based auto-suggest (`school_domains` table) + fuzzy-match gate (trigram + tsvector > 0.7) + merge queue (`school_merge_requests`) shipped for dedup. Multi-school memberships (`teacher_memberships` junction) deferred as `FU-AV2-MULTI-SCHOOL-MEMBERSHIPS` — not blocking single-school pilot. See [`access-model-v2-phase-6-checkpoint-a7.md`](access-model-v2-phase-6-checkpoint-a7.md) and [`access-model-v2.md`](access-model-v2.md) §11. Original symptom + design sketch retained below for archive.
+
+---
 
 **Symptom:** Data model has no `schools` or `organizations` table. Concrete blockers:
 - Can't share a curriculum library across teachers in the same school.
@@ -747,11 +751,13 @@ This is likely intentional (service-role-only tables), but the pattern is undocu
 
 ---
 
-## FU-R — Auth model split (teacher Supabase Auth vs student custom token sessions)
+## FU-R ✅ RESOLVED 4 May 2026 — Auth model split (teacher Supabase Auth vs student custom token sessions)
 
 **Surfaced:** Phase 6 Checkpoint 5.1 review (14 Apr 2026)
-**Target phase:** Post-Dimensions3 architecture phase
-**Priority:** P1 (every new cross-role feature has to bridge)
+**Resolved:** Access Model v2 Phase 6.1 (4 May 2026) — students migrated to Supabase Auth via lazy-provision
+**Resolution:** Migration `20260503203440_phase_6_1_drop_student_sessions.sql` APPLIED to prod. `student_sessions` table dropped, custom-token shim deleted, 50 callsites migrated, login route deleted. Students now lazy-provision via Supabase Auth on first classcode-login: `students.user_id`, `school_id`, `class_id` all populated. Students use Supabase Anonymous Auth pattern (option a from the original sketch) — RLS works against `auth.uid()`, no `questerra_student_session` cookie set anywhere. Phase 6.3b middleware guard prevents wrong-role traversal (student session can't reach `/teacher/*`, teacher session can't reach `/dashboard /unit /etc`). Verified via Phase 6.1 prod smoke: student `c` created via classcode-login, dashboard navigation clean, all 5 student API routes auth-bridge-free. See [`access-model-v2-phase-6-checkpoint-a7.md`](access-model-v2-phase-6-checkpoint-a7.md) §1 and `src/lib/auth/`. Original symptom + design sketch retained below for archive.
+
+---
 
 **Symptom:** Teachers authenticate via Supabase Auth (`auth.uid()` works, RLS works). Students authenticate via a custom token session system (Migration 028, `student_tool_sessions`). Every feature that spans both roles — peer review, class gallery, group work, safety alerts citing a student, parent portal — needs bridging code. The bridge is fragile: teacher APIs use `createServerClient().auth.getUser()`, student APIs use custom `validateStudentToken()` middleware. Features that want to accept either have to detect-and-fork.
 

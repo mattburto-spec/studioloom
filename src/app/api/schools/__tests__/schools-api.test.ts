@@ -84,8 +84,9 @@ beforeEach(async () => {
   mockFrom.mockReset();
   currentChain = buildChain();
   mockFrom.mockImplementation(() => currentChain);
+  // Post 2026-05-09 P-1: requireTeacherAuth checks user_type === "teacher".
   mockGetUser.mockResolvedValue({
-    data: { user: { id: "teacher-uuid-1" } },
+    data: { user: { id: "teacher-uuid-1", app_metadata: { user_type: "teacher" } } },
   });
 
   const searchMod = await import("../search/route");

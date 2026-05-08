@@ -1,37 +1,17 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 import type { AssessmentRecord } from "@/types/assessment";
-
-async function getTeacherId(request: NextRequest): Promise<string | null> {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id || null;
-}
 
 /**
  * GET: Fetch all assessments for a class + unit
  * Query: ?classId=X&unitId=Y
  */
 export async function GET(request: NextRequest) {
-  const teacherId = await getTeacherId(request);
-  if (!teacherId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const { searchParams } = new URL(request.url);
   const classId = searchParams.get("classId");
@@ -80,10 +60,9 @@ export async function GET(request: NextRequest) {
  * Body: { student_id, unit_id, class_id, data: AssessmentRecord, is_draft }
  */
 export async function PUT(request: NextRequest) {
-  const teacherId = await getTeacherId(request);
-  if (!teacherId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const body = await request.json();
   const {

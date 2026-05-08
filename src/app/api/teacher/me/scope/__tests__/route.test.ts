@@ -42,11 +42,17 @@ beforeEach(() => {
 });
 
 // requireTeacherAuth reads via @supabase/ssr's createServerClient.
+// Post 2026-05-09 P-1 hardening: requireTeacherAuth checks
+// app_metadata.user_type === "teacher" — mock must include it.
 vi.mock("@supabase/ssr", () => ({
   createServerClient: () => ({
     auth: {
       getUser: vi.fn(async () => ({
-        data: { user: mockUserId ? { id: mockUserId } : null },
+        data: {
+          user: mockUserId
+            ? { id: mockUserId, app_metadata: { user_type: "teacher" } }
+            : null,
+        },
       })),
     },
   }),

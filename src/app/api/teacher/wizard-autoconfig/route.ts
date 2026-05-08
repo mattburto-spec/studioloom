@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { callAnthropicMessages } from "@/lib/ai/call";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 import { buildAutoconfigSystemPrompt, buildAutoConfigPrompt } from "@/lib/ai/prompts";
 import {
   MYP_GLOBAL_CONTEXTS,
@@ -115,14 +116,10 @@ function validateConfig(raw: Record<string, unknown>): AutoConfigResponse {
  * Body: { goalText: string, gradeLevel: string, durationWeeks: number, keywords: string[] }
  */
 export async function POST(request: NextRequest) {
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
   const supabase = createSupabaseServer(request);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
   const body = await request.json();
   const { goalText, gradeLevel, durationWeeks, keywords, unitType, framework } = body as {
@@ -138,7 +135,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "goalText is required" }, { status: 400 });
   }
 
-  const creds = await resolveCredentials(supabase, user.id);
+  const creds = await resolveCredentials(supabase, teacherId);
 
   if (!creds) {
     return NextResponse.json({ config: {}, warning: "No AI credentials configured" });
@@ -167,7 +164,7 @@ export async function POST(request: NextRequest) {
       const callResult = await callAnthropicMessages({
         apiKey: creds.apiKey,
         endpoint: "teacher/wizard-autoconfig",
-        teacherId: user.id,
+        teacherId,
         model: creds.modelName,
         system: systemPrompt,
         messages: [{ role: "user", content: userPrompt }],

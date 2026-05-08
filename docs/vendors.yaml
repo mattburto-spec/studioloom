@@ -24,9 +24,44 @@ vendors:
       - category: student_voice_text
         fields: [design_conversation_turns.content, student_responses.response_text]
         basis: coppa_art_6
+      - category: student_self_disclosure_profile
+        # Added 2026-05-09 (security audit P-5). UDL accommodations + learning
+        # differences (anxiety, autism, ADHD, dyslexia self-reports), languages,
+        # countries lived in, design confidence, working style, communication
+        # preferences. Embedded into design-assistant + Open Studio mentor prompts.
+        fields:
+          - students.learning_profile  # see src/lib/design-assistant/conversation.ts:707-848
+          - open_studio_profiles.discovery_conversation
+          - open_studio_profiles.plan_health_score
+        basis: coppa_art_6
+      - category: student_aspirations_narrative
+        # Added 2026-05-09. Quest journey strengths/interests/project narrative,
+        # Discovery Engine station outputs (irritation free-text, archetype,
+        # fear cards, resources, self-efficacy, past project outcomes).
+        fields:
+          - quest_journeys.discovery_profile  # build-quest-prompt.ts:112-122
+          - quest_journeys.contract  # what + who_for fields
+          - discovery_station_outputs.*  # all station-level outputs
+        basis: coppa_art_6
       - category: safety_sensitive_text
         fields: [moderation_reports.content, design_conversation_turns.content]
         basis: coppa_art_6
+      - category: student_uploaded_image_for_moderation
+        # Added 2026-05-09. Student-uploaded images go to Claude Vision
+        # specifically to be moderated. Source label only — no name in prompt.
+        # See src/lib/content-safety/server-moderation.ts:199.
+        fields: [content_items.image_blob_for_moderation]
+        basis: coppa_art_6
+      - category: teacher_uploaded_document_imagery
+        # Added 2026-05-09. Teacher-uploaded PDFs, DOCX/PPTX extracted images,
+        # and timetable PDFs/images. Note: timetable images can contain teacher
+        # AND student names — server-side OCR redaction tracked as P-4 in
+        # security-plan.md. Until P-4 ships, UI warning at upload + this
+        # disclosure are the controls.
+        fields:
+          - knowledge_uploads.images
+          - timetable_uploads.image_blob  # parse-upload route
+        basis: legitimate_interest
       - category: system_metadata
         fields: [unit_type, framework, class_id]
         basis: pseudonymous
@@ -37,12 +72,24 @@ vendors:
     contract_type: standard
     notes: |
       DPA pending — Anthropic offers Zero Data Retention addendum; needs signing.
-      PII handling: the Report Writer free tool (tools/report-writer +
-      tools/report-writer/bulk) accepts a teacher-provided student name as
-      input. The name is substituted with a "Student" placeholder before the
-      prompt is sent to Anthropic and restored on the response client-side via
-      restoreStudentName() in src/lib/tools/report-writer-prompt.ts. No
-      student names leave the platform on this path.
+
+      PII redaction posture (verified by security audit 2026-05-09):
+      - Student NAMES never reach Anthropic. The Report Writer free tool
+        (tools/report-writer + tools/report-writer/bulk) is the only path that
+        accepts a teacher-provided student name. Name is substituted with a
+        "Student" placeholder before send and restored on response client-side
+        via restoreStudentName() in src/lib/tools/report-writer-prompt.ts.
+      - Student EMAIL / FULL NAME / DOB / classcode never appear in any
+        prompt body across 43 audited callsites.
+      - All Anthropic egress flows through src/lib/ai/call.ts ->
+        callAnthropicMessages() (single chokepoint).
+
+      Self-disclosed profile data (learning_profile, quest discovery profile,
+      discovery station outputs) DOES flow under coppa_art_6 with parental
+      consent — these are categories above, not redacted.
+
+      Open follow-ups: P-3 in security-plan.md (decoupling Anthropic ZDR
+      addendum), P-4 (timetable OCR pre-pass redaction).
 
   supabase:
     name: Supabase

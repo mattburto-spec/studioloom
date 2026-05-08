@@ -44,6 +44,19 @@ import type { ActorSession } from "@/lib/access-v2/actor-session";
  *
  * Returns the teacher's user ID or an error response.
  * Replaces the 35+ inline `createServerClient` + `getUser()` patterns.
+ *
+ * Hardened 2026-05-09 (security-plan.md P-1): now enforces
+ * `app_metadata.user_type === "teacher"`. Pre-fix, a logged-in *student*
+ * JWT (acquired via classcode-login) could call any /api/teacher/* route
+ * that gated on this helper, because the helper only checked
+ * "is there a session" not "is this session a teacher". Middleware Phase
+ * 6.3b only matches PAGE routes, not /api/*. Single-line fix here closes
+ * ~21 callsite gaps.
+ *
+ * NOTE: src/lib/auth/require-teacher.ts (also added 2026-05-09) is a
+ * functionally-identical helper preferred for new code. Both gates are
+ * equivalent; this one stays because the rollout sweep can't touch
+ * every callsite in a single PR.
  */
 export async function requireTeacherAuth(
   request: NextRequest
@@ -72,6 +85,17 @@ export async function requireTeacherAuth(
   if (!user) {
     return {
       error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
+  }
+
+  const userType = (user.app_metadata as Record<string, unknown> | undefined)
+    ?.user_type;
+  if (userType !== "teacher") {
+    return {
+      error: NextResponse.json(
+        { error: "Forbidden — teacher session required" },
+        { status: 403 },
+      ),
     };
   }
 

@@ -11,14 +11,23 @@
  * empty response, prompt missing, etc. — so the caller can stamp a
  * "no submission" event without rolling back the whole batch.
  *
+ * PII handling (security-overview.md §1.3, hardened 2026-05-09):
+ * The student's real name MUST NOT reach Anthropic. The prompt addresses
+ * the student by STUDENT_NAME_PLACEHOLDER ("Student") and the returned
+ * feedback_draft contains the placeholder verbatim. The CALLER is
+ * responsible for restoring the real name via restoreStudentName() before
+ * persisting or rendering. See src/app/api/teacher/grading/tile-grades/
+ * ai-prescore/route.ts for the canonical caller.
+ *
  * Cost: ~600 input + ~200 output tokens per call ≈ $0.0017 per student/tile.
  * Raise the max_tokens guard if you change the schema.
  */
 
 import { callAnthropicMessages } from "@/lib/ai/call";
 import { MODELS } from "@/lib/ai/models";
+import { STUDENT_NAME_PLACEHOLDER } from "@/lib/security/student-name-placeholder";
 
-export const PROMPT_VERSION = "grading.aiprescore.v2.0.0";
+export const PROMPT_VERSION = "grading.aiprescore.v2.1.0";
 // Bumped 600 → 900 to fit the new ~80-word feedback_draft alongside the
 // existing score + quote + reasoning. Roughly: 200 prior + 200 feedback
 // + tool overhead = ~500 actual; 900 gives headroom against truncation.
@@ -36,8 +45,11 @@ export interface AiPrescoreInput {
   scaleMax: number;
   /** Human-readable scale label, e.g. "MYP 1–8" or "GCSE percentage 0–100%". */
   scaleLabel: string;
-  /** Display name used to ground reasoning + address the student in feedback. */
-  studentDisplayName?: string;
+  // NOTE: do NOT add a name field to this interface (display name, given
+  // name, etc.). The helper INTERNALLY uses STUDENT_NAME_PLACEHOLDER for
+  // every prompt path; the caller restores the real name on the returned
+  // feedback_draft via restoreStudentName(). See file header + the CI
+  // check at src/lib/security/__tests__/no-pii-in-ai-prompts.test.ts.
 }
 
 export interface AiPrescoreOutput {
@@ -107,9 +119,10 @@ const PRESCORE_TOOL = {
 };
 
 function buildSystemPrompt(input: AiPrescoreInput): string {
-  const studentRef = input.studentDisplayName?.trim()
-    ? input.studentDisplayName.split(/\s+/)[0]
-    : "the student";
+  // PII redaction (security-overview.md §1.3): the student is referenced as
+  // STUDENT_NAME_PLACEHOLDER throughout the prompt. The caller swaps it back
+  // to the real name on the returned feedback_draft via restoreStudentName().
+  const studentRef = STUDENT_NAME_PLACEHOLDER;
   return [
     "You are a calibrated grading assistant for a secondary-school design-technology platform.",
     "Your job is to (1) suggest a draft score the teacher will confirm or override, and",
@@ -126,7 +139,7 @@ function buildSystemPrompt(input: AiPrescoreInput): string {
     "- Specific over generic. 'You picked PLA because it's biodegradable' beats 'Good material choice'.",
     "- Anchor at least one sentence in the response itself. Reference what they actually wrote.",
     "- One thing landed, one thing's missing, one concrete next step. In that order.",
-    "- Address the student warmly but not preciously. No 'awesome', 'amazing', 'great job'.",
+    `- Address the student warmly but not preciously. Use the placeholder "${studentRef}" exactly as written when addressing them — the platform substitutes their real name post-response. No 'awesome', 'amazing', 'great job'.`,
     "- Don't reveal the score or use scoring language. The teacher decides whether to mention numbers.",
     "- Don't paper over weakness. If their reasoning is thin, name it specifically.",
     "- If you have nothing specific to say (blank/off-topic submission), say only: " +
@@ -139,10 +152,9 @@ function buildSystemPrompt(input: AiPrescoreInput): string {
 
 function buildUserPrompt(input: AiPrescoreInput): string {
   const lines: string[] = [];
-  if (input.studentDisplayName?.trim()) {
-    lines.push(`STUDENT: ${input.studentDisplayName.trim()}`);
-    lines.push("");
-  }
+  // No STUDENT: name line — the helper never receives the real name. The
+  // PROMPT addresses the student by STUDENT_NAME_PLACEHOLDER (handled in
+  // buildSystemPrompt); the caller restores the real name client-side.
   lines.push("TILE PROMPT:");
   lines.push(input.tilePrompt.trim() || "(prompt not available)");
   lines.push("");
@@ -173,15 +185,15 @@ export async function generateAiPrescore(
   };
 
   // Guard: don't burn a Haiku call on an empty submission.
+  // Feedback uses STUDENT_NAME_PLACEHOLDER; caller restores the real name
+  // via restoreStudentName() — same contract as the AI-generated path.
   if (!input.studentResponse.trim()) {
-    const firstName = input.studentDisplayName?.trim()?.split(/\s+/)[0] ?? "";
-    const greeting = firstName ? `${firstName}, ` : "";
     return {
       ...baseOutput,
       reasoning: "No submission to grade.",
       confidence: 0,
       feedbackDraft:
-        `${greeting}I can't see a response to this prompt yet — give it another go when you're ready, and aim to address the question directly.`,
+        `${STUDENT_NAME_PLACEHOLDER}, I can't see a response to this prompt yet — give it another go when you're ready, and aim to address the question directly.`,
     };
   }
 

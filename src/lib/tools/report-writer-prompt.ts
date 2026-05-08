@@ -5,20 +5,15 @@
  *
  * PII handling: the teacher-provided student name is never sent to Anthropic.
  * Callers pass STUDENT_NAME_PLACEHOLDER as `studentName`, then restore the
- * real name on the model's response with restoreStudentName().
+ * real name on the model's response with restoreStudentName(). The
+ * placeholder primitives moved to @/lib/security/student-name-placeholder
+ * 2026-05-09 — re-exported here for backward compat with existing callers.
  */
 
-export const STUDENT_NAME_PLACEHOLDER = "Student";
-
-/**
- * Replace the placeholder token with the real teacher-provided student name
- * in the model's output. Capital "Student" as a whole word — the prompt
- * directs the model to use the name in third-person narrative ("Sarah has
- * demonstrated..."), so capital-S whole-word matches are unambiguous.
- */
-export function restoreStudentName(text: string, realName: string): string {
-  return text.replace(/\bStudent\b/g, () => realName);
-}
+export {
+  STUDENT_NAME_PLACEHOLDER,
+  restoreStudentName,
+} from "@/lib/security/student-name-placeholder";
 
 interface ReportPromptInput {
   studentName: string;
