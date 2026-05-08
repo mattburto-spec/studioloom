@@ -417,8 +417,18 @@ ANTHROPIC_DIRECT_RE = re.compile(
 # imports any of these, it transitively calls Anthropic through the helper —
 # the route still needs `withAIBudget` wrapping (or a budget-skip marker).
 # Add to this list when a new lib exposes a student-attributed AI proxy.
+# NOTE: callAnthropicMessages is excluded — it handles withAIBudget internally
+# when studentId is passed (see CALL_HELPER_WITH_STUDENT_RE below).
 AI_BEARING_HELPER_RE = re.compile(
     r"""\b(generateResponse|callDesignAssistantAI)\b"""
+)
+
+# Phase A.2 chokepoint helper. When studentId is passed, callAnthropicMessages
+# wraps the SDK call in withAIBudget internally — the route counts as covered
+# without a direct withAIBudget invocation.
+CALL_HELPER_RE = re.compile(r"\bcallAnthropicMessages\b")
+CALL_HELPER_WITH_STUDENT_RE = re.compile(
+    r"callAnthropicMessages\([^)]*studentId\b", re.DOTALL
 )
 
 # Wrapper / withAIBudget invocation
@@ -447,7 +457,8 @@ def classify_budget_coverage(content):
     """
     direct = bool(ANTHROPIC_DIRECT_RE.search(content))
     via_helper = bool(AI_BEARING_HELPER_RE.search(content))
-    calls_anthropic = direct or via_helper
+    via_call_helper = bool(CALL_HELPER_RE.search(content))
+    calls_anthropic = direct or via_helper or via_call_helper
     if not calls_anthropic:
         return {
             "status": "n/a",
@@ -457,10 +468,13 @@ def classify_budget_coverage(content):
         }
 
     has_wrapper = bool(WITH_AI_BUDGET_RE.search(content))
+    # Phase A.2: callAnthropicMessages with studentId wraps in withAIBudget
+    # internally — counts as covered.
+    has_call_helper_with_student = bool(CALL_HELPER_WITH_STUDENT_RE.search(content))
     skip_match = BUDGET_SKIP_RE.search(content)
     skip_reason = skip_match.group(1).strip() if skip_match else None
 
-    if has_wrapper:
+    if has_wrapper or has_call_helper_with_student:
         # Coverage wins over skip if both are present (favour the real
         # wrapper over a stale annotation).
         status = "covered"

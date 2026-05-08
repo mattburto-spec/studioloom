@@ -10,7 +10,7 @@
  * OS Seam 1: Pure function — receives config, no HTTP/request dependencies.
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import { callAnthropicMessages } from "@/lib/ai/call";
 import type { CostBreakdown } from "@/types/activity-blocks";
 import type {
   IngestionPass,
@@ -200,29 +200,34 @@ async function runPassB(
   }
 
   const modelId = config.modelOverride || DEFAULT_MODEL;
-  const client = new Anthropic({ apiKey: config.apiKey, maxRetries: 4 });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const correctionContext = (config as any)._correctionContext as string | undefined;
   const prompt = buildEnrichmentPrompt(input, correctionContext);
 
-  const response = await client.messages.create({
+  const callResult = await callAnthropicMessages({
+    apiKey: config.apiKey,
+    endpoint: "lib/ingestion/pass-b",
     model: modelId,
     system: "You are an expert educational content analyst specialising in curriculum design, Bloom's taxonomy, Universal Design for Learning, and activity classification. Analyse each section thoroughly.",
     messages: [{ role: "user", content: prompt }],
-    max_tokens: 16000,
+    maxTokens: 16000,
     temperature: 0.2,
     tools: [ENRICHMENT_TOOL],
-    tool_choice: { type: "tool", name: "enrich_sections" },
+    toolChoice: { type: "tool", name: "enrich_sections" },
   });
 
-  if (response.stop_reason === "max_tokens") {
-    throw new Error(
-      `[Pass B] Anthropic call hit max_tokens=16000 (output_tokens=${response.usage?.output_tokens}, input_tokens=${response.usage?.input_tokens}, sections=${input.sections.length}). ` +
-        `Tool: enrich_sections. The per-section enrichment schema is too large for this document — increase max_tokens, chunk the sections, or shrink the schema. ` +
-        `See Lesson #39: silent tool_use truncation drops required fields.`
-    );
+  if (!callResult.ok) {
+    if (callResult.reason === "truncated") {
+      throw new Error(
+        `[Pass B] Anthropic call hit max_tokens=16000 (sections=${input.sections.length}). Tool: enrich_sections. The per-section enrichment schema is too large for this document — increase max_tokens, chunk the sections, or shrink the schema. ` +
+          `See Lesson #39: silent tool_use truncation drops required fields.`
+      );
+    }
+    if (callResult.reason === "api_error") throw callResult.error;
+    throw new Error(`[Pass B] callAnthropicMessages failed: ${callResult.reason}`);
   }
 
+  const response = callResult.response;
   const toolBlock = response.content.find((b) => b.type === "tool_use");
   if (!toolBlock || toolBlock.type !== "tool_use") {
     throw new Error("[Pass B] AI did not return structured output via tool use");
@@ -230,8 +235,8 @@ async function runPassB(
 
   const result = toolBlock.input as { enrichedSections: EnrichedSection[] };
 
-  const inputTokens = response.usage?.input_tokens ?? 0;
-  const outputTokens = response.usage?.output_tokens ?? 0;
+  const inputTokens = callResult.usage.input_tokens;
+  const outputTokens = callResult.usage.output_tokens;
 
   const cost: CostBreakdown = {
     inputTokens,

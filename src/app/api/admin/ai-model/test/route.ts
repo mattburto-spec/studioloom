@@ -5,7 +5,7 @@ import { resolveConfigFromOverrides } from "@/lib/ai/model-config";
 import { buildSkeletonPrompt, getGradeTimingProfile, buildTimingBlock, SKELETON_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import type { AIModelConfig } from "@/types/ai-model-config";
 import type { LessonJourneyInput, TimelineOutlineOption } from "@/types";
-import Anthropic from "@anthropic-ai/sdk";
+import { callAnthropicMessages } from "@/lib/ai/call";
 import { MODELS } from "@/lib/ai/models";
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "mattburto@gmail.com")
@@ -107,33 +107,39 @@ export async function POST(request: NextRequest) {
     // Build the prompt
     const userPrompt = buildSkeletonPrompt(input, outline, "");
 
-    // Use platform API key directly for admin test
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: "No ANTHROPIC_API_KEY configured" }, { status: 500 });
-    }
-
-    const client = new Anthropic({ apiKey });
-
     const startTime = Date.now();
 
-    const response = await client.messages.create({
+    const callResult = await callAnthropicMessages({
+      endpoint: "/api/admin/ai-model/test",
+      teacherId: user!.id,
       model: MODELS.SONNET,
-      max_tokens: 16000,
-      thinking: {
-        type: "enabled",
-        budget_tokens: 8000,
-      },
+      maxTokens: 16000,
+      thinking: { type: "enabled", budget_tokens: 8000 },
       system: SKELETON_SYSTEM_PROMPT + "\n\n" + timingBlock,
       messages: [{ role: "user", content: userPrompt }],
     });
 
+    // Quarantined route — TS narrowing breaks on dead code after early return.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cr = callResult as any;
+    if (!cr.ok) {
+      if (cr.reason === "no_credentials") {
+        return NextResponse.json({ error: "No ANTHROPIC_API_KEY configured" }, { status: 500 });
+      }
+      if (cr.reason === "truncated") {
+        return NextResponse.json({ error: "AI response truncated (max_tokens hit)" }, { status: 502 });
+      }
+      if (cr.reason === "api_error") throw cr.error;
+      return NextResponse.json({ error: `AI call failed: ${cr.reason}` }, { status: 502 });
+    }
+
+    const response = cr.response;
     const elapsed = Date.now() - startTime;
 
     // Extract thinking and text content
     let thinking: string | null = null;
     {
-      const thinkingContent = response.content.find(c => c.type === "thinking");
+      const thinkingContent = response.content.find((c: { type: string }) => c.type === "thinking");
       if (thinkingContent && "thinking" in (thinkingContent as any)) {
         thinking = ((thinkingContent!) as any as { thinking: string }).thinking;
       }
@@ -141,7 +147,7 @@ export async function POST(request: NextRequest) {
 
     let skeleton = null;
     {
-      const textContent = response.content.find(c => c.type === "text");
+      const textContent = response.content.find((c: { type: string }) => c.type === "text");
       if (textContent && "text" in (textContent as any)) {
         let raw = ((textContent!) as any as { text: string }).text.trim();
         // Strip ```json ... ``` wrapping

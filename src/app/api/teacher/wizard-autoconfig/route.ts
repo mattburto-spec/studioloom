@@ -1,7 +1,7 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import Anthropic from "@anthropic-ai/sdk";
+import { callAnthropicMessages } from "@/lib/ai/call";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
 import { buildAutoconfigSystemPrompt, buildAutoConfigPrompt } from "@/lib/ai/prompts";
 import {
@@ -164,15 +164,22 @@ export async function POST(request: NextRequest) {
     let responseText: string;
 
     if (creds.provider === "anthropic") {
-      const client = new Anthropic({ apiKey: creds.apiKey, maxRetries: 1 });
-      const response = await client.messages.create({
+      const callResult = await callAnthropicMessages({
+        apiKey: creds.apiKey,
+        endpoint: "/api/teacher/wizard-autoconfig",
+        teacherId: user.id,
         model: creds.modelName,
         system: systemPrompt,
         messages: [{ role: "user", content: userPrompt }],
-        max_tokens: 500,
+        maxTokens: 500,
         temperature: 0.3,
       });
 
+      if (!callResult.ok) {
+        if (callResult.reason === "api_error") throw callResult.error;
+        throw new Error(`wizard-autoconfig AI call: ${callResult.reason}`);
+      }
+      const response = callResult.response;
       const textBlock = response.content.find((b) => b.type === "text");
       responseText = textBlock?.type === "text" ? textBlock.text : "";
     } else {

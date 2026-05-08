@@ -214,8 +214,8 @@ describe("stage3-generation max_tokens guard (sub-task 5.2.5 commit 2)", () => {
       join(process.cwd(), "src/lib/pipeline/stages/stage3-generation.ts"),
       "utf8"
     );
-    // Expect exactly one `max_tokens: 2048,` in the file.
-    const matches = source.match(/max_tokens:\s*2048\b/g) || [];
+    // Expect exactly one `maxTokens: 2048` in the file (post Phase A.2 — helper camelCase).
+    const matches = source.match(/maxTokens:\s*2048\b/g) || [];
     expect(matches.length).toBe(1);
     expect(STAGE3_MAX_TOKENS).toBe(2048);
   });

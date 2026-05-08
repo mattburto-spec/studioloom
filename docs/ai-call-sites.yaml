@@ -5,31 +5,9 @@
 # docs/projects/dimensions3-followups.md FU-5 (stop_reason_handled seeding).
 #
 # Last synced: 2026-04-14
-# Total call sites: 54
+# Total call sites: 36
 
 call_sites:
-- id: ai_app_api_admin_ai_model_test_lesson_route_buildUnitTypeSystemPrompt
-  file: src/app/api/admin/ai-model/test-lesson/route.ts
-  function: buildUnitTypeSystemPrompt
-  provider: anthropic
-  model: claude-sonnet-4-20250514
-  max_tokens: 16000
-  stop_reason_handled: false
-  has_fallback: false
-  called_from_routes: []
-  cost_category: teacher_api
-  notes: null
-- id: ai_app_api_admin_ai_model_test_route_now
-  file: src/app/api/admin/ai-model/test/route.ts
-  function: now
-  provider: anthropic
-  model: claude-sonnet-4-20250514
-  max_tokens: 16000
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes: []
-  cost_category: teacher_api
-  notes: null
 - id: ai_app_api_admin_ingestion_sandbox_commit_route_embedText
   file: src/app/api/admin/ingestion-sandbox/commit/route.ts
   function: embedText
@@ -78,17 +56,6 @@ call_sites:
   - /api/student/open-studio/discovery
   cost_category: student_api
   notes: HTTP-based call (no SDK import)
-- id: ai_app_api_student_word_lookup_route_async
-  file: src/app/api/student/word-lookup/route.ts
-  function: async
-  provider: anthropic
-  model: dynamic
-  max_tokens: null
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes: []
-  cost_category: student_api
-  notes: max_tokens not set or dynamic
 - id: ai_app_api_teacher_activity_cards_manage_route_embedText
   file: src/app/api/teacher/activity-cards/manage/route.ts
   function: embedText
@@ -137,28 +104,6 @@ call_sites:
   - /api/teacher/knowledge/quick-modify
   cost_category: teacher_api
   notes: HTTP-based call (no SDK import)
-- id: ai_app_api_teacher_lesson_editor_ai_field_route_Anthropic
-  file: src/app/api/teacher/lesson-editor/ai-field/route.ts
-  function: Anthropic
-  provider: anthropic
-  model: claude-haiku-4-5-20251001
-  max_tokens: 500
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes: []
-  cost_category: teacher_api
-  notes: null
-- id: ai_app_api_teacher_lesson_editor_suggest_route_Anthropic
-  file: src/app/api/teacher/lesson-editor/suggest/route.ts
-  function: Anthropic
-  provider: anthropic
-  model: claude-haiku-4-5-20251001
-  max_tokens: 800
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes: []
-  cost_category: teacher_api
-  notes: null
 - id: ai_app_api_teacher_timetable_parse_upload_route_toString
   file: src/app/api/teacher/timetable/parse-upload/route.ts
   function: toString
@@ -171,39 +116,6 @@ call_sites:
   - /api/teacher/timetable/parse-upload
   cost_category: teacher_api
   notes: HTTP-based call (no SDK import)
-- id: ai_app_api_teacher_wizard_autoconfig_route_Anthropic
-  file: src/app/api/teacher/wizard-autoconfig/route.ts
-  function: Anthropic
-  provider: anthropic
-  model: dynamic
-  max_tokens: 500
-  stop_reason_handled: unknown
-  has_fallback: true
-  called_from_routes: []
-  cost_category: teacher_api
-  notes: null
-- id: ai_app_api_teacher_wizard_suggest_route_first_first
-  file: src/app/api/teacher/wizard-suggest/route.ts
-  function: first
-  provider: anthropic
-  model: claude-3-5-haiku-latest
-  max_tokens: 1
-  stop_reason_handled: unknown
-  has_fallback: true
-  called_from_routes: []
-  cost_category: teacher_api
-  notes: null
-- id: ai_app_api_teacher_wizard_suggest_route_slice_slice
-  file: src/app/api/teacher/wizard-suggest/route.ts
-  function: slice
-  provider: anthropic
-  model: dynamic
-  max_tokens: 1
-  stop_reason_handled: unknown
-  has_fallback: true
-  called_from_routes: []
-  cost_category: teacher_api
-  notes: null
 - id: ai_app_api_tools_marking_comments_route_buildMarkingCommentsPrompt
   file: src/app/api/tools/marking-comments/route.ts
   function: buildMarkingCommentsPrompt
@@ -353,29 +265,63 @@ call_sites:
   called_from_routes: []
   cost_category: generation
   notes: max_tokens not set or dynamic
-- id: ai_lib_ai_quality_evaluator_Anthropic
-  file: src/lib/ai/quality-evaluator.ts
-  function: Anthropic
+- id: ai_lib_ai_call_async_async
+  file: src/lib/ai/call.ts
+  function: async
   provider: anthropic
-  model: claude-haiku-4-5
-  max_tokens: 2000
+  model: dynamic
+  max_tokens: null
   stop_reason_handled: unknown
   has_fallback: false
   called_from_routes:
-  - /api/teacher/generate-timeline
+  - /api/admin/ai-model/test
+  - /api/admin/ai-model/test-lesson
+  - /api/student/quest/mentor
+  - /api/student/word-lookup
+  - /api/teacher/lesson-editor/ai-field
+  - /api/teacher/lesson-editor/suggest
+  - /api/teacher/wizard-autoconfig
+  - /api/teacher/wizard-suggest
   cost_category: generation
-  notes: null
-- id: ai_lib_content_safety_server_moderation_coexist
-  file: src/lib/content-safety/server-moderation.ts
-  function: coexist
+  notes: Model not detected in call context; max_tokens not set or dynamic
+- id: ai_lib_ai_call_buildCreateParams_buildCreateParams
+  file: src/lib/ai/call.ts
+  function: buildCreateParams
   provider: anthropic
-  model: claude-haiku-4-5-20251001
-  max_tokens: 1024
+  model: dynamic
+  max_tokens: null
   stop_reason_handled: unknown
   has_fallback: false
-  called_from_routes: []
-  cost_category: ingestion
-  notes: null
+  called_from_routes:
+  - /api/admin/ai-model/test
+  - /api/admin/ai-model/test-lesson
+  - /api/student/quest/mentor
+  - /api/student/word-lookup
+  - /api/teacher/lesson-editor/ai-field
+  - /api/teacher/lesson-editor/suggest
+  - /api/teacher/wizard-autoconfig
+  - /api/teacher/wizard-suggest
+  cost_category: generation
+  notes: Streaming call; Model not detected in call context; max_tokens not set or dynamic
+- id: ai_lib_ai_call_fireLogUsage_fireLogUsage
+  file: src/lib/ai/call.ts
+  function: fireLogUsage
+  provider: anthropic
+  model: dynamic
+  max_tokens: null
+  stop_reason_handled: unknown
+  has_fallback: false
+  called_from_routes:
+  - /api/admin/ai-model/test
+  - /api/admin/ai-model/test-lesson
+  - /api/student/quest/mentor
+  - /api/student/word-lookup
+  - /api/teacher/lesson-editor/ai-field
+  - /api/teacher/lesson-editor/suggest
+  - /api/teacher/wizard-autoconfig
+  - /api/teacher/wizard-suggest
+  cost_category: generation
+  notes: Model not detected in call context; max_tokens not set or dynamic
 - id: ai_lib_converter_extract_lesson_structure_buildExtractionUserPrompt_http1
   file: src/lib/converter/extract-lesson-structure.ts
   function: buildExtractionUserPrompt
@@ -412,18 +358,6 @@ call_sites:
   - /api/student/design-assistant
   cost_category: unknown
   notes: HTTP-based call (no SDK import)
-- id: ai_lib_grading_ai_prescore_Anthropic
-  file: src/lib/grading/ai-prescore.ts
-  function: Anthropic
-  provider: anthropic
-  model: claude-haiku-4-5-20251001
-  max_tokens: 600
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/teacher/grading/tile-grades/ai-prescore
-  cost_category: unknown
-  notes: null
 - id: ai_lib_ingestion_dedup_embedText
   file: src/lib/ingestion/dedup.ts
   function: embedText
@@ -438,42 +372,6 @@ call_sites:
   - /api/teacher/library/import/classify
   cost_category: ingestion
   notes: Uses wrapper src/lib/ai/embeddings.ts
-- id: ai_lib_ingestion_moderate_topics
-  file: src/lib/ingestion/moderate.ts
-  function: topics
-  provider: anthropic
-  model: none
-  max_tokens: 2000
-  stop_reason_handled: false
-  has_fallback: false
-  called_from_routes:
-  - /api/admin/ingestion-sandbox/run-stage
-  cost_category: ingestion
-  notes: null
-- id: ai_lib_ingestion_pass_a_buildClassificationPrompt
-  file: src/lib/ingestion/pass-a.ts
-  function: buildClassificationPrompt
-  provider: anthropic
-  model: simulated
-  max_tokens: 8000
-  stop_reason_handled: true
-  has_fallback: false
-  called_from_routes:
-  - /api/admin/ingestion-sandbox/run-stage
-  cost_category: ingestion
-  notes: null
-- id: ai_lib_ingestion_pass_b_buildEnrichmentPrompt
-  file: src/lib/ingestion/pass-b.ts
-  function: buildEnrichmentPrompt
-  provider: anthropic
-  model: simulated
-  max_tokens: 16000
-  stop_reason_handled: true
-  has_fallback: false
-  called_from_routes:
-  - /api/admin/ingestion-sandbox/run-stage
-  cost_category: ingestion
-  notes: null
 - id: ai_lib_ingestion_persist_blocks_embedAll
   file: src/lib/ingestion/persist-blocks.ts
   function: embedAll
@@ -564,96 +462,3 @@ call_sites:
   called_from_routes: []
   cost_category: generation
   notes: Uses wrapper src/lib/ai/embeddings.ts; Not directly imported by any route — likely transitive via service module
-- id: ai_lib_pipeline_stages_stage2_assembly_buildAssemblyPrompt
-  file: src/lib/pipeline/stages/stage2-assembly.ts
-  function: buildAssemblyPrompt
-  provider: anthropic
-  model: simulator
-  max_tokens: 4096
-  stop_reason_handled: false
-  has_fallback: false
-  called_from_routes: []
-  cost_category: generation
-  notes: null
-- id: ai_lib_pipeline_stages_stage3_generation_buildGapPrompt
-  file: src/lib/pipeline/stages/stage3-generation.ts
-  function: buildGapPrompt
-  provider: anthropic
-  model: simulator
-  max_tokens: null
-  stop_reason_handled: false
-  has_fallback: false
-  called_from_routes: []
-  cost_category: generation
-  notes: max_tokens not set or dynamic
-- id: ai_lib_pipeline_stages_stage4_polish_buildPolishPrompt_buildPolishPrompt
-  file: src/lib/pipeline/stages/stage4-polish.ts
-  function: buildPolishPrompt
-  provider: anthropic
-  model: simulator
-  max_tokens: 4096
-  stop_reason_handled: false
-  has_fallback: false
-  called_from_routes: []
-  cost_category: generation
-  notes: null
-- id: ai_lib_skills_ai_helpers_Distractors_Distractors
-  file: src/lib/skills/ai-helpers.ts
-  function: Distractors
-  provider: anthropic
-  model: claude-sonnet-4-20250514
-  max_tokens: 4000
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/teacher/skills/ai/generate-quiz
-  - /api/teacher/skills/ai/suggest-anchors
-  - /api/teacher/skills/ai/suggest-demo
-  - /api/teacher/skills/ai/suggest-outcomes
-  cost_category: unknown
-  notes: null
-- id: ai_lib_skills_ai_helpers_disposition_disposition
-  file: src/lib/skills/ai-helpers.ts
-  function: disposition
-  provider: anthropic
-  model: claude-haiku-4-5-20251001
-  max_tokens: 500
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/teacher/skills/ai/generate-quiz
-  - /api/teacher/skills/ai/suggest-anchors
-  - /api/teacher/skills/ai/suggest-demo
-  - /api/teacher/skills/ai/suggest-outcomes
-  cost_category: unknown
-  notes: null
-- id: ai_lib_skills_ai_helpers_join_join
-  file: src/lib/skills/ai-helpers.ts
-  function: join
-  provider: anthropic
-  model: claude-haiku-4-5-20251001
-  max_tokens: 400
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/teacher/skills/ai/generate-quiz
-  - /api/teacher/skills/ai/suggest-anchors
-  - /api/teacher/skills/ai/suggest-demo
-  - /api/teacher/skills/ai/suggest-outcomes
-  cost_category: unknown
-  notes: null
-- id: ai_lib_skills_ai_helpers_of_of
-  file: src/lib/skills/ai-helpers.ts
-  function: of
-  provider: anthropic
-  model: claude-haiku-4-5-20251001
-  max_tokens: 600
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/teacher/skills/ai/generate-quiz
-  - /api/teacher/skills/ai/suggest-anchors
-  - /api/teacher/skills/ai/suggest-demo
-  - /api/teacher/skills/ai/suggest-outcomes
-  cost_category: unknown
-  notes: null

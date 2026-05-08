@@ -1,6 +1,7 @@
 // audit-skip: routine learner activity, low audit value
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
+import { callAnthropicMessages } from "@/lib/ai/call";
 import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { lookupSandbox } from "@/lib/ai/sandbox/word-lookup-sandbox";
@@ -8,9 +9,7 @@ import { MODELS } from "@/lib/ai/models";
 import { l1DisplayLabel, type L1Target } from "@/lib/tap-a-word/language-mapping";
 import { resolveStudentSettings } from "@/lib/student-support/resolve-settings";
 import { resolveStudentClassId } from "@/lib/student-support/resolve-class-id";
-import { withAIBudget } from "@/lib/access-v2/ai-budget/middleware";
 import { withErrorHandler } from "@/lib/api/error-handler";
-import { logUsage } from "@/lib/usage-tracking";
 
 /**
  * POST /api/student/word-lookup
@@ -170,16 +169,6 @@ export const POST = withErrorHandler("student/word-lookup:POST", async (request:
   }
 
   // Live Anthropic path (default in dev + prod; gated to RUN_E2E=1 in tests).
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    logErr("anthropic_api_key_missing", { studentId: auth.studentId, word: rawWord });
-    return NextResponse.json(
-      { error: "ANTHROPIC_API_KEY not configured" },
-      { status: 500, headers: CACHE_HEADERS }
-    );
-  }
-  const client = new Anthropic({ apiKey, maxRetries: 2 });
-
   // Schema kept minimal — every property/tool description is paid input
   // tokens on every call. Constraints live in the system prompt instead,
   // which still steers the model but is shared once across the request.
@@ -215,77 +204,70 @@ export const POST = withErrorHandler("student/word-lookup:POST", async (request:
 
   const maxTokens = wantsL1 ? MAX_TOKENS_WITH_L1 : MAX_TOKENS_EN_ONLY;
 
-  // Phase 5.3 — wrap the Anthropic call in withAIBudget. Budget cap is
-  // resolved via the cascade (student > class > school > column > tier);
-  // truncation (Lesson #39) is handled by the wrapper without billing.
-  const budgetResult = await withAIBudget(supabase, auth.studentId, async () => {
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: maxTokens,
-      system: systemPrompt,
-      tools: [tool],
-      tool_choice: { type: "tool", name: TOOL_NAME },
-      messages: [{ role: "user", content: userPrompt }],
-    });
-    return {
-      result: response,
-      usage: {
-        input_tokens: response.usage.input_tokens,
-        output_tokens: response.usage.output_tokens,
-        stop_reason: response.stop_reason ?? "end_turn",
-      },
-    };
+  // Helper handles withAIBudget cap enforcement + Lesson #39 truncation guard
+  // when studentId is provided. Budget cap resolved via the cascade
+  // (student > class > school > column > tier). metadata enriches
+  // ai_usage_log so the admin AI Budget breakdown can attribute per-word.
+  const callResult = await callAnthropicMessages({
+    supabase,
+    studentId: auth.studentId,
+    endpoint: "student/word-lookup",
+    model: MODEL,
+    maxTokens,
+    system: systemPrompt,
+    tools: [tool],
+    toolChoice: { type: "tool", name: TOOL_NAME },
+    messages: [{ role: "user", content: userPrompt }],
+    metadata: { word: rawWord, l1Target, wantsL1 },
   });
 
-  if (!budgetResult.ok) {
-    if (budgetResult.reason === "over_cap") {
+  if (!callResult.ok) {
+    if (callResult.reason === "no_credentials") {
+      logErr("anthropic_api_key_missing", { studentId: auth.studentId, word: rawWord });
+      return NextResponse.json(
+        { error: "ANTHROPIC_API_KEY not configured" },
+        { status: 500, headers: CACHE_HEADERS }
+      );
+    }
+    if (callResult.reason === "over_cap") {
       logErr("budget_exceeded", {
         studentId: auth.studentId,
         word: rawWord,
-        cap: budgetResult.cap,
-        used: budgetResult.used,
+        cap: callResult.cap,
+        used: callResult.used,
       });
       return NextResponse.json(
         {
           error: "budget_exceeded",
-          cap: budgetResult.cap,
-          used: budgetResult.used,
-          reset_at: budgetResult.resetAt,
+          cap: callResult.cap,
+          used: callResult.used,
+          reset_at: callResult.resetAt,
         },
         { status: 429, headers: CACHE_HEADERS }
       );
     }
-    // 'truncated' — model hit max_tokens. Return 502 (Lesson #39 — don't bill, surface).
-    logErr("model_truncated", {
-      studentId: auth.studentId,
-      word: rawWord,
-      maxTokens,
-      model: MODEL,
-      l1Target,
-    });
-    return NextResponse.json(
-      {
-        error: "model_truncated",
-        message: `Anthropic truncated at max_tokens=${maxTokens} (model=${MODEL}, tool=${TOOL_NAME}, word="${rawWord}", l1Target=${l1Target}). Bump MAX_TOKENS or shorten input.`,
-      },
-      { status: 502, headers: CACHE_HEADERS }
-    );
+    if (callResult.reason === "truncated") {
+      // Model hit max_tokens. Return 502 (Lesson #39 — don't bill, surface).
+      logErr("model_truncated", {
+        studentId: auth.studentId,
+        word: rawWord,
+        maxTokens,
+        model: MODEL,
+        l1Target,
+      });
+      return NextResponse.json(
+        {
+          error: "model_truncated",
+          message: `Anthropic truncated at max_tokens=${maxTokens} (model=${MODEL}, tool=${TOOL_NAME}, word="${rawWord}", l1Target=${l1Target}). Bump MAX_TOKENS or shorten input.`,
+        },
+        { status: 502, headers: CACHE_HEADERS }
+      );
+    }
+    // api_error
+    throw callResult.error;
   }
 
-  const response = budgetResult.result;
-
-  // Log to ai_usage_log so the admin AI Budget breakdown can attribute
-  // these tokens to this student. withAIBudget bills the cap counter
-  // independently; this is the per-call diagnostic trail.
-  logUsage({
-    studentId: auth.studentId,
-    endpoint: "student/word-lookup",
-    model: MODEL,
-    inputTokens: response.usage.input_tokens,
-    outputTokens: response.usage.output_tokens,
-    metadata: { word: rawWord, l1Target, wantsL1 },
-  });
-
+  const response = callResult.response;
   const block = response.content.find((b) => b.type === "tool_use");
   if (!block || block.type !== "tool_use") {
     logErr("no_tool_use_block", {

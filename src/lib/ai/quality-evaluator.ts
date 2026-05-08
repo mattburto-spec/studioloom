@@ -22,7 +22,7 @@ import { DEFAULT_STRUCTURAL_THRESHOLDS } from "@/lib/ai/model-config-defaults";
  * 10. Safety culture — safety awareness woven in, not bolted on
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import { callAnthropicMessages } from "@/lib/ai/call";
 import type { TimelineActivity } from "@/types";
 import type { QualityReport, PrincipleScore, PedagogyPrinciple } from "@/types/lesson-intelligence";
 
@@ -132,15 +132,21 @@ Evaluate these activities against all 10 principles. Be honest but constructive.
   }
 
   try {
-    const client = new Anthropic({ apiKey, maxRetries: 1 });
-
-    const response = await client.messages.create({
+    const callResult = await callAnthropicMessages({
+      apiKey,
+      endpoint: "lib/ai/quality-evaluator",
       model: "claude-haiku-4-5",
       system: QUALITY_EVALUATION_PROMPT,
       messages: [{ role: "user", content: userPrompt }],
-      max_tokens: 2000,
+      maxTokens: 2000,
       temperature: 0.3,
     });
+
+    if (!callResult.ok) {
+      console.warn("[quality-evaluator] AI evaluation failed, returning structural report:", callResult.reason);
+      return buildStructuralReport(activities, portfolioCaptureCount, totalMinutes, expectedMinutes, context.gradeLevel, context.thresholds);
+    }
+    const response = callResult.response;
 
     // Extract text response
     const textBlock = response.content.find((b) => b.type === "text");

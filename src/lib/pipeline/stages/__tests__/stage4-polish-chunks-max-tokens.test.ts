@@ -191,7 +191,7 @@ describe("stage4-polish max_tokens guard — CHUNKS site (sub-task 5.2.5 commit 
       join(process.cwd(), "src/lib/pipeline/stages/stage4-polish.ts"),
       "utf8"
     );
-    const matches = source.match(/max_tokens:\s*2048\b/g) || [];
+    const matches = source.match(/maxTokens:\s*2048\b/g) || [];
     expect(matches.length).toBeGreaterThanOrEqual(1);
     expect(STAGE4_CHUNKS_MAX_TOKENS).toBe(2048);
   });

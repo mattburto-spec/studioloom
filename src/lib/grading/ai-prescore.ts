@@ -15,7 +15,7 @@
  * Raise the max_tokens guard if you change the schema.
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import { callAnthropicMessages } from "@/lib/ai/call";
 import { MODELS } from "@/lib/ai/models";
 
 export const PROMPT_VERSION = "grading.aiprescore.v1.0.0";
@@ -143,28 +143,30 @@ export async function generateAiPrescore(
     };
   }
 
-  const client = new Anthropic({
-    apiKey: apiKey ?? process.env.ANTHROPIC_API_KEY,
-  });
-
-  const response = await client.messages.create({
+  const callResult = await callAnthropicMessages({
+    apiKey,
+    endpoint: "lib/grading/ai-prescore",
     model: MODELS.HAIKU,
-    max_tokens: MAX_OUTPUT_TOKENS,
+    maxTokens: MAX_OUTPUT_TOKENS,
     system: buildSystemPrompt(input),
     messages: [{ role: "user", content: buildUserPrompt(input) }],
     tools: [PRESCORE_TOOL],
-    tool_choice: { type: "tool", name: PRESCORE_TOOL.name },
+    toolChoice: { type: "tool", name: PRESCORE_TOOL.name },
   });
 
-  // Lesson #39: every Anthropic call site must guard stop_reason. tool_use
-  // calls truncate even more invisibly than text — the tool-input gets
-  // dropped silently and you get a tool_use block with empty input.
-  if (response.stop_reason === "max_tokens") {
-    throw new Error(
-      `aiPrescore hit max_tokens=${MAX_OUTPUT_TOKENS} cap — response truncated. Raise cap or shorten prompt.`,
-    );
+  // Lesson #39: helper centralises stop_reason guard. Translate truncation
+  // to the same throw the existing caller contract expects.
+  if (!callResult.ok) {
+    if (callResult.reason === "truncated") {
+      throw new Error(
+        `aiPrescore hit max_tokens=${MAX_OUTPUT_TOKENS} cap — response truncated. Raise cap or shorten prompt.`,
+      );
+    }
+    if (callResult.reason === "api_error") throw callResult.error;
+    throw new Error(`aiPrescore — callAnthropicMessages failed: ${callResult.reason}`);
   }
 
+  const response = callResult.response;
   // Find the tool_use block; tool_choice forces it to the front.
   const toolUse = response.content.find((b) => b.type === "tool_use");
   if (!toolUse || toolUse.type !== "tool_use" || !toolUse.input) {

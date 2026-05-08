@@ -24,12 +24,15 @@ function readSrc(rel: string): string {
 }
 
 describe("Phase 5.3 retrofit catalog — withAIBudget wired into student AI routes", () => {
-  it("word-lookup route imports + calls withAIBudget around messages.create", () => {
+  it("word-lookup route uses callAnthropicMessages with studentId (helper handles withAIBudget)", () => {
     const src = readSrc("src/app/api/student/word-lookup/route.ts");
+    // Post Phase A.2: withAIBudget is called inside the helper; route now
+    // imports callAnthropicMessages and passes studentId to enable budget enforcement.
     expect(src).toMatch(
-      /import \{ withAIBudget \} from ['"]@\/lib\/access-v2\/ai-budget\/middleware['"]/,
+      /import \{ callAnthropicMessages \} from ['"]@\/lib\/ai\/call['"]/,
     );
-    expect(src).toMatch(/await withAIBudget\(supabase, auth\.studentId, async \(\) => \{/);
+    expect(src).toMatch(/await callAnthropicMessages\(\{/);
+    expect(src).toMatch(/studentId: auth\.studentId/);
     // 429 response shape
     expect(src).toContain('error: "budget_exceeded"');
     expect(src).toMatch(/status: 429/);
@@ -38,12 +41,13 @@ describe("Phase 5.3 retrofit catalog — withAIBudget wired into student AI rout
     expect(src).toMatch(/status: 502/);
   });
 
-  it("quest/mentor route imports + calls withAIBudget around anthropic.messages.create", () => {
+  it("quest/mentor route uses callAnthropicMessages with studentId (helper handles withAIBudget)", () => {
     const src = readSrc("src/app/api/student/quest/mentor/route.ts");
     expect(src).toMatch(
-      /import \{ withAIBudget \} from ['"]@\/lib\/access-v2\/ai-budget\/middleware['"]/,
+      /import \{ callAnthropicMessages \} from ['"]@\/lib\/ai\/call['"]/,
     );
-    expect(src).toMatch(/await withAIBudget\(supabase, studentId, async \(\) => \{/);
+    expect(src).toMatch(/await callAnthropicMessages\(\{/);
+    expect(src).toMatch(/studentId,?$/m);
     expect(src).toContain("'budget_exceeded'");
     expect(src).toMatch(/status: 429/);
     expect(src).toContain("'model_truncated'");

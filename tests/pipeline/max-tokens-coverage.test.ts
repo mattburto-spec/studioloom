@@ -44,49 +44,47 @@ function readStageFiles(): StageFile[] {
 }
 
 describe("Pipeline AI call sites must guard against max_tokens truncation (Lesson #39)", () => {
-  it("every client.messages.create call site has assertNotMaxTokens within 30 lines below", () => {
+  it("every callAnthropicMessages call site translates truncation into MaxTokensError", () => {
+    // Post Phase A.2: stages no longer call client.messages.create directly.
+    // They call callAnthropicMessages, which returns { ok: false, reason: "truncated" }
+    // on max_tokens. Stages translate that to a MaxTokensError throw to preserve
+    // the existing exception-based contract.
     const files = readStageFiles();
     const failures: string[] = [];
 
-    // Strip // line-comments so commented-out guard calls don't count.
-    // (Block comments /* */ are rare in this codebase and not worth the
-    // added complexity — a determined bypass would be caught in review.)
-    const stripLineComment = (line: string): string => {
-      const idx = line.indexOf("//");
-      return idx === -1 ? line : line.slice(0, idx);
-    };
-
     for (const f of files) {
-      const code = f.lines.map(stripLineComment);
-      for (let i = 0; i < code.length; i++) {
-        if (!code[i].includes("client.messages.create")) continue;
+      const matches = f.content.match(/await callAnthropicMessages\(/g);
+      if (!matches || matches.length === 0) continue;
 
-        // Look forward up to 30 lines (after the await + closing `)`) for
-        // a non-commented assertNotMaxTokens call. Guard must come AFTER.
-        const window = code.slice(i, Math.min(i + 30, code.length)).join("\n");
-        if (!window.includes("assertNotMaxTokens(")) {
-          failures.push(
-            `${f.filename}:${i + 1} has client.messages.create with no ` +
-            `assertNotMaxTokens within 30 lines below it. Lesson #39 — ` +
-            `every AI call site must guard against max_tokens truncation. ` +
-            `See dimensions3-phase-2-brief §5 row 5.2.5.`
-          );
-        }
+      // Each call site should be paired with a `MaxTokensError` throw triggered
+      // by `reason === "truncated"`.
+      if (!f.content.includes('reason === "truncated"')) {
+        failures.push(
+          `${f.filename} calls callAnthropicMessages but has no ` +
+          `reason === "truncated" handler. Lesson #39 — translate the ` +
+          `helper's truncated result into a MaxTokensError throw.`
+        );
+      }
+      if (!f.content.includes("new MaxTokensError(")) {
+        failures.push(
+          `${f.filename} calls callAnthropicMessages but does not throw ` +
+          `MaxTokensError. Pipeline contract requires the exception class.`
+        );
       }
     }
 
     expect(failures).toEqual([]);
   });
 
-  it("every stage file using client.messages.create imports from ./max-tokens-guard", () => {
+  it("every stage file using callAnthropicMessages imports MaxTokensError", () => {
     const files = readStageFiles();
     const failures: string[] = [];
 
     for (const f of files) {
-      if (!f.content.includes("client.messages.create")) continue;
+      if (!f.content.includes("callAnthropicMessages(")) continue;
       if (!f.content.includes('from "./max-tokens-guard"')) {
         failures.push(
-          `${f.filename} uses client.messages.create but does not import ` +
+          `${f.filename} uses callAnthropicMessages but does not import ` +
           `from ./max-tokens-guard. Lesson #39.`
         );
       }
@@ -103,18 +101,18 @@ describe("Pipeline AI call sites must guard against max_tokens truncation (Lesso
     expect(source).toContain("5.2.5");
   });
 
-  it("no stage file has a max_tokens literal below 1024 (typo sanity check)", () => {
+  it("no stage file has a maxTokens literal below 1024 (typo sanity check)", () => {
     const files = readStageFiles();
     const failures: string[] = [];
 
     for (const f of files) {
-      const regex = /max_tokens:\s*(\d+)/g;
+      const regex = /maxTokens:\s*(\d+)/g;
       let match: RegExpExecArray | null;
       while ((match = regex.exec(f.content)) !== null) {
         const value = parseInt(match[1], 10);
         if (value < 1024) {
           failures.push(
-            `${f.filename} has max_tokens: ${value} which is below the ` +
+            `${f.filename} has maxTokens: ${value} which is below the ` +
             `1024 floor — likely a typo. Caps should be 2048 or 4096 for ` +
             `production paths.`
           );
@@ -125,17 +123,17 @@ describe("Pipeline AI call sites must guard against max_tokens truncation (Lesso
     expect(failures).toEqual([]);
   });
 
-  it("captured AI call site count — exactly 4 across all stage files (Lesson #38 pin)", () => {
+  it("captured AI call site count — exactly 4 callAnthropicMessages call sites across all stage files (Lesson #38 pin)", () => {
     const files = readStageFiles();
     let count = 0;
     for (const f of files) {
-      const matches = f.content.match(/client\.messages\.create/g) || [];
+      const matches = f.content.match(/await callAnthropicMessages\(/g) || [];
       count += matches.length;
     }
     expect(count).toBe(4);
     // Failure message context: if this fires, a new AI call site was added.
-    // Ensure it has an assertNotMaxTokens guard AND update this test's
-    // expected count. Site map at time of this test:
+    // Ensure it has a reason==="truncated" → MaxTokensError handler AND
+    // update this test's expected count. Site map at time of this test:
     //   stage2-assembly.ts   × 1 (main)
     //   stage3-generation.ts × 1 (inside Promise.allSettled batch)
     //   stage4-polish.ts     × 2 (main + polishInChunks)
