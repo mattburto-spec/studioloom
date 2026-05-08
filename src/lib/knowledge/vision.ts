@@ -58,6 +58,7 @@ export interface VisualExtractionResult {
    ================================================================ */
 
 import { MODELS } from "@/lib/ai/models";
+import { callAnthropicMessages } from "@/lib/ai/call";
 
 const VISION_PROMPT = `You are analysing an educational document for its visual content. Describe ALL images, diagrams, charts, tables, flowcharts, and illustrations you can see.
 
@@ -162,46 +163,39 @@ async function extractPDFVisuals(
 
   const base64 = buffer.toString("base64");
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY!,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: MODELS.HAIKU,
-      max_tokens: 4096,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "document",
-              source: {
-                type: "base64",
-                media_type: "application/pdf",
-                data: base64,
-              },
+  const callResult = await callAnthropicMessages({
+    endpoint: "lib/knowledge/vision/pdf",
+    model: MODELS.HAIKU,
+    maxTokens: 4096,
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "document",
+            source: {
+              type: "base64",
+              media_type: "application/pdf",
+              data: base64,
             },
-            {
-              type: "text",
-              text: VISION_PROMPT,
-            },
-          ],
-        },
-      ],
-    }),
+          },
+          {
+            type: "text",
+            text: VISION_PROMPT,
+          },
+        ],
+      },
+    ],
   });
 
-  if (!response.ok) {
-    const errText = await response.text();
-    console.error("[vision] PDF vision API error:", response.status, errText);
+  if (!callResult.ok) {
+    console.error("[vision] PDF vision API error:", callResult.reason);
     return { descriptions: [], totalImagesFound: 0, method: "pdf-document" };
   }
 
-  const data = await response.json();
-  const text = data.content?.[0]?.type === "text" ? data.content[0].text : "";
+  const response = callResult.response;
+  const textBlock = response.content?.[0];
+  const text = textBlock?.type === "text" ? textBlock.text : "";
 
   return parseVisionResponse(text, "pdf-document");
 }
@@ -375,28 +369,22 @@ async function describeImageSet(
     text: `There are ${toProcess.length} image(s) extracted from a document. ${VISION_PROMPT}`,
   });
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY!,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: MODELS.HAIKU,
-      max_tokens: 4096,
-      messages: [{ role: "user", content }],
-    }),
+  const callResult = await callAnthropicMessages({
+    endpoint: "lib/knowledge/vision/image",
+    model: MODELS.HAIKU,
+    maxTokens: 4096,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    messages: [{ role: "user", content: content as any }],
   });
 
-  if (!response.ok) {
-    const errText = await response.text();
-    console.error("[vision] Image analysis API error:", response.status, errText);
+  if (!callResult.ok) {
+    console.error("[vision] Image analysis API error:", callResult.reason);
     return { descriptions: [], totalImagesFound: images.length, method };
   }
 
-  const data = await response.json();
-  const text = data.content?.[0]?.type === "text" ? data.content[0].text : "";
+  const visionResponse = callResult.response;
+  const textBlock = visionResponse.content?.[0];
+  const text = textBlock?.type === "text" ? textBlock.text : "";
 
   const result = parseVisionResponse(text, method);
   result.totalImagesFound = images.length;

@@ -17,6 +17,7 @@
 
 import { detectFramework, buildFrameworkContextForExtraction, type FrameworkDetection } from "./detect-framework";
 import { MODELS } from "@/lib/ai/models";
+import { callAnthropicMessages } from "@/lib/ai/call";
 
 /* ─── Types ─── */
 
@@ -270,31 +271,25 @@ async function detectDocumentLayout(text: string): Promise<DocumentLayout> {
   const tablePreview = text.slice(0, 3000);
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY || "",
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: MODELS.HAIKU,
-        max_tokens: 1024,
-        system: LAYOUT_DETECTION_PROMPT,
-        messages: [{
-          role: "user",
-          content: `Analyse this document structure:\n\n${tablePreview}`,
-        }],
-      }),
+    const callResult = await callAnthropicMessages({
+      endpoint: "lib/converter/extract-lesson-structure/layout",
+      model: MODELS.HAIKU,
+      maxTokens: 1024,
+      system: LAYOUT_DETECTION_PROMPT,
+      messages: [{
+        role: "user",
+        content: `Analyse this document structure:\n\n${tablePreview}`,
+      }],
     });
 
-    if (!response.ok) {
-      console.warn("[detectDocumentLayout] Haiku call failed, using fallback");
+    if (!callResult.ok) {
+      console.warn("[detectDocumentLayout] Haiku call failed, using fallback:", callResult.reason);
       return buildFallbackLayout(text);
     }
 
-    const data = await response.json();
-    const responseText = data.content?.[0]?.type === "text" ? data.content[0].text : "";
+    const response = callResult.response;
+    const responseTextBlock = response.content?.[0];
+    const responseText = responseTextBlock?.type === "text" ? responseTextBlock.text : "";
 
     const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/) ||
       responseText.match(/(\{[\s\S]*\})/);
@@ -512,28 +507,28 @@ export async function extractLessonStructure(
   const systemPrompt = buildExtractionSystemPrompt(framework, layout, headerMeta);
   const userPrompt = buildExtractionUserPrompt(rawText, filename, headerMeta, layout);
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY || "",
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: MODELS.SONNET,
-      max_tokens: 12288,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    }),
+  const callResult = await callAnthropicMessages({
+    endpoint: "lib/converter/extract-lesson-structure",
+    model: MODELS.SONNET,
+    maxTokens: 12288,
+    system: systemPrompt,
+    messages: [{ role: "user", content: userPrompt }],
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Lesson structure extraction failed (${response.status}): ${errorText}`);
+  if (!callResult.ok) {
+    if (callResult.reason === "truncated") {
+      throw new Error("Lesson structure extraction failed: response truncated");
+    }
+    if (callResult.reason === "no_credentials") {
+      throw new Error("Lesson structure extraction failed: AI not configured");
+    }
+    if (callResult.reason === "api_error") throw callResult.error;
+    throw new Error(`Lesson structure extraction failed: ${callResult.reason}`);
   }
 
-  const data = await response.json();
-  const text = data.content?.[0]?.type === "text" ? data.content[0].text : "";
+  const response = callResult.response;
+  const textBlock = response.content?.[0];
+  const text = textBlock?.type === "text" ? textBlock.text : "";
 
   // Extract JSON from response
   const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) ||

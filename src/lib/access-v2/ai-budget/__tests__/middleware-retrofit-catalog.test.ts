@@ -54,12 +54,13 @@ describe("Phase 5.3 retrofit catalog — withAIBudget wired into student AI rout
     expect(src).toMatch(/status: 502/);
   });
 
-  it("design-assistant route imports + calls withAIBudget around generateResponse", () => {
+  it("design-assistant route delegates to generateResponse (Phase A.3 — withAIBudget moved into helper)", () => {
     const src = readSrc("src/app/api/student/design-assistant/route.ts");
-    expect(src).toMatch(
-      /import \{ withAIBudget \} from ['"]@\/lib\/access-v2\/ai-budget\/middleware['"]/,
-    );
-    expect(src).toMatch(/await withAIBudget\(\s*supabaseForBudget,\s*studentId,\s*async \(\) => \{/);
+    // Post Phase A.3: route no longer wraps in withAIBudget directly —
+    // generateResponse internally uses callAnthropicMessages with studentId,
+    // which handles withAIBudget. Route catches typed errors and maps to HTTP responses.
+    expect(src).toContain("generateResponse");
+    expect(src).toMatch(/await generateResponse\(/);
     expect(src).toContain('"budget_exceeded"');
     expect(src).toMatch(/status: 429/);
     expect(src).toContain('"model_truncated"');
