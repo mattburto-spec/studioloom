@@ -10,6 +10,8 @@ import {
   buildReportWriterPrompt,
   ratingsToStrengthsAndGrowth,
   projectRatingsToPerformance,
+  STUDENT_NAME_PLACEHOLDER,
+  restoreStudentName,
 } from "@/lib/tools/report-writer-prompt";
 import { callAnthropicMessages } from "@/lib/ai/call";
 import type { BulkRequestBody, BulkReportResult } from "@/lib/tools/report-writer-types";
@@ -143,8 +145,11 @@ export async function POST(request: NextRequest) {
           projects
         );
 
+        // PII: never send the teacher-provided student name to Anthropic.
+        // Substitute with a placeholder; restore on the response.
+        const realStudentName = student.firstName.trim();
         const systemPrompt = buildReportWriterPrompt({
-          studentName: student.firstName.trim(),
+          studentName: STUDENT_NAME_PLACEHOLDER,
           pronouns: student.pronouns,
           subject: body.subject.trim(),
           gradeLevel: body.gradeLevel.trim(),
@@ -216,7 +221,10 @@ export async function POST(request: NextRequest) {
           throw new Error("AI response missing report text");
         }
 
-        reports.push({ firstName: student.firstName, report });
+        reports.push({
+          firstName: student.firstName,
+          report: restoreStudentName(report, realStudentName),
+        });
         generated++;
 
         // logUsage handled by callAnthropicMessages helper
