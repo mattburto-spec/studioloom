@@ -174,7 +174,7 @@ const studentId = auth.studentId;
 
 Returns `{ studentId }` on success or `{ error: NextResponse }` on failure (401 Unauthorized).
 
-Students authenticate via `SESSION_COOKIE_NAME` cookie → `student_sessions` table → `student_id`. This is **not** Supabase Auth — it's a custom token system using nanoid(48) tokens with 7-day TTL.
+Students authenticate via Supabase Auth. On first classcode-login a student row is lazy-provisioned (`students.user_id`, `students.school_id`, `students.class_id` all populated) and the user gets a Supabase Auth session like any other principal. The legacy `student_sessions` table was dropped in Access Model v2 Phase 6.1 (mig `20260503203440`); the old custom-token system is no longer in use.
 
 ---
 
@@ -220,9 +220,8 @@ Routes interact with these Supabase tables:
 - `quest_milestones` — Milestones within a journey
 - `quest_evidence` — Evidence submissions
 - `quest_mentor_interactions` — AI interaction logs
-- `student_sessions` — Auth tokens
 
-All tables use `createAdminClient()` (service role) to bypass RLS for auth table operations.
+Auth is via Supabase Auth (`auth.uid()`); the dropped `student_sessions` table is no longer referenced. Mutation routes use `createAdminClient()` (service role) where they need to write across RLS boundaries; read routes use the per-request SSR client and rely on RLS.
 
 ---
 

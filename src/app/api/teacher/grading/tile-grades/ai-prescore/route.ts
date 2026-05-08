@@ -160,31 +160,22 @@ export async function POST(request: NextRequest) {
         ? `letter (${scale.labels?.join("–") ?? ""})`
         : `numeric ${scale.min}–${scale.max}`;
 
-  // Load responses + display names for every requested student in one round-trip.
-  const [progressRes, studentsRes] = await Promise.all([
-    supabaseAdmin
-      .from("student_progress")
-      .select("student_id, responses")
-      .eq("unit_id", unit_id)
-      .eq("page_id", page_id)
-      .in("student_id", student_ids),
-    supabaseAdmin
-      .from("students")
-      .select("id, display_name, username")
-      .in("id", student_ids),
-  ]);
+  // Load responses for every requested student.
+  // Names are NOT loaded — they would be unused, and the single rule across
+  // ai-prescore is "no student names in Anthropic prompts" (security-overview.md §1).
+  const progressRes = await supabaseAdmin
+    .from("student_progress")
+    .select("student_id, responses")
+    .eq("unit_id", unit_id)
+    .eq("page_id", page_id)
+    .in("student_id", student_ids);
 
   type ProgressRow = { student_id: string; responses: Record<string, unknown> | null };
-  type StudentRow = { id: string; display_name: string | null; username: string | null };
 
   const responseByStudent: Record<string, string> = {};
   for (const p of (progressRes.data ?? []) as ProgressRow[]) {
     const tileText = p.responses && typeof p.responses === "object" ? p.responses[tile_id] : null;
     if (typeof tileText === "string") responseByStudent[p.student_id] = tileText;
-  }
-  const studentNames: Record<string, string> = {};
-  for (const s of (studentsRes.data ?? []) as StudentRow[]) {
-    studentNames[s.id] = s.display_name?.trim() || s.username?.trim() || "Student";
   }
 
   // Resolve neutral criterion keys from the tile (mirrors page-side resolver).
@@ -225,7 +216,6 @@ export async function POST(request: NextRequest) {
         scaleMin: scale.min,
         scaleMax: scale.max,
         scaleLabel,
-        studentDisplayName: studentNames[studentId],
       });
 
       await saveTileGrade(supabaseAdmin, {

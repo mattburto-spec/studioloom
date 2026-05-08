@@ -33,8 +33,11 @@ export interface AiPrescoreInput {
   scaleMax: number;
   /** Human-readable scale label, e.g. "MYP 1–8" or "GCSE percentage 0–100%". */
   scaleLabel: string;
-  /** Display name used to ground reasoning ("Maya wrote..."). */
-  studentDisplayName?: string;
+  // NOTE: do NOT add any name field to this interface (display name, given
+  // name, etc.). Names are UI-only — they MUST NOT reach Anthropic. See
+  // docs/security/security-overview.md §1 + the restoreStudentName() pattern.
+  // The CI check at src/lib/security/__tests__/no-pii-in-ai-prompts.test.ts
+  // enforces this contract.
 }
 
 export interface AiPrescoreOutput {
