@@ -326,6 +326,36 @@ function ReadyView({
         </div>
       )}
 
+      {/* Pilot Mode P4: prominent banner when the student used the
+          "Override and proceed" path on a BLOCK-firing scan. Lives
+          ABOVE the teacher's note + scan summary so the fab tech sees
+          it first — they need this info before they pull the file
+          into the slicer. Red signals print-risk warning, distinct
+          from the sky-blue teacher's note. */}
+      {job.pilotOverrideAt && (
+        <div
+          role="alert"
+          className="rounded-xl border border-red-700 bg-red-950/40 p-4"
+        >
+          <p className="text-xs font-extrabold uppercase tracking-wider text-red-300 mb-1.5 flex items-center gap-1.5">
+            <span aria-hidden="true">⚠</span>
+            Heads up: scanner flagged this file
+          </p>
+          <p className="text-sm text-red-100/90 leading-relaxed">
+            The student used Pilot Mode &quot;Override and proceed&quot; to
+            send this through despite a must-fix scanner finding. It may
+            not slice or print correctly — load it into the slicer
+            cautiously, and don&apos;t be surprised if it fails.
+          </p>
+          {job.pilotOverrideRuleIds.length > 0 && (
+            <p className="text-xs text-red-300/80 mt-2 font-mono">
+              Overridden rule{job.pilotOverrideRuleIds.length > 1 ? "s" : ""}:{" "}
+              {job.pilotOverrideRuleIds.join(", ")}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Teacher's review note (approve/return/reject notes all land
           in the same teacher_review_note column). Lab tech sees any
           heads-up the teacher left — per brief §11 Q9. */}

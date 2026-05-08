@@ -557,6 +557,95 @@ describe("getFabJobDetail", () => {
     if (!("error" in result)) throw new Error("expected error");
     expect(result.error.status).toBe(404);
   });
+
+  // Pilot Mode P4 — override metadata propagates so the detail page
+  // can render its red-flag banner.
+  it("propagates pilotOverrideAt + pilotOverrideRuleIds when set on the job", async () => {
+    const { client } = makeFakeClient({
+      assignedMachineIds: ["machine-1"],
+      inviterTeacherId: "teacher-1",
+      jobRow: {
+        id: "job-1",
+        status: "approved",
+        machine_profile_id: "machine-1",
+        lab_tech_picked_up_by: null,
+        current_revision: 1,
+      },
+      detailJobOverrides: {
+        file_type: "stl",
+        original_filename: "wheel.stl",
+        teacher_review_note: null,
+        lab_tech_picked_up_at: null,
+        completion_status: null,
+        completion_note: null,
+        completed_at: null,
+        notifications_sent: null,
+        student_id: "student-1",
+        class_id: null,
+        unit_id: null,
+        pilot_override_at: "2026-05-08T11:30:00Z",
+        pilot_override_rule_ids: ["R-STL-01", "R-STL-04"],
+        students: { display_name: "David", username: null },
+        classes: null,
+        units: null,
+        machine_profiles: {
+          id: "machine-1",
+          name: "Bambu X1C",
+          machine_category: "3d_printer",
+        },
+      },
+    });
+    const result = await getFabJobDetail(client, {
+      fabricatorId: "fab-1",
+      jobId: "job-1",
+    });
+    if ("error" in result) throw new Error("expected success");
+    expect(result.job.pilotOverrideAt).toBe("2026-05-08T11:30:00Z");
+    expect(result.job.pilotOverrideRuleIds).toEqual(["R-STL-01", "R-STL-04"]);
+  });
+
+  it("normalizes missing override columns to null + empty array", async () => {
+    const { client } = makeFakeClient({
+      assignedMachineIds: ["machine-1"],
+      inviterTeacherId: "teacher-1",
+      jobRow: {
+        id: "job-clean",
+        status: "approved",
+        machine_profile_id: "machine-1",
+        lab_tech_picked_up_by: null,
+        current_revision: 1,
+      },
+      detailJobOverrides: {
+        file_type: "stl",
+        original_filename: "clean.stl",
+        teacher_review_note: null,
+        lab_tech_picked_up_at: null,
+        completion_status: null,
+        completion_note: null,
+        completed_at: null,
+        notifications_sent: null,
+        student_id: "student-1",
+        class_id: null,
+        unit_id: null,
+        // pilot_override_at + pilot_override_rule_ids omitted
+        students: { display_name: "Zoe", username: null },
+        classes: null,
+        units: null,
+        machine_profiles: {
+          id: "machine-1",
+          name: "Bambu X1C",
+          machine_category: "3d_printer",
+        },
+      },
+    });
+    const result = await getFabJobDetail(client, {
+      fabricatorId: "fab-1",
+      jobId: "job-clean",
+    });
+    if ("error" in result) throw new Error("expected success");
+    expect(result.job.pilotOverrideAt).toBeNull();
+    expect(result.job.pilotOverrideRuleIds).toEqual([]);
+  });
 });
 
 // ============================================================
