@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { buildOpenStudioSystemPrompt } from "@/lib/ai/open-studio-prompt";
 import type { OpenStudioInteraction } from "@/lib/ai/open-studio-prompt";
-import { logUsage } from "@/lib/usage-tracking";
+import { callAnthropicMessages } from "@/lib/ai/call";
 import { rateLimit } from "@/lib/rate-limit";
 import { MODELS } from "@/lib/ai/models";
 
@@ -70,15 +70,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: "sessionId, unitId, and interactionType are required" },
       { status: 400 }
-    );
-  }
-
-  // Check API key
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "AI not configured" },
-      { status: 503 }
     );
   }
 
@@ -207,47 +198,42 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // Call AI
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: MODELS.HAIKU,
-        max_tokens: 200, // Check-ins should be very brief
-        system: systemPrompt,
-        messages,
-      }),
+    // Call AI — helper handles withAIBudget + Lesson #39 + logUsage when studentId is set
+    const callResult = await callAnthropicMessages({
+      supabase,
+      studentId,
+      endpoint: "student/open-studio/check-in",
+      model: MODELS.HAIKU,
+      maxTokens: 200, // Check-ins should be very brief
+      system: systemPrompt,
+      messages,
+      metadata: { interactionType },
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`AI call failed: ${response.status} ${errorText}`);
+    if (!callResult.ok) {
+      if (callResult.reason === "no_credentials") {
+        return NextResponse.json({ error: "AI not configured" }, { status: 503 });
+      }
+      if (callResult.reason === "over_cap") {
+        return NextResponse.json(
+          { error: "budget_exceeded", cap: callResult.cap, used: callResult.used, reset_at: callResult.resetAt },
+          { status: 429 }
+        );
+      }
+      if (callResult.reason === "truncated") {
+        return NextResponse.json({ error: "Check-in failed (response truncated)" }, { status: 502 });
+      }
+      throw callResult.error;
     }
 
-    const data = await response.json();
+    const response = callResult.response;
 
     // Extract response text
     let text = "How's it going?";
-    if (data.content && Array.isArray(data.content)) {
-      const textBlock = data.content.find(
-        (block: { type: string; text?: string }) => block.type === "text"
-      );
-      text = textBlock?.text || text;
+    if (response.content && Array.isArray(response.content)) {
+      const textBlock = response.content.find((block) => block.type === "text");
+      text = textBlock?.type === "text" ? textBlock.text : text;
     }
-
-    // Log usage (fire-and-forget)
-    logUsage({
-      studentId,
-      endpoint: "open-studio-check-in",
-      model: MODELS.HAIKU,
-      inputTokens: data.usage?.input_tokens,
-      outputTokens: data.usage?.output_tokens,
-      metadata: { interactionType },
-    });
 
     // Handle drift detection — check if this was a silent flag
     let silentFlag = false;

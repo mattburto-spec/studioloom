@@ -20,7 +20,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireStudentSession } from "@/lib/access-v2/actor-session";
-import { logUsage } from "@/lib/usage-tracking";
+import { callAnthropicMessages } from "@/lib/ai/call";
 import { rateLimit } from "@/lib/rate-limit";
 import { MODELS } from "@/lib/ai/models";
 
@@ -448,15 +448,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Check API key
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "AI not configured" },
-      { status: 503 }
-    );
-  }
-
   try {
     // Load profile
     let { data: profile } = await supabase
@@ -524,36 +515,41 @@ export async function POST(request: NextRequest) {
     // Add new user message
     messages.push({ role: "user", content: message.trim() });
 
-    // Call AI
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: MODELS.HAIKU,
-        max_tokens: 800,
-        system: systemPrompt,
-        messages,
-      }),
+    // Call AI — helper handles withAIBudget + Lesson #39 + logUsage when studentId is set
+    const callResult = await callAnthropicMessages({
+      supabase,
+      studentId,
+      endpoint: "student/open-studio/discovery",
+      model: MODELS.HAIKU,
+      maxTokens: 800,
+      system: systemPrompt,
+      messages,
+      metadata: { step: currentStep },
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`AI call failed: ${response.status} ${errorText}`);
+    if (!callResult.ok) {
+      if (callResult.reason === "no_credentials") {
+        return NextResponse.json({ error: "AI not configured" }, { status: 503 });
+      }
+      if (callResult.reason === "over_cap") {
+        return NextResponse.json(
+          { error: "budget_exceeded", cap: callResult.cap, used: callResult.used, reset_at: callResult.resetAt },
+          { status: 429 }
+        );
+      }
+      if (callResult.reason === "truncated") {
+        return NextResponse.json({ error: "Discovery response truncated" }, { status: 502 });
+      }
+      throw callResult.error;
     }
 
-    const data = await response.json();
+    const response = callResult.response;
 
     // Extract response text
     let aiReply = "I'd like to hear more about that.";
-    if (data.content && Array.isArray(data.content)) {
-      const textBlock = data.content.find(
-        (block: { type: string; text?: string }) => block.type === "text"
-      );
-      aiReply = textBlock?.text || aiReply;
+    if (response.content && Array.isArray(response.content)) {
+      const textBlock = response.content.find((block) => block.type === "text");
+      aiReply = textBlock?.type === "text" ? textBlock.text : aiReply;
     }
 
     // Extract structured data from AI response
@@ -635,15 +631,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Log usage
-    logUsage({
-      studentId,
-      endpoint: "open-studio-discovery",
-      model: MODELS.HAIKU,
-      inputTokens: data.usage?.input_tokens,
-      outputTokens: data.usage?.output_tokens,
-      metadata: { step: currentStep, stepComplete: stepIsComplete },
-    });
+    // logUsage handled by callAnthropicMessages helper
 
     return NextResponse.json({
       response: aiReply,
