@@ -82,8 +82,8 @@ export default function AdminLayout({
       .catch(() => { /* silent — header just shows "Admin" */ });
   }, [pathname]);
 
-  // Close the menu when the route changes (so it doesn't linger after
-  // clicking "Back to teacher dashboard" inside the dropdown).
+  // Close the menu when the route changes (so it doesn't linger across
+  // tab navigations).
   useEffect(() => {
     setMenuOpen(false);
   }, [pathname]);
@@ -183,17 +183,16 @@ export default function AdminLayout({
                       </div>
                     )}
                   </div>
-                  <Link
-                    href="/teacher/dashboard"
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                    role="menuitem"
-                  >
-                    Back to teacher dashboard →
-                  </Link>
+                  {/* "Back to teacher dashboard" link removed 8 May 2026 —
+                       the admin role is intentionally separable from the
+                       teacher role. Per Matt: "admin doesn't need a 'back
+                       to teacher dashboard' button … in future may not
+                       even be a teacher". An admin who happens to also
+                       teach can navigate via the URL bar or a fresh tab. */}
                   <button
                     type="button"
                     onClick={handleSignOut}
-                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 border-t border-gray-100"
+                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
                     role="menuitem"
                   >
                     Sign out
