@@ -241,6 +241,7 @@ export async function POST(request: NextRequest) {
 
     // Log usage (fire-and-forget)
     logUsage({
+      studentId,
       endpoint: "open-studio-check-in",
       model: MODELS.HAIKU,
       inputTokens: data.usage?.input_tokens,

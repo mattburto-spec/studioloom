@@ -8,6 +8,7 @@ import { buildQuestPrompt } from '@/lib/quest/build-quest-prompt';
 import type { MentorId, QuestInteractionType } from '@/lib/quest/types';
 import { MODELS } from '@/lib/ai/models';
 import { withAIBudget } from '@/lib/access-v2/ai-budget/middleware';
+import { logUsage } from '@/lib/usage-tracking';
 
 /**
  * PATCH — Select a mentor for the quest journey
@@ -214,6 +215,19 @@ export async function POST(request: NextRequest) {
     }
 
     const aiResponse = budgetResult.result;
+
+    // Log to ai_usage_log so the admin AI Budget breakdown can attribute
+    // these tokens to this student. withAIBudget bills the cap counter
+    // independently; this is the per-call diagnostic trail.
+    logUsage({
+      studentId,
+      endpoint: 'student/quest/mentor',
+      model: MODELS.HAIKU,
+      inputTokens: aiResponse.usage.input_tokens,
+      outputTokens: aiResponse.usage.output_tokens,
+      metadata: { interactionType, journeyId, mentorId: journey.mentor_id || 'guided' },
+    });
+
     const mentorResponse = aiResponse.content
       .filter(b => b.type === 'text')
       .map(b => (b as any).text)
