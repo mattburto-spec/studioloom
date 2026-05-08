@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 441
+# Total routes: 443
 
 routes:
 - path: /api/admin/ai-budget
@@ -15,6 +15,19 @@ routes:
   tables_read:
   - ai_budget_state
   - ai_budgets
+  - schools
+  - students
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/admin/ai-budget/[studentId]/breakdown
+  method: GET
+  file: src/app/api/admin/ai-budget/[studentId]/breakdown/route.ts
+  auth: admin
+  tables_read:
+  - ai_budget_state
+  - ai_usage_log
   - schools
   - students
   tables_written: []
@@ -279,6 +292,16 @@ routes:
   tables_read:
   - generation_runs
   - system_alerts
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/admin/preflight/flagged
+  method: GET
+  file: src/app/api/admin/preflight/flagged/route.ts
+  auth: admin
+  tables_read:
+  - fabrication_jobs
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
@@ -1212,7 +1235,7 @@ routes:
   - student_unit_kanban
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'student_unit_kanban' — not in schema-registry
+  notes: null
 - path: /api/student/kanban
   method: POST
   file: src/app/api/student/kanban/route.ts
@@ -1223,7 +1246,7 @@ routes:
   - student_unit_kanban
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'student_unit_kanban' — not in schema-registry
+  notes: null
 - path: /api/student/learning-profile
   method: GET
   file: src/app/api/student/learning-profile/route.ts
@@ -1290,12 +1313,28 @@ routes:
   cost_ceiling_usd: null
   notes: null
 - path: /api/student/nm-assessment
+  method: GET
+  file: src/app/api/student/nm-assessment/route.ts
+  auth: student
+  tables_read:
+  - class_students
+  - class_units
+  - competency_assessments
+  - students
+  - units
+  tables_written:
+  - competency_assessments
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/student/nm-assessment
   method: POST
   file: src/app/api/student/nm-assessment/route.ts
   auth: student
   tables_read:
   - class_students
   - class_units
+  - competency_assessments
   - students
   - units
   tables_written:
@@ -1411,50 +1450,6 @@ routes:
   - lesson_feedback
   tables_written:
   - lesson_feedback
-  ai_call_sites: []
-  cost_ceiling_usd: null
-  notes: null
-- path: /api/student/planning
-  method: GET
-  file: src/app/api/student/planning/route.ts
-  auth: student
-  tables_read:
-  - planning_tasks
-  tables_written:
-  - planning_tasks
-  ai_call_sites: []
-  cost_ceiling_usd: null
-  notes: null
-- path: /api/student/planning
-  method: POST
-  file: src/app/api/student/planning/route.ts
-  auth: student
-  tables_read:
-  - planning_tasks
-  tables_written:
-  - planning_tasks
-  ai_call_sites: []
-  cost_ceiling_usd: null
-  notes: null
-- path: /api/student/planning
-  method: PATCH
-  file: src/app/api/student/planning/route.ts
-  auth: student
-  tables_read:
-  - planning_tasks
-  tables_written:
-  - planning_tasks
-  ai_call_sites: []
-  cost_ceiling_usd: null
-  notes: null
-- path: /api/student/planning
-  method: DELETE
-  file: src/app/api/student/planning/route.ts
-  auth: student
-  tables_read:
-  - planning_tasks
-  tables_written:
-  - planning_tasks
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
@@ -1916,7 +1911,7 @@ routes:
   - student_unit_timeline
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'student_unit_timeline' — not in schema-registry
+  notes: null
 - path: /api/student/timeline
   method: POST
   file: src/app/api/student/timeline/route.ts
@@ -1927,7 +1922,7 @@ routes:
   - student_unit_timeline
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'student_unit_timeline' — not in schema-registry
+  notes: null
 - path: /api/student/tool-sessions
   method: GET
   file: src/app/api/student/tool-sessions/route.ts
@@ -4092,7 +4087,7 @@ routes:
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'student_unit_kanban' — not in schema-registry
+  notes: null
 - path: /api/teacher/student-projects
   method: GET
   file: src/app/api/teacher/student-projects/route.ts
@@ -4144,6 +4139,32 @@ routes:
   - teachers
   tables_written:
   - class_students
+  - students
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/students/[studentId]
+  method: PATCH
+  file: src/app/api/teacher/students/[studentId]/route.ts
+  auth: teacher
+  tables_read:
+  - students
+  tables_written:
+  - class_students
+  - student_progress
+  - students
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/students/[studentId]
+  method: DELETE
+  file: src/app/api/teacher/students/[studentId]/route.ts
+  auth: teacher
+  tables_read:
+  - students
+  tables_written:
+  - class_students
+  - student_progress
   - students
   ai_call_sites: []
   cost_ceiling_usd: null
@@ -4679,6 +4700,15 @@ routes:
 - path: /api/tools/journey-map
   method: POST
   file: src/app/api/tools/journey-map/route.ts
+  auth: public
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/tools/kanban-ideation
+  method: POST
+  file: src/app/api/tools/kanban-ideation/route.ts
   auth: public
   tables_read: []
   tables_written: []

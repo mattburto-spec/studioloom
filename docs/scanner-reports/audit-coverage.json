@@ -1,11 +1,11 @@
 {
   "registry": "audit-coverage",
-  "timestamp": "2026-05-06T11:20:02.139110+00:00",
+  "timestamp": "2026-05-08T03:46:23.124804+00:00",
   "version": 1,
   "stats": {
-    "total_mutation_routes": 237,
+    "total_mutation_routes": 238,
     "covered": 7,
-    "skipped": 230,
+    "skipped": 231,
     "missing": 0
   },
   "covered": [
@@ -1545,6 +1545,13 @@
     },
     {
       "file": "src/app/api/tools/journey-map/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "public anonymous free-tool, no actor identity"
+    },
+    {
+      "file": "src/app/api/tools/kanban-ideation/route.ts",
       "methods": [
         "POST"
       ],
