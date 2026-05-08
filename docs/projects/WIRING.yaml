@@ -1974,7 +1974,7 @@ systems:
     category: Platform Core
     status: complete
     currentVersion: 1
-    summary: "Phase 5.2 + 5.3 — per-student daily token caps with 5-layer cascade resolution (student override > class override [lowest] > school override > schools.default_student_ai_budget column > tier default). Atomic increment via SECURITY DEFINER `atomic_increment_ai_budget(student_id, tokens)` SQL helper that handles past-horizon zero+bump in one statement (Postgres serialises the row-level upsert; no read-then-write race). Reset rolls over at midnight in school's IANA timezone. withAIBudget(supabase, studentId, fn) middleware wraps the AI call: pre-check → fn() → if stop_reason=max_tokens DON'T bill (Lesson #39) → atomic bill → post-bill audit if cap crossed. Phase 5.3 wired 3 student-AI routes (word-lookup, quest/mentor, design-assistant); Phase 5.3d scan-ai-calls budget-coverage CI gate enforces the wrapper on every future student route under src/app/api/student/."
+    summary: "Phase 5.2 + 5.3 — per-student daily token caps with 5-layer cascade resolution (student override > class override [lowest] > school override > schools.default_student_ai_budget column > tier default). Atomic increment via SECURITY DEFINER `atomic_increment_ai_budget(student_id, tokens)` SQL helper that handles past-horizon zero+bump in one statement (Postgres serialises the row-level upsert; no read-then-write race). Reset rolls over at midnight in school's IANA timezone. withAIBudget(supabase, studentId, fn) middleware wraps the AI call: pre-check → fn() → if stop_reason=max_tokens DON'T bill (Lesson #39) → atomic bill → post-bill audit if cap crossed. Phase 5.3 wired 3 student-AI routes (word-lookup, quest/mentor, design-assistant); Phase 5.3d scan-ai-calls budget-coverage CI gate enforces the wrapper on every future student route under src/app/api/student/. Admin diagnostic surface (8 May 2026, PR #116): /admin/ai-budget shows per-student daily totals + expandable breakdown by endpoint × model from ai_usage_log. Reconciliation gap callout fires when ai_budget_state.tokens_used_today doesn't match SUM(ai_usage_log.input + output) for the day — caught two real bugs on first deploy (PR #119) where withAIBudget was firing without logUsage attribution. Day boundary mirrors the SQL formula via startOfDayInTz() helper so totals reconcile exactly with the cap counter."
     depends_on: [auth-system, audit-log, school-governance]
     affects: [student-pm, student-open-studio, design-assistant, monetisation]
     docs:
@@ -2006,11 +2006,15 @@ systems:
       - src/lib/access-v2/ai-budget/tier-defaults.ts
       - src/lib/access-v2/ai-budget/cascade-resolver.ts
       - src/lib/access-v2/ai-budget/middleware.ts
+      - src/lib/access-v2/ai-budget/day-boundary.ts (admin breakdown — school-tz day boundary, mirrors SQL formula)
       - supabase/migrations/20260503012514_phase_5_2_atomic_ai_budget_increment.sql
       - scripts/registry/scan-api-routes.py (--check-budget-coverage gate)
       - src/app/api/student/word-lookup/route.ts (wired)
       - src/app/api/student/quest/mentor/route.ts (wired)
       - src/app/api/student/design-assistant/route.ts (wired via generateResponse)
+      - src/app/admin/ai-budget/page.tsx (admin diagnostic — expandable per-student breakdown + reconciliation gap callout)
+      - src/app/api/admin/ai-budget/route.ts (admin overview — per-student daily totals)
+      - src/app/api/admin/ai-budget/[studentId]/breakdown/route.ts (admin breakdown — endpoint × model attribution from ai_usage_log)
     future_needs: Email send on over_cap (FU-AV2-AI-BUDGET-EXHAUSTED-EMAIL P3). Wire remaining student AI routes surfaced by scan-ai-calls scanner (FU-AV2-AI-BUDGET-WIRE-TOOL-SESSIONS-AND-OTHER-AI P2). Tier-feature gating signed off by Matt before any Stripe wiring (per Decision 8 amendment).
     adrs: []
     os_seam: ready
