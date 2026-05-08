@@ -2332,7 +2332,7 @@ docs:
 
   - path: docs/vendors.yaml
     title: "Vendor / DPA Registry"
-    purpose: "Third-party vendor / DPA registry — 9 vendors with data categories and legal bases. Vercel entry expanded 8 May 2026 with analytics_pageviews + analytics_web_vitals categories (PR #110 Web Analytics + Speed Insights enabled, PR #111 Plausible removed)."
+    purpose: "Third-party vendor / DPA registry — 9 vendors with data categories and legal bases. Vercel entry expanded 8 May 2026 with analytics_pageviews + analytics_web_vitals categories (PR #110 Web Analytics + Speed Insights enabled, PR #111 Plausible removed). Anthropic notes addendum 8 May 2026 (PR #134) documents the Report Writer substitute/restore PII anonymization pattern."
     category: root
     last_verified: "2026-05-08"
     max_age_days: 30

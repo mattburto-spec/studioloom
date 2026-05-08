@@ -110,9 +110,7 @@ routes:
   file: src/app/api/admin/cost-usage/route.ts
   auth: admin
   tables_read:
-  - admin_settings
-  - cost_rollups
-  - generation_runs
+  - ai_usage_log
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
