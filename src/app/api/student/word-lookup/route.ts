@@ -10,6 +10,7 @@ import { resolveStudentSettings } from "@/lib/student-support/resolve-settings";
 import { resolveStudentClassId } from "@/lib/student-support/resolve-class-id";
 import { withAIBudget } from "@/lib/access-v2/ai-budget/middleware";
 import { withErrorHandler } from "@/lib/api/error-handler";
+import { logUsage } from "@/lib/usage-tracking";
 
 /**
  * POST /api/student/word-lookup
@@ -282,6 +283,19 @@ export const POST = withErrorHandler("student/word-lookup:POST", async (request:
   }
 
   const response = budgetResult.result;
+
+  // Log to ai_usage_log so the admin AI Budget breakdown can attribute
+  // these tokens to this student. withAIBudget bills the cap counter
+  // independently; this is the per-call diagnostic trail.
+  logUsage({
+    studentId: auth.studentId,
+    endpoint: "student/word-lookup",
+    model: MODEL,
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+    metadata: { word: rawWord, l1Target, wantsL1 },
+  });
+
   const block = response.content.find((b) => b.type === "tool_use");
   if (!block || block.type !== "tool_use") {
     logErr("no_tool_use_block", {

@@ -317,7 +317,7 @@ export async function generateResponse(
   messages.push({ role: "user", content: studentMessage });
 
   // 9. Call AI
-  const aiResult = await callDesignAssistantAI(systemPrompt, messages, apiKey);
+  const aiResult = await callDesignAssistantAI(systemPrompt, messages, apiKey, conversation.studentId);
   const response = aiResult.text;
 
   // 10. Determine question type
@@ -515,7 +515,8 @@ async function getClassFrameworkForStudent(
 async function callDesignAssistantAI(
   systemPrompt: string,
   messages: Array<{ role: "user" | "assistant"; content: string }>,
-  apiKey: string
+  apiKey: string,
+  studentId: string
 ): Promise<{
   text: string;
   usage: {
@@ -558,6 +559,7 @@ async function callDesignAssistantAI(
 
   // Log usage (fire-and-forget)
   logUsage({
+    studentId,
     endpoint: "design-assistant",
     model: MODELS.HAIKU,
     inputTokens: data.usage?.input_tokens,
