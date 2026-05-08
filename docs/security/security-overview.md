@@ -31,9 +31,12 @@ The architecture is sound. Access Model v2 (Phases 0–6, shipped 4 May 2026) ga
 - ✅ **Quest API-DOCS.md doc drift** — refreshed for Phase 6.1 lazy-provision Supabase Auth flow. (P-10 closed)
 
 **Still needs attention before pilot scaling:**
-- **Three legacy storage buckets are public** (`responses`, `unit-images`, `knowledge-media`) — student photos in `responses` are URL-guessable. (P-3, deferred to dedicated session because of bucket migration + visual smoke risk)
 - **`FU-SEC-ROLE-GUARD-SWEEP`** — 80 long-tail teacher routes still on bare auth pattern. Each one a mechanical 2-min edit. Risk-ranked low (mostly resource-read routes, not BYOK / AI-burning surfaces) but should drive coverage to 100%.
+- **`FU-SEC-RESPONSES-PATH-MIGRATION`** — URLs embedded inside `student_progress.responses` JSONB content. Pre-cutover inline images render 404 post-bucket-flip until rewritten.
 - **CSP + HSTS** missing (P-7), **distributed rate limit** (P-8), **timetable PII OCR pre-pass** (P-4).
+
+**Newly shipped 2026-05-09 round 2:**
+- ✅ **All storage buckets private** — proxy at [`/api/storage/[bucket]/[...path]`](../../src/app/api/storage/[bucket]/[...path]/route.ts) + 4 writers updated + URL-rewrite migration `20260508232012`. (P-3 closed)
 
 Full gap list with severities: [`security-plan.md`](security-plan.md) §"Top 10 gaps".
 
@@ -208,11 +211,13 @@ Every school-scoped table (`teachers`, `classes`, `students`, `units`, `machine_
 | `fabrication-thumbnails` | private | service-role | service-role | signed GET (`THUMBNAIL_URL_TTL_SECONDS`) | Preflight thumbnails |
 | `fabrication-pickup` | private | service-role | service-role | signed GET | Preflight pickup files |
 | `bug-report-screenshots` | private | service-role | service-role | signed GET | Bug reports |
-| `responses` | **PUBLIC** | service-role | anyone with URL | **public URL** | Student photos / avatars — **gap, see plan P-5** |
-| `unit-images` | **PUBLIC** | service-role | anyone with URL | public URL | Unit thumbnails |
-| `knowledge-media` | **PUBLIC** | service-role | anyone with URL | public URL | Teacher knowledge media |
+| `responses` | private | service-role | service-role (via proxy) | **proxy URL** (`/api/storage/responses/...`) | Student photos / avatars — **P-3 ✅ closed 2026-05-09** |
+| `unit-images` | private | service-role | service-role (via proxy) | proxy URL (`/api/storage/unit-images/...`) | Unit thumbnails |
+| `knowledge-media` | private | service-role | service-role (via proxy) | proxy URL (`/api/storage/knowledge-media/...`) | Teacher knowledge media |
 
-Preflight buckets follow the right pattern. The three legacy public buckets are a **P0 gap** — student photos in `responses` are URL-guessable (`{studentId}/{unitId}/{pageId}/{timestamp}.{ext}`).
+All 7 buckets follow the same private-storage pattern. The 3 formerly-public buckets route through [`/api/storage/[bucket]/[...path]`](../../src/app/api/storage/[bucket]/[...path]/route.ts) — auth-gated proxy that 302-redirects to a fresh 5-min signed URL on each hit. Stored URL columns (`students.avatar_url`, `units.thumbnail_url`, `knowledge_uploads.thumbnail_url`) hold relative proxy paths. Migration `20260508232012` does the cutover.
+
+**Open follow-up:** `FU-SEC-RESPONSES-PATH-MIGRATION` — URLs embedded inside `student_progress.responses` JSONB content (uploads inline-embedded as `<img src="https://...supabase.co/...">`) are NOT rewritten by the migration. Pre-cutover-uploaded inline images render 404 after the bucket flip; post-cutover uploads use the proxy URL and work end-to-end.
 
 ---
 
@@ -387,7 +392,7 @@ Use this when a school CIO asks "what security do you have?".
 - ✅ 100% RLS coverage (123/123 tables) with CI drift gate
 - ✅ Service-role keys never imported into client components
 - ✅ Audit-coverage CI gate (every mutation route logs to `audit_events`)
-- ⚠️ Three legacy storage buckets are public (P0 — see plan)
+- ✅ All storage buckets private — formerly-public `responses`/`unit-images`/`knowledge-media` route through auth-gated `/api/storage` proxy
 - ⚠️ No CSP / HSTS headers (P1)
 
 ### AI privacy

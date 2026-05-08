@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@supabase/ssr";
+import { buildStorageProxyUrl } from "@/lib/storage/proxy-url";
 
 // Un-quarantined (9 Apr 2026) — Knowledge pipeline restored.
 
@@ -94,9 +95,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const {
-    data: { publicUrl },
-  } = admin.storage.from("knowledge-media").getPublicUrl(data.path);
+  // Build proxy URL — bucket is private (security-plan.md P-3); the
+  // /api/storage/knowledge-media/* endpoint auth-gates + 302s to a fresh signed URL.
+  const proxyUrl = buildStorageProxyUrl("knowledge-media", data.path);
 
-  return NextResponse.json({ url: publicUrl });
+  return NextResponse.json({ url: proxyUrl });
 }

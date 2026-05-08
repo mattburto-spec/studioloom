@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
+import { buildStorageProxyUrl, parseStorageUrl } from "@/lib/storage/proxy-url";
 
 /**
  * POST /api/student/avatar
@@ -44,10 +45,11 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (existing?.avatar_url) {
-    // Extract the storage path from the URL
-    const oldPath = extractStoragePath(existing.avatar_url);
-    if (oldPath) {
-      await supabase.storage.from("responses").remove([oldPath]);
+    // Extract the storage path from the URL (handles both legacy public
+    // URLs and the new /api/storage proxy URLs).
+    const parsed = parseStorageUrl(existing.avatar_url);
+    if (parsed?.bucket === "responses" && parsed.path) {
+      await supabase.storage.from("responses").remove([parsed.path]);
     }
   }
 
@@ -77,22 +79,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Get public URL
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from("responses").getPublicUrl(data.path);
+  // Build proxy URL — bucket is private (security-plan.md P-3); the
+  // /api/storage/responses/* endpoint auth-gates + 302s to a fresh signed URL.
+  const proxyUrl = buildStorageProxyUrl("responses", data.path);
 
   // Update student record
   const { error: updateError } = await supabase
     .from("students")
-    .update({ avatar_url: publicUrl })
+    .update({ avatar_url: proxyUrl })
     .eq("id", studentId);
 
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ url: publicUrl });
+  return NextResponse.json({ url: proxyUrl });
 }
 
 /**
@@ -114,9 +115,9 @@ export async function DELETE(request: NextRequest) {
     .single();
 
   if (student?.avatar_url) {
-    const oldPath = extractStoragePath(student.avatar_url);
-    if (oldPath) {
-      await supabase.storage.from("responses").remove([oldPath]);
+    const parsed = parseStorageUrl(student.avatar_url);
+    if (parsed?.bucket === "responses" && parsed.path) {
+      await supabase.storage.from("responses").remove([parsed.path]);
     }
   }
 
@@ -129,16 +130,6 @@ export async function DELETE(request: NextRequest) {
   return NextResponse.json({ success: true });
 }
 
-/**
- * Extract storage path from a Supabase public URL.
- * e.g. "https://xxx.supabase.co/storage/v1/object/public/responses/abc/avatar/img.jpg"
- * → "abc/avatar/img.jpg"
- */
-function extractStoragePath(url: string): string | null {
-  try {
-    const match = url.match(/\/responses\/(.+)$/);
-    return match ? match[1] : null;
-  } catch {
-    return null;
-  }
-}
+// extractStoragePath() removed — replaced by parseStorageUrl() from
+// @/lib/storage/proxy-url which handles both legacy public URLs and the
+// new /api/storage proxy URLs (security-plan.md P-3).

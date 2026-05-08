@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
+import { buildStorageProxyUrl } from "@/lib/storage/proxy-url";
 
 // POST: Upload a file to Supabase Storage
 export async function POST(request: NextRequest) {
@@ -73,13 +74,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Get public URL
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from("responses").getPublicUrl(data.path);
+  // Build proxy URL — bucket is private (security-plan.md P-3); the
+  // /api/storage/responses/* endpoint auth-gates + 302s to a fresh signed URL.
+  const proxyUrl = buildStorageProxyUrl("responses", data.path);
 
   return NextResponse.json({
-    url: publicUrl,
+    url: proxyUrl,
     path: data.path,
     filename: file.name,
     size: file.size,
