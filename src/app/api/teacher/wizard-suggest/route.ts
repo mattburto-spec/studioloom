@@ -1,7 +1,7 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import Anthropic from "@anthropic-ai/sdk";
+import { callAnthropicMessages } from "@/lib/ai/call";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
 import { buildSuggestSystemPrompt, buildSuggestPrompt } from "@/lib/ai/prompts";
 import type { SuggestContext } from "@/lib/ai/prompts";
@@ -162,33 +162,35 @@ export async function POST(request: NextRequest) {
     let responseText: string;
 
     if (creds.provider === "anthropic") {
-      const client = new Anthropic({ apiKey: creds.apiKey, maxRetries: 1 });
       // Try Haiku first (much faster ~1-2s), fall back to teacher's model if unavailable
       const haikuModel = "claude-3-5-haiku-latest";
       let usedModel = haikuModel;
+      const maxTokens = tier === 1 ? 500 : 300;
 
-      let response;
-      try {
-        response = await client.messages.create({
-          model: haikuModel,
-          system: systemPrompt,
-          messages: [{ role: "user", content: userPrompt }],
-          max_tokens: tier === 1 ? 500 : 300,
-          temperature: 0.3,
-        });
-      } catch (haikuErr) {
+      const baseOpts = {
+        apiKey: creds.apiKey,
+        endpoint: "/api/teacher/wizard-suggest",
+        teacherId: user.id,
+        system: systemPrompt,
+        messages: [{ role: "user" as const, content: userPrompt }],
+        maxTokens,
+        temperature: 0.3,
+      };
+
+      let callResult = await callAnthropicMessages({ ...baseOpts, model: haikuModel });
+      if (!callResult.ok && callResult.reason === "api_error") {
         // Haiku unavailable — fall back to teacher's configured model
-        console.log(`[wizard-suggest] Haiku unavailable (${(haikuErr as Error).message?.slice(0, 80)}), falling back to ${creds.modelName}`);
+        const errMsg = callResult.error instanceof Error ? callResult.error.message?.slice(0, 80) : String(callResult.error).slice(0, 80);
+        console.log(`[wizard-suggest] Haiku unavailable (${errMsg}), falling back to ${creds.modelName}`);
         usedModel = creds.modelName;
-        response = await client.messages.create({
-          model: creds.modelName,
-          system: systemPrompt,
-          messages: [{ role: "user", content: userPrompt }],
-          max_tokens: tier === 1 ? 500 : 300,
-          temperature: 0.3,
-        });
+        callResult = await callAnthropicMessages({ ...baseOpts, model: creds.modelName });
       }
 
+      if (!callResult.ok) {
+        if (callResult.reason === "api_error") throw callResult.error;
+        throw new Error(`wizard-suggest AI call: ${callResult.reason}`);
+      }
+      const response = callResult.response;
       const textBlock = response.content.find((b) => b.type === "text");
       responseText = textBlock?.type === "text" ? textBlock.text : "";
       console.log(`[wizard-suggest] Used model: ${usedModel}`);
