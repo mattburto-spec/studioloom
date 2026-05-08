@@ -179,7 +179,6 @@ export async function POST(request: NextRequest) {
             email: body.email.toLowerCase(),
             tone: body.tone,
             wordCount: body.wordCount,
-            batchStudent: student.firstName,
           },
         });
 
