@@ -1073,9 +1073,9 @@ systems:
   - id: ai-provider
     name: AI Provider Abstraction & Fallback Chain
     category: AI & Intelligence
-    status: partial
-    currentVersion: 0.7
-    summary: "Anthropic SDK chokepoint via callAnthropicMessages helper (src/lib/ai/call.ts) — centralises Lesson #39 stop_reason handling, logUsage attribution, and withAIBudget integration. AIProvider interface + AnthropicProvider continue to serve unit-generation pipeline. Phase A.1 + A.2 SHIPPED — 18 production SDK direct-callers (8 routes + 7 lib services + 3 pipeline stages) routed through the helper. Phase A.3 pending — ~13 HTTP-based callers (raw fetch to api.anthropic.com) still bypass the chokepoint. Phase B will add provider routing (DeepSeek, Qwen, OpenAI-compatible) for per-feature swap from admin panel. Groq + Gemini fallback chain not yet implemented (FU-Y)."
+    status: complete
+    currentVersion: 1
+    summary: "Anthropic Messages API chokepoint via callAnthropicMessages helper (src/lib/ai/call.ts) — every production call routes through one file. Centralises Lesson #39 stop_reason handling, logUsage attribution, withAIBudget integration, and metadata passthrough. Phase A complete (A.1 helper + A.2 18 SDK callers + A.3 13 HTTP-based callers via shared-api fan-out + lib services). Verification: only src/lib/ai/call.ts (helper) and src/lib/ai/anthropic.ts (AnthropicProvider for unit-generation pipeline) remain as direct Anthropic call sites. Phase B will add provider routing (DeepSeek, Qwen, OpenAI-compatible) for per-feature swap from admin panel — now a one-config-line change since the chokepoint exists. Groq + Gemini fallback chain not yet implemented (FU-Y)."
     depends_on: []
     affects: [ai-mentor, generation-pipeline, knowledge-pipeline, content-safety]
     docs:
@@ -1085,6 +1085,8 @@ systems:
         purpose: Phase A brief — chokepoint helper + migration plan
       - path: docs/projects/ai-provider-abstraction-phase-a2-brief.md
         purpose: Phase A.2 brief — SDK direct-caller migration (shipped)
+      - path: docs/projects/ai-provider-abstraction-phase-a3-brief.md
+        purpose: Phase A.3 brief — HTTP-based caller migration (shipped, closes Phase A)
     data_fields:
       - table: ai_usage_log
         columns: [id, user_id, student_id, endpoint, model, input_tokens, output_tokens, estimated_cost_usd, metadata, created_at]

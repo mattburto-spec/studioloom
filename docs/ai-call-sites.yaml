@@ -5,7 +5,7 @@
 # docs/projects/dimensions3-followups.md FU-5 (stop_reason_handled seeding).
 #
 # Last synced: 2026-04-14
-# Total call sites: 36
+# Total call sites: 22
 
 call_sites:
 - id: ai_app_api_admin_ingestion_sandbox_commit_route_embedText
@@ -32,30 +32,6 @@ call_sites:
   - /api/discovery/reflect
   cost_category: student_api
   notes: Uses wrapper src/lib/toolkit/shared-api.ts
-- id: ai_app_api_student_open_studio_check_in_route_push
-  file: src/app/api/student/open-studio/check-in/route.ts
-  function: push
-  provider: anthropic
-  model: claude-haiku-4-5-20251001
-  max_tokens: 200
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/student/open-studio/check-in
-  cost_category: student_api
-  notes: HTTP-based call (no SDK import)
-- id: ai_app_api_student_open_studio_discovery_route_trim
-  file: src/app/api/student/open-studio/discovery/route.ts
-  function: trim
-  provider: anthropic
-  model: claude-haiku-4-5-20251001
-  max_tokens: 800
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/student/open-studio/discovery
-  cost_category: student_api
-  notes: HTTP-based call (no SDK import)
 - id: ai_app_api_teacher_activity_cards_manage_route_embedText
   file: src/app/api/teacher/activity-cards/manage/route.ts
   function: embedText
@@ -80,78 +56,6 @@ call_sites:
   - /api/teacher/convert-lesson
   cost_category: teacher_api
   notes: Uses wrapper src/lib/ai/embeddings.ts
-- id: ai_app_api_teacher_convert_lesson_route_question
-  file: src/app/api/teacher/convert-lesson/route.ts
-  function: question
-  provider: anthropic
-  model: dynamic
-  max_tokens: 8192
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/teacher/convert-lesson
-  cost_category: teacher_api
-  notes: HTTP-based call (no SDK import)
-- id: ai_app_api_teacher_knowledge_quick_modify_route_buildQuickModifyPrompt
-  file: src/app/api/teacher/knowledge/quick-modify/route.ts
-  function: buildQuickModifyPrompt
-  provider: anthropic
-  model: claude-sonnet-4-20250514
-  max_tokens: 4096
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/teacher/knowledge/quick-modify
-  cost_category: teacher_api
-  notes: HTTP-based call (no SDK import)
-- id: ai_app_api_teacher_timetable_parse_upload_route_toString
-  file: src/app/api/teacher/timetable/parse-upload/route.ts
-  function: toString
-  provider: anthropic
-  model: claude-sonnet-4-6
-  max_tokens: 16384
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/teacher/timetable/parse-upload
-  cost_category: teacher_api
-  notes: HTTP-based call (no SDK import)
-- id: ai_app_api_tools_marking_comments_route_buildMarkingCommentsPrompt
-  file: src/app/api/tools/marking-comments/route.ts
-  function: buildMarkingCommentsPrompt
-  provider: anthropic
-  model: claude-haiku-4-5-20251001
-  max_tokens: 1024
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/tools/marking-comments
-  cost_category: student_api
-  notes: HTTP-based call (no SDK import)
-- id: ai_app_api_tools_report_writer_bulk_route_trim
-  file: src/app/api/tools/report-writer/bulk/route.ts
-  function: trim
-  provider: anthropic
-  model: claude-haiku-4-5-20251001
-  max_tokens: 768
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/tools/report-writer/bulk
-  cost_category: student_api
-  notes: HTTP-based call (no SDK import)
-- id: ai_app_api_tools_report_writer_route_trim
-  file: src/app/api/tools/report-writer/route.ts
-  function: trim
-  provider: anthropic
-  model: claude-haiku-4-5-20251001
-  max_tokens: 512
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/tools/report-writer
-  cost_category: student_api
-  notes: HTTP-based call (no SDK import)
 - id: ai_lib_activity_blocks_store_embedAll
   file: src/lib/activity-blocks/store.ts
   function: embedAll
@@ -276,12 +180,20 @@ call_sites:
   called_from_routes:
   - /api/admin/ai-model/test
   - /api/admin/ai-model/test-lesson
+  - /api/student/open-studio/check-in
+  - /api/student/open-studio/discovery
   - /api/student/quest/mentor
   - /api/student/word-lookup
+  - /api/teacher/convert-lesson
+  - /api/teacher/knowledge/quick-modify
   - /api/teacher/lesson-editor/ai-field
   - /api/teacher/lesson-editor/suggest
+  - /api/teacher/timetable/parse-upload
   - /api/teacher/wizard-autoconfig
   - /api/teacher/wizard-suggest
+  - /api/tools/marking-comments
+  - /api/tools/report-writer
+  - /api/tools/report-writer/bulk
   cost_category: generation
   notes: Model not detected in call context; max_tokens not set or dynamic
 - id: ai_lib_ai_call_buildCreateParams_buildCreateParams
@@ -295,12 +207,20 @@ call_sites:
   called_from_routes:
   - /api/admin/ai-model/test
   - /api/admin/ai-model/test-lesson
+  - /api/student/open-studio/check-in
+  - /api/student/open-studio/discovery
   - /api/student/quest/mentor
   - /api/student/word-lookup
+  - /api/teacher/convert-lesson
+  - /api/teacher/knowledge/quick-modify
   - /api/teacher/lesson-editor/ai-field
   - /api/teacher/lesson-editor/suggest
+  - /api/teacher/timetable/parse-upload
   - /api/teacher/wizard-autoconfig
   - /api/teacher/wizard-suggest
+  - /api/tools/marking-comments
+  - /api/tools/report-writer
+  - /api/tools/report-writer/bulk
   cost_category: generation
   notes: Streaming call; Model not detected in call context; max_tokens not set or dynamic
 - id: ai_lib_ai_call_fireLogUsage_fireLogUsage
@@ -314,50 +234,22 @@ call_sites:
   called_from_routes:
   - /api/admin/ai-model/test
   - /api/admin/ai-model/test-lesson
+  - /api/student/open-studio/check-in
+  - /api/student/open-studio/discovery
   - /api/student/quest/mentor
   - /api/student/word-lookup
+  - /api/teacher/convert-lesson
+  - /api/teacher/knowledge/quick-modify
   - /api/teacher/lesson-editor/ai-field
   - /api/teacher/lesson-editor/suggest
+  - /api/teacher/timetable/parse-upload
   - /api/teacher/wizard-autoconfig
   - /api/teacher/wizard-suggest
+  - /api/tools/marking-comments
+  - /api/tools/report-writer
+  - /api/tools/report-writer/bulk
   cost_category: generation
   notes: Model not detected in call context; max_tokens not set or dynamic
-- id: ai_lib_converter_extract_lesson_structure_buildExtractionUserPrompt_http1
-  file: src/lib/converter/extract-lesson-structure.ts
-  function: buildExtractionUserPrompt
-  provider: anthropic
-  model: claude-sonnet-4-20250514
-  max_tokens: 12288
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/teacher/convert-lesson
-  cost_category: generation
-  notes: HTTP-based call (no SDK import)
-- id: ai_lib_converter_extract_lesson_structure_slice_http0
-  file: src/lib/converter/extract-lesson-structure.ts
-  function: slice
-  provider: anthropic
-  model: claude-haiku-4-5-20251001
-  max_tokens: 1024
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/teacher/convert-lesson
-  cost_category: generation
-  notes: HTTP-based call (no SDK import)
-- id: ai_lib_design_assistant_conversation_callDesignAssistantAI
-  file: src/lib/design-assistant/conversation.ts
-  function: callDesignAssistantAI
-  provider: anthropic
-  model: claude-haiku-4-5-20251001
-  max_tokens: 300
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/student/design-assistant
-  cost_category: unknown
-  notes: HTTP-based call (no SDK import)
 - id: ai_lib_ingestion_dedup_embedText
   file: src/lib/ingestion/dedup.ts
   function: embedText
@@ -417,40 +309,6 @@ call_sites:
   - /api/teacher/knowledge/tags
   cost_category: unknown
   notes: Uses wrapper src/lib/ai/embeddings.ts
-- id: ai_lib_knowledge_analyse_key
-  file: src/lib/knowledge/analyse.ts
-  function: key
-  provider: anthropic
-  model: dynamic
-  max_tokens: 4096
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/teacher/convert-lesson
-  cost_category: ingestion
-  notes: HTTP-based call (no SDK import)
-- id: ai_lib_knowledge_vision_image_http1
-  file: src/lib/knowledge/vision.ts
-  function: image
-  provider: anthropic
-  model: claude-haiku-4-5-20251001
-  max_tokens: 4096
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes: []
-  cost_category: ingestion
-  notes: HTTP-based call (no SDK import); Not directly imported by any route — likely transitive via service module
-- id: ai_lib_knowledge_vision_toString_http0
-  file: src/lib/knowledge/vision.ts
-  function: toString
-  provider: anthropic
-  model: claude-haiku-4-5-20251001
-  max_tokens: 4096
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes: []
-  cost_category: ingestion
-  notes: HTTP-based call (no SDK import); Not directly imported by any route — likely transitive via service module
 - id: ai_lib_pipeline_stages_stage1_retrieval_embedText
   file: src/lib/pipeline/stages/stage1-retrieval.ts
   function: embedText
