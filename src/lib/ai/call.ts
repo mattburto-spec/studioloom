@@ -97,14 +97,20 @@ function buildCreateParams(opts: CallOptions, model: string): Anthropic.MessageC
 }
 
 function fireLogUsage(opts: CallOptions, model: string, usage: AnthropicUsage): void {
-  logUsage({
-    userId: opts.studentId ? undefined : opts.teacherId,
-    studentId: opts.studentId,
-    endpoint: opts.endpoint,
-    model,
-    inputTokens: usage.input_tokens,
-    outputTokens: usage.output_tokens,
-  });
+  // Truly fire-and-forget — logUsage's createAdminClient() throws synchronously
+  // when SUPABASE_URL is missing (e.g. tests). Never let logging fail an AI call.
+  try {
+    logUsage({
+      userId: opts.studentId ? undefined : opts.teacherId,
+      studentId: opts.studentId,
+      endpoint: opts.endpoint,
+      model,
+      inputTokens: usage.input_tokens,
+      outputTokens: usage.output_tokens,
+    });
+  } catch (err) {
+    console.error("[callAnthropicMessages] logUsage failed:", err);
+  }
 }
 
 function extractUsage(response: Anthropic.Message): AnthropicUsage {

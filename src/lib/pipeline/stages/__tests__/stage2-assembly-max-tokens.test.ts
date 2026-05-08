@@ -244,8 +244,9 @@ describe("stage2-assembly max_tokens guard (sub-task 5.2.5 commit 1)", () => {
       join(process.cwd(), "src/lib/pipeline/stages/stage2-assembly.ts"),
       "utf8"
     );
-    // Expect exactly one `max_tokens: 4096,` in the file.
-    const matches = source.match(/max_tokens:\s*4096\b/g) || [];
+    // Expect exactly one `maxTokens: 4096` in the file (post Phase A.2 migration —
+    // helper takes camelCase maxTokens, not the SDK's max_tokens).
+    const matches = source.match(/maxTokens:\s*4096\b/g) || [];
     expect(matches.length).toBe(1);
     expect(STAGE2_MAX_TOKENS).toBe(4096);
   });

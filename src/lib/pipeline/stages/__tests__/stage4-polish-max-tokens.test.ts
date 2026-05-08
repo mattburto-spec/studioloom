@@ -208,9 +208,9 @@ describe("stage4-polish max_tokens guard — MAIN site (sub-task 5.2.5 commit 3)
       join(process.cwd(), "src/lib/pipeline/stages/stage4-polish.ts"),
       "utf8"
     );
-    // Main site uses max_tokens: 4096; polishInChunks uses 2048 (commit 4
-    // will pin that separately). Assert 4096 appears at least once.
-    const matches = source.match(/max_tokens:\s*4096\b/g) || [];
+    // Main site uses maxTokens: 4096; polishInChunks uses 2048 (commit 4
+    // pins that separately). Post Phase A.2 — helper takes camelCase maxTokens.
+    const matches = source.match(/maxTokens:\s*4096\b/g) || [];
     expect(matches.length).toBeGreaterThanOrEqual(1);
     expect(STAGE4_POLISH_MAX_TOKENS).toBe(4096);
   });

@@ -6,7 +6,7 @@
  * One AI call over the full sequence (or per-lesson for >8 lessons).
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import { callAnthropicMessages } from "@/lib/ai/call";
 import type {
   CostBreakdown,
   FilledSequence,
@@ -18,7 +18,7 @@ import type {
 } from "@/types/activity-blocks";
 import type { FormatProfile } from "@/lib/ai/unit-types";
 import { validateNeutralContent, NeutralValidationError } from "./stage4-neutral-validator";
-import { assertNotMaxTokens, MaxTokensError } from "./max-tokens-guard";
+import { MaxTokensError } from "./max-tokens-guard";
 import { MODELS } from "@/lib/ai/models";
 
 // ─── Types ───
@@ -163,25 +163,30 @@ export async function stage4_polish(
   let aiCost: CostBreakdown = { ...ZERO_COST };
 
   try {
-    const client = new Anthropic({ apiKey: config.apiKey, maxRetries: 2 });
-
     // For long units (>8 lessons), process in chunks
     if (filled.lessons.length > 8) {
-      polishResult = await polishInChunks(filled, profile, client, modelId);
+      polishResult = await polishInChunks(filled, profile, config.apiKey, modelId);
     } else {
       const prompt = buildPolishPrompt(filled, profile);
 
-      const response = await client.messages.create({
+      const callResult = await callAnthropicMessages({
+        apiKey: config.apiKey,
+        endpoint: "lib/pipeline/stage4-polish",
         model: modelId,
         system: "You are a curriculum continuity editor. Return ONLY valid JSON.",
         messages: [{ role: "user", content: prompt }],
-        max_tokens: 4096,
+        maxTokens: 4096,
         temperature: 0.3,
       });
 
       // Lesson #39 — fail loud on max_tokens truncation before JSON.parse
       // can die with a cryptic "Unexpected end of JSON input".
-      assertNotMaxTokens(response, "stage4_polish", 4096);
+      if (!callResult.ok) {
+        if (callResult.reason === "truncated") throw new MaxTokensError("stage4_polish", 4096);
+        if (callResult.reason === "api_error") throw callResult.error;
+        throw new Error(`stage4_polish: ${callResult.reason}`);
+      }
+      const response = callResult.response;
 
       const textBlock = response.content.find(b => b.type === "text");
       if (textBlock && textBlock.type === "text") {
@@ -195,10 +200,10 @@ export async function stage4_polish(
       }
 
       aiCost = {
-        inputTokens: response.usage?.input_tokens || 0,
-        outputTokens: response.usage?.output_tokens || 0,
+        inputTokens: callResult.usage.input_tokens,
+        outputTokens: callResult.usage.output_tokens,
         modelId,
-        estimatedCostUSD: ((response.usage?.input_tokens || 0) * 3 + (response.usage?.output_tokens || 0) * 15) / 1_000_000,
+        estimatedCostUSD: (callResult.usage.input_tokens * 3 + callResult.usage.output_tokens * 15) / 1_000_000,
         timeMs: Date.now() - startMs,
       };
     }
@@ -310,7 +315,7 @@ export async function stage4_polish(
 async function polishInChunks(
   filled: FilledSequence,
   profile: FormatProfile,
-  client: Anthropic,
+  apiKey: string,
   modelId: string
 ): Promise<AIPolishResult> {
   const chunkSize = 4;
@@ -325,17 +330,24 @@ async function polishInChunks(
 
     try {
       const prompt = buildPolishPrompt(chunk, profile);
-      const response = await client.messages.create({
+      const callResult = await callAnthropicMessages({
+        apiKey,
+        endpoint: "lib/pipeline/stage4-polish-chunks",
         model: modelId,
         system: "You are a curriculum continuity editor. Return ONLY valid JSON.",
         messages: [{ role: "user", content: prompt }],
-        max_tokens: 2048,
+        maxTokens: 2048,
         temperature: 0.3,
       });
 
       // Lesson #39 — fail loud on max_tokens truncation before JSON.parse
       // can die with a cryptic "Unexpected end of JSON input".
-      assertNotMaxTokens(response, "stage4_polishInChunks", 2048);
+      if (!callResult.ok) {
+        if (callResult.reason === "truncated") throw new MaxTokensError("stage4_polishInChunks", 2048);
+        if (callResult.reason === "api_error") throw callResult.error;
+        throw new Error(`stage4_polishInChunks: ${callResult.reason}`);
+      }
+      const response = callResult.response;
 
       const textBlock = response.content.find(b => b.type === "text");
       if (textBlock && textBlock.type === "text") {

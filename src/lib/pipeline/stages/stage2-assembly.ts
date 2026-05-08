@@ -7,7 +7,7 @@
  * Validates prerequisite chains.
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import { callAnthropicMessages } from "@/lib/ai/call";
 import type {
   CostBreakdown,
   GenerationRequest,
@@ -19,7 +19,7 @@ import type {
   RetrievedBlock,
 } from "@/types/activity-blocks";
 import type { FormatProfile } from "@/lib/ai/unit-types";
-import { assertNotMaxTokens, MaxTokensError } from "./max-tokens-guard";
+import { MaxTokensError } from "./max-tokens-guard";
 import { MODELS } from "@/lib/ai/models";
 
 // ─── Types ───
@@ -226,20 +226,26 @@ export async function stage2_assembleSequence(
   }
 
   try {
-    const client = new Anthropic({ apiKey: config.apiKey, maxRetries: 2 });
     const prompt = buildAssemblyPrompt(request, profile, candidates);
 
-    const response = await client.messages.create({
+    const callResult = await callAnthropicMessages({
+      apiKey: config.apiKey,
+      endpoint: "lib/pipeline/stage2-assembly",
       model: modelId,
       system: "You are a curriculum assembly engine. Return ONLY valid JSON — no markdown, no explanation.",
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 4096,
+      maxTokens: 4096,
       temperature: 0.3,
     });
 
     // Lesson #39 — fail loud on max_tokens truncation before JSON.parse
     // can die with a cryptic "Unexpected end of JSON input".
-    assertNotMaxTokens(response, "stage2_assembleSequence", 4096);
+    if (!callResult.ok) {
+      if (callResult.reason === "truncated") throw new MaxTokensError("stage2_assembleSequence", 4096);
+      if (callResult.reason === "api_error") throw callResult.error;
+      throw new Error(`stage2_assembleSequence: ${callResult.reason}`);
+    }
+    const response = callResult.response;
 
     const textBlock = response.content.find(b => b.type === "text");
     if (!textBlock || textBlock.type !== "text") {

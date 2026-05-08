@@ -6,7 +6,7 @@
  * Most expensive stage — most tokens spent here.
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import { callAnthropicMessages } from "@/lib/ai/call";
 import type {
   CostBreakdown,
   AssembledSequence,
@@ -19,7 +19,7 @@ import type {
   AIRules,
 } from "@/types/activity-blocks";
 import type { FormatProfile } from "@/lib/ai/unit-types";
-import { assertNotMaxTokens, MaxTokensError } from "./max-tokens-guard";
+import { MaxTokensError } from "./max-tokens-guard";
 import { MODELS } from "@/lib/ai/models";
 
 // ─── Types ───
@@ -205,8 +205,7 @@ export async function stage3_fillGaps(
     }
   }
 
-  // Fill gaps with AI calls, batched by concurrency limit
-  const client = new Anthropic({ apiKey: config.apiKey, maxRetries: 2 });
+  // Fill gaps with AI calls, batched by concurrency limit (calls go through callAnthropicMessages helper)
   const gapResults = new Map<string, { activity: AIActivity; metric: GapMetric }>();
   const perGapMetrics: GapMetric[] = [];
 
@@ -230,19 +229,26 @@ export async function stage3_fillGaps(
             profile
           );
 
-          const response = await client.messages.create({
+          const callResult = await callAnthropicMessages({
+            apiKey: config.apiKey,
+            endpoint: "lib/pipeline/stage3-generation",
             model: modelId,
             // 5.5 — Inject aiPersona from nested gapGenerationRules, fall back to flat field for back-compat.
             // teachingPrinciples follows the same nested-preferred pattern at its read site in buildGapPrompt.
             system: `You are a ${profile.cycleName} curriculum designer.\n\n## Persona\n${profile.gapGenerationRules?.aiPersona ?? profile.aiPersona}\n\nReturn ONLY valid JSON — no markdown, no explanation.`,
             messages: [{ role: "user", content: prompt }],
-            max_tokens: 2048,
+            maxTokens: 2048,
             temperature: 0.7,
           });
 
           // Lesson #39 — fail loud on max_tokens truncation before JSON.parse
           // can die with a cryptic "Unexpected end of JSON input".
-          assertNotMaxTokens(response, "stage3_fillGaps", 2048);
+          if (!callResult.ok) {
+            if (callResult.reason === "truncated") throw new MaxTokensError("stage3_fillGaps", 2048);
+            if (callResult.reason === "api_error") throw callResult.error;
+            throw new Error(`stage3_fillGaps: ${callResult.reason}`);
+          }
+          const response = callResult.response;
 
           const textBlock = response.content.find(b => b.type === "text");
           if (!textBlock || textBlock.type !== "text") {
