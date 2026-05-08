@@ -1096,3 +1096,22 @@ Three rounds of guards in the gesture layer; the bug was three function calls up
 3. **The root-cause layer is often the layer that handles "fresh data overwriting local state."** Save handlers, query refetches, server-pushed updates, optimistic-update reverts.
 
 **When this comes up:** any "the fix keeps not fixing it" symptom; any bug with timing-dependent reproduction; any bug where the user reports "it works most of the time but sometimes…" (timing-related = save-race-suspect almost always).
+
+---
+
+### Lesson #76 — `overflow: hidden` on a height-animated collapse wrapper silently clips absolute popovers nested inside it
+
+**The bug:** Teacher AI suggestions popover (`AITextField` # button on hook/focus/protocol/prompt fields in the Phase 0.5 lesson editor) showed the popover header but no suggestion text. Token logs proved Haiku was returning healthy 542-token responses; the bug was purely render-side. The popover is `<motion.div className="absolute z-30 left-0 right-0 mt-1 …">` — with no `top`, its static-position lands just below the textarea, extending downward past `<div className="relative">`'s natural-height bounds. Clipping wasn't from the relative parent (no overflow there); it was from `PhaseSection`'s `<motion.div className="overflow-hidden">` two ancestors up — the wrapper that animates `height: auto ↔ 0` for the phase collapse. Absolute children don't extend the wrapper's content height, so the popover's bottom fell below it and `overflow: hidden` clipped the suggestion list.
+
+The fix isn't to remove `overflow: hidden` — the height animation still needs it during the transition (otherwise children visibly overflow the shrinking/growing box). It's to **toggle it**: keep `overflow: hidden` while collapsed or animating; release it when fully open and settled. Implementation: `useEffect` on `isOpen` that flips an `animating` flag for 500ms (matching the spring), `className={isOpen && !animating ? "" : "overflow-hidden"}`.
+
+I tried framer-motion's `onAnimationStart` / `onAnimationComplete` callbacks first — they don't fire reliably when `animate.height` targets `"auto"` (v12 treats it as a non-numeric measurement step). A timer matching the transition duration is the working pattern.
+
+**The general rule:** **when an absolute popover renders empty/clipped, walk up every ancestor and check `getComputedStyle().overflow*`** — not just the closest `position: relative` parent. Animated collapse wrappers are the most common silent clipper because their `overflow: hidden` is invisible until something extends past their content-fit height. `getBoundingClientRect()` on the popover gives you the layout rect; if `nearestOverflowHiddenAncestor` ≠ null and its `bottom` < popover `bottom`, you've found the clipper.
+
+**Operational guidance:**
+1. **For any `<motion.div>` that animates `height: auto ↔ 0`, treat `overflow: hidden` as state-dependent.** Apply during animation + collapsed; release when open + settled. Otherwise any absolute descendant becomes a hidden footgun.
+2. **If you reach for `onAnimationComplete`, check the target type first.** Numeric targets fire reliably; `"auto"` does not. Fall back to a `setTimeout` matching the spring duration.
+3. **When a popover-style overlay "shows but isn't readable," dump bounding rects + walk overflow ancestors before touching the popover code.** The fix is almost always at the parent.
+
+**When this comes up:** popover/dropdown clipped or invisible; tooltip cut off below a card; any absolute overlay nested inside a `motion.div` collapse pattern (PhaseSection, drawer, accordion, expandable card).
