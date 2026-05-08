@@ -105,6 +105,9 @@ export interface SaveTileGradeInput {
   override_note?: string;
   /** G2.3 — student-facing comment, visible inside the student's lesson view. */
   student_facing_comment?: string | null;
+  /** Polish-3 — explicit "not applicable" marker. When true, the row is
+   * confirmed but contributes nothing to rollups or coverage. */
+  score_na?: boolean;
   marking_session_id?: string;
   // AI fields (optional — populated by G1.3 wiring):
   ai_pre_score?: number | null;
@@ -211,6 +214,9 @@ export async function saveTileGrade(
   // don't accidentally null out columns G1.3+/G2.3 populate.
   if (input.student_facing_comment !== undefined) {
     upsertPayload.student_facing_comment = input.student_facing_comment;
+  }
+  if (input.score_na !== undefined) {
+    upsertPayload.score_na = input.score_na;
   }
   if (input.ai_pre_score !== undefined) upsertPayload.ai_pre_score = input.ai_pre_score;
   if (input.ai_quote !== undefined) upsertPayload.ai_quote = input.ai_quote;

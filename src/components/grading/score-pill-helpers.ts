@@ -11,7 +11,7 @@ import type { GradingScale } from "@/lib/constants";
  * it is identical to "confirmed". The audit row in `student_tile_grade_events`
  * captures the source distinction (teacher_confirm vs teacher_override).
  */
-export type ScorePillState = "empty" | "ai-suggested" | "confirmed" | "overridden";
+export type ScorePillState = "empty" | "ai-suggested" | "confirmed" | "overridden" | "na";
 
 /**
  * Score-tier semantic colour. Tier thresholds match the prototype at
@@ -30,12 +30,15 @@ export interface ScorePillInput {
   confirmed: boolean;
   /** AI's suggested score, null if AI hasn't run yet. */
   aiPreScore: number | null;
+  /** Polish-3 — Not Applicable. Beats every other state. */
+  isNa?: boolean;
 }
 
 /**
- * Classify a tile-grade row into one of four visual states.
+ * Classify a tile-grade row into one of five visual states.
  *
  * Truth table:
+ *   isNa=true                                  → na (overrides everything else)
  *   score=null, confirmed=false                → empty
  *   score=ai,   confirmed=false (ai available) → ai-suggested
  *   score=set,  confirmed=true,  score===ai    → confirmed
@@ -43,7 +46,8 @@ export interface ScorePillInput {
  *   score=set,  confirmed=true,  ai=null       → confirmed (no override possible without a baseline)
  */
 export function classifyScorePillState(input: ScorePillInput): ScorePillState {
-  const { score, confirmed, aiPreScore } = input;
+  const { score, confirmed, aiPreScore, isNa } = input;
+  if (isNa) return "na";
   if (score === null) return "empty";
   if (!confirmed) return "ai-suggested";
   if (aiPreScore !== null && score !== aiPreScore) return "overridden";
@@ -121,6 +125,11 @@ export const SCORE_PILL_BASE_CLASSES =
  */
 export function getScorePillVariantClasses(state: ScorePillState, tier: ScoreTier): string {
   const t = TIER_CLASSES[tier];
+
+  if (state === "na") {
+    // Solid neutral grey; tier ignored (NA has no semantic colour).
+    return ["bg-gray-700", "border-gray-700", "text-white", "border-solid"].join(" ");
+  }
 
   if (state === "confirmed" || state === "overridden") {
     return [t.bgSolid, t.borderSolid, "text-white", "border-solid"].join(" ");

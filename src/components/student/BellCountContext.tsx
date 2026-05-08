@@ -21,15 +21,17 @@
 
 import { createContext, useContext } from "react";
 
-/** A single bell-popover row. Sourced from the dashboard's QueueItem. */
+/** A single bell-popover row. Sourced from the dashboard's QueueItem +
+ *  (Polish-4) recently released grading feedback for this student. */
 export interface NotificationItem {
   /** Stable key. */
   id: string;
-  kind: "overdue" | "today" | "soon";
+  kind: "overdue" | "today" | "soon" | "feedback";
   title: string;
   /** Short context line, e.g. unit name + criterion. */
   sub: string;
-  /** Pre-rendered due-date string ("today", "tomorrow", "in 3d"). */
+  /** Pre-rendered due-date string ("today", "tomorrow", "in 3d") OR for
+   *  feedback rows, a relative time ("today", "2d ago"). */
   dueText: string;
   /** Where clicking the row navigates. */
   href?: string;

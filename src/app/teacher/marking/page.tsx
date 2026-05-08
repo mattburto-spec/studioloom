@@ -12,6 +12,7 @@ import { resolveClassUnitContent } from "@/lib/units/resolve-content";
 import { extractTilesFromPage, tileProgress, type LessonTile } from "@/lib/grading/lesson-tiles";
 import { computeStudentRollup, type CriterionRollup } from "@/lib/grading/rollup";
 import { computeCriterionCoverage, coverageStatus } from "@/lib/grading/criterion-coverage";
+import { sanitizeResponseText } from "@/lib/grading/sanitize-response";
 import { ScorePill } from "@/components/grading/ScorePill";
 import { ScoreSelector } from "@/components/grading/ScoreSelector";
 
@@ -405,6 +406,7 @@ interface TileGradeRow {
   criterion_keys: string[];
   override_note?: string | null;
   student_facing_comment?: string | null;
+  score_na?: boolean | null;
 }
 
 function CalibrateView({ classId, unitId }: { classId: string; unitId: string }) {
@@ -531,7 +533,7 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
       const { data: gradeRows } = await supabase
         .from("student_tile_grades")
         .select(
-          "id, student_id, page_id, tile_id, score, confirmed, ai_pre_score, ai_quote, ai_confidence, ai_reasoning, ai_comment_draft, criterion_keys, override_note, student_facing_comment",
+          "id, student_id, page_id, tile_id, score, confirmed, ai_pre_score, ai_quote, ai_confidence, ai_reasoning, ai_comment_draft, criterion_keys, override_note, student_facing_comment, score_na",
         )
         .eq("class_id", classId)
         .eq("unit_id", unitDetail.id);
@@ -657,7 +659,11 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
     studentId: string,
     score: number | null,
     confirmed: boolean,
-    extras: { override_note?: string | null; student_facing_comment?: string | null } = {},
+    extras: {
+      override_note?: string | null;
+      student_facing_comment?: string | null;
+      score_na?: boolean;
+    } = {},
   ) {
     if (!klass || !unit || !activePageId || !activeTile) return;
     const key = gradeKey(studentId, activeTile.tileId, activePageId);
@@ -678,6 +684,7 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
       if (extras.student_facing_comment !== undefined) {
         payload.student_facing_comment = extras.student_facing_comment;
       }
+      if (extras.score_na !== undefined) payload.score_na = extras.score_na;
       const res = await fetch("/api/teacher/grading/tile-grades", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -896,7 +903,7 @@ interface CalibrateInnerProps {
   gradeKey: (s: string, t: string, p: string) => string;
   scale: ReturnType<typeof getGradingScale>;
   savingKey: string | null;
-  saveTile: (s: string, score: number | null, confirmed: boolean, extras?: { override_note?: string | null; student_facing_comment?: string | null }) => Promise<void>;
+  saveTile: (s: string, score: number | null, confirmed: boolean, extras?: { override_note?: string | null; student_facing_comment?: string | null; score_na?: boolean }) => Promise<void>;
   expandedStudentId: string | null;
   setExpandedStudentId: (s: string | null) => void;
   overrideNoteDraft: Record<string, string>;
@@ -951,6 +958,7 @@ function CalibrateInner({
           confirmed: g.confirmed,
           criterion_keys: g.criterion_keys,
           score: g.score,
+          score_na: g.score_na ?? false,
         })),
         students.map((s) => s.id),
         { framework, unitType },
@@ -1105,9 +1113,12 @@ function CalibrateInner({
             const score = grade?.score ?? null;
             const confirmed = grade?.confirmed ?? false;
             const aiPreScore = grade?.ai_pre_score ?? null;
+            const isNa = grade?.score_na === true;
             const isSaving = savingKey === key;
             const isExpanded = expandedStudentId === s.id;
-            const responseText = responses[s.id]?.[activeTile.tileId] ?? "";
+            const responseText = sanitizeResponseText(
+              responses[s.id]?.[activeTile.tileId] ?? "",
+            );
             const noteDraft = overrideNoteDraft[key] ?? "";
             const persistedNote =
               ((grade as TileGradeRow & { override_note?: string | null })
@@ -1169,7 +1180,10 @@ function CalibrateInner({
                   <ScoreSelector
                     scale={scale}
                     value={score}
-                    onChange={(next) => void saveTile(s.id, next, false)}
+                    isNa={isNa}
+                    onChange={(next, opts) =>
+                      void saveTile(s.id, next, false, { score_na: opts?.na ?? false })
+                    }
                     disabled={isSaving}
                   />
 
@@ -1178,18 +1192,20 @@ function CalibrateInner({
                     score={score}
                     confirmed={confirmed}
                     aiPreScore={aiPreScore}
+                    isNa={isNa}
                   />
 
                   <button
                     type="button"
                     onClick={() => {
-                      if (score === null) {
-                        alert("Set a score first.");
+                      // NA-confirmed is a valid state; numeric confirm needs a score.
+                      if (score === null && !isNa) {
+                        alert("Set a score or mark N/A first.");
                         return;
                       }
-                      void saveTile(s.id, score, !confirmed);
+                      void saveTile(s.id, score, !confirmed, { score_na: isNa });
                     }}
-                    disabled={isSaving || score === null}
+                    disabled={isSaving || (score === null && !isNa)}
                     className={[
                       "px-3 py-1.5 text-xs font-bold rounded-lg border transition",
                       confirmed
@@ -1290,10 +1306,13 @@ function CalibrateInner({
                   </button>
                 </div>
 
-                {/* ── Override panel (G1.2) ── */}
+                {/* ── Override panel (G1.2 + G3 polish: stack single-column
+                    so feedback textarea sits the same width as the response,
+                    directly below it. AI suggestion + score selector +
+                    override note follow underneath.) ── */}
                 {isExpanded && (
                   <div className="border-t border-gray-100 p-4 bg-gray-50/40 rounded-b-2xl">
-                    <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-5">
+                    <div className="flex flex-col gap-5">
                       {/* Student work */}
                       <div>
                         <div className="text-[10px] font-bold tracking-wider uppercase text-gray-400 mb-2">
@@ -1310,58 +1329,12 @@ function CalibrateInner({
                         )}
                       </div>
 
-                      {/* Score + note column */}
-                      <div className="space-y-4">
-                        {grade?.ai_pre_score !== null && grade?.ai_pre_score !== undefined && (
-                          <div className="rounded-xl border border-purple-200 bg-purple-50/60 p-3">
-                            <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase text-purple-700 mb-1">
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
-                              </svg>
-                              AI suggestion
-                              {typeof grade.ai_confidence === "number" && (
-                                <span className="ml-auto text-[10px] font-mono text-purple-500">
-                                  conf {Math.round(grade.ai_confidence * 100)}%
-                                </span>
-                              )}
-                            </div>
-                            {grade.ai_quote && (
-                              <p className="text-xs italic text-gray-800 leading-relaxed">
-                                &ldquo;{grade.ai_quote}&rdquo;
-                              </p>
-                            )}
-                            {grade.ai_reasoning && (
-                              <p className="text-[11px] text-gray-600 mt-1.5 leading-relaxed">
-                                {grade.ai_reasoning}
-                              </p>
-                            )}
-                            {typeof grade.ai_pre_score === "number" && score !== grade.ai_pre_score && (
-                              <button
-                                type="button"
-                                onClick={() => void saveTile(s.id, grade.ai_pre_score!, true)}
-                                disabled={isSaving}
-                                className="mt-2 inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold rounded-md bg-white border border-purple-300 text-purple-700 hover:bg-purple-50 transition disabled:opacity-50"
-                              >
-                                Accept AI ({grade.ai_pre_score})
-                              </button>
-                            )}
-                          </div>
-                        )}
-
-                        <div>
-                          <div className="text-[10px] font-bold tracking-wider uppercase text-gray-400 mb-2">
-                            Score
-                          </div>
-                          <ScoreSelector
-                            scale={scale}
-                            value={score}
-                            onChange={(next) => void saveTile(s.id, next, false)}
-                            disabled={isSaving}
-                          />
-                        </div>
-
-                        <div>
-                          <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase text-emerald-700 mb-2">
+                      {/* G3 polish — Feedback block sits FIRST, directly under
+                          the response, full-width. Matt's "make the grading
+                          card as wide as the student text box and move it
+                          closer." */}
+                      <div>
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase text-emerald-700 mb-2">
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                             </svg>
@@ -1445,6 +1418,59 @@ function CalibrateInner({
                           </div>
                         </div>
 
+                      {/* AI suggestion (purple) — reference info, full width below feedback */}
+                      {grade?.ai_pre_score !== null && grade?.ai_pre_score !== undefined && (
+                        <div className="rounded-xl border border-purple-200 bg-purple-50/60 p-3">
+                          <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase text-purple-700 mb-1">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                              <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+                            </svg>
+                            AI suggestion
+                            {typeof grade.ai_confidence === "number" && (
+                              <span className="ml-auto text-[10px] font-mono text-purple-500">
+                                conf {Math.round(grade.ai_confidence * 100)}%
+                              </span>
+                            )}
+                          </div>
+                          {grade.ai_quote && (
+                            <p className="text-xs italic text-gray-800 leading-relaxed">
+                              &ldquo;{grade.ai_quote}&rdquo;
+                            </p>
+                          )}
+                          {grade.ai_reasoning && (
+                            <p className="text-[11px] text-gray-600 mt-1.5 leading-relaxed">
+                              {grade.ai_reasoning}
+                            </p>
+                          )}
+                          {typeof grade.ai_pre_score === "number" && score !== grade.ai_pre_score && (
+                            <button
+                              type="button"
+                              onClick={() => void saveTile(s.id, grade.ai_pre_score!, true)}
+                              disabled={isSaving}
+                              className="mt-2 inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold rounded-md bg-white border border-purple-300 text-purple-700 hover:bg-purple-50 transition disabled:opacity-50"
+                            >
+                              Accept AI ({grade.ai_pre_score})
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Score selector — full width row of buttons + NA */}
+                      <div>
+                        <div className="text-[10px] font-bold tracking-wider uppercase text-gray-400 mb-2">
+                          Score
+                        </div>
+                        <ScoreSelector
+                          scale={scale}
+                          value={score}
+                          isNa={isNa}
+                          onChange={(next, opts) =>
+                            void saveTile(s.id, next, false, { score_na: opts?.na ?? false })
+                          }
+                          disabled={isSaving}
+                        />
+                      </div>
+
                         <div>
                           <div className="text-[10px] font-bold tracking-wider uppercase text-gray-400 mb-2">
                             Override note <span className="font-normal lowercase tracking-normal text-gray-400">(private to you)</span>
@@ -1491,7 +1517,6 @@ function CalibrateInner({
                             Done
                           </button>
                         </div>
-                      </div>
                     </div>
                   </div>
                 )}
@@ -1617,6 +1642,7 @@ function SynthesizeView({
             confirmed: g.confirmed,
             criterion_keys: g.criterion_keys,
             graded_at: null,
+            score_na: g.score_na ?? false,
           })),
         );
         const displayName = s.display_name?.trim() || s.username?.trim() || "(unnamed)";
