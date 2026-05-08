@@ -99,7 +99,25 @@ Plus `beforeBreadcrumb` to drop request body breadcrumbs. Smoke-test by triggeri
 
 ---
 
-### P-3 · Privatise the three legacy public buckets
+### P-3 · Privatise the three legacy public buckets [DONE 2026-05-09]
+
+**Status.** Shipped via PR (proxy + 4 writers + migration `20260508232012`). After deploying the code, apply migration to prod to flip the buckets private + rewrite stored URLs.
+
+**What shipped:**
+1. **Storage proxy** at [`src/app/api/storage/[bucket]/[...path]/route.ts`](../../src/app/api/storage/[bucket]/[...path]/route.ts) — auth-gates the request, mints a 5-min signed URL via service role, 302-redirects with `Cache-Control: private, max-age=240` (refresh just before TTL expires).
+2. **Helper** [`src/lib/storage/proxy-url.ts`](../../src/lib/storage/proxy-url.ts) — `buildStorageProxyUrl(bucket, path)` for writers, `parseStorageUrl(url)` (round-trips proxy URLs AND legacy public/sign URLs) for cleanup logic.
+3. **4 writers updated** (student/avatar, student/upload, teacher/upload-unit-image, teacher/knowledge/media) — `getPublicUrl()` replaced with `buildStorageProxyUrl()`. Zero `getPublicUrl` calls remain in src/.
+4. **Migration `20260508232012_privatise_legacy_buckets.sql`** — flips the 3 buckets to `public = false`, drops any pre-existing public-read RLS policies, and in-place-rewrites stored URLs from `https://xxx.supabase.co/storage/v1/object/public/{bucket}/{path}` → `/api/storage/{bucket}/{path}` for `students.avatar_url`, `units.thumbnail_url`, and (if the column exists) `knowledge_uploads.thumbnail_url`. Down-migration restores both bucket privacy + legacy URL shape.
+5. **CI tests:** 20 tests covering helper round-trip, bucket allowlist, auth gate, 302 redirect, decode behaviour, error masking. Full suite: 5006 passed / 0 failed post-change.
+
+**Deploy order (for Matt):**
+1. PR merges → Vercel deploys proxy + writers + helper. Existing public URLs still work because buckets are still public at this point.
+2. Apply migration `20260508232012` to prod via Supabase migrations dashboard. The migration is the cutover: bucket-flip + URL-rewrite happen in one transaction.
+3. Smoke (see PR description) — student avatars, unit thumbnails, knowledge media should all render through the proxy.
+
+---
+
+**Original problem (preserved for archive).**
 
 **Problem.** `responses`, `unit-images`, `knowledge-media` use `getPublicUrl` and are public. Student photos in `responses` are URL-guessable — pattern is `{studentId}/{unitId}/{pageId}/{timestamp}.{ext}`. Anyone who knows or guesses a student UUID can iterate file names. This is a PII gap.
 
@@ -376,7 +394,7 @@ The current state delivers (1) for the rls/audit/encryption/DSR/AI-chokepoint su
 |---|---|---|---|---|---|---|
 | P-1 | API-route role guards | P0 | 1–2d | **PARTIAL — 2026-05-09** (helpers + 12 routes + helper-hardening + scanner; 80 long-tail routes follow-up `FU-SEC-ROLE-GUARD-SWEEP`) | matt | pre-pilot-expand |
 | P-2 | Sentry beforeSend filter | P0 | 1–2h | **DONE — 2026-05-09** (`src/lib/security/sentry-pii-filter.ts` + 13 tests) | matt | — |
-| P-3 | Privatise legacy buckets | P0 | 2–3d | TODO | matt | pre-pilot-expand |
+| P-3 | Privatise legacy buckets | P0 | 2–3d | **DONE — 2026-05-09** (proxy at `/api/storage/[bucket]/[...path]` + 4 writers updated + URL-rewrite migration `20260508232012`. Embedded JSONB URLs follow-up: `FU-SEC-RESPONSES-PATH-MIGRATION`) | matt | — |
 | P-4 | Timetable PII scrub | P1 | 1d | TODO | matt | pre-paid |
 | P-5 | vendors.yaml Anthropic drift | P1 | 1h | **DONE — 2026-05-09** (5 new categories declared with file:line refs) | matt | — |
 | P-6 | Dead-arg removal + grep test | P1 | 0.5d | **DONE — 2026-05-09** (ai-prescore field removed, CI grep test at `src/lib/security/__tests__/no-pii-in-ai-prompts.test.ts`) | matt | — |

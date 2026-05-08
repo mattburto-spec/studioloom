@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@supabase/ssr";
 import sharp from "sharp";
+import { buildStorageProxyUrl } from "@/lib/storage/proxy-url";
 
 // Verify teacher auth from Supabase cookies
 async function getTeacherId(request: NextRequest): Promise<string | null> {
@@ -99,20 +100,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Get public URL
-  const {
-    data: { publicUrl },
-  } = admin.storage.from("unit-images").getPublicUrl(data.path);
+  // Build proxy URL — bucket is private (security-plan.md P-3); the
+  // /api/storage/unit-images/* endpoint auth-gates + 302s to a fresh signed URL.
+  const proxyUrl = buildStorageProxyUrl("unit-images", data.path);
 
   // Update the unit's thumbnail_url
   const { error: updateError } = await admin
     .from("units")
-    .update({ thumbnail_url: publicUrl })
+    .update({ thumbnail_url: proxyUrl })
     .eq("id", unitId);
 
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ url: publicUrl });
+  return NextResponse.json({ url: proxyUrl });
 }
