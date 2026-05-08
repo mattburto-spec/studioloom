@@ -45,6 +45,8 @@ export interface CallOptions {
   studentId?: string;
   /** When set without studentId, attributed in ai_usage_log as user_id. Used for BYOK lookup. */
   teacherId?: string;
+  /** Optional ai_usage_log.metadata enrichment (e.g. { word, l1Target, journeyId }). */
+  metadata?: Record<string, unknown>;
 }
 
 export type CallSuccess = {
@@ -110,6 +112,7 @@ function fireLogUsage(opts: CallOptions, model: string, usage: AnthropicUsage): 
       model,
       inputTokens: usage.input_tokens,
       outputTokens: usage.output_tokens,
+      metadata: opts.metadata,
     });
   } catch (err) {
     console.error("[callAnthropicMessages] logUsage failed:", err);

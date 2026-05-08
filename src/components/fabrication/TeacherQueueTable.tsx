@@ -196,6 +196,14 @@ function QueueRowItem({
               >
                 {row.jobStatus.replace(/_/g, " ")}
               </span>
+              {row.pilotOverrideAt && (
+                <span
+                  className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300"
+                  title={`Student used Pilot Mode override on ${row.pilotOverrideRuleIds.join(", ") || "block rule(s)"}. Worth a review before approving.`}
+                >
+                  ⚠ Override ({row.pilotOverrideRuleIds.length})
+                </span>
+              )}
             </div>
             {row.className && (
               <p className="text-xs text-gray-500 truncate">{row.className}</p>
@@ -284,6 +292,14 @@ function QueueRowItem({
               >
                 {row.jobStatus.replace(/_/g, " ")}
               </span>
+              {row.pilotOverrideAt && (
+                <span
+                  className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300"
+                  title={`Override on ${row.pilotOverrideRuleIds.join(", ") || "block rule(s)"}`}
+                >
+                  ⚠ Override ({row.pilotOverrideRuleIds.length})
+                </span>
+              )}
             </div>
             <p className="text-xs text-gray-600 truncate">
               {row.machineLabel}

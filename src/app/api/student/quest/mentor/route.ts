@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
     const callResult = await callAnthropicMessages({
       supabase,
       studentId,
-      endpoint: '/api/student/quest/mentor',
+      endpoint: 'student/quest/mentor',
       model: MODELS.HAIKU,
       maxTokens: 400,
       system: systemPrompt,
@@ -180,6 +180,7 @@ export async function POST(request: NextRequest) {
           content: message || `[${interactionType} triggered]`,
         },
       ],
+      metadata: { interactionType, journeyId, mentorId: journey.mentor_id || 'guided' },
     });
 
     if (!callResult.ok) {

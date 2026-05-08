@@ -339,3 +339,131 @@ describe("canSubmit — regression guard for the submit endpoint", () => {
     expect(r.message).toMatch(/Missing: R-STL-04/);
   });
 });
+
+// ============================================================
+// Pilot Mode P1 — overrideBlocks bypass
+// ============================================================
+
+describe("canSubmit — Pilot Mode override path", () => {
+  it("bypasses BLOCK gate when pilotMode + overrideBlocks both set", () => {
+    const r = canSubmit({
+      results: {
+        rules: [
+          { id: "R-STL-01", severity: "block", title: "Non-watertight" },
+        ],
+      },
+      acknowledgedWarnings: null,
+      revisionNumber: 1,
+      pilotMode: true,
+      overrideBlocks: true,
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok !== true) throw new Error("expected pass");
+    expect(r.pilotOverride).toEqual({ ruleIds: ["R-STL-01"] });
+  });
+
+  it("returns ALL block rule ids in pilotOverride.ruleIds, not just the first", () => {
+    const r = canSubmit({
+      results: {
+        rules: [
+          { id: "R-STL-01", severity: "block" },
+          { id: "R-STL-04", severity: "block" },
+          { id: "R-STL-05", severity: "block" },
+        ],
+      },
+      acknowledgedWarnings: null,
+      revisionNumber: 1,
+      pilotMode: true,
+      overrideBlocks: true,
+    });
+    if (r.ok !== true) throw new Error("expected pass");
+    expect(r.pilotOverride?.ruleIds).toEqual(["R-STL-01", "R-STL-04", "R-STL-05"]);
+  });
+
+  it("does NOT bypass when pilotMode is true but overrideBlocks is false", () => {
+    const r = canSubmit({
+      results: { rules: [{ id: "R-STL-01", severity: "block" }] },
+      acknowledgedWarnings: null,
+      revisionNumber: 1,
+      pilotMode: true,
+      overrideBlocks: false,
+    });
+    if (r.ok !== false) throw new Error("expected failure");
+    expect(r.reason).toBe("blockers_present");
+    expect(r.blockerRuleIds).toEqual(["R-STL-01"]);
+  });
+
+  it("does NOT bypass when overrideBlocks is true but pilotMode is false (server-side flag is closed)", () => {
+    const r = canSubmit({
+      results: { rules: [{ id: "R-STL-01", severity: "block" }] },
+      acknowledgedWarnings: null,
+      revisionNumber: 1,
+      pilotMode: false,
+      overrideBlocks: true,
+    });
+    if (r.ok !== false) throw new Error("expected failure");
+    expect(r.reason).toBe("blockers_present");
+  });
+
+  it("override does NOT waive WARN acks — student must still acknowledge each warning", () => {
+    const r = canSubmit({
+      results: {
+        rules: [
+          { id: "R-STL-01", severity: "block" },
+          { id: "R-STL-13", severity: "warn", title: "Flat base" },
+        ],
+      },
+      acknowledgedWarnings: null,
+      revisionNumber: 1,
+      pilotMode: true,
+      overrideBlocks: true,
+    });
+    if (r.ok !== false) throw new Error("expected failure");
+    expect(r.reason).toBe("missing_acks");
+    expect(r.missingAckRuleIds).toEqual(["R-STL-13"]);
+  });
+
+  it("override + WARN acks both present → ok:true with pilotOverride", () => {
+    const acks: AcknowledgedWarnings = {
+      revision_1: {
+        "R-STL-13": { choice: "understood", timestamp: "2026-05-08T10:00:00Z" },
+      },
+    };
+    const r = canSubmit({
+      results: {
+        rules: [
+          { id: "R-STL-01", severity: "block" },
+          { id: "R-STL-13", severity: "warn" },
+        ],
+      },
+      acknowledgedWarnings: acks,
+      revisionNumber: 1,
+      pilotMode: true,
+      overrideBlocks: true,
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok !== true) throw new Error("expected pass");
+    expect(r.pilotOverride?.ruleIds).toEqual(["R-STL-01"]);
+  });
+
+  it("ok:true with no pilotOverride field when no BLOCK rules fire (clean job, override flag irrelevant)", () => {
+    const r = canSubmit({
+      results: { rules: [] },
+      acknowledgedWarnings: null,
+      revisionNumber: 1,
+      pilotMode: true,
+      overrideBlocks: true,
+    });
+    expect(r).toEqual({ ok: true });
+  });
+
+  it("default behaviour (no pilot params) is unchanged — BLOCK rules force re-upload", () => {
+    const r = canSubmit({
+      results: { rules: [{ id: "R-STL-01", severity: "block" }] },
+      acknowledgedWarnings: null,
+      revisionNumber: 1,
+    });
+    if (r.ok !== false) throw new Error("expected failure");
+    expect(r.reason).toBe("blockers_present");
+  });
+});

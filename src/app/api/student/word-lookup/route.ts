@@ -89,7 +89,7 @@ export const POST = withErrorHandler("student/word-lookup:POST", async (request:
 
   const rawWord = typeof body?.word === "string" ? body.word.trim().toLowerCase() : "";
   const contextSentence =
-    typeof body?.contextSentence === "string" ? body.contextSentence.trim().slice(0, 500) : "";
+    typeof body?.contextSentence === "string" ? body.contextSentence.trim().slice(0, 200) : "";
   const rawClassId = typeof body?.classId === "string" ? body.classId : undefined;
   const rawUnitId = typeof body?.unitId === "string" ? body.unitId : undefined;
 
@@ -169,35 +169,23 @@ export const POST = withErrorHandler("student/word-lookup:POST", async (request:
   }
 
   // Live Anthropic path (default in dev + prod; gated to RUN_E2E=1 in tests).
-  // Dynamic tool schema (Lesson #26: compact required fields ordered first).
-  // L1 translation field added only when target ≠ 'en' — cleaner than asking
-  // the model to leave a field empty.
+  // Schema kept minimal — every property/tool description is paid input
+  // tokens on every call. Constraints live in the system prompt instead,
+  // which still steers the model but is shared once across the request.
   const wantsL1 = l1Target !== "en";
-  const properties: Record<string, { type: string; description: string }> = {
-    definition: {
-      type: "string",
-      description:
-        "One short sentence in plain language a 12-year-old understands. Max 20 words.",
-    },
-    example: {
-      type: "string",
-      description: "One sentence using the word naturally. Max 20 words.",
-    },
+  const properties: Record<string, { type: string }> = {
+    definition: { type: "string" },
+    example: { type: "string" },
   };
   const required: string[] = ["definition", "example"];
   if (wantsL1) {
-    properties.l1_translation = {
-      type: "string",
-      description: `The single-word ${l1DisplayLabel(l1Target)} translation of "${rawWord}" (no parenthetical alternatives, no romanisation, just the native-script translation).`,
-    };
+    properties.l1_translation = { type: "string" };
     required.push("l1_translation");
   }
 
   const tool: Anthropic.Tool = {
     name: TOOL_NAME,
-    description:
-      "Return a student-friendly definition + example sentence for an English word" +
-      (wantsL1 ? `, plus a ${l1DisplayLabel(l1Target)} translation.` : "."),
+    description: "",
     input_schema: {
       type: "object" as const,
       properties,
@@ -205,28 +193,32 @@ export const POST = withErrorHandler("student/word-lookup:POST", async (request:
     },
   };
 
-  const userPrompt =
-    `Define the word "${rawWord}" for a secondary-school student in design class. ` +
-    (contextSentence ? `It appeared in this sentence: "${contextSentence}". ` : "") +
-    `Give the definition that fits this context, then a short example sentence.` +
-    (wantsL1
-      ? ` Also provide the ${l1DisplayLabel(l1Target)} translation of the word "${rawWord}" itself (single word, native script).`
-      : "");
+  // System prompt holds the rules once; userPrompt stays terse.
+  const systemPrompt = wantsL1
+    ? `Define English words for secondary design students. definition: plain, ≤20 words, fits the given context. example: ≤20 words, uses the word naturally. l1_translation: the ${l1DisplayLabel(l1Target)} translation of the headword itself, single word, native script, no romanisation.`
+    : "Define English words for secondary design students. definition: plain, ≤20 words, fits the given context. example: ≤20 words, uses the word naturally.";
+
+  const userPrompt = contextSentence
+    ? `Word: "${rawWord}". Context: "${contextSentence}".`
+    : `Word: "${rawWord}".`;
 
   const maxTokens = wantsL1 ? MAX_TOKENS_WITH_L1 : MAX_TOKENS_EN_ONLY;
 
   // Helper handles withAIBudget cap enforcement + Lesson #39 truncation guard
   // when studentId is provided. Budget cap resolved via the cascade
-  // (student > class > school > column > tier).
+  // (student > class > school > column > tier). metadata enriches
+  // ai_usage_log so the admin AI Budget breakdown can attribute per-word.
   const callResult = await callAnthropicMessages({
     supabase,
     studentId: auth.studentId,
-    endpoint: "/api/student/word-lookup",
+    endpoint: "student/word-lookup",
     model: MODEL,
     maxTokens,
+    system: systemPrompt,
     tools: [tool],
     toolChoice: { type: "tool", name: TOOL_NAME },
     messages: [{ role: "user", content: userPrompt }],
+    metadata: { word: rawWord, l1Target, wantsL1 },
   });
 
   if (!callResult.ok) {

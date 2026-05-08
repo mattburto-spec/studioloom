@@ -637,6 +637,7 @@ export async function POST(request: NextRequest) {
 
     // Log usage
     logUsage({
+      studentId,
       endpoint: "open-studio-discovery",
       model: MODELS.HAIKU,
       inputTokens: data.usage?.input_tokens,

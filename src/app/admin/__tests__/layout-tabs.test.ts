@@ -6,6 +6,10 @@
  * on hold). Pilot-focused tab set is 10 primary + 4 secondary tools.
  * Was 12 + 12 per the original spec §9.8 — diff captured in this commit's
  * dashboard refresh.
+ *
+ * Updated 8 May 2026: added Preflight tab (Pilot Mode P3) — links to
+ * /admin/preflight/flagged for ruleset-tuning loop visibility. Now 10
+ * primary tabs.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
@@ -17,23 +21,25 @@ const src = readFileSync(
 );
 
 describe("admin layout — tab scaffold (pilot-focused, post-Dimensions3-pause)", () => {
-  it("has exactly 9 primary TABS entries", () => {
+  it("has exactly 10 primary TABS entries", () => {
     const match = src.match(/const TABS = \[([\s\S]*?)\];/);
     expect(match).not.toBeNull();
     const entries = match![1].match(/\{ label:/g);
-    expect(entries).toHaveLength(9);
+    expect(entries).toHaveLength(10);
   });
 
-  it("primary TABS includes all 9 pilot-focused labels", () => {
+  it("primary TABS includes all 10 pilot-focused labels", () => {
     // 4 May trims:
     //   AM: Pipeline + Library (Dimensions3 quarantined)
     //   PM #1: Quality + Controls (Dimensions3 + empty hub)
     //   PM #2: Wiring (reference doc, not daily-ops surface)
     //   Added: AI Budget + Deletions (new pilot-ops tabs).
+    // 8 May:
+    //   Added: Preflight (Pilot Mode P3 dev review surface).
     const expectedLabels = [
       "Dashboard", "Cost & Usage", "AI Budget",
       "Teachers", "Students", "Schools", "Bug Reports",
-      "Audit Log", "Deletions",
+      "Preflight", "Audit Log", "Deletions",
     ];
     for (const label of expectedLabels) {
       expect(src).toContain(`label: "${label}"`);

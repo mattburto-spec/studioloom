@@ -48,6 +48,7 @@ import {
   shouldHideScanViewerForCompletion,
 } from "@/components/fabrication/lab-tech-completion-helpers";
 import { canSubmit, type Rule } from "@/lib/fabrication/rule-buckets";
+import { PILOT_MODE_ENABLED } from "@/lib/fabrication/pilot-mode";
 import type {
   AckChoice,
   AcknowledgedWarnings,
@@ -171,6 +172,17 @@ export default function FabricationJobStatusPage() {
   }
 
   async function handleSubmit() {
+    return submitInner({ overrideBlocks: false });
+  }
+
+  // Pilot Mode P1: separate handler for the override-and-proceed CTA.
+  // POSTs the same /submit endpoint with `overrideBlocks: true`. Server
+  // only honours the flag when PILOT_MODE_ENABLED is true.
+  async function handleOverrideSubmit() {
+    return submitInner({ overrideBlocks: true });
+  }
+
+  async function submitInner(opts: { overrideBlocks: boolean }) {
     if (pollState.kind !== "done" || !jobId) return;
     setActionError(null);
     setIsSubmitting(true);
@@ -178,6 +190,8 @@ export default function FabricationJobStatusPage() {
       const res = await fetch(`/api/student/fabrication/jobs/${jobId}/submit`, {
         method: "POST",
         credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ overrideBlocks: opts.overrideBlocks }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: "" }));
@@ -339,6 +353,7 @@ export default function FabricationJobStatusPage() {
           revisionsError={revisionsError}
           onAcknowledge={handleAcknowledge}
           onSubmit={handleSubmit}
+          onOverrideSubmit={handleOverrideSubmit}
           onReupload={handleReupload}
           onWithdraw={handleWithdraw}
           onDelete={handleDelete}
@@ -416,6 +431,7 @@ function DoneStateView(props: {
   revisionsError: string | null;
   onAcknowledge: (ruleId: string, choice: AckChoice) => void;
   onSubmit: () => void;
+  onOverrideSubmit: () => void;
   onReupload: () => void;
   onWithdraw: () => void;
   onDelete: () => void;
@@ -432,6 +448,7 @@ function DoneStateView(props: {
     revisionsError,
     onAcknowledge,
     onSubmit,
+    onOverrideSubmit,
     onReupload,
     onWithdraw,
     onDelete,
@@ -445,6 +462,10 @@ function DoneStateView(props: {
   const status = pollState.status as JobStatusSuccess;
   const revisionNumber = status.currentRevision;
   const scanResults = (status.scanResults ?? { rules: [] }) as { rules?: Rule[] | null };
+  // Pilot Mode P1: pass pilot flag to canSubmit so the gate-failure
+  // copy in the viewer adapts. Override is offered via a separate
+  // panel below the standard actions; canSubmitState here represents
+  // the *normal* gate, not the override path.
   const gate = canSubmit({
     results: scanResults,
     acknowledgedWarnings: localAcks,
@@ -524,6 +545,8 @@ function DoneStateView(props: {
               canSubmitState={gate}
               onAcknowledge={onAcknowledge}
               onSubmit={onSubmit}
+              onOverrideSubmit={onOverrideSubmit}
+              pilotMode={PILOT_MODE_ENABLED}
               onReupload={onReupload}
               isAckInFlight={isAckInFlight}
               isSubmitting={isSubmitting}
