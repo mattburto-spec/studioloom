@@ -94,6 +94,13 @@ export interface QueueRow {
   createdAt: string;
   updatedAt: string;
   originalFilename: string;
+  /** Pilot Mode P1: ISO timestamp when student used Override and proceed
+   *  to bypass BLOCK rules. Null on jobs that took the normal path.
+   *  Used by the teacher Needs Attention tab + the dev review surface. */
+  pilotOverrideAt: string | null;
+  /** Pilot Mode P1: rule IDs that were force-acknowledged at override
+   *  time. Empty array on non-override jobs. */
+  pilotOverrideRuleIds: string[];
 }
 
 export interface TeacherActionSuccess {
@@ -377,6 +384,8 @@ interface RawJobRow {
   student_id: string;
   class_id: string | null;
   unit_id: string | null;
+  pilot_override_at: string | null;
+  pilot_override_rule_ids: string[] | null;
   students: { display_name: string | null; username: string | null } | null;
   classes: { name: string | null } | null;
   units: { title: string | null } | null;
@@ -408,6 +417,7 @@ export async function getTeacherQueue(
       `
       id, status, current_revision, created_at, updated_at, original_filename,
       student_id, class_id, unit_id,
+      pilot_override_at, pilot_override_rule_ids,
       students(display_name, username),
       classes(name),
       units(title),
@@ -493,6 +503,8 @@ export async function getTeacherQueue(
         createdAt: raw.created_at,
         updatedAt: raw.updated_at,
         originalFilename: raw.original_filename,
+        pilotOverrideAt: raw.pilot_override_at ?? null,
+        pilotOverrideRuleIds: raw.pilot_override_rule_ids ?? [],
       };
     })
   );

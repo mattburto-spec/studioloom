@@ -4,6 +4,7 @@ import {
   QUEUE_TABS,
   statusesForTab,
   tabForStatus,
+  tabForRow,
   tabLabel,
   emptyMessageForTab,
   bucketRowsForTab,
@@ -13,6 +14,7 @@ import {
   isCleanRow,
   matchesSearch,
   sortKeyForRow,
+  needsAttention,
 } from "../teacher-queue-helpers";
 
 /**
@@ -38,6 +40,8 @@ function row(partial: Partial<QueueRow> & { jobStatus: string }): QueueRow {
     createdAt: "2026-04-22T12:00:00Z",
     updatedAt: "2026-04-22T12:00:00Z",
     originalFilename: "file.stl",
+    pilotOverrideAt: null,
+    pilotOverrideRuleIds: [],
     ...partial,
   };
 }
@@ -137,6 +141,7 @@ describe("countRowsPerTab", () => {
     ];
     const counts = countRowsPerTab(rows);
     expect(counts).toEqual({
+      attention: 0,
       pending: 2,
       approved: 2,
       revision: 1,
@@ -147,12 +152,166 @@ describe("countRowsPerTab", () => {
   it("returns zero counts on an empty list", () => {
     const counts = countRowsPerTab([]);
     expect(counts).toEqual({
+      attention: 0,
       pending: 0,
       approved: 0,
       revision: 0,
       completed: 0,
       all: 0,
     });
+  });
+  it("counts attention rows under attention AND their status bucket (cross-cut view)", () => {
+    const rows = [
+      // pending with BLOCK rule → counts under both pending + attention
+      row({
+        jobStatus: "pending_approval",
+        ruleCounts: { block: 1, warn: 0, fyi: 0 },
+      }),
+      // pending clean → only counts under pending, not attention
+      row({ jobStatus: "pending_approval" }),
+      // approved with override → counts under approved + attention
+      row({
+        jobStatus: "approved",
+        pilotOverrideAt: "2026-05-08T10:00:00Z",
+        pilotOverrideRuleIds: ["R-STL-01"],
+      }),
+    ];
+    const counts = countRowsPerTab(rows);
+    expect(counts.pending).toBe(2);
+    expect(counts.approved).toBe(1);
+    expect(counts.attention).toBe(2);
+    expect(counts.all).toBe(3);
+  });
+});
+
+// ============================================================
+// Pilot Mode P2 — needsAttention + attention tab
+// ============================================================
+
+describe("needsAttention", () => {
+  it("flags pending_approval rows with BLOCK rule(s)", () => {
+    expect(
+      needsAttention(
+        row({
+          jobStatus: "pending_approval",
+          ruleCounts: { block: 1, warn: 0, fyi: 0 },
+        })
+      )
+    ).toBe(true);
+  });
+  it("flags pending_approval rows with WARN rule(s)", () => {
+    expect(
+      needsAttention(
+        row({
+          jobStatus: "pending_approval",
+          ruleCounts: { block: 0, warn: 2, fyi: 0 },
+        })
+      )
+    ).toBe(true);
+  });
+  it("does NOT flag pending_approval rows with only FYI rules", () => {
+    expect(
+      needsAttention(
+        row({
+          jobStatus: "pending_approval",
+          ruleCounts: { block: 0, warn: 0, fyi: 3 },
+        })
+      )
+    ).toBe(false);
+  });
+  it("does NOT flag clean pending_approval rows", () => {
+    expect(needsAttention(row({ jobStatus: "pending_approval" }))).toBe(false);
+  });
+  it("does NOT flag approved rows with rule findings (already past the gate without override)", () => {
+    expect(
+      needsAttention(
+        row({
+          jobStatus: "approved",
+          ruleCounts: { block: 0, warn: 1, fyi: 0 },
+        })
+      )
+    ).toBe(false);
+  });
+  it("flags ANY status when pilot_override_at is set (override is a teaching moment regardless)", () => {
+    for (const status of [
+      "pending_approval",
+      "approved",
+      "picked_up",
+      "completed",
+      "needs_revision",
+    ]) {
+      expect(
+        needsAttention(
+          row({
+            jobStatus: status,
+            pilotOverrideAt: "2026-05-08T10:00:00Z",
+            pilotOverrideRuleIds: ["R-STL-01"],
+          })
+        )
+      ).toBe(true);
+    }
+  });
+});
+
+describe("bucketRowsForTab — attention", () => {
+  it("returns only rows where needsAttention(row) is true", () => {
+    const rows = [
+      row({ jobId: "clean-pending", jobStatus: "pending_approval" }),
+      row({
+        jobId: "block-pending",
+        jobStatus: "pending_approval",
+        ruleCounts: { block: 1, warn: 0, fyi: 0 },
+      }),
+      row({
+        jobId: "warn-pending",
+        jobStatus: "pending_approval",
+        ruleCounts: { block: 0, warn: 1, fyi: 0 },
+      }),
+      row({
+        jobId: "fyi-only-pending",
+        jobStatus: "pending_approval",
+        ruleCounts: { block: 0, warn: 0, fyi: 2 },
+      }),
+      row({
+        jobId: "approved-with-override",
+        jobStatus: "approved",
+        pilotOverrideAt: "2026-05-08T10:00:00Z",
+        pilotOverrideRuleIds: ["R-STL-01"],
+      }),
+      row({ jobId: "approved-clean", jobStatus: "approved" }),
+    ];
+    const out = bucketRowsForTab(rows, "attention");
+    expect(out.map((r) => r.jobId).sort()).toEqual([
+      "approved-with-override",
+      "block-pending",
+      "warn-pending",
+    ]);
+  });
+});
+
+describe("tabForRow", () => {
+  it("returns 'attention' when needsAttention is true even if status maps elsewhere", () => {
+    expect(
+      tabForRow(
+        row({
+          jobStatus: "approved",
+          pilotOverrideAt: "2026-05-08T10:00:00Z",
+        })
+      )
+    ).toBe("attention");
+  });
+  it("falls back to status mapping when no attention flag is set", () => {
+    expect(tabForRow(row({ jobStatus: "approved" }))).toBe("approved");
+  });
+});
+
+describe("tab list registration", () => {
+  it("includes 'attention' as the first tab", () => {
+    expect(QUEUE_TABS[0]).toBe("attention");
+  });
+  it("provides tabLabel + emptyMessageForTab for attention", () => {
+    expect(tabLabel("attention")).toBe("Needs attention");
+    expect(emptyMessageForTab("attention").length).toBeGreaterThan(0);
   });
 });
 

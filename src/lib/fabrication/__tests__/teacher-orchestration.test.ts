@@ -348,6 +348,8 @@ interface QueueFakeOpts {
     student_id: string;
     class_id: string | null;
     unit_id: string | null;
+    pilot_override_at?: string | null;
+    pilot_override_rule_ids?: string[] | null;
     students: { display_name: string | null; username: string | null } | null;
     classes: { name: string | null } | null;
     units: { title: string | null } | null;
@@ -573,6 +575,70 @@ describe("getTeacherQueue", () => {
     const { client } = makeQueueClient({ rows: [] });
     const r = await getTeacherQueue(client, { teacherId: "teacher-1", offset: -5 });
     expect("rows" in r).toBe(true);
+  });
+
+  // Pilot Mode P2 — pilot_override_* columns flow into QueueRow.
+  it("propagates pilotOverrideAt + pilotOverrideRuleIds when set", async () => {
+    const { client } = makeQueueClient({
+      rows: [
+        {
+          id: "job-overridden",
+          status: "approved",
+          current_revision: 1,
+          created_at: "2026-05-08T07:00:00Z",
+          updated_at: "2026-05-08T07:00:00Z",
+          original_filename: "wheel.stl",
+          student_id: "student-1",
+          class_id: null,
+          unit_id: null,
+          pilot_override_at: "2026-05-08T07:05:30Z",
+          pilot_override_rule_ids: ["R-STL-01", "R-STL-04"],
+          students: { display_name: "David", username: null },
+          classes: null,
+          units: null,
+          machine_profiles: { name: "Bambu X1C", machine_category: "3d_printer" },
+          fabrication_job_revisions: [
+            {
+              revision_number: 1,
+              thumbnail_path: null,
+              scan_results: { rules: [{ severity: "block" }, { severity: "block" }] },
+            },
+          ],
+        },
+      ],
+    });
+    const r = await getTeacherQueue(client, { teacherId: "teacher-1" });
+    if ("error" in r) throw new Error("expected success");
+    expect(r.rows[0].pilotOverrideAt).toBe("2026-05-08T07:05:30Z");
+    expect(r.rows[0].pilotOverrideRuleIds).toEqual(["R-STL-01", "R-STL-04"]);
+  });
+
+  it("normalizes missing pilot override columns to null + empty array", async () => {
+    const { client } = makeQueueClient({
+      rows: [
+        {
+          id: "job-clean",
+          status: "approved",
+          current_revision: 1,
+          created_at: "2026-05-08T07:00:00Z",
+          updated_at: "2026-05-08T07:00:00Z",
+          original_filename: "clean.stl",
+          student_id: "student-1",
+          class_id: null,
+          unit_id: null,
+          // pilot_override_at + pilot_override_rule_ids omitted
+          students: { display_name: "Zoe", username: null },
+          classes: null,
+          units: null,
+          machine_profiles: null,
+          fabrication_job_revisions: null,
+        },
+      ],
+    });
+    const r = await getTeacherQueue(client, { teacherId: "teacher-1" });
+    if ("error" in r) throw new Error("expected success");
+    expect(r.rows[0].pilotOverrideAt).toBeNull();
+    expect(r.rows[0].pilotOverrideRuleIds).toEqual([]);
   });
 
   it("accepts the Supabase array-of-one variant for nested joins", async () => {
