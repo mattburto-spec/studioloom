@@ -5,7 +5,7 @@ import Link from "next/link";
 import { getPageList, getPageById } from "@/lib/unit-adapter";
 import type { UnitContentData, StudentProgress } from "@/types";
 import { useStudent } from "../student-context";
-import { useBellCount } from "@/components/student/BellCountContext";
+import { useBellCount, type NotificationItem } from "@/components/student/BellCountContext";
 import { composedPromptText } from "@/lib/lever-1/compose-prompt";
 import {
   Icon,
@@ -1191,24 +1191,77 @@ export default function DashboardClient() {
   // Phase 12 — focus mode. Hides everything except the current next step.
   const [focusMode, setFocusMode] = useState(false);
 
+  // Polish-4 — recent grading feedback for the bell. Fetched once on mount;
+  // re-fetched when the bell is opened (handled by parent if it ever needs).
+  const [feedbackItems, setFeedbackItems] = useState<NotificationItem[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/student/recent-feedback", { cache: "no-store" });
+        if (!res.ok) {
+          if (!cancelled) setFeedbackItems([]);
+          return;
+        }
+        type Group = {
+          unit_id: string;
+          unit_title: string | null;
+          page_id: string;
+          comment_preview: string;
+          latest_at: string;
+          count: number;
+        };
+        const json = (await res.json()) as { groups: Group[] };
+        if (cancelled) return;
+        const items: NotificationItem[] = (json.groups ?? []).map((g) => {
+          const dayMs = 24 * 60 * 60 * 1000;
+          const ageDays = Math.floor((Date.now() - new Date(g.latest_at).getTime()) / dayMs);
+          const dueText =
+            ageDays < 1 ? "today" : ageDays === 1 ? "yesterday" : `${ageDays}d ago`;
+          const titlePrefix =
+            g.count === 1 ? "New feedback" : `${g.count} new feedback comments`;
+          const unit = g.unit_title?.trim() || "Unit";
+          return {
+            id: `feedback-${g.unit_id}-${g.page_id}`,
+            kind: "feedback",
+            title: `${titlePrefix} on ${unit}`,
+            sub: g.comment_preview,
+            dueText,
+            href: `/unit/${g.unit_id}/${g.page_id}`,
+          };
+        });
+        setFeedbackItems(items);
+      } catch {
+        if (!cancelled) setFeedbackItems([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Keep the nav's bell badge + popover items in sync with the priority
-  // queue. Round 11 — items added so the bell renders inline.
+  // queue + recent grading feedback (Polish-4).
   useEffect(() => {
     const overdue = buckets?.overdue ?? [];
     const today = buckets?.today ?? [];
     const soon = buckets?.soon ?? [];
-    setBellCount(overdue.length + today.length);
+    // Count = urgent assignment work + recent feedback. Feedback rows
+    // shouldn't be ignorable noise; count them so the bell badge actually
+    // shows when a teacher leaves a comment.
+    setBellCount(overdue.length + today.length + feedbackItems.length);
 
-    // Map QueueItem → NotificationItem (slim shape, no icon — popover
-    // is text-only). Order: overdue first (most urgent), then today,
-    // then a few soon for context.
-    const items = [
+    // Order: feedback first (highest signal — student knows their teacher
+    // saw them), then overdue, then today, then a few soon for context.
+    const items: NotificationItem[] = [
+      ...feedbackItems,
       ...overdue.map(toNotification),
       ...today.map(toNotification),
       ...soon.slice(0, 5).map(toNotification),
     ];
     setBellItems(items);
-  }, [buckets, setBellCount, setBellItems]);
+  }, [buckets, feedbackItems, setBellCount, setBellItems]);
 
   // Load badges (earned + pending) from the safety API (Phase 6).
   // Sets MOCK on 401/error so preview mode still renders, just without

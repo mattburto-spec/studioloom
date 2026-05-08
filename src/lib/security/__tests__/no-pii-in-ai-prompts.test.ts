@@ -27,9 +27,20 @@ const SRC_DIR = resolve(REPO_ROOT, "src");
  * at this test.
  */
 const REDACTION_ALLOWLIST = new Set([
+  // Report Writer free tool — original implementation of the placeholder-
+  // swap pattern. Sends "Student" placeholder to Anthropic; restores real
+  // name client-side via restoreStudentName().
   "src/app/api/tools/report-writer/route.ts",
   "src/app/api/tools/report-writer/bulk/route.ts",
   "src/lib/tools/report-writer-prompt.ts",
+  // G3 grading AI feedback — same placeholder-swap pattern. Helper
+  // generateAiPrescore() never receives the real name; it builds prompts
+  // with STUDENT_NAME_PLACEHOLDER. Caller restoreStudentName() before
+  // persisting + returning. Hardened 2026-05-09 (security-plan.md P-6).
+  "src/lib/grading/ai-prescore.ts",
+  "src/app/api/teacher/grading/tile-grades/ai-prescore/route.ts",
+  // Shared placeholder primitive — exports STUDENT_NAME_PLACEHOLDER + restoreStudentName.
+  "src/lib/security/student-name-placeholder.ts",
   // The chokepoint itself + tests/types may legitimately reference PII
   // identifier names in comments/JSDoc.
   "src/lib/ai/call.ts",

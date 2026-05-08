@@ -19,6 +19,8 @@ export interface ScorePillProps {
   aiPreScore?: number | null;
   /** Framework-aware grading scale (drives max + display formatting). */
   scale: GradingScale;
+  /** Polish-3 — Not Applicable. Renders as a grey "N/A" pill instead of a score. */
+  isNa?: boolean;
   /** Optional click handler — opens the override panel in G1.2. */
   onClick?: () => void;
   /** Override the auto-classified state (for visual previews / Storybook-like demos). */
@@ -35,13 +37,14 @@ export function ScorePill({
   confirmed,
   aiPreScore = null,
   scale,
+  isNa = false,
   onClick,
   forceState,
 }: ScorePillProps) {
-  const state = forceState ?? classifyScorePillState({ score, confirmed, aiPreScore });
+  const state = forceState ?? classifyScorePillState({ score, confirmed, aiPreScore, isNa });
   const tier = getScoreTier(score, scale.max);
   const className = getScorePillClasses(state, tier);
-  const displayScore = formatScoreForPill(score, scale);
+  const displayScore = state === "na" ? "N/A" : formatScoreForPill(score, scale);
 
   return (
     <motion.button
@@ -50,13 +53,15 @@ export function ScorePill({
       whileTap={onClick ? { scale: 0.94 } : undefined}
       className={className}
       aria-label={
-        state === "empty"
-          ? "Score not yet set"
-          : state === "ai-suggested"
-            ? `AI suggested ${displayScore}, not confirmed`
-            : state === "overridden"
-              ? `Score ${displayScore}, teacher override`
-              : `Score ${displayScore}, confirmed`
+        state === "na"
+          ? "Not applicable"
+          : state === "empty"
+            ? "Score not yet set"
+            : state === "ai-suggested"
+              ? `AI suggested ${displayScore}, not confirmed`
+              : state === "overridden"
+                ? `Score ${displayScore}, teacher override`
+                : `Score ${displayScore}, confirmed`
       }
       data-state={state}
       data-tier={tier}
@@ -73,7 +78,7 @@ export function ScorePill({
         </svg>
       )}
       <span className="font-mono tabular-nums">{displayScore}</span>
-      {(state === "confirmed" || state === "overridden") && (
+      {(state === "confirmed" || state === "overridden" || state === "na") && (
         <svg
           width="10"
           height="10"

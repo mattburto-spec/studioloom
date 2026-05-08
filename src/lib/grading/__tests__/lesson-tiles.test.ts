@@ -9,25 +9,25 @@ import type { ActivitySection, UnitPage } from "@/types";
 
 describe("tileIdForSection", () => {
   it("uses 'activity_<id>' format when activityId is present", () => {
-    const s = { activityId: "abc12345", prompt: "x" } as ActivitySection;
+    const s = { activityId: "abc12345", prompt: "x" } as unknown as ActivitySection;
     expect(tileIdForSection(s, 0)).toBe("activity_abc12345");
   });
 
   it("falls back to positional 'section_<idx>' when activityId is missing", () => {
-    const s = { prompt: "x" } as ActivitySection;
+    const s = { prompt: "x" } as unknown as ActivitySection;
     expect(tileIdForSection(s, 3)).toBe("section_3");
   });
 
   it("falls back when activityId is empty string", () => {
-    const s = { activityId: "", prompt: "x" } as ActivitySection;
+    const s = { activityId: "", prompt: "x" } as unknown as ActivitySection;
     expect(tileIdForSection(s, 2)).toBe("section_2");
   });
 
   it("matches the canonical response-key format from the student page", () => {
     // Student route at src/app/(student)/unit/[unitId]/[pageId]/page.tsx:277
     // produces these keys; tile_id MUST match for join paths to line up.
-    const withId = { activityId: "xy12abcd" } as ActivitySection;
-    const withoutId = {} as ActivitySection;
+    const withId = { activityId: "xy12abcd" } as unknown as ActivitySection;
+    const withoutId = {} as unknown as ActivitySection;
     expect(tileIdForSection(withId, 5)).toBe("activity_xy12abcd");
     expect(tileIdForSection(withoutId, 5)).toBe("section_5");
   });
@@ -81,8 +81,8 @@ describe("extractTilesFromPage", () => {
 
   it("extracts one tile per section", () => {
     const page = makePage({}, [
-      { prompt: "Q1", activityId: "id1", responseType: "long-text" } as ActivitySection,
-      { prompt: "Q2", activityId: "id2", responseType: "long-text" } as ActivitySection,
+      { prompt: "Q1", activityId: "id1", responseType: "long-text" } as unknown as ActivitySection,
+      { prompt: "Q2", activityId: "id2", responseType: "long-text" } as unknown as ActivitySection,
     ]);
     const tiles = extractTilesFromPage(page);
     expect(tiles).toHaveLength(2);
@@ -92,8 +92,8 @@ describe("extractTilesFromPage", () => {
 
   it("preserves index for stable React keys", () => {
     const page = makePage({}, [
-      { prompt: "a", activityId: "a" } as ActivitySection,
-      { prompt: "b", activityId: "b" } as ActivitySection,
+      { prompt: "a", activityId: "a" } as unknown as ActivitySection,
+      { prompt: "b", activityId: "b" } as unknown as ActivitySection,
     ]);
     const tiles = extractTilesFromPage(page);
     expect(tiles[0].index).toBe(0);
@@ -102,7 +102,7 @@ describe("extractTilesFromPage", () => {
 
   it("resolves criterion from section.criterionTags[0] when present", () => {
     const page = makePage({}, [
-      { prompt: "x", activityId: "i1", criterionTags: ["A", "B"] } as ActivitySection,
+      { prompt: "x", activityId: "i1", criterionTags: ["A", "B"] } as unknown as ActivitySection,
     ]);
     const [tile] = extractTilesFromPage(page);
     expect(tile.criterionKey).toBe("A");
@@ -111,7 +111,7 @@ describe("extractTilesFromPage", () => {
 
   it("falls back to page.criterion when section has no tags", () => {
     const page = makePage({ criterion: "C" }, [
-      { prompt: "x", activityId: "i1" } as ActivitySection,
+      { prompt: "x", activityId: "i1" } as unknown as ActivitySection,
     ]);
     const [tile] = extractTilesFromPage(page);
     expect(tile.criterionKey).toBe("C");
@@ -119,7 +119,7 @@ describe("extractTilesFromPage", () => {
 
   it("returns null criterion + 'Unmapped' label when neither source has one", () => {
     const page = makePage({}, [
-      { prompt: "x", activityId: "i1" } as ActivitySection,
+      { prompt: "x", activityId: "i1" } as unknown as ActivitySection,
     ]);
     const [tile] = extractTilesFromPage(page);
     expect(tile.criterionKey).toBeNull();
@@ -128,9 +128,9 @@ describe("extractTilesFromPage", () => {
 
   it("marks gradeable when responseType OR portfolioCapture is present", () => {
     const page = makePage({}, [
-      { prompt: "responsey", activityId: "a", responseType: "long-text" } as ActivitySection,
-      { prompt: "porty", activityId: "b", portfolioCapture: true } as ActivitySection,
-      { prompt: "neither", activityId: "c" } as ActivitySection,
+      { prompt: "responsey", activityId: "a", responseType: "long-text" } as unknown as ActivitySection,
+      { prompt: "porty", activityId: "b", portfolioCapture: true } as unknown as ActivitySection,
+      { prompt: "neither", activityId: "c" } as unknown as ActivitySection,
     ]);
     const tiles = extractTilesFromPage(page);
     expect(tiles[0].isGradeable).toBe(true);
@@ -140,7 +140,7 @@ describe("extractTilesFromPage", () => {
 
   it("uses tileTitle to truncate long prompts", () => {
     const long = "a".repeat(200);
-    const page = makePage({}, [{ prompt: long, activityId: "i" } as ActivitySection]);
+    const page = makePage({}, [{ prompt: long, activityId: "i" } as unknown as ActivitySection]);
     const [tile] = extractTilesFromPage(page);
     expect(tile.title.length).toBeLessThan(70);
     expect(tile.title.endsWith("…")).toBe(true);

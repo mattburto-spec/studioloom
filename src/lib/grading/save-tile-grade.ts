@@ -105,12 +105,17 @@ export interface SaveTileGradeInput {
   override_note?: string;
   /** G2.3 — student-facing comment, visible inside the student's lesson view. */
   student_facing_comment?: string | null;
+  /** Polish-3 — explicit "not applicable" marker. When true, the row is
+   * confirmed but contributes nothing to rollups or coverage. */
+  score_na?: boolean;
   marking_session_id?: string;
   // AI fields (optional — populated by G1.3 wiring):
   ai_pre_score?: number | null;
   ai_quote?: string;
   ai_confidence?: number | null;  // 0.00–1.00
   ai_reasoning?: string;
+  /** G3.1 — drafted student-facing comment from Haiku. Teacher reviews + sends. */
+  ai_comment_draft?: string | null;
   ai_model_version?: string;
   prompt_version?: string;
 }
@@ -210,10 +215,14 @@ export async function saveTileGrade(
   if (input.student_facing_comment !== undefined) {
     upsertPayload.student_facing_comment = input.student_facing_comment;
   }
+  if (input.score_na !== undefined) {
+    upsertPayload.score_na = input.score_na;
+  }
   if (input.ai_pre_score !== undefined) upsertPayload.ai_pre_score = input.ai_pre_score;
   if (input.ai_quote !== undefined) upsertPayload.ai_quote = input.ai_quote;
   if (input.ai_confidence !== undefined) upsertPayload.ai_confidence = input.ai_confidence;
   if (input.ai_reasoning !== undefined) upsertPayload.ai_reasoning = input.ai_reasoning;
+  if (input.ai_comment_draft !== undefined) upsertPayload.ai_comment_draft = input.ai_comment_draft;
   if (input.ai_model_version !== undefined) upsertPayload.ai_model_version = input.ai_model_version;
   if (input.prompt_version !== undefined) upsertPayload.prompt_version = input.prompt_version;
 

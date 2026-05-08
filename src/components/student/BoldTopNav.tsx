@@ -684,6 +684,8 @@ function BellPopoverRow({
       ? "text-[#DC2626]"
       : item.kind === "today"
       ? "text-[#D97706]"
+      : item.kind === "feedback"
+      ? "text-[#059669]" // emerald — matches the inline feedback card on the lesson page
       : "text-[var(--sl-ink-3)]";
 
   const inner = (
