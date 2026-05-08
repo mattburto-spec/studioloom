@@ -401,6 +401,7 @@ interface TileGradeRow {
   ai_quote?: string | null;
   ai_confidence?: number | null;
   ai_reasoning?: string | null;
+  ai_comment_draft?: string | null;
   criterion_keys: string[];
   override_note?: string | null;
   student_facing_comment?: string | null;
@@ -530,7 +531,7 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
       const { data: gradeRows } = await supabase
         .from("student_tile_grades")
         .select(
-          "id, student_id, page_id, tile_id, score, confirmed, ai_pre_score, ai_quote, ai_confidence, ai_reasoning, criterion_keys, override_note, student_facing_comment",
+          "id, student_id, page_id, tile_id, score, confirmed, ai_pre_score, ai_quote, ai_confidence, ai_reasoning, ai_comment_draft, criterion_keys, override_note, student_facing_comment",
         )
         .eq("class_id", classId)
         .eq("unit_id", unitDetail.id);
@@ -542,7 +543,14 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
         const k = gradeKey(g.student_id, g.tile_id, g.page_id);
         map[k] = g;
         if (g.override_note) noteDraftMap[k] = g.override_note;
-        if (g.student_facing_comment) commentDraftMap[k] = g.student_facing_comment;
+        // Seed the comment textarea with: published student-facing comment if
+        // it exists, else the AI draft (G3.1). The teacher edits + clicks
+        // "Send to student" to promote the value to student_facing_comment.
+        if (g.student_facing_comment) {
+          commentDraftMap[k] = g.student_facing_comment;
+        } else if (g.ai_comment_draft) {
+          commentDraftMap[k] = g.ai_comment_draft;
+        }
       }
       setGrades(map);
       setOverrideNoteDraft(noteDraftMap);
@@ -1125,7 +1133,7 @@ function CalibrateInner({
                 ].join(" ")}
               >
                 {/* ── Compact row ── */}
-                <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-4 px-4 py-3">
+                <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto] items-center gap-3 px-4 py-3">
                   <div className="flex items-center gap-3">
                     {s.avatar_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -1192,6 +1200,71 @@ function CalibrateInner({
                   >
                     {isSaving ? "…" : confirmed ? "Confirmed" : "Confirm"}
                   </button>
+
+                  {/* G3.2 — Feedback status chip. Surfaces what's normally
+                      buried in the expand panel: is there a draft? has it been
+                      sent? Click expands the row + scrolls focus to the comment
+                      textarea. */}
+                  {(() => {
+                    const sent = grade?.student_facing_comment ?? "";
+                    const draft = grade?.ai_comment_draft ?? "";
+                    type State = "sent" | "ai_draft" | "edited" | "empty";
+                    let state: State = "empty";
+                    let label = "+ feedback";
+                    let className =
+                      "border-gray-200 text-gray-500 hover:border-purple-300 hover:text-purple-600 hover:bg-purple-50";
+                    if (sent.trim().length > 0) {
+                      state = sent === draft ? "sent" : "edited";
+                      label = state === "sent" ? "Sent" : "Sent ✎";
+                      className =
+                        "border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100";
+                    } else if (draft.trim().length > 0) {
+                      state = "ai_draft";
+                      label = "AI draft";
+                      className =
+                        "border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100";
+                    }
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => setExpandedStudentId(isExpanded ? null : s.id)}
+                        className={[
+                          "inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold rounded-md border transition",
+                          className,
+                        ].join(" ")}
+                        aria-label={
+                          state === "sent"
+                            ? "Feedback sent to student"
+                            : state === "edited"
+                              ? "Feedback sent (edited from AI draft)"
+                              : state === "ai_draft"
+                                ? "AI draft ready — review and send"
+                                : "No feedback yet"
+                        }
+                        title={
+                          state === "ai_draft"
+                            ? "AI drafted a comment — open to review + send"
+                            : state === "sent"
+                              ? "Student can see this comment"
+                              : state === "edited"
+                                ? "Student can see your edited version"
+                                : "Open to write feedback or run AI suggest"
+                        }
+                      >
+                        {state === "ai_draft" && (
+                          <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+                          </svg>
+                        )}
+                        {state === "sent" && (
+                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <polyline points="4 12 9 17 20 6" />
+                          </svg>
+                        )}
+                        {label}
+                      </button>
+                    );
+                  })()}
 
                   {/* Expand chevron */}
                   <button
@@ -1293,39 +1366,82 @@ function CalibrateInner({
                               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                             </svg>
                             Feedback to {displayName.split(" ")[0] || "student"}
-                            <span className="font-normal lowercase tracking-normal text-emerald-600/80">(student sees this)</span>
+                            {(() => {
+                              // G3.1 — show "AI drafted" badge when:
+                              //   the textarea content equals the AI draft AND nothing has been
+                              //   sent to the student yet. Once teacher edits or sends, badge clears.
+                              const aiDraft = grade?.ai_comment_draft ?? "";
+                              const sent = grade?.student_facing_comment ?? "";
+                              const isUneditedAiDraft =
+                                aiDraft && !sent && studentComment === aiDraft;
+                              if (!isUneditedAiDraft) {
+                                return (
+                                  <span className="font-normal lowercase tracking-normal text-emerald-600/80">
+                                    (student sees this)
+                                  </span>
+                                );
+                              }
+                              return (
+                                <span className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 font-semibold text-[9px]" title="Drafted by Haiku — review and edit before sending">
+                                  <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                    <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+                                  </svg>
+                                  AI draft
+                                </span>
+                              );
+                            })()}
                           </div>
                           <textarea
                             value={studentComment}
                             onChange={(e) =>
                               setStudentCommentDraft((prev) => ({ ...prev, [key]: e.target.value }))
                             }
-                            placeholder="What landed well, what to work on. Specific is better than encouraging."
-                            rows={3}
+                            placeholder={
+                              grade?.ai_comment_draft
+                                ? "Edit the AI draft, or replace it entirely."
+                                : "What landed well, what to work on. Specific is better than encouraging."
+                            }
+                            rows={4}
                             className="w-full px-3 py-2 text-sm border border-emerald-200 bg-emerald-50/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
                           />
-                          <div className="flex items-center justify-end gap-2 mt-2">
-                            {studentCommentDirty && (
-                              <span className="text-[11px] text-amber-600 font-semibold">Unsaved</span>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void saveTile(s.id, score, confirmed, {
-                                  student_facing_comment:
-                                    studentComment.trim() === "" ? null : studentComment,
-                                })
-                              }
-                              disabled={isSaving || !studentCommentDirty}
-                              className={[
-                                "px-3 py-1.5 text-xs font-bold rounded-lg transition",
-                                studentCommentDirty
-                                  ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                                  : "bg-gray-100 text-gray-400 cursor-not-allowed",
-                              ].join(" ")}
-                            >
-                              {isSaving ? "Saving…" : "Send to student"}
-                            </button>
+                          <div className="flex items-center justify-between gap-2 mt-2">
+                            <div className="flex items-center gap-2">
+                              {grade?.ai_comment_draft && studentComment !== grade.ai_comment_draft && grade.ai_comment_draft !== grade.student_facing_comment && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setStudentCommentDraft((prev) => ({ ...prev, [key]: grade.ai_comment_draft! }))
+                                  }
+                                  className="text-[11px] font-semibold text-purple-700 hover:text-purple-800 underline-offset-2 hover:underline transition"
+                                  title="Restore the original AI draft"
+                                >
+                                  Restore AI draft
+                                </button>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {studentCommentDirty && (
+                                <span className="text-[11px] text-amber-600 font-semibold">Unsaved</span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void saveTile(s.id, score, confirmed, {
+                                    student_facing_comment:
+                                      studentComment.trim() === "" ? null : studentComment,
+                                  })
+                                }
+                                disabled={isSaving || !studentCommentDirty}
+                                className={[
+                                  "px-3 py-1.5 text-xs font-bold rounded-lg transition",
+                                  studentCommentDirty
+                                    ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                                    : "bg-gray-100 text-gray-400 cursor-not-allowed",
+                                ].join(" ")}
+                              >
+                                {isSaving ? "Saving…" : "Send to student"}
+                              </button>
+                            </div>
                           </div>
                         </div>
 

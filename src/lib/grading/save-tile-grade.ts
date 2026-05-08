@@ -111,6 +111,8 @@ export interface SaveTileGradeInput {
   ai_quote?: string;
   ai_confidence?: number | null;  // 0.00–1.00
   ai_reasoning?: string;
+  /** G3.1 — drafted student-facing comment from Haiku. Teacher reviews + sends. */
+  ai_comment_draft?: string | null;
   ai_model_version?: string;
   prompt_version?: string;
 }
@@ -214,6 +216,7 @@ export async function saveTileGrade(
   if (input.ai_quote !== undefined) upsertPayload.ai_quote = input.ai_quote;
   if (input.ai_confidence !== undefined) upsertPayload.ai_confidence = input.ai_confidence;
   if (input.ai_reasoning !== undefined) upsertPayload.ai_reasoning = input.ai_reasoning;
+  if (input.ai_comment_draft !== undefined) upsertPayload.ai_comment_draft = input.ai_comment_draft;
   if (input.ai_model_version !== undefined) upsertPayload.ai_model_version = input.ai_model_version;
   if (input.prompt_version !== undefined) upsertPayload.prompt_version = input.prompt_version;
 

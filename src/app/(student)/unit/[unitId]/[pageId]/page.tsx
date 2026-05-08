@@ -41,7 +41,11 @@ import { CompetencyPulse } from "@/components/nm";
 import { ErrorBoundary } from "@/components/student/ErrorBoundary";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { SkillRefsForPage } from "@/components/skills/SkillRefsForPage";
-import { TeacherFeedbackPanel } from "@/components/grading/TeacherFeedbackPanel";
+import {
+  InlineTeacherFeedback,
+  TeacherFeedbackBanner,
+  useTileFeedback,
+} from "@/components/grading/TeacherFeedbackPanel";
 import type { PageContent } from "@/types";
 import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
 
@@ -92,6 +96,12 @@ function UnitPageViewInner({
 
   const { student, classInfo } = useStudent();
   const openStudio = useOpenStudio(unitId);
+  // G3.3 — fetch teacher feedback for this lesson once. Banner + per-tile
+  // inline cards both read from this single map.
+  const { byTileId: feedbackByTileId, comments: feedbackComments } = useTileFeedback(
+    unitId,
+    pageId,
+  );
   // Smoke-fix round 6 — renamed for honest mapping to the surfaces they
   // open. Old names (planOpen / ganttOpen) opened MYP-criteria + Gantt
   // panels that have been replaced by Kanban + Timeline drawers.
@@ -292,6 +302,13 @@ function UnitPageViewInner({
             edit page. Zero noise when there are no pins. */}
         <SkillRefsForPage pageId={pageId} />
 
+        {/* G3.3 — top-of-lesson feedback banner. Renders only when ≥1
+            anchored teacher comment exists on this page. Click → scroll to
+            the first inline card. */}
+        {feedbackComments && feedbackComments.length > 0 && (
+          <TeacherFeedbackBanner comments={feedbackComments} />
+        )}
+
         {/* ── Activity sections with dividers ── */}
         {pageContent?.sections ? (
           pageContent.sections.map((section, i) => {
@@ -348,7 +365,23 @@ function UnitPageViewInner({
                   }}
                 />
                 </div>
-              </ScrollReveal>
+
+                {/* G3.3 — anchored teacher feedback inline beneath the tile.
+                    The first card on the page gets the data-feedback-anchor
+                    so the top banner can scroll to it. */}
+                {feedbackByTileId[responseKey] && (() => {
+                  const ordered = (feedbackComments ?? [])
+                    .map((c) => c.tile_id)
+                    .filter((id) => Boolean(feedbackByTileId[id]));
+                  const isFirst = ordered[0] === responseKey;
+                  return (
+                    <InlineTeacherFeedback
+                      comment={feedbackByTileId[responseKey]}
+                      isFirst={isFirst}
+                    />
+                  );
+                })()}
+                </ScrollReveal>
             );
           })
         ) : (
@@ -403,22 +436,8 @@ function UnitPageViewInner({
         )}
 
       </>)}
-
-      {/* ── Teacher feedback (G2.3) — anchored comments from grading ── */}
-      {currentPage && pageContent?.sections && (
-        <TeacherFeedbackPanel
-          unitId={unitId}
-          pageId={pageId}
-          tileLabels={Object.fromEntries(
-            pageContent.sections.map((s, i) => {
-              const tileId = s.activityId ? `activity_${s.activityId}` : `section_${i}`;
-              const promptShort =
-                (s.prompt ?? "").trim().slice(0, 80) || `Section ${i + 1}`;
-              return [tileId, promptShort] as const;
-            }),
-          )}
-        />
-      )}
+      {/* G3.3 — bottom panel removed; feedback now renders inline beneath
+          each tile via <InlineTeacherFeedback />, plus a banner at the top. */}
       </main>
 
       {/* ── Lesson footer — Previous / Next preview / Complete & continue ── */}

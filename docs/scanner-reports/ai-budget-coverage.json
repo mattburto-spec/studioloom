@@ -1,16 +1,22 @@
 {
   "registry": "ai-budget-coverage",
-  "timestamp": "2026-05-08T03:46:22.248184+00:00",
+  "timestamp": "2026-05-08T13:07:17.242081+00:00",
   "version": 1,
   "stats": {
-    "total_student_ai_routes": 3,
-    "covered": 3,
+    "total_student_ai_routes": 5,
+    "covered": 5,
     "skipped": 0,
     "missing": 0
   },
   "covered": [
     {
       "file": "src/app/api/student/design-assistant/route.ts"
+    },
+    {
+      "file": "src/app/api/student/open-studio/check-in/route.ts"
+    },
+    {
+      "file": "src/app/api/student/open-studio/discovery/route.ts"
     },
     {
       "file": "src/app/api/student/quest/mentor/route.ts"
