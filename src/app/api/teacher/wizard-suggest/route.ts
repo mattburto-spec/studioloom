@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
 
       const baseOpts = {
         apiKey: creds.apiKey,
-        endpoint: "/api/teacher/wizard-suggest",
+        endpoint: "teacher/wizard-suggest",
         teacherId: user.id,
         system: systemPrompt,
         messages: [{ role: "user" as const, content: userPrompt }],

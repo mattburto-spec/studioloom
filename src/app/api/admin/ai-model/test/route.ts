@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
     const startTime = Date.now();
 
     const callResult = await callAnthropicMessages({
-      endpoint: "/api/admin/ai-model/test",
+      endpoint: "admin/ai-model/test",
       teacherId: user!.id,
       model: MODELS.SONNET,
       maxTokens: 16000,
