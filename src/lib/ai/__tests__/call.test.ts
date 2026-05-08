@@ -174,6 +174,34 @@ describe("callAnthropicMessages", () => {
     expect(mockLogUsage).not.toHaveBeenCalled();
   });
 
+  it("apiKey override: uses provided key, bypasses resolveCredentials + env var", async () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    mockMessagesCreate.mockResolvedValueOnce(buildResponse({ stop_reason: "end_turn" }));
+
+    const result = await callAnthropicMessages({
+      model: "claude-haiku-4-5-20251001",
+      messages: [{ role: "user", content: "hi" }],
+      maxTokens: 100,
+      endpoint: "/api/test",
+      apiKey: "sk-direct-override",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(mockResolveCredentials).not.toHaveBeenCalled();
+  });
+
+  it("studentId without supabase: throws programmer-error", async () => {
+    await expect(
+      callAnthropicMessages({
+        model: "claude-haiku-4-5-20251001",
+        messages: [{ role: "user", content: "hi" }],
+        maxTokens: 100,
+        endpoint: "/api/test",
+        studentId: "S1",
+      }),
+    ).rejects.toThrow(/studentId requires supabase/);
+  });
+
   it("withAIBudget success: returns ok with relayed result, fires logUsage with studentId", async () => {
     const response = buildResponse({ stop_reason: "end_turn", input_tokens: 80, output_tokens: 20 });
     mockWithAIBudget.mockImplementationOnce(async (_supabase: unknown, _studentId: unknown, fn: () => Promise<{ result: unknown; usage: unknown }>) => {

@@ -23,9 +23,21 @@ export interface CallOptions {
 
   /** Endpoint string for ai_usage_log.endpoint attribution. Required. */
   endpoint: string;
-  /** Service-role Supabase client. Required for billing + logging. */
+
+  /**
+   * Service-role Supabase client. Required when studentId is set (withAIBudget
+   * needs it). Required for teacherId BYOK lookup. Optional otherwise — pure
+   * lib functions (ingestion, pipeline) pass `apiKey` directly without supabase.
+   */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: SupabaseClient<any, any, any>;
+  supabase?: SupabaseClient<any, any, any>;
+
+  /**
+   * Direct Anthropic API key. Highest-priority credential source — bypasses
+   * resolveCredentials BYOK and env var. Used by config-driven callers
+   * (ingestion + pipeline) where the apiKey is plumbed through their config.
+   */
+  apiKey?: string;
 
   /** When set, the call is wrapped in withAIBudget (student-attributed billing). */
   studentId?: string;
@@ -58,7 +70,9 @@ interface ResolvedAnthropicCreds {
 }
 
 async function resolveAnthropicKey(opts: CallOptions): Promise<ResolvedAnthropicCreds | null> {
-  if (opts.teacherId) {
+  if (opts.apiKey) return { apiKey: opts.apiKey };
+
+  if (opts.teacherId && opts.supabase) {
     const creds = await resolveCredentials(opts.supabase, opts.teacherId);
     if (creds && creds.provider === "anthropic" && creds.apiKey) {
       return { apiKey: creds.apiKey, modelOverride: creds.source === "teacher" ? creds.modelName : undefined };
@@ -114,6 +128,9 @@ export async function callAnthropicMessages(opts: CallOptions): Promise<CallResu
   const params = buildCreateParams(opts, model);
 
   if (opts.studentId) {
+    if (!opts.supabase) {
+      throw new Error("callAnthropicMessages: studentId requires supabase client for withAIBudget");
+    }
     const budgetResult = await withAIBudget(opts.supabase, opts.studentId, async () => {
       const response = await client.messages.create(params);
       return { result: response, usage: extractUsage(response) };
