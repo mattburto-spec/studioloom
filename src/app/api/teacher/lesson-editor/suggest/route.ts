@@ -1,7 +1,7 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
-import Anthropic from "@anthropic-ai/sdk";
+import { callAnthropicMessages } from "@/lib/ai/call";
 import { BLOCK_LIBRARY } from "@/components/teacher/lesson-editor/BlockPalette";
 import { MODELS } from "@/lib/ai/models";
 
@@ -96,15 +96,22 @@ ${JSON.stringify(blockCatalog, null, 2)}
 
 Suggest 2-4 blocks that would make this lesson stronger.`;
 
-    const anthropic = new Anthropic();
-    const message = await anthropic.messages.create({
+    const callResult = await callAnthropicMessages({
+      endpoint: "/api/teacher/lesson-editor/suggest",
+      teacherId: auth.teacherId,
       model: HAIKU_MODEL,
-      max_tokens: 800,
+      maxTokens: 800,
       messages: [
         { role: "user", content: userPrompt },
       ],
       system: systemPrompt,
     });
+
+    if (!callResult.ok) {
+      if (callResult.reason === "api_error") throw callResult.error;
+      return NextResponse.json({ error: `AI call failed: ${callResult.reason}` }, { status: 502 });
+    }
+    const message = callResult.response;
 
     // Extract text from response
     const text =

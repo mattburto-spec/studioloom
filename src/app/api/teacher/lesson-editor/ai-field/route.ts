@@ -1,7 +1,7 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
-import Anthropic from "@anthropic-ai/sdk";
+import { callAnthropicMessages } from "@/lib/ai/call";
 import { MODELS } from "@/lib/ai/models";
 
 // ─────────────────────────────────────────────────────────────────
@@ -42,8 +42,6 @@ export async function POST(req: NextRequest) {
 
     const fieldPrompt = FIELD_PROMPTS[field] || FIELD_PROMPTS.focus;
 
-    const anthropic = new Anthropic();
-
     // Type-aware system prompt
     const roleMap: Record<string, string> = {
       design: "design & technology teachers",
@@ -53,9 +51,11 @@ export async function POST(req: NextRequest) {
     };
     const role = roleMap[unitType] || "design & technology teachers";
 
-    const response = await anthropic.messages.create({
+    const callResult = await callAnthropicMessages({
+      endpoint: "/api/teacher/lesson-editor/ai-field",
+      teacherId: auth.teacherId,
       model: MODELS.HAIKU,
-      max_tokens: 500,
+      maxTokens: 500,
       system: `You are a lesson planning assistant for ${role}. You generate practical, specific suggestions for lesson planning fields. Always return valid JSON.`,
       messages: [
         {
@@ -76,6 +76,12 @@ Return ONLY the JSON array, nothing else.`,
         },
       ],
     });
+
+    if (!callResult.ok) {
+      if (callResult.reason === "api_error") throw callResult.error;
+      return NextResponse.json({ error: `AI call failed: ${callResult.reason}` }, { status: 502 });
+    }
+    const response = callResult.response;
 
     // Parse the response
     const text =

@@ -17,7 +17,7 @@ import type { AIModelConfig } from "@/types/ai-model-config";
 import { computeLessonPulse } from "@/lib/layers/lesson-pulse";
 import type { PulseActivity } from "@/lib/layers/lesson-pulse";
 import type { LessonJourneyInput } from "@/types";
-import Anthropic from "@anthropic-ai/sdk";
+import { callAnthropicMessages } from "@/lib/ai/call";
 import { buildUnitTypeSystemPrompt, UNIT_TYPES } from "@/lib/ai/unit-types";
 import type { UnitType } from "@/lib/ai/unit-types";
 import { getCriterionKeys } from "@/lib/constants";
@@ -133,13 +133,6 @@ export async function POST(request: NextRequest) {
       framework,
     });
 
-    // Use platform API key directly for admin test
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: "No ANTHROPIC_API_KEY configured" }, { status: 500 });
-    }
-
-    const client = new Anthropic({ apiKey });
     const tool = buildLessonGenerationTool([lessonId]);
 
     const startTime = Date.now();
@@ -149,22 +142,45 @@ export async function POST(request: NextRequest) {
       ? JOURNEY_SYSTEM_PROMPT  // Preserve existing Design prompt for backward compat
       : buildUnitTypeSystemPrompt(unitType);
 
-    // Note: thinking cannot be used with tool_choice, so we disable it here
-    const response = await client.messages.create({
-      model: MODELS.SONNET,
-      max_tokens: 16000,
-      system: systemPrompt + "\n\n" + timingBlock,
-      messages: [{ role: "user", content: userPrompt }],
-      tools: [tool],
-      tool_choice: { type: "tool", name: tool.name },
-    });
+    // Note: thinking cannot be used with tool_choice, so we disable it here.
+    // Quarantined route — type-cast suppresses Tool-shape mismatch with the
+    // legacy `buildLessonGenerationTool` schema export.
+    const callResult = await callAnthropicMessages(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      {
+        endpoint: "/api/admin/ai-model/test-lesson",
+        teacherId: user!.id,
+        model: MODELS.SONNET,
+        maxTokens: 16000,
+        system: systemPrompt + "\n\n" + timingBlock,
+        messages: [{ role: "user", content: userPrompt }],
+        tools: [tool],
+        toolChoice: { type: "tool", name: tool.name },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
+    );
 
+    // Quarantined route — TS narrowing breaks on dead code after early return.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cr = callResult as any;
+    if (!cr.ok) {
+      if (cr.reason === "no_credentials") {
+        return NextResponse.json({ error: "No ANTHROPIC_API_KEY configured" }, { status: 500 });
+      }
+      if (cr.reason === "truncated") {
+        return NextResponse.json({ error: "AI response truncated (max_tokens hit)" }, { status: 502 });
+      }
+      if (cr.reason === "api_error") throw cr.error;
+      return NextResponse.json({ error: `AI call failed: ${cr.reason}` }, { status: 502 });
+    }
+
+    const response = cr.response;
     const elapsed = Date.now() - startTime;
 
     // Extract thinking
     let thinking: string | null = null;
     {
-      const thinkingContent = response.content.find(c => c.type === "thinking");
+      const thinkingContent = response.content.find((c: { type: string }) => c.type === "thinking");
       if (thinkingContent && "thinking" in (thinkingContent as any)) {
         thinking = ((thinkingContent!) as any as { thinking: string }).thinking;
       }
@@ -173,7 +189,7 @@ export async function POST(request: NextRequest) {
     // Extract tool use result (structured JSON)
     let lesson = null;
     {
-      const toolUseContent = response.content.find(c => c.type === "tool_use");
+      const toolUseContent = response.content.find((c: { type: string }) => c.type === "tool_use");
       if (toolUseContent && "input" in (toolUseContent as any)) {
         const toolInput = ((toolUseContent!) as any as { input: Record<string, unknown> }).input;
         lesson = toolInput[lessonId] || toolInput;

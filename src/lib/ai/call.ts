@@ -20,6 +20,8 @@ export interface CallOptions {
   temperature?: number;
   tools?: Anthropic.Tool[];
   toolChoice?: Anthropic.ToolChoice;
+  /** Extended thinking config — incompatible with tool_choice (see CLAUDE.md). */
+  thinking?: Anthropic.MessageCreateParamsNonStreaming["thinking"];
 
   /** Endpoint string for ai_usage_log.endpoint attribution. Required. */
   endpoint: string;
@@ -93,6 +95,7 @@ function buildCreateParams(opts: CallOptions, model: string): Anthropic.MessageC
   if (opts.temperature !== undefined) params.temperature = opts.temperature;
   if (opts.tools !== undefined) params.tools = opts.tools;
   if (opts.toolChoice !== undefined) params.tool_choice = opts.toolChoice;
+  if (opts.thinking !== undefined) params.thinking = opts.thinking;
   return params;
 }
 
