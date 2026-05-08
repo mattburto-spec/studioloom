@@ -1074,8 +1074,8 @@ systems:
     name: AI Provider Abstraction & Fallback Chain
     category: AI & Intelligence
     status: partial
-    currentVersion: 0.5
-    summary: "Anthropic SDK chokepoint via callAnthropicMessages helper (src/lib/ai/call.ts) — centralises Lesson #39 stop_reason handling, logUsage attribution, and withAIBudget integration. AIProvider interface + AnthropicProvider continue to serve unit-generation pipeline. Phase A migrating ~30 call sites onto the helper; Phase B will add provider routing (DeepSeek, Qwen, OpenAI-compatible) for per-feature swap from admin panel. Groq + Gemini fallback chain not yet implemented (FU-Y)."
+    currentVersion: 0.7
+    summary: "Anthropic SDK chokepoint via callAnthropicMessages helper (src/lib/ai/call.ts) — centralises Lesson #39 stop_reason handling, logUsage attribution, and withAIBudget integration. AIProvider interface + AnthropicProvider continue to serve unit-generation pipeline. Phase A.1 + A.2 SHIPPED — 18 production SDK direct-callers (8 routes + 7 lib services + 3 pipeline stages) routed through the helper. Phase A.3 pending — ~13 HTTP-based callers (raw fetch to api.anthropic.com) still bypass the chokepoint. Phase B will add provider routing (DeepSeek, Qwen, OpenAI-compatible) for per-feature swap from admin panel. Groq + Gemini fallback chain not yet implemented (FU-Y)."
     depends_on: []
     affects: [ai-mentor, generation-pipeline, knowledge-pipeline, content-safety]
     docs:
@@ -1083,6 +1083,8 @@ systems:
         purpose: Provider architecture
       - path: docs/projects/ai-provider-abstraction-phase-a-brief.md
         purpose: Phase A brief — chokepoint helper + migration plan
+      - path: docs/projects/ai-provider-abstraction-phase-a2-brief.md
+        purpose: Phase A.2 brief — SDK direct-caller migration (shipped)
     data_fields:
       - table: ai_usage_log
         columns: [id, user_id, student_id, endpoint, model, input_tokens, output_tokens, estimated_cost_usd, metadata, created_at]
