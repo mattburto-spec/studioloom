@@ -17,7 +17,7 @@
  * OS Seam 1: pure function, receives config, no HTTP/request dependencies.
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import { callAnthropicMessages } from "@/lib/ai/call";
 import type { CostBreakdown } from "@/types/activity-blocks";
 import type { ExtractedBlock, ModeratedBlock, PassConfig } from "./types";
 
@@ -156,7 +156,6 @@ export async function moderateExtractedBlocks(
   }
 
   const modelId = config.modelOverride || DEFAULT_MODEL;
-  const client = new Anthropic({ apiKey: config.apiKey, maxRetries: 4 });
 
   const batchText = blocks.map(renderBlockForModeration).join("\n\n---\n\n");
   const prompt = `You are moderating candidate educational activities before they reach a teacher's review queue. For each block below, decide whether it is safe and age-appropriate for a K-12 classroom, OR whether a teacher should review it first.
@@ -174,17 +173,25 @@ Return one decision per block, keyed by the exact tempId from each block's heade
   let decisions: ModerationDecision[];
   let cost: CostBreakdown;
   try {
-    const response = await client.messages.create({
+    const callResult = await callAnthropicMessages({
+      apiKey: config.apiKey,
+      endpoint: "lib/ingestion/moderate",
       model: modelId,
       system:
         "You are a conservative but sensible content safety reviewer for K-12 classroom material. Your job is to catch things a teacher would want to double-check before assigning, not to flag anything remotely edgy.",
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 2000,
+      maxTokens: 2000,
       temperature: 0.1,
       tools: [MODERATION_TOOL],
-      tool_choice: { type: "tool", name: "moderate_blocks" },
+      toolChoice: { type: "tool", name: "moderate_blocks" },
     });
 
+    if (!callResult.ok) {
+      if (callResult.reason === "api_error") throw callResult.error;
+      throw new Error(`[Moderation] callAnthropicMessages failed: ${callResult.reason}`);
+    }
+
+    const response = callResult.response;
     const toolBlock = response.content.find((b) => b.type === "tool_use");
     if (!toolBlock || toolBlock.type !== "tool_use") {
       throw new Error("[Moderation] AI did not return structured output");
@@ -193,8 +200,8 @@ Return one decision per block, keyed by the exact tempId from each block's heade
     const parsed = toolBlock.input as { decisions: ModerationDecision[] };
     decisions = parsed.decisions || [];
 
-    const inputTokens = response.usage?.input_tokens ?? 0;
-    const outputTokens = response.usage?.output_tokens ?? 0;
+    const inputTokens = callResult.usage.input_tokens;
+    const outputTokens = callResult.usage.output_tokens;
     cost = {
       inputTokens,
       outputTokens,
