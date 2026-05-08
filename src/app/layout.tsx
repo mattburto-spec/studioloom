@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import AuthHashForwarder from "@/components/auth/AuthHashForwarder";
 
@@ -15,7 +17,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        {/* Plausible Analytics — privacy-friendly, no cookies, COPPA/GDPR safe */}
+        {/* Plausible Analytics — privacy-friendly, no cookies, COPPA/GDPR safe.
+            Vercel Analytics + Speed Insights run alongside Plausible since
+            8 May 2026 (Pro plan, included). Decide later whether to keep
+            both or consolidate to just Vercel — see Vercel dashboard for
+            the page-views / Web Vitals data once it accumulates. */}
         <script async src="https://plausible.io/js/pa-zQXWAmLhvFxtvFofMXkEb.js"></script>
         <script
           dangerouslySetInnerHTML={{
@@ -28,6 +34,11 @@ export default function RootLayout({
             forwards them to /auth/callback for completion. */}
         <AuthHashForwarder />
         {children}
+        {/* Vercel Web Analytics (page views, visitors, top routes) +
+            Speed Insights (Core Web Vitals per route). Privacy-first,
+            no cookies, included on Pro. */}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
