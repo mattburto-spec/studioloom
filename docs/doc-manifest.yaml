@@ -390,6 +390,24 @@ docs:
     max_age_days: 365
     last_scanned: "2026-04-29"
 
+  - path: docs/security/security-overview.md
+    title: "Security Overview — Canonical Current State"
+    purpose: "Canonical current-state security audit covering PII flow to LLMs (placeholder-swap pattern via STUDENT_NAME_PLACEHOLDER + restoreStudentName), RLS coverage (123/123 tables), triple auth model (teacher Supabase + student token + fabricator Argon2id), storage buckets (3 legacy public buckets privatised PR #142 via /api/storage proxy), audit log scope, AI budget enforcement, DSR readiness, vendor sub-processor registry, observability (Sentry + PII scrubber), security headers, rate limiting, compliance posture (FERPA/GDPR/Australian Privacy Act/PIPL), and the security feature checklist for school IT. Read FIRST before any security-touching work or before answering security questions from Matt or schools."
+    category: security
+    last_verified: "2026-05-09"
+    referenced_from: ["CLAUDE.md Security section", "security-plan.md cross-link"]
+    max_age_days: 90
+    last_scanned: "2026-05-09"
+
+  - path: docs/security/security-plan.md
+    title: "Security Plan — P0–P3 Gap Closure"
+    purpose: "Forward-looking gap-closure plan with P0–P3 prioritisation and per-item effort estimates. Each item has ID (P-1, P-2, P-3, etc.), description, owner, target PR, status (OPEN / IN PROGRESS / DONE), and date+PR-link when shipped. Tracking table at the bottom keeps the audit trail. As of 9 May 2026: P-1 (Sentry PII filter), P-2 (vendors.yaml drift), P-3 (private storage buckets), P-5 (dead studentDisplayName arg), P-6 (auth helper consolidation across teacher routes), P-10 (CI role-guard scanner) all DONE via PRs #140 + #142. Remaining items continue P-4, P-7..P-9, P-11+."
+    category: security
+    last_verified: "2026-05-09"
+    referenced_from: ["CLAUDE.md Security section", "security-overview.md cross-link"]
+    max_age_days: 90
+    last_scanned: "2026-05-09"
+
   - path: docs/projects/discovery-engine-cognitive-layer.md
     title: "Discovery Engine — Cognitive Layer (MindPrint-Informed)"
     purpose: "Enhancement proposal: add 3 cognitive rooms (spatial reasoning, flexible thinking, visual memory) to the Discover Your Design DNA onboarding. Informed by MindPrint Learning's NIH/UPenn cognitive battery (ESSA Tier IV). Cognitive vector doesn't change which designer the student matches with — it changes how the AI mentor adapts its pedagogy (visual vs verbal scaffolding, structured vs open prompts, repetition strategy, flexible provocations). Puzzle-framed, ~60s each. Next steps, scoring rubrics, future MindPrint-ingestion path."

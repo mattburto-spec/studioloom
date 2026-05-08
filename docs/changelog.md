@@ -4,6 +4,44 @@
 
 ---
 
+## 2026-05-09 — Security audit + first fix round (P-1/P-2/P-3/P-5/P-6/P-10)
+
+**Context:** First substantive security-hardening pass since the initial audit. Two PRs already merged to origin/main close six items from `docs/security/security-plan.md`. The session also stood up the canonical `security-overview.md` + `security-plan.md` pair as the durable security source of truth and added a CI scanner for role-guard coverage so the next regression catches itself in PR review rather than leaking to prod.
+
+**What shipped:**
+
+- **PR #140** (`security-fixes-may-9`) — composite security fixes:
+  - **P-1** Sentry PII scrubber (`src/lib/security/sentry-pii-filter.ts` + tests) wired into `sentry.client.config.ts` and `sentry.server.config.ts` to redact student names, emails, tokens, and request bodies before events leave the client/server.
+  - **P-2** `vendors.yaml` Anthropic categories drift fix — re-aligned with `vendors-taxonomy.md` enum after scanner flagged unauthorized values; closes drift surfaced by `scan-vendors.py`.
+  - **P-5** Removed dead `studentDisplayName` argument from feedback prompt builders — closes a latent path to leak student names into AI prompts.
+  - **P-6** New `requireTeacher` + `requireStudent` helpers (`src/lib/auth/require-teacher.ts`, `src/lib/auth/require-student.ts`); hardened existing `requireTeacherAuth`; migrated 13 highest-risk teacher routes onto the helper pair.
+  - **P-10** New `scripts/registry/scan-role-guards.py` — flags any `/api/teacher/*` or `/api/student/*` route file that doesn't call a recognised auth helper. Outputs `docs/scanner-reports/role-guard-coverage.json` for CI consumption.
+  - **Tests:** new `src/lib/security/__tests__/no-pii-in-ai-prompts.test.ts` (CI grep + behavioural assertions); helper tests for both new auth helpers.
+
+- **PR #142** (`P-3`) — Privatised the 3 legacy public storage buckets (`student-uploads`, `unit-images`, `lesson-attachments`):
+  - New proxy route `src/app/api/storage/[bucket]/[...path]/route.ts` — auth-gated download endpoint that issues short-lived signed URLs server-side, never exposing the raw bucket.
+  - New helper `src/lib/storage/proxy-url.ts` (`buildProxyUrl(bucket, path)`) — single import for callers that previously built `getPublicUrl()` URLs.
+  - New writer integrations across legacy upload paths (existing writers untouched; readers swap to proxy).
+  - **Migration `20260508232012_privatise_legacy_buckets.sql`** flips `public: true → false` on the 3 buckets and adds service-role-only RLS policies. **Status: pending prod-apply** (deferred per migration discipline — apply before next deploy that depends on it).
+
+**Systems affected:**
+- `auth-system` (WIRING) — gains `requireTeacher` / `requireStudent` chokepoints; `requireTeacherAuth` hardened (no behavioural drift, just coverage).
+- New `storage-proxy` system at `/api/storage/[bucket]/[...path]` — single read path for all legacy-bucket assets.
+- Sentry observability layer — events now PII-scrubbed pre-egress.
+- Vendor registry — Anthropic entry back in sync with taxonomy.
+
+**Key decisions banked:**
+1. **Placeholder-swap is the canonical pattern** for surfacing student names in AI feedback. Names NEVER reach Anthropic. The reference implementation is `src/lib/tools/report-writer-prompt.ts` (`STUDENT_NAME_PLACEHOLDER` + `restoreStudentName()`). Any new prompt that wants to reason about a named student MUST follow this pattern. The CI grep test in `no-pii-in-ai-prompts.test.ts` is the enforcement floor; future site adds need the placeholder, not the raw name.
+2. **Storage proxy pattern** (`/api/storage/[bucket]/[...path]`) is the canonical replacement for direct `getPublicUrl()` usage on legacy buckets. New uploads that need public read should justify it explicitly; default is private + proxy. The proxy keeps signed-URL TTLs server-side and centralises the audit log surface.
+3. **`security-overview.md` + `security-plan.md` are paired:** overview = current state (read first for any security-touching work), plan = forward-looking gap closure (P0–P3 with effort estimates and tracking table). Closing a plan item updates both: the overview's relevant section gets the new state, and the plan's tracking table gets the DONE row with date + PR link.
+
+**Pending action:**
+- **Apply migration `20260508232012_privatise_legacy_buckets.sql` to prod Supabase.** Deferred per push-and-backup discipline. Apply via Supabase dashboard SQL editor before any prod deploy that exercises the new proxy-only read path. Until applied, the proxy will work but the buckets remain publicly readable — the closure is incomplete.
+
+**Next:** Continue down `security-plan.md` — P-4 (admin-route audit-log coverage), P-7 (rate-limit gaps on token-establishment routes), P-8/P-9 outstanding. Pilot scaling still gated on `FU-PROD-MIGRATION-BACKLOG-AUDIT` (P1, separate concern).
+
+---
+
 ## 8 May 2026 (afternoon/evening) — AI Provider Abstraction Phase A SHIPPED — single chokepoint for every Anthropic call
 
 **One-line:** Built `callAnthropicMessages` helper at `src/lib/ai/call.ts` and migrated 30+ direct-callers (18 SDK + 13 HTTP-based) onto it. Phase A complete — every Anthropic Messages API call in production now routes through one file. Phase B (per-feature provider swap to DeepSeek/Qwen/etc.) is now a one-config-line change.
