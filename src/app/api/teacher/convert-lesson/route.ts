@@ -9,6 +9,7 @@ import { extractLessonStructure, type LessonStructureExtraction, type ExtractedR
 import { buildSkeletonFromExtraction } from "@/lib/converter/build-skeleton";
 import { extractImagesFromDocx, isDocx, type ExtractedImage } from "@/lib/converter/extract-images";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
+import { callAnthropicMessages } from "@/lib/ai/call";
 import { onLessonUploaded } from "@/lib/teacher-style/profile-service";
 import { chunkDocument, type ChunkMetadata } from "@/lib/knowledge/chunk";
 import { embedAll } from "@/lib/ai/embeddings";
@@ -436,34 +437,30 @@ OTHER RULES:
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "anthropic-beta": "prompt-caching-2024-07-31",
-        },
-        body: JSON.stringify({
-          model: modelName,
-          max_tokens: 8192,
-          system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
-          messages: [{ role: "user", content: userPrompt }],
-        }),
+      // Note: prompt-caching beta header isn't supported by helper; converter is
+      // quarantined and rebuild will reinstate caching via the helper if needed.
+      const callResult = await callAnthropicMessages({
+        apiKey,
+        endpoint: "teacher/convert-lesson/generate-page",
+        model: modelName,
+        maxTokens: 8192,
+        system: systemPrompt,
+        messages: [{ role: "user", content: userPrompt }],
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API error (${response.status}): ${errorText.slice(0, 200)}`);
+      if (!callResult.ok) {
+        if (callResult.reason === "truncated") {
+          console.warn(`[generateSingleLessonPage] "${lessonTitle}" hit max_tokens (attempt ${attempt + 1}).`);
+          throw new Error("AI response truncated (max_tokens hit)");
+        }
+        if (callResult.reason === "no_credentials") throw new Error("AI service not configured");
+        if (callResult.reason === "api_error") throw callResult.error;
+        throw new Error(`AI call failed: ${callResult.reason}`);
       }
 
-      const data = await response.json();
-      const text = data.content?.[0]?.type === "text" ? data.content[0].text : "";
-      const stopReason = data.stop_reason;
-
-      if (stopReason === "max_tokens") {
-        console.warn(`[generateSingleLessonPage] "${lessonTitle}" hit max_tokens (attempt ${attempt + 1}). Response truncated.`);
-      }
+      const response = callResult.response;
+      const textBlock = response.content?.[0];
+      const text = textBlock?.type === "text" ? textBlock.text : "";
 
       // Extract JSON from response
       const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) ||

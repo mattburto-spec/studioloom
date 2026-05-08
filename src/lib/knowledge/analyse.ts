@@ -29,6 +29,7 @@ import type {
 
 import type { PartialTeachingContext } from "@/types/lesson-intelligence";
 import { MODELS } from "@/lib/ai/models";
+import { callAnthropicMessages } from "@/lib/ai/call";
 
 import {
   ANALYSIS_PROMPT_VERSION,
@@ -76,37 +77,29 @@ async function callAI<T>(options: AICallOptions): Promise<T> {
       ? MODELS.HAIKU
       : MODELS.SONNET;
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY || "",
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: modelId,
-      max_tokens: maxTokens,
-      system,
-      messages: [{ role: "user", content: prompt }],
-    }),
+  const callResult = await callAnthropicMessages({
+    endpoint: "lib/knowledge/analyse",
+    model: modelId,
+    maxTokens,
+    system,
+    messages: [{ role: "user", content: prompt }],
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `AI analysis failed (${response.status}): ${errorText}`
-    );
+  if (!callResult.ok) {
+    if (callResult.reason === "truncated") {
+      console.warn(`[callAI] WARNING: Response truncated (max_tokens reached) for model ${modelId}.`);
+      throw new Error(`AI analysis failed: response truncated (max_tokens=${maxTokens})`);
+    }
+    if (callResult.reason === "no_credentials") {
+      throw new Error("AI analysis failed: AI service not configured");
+    }
+    if (callResult.reason === "api_error") throw callResult.error;
+    throw new Error(`AI analysis failed: ${callResult.reason}`);
   }
 
-  const data = await response.json();
-  const text =
-    data.content?.[0]?.type === "text" ? data.content[0].text : "";
-
-  // Log stop_reason to detect truncation
-  const stopReason = data.stop_reason;
-  if (stopReason === "max_tokens") {
-    console.warn(`[callAI] WARNING: Response truncated (max_tokens reached) for model ${modelId}. Text length: ${text.length}`);
-  }
+  const response = callResult.response;
+  const textBlock = response.content?.[0];
+  const text = textBlock?.type === "text" ? textBlock.text : "";
 
   // Extract JSON from response (handle markdown code blocks)
   const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) ||

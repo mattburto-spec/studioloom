@@ -16,7 +16,7 @@ import {
 import { buildOpenStudioSystemPrompt } from "@/lib/ai/open-studio-prompt";
 import { getTeachingContext, getFrameworkFromContext } from "@/lib/ai/teacher-context";
 import { getFramework } from "@/lib/frameworks";
-import { logUsage } from "@/lib/usage-tracking";
+import { callAnthropicMessages } from "@/lib/ai/call";
 import { getMentorPromptModifier } from "@/lib/student/mentors";
 import type { MentorId } from "@/lib/student/mentors";
 import { composedPromptText } from "@/lib/lever-1/compose-prompt";
@@ -525,50 +525,50 @@ async function callDesignAssistantAI(
     stop_reason: string;
   };
 }> {
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: MODELS.HAIKU,
-      max_tokens: 300, // Short responses — mentor asks ONE question
-      system: systemPrompt,
-      messages,
-    }),
+  const supabase = createAdminClient();
+
+  // Helper handles withAIBudget cap enforcement + Lesson #39 truncation guard
+  // + logUsage attribution (with metadata enrichment) when studentId is set.
+  const callResult = await callAnthropicMessages({
+    apiKey,
+    supabase,
+    studentId,
+    endpoint: "design-assistant",
+    model: MODELS.HAIKU,
+    maxTokens: 300, // Short responses — mentor asks ONE question
+    system: systemPrompt,
+    messages,
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`AI call failed: ${response.status} ${errorText}`);
+  if (!callResult.ok) {
+    if (callResult.reason === "over_cap") {
+      const err = new Error(`budget_exceeded`) as Error & {
+        budgetExceeded: { cap: number; used: number; resetAt: string };
+      };
+      err.budgetExceeded = { cap: callResult.cap, used: callResult.used, resetAt: callResult.resetAt };
+      throw err;
+    }
+    if (callResult.reason === "truncated") {
+      const err = new Error("model_truncated") as Error & { modelTruncated: true };
+      err.modelTruncated = true;
+      throw err;
+    }
+    if (callResult.reason === "no_credentials") {
+      throw new Error("AI service not configured");
+    }
+    if (callResult.reason === "api_error") throw callResult.error;
+    throw new Error("AI call failed");
   }
 
-  const data = await response.json();
+  const response = callResult.response;
 
   // Extract text from response
   const fallback = "I'm having trouble thinking of a question right now. Can you tell me more about what you're working on?";
   let text = fallback;
-  if (data.content && Array.isArray(data.content)) {
-    const textBlock = data.content.find(
-      (block: { type: string; text?: string }) => block.type === "text"
-    );
-    text = textBlock?.text || fallback;
+  if (response.content && Array.isArray(response.content)) {
+    const textBlock = response.content.find((block) => block.type === "text");
+    text = textBlock?.type === "text" ? textBlock.text : fallback;
   }
-
-  // Log usage (fire-and-forget)
-  logUsage({
-    studentId,
-    endpoint: "design-assistant",
-    model: MODELS.HAIKU,
-    inputTokens: data.usage?.input_tokens,
-    outputTokens: data.usage?.output_tokens,
-    metadata: {
-      response_length: text.length,
-      ...(text.length > 1200 ? { oversized: true } : {}),
-    },
-  });
 
   // Response length heuristic — warn on oversized responses
   if (text.length > 1200) {
@@ -579,11 +579,7 @@ async function callDesignAssistantAI(
 
   return {
     text,
-    usage: {
-      input_tokens: data.usage?.input_tokens ?? 0,
-      output_tokens: data.usage?.output_tokens ?? 0,
-      stop_reason: data.stop_reason ?? "end_turn",
-    },
+    usage: callResult.usage,
   };
 }
 

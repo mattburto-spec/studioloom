@@ -4,7 +4,7 @@
 # Manual edits to auto-populated fields will be overwritten. Use `notes` for manual context.
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
-# Last synced: 2026-05-08
+# Last synced: 2026-04-14
 # Total routes: 443
 
 routes:

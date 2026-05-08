@@ -18,6 +18,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
+import { callAnthropicMessages } from "@/lib/ai/call";
 
 // Claude vision calls on complex timetable images can take 30-60s
 export const maxDuration = 120;
@@ -27,11 +28,6 @@ const SONNET_MODEL = "claude-sonnet-4-6";
 export async function POST(request: NextRequest) {
   const auth = await requireTeacherAuth(request);
   if (auth.error) return auth.error;
-
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "AI service not configured" }, { status: 500 });
-  }
 
   try {
     const formData = await request.formData();
@@ -77,56 +73,60 @@ export async function POST(request: NextRequest) {
           },
         };
 
-    // Call Claude Sonnet with the image/PDF
-    // PDF support is GA — no beta header needed
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    };
-
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        model: SONNET_MODEL,
-        max_tokens: 16384,
-        temperature: 0,
-        system: TIMETABLE_PARSER_SYSTEM_PROMPT,
-        messages: [
-          {
-            role: "user",
-            content: [
-              contentBlock,
-              {
-                type: "text",
-                text: "Extract the complete timetable from this document. Return ONLY the JSON object — no markdown, no explanation, no code fences. Start directly with { and end with }.",
-              },
-            ],
-          },
-        ],
-      }),
+    // Call Claude Sonnet with the image/PDF — PDF support is GA, no beta header needed.
+    const callResult = await callAnthropicMessages({
+      teacherId: auth.teacherId,
+      endpoint: "teacher/timetable/parse-upload",
+      model: SONNET_MODEL,
+      maxTokens: 16384,
+      temperature: 0,
+      system: TIMETABLE_PARSER_SYSTEM_PROMPT,
+      messages: [
+        {
+          role: "user",
+          content: [
+            contentBlock,
+            {
+              type: "text",
+              text: "Extract the complete timetable from this document. Return ONLY the JSON object — no markdown, no explanation, no code fences. Start directly with { and end with }.",
+            },
+          ],
+        },
+      ],
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("[timetable-parse] Claude API error:", response.status, errText);
-      return NextResponse.json(
-        { error: `AI parsing failed (${response.status}). Details: ${errText.slice(0, 200)}` },
-        { status: 502 }
-      );
+    if (!callResult.ok) {
+      if (callResult.reason === "no_credentials") {
+        return NextResponse.json({ error: "AI service not configured" }, { status: 500 });
+      }
+      if (callResult.reason === "truncated") {
+        return NextResponse.json(
+          { error: "AI parsing failed: response truncated (try a simpler timetable image)" },
+          { status: 422 }
+        );
+      }
+      if (callResult.reason === "api_error") {
+        const msg = callResult.error instanceof Error ? callResult.error.message : String(callResult.error);
+        console.error("[timetable-parse] Claude API error:", msg);
+        return NextResponse.json(
+          { error: `AI parsing failed: ${msg.slice(0, 200)}` },
+          { status: 502 }
+        );
+      }
+      // over_cap (defensive — teacher-attributed routes shouldn't hit this)
+      return NextResponse.json({ error: `AI call failed: ${callResult.reason}` }, { status: 502 });
     }
 
-    const data = await response.json();
-    console.log("[timetable-parse] API response status:", response.status, "stop_reason:", data.stop_reason, "model:", data.model, "usage:", JSON.stringify(data.usage));
-    const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
-    const rawText = textBlock?.text || "";
+    const response = callResult.response;
+    console.log("[timetable-parse] API response stop_reason:", response.stop_reason, "model:", response.model, "usage:", JSON.stringify(response.usage));
+    const textBlockResp = response.content?.find((b) => b.type === "text");
+    const rawText = textBlockResp?.type === "text" ? textBlockResp.text : "";
 
     if (!rawText) {
-      const blockTypes = data.content?.map((b: { type: string }) => b.type) || [];
-      console.error("[timetable-parse] Empty text response. Content blocks:", JSON.stringify(blockTypes), "Full response:", JSON.stringify(data).slice(0, 500));
+      const blockTypes = response.content?.map((b) => b.type) || [];
+      console.error("[timetable-parse] Empty text response. Content blocks:", JSON.stringify(blockTypes));
       return NextResponse.json(
-        { error: `AI returned empty text. Content block types: [${blockTypes.join(", ")}]. Stop reason: ${data.stop_reason || "unknown"}. Try a PNG screenshot instead.` },
+        { error: `AI returned empty text. Content block types: [${blockTypes.join(", ")}]. Stop reason: ${response.stop_reason || "unknown"}. Try a PNG screenshot instead.` },
         { status: 422 }
       );
     }
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
       }
     } catch (parseErr) {
       console.error("[timetable-parse] JSON parse error:", parseErr, "Raw text (first 1000 chars):", rawText.slice(0, 1000));
-      const stopReason = data.stop_reason || "unknown";
+      const stopReason = response.stop_reason || "unknown";
       const hint = stopReason === "max_tokens" ? " (response was truncated — try a simpler timetable image)" : "";
       return NextResponse.json(
         { error: `Could not parse AI response as JSON${hint}. Stop reason: ${stopReason}. AI said: "${rawText.slice(0, 200)}..."` },

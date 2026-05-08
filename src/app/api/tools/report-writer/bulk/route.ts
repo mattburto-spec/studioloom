@@ -11,7 +11,7 @@ import {
   ratingsToStrengthsAndGrowth,
   projectRatingsToPerformance,
 } from "@/lib/tools/report-writer-prompt";
-import { logUsage } from "@/lib/usage-tracking";
+import { callAnthropicMessages } from "@/lib/ai/call";
 import type { BulkRequestBody, BulkReportResult } from "@/lib/tools/report-writer-types";
 import { REPORTING_PERIODS } from "@/lib/tools/report-writer-types";
 import * as Sentry from "@sentry/nextjs";
@@ -108,15 +108,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // --- API key ---
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "AI service is not configured." },
-        { status: 503 }
-      );
-    }
-
     // --- Process each student ---
     const reports: BulkReportResult[] = [];
     let generated = 0;
@@ -167,41 +158,44 @@ export async function POST(request: NextRequest) {
           wordCount: body.wordCount,
         });
 
-        const response = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": apiKey,
-            "anthropic-version": "2023-06-01",
+        const callResult = await callAnthropicMessages({
+          endpoint: "tools/report-writer/bulk",
+          model: MODELS.HAIKU,
+          maxTokens: 768,
+          system: systemPrompt,
+          messages: [
+            {
+              role: "user",
+              content:
+                "Write the report comment as specified. Return only the JSON object.",
+            },
+          ],
+          metadata: {
+            email: body.email.toLowerCase(),
+            tone: body.tone,
+            wordCount: body.wordCount,
+            batchStudent: student.firstName,
           },
-          body: JSON.stringify({
-            model: MODELS.HAIKU,
-            max_tokens: 768,
-            system: systemPrompt,
-            messages: [
-              {
-                role: "user",
-                content:
-                  "Write the report comment as specified. Return only the JSON object.",
-              },
-            ],
-          }),
         });
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`AI call failed: ${response.status} ${errorText}`);
+        if (!callResult.ok) {
+          if (callResult.reason === "no_credentials") {
+            throw new Error("AI service is not configured");
+          }
+          if (callResult.reason === "truncated") {
+            throw new Error("AI response truncated (max_tokens hit)");
+          }
+          if (callResult.reason === "api_error") throw callResult.error;
+          throw new Error(`AI call failed: ${callResult.reason}`);
         }
 
-        const data = await response.json();
+        const response = callResult.response;
 
         // Extract text
         let text = "";
-        if (data.content && Array.isArray(data.content)) {
-          const textBlock = data.content.find(
-            (block: { type: string; text?: string }) => block.type === "text"
-          );
-          text = textBlock?.text || "";
+        if (response.content && Array.isArray(response.content)) {
+          const textBlock = response.content.find((block) => block.type === "text");
+          text = textBlock?.type === "text" ? textBlock.text : "";
         }
 
         // Parse JSON
@@ -225,19 +219,7 @@ export async function POST(request: NextRequest) {
         reports.push({ firstName: student.firstName, report });
         generated++;
 
-        // Log usage (fire-and-forget)
-        logUsage({
-          endpoint: "tools/report-writer/bulk",
-          model: MODELS.HAIKU,
-          inputTokens: data.usage?.input_tokens,
-          outputTokens: data.usage?.output_tokens,
-          metadata: {
-            email: body.email.toLowerCase(),
-            tone: body.tone,
-            wordCount: body.wordCount,
-            batchStudent: student.firstName,
-          },
-        });
+        // logUsage handled by callAnthropicMessages helper
       } catch (err) {
         console.error(`[report-writer/bulk] Error for ${student.firstName}:`, err);
         Sentry.captureException(err);

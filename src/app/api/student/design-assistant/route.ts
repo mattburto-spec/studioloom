@@ -11,7 +11,6 @@ import {
 import { rateLimit, DESIGN_ASSISTANT_LIMITS } from "@/lib/rate-limit";
 import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
-import { withAIBudget } from "@/lib/access-v2/ai-budget/middleware";
 
 /**
  * POST /api/student/design-assistant
@@ -142,52 +141,43 @@ export const POST = withErrorHandler("student/design-assistant:POST", async (req
       source: 'tool_session' as const,
     }).catch((err: unknown) => console.error('[design-assistant] moderation error:', err));
 
-    // Phase 5.3 — wrap generateResponse in withAIBudget. Pre-check happens
-    // BEFORE generateResponse runs, so its side effects (loadConversation,
-    // appendTurn, effort assessment) are skipped on over_cap. On success
-    // we bill the actual usage. On 'truncated' (Lesson #39) we surface the
-    // error without billing — student's message is still appended (turn
-    // already committed inside generateResponse) but no AI response.
-    const supabaseForBudget = createAdminClient();
-    const budgetResult = await withAIBudget(
-      supabaseForBudget,
-      studentId,
-      async () => {
-        const r = await generateResponse(
-          activeConversationId!,
-          message.trim(),
-          apiKey
-        );
-        return {
-          result: r,
-          usage: r.usage,
-        };
-      }
-    );
-
-    if (!budgetResult.ok) {
-      if (budgetResult.reason === "over_cap") {
+    // Phase A.3 — generateResponse now uses callAnthropicMessages internally,
+    // which handles withAIBudget + Lesson #39 truncation guard via studentId.
+    // Throws on budget/truncation; we catch and map to HTTP responses.
+    let result;
+    try {
+      result = await generateResponse(
+        activeConversationId!,
+        message.trim(),
+        apiKey
+      );
+    } catch (genErr) {
+      const err = genErr as Error & {
+        budgetExceeded?: { cap: number; used: number; resetAt: string };
+        modelTruncated?: true;
+      };
+      if (err.budgetExceeded) {
         return NextResponse.json(
           {
             error: "budget_exceeded",
-            cap: budgetResult.cap,
-            used: budgetResult.used,
-            reset_at: budgetResult.resetAt,
+            cap: err.budgetExceeded.cap,
+            used: err.budgetExceeded.used,
+            reset_at: err.budgetExceeded.resetAt,
           },
           { status: 429 }
         );
       }
-      // 'truncated' — surface 502 (Lesson #39 — billing was skipped).
-      return NextResponse.json(
-        {
-          error: "model_truncated",
-          message: "AI response was truncated. Try a shorter message.",
-        },
-        { status: 502 }
-      );
+      if (err.modelTruncated) {
+        return NextResponse.json(
+          {
+            error: "model_truncated",
+            message: "AI response was truncated. Try a shorter message.",
+          },
+          { status: 502 }
+        );
+      }
+      throw genErr; // bubble up to outer catch
     }
-
-    const result = budgetResult.result;
 
     return NextResponse.json({
       conversationId: activeConversationId,
