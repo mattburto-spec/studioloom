@@ -13,7 +13,7 @@ import {
   type SessionStudent,
   studentToSession,
 } from "@/components/student/BoldTopNav";
-import { NextActionCard } from "@/components/student/NextActionCard";
+import { NextActionPill } from "@/components/student/NextActionPill";
 
 /* ================================================================
  * Student Dashboard v2 — Bold redesign
@@ -629,7 +629,7 @@ function timeGreeting(now: Date = new Date()): string {
   return "Good evening";
 }
 
-function ResumeHero({ student, hero, onFocus }: { student: SessionStudent; hero: HeroUnit; onFocus: () => void }) {
+function ResumeHero({ student, hero }: { student: SessionStudent; hero: HeroUnit }) {
   const n = hero;
   return (
     <section id="dashboard-hero" className="max-w-[1400px] mx-auto px-6 pt-8">
@@ -701,15 +701,12 @@ function ResumeHero({ student, hero, onFocus }: { student: SessionStudent; hero:
               {/* "Open journal" button removed 23 Apr 2026 — no backing route
                   and duplicated Continue's destination. Returns in Phase 14
                   when the notes/journal system ships. */}
-              {/* Focus — hides everything except the next step (Phase 12). */}
-              <button
-                onClick={onFocus}
-                className="bg-white/15 backdrop-blur hover:bg-white/25 text-white rounded-full px-5 py-3 font-bold text-[13.5px] inline-flex items-center gap-1.5"
-                aria-label="Enter focus mode"
-              >
-                <Icon name="sparkle" size={12} s={2.5} />
-                Focus
-              </button>
+              {/* Focus button replaced 8 May 2026 with the kanban Next
+                  Action pill — surfacing what to do on the project
+                  board is more useful real estate than focus mode. */}
+              {hero.unitId && hero.unitId !== HERO_MOCK.unitId && (
+                <NextActionPill unitId={hero.unitId} />
+              )}
             </div>
           </div>
 
@@ -836,7 +833,11 @@ function FocusOverlay({ hero, onExit }: { hero: HeroUnit; onExit: () => void }) 
  */
 function MiddleRow({ buckets, badges }: { buckets: PriorityBuckets; badges: BadgesState }) {
   const { soon } = buckets;
-  const { earned, next } = badges;
+  // `next` (next-to-unlock badges) was destructured here for the column
+  // removed on 8 May 2026. Kept the BadgeProgress component definition
+  // for now — likely useful when "Next to unlock" returns in a future
+  // dedicated badges view. Drop both if you want to remove dead code.
+  const { earned } = badges;
   const earnedCount = earned.length;
   const headline =
     earnedCount === 0
@@ -876,22 +877,14 @@ function MiddleRow({ buckets, badges }: { buckets: PriorityBuckets; badges: Badg
           <div className="absolute top-5 right-5 text-[#FBBF24] opacity-60"><Icon name="sparkle" size={36} s={1.5} /></div>
         </Link>
 
-        {/* Next to unlock */}
-        <div className="md:col-span-4">
-          <div className="cap text-[var(--sl-ink-3)] mb-3">Next to unlock · {next.length}</div>
-          {next.length === 0 ? (
-            <div className="bg-white rounded-2xl p-6 border border-[var(--sl-hair)] text-[13px] text-[var(--sl-ink-3)]">
-              Nothing to unlock right now.
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2.5">
-              {next.slice(0, 3).map((b, i) => <BadgeProgress key={i} b={b} />)}
-            </div>
-          )}
-        </div>
+        {/* "Next to unlock" column removed 8 May 2026 — students rarely
+            engaged with it and it crowded the row. The earned-badges
+            card on the left already conveys progression; "Coming up"
+            now expands to fill the freed space. */}
 
-        {/* Coming up */}
-        <div className="md:col-span-3">
+        {/* Coming up — expanded from md:col-span-3 to md:col-span-7 so
+            the soon list breathes and shows more context per row. */}
+        <div className="md:col-span-7">
           <div className="cap text-[var(--sl-ink-2)] mb-3">Coming up · {soon.length}</div>
           <div className="bg-white rounded-3xl p-2 card-shadow">
             {soon.length === 0 ? (
@@ -1325,16 +1318,14 @@ export default function DashboardClient() {
   return (
     <>
       {hero
-        ? <ResumeHero student={sessionStudent} hero={hero} onFocus={() => setFocusMode(true)} />
+        ? <ResumeHero student={sessionStudent} hero={hero} />
         : heroLoaded
           ? <EmptyHero firstName={sessionStudent.first} />
           : <HeroSkeleton />}
-      {/* Project-management Next Action — sandwiched between the
-          lesson-side hero and the priority queue. Renders only for the
-          hero unit, only once we have a real id (skip the mock UUID). */}
-      {hero && hero.unitId && hero.unitId !== HERO_MOCK.unitId && (
-        <NextActionCard unitId={hero.unitId} accentColor={hero.color} />
-      )}
+      {/* Standalone NextActionCard removed 8 May 2026 — replaced by the
+          NextActionPill mounted INSIDE ResumeHero next to Continue,
+          where the Focus button used to live. One next-action surface
+          on the dashboard, not two. */}
       {buckets && badges
         ? <MiddleRow buckets={buckets} badges={badges} />
         : <MiddleRowSkeleton />}
