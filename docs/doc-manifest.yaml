@@ -2432,6 +2432,34 @@ docs:
     max_age_days: 180
     last_scanned: "2026-04-15"
 
+  # --- AI PROVIDER ABSTRACTION (Phase A — chokepoint helper) ---
+  - path: docs/projects/ai-provider-abstraction-phase-a-brief.md
+    title: "AI Provider Abstraction — Phase A Brief"
+    purpose: "Master brief for Phase A — build the callAnthropicMessages chokepoint helper at src/lib/ai/call.ts. Splits into A.1 (helper + tests + WIRING fix), A.2 (18 SDK direct callers), A.3 (13 HTTP-based callers). Helper API design rationale, Lesson #54 WIRING drift findings, registry cross-check, scope boundaries (AnthropicProvider for unit-generation pipeline stays). Phase B will add provider routing (DeepSeek/Qwen) — now a one-config-line change post Phase A."
+    category: projects
+    last_verified: "2026-05-08"
+    referenced_from: ["ALL-PROJECTS.md AI & Generation", "WIRING.yaml ai-provider", "ai-provider-abstraction-phase-a2-brief.md", "ai-provider-abstraction-phase-a3-brief.md", "CLAUDE.md AI calls — single chokepoint"]
+    max_age_days: 90
+    last_scanned: "2026-05-08"
+
+  - path: docs/projects/ai-provider-abstraction-phase-a2-brief.md
+    title: "AI Provider Abstraction — Phase A.2 Brief (SDK direct-callers)"
+    purpose: "Migration brief for the 18 production files directly importing @anthropic-ai/sdk. Per-site nuances (BYOK preserved for wizard routes; quarantined admin routes; pipeline MaxTokensError contract preservation; tests with mocked SDK pattern). Commit plan, smoke checklist. Shipped + merged to main 8 May 2026 in PR #122 alongside A.1."
+    category: projects
+    last_verified: "2026-05-08"
+    referenced_from: ["ALL-PROJECTS.md AI & Generation", "ai-provider-abstraction-phase-a-brief.md", "ai-provider-abstraction-phase-a3-brief.md"]
+    max_age_days: 90
+    last_scanned: "2026-05-08"
+
+  - path: docs/projects/ai-provider-abstraction-phase-a3-brief.md
+    title: "AI Provider Abstraction — Phase A.3 Brief (HTTP fetch-callers, Phase A close)"
+    purpose: "Migration brief for the 13 unique fetch sites that bypassed the SDK (lib/toolkit/shared-api fans out to 25+ tool routes via one file). Behaviour changes flagged: open-studio routes now budget-enforced; HTTP truncation becomes loud; design-assistant withAIBudget moved into helper. Scanner gate threshold bump (30→60% dynamic). Shipped + merged 8 May 2026 in PR #129; closes Phase A — WIRING ai-provider flips to status:complete + currentVersion:1."
+    category: projects
+    last_verified: "2026-05-08"
+    referenced_from: ["ALL-PROJECTS.md AI & Generation", "ai-provider-abstraction-phase-a-brief.md", "ai-provider-abstraction-phase-a2-brief.md"]
+    max_age_days: 90
+    last_scanned: "2026-05-08"
+
   # --- PREFLIGHT (fabrication submission pipeline) ---
   - path: docs/projects/fabrication-pipeline.md
     title: "Preflight — Fabrication Submission Pipeline (master spec)"
@@ -2604,11 +2632,11 @@ docs:
 
 # --- SUMMARY STATISTICS ---
 summary:
-  total_documents: 281
+  total_documents: 284
   by_category:
     root: 40
     brain: 9
-    projects: 91
+    projects: 94
     specs: 50
     research: 7
     testing: 8
@@ -2623,5 +2651,5 @@ summary:
     marketing: 1
     safety: 1
     email-templates: 5
-  last_updated: "2026-05-03"
+  last_updated: "2026-05-08"
   referenced_in_claude_md: 18
