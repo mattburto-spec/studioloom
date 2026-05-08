@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, type RateLimitWindow } from "@/lib/rate-limit";
 import { logUsage } from "@/lib/usage-tracking";
+import { callAnthropicMessages } from "@/lib/ai/call";
 import * as Sentry from "@sentry/nextjs";
 import type { ToolkitAIResult, ToolkitRequestBody } from "./types";
 import { MODELS } from "@/lib/ai/models";
@@ -33,43 +34,43 @@ const HAIKU_MODEL = MODELS.HAIKU;
 /**
  * Call Claude Haiku 4.5 with a system prompt and user prompt.
  * Used by all toolkit tools for student-facing AI interactions.
+ *
+ * Phase A.3 — routes through callAnthropicMessages chokepoint. Endpoint
+ * attribution is set by logToolkitUsage at the call site (helper passes
+ * a placeholder; real endpoint+studentId+metadata go through logToolkitUsage
+ * to preserve the existing toolkit telemetry shape).
  */
 export async function callHaiku(
   systemPrompt: string,
   userPrompt: string,
   maxTokens: number = 300
 ): Promise<ToolkitAIResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("AI service not configured");
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: HAIKU_MODEL,
-      max_tokens: maxTokens,
-      temperature: 0.8,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    }),
+  const callResult = await callAnthropicMessages({
+    endpoint: "lib/toolkit/shared-api",
+    model: HAIKU_MODEL,
+    maxTokens,
+    temperature: 0.8,
+    system: systemPrompt,
+    messages: [{ role: "user", content: userPrompt }],
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`AI call failed: ${response.status} ${errorText}`);
+  if (!callResult.ok) {
+    if (callResult.reason === "no_credentials") throw new Error("AI service not configured");
+    if (callResult.reason === "truncated") throw new Error(`AI call failed: max_tokens=${maxTokens} truncation`);
+    if (callResult.reason === "api_error") {
+      const msg = callResult.error instanceof Error ? callResult.error.message : String(callResult.error);
+      throw new Error(`AI call failed: ${msg}`);
+    }
+    throw new Error(`AI call failed: ${callResult.reason}`);
   }
 
-  const data = await response.json();
-  const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
+  const response = callResult.response;
+  const textBlock = response.content.find((b) => b.type === "text");
 
   return {
-    text: textBlock?.text || "",
-    inputTokens: data.usage?.input_tokens || 0,
-    outputTokens: data.usage?.output_tokens || 0,
+    text: textBlock?.type === "text" ? textBlock.text : "",
+    inputTokens: callResult.usage.input_tokens,
+    outputTokens: callResult.usage.output_tokens,
   };
 }
 
