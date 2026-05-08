@@ -2746,7 +2746,7 @@ systems:
     category: Submission
     status: in-progress
     currentVersion: 1
-    summary: "Upload, scan, gate, route, pickup, complete pipeline for student fabrication submissions (3D print, laser). User-facing brand Preflight. Schema tables prefixed fabrication_*. Phases 0, 1A, 1B-1, 1B-2, 2 (STL scanner — Checkpoint 2.1 PASSED), 3 (SVG scanner — Checkpoint 3.1 PASSED), 4 (student upload UI — Checkpoint 4.1 PASSED), 5 (soft-gate results UI — Checkpoint 5.1 PASSED 14/14), 6 (Teacher Queue + Approval — Checkpoint 6.1 PASSED 4/4), 7 (Lab Tech Pickup + Completion — Checkpoint 7.1 PASSED 12/12 24 Apr PM), **8-1 (fabrication_labs migration + backfill — REVISED 27 Apr to school-scoped ownership, code complete + tests passing 28 Apr, mini-checkpoint pending prod apply per docs/projects/preflight-phase-8-1-prod-smoke.md)** all SHIPPED. Fab-facing routes live: GET /api/fab/queue, GET /api/fab/jobs/[jobId], GET .../download (Content-Disposition rewrite via buildFabricationDownloadFilename), POST .../complete, POST .../fail. fab-orchestration.ts (~560 lines, race-safe conditional UPDATE + post-write confirm read + idempotent re-download). /fab/queue + /fab/jobs/[jobId] pages with LabTechActionBar + canned-note chips (4 complete / 6 fail presets). Student sees LabTechCompletionCard (green printed/cut, red failed) on terminal states. Inclusive-wording sweep (7-5b/5c) after Matt pushback — user-facing copy 'lab tech' → 'fabricator'. Next: Phase 7 smoke → Phase 8 (unified visual lab+machine+fab admin, brief drafted at docs/projects/preflight-phase-8-brief.md, blocked on 7.1 + 6 open questions)."
+    summary: "Upload, scan, gate, route, pickup, complete pipeline for student fabrication submissions (3D print, laser). User-facing brand Preflight. Schema tables prefixed fabrication_*. Phases 0–8 SHIPPED (last status see prior summary). **Pilot Mode SHIPPED 8 May 2026** — temporary posture for the early pilot where students can override BLOCK-firing scans via an explicit 'Override and proceed' UX. Migration `20260508021922_fabrication_jobs_pilot_override.sql` adds nullable `pilot_override_at` + `pilot_override_rule_ids`. Constant `PILOT_MODE_ENABLED` in `src/lib/fabrication/pilot-mode.ts` (flip to false when scanner false-positive rate is acceptable). canSubmit() bypass + WARN-acks-still-required + pilotOverride.ruleIds returned for logging. Teacher view gains 'Needs attention' first tab + amber Override(N) chip on flagged rows. Fab queue + detail surfaces red 'Flagged · may not print' chip + prominent banner. Dev review surface at `/admin/preflight/flagged` (platform-admin only) — rule histogram + signed-URL download for ruleset tuning. Inspect-link eye + brighter trash on incoming fab cards (under thumbnail, not corner). PR sequence: #113 P1+P2+P3 + nav, #117 P4 fab flag, #118 P5 inspect link, #120 P5b prominence."
     depends_on: [storage, preflight-scanner, auth-system, machine-profiles]
     affects: [teacher-dashboard, student-dashboard, audit-log, students]
     docs:
@@ -2760,8 +2760,8 @@ systems:
         purpose: "D-01 through D-12 design decisions"
     data_fields:
       - table: fabrication_jobs
-        columns: [id, teacher_id, student_id, class_id, unit_id, machine_profile_id, file_type, status, current_revision, latest_scan_results, retention_clock_started_at, student_intent, printing_started_at, notifications_sent]
-        notes: "One row per logical submission. student_intent JSONB holds pre-check answers (size/units/material/description, mig 098). printing_started_at marks Fabricator 'currently printing' sub-state. notifications_sent JSONB gives per-transition email idempotency. Dual-visibility RLS via direct teacher_id fallback."
+        columns: [id, teacher_id, student_id, class_id, unit_id, machine_profile_id, file_type, status, current_revision, latest_scan_results, retention_clock_started_at, student_intent, printing_started_at, notifications_sent, preferred_color, pilot_override_at, pilot_override_rule_ids]
+        notes: "One row per logical submission. student_intent JSONB holds pre-check answers (size/units/material/description, mig 098). printing_started_at marks Fabricator 'currently printing' sub-state. notifications_sent JSONB gives per-transition email idempotency. Dual-visibility RLS via direct teacher_id fallback. preferred_color (mig 20260505010732) — student's filament pick for 3D jobs. pilot_override_at + pilot_override_rule_ids (mig 20260508021922) — Pilot Mode override tracking."
       - table: fabrication_job_revisions
         columns: [job_id, revision_number, storage_path, thumbnail_path, scan_results, scan_ruleset_version, scan_status, ai_enrichment_cost_usd, thumbnail_views]
         notes: "One row per upload attempt; storage_path NULLABLE (D-04 cron nulls at day 30). ai_enrichment_cost_usd NUMERIC tracks per-scan Haiku spend (mig 101). thumbnail_views JSONB holds multi-angle + heatmap metadata consumed by Phase 1B-2 SVG overlay UI."
@@ -2791,7 +2791,14 @@ systems:
       - supabase/migrations/20260427134953_fabrication_labs.sql
       - supabase/migrations/20260427134953_fabrication_labs.down.sql
       - supabase/migrations/20260427135108_backfill_fabrication_labs.sql
+      - supabase/migrations/20260505010732_fabrication_jobs_preferred_color.sql
+      - supabase/migrations/20260508021922_fabrication_jobs_pilot_override.sql
       - supabase/migrations/103_preflight_ai_guardrails_seed.sql
+      - src/lib/fabrication/pilot-mode.ts
+      - src/lib/fabrication/rule-buckets.ts
+      - src/app/admin/preflight/flagged/page.tsx
+      - src/app/api/admin/preflight/flagged/route.ts
+      - docs/projects/preflight-pilot-mode-brief.md
       - src/app/teacher/preflight/page.tsx
       - src/app/teacher/preflight/fabricators/page.tsx
       - src/app/teacher/preflight/fabricators/FabricatorsClient.tsx

@@ -2437,9 +2437,17 @@ docs:
     title: "Preflight — Fabrication Submission Pipeline (master spec)"
     purpose: "Full spec for the Preflight submission pipeline: 5 stages (upload → scan → gate → route → pickup → complete), 17 STL rules + 15 SVG rules, machine profile schema, Fabricator UX, Python worker infra on Fly.io, retention policy, 9-phase build plan"
     category: projects
-    last_verified: "2026-04-20"
+    last_verified: "2026-05-08"
     max_age_days: 90
-    last_scanned: "2026-04-20"
+    last_scanned: "2026-05-08"
+
+  - path: docs/projects/preflight-pilot-mode-brief.md
+    title: "Preflight Pilot Mode — Brief"
+    purpose: "Pilot Mode build brief: P1 student override path (canSubmit + migration + UI), P2 teacher Needs Attention tab + override chip, P3 admin /preflight/flagged dev review surface, P4 fab queue + detail flag, P5/P5b inspect link + prominence. Auto-orient explicitly deferred. Shipped 8 May 2026 across PRs #113/#117/#118/#120."
+    category: projects
+    last_verified: "2026-05-08"
+    max_age_days: 90
+    last_scanned: "2026-05-08"
 
   - path: docs/projects/preflight-phase-1a-brief.md
     title: "Preflight Phase 1A Brief — Schema + RLS + Seed"

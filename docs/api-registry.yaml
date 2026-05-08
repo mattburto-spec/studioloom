@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 441
+# Total routes: 443
 
 routes:
 - path: /api/admin/ai-budget
@@ -15,6 +15,19 @@ routes:
   tables_read:
   - ai_budget_state
   - ai_budgets
+  - schools
+  - students
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/admin/ai-budget/[studentId]/breakdown
+  method: GET
+  file: src/app/api/admin/ai-budget/[studentId]/breakdown/route.ts
+  auth: admin
+  tables_read:
+  - ai_budget_state
+  - ai_usage_log
   - schools
   - students
   tables_written: []
@@ -279,6 +292,16 @@ routes:
   tables_read:
   - generation_runs
   - system_alerts
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/admin/preflight/flagged
+  method: GET
+  file: src/app/api/admin/preflight/flagged/route.ts
+  auth: admin
+  tables_read:
+  - fabrication_jobs
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
