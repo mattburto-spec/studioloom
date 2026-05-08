@@ -25,6 +25,10 @@ const TABS = [
   { label: "Students", href: "/admin/students" },
   { label: "Schools", href: "/admin/schools" },
   { label: "Bug Reports", href: "/admin/bug-reports" },
+  // Pilot Mode P3: dev-only review surface for Preflight scanner tuning.
+  // Lists every flagged + overridden fab job across all schools so the
+  // ruleset can be tightened/loosened based on real student usage.
+  { label: "Preflight", href: "/admin/preflight/flagged" },
   { label: "Audit Log", href: "/admin/audit-log" },
   { label: "Deletions", href: "/admin/deletions" },
 ];
