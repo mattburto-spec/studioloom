@@ -18,8 +18,11 @@
 import { callAnthropicMessages } from "@/lib/ai/call";
 import { MODELS } from "@/lib/ai/models";
 
-export const PROMPT_VERSION = "grading.aiprescore.v1.0.0";
-const MAX_OUTPUT_TOKENS = 600;
+export const PROMPT_VERSION = "grading.aiprescore.v2.0.0";
+// Bumped 600 → 900 to fit the new ~80-word feedback_draft alongside the
+// existing score + quote + reasoning. Roughly: 200 prior + 200 feedback
+// + tool overhead = ~500 actual; 900 gives headroom against truncation.
+const MAX_OUTPUT_TOKENS = 900;
 
 export interface AiPrescoreInput {
   /** Tile prompt, the question the student responded to. */
@@ -33,7 +36,7 @@ export interface AiPrescoreInput {
   scaleMax: number;
   /** Human-readable scale label, e.g. "MYP 1–8" or "GCSE percentage 0–100%". */
   scaleLabel: string;
-  /** Display name used to ground reasoning ("Maya wrote..."). */
+  /** Display name used to ground reasoning + address the student in feedback. */
   studentDisplayName?: string;
 }
 
@@ -42,6 +45,8 @@ export interface AiPrescoreOutput {
   evidenceQuote: string | null;
   confidence: number | null;
   reasoning: string | null;
+  /** G3.1 — drafted student-facing comment, ~80 words. Edit-or-send loop. */
+  feedbackDraft: string | null;
   modelVersion: string;
   promptVersion: string;
 }
@@ -82,22 +87,50 @@ const PRESCORE_TOOL = {
           "(e.g. 'depth of analysis', 'use of vocabulary', 'logical structure'). Do not include " +
           "the student's name or first-person address — this is internal teacher-facing reasoning.",
       },
+      feedback_draft: {
+        type: "string",
+        description:
+          "A draft comment written DIRECTLY TO THE STUDENT in second person. " +
+          "Length: 60–100 words, 2–4 sentences. Structure: 1) one sentence naming what " +
+          "specifically landed (anchored to the evidence quote when possible), 2) one " +
+          "sentence on the gap or what's still missing, 3) one sentence with a concrete " +
+          "next step they can take. " +
+          "Style: warm but specific, no generic praise ('great job'), no jargon, no scoring " +
+          "language ('Level 5', 'Criterion B'). Address them by first name once, naturally. " +
+          "If you cannot find anything specific to comment on (empty submission, off-topic " +
+          "answer), return a single sentence asking them to revisit the prompt — DO NOT " +
+          "fabricate a comment.",
+      },
     },
-    required: ["score", "evidence_quote", "confidence", "reasoning"],
+    required: ["score", "evidence_quote", "confidence", "reasoning", "feedback_draft"],
   },
 };
 
 function buildSystemPrompt(input: AiPrescoreInput): string {
+  const studentRef = input.studentDisplayName?.trim()
+    ? input.studentDisplayName.split(/\s+/)[0]
+    : "the student";
   return [
     "You are a calibrated grading assistant for a secondary-school design-technology platform.",
-    "Your job is to suggest a draft score that the human teacher will confirm or override.",
+    "Your job is to (1) suggest a draft score the teacher will confirm or override, and",
+    `(2) draft a student-facing comment to ${studentRef} that the teacher will edit + send.`,
     "",
-    "Calibration principles:",
+    "SCORING principles:",
     "- Anchor every score to a verbatim quote from the response. No quote = no confidence.",
     `- Use the full scale (${input.scaleMin}–${input.scaleMax}). A typical satisfactory response should land near 60% of max.`,
     "- Penalise length-padding. Reward specificity, evidence, and reasoning quality over word count.",
     "- If the response is missing, off-topic, or empty, set confidence < 0.5 and reasoning that names the gap.",
     "- Never invent evidence. If you cannot find an 8-word quote, return an empty evidence_quote and confidence < 0.4.",
+    "",
+    "FEEDBACK principles (this is the comment the student will read — get it right):",
+    "- Specific over generic. 'You picked PLA because it's biodegradable' beats 'Good material choice'.",
+    "- Anchor at least one sentence in the response itself. Reference what they actually wrote.",
+    "- One thing landed, one thing's missing, one concrete next step. In that order.",
+    "- Address the student warmly but not preciously. No 'awesome', 'amazing', 'great job'.",
+    "- Don't reveal the score or use scoring language. The teacher decides whether to mention numbers.",
+    "- Don't paper over weakness. If their reasoning is thin, name it specifically.",
+    "- If you have nothing specific to say (blank/off-topic submission), say only: " +
+      `"${studentRef}, I can't see a response to this question yet — try the prompt again and aim for X." Replace X with the genre of answer the prompt asks for.`,
     "",
     `Criterion being graded: ${input.criterionLabel}.`,
     `Scale: ${input.scaleLabel} (${input.scaleMin}–${input.scaleMax}).`,
@@ -106,13 +139,17 @@ function buildSystemPrompt(input: AiPrescoreInput): string {
 
 function buildUserPrompt(input: AiPrescoreInput): string {
   const lines: string[] = [];
+  if (input.studentDisplayName?.trim()) {
+    lines.push(`STUDENT: ${input.studentDisplayName.trim()}`);
+    lines.push("");
+  }
   lines.push("TILE PROMPT:");
   lines.push(input.tilePrompt.trim() || "(prompt not available)");
   lines.push("");
   lines.push("STUDENT RESPONSE:");
   lines.push(input.studentResponse.trim() || "(no submission)");
   lines.push("");
-  lines.push("Submit your pre-score using the submit_prescore tool.");
+  lines.push("Submit your pre-score AND a draft comment using the submit_prescore tool.");
   return lines.join("\n");
 }
 
@@ -130,16 +167,21 @@ export async function generateAiPrescore(
     evidenceQuote: null,
     confidence: null,
     reasoning: null,
+    feedbackDraft: null,
     modelVersion: MODELS.HAIKU,
     promptVersion: PROMPT_VERSION,
   };
 
   // Guard: don't burn a Haiku call on an empty submission.
   if (!input.studentResponse.trim()) {
+    const firstName = input.studentDisplayName?.trim()?.split(/\s+/)[0] ?? "";
+    const greeting = firstName ? `${firstName}, ` : "";
     return {
       ...baseOutput,
       reasoning: "No submission to grade.",
       confidence: 0,
+      feedbackDraft:
+        `${greeting}I can't see a response to this prompt yet — give it another go when you're ready, and aim to address the question directly.`,
     };
   }
 
@@ -180,6 +222,7 @@ export async function generateAiPrescore(
     evidence_quote?: unknown;
     confidence?: unknown;
     reasoning?: unknown;
+    feedback_draft?: unknown;
   };
 
   const score =
@@ -198,6 +241,10 @@ export async function generateAiPrescore(
     typeof raw.reasoning === "string" && raw.reasoning.trim().length > 0
       ? raw.reasoning.trim()
       : null;
+  const feedbackDraft =
+    typeof raw.feedback_draft === "string" && raw.feedback_draft.trim().length > 0
+      ? raw.feedback_draft.trim()
+      : null;
 
   return {
     ...baseOutput,
@@ -205,6 +252,7 @@ export async function generateAiPrescore(
     evidenceQuote,
     confidence,
     reasoning,
+    feedbackDraft,
   };
 }
 

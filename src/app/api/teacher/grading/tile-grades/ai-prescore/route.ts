@@ -62,6 +62,7 @@ interface PerStudentResult {
   ai_score?: number | null;
   ai_quote?: string | null;
   ai_confidence?: number | null;
+  ai_comment_draft?: string | null;
 }
 
 const MAX_BATCH = 50; // safety cap so a 200-student typo doesn't auto-burn $0.40
@@ -242,6 +243,7 @@ export async function POST(request: NextRequest) {
         ai_quote: ai.evidenceQuote ?? undefined,
         ai_confidence: ai.confidence,
         ai_reasoning: ai.reasoning ?? undefined,
+        ai_comment_draft: ai.feedbackDraft ?? null,
         ai_model_version: ai.modelVersion,
         prompt_version: ai.promptVersion,
       });
@@ -252,6 +254,7 @@ export async function POST(request: NextRequest) {
         ai_score: ai.score,
         ai_quote: ai.evidenceQuote,
         ai_confidence: ai.confidence,
+        ai_comment_draft: ai.feedbackDraft,
       });
     } catch (err) {
       results.push({
