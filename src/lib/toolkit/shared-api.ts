@@ -45,6 +45,8 @@ export async function callHaiku(
   userPrompt: string,
   maxTokens: number = 300
 ): Promise<ToolkitAIResult> {
+  // skipLogUsage: callers wrap with logToolkitUsage which logs the per-tool
+  // endpoint + tool/action metadata; helper-side logging would double-write.
   const callResult = await callAnthropicMessages({
     endpoint: "lib/toolkit/shared-api",
     model: HAIKU_MODEL,
@@ -52,6 +54,7 @@ export async function callHaiku(
     temperature: 0.8,
     system: systemPrompt,
     messages: [{ role: "user", content: userPrompt }],
+    skipLogUsage: true,
   });
 
   if (!callResult.ok) {

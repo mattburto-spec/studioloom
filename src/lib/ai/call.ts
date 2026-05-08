@@ -47,6 +47,12 @@ export interface CallOptions {
   teacherId?: string;
   /** Optional ai_usage_log.metadata enrichment (e.g. { word, l1Target, journeyId }). */
   metadata?: Record<string, unknown>;
+  /**
+   * Skip the helper's logUsage call. Use when the caller does its own logging
+   * with richer attribution (e.g. toolkit tools that log per-tool endpoint
+   * via logToolkitUsage). Default: false (helper logs).
+   */
+  skipLogUsage?: boolean;
 }
 
 export type CallSuccess = {
@@ -102,6 +108,7 @@ function buildCreateParams(opts: CallOptions, model: string): Anthropic.MessageC
 }
 
 function fireLogUsage(opts: CallOptions, model: string, usage: AnthropicUsage): void {
+  if (opts.skipLogUsage) return;
   // Truly fire-and-forget — logUsage's createAdminClient() throws synchronously
   // when SUPABASE_URL is missing (e.g. tests). Never let logging fail an AI call.
   try {
