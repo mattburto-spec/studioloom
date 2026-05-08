@@ -1760,65 +1760,64 @@ function IncomingCard({
       className={`${styles.card2} relative shrink-0`}
       style={{ width: 240 }}
     >
-      {/* Pilot Mode P5: inspect link at top-right. Pre-assignment,
-           the only path to the detail page was via the QueuedJobCard's
-           eye button — but a fab who wants to look at the file (e.g.
-           when an override-flagged job lands) needs the option BEFORE
-           hitting Send to. Sits to the left of the trash button so the
-           corner reads [eye] [trash]. */}
-      <Link
-        href={`/fab/jobs/${job.jobId}`}
-        title="View job details"
-        aria-label="View job details"
-        className="absolute top-1.5 right-7 p-1 rounded transition hover:bg-[var(--surface-2)]"
-        style={{ color: "var(--ink-3)", zIndex: 2 }}
-      >
-        <EyeIcon size={11} />
-      </Link>
-      {/* Phase 8.1d-31: corner trash. Tucked top-right so it
-           doesn't compete with Send-to but is still reachable
-           with one click. Only enabled when no other mutation is
-           in flight on this card. */}
-      <button
-        type="button"
-        onClick={() => onDelete(job)}
-        disabled={busy !== undefined}
-        title="Delete job permanently"
-        aria-label="Delete job permanently"
-        className="absolute top-1.5 right-1.5 p-1 rounded transition disabled:opacity-50 hover:bg-[var(--surface-2)]"
-        style={{ color: "var(--ink-3)", zIndex: 2 }}
-      >
-        {busy === "delete" ? (
-          <span
-            className="block w-2.5 h-2.5 border-[1.5px] rounded-full animate-spin"
-            style={{
-              borderColor: "var(--ink-2)",
-              borderTopColor: "transparent",
-            }}
-          />
-        ) : (
-          <TrashIcon size={11} />
-        )}
-      </button>
       <div className="p-3">
         <div className="flex gap-2.5">
-          <div
-            className="w-12 h-12 rounded shrink-0 p-1"
-            style={{
-              background: "var(--surface)",
-              border: "1px solid var(--hair)",
-            }}
-          >
-            {job.thumbnailUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={job.thumbnailUrl}
-                alt=""
-                className="w-full h-full object-contain"
-              />
-            ) : (
-              <div className="w-full h-full" style={{ background: "var(--surface-3)" }} />
-            )}
+          {/* Pilot Mode P5b: thumbnail + action stack. Eye + trash
+               were previously absolute-positioned in the top-right
+               corner at ink-3 (dimmest gray) and getting missed.
+               Moved under the 48×48 thumbnail with brighter colours
+               so they sit in the natural read path. */}
+          <div className="flex flex-col items-center gap-1.5 shrink-0">
+            <div
+              className="w-12 h-12 rounded p-1"
+              style={{
+                background: "var(--surface)",
+                border: "1px solid var(--hair)",
+              }}
+            >
+              {job.thumbnailUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={job.thumbnailUrl}
+                  alt=""
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <div className="w-full h-full" style={{ background: "var(--surface-3)" }} />
+              )}
+            </div>
+            <div className="flex items-center gap-1 w-12 justify-center">
+              <Link
+                href={`/fab/jobs/${job.jobId}`}
+                title="View job details"
+                aria-label="View job details"
+                className="p-1.5 rounded transition hover:bg-[var(--surface-2)]"
+                style={{ color: "var(--ink-1)" }}
+              >
+                <EyeIcon size={14} />
+              </Link>
+              <button
+                type="button"
+                onClick={() => onDelete(job)}
+                disabled={busy !== undefined}
+                title="Delete job permanently"
+                aria-label="Delete job permanently"
+                className="p-1.5 rounded transition disabled:opacity-40 hover:bg-[rgba(220,38,38,0.15)]"
+                style={{ color: "rgb(252, 165, 165)" }}
+              >
+                {busy === "delete" ? (
+                  <span
+                    className="block w-3 h-3 border-[1.5px] rounded-full animate-spin"
+                    style={{
+                      borderColor: "rgb(252, 165, 165)",
+                      borderTopColor: "transparent",
+                    }}
+                  />
+                ) : (
+                  <TrashIcon size={13} />
+                )}
+              </button>
+            </div>
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 mb-0.5">
