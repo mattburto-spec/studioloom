@@ -1073,22 +1073,28 @@ systems:
   - id: ai-provider
     name: AI Provider Abstraction & Fallback Chain
     category: AI & Intelligence
-    status: complete
-    currentVersion: 1
-    summary: "Factory pattern: Anthropic (primary) → Groq (fallback) → Gemini (fallback). Model selection per tier via admin settings. Single provider interface across all systems."
+    status: partial
+    currentVersion: 0.5
+    summary: "Anthropic SDK chokepoint via callAnthropicMessages helper (src/lib/ai/call.ts) — centralises Lesson #39 stop_reason handling, logUsage attribution, and withAIBudget integration. AIProvider interface + AnthropicProvider continue to serve unit-generation pipeline. Phase A migrating ~30 call sites onto the helper; Phase B will add provider routing (DeepSeek, Qwen, OpenAI-compatible) for per-feature swap from admin panel. Groq + Gemini fallback chain not yet implemented (FU-Y)."
     depends_on: []
     affects: [ai-mentor, generation-pipeline, knowledge-pipeline, content-safety]
     docs:
       - path: docs/ai-intelligence-architecture.md
         purpose: Provider architecture
+      - path: docs/projects/ai-provider-abstraction-phase-a-brief.md
+        purpose: Phase A brief — chokepoint helper + migration plan
     data_fields:
       - table: ai_usage_log
-        columns: [id, provider, model, input_tokens, output_tokens, cost, created_at]
-        notes: Cost tracking per provider
+        columns: [id, user_id, student_id, endpoint, model, input_tokens, output_tokens, estimated_cost_usd, metadata, created_at]
+        notes: Per-call attribution; user_id for teacher-attributed calls, student_id for student-attributed
     key_files:
-      - src/lib/ai/providers.ts
-      - src/lib/ai/provider-factory.ts
-    future_needs: DeepSeek, Qwen, Moonshot support, model benchmarking.
+      - src/lib/ai/call.ts
+      - src/lib/ai/types.ts
+      - src/lib/ai/anthropic.ts
+      - src/lib/ai/openai-compatible.ts
+      - src/lib/ai/index.ts
+      - src/lib/ai/resolve-credentials.ts
+    future_needs: DeepSeek, Qwen, Moonshot support, model benchmarking, admin panel per-feature routing config (Phase B).
     adrs: []
     os_seam: ready
     change_impacts: Changes to fallback chain affect availability. Changes to cost tracking affect billing.
