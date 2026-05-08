@@ -1844,6 +1844,28 @@ function IncomingCard({
                 <span className="truncate">{job.preferredColor}</span>
               </div>
             )}
+            {/* Pilot Mode P4: scanner found a BLOCK-severity issue on
+                this file and the student used "Override and proceed"
+                during the pilot. The fab tech needs to see this BEFORE
+                they pull the file into the slicer — it may not slice
+                or print cleanly. Red signals a print-risk warning,
+                distinct from the amber color-pref chip above. */}
+            {job.pilotOverrideAt && (
+              <div
+                className="mt-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9.5px] font-extrabold uppercase tracking-wide ring-1"
+                style={{
+                  background: "rgba(220, 38, 38, 0.16)",
+                  color: "rgb(252, 165, 165)",
+                  borderColor: "rgba(220, 38, 38, 0.45)",
+                }}
+                title={`Scanner flagged: ${job.pilotOverrideRuleIds.join(", ") || "rule(s)"}. Student overrode. May not slice/print correctly — heads-up before you start.`}
+              >
+                <span aria-hidden="true">⚠</span>
+                <span className="truncate">
+                  Flagged · may not print
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -2282,6 +2304,24 @@ function QueuedJobCard({
               >
                 <span aria-hidden="true">🎨</span>
                 <span className="truncate">{job.preferredColor}</span>
+              </div>
+            )}
+            {/* Pilot Mode P4: same red flag as on incoming cards. The
+                queued card is post-Send-to but pre-Start, so the fab
+                still has time to triage before pulling it into the
+                slicer. */}
+            {job.pilotOverrideAt && (
+              <div
+                className="mt-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9.5px] font-extrabold uppercase tracking-wide ring-1"
+                style={{
+                  background: "rgba(220, 38, 38, 0.16)",
+                  color: "rgb(252, 165, 165)",
+                  borderColor: "rgba(220, 38, 38, 0.45)",
+                }}
+                title={`Scanner flagged: ${job.pilotOverrideRuleIds.join(", ") || "rule(s)"}. Student overrode. May not slice/print correctly.`}
+              >
+                <span aria-hidden="true">⚠</span>
+                <span className="truncate">Flagged · may not print</span>
               </div>
             )}
           </div>
