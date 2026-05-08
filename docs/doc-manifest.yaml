@@ -30,15 +30,15 @@ docs:
 
   - path: docs/decisions-log.md
     title: "Key Decisions Log"
-    purpose: "203+ architectural and design decisions from 17 Mar – 29 Apr 2026. Last: bug-report system design — role-hint auth, JSONB client_context, screenshot bounds, dedupe, Sentry tie-in, rAF yield (29 Apr 2026)."
+    purpose: "215+ architectural and design decisions. Latest 8 May 2026 marathon: kanban save-race fix as actual fly-back cause; hard-nav for Next.js 15 silent fail; Vercel Analytics consolidation; auto-merge default workflow; Backlog Ideation tool design; NextActionPill in hero; defense-in-depth admin chrome flash; separate Chrome profiles for multi-role testing."
     category: root
-    last_verified: "2026-04-29"
+    last_verified: "2026-05-08"
     max_age_days: 90
     last_scanned: null
 
   - path: docs/lessons-learned.md
     title: "Lessons Learned"
-    purpose: "73 hard-won lessons from production bugs, build disasters, Supabase/Vercel gotchas. Latest #73 (8 May 2026): cap counters and usage logs are independent pipelines — bills can rise without leaving an attribution trail; pair them with a chokepoint helper or a reconciliation gap detector on the same admin surface as the count."
+    purpose: "75 hard-won lessons from production bugs, build disasters, Supabase/Vercel gotchas. Latest #74 + #75 (8 May 2026): instrument before adding more guards in same layer; same-layer guards keep failing → bug is probably in adjacent layer."
     category: root
     last_verified: "2026-05-08"
     max_age_days: 90
@@ -2332,11 +2332,11 @@ docs:
 
   - path: docs/vendors.yaml
     title: "Vendor / DPA Registry"
-    purpose: "Third-party vendor / DPA registry — 9 vendors with data categories and legal bases"
+    purpose: "Third-party vendor / DPA registry — 9 vendors with data categories and legal bases. Vercel entry expanded 8 May 2026 with analytics_pageviews + analytics_web_vitals categories (PR #110 Web Analytics + Speed Insights enabled, PR #111 Plausible removed)."
     category: root
-    last_verified: "2026-04-14"
+    last_verified: "2026-05-08"
     max_age_days: 30
-    last_scanned: null
+    last_scanned: "2026-05-08"
 
   - path: docs/vendors-taxonomy.md
     title: "Vendor / DPA Registry Taxonomy"

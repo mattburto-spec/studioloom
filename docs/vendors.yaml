@@ -83,7 +83,7 @@ vendors:
 
   vercel:
     name: Vercel
-    role: Hosting + edge compute + build + logs
+    role: Hosting + edge compute + build + logs + Web Analytics + Speed Insights
     status: integrated
     region: multi
     data_sent:
@@ -93,12 +93,21 @@ vendors:
       - category: error_reports
         fields: [stack traces, request context]
         basis: legitimate_interest
+      # Added 8 May 2026 (PR #110) — Vercel Web Analytics + Speed Insights
+      # turned on with the Pro plan. No cookies, no PII, GDPR/COPPA-safe per
+      # Vercel docs. Plausible removed in PR #111 (was the predecessor).
+      - category: analytics_pageviews
+        fields: [path, referrer, country/region, device type, browser]
+        basis: legitimate_interest
+      - category: analytics_web_vitals
+        fields: [LCP, FID, CLS, TTFB, INP per route]
+        basis: legitimate_interest
     dpa_signed: null
     subprocessors: [aws, cloudflare]
     student_data_eligible: false
     certifications: [soc2_type2]
     contract_type: standard
-    notes: "DPA pending — Vercel offers DPA at vercel.com/legal/dpa; no payloads stored, only infra logs"
+    notes: "DPA pending — Vercel offers DPA at vercel.com/legal/dpa; no payloads stored, only infra logs. Web Analytics + Speed Insights are first-party, no cookies."
 
   groq:
     name: Groq

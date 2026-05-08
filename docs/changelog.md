@@ -4,6 +4,47 @@
 
 ---
 
+## 7-8 May 2026 — Marathon: kanban drag-and-drop saga, dashboard consolidation, analytics swap, admin session-takeover defenses
+
+**Context:** Two-day session spanning the start of NIS Class 1 (7 May) through Class 2 prep (8 May). Started as a kanban modal-on-drop bugfight, expanded into student dashboard polish, ideation tool build, analytics consolidation, and a series of admin-shell defenses after diagnosing a real auth-cookie collision bug.
+
+20 PRs merged: #96 → #112, #114, #115. Plus one empty-commit deploy trigger (`8c80f28`) and one prod-applied migration (`20260501103415_fix_handle_new_teacher_skip_students` — applied manually via Supabase dashboard).
+
+**Workflow change banked as memory:** auto-merge-PRs-once-green is now the default for fix PRs in this user's environment. Memory file at `~/.claude/projects/-Users-matt-CWORK/memory/feedback_auto_merge_default.md`.
+
+**Concern A — Kanban drag-and-drop saga (rounds 36 → 43):** Started as "modal opens after every kanban card drop." Spent 6 rounds adding progressively-aggressive click-suppression layers that didn't work, then added a `console.trace` (round 36) which revealed framer-motion fired `onDragEnd` twice. Then 4 more rounds chasing different theories before finding the actual cause was at the **persistence layer, not the gesture layer**. PRs #96 (round 37 isDraggingRef — load-bearing), #97 (round 38 viewportPoint — load-bearing), #98–99 (rounds 39+40 phantom guards — proven unnecessary, stripped), **#100 (round 41 — THE actual fix: useKanbanBoard.flushSave was clobbering local state with server response, wiping any drag during save's network roundtrip)**, #101 (round 42 cleanup — strip diagnostics + dead suppression layers, -188 lines), #102 (round 43 lesson nav switched to `window.location.href` hard-nav to dodge Next.js 15 silent soft-nav fail).
+
+**Concern B — Kanban + dashboard new features:**
+- #103 Kanban pulse pill in Class Hub Attention tab (`Cards: N · M done` per student, rose if 0).
+- #104 Backlog Ideation tool — Socratic Haiku helper at POST `/api/tools/kanban-ideation`. Effort-gated 3-phase modal (description ≥40 chars → 3 rough first ideas → loop with AI nudges). 8 source-static contract tests lock the "AI never lists ideas, only asks questions" pedagogical promise.
+- #105 Stack Add/Ideate buttons vertically; rename `✨ Ideate` → `✨ Help me come up with more cards`.
+- #106 → #109 Dashboard hero NextActionPill replaces standalone NextActionCard + replaces Focus button. MiddleRow consolidation (drop "Next to unlock", expand "Coming Up" 5+4+3 → 5+7).
+- #107 + #108 Content-block visual refresh (Key Information / Pro Tip / Safety Warning / etc.) — gradient bg, colored icon badges, 17-18px body, top accent stripe, hover-lift. ComposedPrompt with tappable=true unchanged → click-for-word-definition still works.
+
+**Concern C — Analytics + admin shell hardening:**
+- #110 + #111 Vercel Web Analytics + Speed Insights enabled (Pro plan); Plausible removed.
+- #112 Removed "Back to teacher dashboard" from admin user-menu.
+- Diagnosed real auth bug: Supabase auth cookie shared across all incognito windows in same Chrome profile → student-classcode-login overwrites admin session. Decoded session cookie via Console — confirmed admin tab was running on a STUDENT JWT.
+- #114 Auto-redirect to `/admin/login?reason=session-changed` when whoami returns 401/403.
+- #115 Defense in depth — admin layout renders "Verifying admin access…" loading shell until whoami confirms; never flashes admin chrome to unauth'd viewers.
+- Migration `20260501103415_fix_handle_new_teacher_skip_students` applied to prod via Supabase SQL editor — guards `handle_new_teacher` trigger to skip student auth users + backfill-deletes 14 leaked `student-{uuid}@students.studioloom.local` rows from teachers table.
+
+**Systems affected:**
+- `kanban-system` (rounds 37/38/41 in KanbanBoard.tsx + use-kanban-board.ts; new ideation modal + API)
+- `attention-rotation-panel` (kanban pulse pill)
+- `student-dashboard-v2` (NextActionPill, MiddleRow consolidation, ContentBlock visual refresh)
+- `auth-system` (admin shell defenses, leaked-teachers migration applied)
+- `vendors` (Vercel Analytics added, Plausible removed)
+- `lesson-navigation` (hard-nav workaround for Next.js 15 soft-nav silent fail)
+
+**Open follow-ups filed:**
+- `FU-LESSON-NAV-SOFT-NAV` (P3) — investigate Next.js 15 router.push silent fail when navigating to recently-created dynamic routes; restore SPA-style lesson nav once root cause known.
+- Adjacent (pre-existing): registry drift in feature-flags (orphaned `SENTRY_AUTH_TOKEN`, `auth.permission_helper_rollout`; missing `RUN_E2E`).
+
+**Lessons banked:** #74 (instrument before adding more guards in same layer); #75 (when same-layer guards keep failing, look upstream/downstream).
+
+---
+
 ## 8 May 2026 — Admin AI Budget per-student token breakdown (3 PRs end-to-end)
 
 **Context:** Matt could see per-student daily totals on `/admin/ai-budget` (e.g. testv22 at 10,005 tokens) but had no way to attribute spend to a feature. He'd just spotted unexpected token use on a test student and couldn't tell whether it was an agent loop, a stuck tab, or a real session. Built end-to-end visibility through three sequential PRs in this session.

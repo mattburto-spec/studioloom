@@ -1057,5 +1057,42 @@ Both bugs were silently invisible until the breakdown view existed. Per-student 
 
 **When this comes up:** any new admin diagnostic that aggregates over a usage/audit/log table; any feature that bills (cap counter) and logs (audit trail) in separate code paths; any reconciliation between a denormalized counter and a per-row source. The amber callout pattern (`Reconciliation gap: A is N tokens ahead of B. Some site bypasses logUsage()`) generalises — it's "an invariant the reader can act on" rather than "two numbers the reader has to compare."
 
+---
 
+### Lesson #74 — When fix attempts in the same layer keep failing, instrument before adding another layer
 
+**The bug:** Kanban modal-on-drop. Six rounds of progressively-aggressive click-suppression (round 26 ref + 350ms gate; round 28 bumped to 1000ms + dragStart stamp; round 31 board-root onClickCapture; round 33 direct DOM `pointerEvents = "none"`; round 34 document-level click listener with capture; round 35 full revert of 31/33/34 because they broke drag entirely). After round 34 broke drag mid NIS Class 1, every subsequent attempt was rolling forward in the same layer — adding guards on top of guards. Modal still popped.
+
+Round 36 stopped adding layers and added one `console.trace` call inside `setOpenCardId`. The trace ran live in DevTools during a drop and revealed: `dragEnd fired { offsetX: 363 }` → `setOpenCardId called` (the bug) → `dragEnd fired { offsetX: -282 }` (snap-back animation re-fires the event). Two `dragEnd`s per drag, with the click event squeezed between them. None of the timestamp gates could have caught it because they were measuring time-since-last-dragEnd, and "last" was an ambiguous concept when there are two.
+
+Round 37 fix took 30 minutes to design once the trace was visible.
+
+**The general rule:** **when the layer you're operating in keeps failing to fix a symptom, the diagnosis is wrong, not the implementation.** Adding a sixth click-suppression mechanism was always going to fail because the bug wasn't a click event leaking through — it was a misunderstanding of the gesture cycle. One `console.trace` would have surfaced the real shape in 5 minutes; instead 5 days of gates accumulated.
+
+**Operational guidance:**
+1. **Three failed rounds in the same layer = stop and instrument.** Don't ship a fourth gate or a fifth gate. Add visibility into what's actually happening at runtime.
+2. **`console.trace` (with stack trace) > `console.log` (just value)** — the trace shows you the call path.
+3. **`console.warn` is good enough** — you don't need a fancy debug surface or a sandbox simulator. Plain console + `git commit` + Vercel preview = full live reproduction in 90 seconds.
+4. **Diagnostic commits ARE round-numbered work.** PR #95 was "round 36 — instrument setOpenCardId with console.trace" and was the most valuable commit of the entire 7-round saga.
+5. **Strip diagnostics in a follow-up PR.** Don't leave them in prod. Round 42 cleanup was -188 lines.
+
+**When this comes up:** event-ordering bugs, framework-quirk bugs (framer-motion, Next.js router, React render lifecycle), bugs that "should be fixed" by your last 3 attempts but aren't.
+
+---
+
+### Lesson #75 — When same-layer guards keep failing, the bug is probably in a different layer
+
+**The bug:** Kanban "card flies back to original column after drop" persisted even after rounds 38, 39, 40 shipped. Each round added another guard at the gesture layer (round 38: viewport-coord conversion; round 39: `activeDragCardRef` per-card phantom-dragEnd guard; round 40: `lastDragEndAtRef` timestamp debounce per cardId). Round 40 also added a `dragStart fired` console.warn diagnostic that, in the next live test, **disproved my own hypothesis** — framer-motion fires exactly ONE `dragStart` and ONE `dragEnd` per gesture. There was no phantom event to guard against. Yet cards still flew back.
+
+Round 41 traced the actual cause: not the gesture layer, the **persistence layer**. `useKanbanBoard.flushSave` was clobbering local state with the server's canonical `loadState` response, wiping any drag that landed during the save's network roundtrip (200-600ms). Fix was 5 lines: only apply server response if `stateRef.current === snapshot` (no change during save).
+
+Three rounds of guards in the gesture layer; the bug was three function calls upstream in the persistence layer.
+
+**The general rule:** **when guards in the same layer keep failing to fix a symptom, the bug is probably in an adjacent layer.** Adjacent = anything within ~5 stack frames of where you're guarding. Network handlers, reducers, parent components, side-effect hooks, server responses. The narrative "events leak through gate X, so I'll add gate Y closer to the surface" is seductive and usually wrong when it's the third gate.
+
+**Operational guidance:**
+1. **When you've shipped 3 guards in the same layer and the symptom persists, force yourself to look at: (a) where the symptom's data comes from, (b) where it gets written, (c) what runs between A and B.** That's the upstream/downstream sweep.
+2. **Round-X diagnostics that DISPROVE your hypothesis are gold.** Don't bury them. The `[kanban] dragStart fired` warn proved no phantoms exist — that should have been the moment to look elsewhere, not the moment to add more guards.
+3. **The root-cause layer is often the layer that handles "fresh data overwriting local state."** Save handlers, query refetches, server-pushed updates, optimistic-update reverts.
+
+**When this comes up:** any "the fix keeps not fixing it" symptom; any bug with timing-dependent reproduction; any bug where the user reports "it works most of the time but sometimes…" (timing-related = save-race-suspect almost always).

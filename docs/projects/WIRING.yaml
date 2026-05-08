@@ -309,11 +309,14 @@ systems:
     summary: |
       Lightweight per-student-per-unit PM tools — Kanban board (4-column
       forward flow) + Timeline (backward-mapped milestones from race day)
-      + Teacher Attention-Rotation Panel. v1 shipped 6 May 2026 for the
-      CO2 Racers agency unit (AG.1–AG.4). Pure reducers + server-side
-      validators in @/lib/unit-tools/{kanban,timeline,attention}; UI in
-      @/components/student/{kanban,timeline} + components/teacher/
-      UnitAttentionPanel.
+      + Teacher Attention-Rotation Panel + Backlog Ideation tool
+      (Socratic AI helper) + dashboard NextActionPill in hero. v1 shipped
+      6 May 2026 for the CO2 Racers agency unit (AG.1–AG.4); kanban save-
+      race fix + ideation tool + dashboard surface added 7-8 May 2026
+      (PRs #100, #103, #104, #105, #106→#109). Pure reducers + server-
+      side validators in @/lib/unit-tools/{kanban,timeline,attention};
+      UI in @/components/student/{kanban,timeline} + NextActionCard +
+      NextActionPill + components/teacher/UnitAttentionPanel.
     depends_on: [scheduling, student-open-studio, lesson-editor]
     affects: [student-dashboard, student-data, attention-rotation]
     docs:
@@ -331,15 +334,17 @@ systems:
         columns: [student_id, unit_id, milestones, race_date, next_milestone_label, next_milestone_target_date, pending_count, done_count, last_updated_at]
         notes: AG.3.1 — JSONB milestones + race_date + denormalised summary
     key_files:
-      - src/lib/unit-tools/kanban/{types,reducer,client,server-validators}.ts
+      - src/lib/unit-tools/kanban/{types,reducer,client,server-validators,next-action,drag-drop}.ts
       - src/lib/unit-tools/timeline/{types,reducer,client,server-validators}.ts
-      - src/lib/unit-tools/attention/{types,client,aggregate}.ts
-      - src/components/student/kanban/{KanbanBoard,KanbanColumn,KanbanCard,KanbanCardModal}.tsx + use-kanban-board.ts
+      - src/lib/unit-tools/attention/{types,client,aggregate}.ts (+ kanban pulse pill fields, 8 May 2026)
+      - src/components/student/kanban/{KanbanBoard,KanbanColumn,KanbanCard,KanbanCardModal,KanbanAddCardModal,KanbanIdeationModal}.tsx + use-kanban-board.ts
       - src/components/student/timeline/{TimelineBoard,TimelineMilestoneRow}.tsx + use-timeline-board.ts
-      - src/components/teacher/UnitAttentionPanel.tsx + unit-attention-helpers.ts
+      - src/components/student/{NextActionCard,NextActionPill}.tsx (dashboard hero integration, 8 May 2026)
+      - src/components/teacher/UnitAttentionPanel.tsx + unit-attention-helpers.ts (+ KanbanPulseCell, 8 May 2026)
       - src/app/(student)/unit/[unitId]/board/page.tsx (mounts both Timeline + Kanban)
       - src/app/api/student/{kanban,timeline}/route.ts
-      - src/app/api/teacher/student-attention/route.ts
+      - src/app/api/teacher/student-attention/route.ts (+ kanbanCountsByStudent payload)
+      - src/app/api/tools/kanban-ideation/route.ts (Backlog Ideation, Haiku, 8 May 2026)
     future_needs: |
       Milestone-aware check-ins (Open Studio v2 integration). AI-suggested
       adjustments. Peer collaboration. Calibration mini-view (side-by-side

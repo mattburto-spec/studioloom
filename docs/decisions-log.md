@@ -592,3 +592,27 @@ The brief at [`docs/projects/task-system-architecture.md`](projects/task-system-
 - **OQ-6: Lever 0 schema-dependency check before TG.0B (5 May 2026)** — 30-min Lever 0 sketch as part of TG.0A pre-flight ritual. Confirms whether Lever 0's CBCI / Structure-of-Process / Paul-Elder framework braiding emits any fields that need to live on `assessment_tasks` (e.g. "this task uses Strategy X under Concept Y"). Cheap insurance against schema-locks-too-early.
 
 - **OQ-7: Dedicated worktree for TG build (5 May 2026)** — `/Users/matt/CWORK/questerra-tasks` for the ~15.5-day build. Matches existing pattern (`questerra-preflight`, `questerra-dashboard`). 16 days of schema-touching work definitely warrants the separation.
+
+---
+
+## Kanban / Dashboard / Admin marathon (7-8 May 2026)
+
+- **Round-37 stateful boolean ref over timestamp gate for kanban click suppression (8 May 2026)** — 6 prior rounds tried timestamp-based gates and capture-phase handlers; modal still opened on drop. Round 36's `console.trace` on `setOpenCardId` revealed framer-motion fires `onDragEnd` twice per drag in our setup (real drag + snap-back animation), with the click event between them. Switched to `isDraggingRef` — boolean true from `dragStart` until 350ms after `dragEnd`. Synchronous ref read, no render-timing race, no dependency on click event ordering.
+
+- **Round-41 save-race was the actual fly-back cause; rounds 39+40 phantom guards were red herrings (8 May 2026)** — Cards persisted to wrong column even after rounds 38+39+40 shipped. Round-40 diagnostic confirmed framer-motion fires exactly ONE `dragStart` + ONE `dragEnd` per gesture — no phantoms. Real bug: `useKanbanBoard.flushSave` clobbered local state with server's canonical `loadState` response, wiping any drag that landed during the save's network roundtrip. Fix: only apply server response if `stateRef.current === snapshot` (no change during save). **Lesson banked:** when guards keep failing in the same layer, look upstream/downstream before adding more guards in the same layer.
+
+- **Hard-nav (`window.location.href`) for lesson-to-lesson navigation as Next.js 15 soft-nav workaround (8 May 2026)** — Programmatic `btn.click()` test confirmed: click handler fires, but `router.push` to recently-created `[pageId]` segments silently no-ops. Hard nav works. Pragmatic fix: switch lesson sidebar + Complete-and-Continue + MobileBottomNav prev/next from `router.push` → `window.location.href`. Filed `FU-LESSON-NAV-SOFT-NAV` (P3).
+
+- **Vercel Web Analytics + Speed Insights consolidation; Plausible removed (8 May 2026)** — Pro plan includes both, no per-event cost, privacy-first. Plausible was on a paid v2 endpoint that had lapsed. Net: -1 vendor, -1 remote script load.
+
+- **Auto-merge PRs once green is the new default workflow (8 May 2026)** — Saved as memory at `~/.claude/projects/-Users-matt-CWORK/memory/feedback_auto_merge_default.md`. For PRs Claude opens as part of executing a fix Matt asked for: poll until CI + Vercel green, squash-merge, delete branch. Don't ask "want me to merge?" between PR-open and merge.
+
+- **Backlog Ideation tool built as a /api/tools/* Haiku endpoint, not a block type (8 May 2026)** — Standalone modal triggered from Backlog `+ Add card`, not a teacher-insertable lesson block. POST `/api/tools/kanban-ideation` (Haiku, 2 actions: `probe` + `nudge`). 8 source-static contract tests lock the pedagogical promise: AI never lists ideas, only asks questions.
+
+- **Standalone NextActionCard removed; replaced by NextActionPill in hero (8 May 2026)** — Per Matt: "the focus button on the hero card can be replaced with the new kanban next action." Replaced the Focus button. One next-action surface on the dashboard, not two. Reuses the same `selectNextAction()` pure helper.
+
+- **"Next to unlock" column dropped; "Coming Up" expanded to fill (8 May 2026)** — MiddleRow grid was 5+4+3 (earned / next-to-unlock / coming-up); now 5+7. Per Matt: students rarely engaged with it.
+
+- **Defense-in-depth admin chrome flash prevention (8 May 2026)** — Layout-level auth state machine (`checking` / `admin` / `redirecting`). When state !== `admin`, render "Verifying admin access…" loading shell instead of the real chrome. Catches CDN/cache edge cases that bypass middleware. Trade-off: legit admin visitors see ~100-200ms loading shell on first nav.
+
+- **Separate Chrome profiles (not incognito windows) for multi-role testing (8 May 2026)** — All incognito windows in the same Chrome session share ONE cookie jar. Supabase auth cookie at `studioloom.org` domain gets overwritten when student-classcode-login fires in any window. Workaround: separate Chrome profiles or different browsers. Not fixed at app level (would require subdomain split, deferred).
