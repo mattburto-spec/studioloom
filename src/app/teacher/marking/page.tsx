@@ -13,6 +13,7 @@ import { extractTilesFromPage, tileProgress, type LessonTile } from "@/lib/gradi
 import { computeStudentRollup, type CriterionRollup } from "@/lib/grading/rollup";
 import { computeCriterionCoverage, coverageStatus } from "@/lib/grading/criterion-coverage";
 import { sanitizeResponseText } from "@/lib/grading/sanitize-response";
+import { classifyCommentReadState, commentChipTooltip } from "@/lib/grading/comment-status";
 import { ScorePill } from "@/components/grading/ScorePill";
 import { ScoreSelector } from "@/components/grading/ScoreSelector";
 
@@ -407,6 +408,13 @@ interface TileGradeRow {
   override_note?: string | null;
   student_facing_comment?: string | null;
   score_na?: boolean | null;
+  // TFL.1 — read receipts. updated_at is the row's last-write time
+  // (proxy for "comment last edited" in v1; over-aggressive for non-
+  // comment edits like score changes — see brief Open Question).
+  // student_seen_comment_at is the most recent timestamp the student
+  // loaded a lesson page that surfaced this comment.
+  student_seen_comment_at?: string | null;
+  updated_at?: string | null;
 }
 
 function CalibrateView({ classId, unitId }: { classId: string; unitId: string }) {
@@ -533,7 +541,7 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
       const { data: gradeRows } = await supabase
         .from("student_tile_grades")
         .select(
-          "id, student_id, page_id, tile_id, score, confirmed, ai_pre_score, ai_quote, ai_confidence, ai_reasoning, ai_comment_draft, criterion_keys, override_note, student_facing_comment, score_na",
+          "id, student_id, page_id, tile_id, score, confirmed, ai_pre_score, ai_quote, ai_confidence, ai_reasoning, ai_comment_draft, criterion_keys, override_note, student_facing_comment, score_na, student_seen_comment_at, updated_at",
         )
         .eq("class_id", classId)
         .eq("unit_id", unitDetail.id);
@@ -1240,6 +1248,35 @@ function CalibrateInner({
                       className =
                         "border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100";
                     }
+
+                    // TFL.1.3 — read-receipt dot. Only meaningful for "sent"/
+                    // "edited" states (must have a comment for the student to
+                    // have seen). Layered into the chip; the chip's title
+                    // attribute is overridden with the receipt tooltip when a
+                    // receipt is in play (more useful than the static "Student
+                    // can see this comment" copy).
+                    const hasComment = state === "sent" || state === "edited";
+                    const readState = hasComment
+                      ? classifyCommentReadState({
+                          commentSentAt: grade?.updated_at ?? null,
+                          seenAt: grade?.student_seen_comment_at ?? null,
+                        })
+                      : "unsent";
+                    const dotClass = !hasComment
+                      ? null
+                      : readState === "seen-current" || readState === "seen-stale"
+                        ? "bg-emerald-500"
+                        : readState === "unread-stale"
+                          ? "bg-amber-500"
+                          : "bg-gray-300";
+                    const receiptTooltip = hasComment
+                      ? commentChipTooltip(
+                          readState,
+                          grade?.updated_at ?? null,
+                          grade?.student_seen_comment_at ?? null,
+                        )
+                      : null;
+
                     return (
                       <button
                         type="button"
@@ -1258,15 +1295,24 @@ function CalibrateInner({
                                 : "No feedback yet"
                         }
                         title={
-                          state === "ai_draft"
+                          receiptTooltip ??
+                          (state === "ai_draft"
                             ? "AI drafted a comment — open to review + send"
                             : state === "sent"
                               ? "Student can see this comment"
                               : state === "edited"
                                 ? "Student can see your edited version"
-                                : "Open to write feedback or run AI suggest"
+                                : "Open to write feedback or run AI suggest")
                         }
                       >
+                        {dotClass && (
+                          <span
+                            className={`inline-block w-1.5 h-1.5 rounded-full ${dotClass}`}
+                            aria-hidden="true"
+                            data-testid="read-receipt-dot"
+                            data-state={readState}
+                          />
+                        )}
                         {state === "ai_draft" && (
                           <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                             <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
