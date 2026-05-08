@@ -4201,3 +4201,37 @@ Plus the NIS tier flip + Gmail-Matt detach as ops changes.
 3. After TG.0B: Lever 0 build + tasks-grading build run in parallel
 
 **Build velocity for the day** (counting Lever 1 + Lever-MM + Tasks v1 prototype + Task System Architecture brief): two complete features end-to-end (Lever 1 schema-through-readers + Lever-MM block category) + one design probe + one architectural decision moment locked. ~12-14 hours wall-clock. Net tests +166. Three PRs to main. Zero regressions.
+
+## 8 May 2026 (afternoon CST) — Admin Cost & Usage rebuild + Report Writer PII anonymization
+
+**Three small PRs landed:**
+
+| Commit / PR | Scope |
+|---|---|
+| [`b48fbfa`](https://github.com/mattburto-spec/studioloom/pull/133) → PR #133 | `feat(admin): rebuild Cost & Usage as spend-by-endpoint view` — replaced broken per-teacher view (was reading empty `cost_rollups`, 500ing) with unified spend-by-endpoint surface pulling from `ai_usage_log`. Period selector adds **today** (Asia/Shanghai timezone boundary). 4 KPI cards, 4-card attribution split (student/teacher/anonymous/lib), sortable endpoint table with attribution chips. JS aggregation under 50k row cap; documented next move is a SECURITY DEFINER GROUP BY RPC if volume exceeds. |
+| [`9259185`](https://github.com/mattburto-spec/studioloom/pull/134) → PR #134 | `fix(tools): anonymize student names before sending Report Writer prompts to Anthropic` — substitute teacher-provided name with `Student` placeholder before prompt goes to Anthropic, restore on response with capital-S whole-word replace. Audit confirmed only 2 of ~35 AI call sites were leaking names (both Report Writer routes); design assistant, mentor, toolkit tools, lesson editor AI fields, etc. already send no names. |
+| [`f45edf7`](https://github.com/mattburto-spec/studioloom/pull/136) → PR #136 | `chore(usage): drop student firstName from bulk Report Writer ai_usage_log metadata` — companion to #134; `metadata.batchStudent` was only useful for per-student debugging in batch runs and isn't worth the PII footprint in our own logs. |
+
+**Findings logged but no code action needed:**
+
+- **Lib attribution = 0% on Cost & Usage** — Explore audit confirmed all `src/lib/{ingestion,pipeline,knowledge,...}` callsites correctly use `lib/` prefix and skip teacher/student attribution. The 0% just reflects no unit-builds or ingestion ran during the 7d window (pilot + kanban + admin work doesn't trigger them). Infrastructure is correct.
+- **`/api/teacher/wizard-suggest` shows old `/api/` prefix** — pre-PR-#125 historical rows still in the 7d window. PR #125's commit message explicitly says "Older rows in ai_usage_log are left as-is — historical only." By design.
+
+**Decisions banked** (`docs/decisions-log.md`):
+- Anthropic privacy stance: of ~35 AI call sites, Report Writer is the only one that needed name anonymization. The substitute-then-restore pattern (placeholder outbound, regex replace on response) is the canonical approach when teacher-provided PII has to round-trip through an LLM.
+- Cost & Usage v1: JS aggregation under 50k row cap is sufficient at current volumes; defer SECURITY DEFINER GROUP BY RPC until volume forces it. Surface a `truncated` flag in the response so the UI can warn if the cap is hit.
+
+**Lessons learned:** None banked — all session work was within established patterns.
+
+**Tests:** No net change (these are small route-level changes; no new test files added).
+
+**Cleanup:** Stale `task-system-architecture-oq-resolution` remote branch deleted — its one unique commit was already on main under a different SHA (rebase showed it as a skipped cherry-pick), and its Vercel preview was timing out at 45min on the build flake. No code lost.
+
+**Registry sync (this saveme):**
+- `api-registry.yaml` updated — `/api/admin/cost-usage` now reads `ai_usage_log` (was reading the empty `cost_rollups` + `generation_runs` + `admin_settings`).
+- `vendors.yaml` Anthropic entry got a notes addendum documenting the Report Writer substitute/restore pattern.
+- `ai-call-sites.yaml`: no diff (callsite endpoints unchanged).
+- `feature-flags.json`: drift unchanged from last session (FU-CC tracks `SENTRY_AUTH_TOKEN` orphan; `RUN_E2E` missing is a known no-op CI flag).
+- `vendors.json`: ok. `rls-coverage.json`: clean.
+
+**Systems affected:** `cost-usage-admin` (rebuilt) + `report-writer` (anonymization). No system-level pivots; WIRING.yaml unchanged.
