@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -51,6 +51,7 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [pendingTeacherRequests, setPendingTeacherRequests] = useState<number>(0);
   const [whoami, setWhoami] = useState<WhoAmI | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -67,20 +68,34 @@ export default function AdminLayout({
       .catch(() => { /* silent — badge just stays 0 */ });
   }, [pathname]);
 
-  // Phase 6.7+ — show the logged-in admin's email in the header (the
-  // existing "Back to Dashboard" link gave no signal about which account
-  // the session belongs to, which the cross-tab cookie collision made
-  // genuinely confusing). /api/admin/whoami returns email + teacherId
-  // when admin; we fetch once per layout mount.
+  // Phase 6.7+ — show the logged-in admin's email in the header AND
+  // detect session takeover. The auth cookie is domain-scoped on
+  // studioloom.org so all incognito windows in the same Chrome profile
+  // share it. If a student logs in via /api/auth/student-classcode-login
+  // in another window, the admin's session is silently replaced. Without
+  // this check the page just stays mounted and surfaces opaque 403s on
+  // every API call — confusing.
+  //
+  // The check (8 May 2026):
+  //   - whoami returns 401 / 403 → session is gone or no longer admin
+  //     → redirect to /admin/login with a friendly note via query param
+  //   - whoami returns ok → set the dropdown email as before
   useEffect(() => {
     if (pathname === "/admin/login" || pathname === null) return;
     fetch("/api/admin/whoami")
-      .then((r) => (r.ok ? r.json() : null))
+      .then(async (r) => {
+        if (r.status === 401 || r.status === 403) {
+          // Session-takeover or expired — bounce to login with reason
+          router.replace("/admin/login?reason=session-changed");
+          return null;
+        }
+        return r.ok ? r.json() : null;
+      })
       .then((d) => {
         if (d?.ok) setWhoami({ email: d.email ?? null, teacherId: d.teacherId ?? null });
       })
       .catch(() => { /* silent — header just shows "Admin" */ });
-  }, [pathname]);
+  }, [pathname, router]);
 
   // Close the menu when the route changes (so it doesn't linger across
   // tab navigations).

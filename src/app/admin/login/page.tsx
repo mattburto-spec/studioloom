@@ -9,12 +9,15 @@ function AdminLoginInner() {
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") || "/admin";
   const urlError = searchParams.get("error");
+  const urlReason = searchParams.get("reason");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(
     urlError === "not_authorised"
       ? "This account doesn't have admin access. Sign in with an admin account."
+      : urlReason === "session-changed"
+      ? "Your admin session was replaced — likely because a student or teacher signed in inside another window of this browser profile. Sign in again to continue."
       : ""
   );
   const [loading, setLoading] = useState(false);
