@@ -38,7 +38,7 @@ docs:
 
   - path: docs/lessons-learned.md
     title: "Lessons Learned"
-    purpose: "75 hard-won lessons from production bugs, build disasters, Supabase/Vercel gotchas. Latest #74 + #75 (8 May 2026): instrument before adding more guards in same layer; same-layer guards keep failing → bug is probably in adjacent layer."
+    purpose: "76 hard-won lessons from production bugs, build disasters, Supabase/Vercel gotchas. Latest #76 (8 May 2026): overflow:hidden on a height-animated collapse wrapper silently clips absolute popovers — state-dependent toggle is the pattern; framer-motion's onAnimationComplete is unreliable when animate.height targets 'auto'."
     category: root
     last_verified: "2026-05-08"
     max_age_days: 90

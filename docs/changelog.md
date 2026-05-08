@@ -4,6 +4,20 @@
 
 ---
 
+## 8 May 2026 — Lesson editor: AI suggestions popover unclipped
+
+**Context:** Bug report — "AI suggestions in teacher unit editor are a bit broken to start with… the text isnt visible in the popup so i dont know if they are working." API logs showed Haiku returning healthy 542-token responses; bug was render-side.
+
+**Root cause:** `PhaseSection` wraps its phase content in `<motion.div className="overflow-hidden">` so children don't visually overflow during the height-collapse animation. That clip was permanent. `AITextField`'s suggestion popover is `absolute`-positioned inside `<div className="relative">` — with no `top`, its static-position is just below the textarea, extending downward. As an absolute child, it doesn't extend the wrapper's content height, so its bottom fell past `PhaseSection`'s motion.div bounds and was clipped. Teachers saw the popover header but no suggestion list.
+
+**Fix shipped — PR [#127](https://github.com/mattburto-spec/studioloom/pull/127), squash-merge `89549de`:** `PhaseSection.tsx` toggles `overflow: hidden` on/off. `useEffect` on `isOpen` flips an `animating` flag for 500ms (matching the spring); className becomes `""` only when `isOpen && !animating`. Tried framer-motion's `onAnimationStart`/`onAnimationComplete` first — they don't fire reliably with `animate.height: "auto"` (v12 treats it as a non-numeric measurement step), so a timer matching the spring duration is the working pattern. `AITextField.tsx` itself unchanged. Verified locally on a test route mounting the real `PhaseSection` against a popover-shaped fake — `nearestOverflowHiddenAncestor: null` once open + settled, all 3 suggestion items render at full height, collapse + re-expand still hides children during the spring.
+
+**Systems affected:** lesson-editor (Phase 0.5). No schema, API, AI-call-site, flag, or vendor changes.
+
+**Lesson banked:** [#76](docs/lessons-learned.md) — `overflow: hidden` on a height-animated collapse wrapper silently clips absolute popovers nested inside it. State-dependent toggle is the pattern. When `onAnimationComplete` doesn't fire (target = `"auto"`), use a setTimeout matching the transition duration.
+
+---
+
 ## 7-8 May 2026 — Marathon: kanban drag-and-drop saga, dashboard consolidation, analytics swap, admin session-takeover defenses
 
 **Context:** Two-day session spanning the start of NIS Class 1 (7 May) through Class 2 prep (8 May). Started as a kanban modal-on-drop bugfight, expanded into student dashboard polish, ideation tool build, analytics consolidation, and a series of admin-shell defenses after diagnosing a real auth-cookie collision bug.
