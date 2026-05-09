@@ -1,25 +1,10 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { verifyTeacherHasUnit } from "@/lib/auth/verify-teacher-unit";
 import type { GalleryRound, GalleryRoundWithStats } from "@/types";
-
-function getAuthClient(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-}
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 /**
  * GET /api/teacher/gallery?unitId={id}&classId={id}
@@ -34,11 +19,9 @@ function getAuthClient(request: NextRequest) {
  * Returns: { rounds: GalleryRound[] }
  */
 export const GET = withErrorHandler("teacher/gallery:GET", async (request: NextRequest) => {
-  const supabase = getAuthClient(request);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const { searchParams } = new URL(request.url);
   const unitId = searchParams.get("unitId");
@@ -49,7 +32,7 @@ export const GET = withErrorHandler("teacher/gallery:GET", async (request: NextR
   }
 
   // Verify teacher owns the unit
-  const { hasAccess } = await verifyTeacherHasUnit(user.id, unitId);
+  const { hasAccess } = await verifyTeacherHasUnit(teacherId, unitId);
   if (!hasAccess) {
     return NextResponse.json({ error: "Unit not found" }, { status: 404 });
   }
@@ -62,7 +45,7 @@ export const GET = withErrorHandler("teacher/gallery:GET", async (request: NextR
     .select("id, unit_id, class_id, teacher_id, title, description, page_ids, review_format, min_reviews, anonymous, deadline, status, display_mode, created_at, updated_at")
     .eq("unit_id", unitId)
     .eq("class_id", classId)
-    .eq("teacher_id", user.id)
+    .eq("teacher_id", teacherId)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -110,11 +93,9 @@ export const GET = withErrorHandler("teacher/gallery:GET", async (request: NextR
  * Returns: { round: GalleryRound }
  */
 export const POST = withErrorHandler("teacher/gallery:POST", async (request: NextRequest) => {
-  const supabase = getAuthClient(request);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const body = await request.json();
   const {
@@ -157,7 +138,7 @@ export const POST = withErrorHandler("teacher/gallery:POST", async (request: Nex
   }
 
   // Verify teacher owns the unit
-  const { hasAccess } = await verifyTeacherHasUnit(user.id, unitId);
+  const { hasAccess } = await verifyTeacherHasUnit(teacherId, unitId);
   if (!hasAccess) {
     return NextResponse.json({ error: "Unit not found" }, { status: 404 });
   }
@@ -170,7 +151,7 @@ export const POST = withErrorHandler("teacher/gallery:POST", async (request: Nex
     .insert({
       unit_id: unitId,
       class_id: classId,
-      teacher_id: user.id,
+      teacher_id: teacherId,
       title,
       description,
       page_ids: pageIds,

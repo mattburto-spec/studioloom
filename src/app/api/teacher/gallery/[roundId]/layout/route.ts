@@ -10,28 +10,13 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_SUBMISSIONS_PER_CALL = 50;
 const COORD_MIN = -10000;
 const COORD_MAX = 10000;
-
-function getAuthClient(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-}
 
 function extractRoundId(request: NextRequest): string {
   const url = new URL(request.url);
@@ -45,13 +30,9 @@ interface LayoutPayload {
 }
 
 export async function PATCH(request: NextRequest) {
-  const supabase = getAuthClient(request);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const roundId = extractRoundId(request);
   if (!UUID_RE.test(roundId)) {
@@ -115,7 +96,7 @@ export async function PATCH(request: NextRequest) {
     .from("gallery_rounds")
     .select("id")
     .eq("id", roundId)
-    .eq("teacher_id", user.id)
+    .eq("teacher_id", teacherId)
     .maybeSingle();
 
   if (roundError) {

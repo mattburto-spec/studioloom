@@ -1,22 +1,7 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-function getAuthClient(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-}
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 function extractRoundId(request: NextRequest): string {
   const url = new URL(request.url);
@@ -31,11 +16,9 @@ function extractRoundId(request: NextRequest): string {
  * Get a single gallery round with full monitoring data.
  */
 export async function GET(request: NextRequest) {
-  const supabase = getAuthClient(request);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const roundId = extractRoundId(request);
   const db = createAdminClient();
@@ -45,7 +28,7 @@ export async function GET(request: NextRequest) {
     .from("gallery_rounds")
     .select("id, unit_id, class_id, teacher_id, title, description, review_format, min_reviews, anonymous, deadline, status, display_mode, created_at, updated_at")
     .eq("id", roundId)
-    .eq("teacher_id", user.id)
+    .eq("teacher_id", teacherId)
     .maybeSingle();
 
   if (roundError) {
@@ -124,11 +107,9 @@ export async function GET(request: NextRequest) {
  * Update a gallery round (close it, change deadline, etc.).
  */
 export async function PATCH(request: NextRequest) {
-  const supabase = getAuthClient(request);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const roundId = extractRoundId(request);
 
@@ -148,7 +129,7 @@ export async function PATCH(request: NextRequest) {
     .from("gallery_rounds")
     .select("id")
     .eq("id", roundId)
-    .eq("teacher_id", user.id)
+    .eq("teacher_id", teacherId)
     .maybeSingle();
 
   if (!round) {
@@ -186,11 +167,9 @@ export async function PATCH(request: NextRequest) {
  * Delete a gallery round (cascades to submissions and reviews).
  */
 export async function DELETE(request: NextRequest) {
-  const supabase = getAuthClient(request);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const roundId = extractRoundId(request);
   const db = createAdminClient();
@@ -200,7 +179,7 @@ export async function DELETE(request: NextRequest) {
     .from("gallery_rounds")
     .select("id")
     .eq("id", roundId)
-    .eq("teacher_id", user.id)
+    .eq("teacher_id", teacherId)
     .maybeSingle();
 
   if (!round) {
