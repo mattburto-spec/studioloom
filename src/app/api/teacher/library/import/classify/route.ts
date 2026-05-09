@@ -9,12 +9,12 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { runClassifyStage } from "@/lib/ingestion/pipeline";
 import { extractDocument, sectionsToMarkdown } from "@/lib/ingestion/document-extract";
 import { computeHash } from "@/lib/ingestion/dedup";
 import type { CopyrightFlag } from "@/lib/ingestion/types";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 // Vercel serverless function timeout — classify runs extraction + safety + Pass A
 export const maxDuration = 300;
@@ -22,32 +22,12 @@ export const maxDuration = 300;
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const ACCEPTED_EXTENSIONS = ["pdf", "docx", "pptx", "txt", "md"];
 
-async function getTeacherId(request: NextRequest): Promise<string | null> {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id || null;
-}
-
 export async function POST(request: NextRequest) {
   // Top-level try/catch — ensures we ALWAYS return JSON, never a bare 500
   try {
-    const teacherId = await getTeacherId(request);
-    if (!teacherId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireTeacher(request);
+    if (auth.error) return auth.error;
+    const { teacherId } = auth;
 
     const contentType = request.headers.get("content-type") || "";
     const isMultipart = contentType.includes("multipart/form-data");
