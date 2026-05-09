@@ -48,15 +48,20 @@ export async function GET(request: NextRequest) {
   // "reading", no false receipt). No write to student_tile_grade_events;
   // receipts are not audit-worthy at the per-load grain (would explode
   // the events table). Idempotent — repeat hits just refresh the timestamp.
-  const seenAt = new Date().toISOString();
-  await db
-    .from("student_tile_grades")
-    .update({ student_seen_comment_at: seenAt })
-    .eq("student_id", session.studentId)
-    .eq("unit_id", unitId)
-    .eq("page_id", pageId)
-    .not("student_facing_comment", "is", null)
-    .neq("student_facing_comment", "");
+  //
+  // TFL.1 hotfix (migration 20260509222601): we route the bump through a
+  // SECURITY DEFINER SQL function so `student_seen_comment_at` and the
+  // BEFORE-UPDATE trigger's `updated_at` both derive from the same Postgres
+  // `now()` (transaction-start time, identical across SET clause + trigger).
+  // The original inline UPDATE used `new Date().toISOString()` from Node,
+  // which landed ~100–200ms BEFORE the trigger's `now()`, so even on a fresh
+  // receipt the chip's `seen >= updated_at` check returned false and the
+  // tooltip read "Seen the older version". The RPC fixes the race.
+  await db.rpc("bump_student_seen_comment_at", {
+    p_student_id: session.studentId,
+    p_unit_id: unitId,
+    p_page_id: pageId,
+  });
 
   const { data, error } = await db
     .from("student_tile_grades")
