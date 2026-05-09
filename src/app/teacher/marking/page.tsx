@@ -738,6 +738,23 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
 
   const activeTile = tiles[activeTileIdx];
 
+  // PR-B (10 May 2026): submitter list for the active tile drives both
+  // the AI batch button (skip non-submitters — server returns null
+  // fields for them anyway, no point burning the round-trip) and the
+  // per-row "Where's your submission?" nudge button (only renders for
+  // students who have NOT submitted).
+  const submitterIdsForActiveTile = useMemo<Set<string>>(() => {
+    if (!activeTile || !activePageId) return new Set();
+    const pageResponses = responsesByPage[activePageId] ?? {};
+    const submitters = new Set<string>();
+    for (const [studentId, tiles] of Object.entries(pageResponses)) {
+      if (tiles[activeTile.tileId] && tiles[activeTile.tileId].trim().length > 0) {
+        submitters.add(studentId);
+      }
+    }
+    return submitters;
+  }, [activeTile, activePageId, responsesByPage]);
+
   const scale = useMemo(
     () => getGradingScale(klass?.framework ?? "IB_MYP"),
     [klass?.framework],
@@ -845,7 +862,15 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
 
   async function runAiPrescoreBatch() {
     if (!klass || !unit || !activePageId || !activeTile) return;
-    if (students.length === 0) return;
+    // PR-B: only send students who have a submission on the active tile.
+    // Empty submissions return null fields server-side anyway, but
+    // skipping them client-side saves Haiku tokens + makes the batch
+    // counter ("AI suggest (N submitted)") match the actual number of
+    // suggestions written.
+    const targetIds = students
+      .map((s) => s.id)
+      .filter((id) => submitterIdsForActiveTile.has(id));
+    if (targetIds.length === 0) return;
     setAiBatchRunning(true);
     setAiBatchSummary(null);
     try {
@@ -857,7 +882,7 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
           unit_id: unit.id,
           page_id: activePageId,
           tile_id: activeTile.tileId,
-          student_ids: students.map((s) => s.id),
+          student_ids: targetIds,
         }),
       });
       const json = await res.json();
@@ -1054,6 +1079,7 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
           aiBatchRunning={aiBatchRunning}
           aiBatchSummary={aiBatchSummary}
           runAiPrescoreBatch={runAiPrescoreBatch}
+          submitterIdsForActiveTile={submitterIdsForActiveTile}
           unitContentData={unit?.contentData ?? null}
           framework={klass?.framework ?? undefined}
           unitType={klass?.subject ?? undefined}
@@ -1093,6 +1119,11 @@ interface CalibrateInnerProps {
   aiBatchRunning: boolean;
   aiBatchSummary: string | null;
   runAiPrescoreBatch: () => Promise<void>;
+  /** PR-B — set of student IDs with a non-empty submission on the
+   *  active tile. Empty submissions are gated out of the AI batch
+   *  (saves Haiku tokens) and gated INTO the "Where's your submission?"
+   *  nudge button (only renders for non-submitters). */
+  submitterIdsForActiveTile: Set<string>;
   // G2.2 — heatmap inputs (unit-level coverage across all tiles).
   unitContentData: UnitContentData | null;
   framework: string | undefined;
@@ -1120,6 +1151,7 @@ function CalibrateInner({
   aiBatchRunning,
   aiBatchSummary,
   runAiPrescoreBatch,
+  submitterIdsForActiveTile,
   unitContentData,
   framework,
   unitType,
@@ -1271,23 +1303,36 @@ function CalibrateInner({
               </div>
               <p className="text-sm text-gray-800 mt-1 leading-relaxed">{activeTile.title}</p>
             </div>
+            {/* PR-B: AI batch button counts only students with submissions
+                on the active tile. Disabled when 0 submitters — no point
+                running Haiku on a cohort that hasn't written anything,
+                and the count visibly tells the teacher "0 / N have
+                submitted." */}
             <button
               type="button"
               onClick={() => void runAiPrescoreBatch()}
-              disabled={aiBatchRunning || students.length === 0}
+              disabled={aiBatchRunning || submitterIdsForActiveTile.size === 0}
               className={[
                 "flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border transition",
                 aiBatchRunning
                   ? "bg-purple-50 text-purple-400 border-purple-200 cursor-wait"
                   : "bg-gradient-to-br from-purple-600 to-violet-600 text-white border-purple-700 hover:from-purple-700 hover:to-violet-700 shadow-sm",
-                students.length === 0 ? "opacity-50 cursor-not-allowed" : "",
+                submitterIdsForActiveTile.size === 0
+                  ? "opacity-50 cursor-not-allowed"
+                  : "",
               ].join(" ")}
-              title="Run Haiku 4.5 across the cohort. Suggestions are unconfirmed until you Confirm each row."
+              title={
+                submitterIdsForActiveTile.size === 0
+                  ? "No students have submitted on this tile yet — nothing for the AI to score. Use the per-row 'Where's your submission?' nudge instead."
+                  : "Run Haiku 4.5 across students with submissions. Suggestions are unconfirmed until you Confirm each row."
+              }
             >
               <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
               </svg>
-              {aiBatchRunning ? "Suggesting…" : `AI suggest (${students.length})`}
+              {aiBatchRunning
+                ? "Suggesting…"
+                : `AI suggest (${submitterIdsForActiveTile.size}/${students.length} submitted)`}
             </button>
           </div>
           {aiBatchSummary && (
@@ -1574,9 +1619,100 @@ function CalibrateInner({
                             {responseText}
                           </div>
                         ) : (
-                          <div className="text-sm italic text-gray-500 bg-white border border-dashed border-gray-300 rounded-xl p-4">
-                            {displayName} hasn&rsquo;t submitted on this tile yet.
-                          </div>
+                          // PR-B (10 May 2026): non-submission empty state
+                          // pairs the explanation with a one-click nudge
+                          // CTA. The canned comment matches the AI route's
+                          // empty-submission fallback so voice stays
+                          // consistent across (a) AI-driven and (b) teacher-
+                          // driven nudges. We persist via the regular
+                          // student_facing_comment column so the read-
+                          // receipt chip + dot work the same way as any
+                          // other comment, and the comment textarea below
+                          // pre-fills with the same text so the teacher
+                          // can edit before sending if they want a
+                          // different tone.
+                          (() => {
+                            const firstName = displayName.split(" ")[0] || "Student";
+                            const cannedNudge = `${firstName}, I can't see a response to this tile yet — give it another go when you're ready.`;
+                            const hasSentNudge =
+                              (grade?.student_facing_comment ?? "").trim() === cannedNudge;
+                            return (
+                              <div
+                                data-testid={`marking-no-submission-${s.id}`}
+                                className="text-sm italic text-gray-500 bg-white border border-dashed border-gray-300 rounded-xl p-4 flex flex-col gap-3"
+                              >
+                                <span>
+                                  {displayName} hasn&rsquo;t submitted on this tile yet.
+                                </span>
+                                <button
+                                  type="button"
+                                  data-testid={`marking-nudge-button-${s.id}`}
+                                  onClick={() => {
+                                    setStudentCommentDraft((prev) => ({
+                                      ...prev,
+                                      [key]: cannedNudge,
+                                    }));
+                                    void saveTile(s.id, score, true, {
+                                      student_facing_comment: cannedNudge,
+                                    });
+                                  }}
+                                  disabled={isSaving || hasSentNudge}
+                                  className={[
+                                    "self-start inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold not-italic rounded-lg border transition",
+                                    hasSentNudge
+                                      ? "border-emerald-200 bg-emerald-50 text-emerald-700 cursor-default"
+                                      : isSaving
+                                        ? "border-amber-200 bg-amber-50 text-amber-600 cursor-wait"
+                                        : "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 shadow-sm",
+                                  ].join(" ")}
+                                  title={
+                                    hasSentNudge
+                                      ? "Nudge already sent. The student will see it next time they load the lesson."
+                                      : `Send "${cannedNudge}" to ${firstName} as a student-facing comment. Confirms the tile so it ticks the chip counter.`
+                                  }
+                                >
+                                  {hasSentNudge ? (
+                                    <>
+                                      <svg
+                                        width="11"
+                                        height="11"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="3"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        aria-hidden="true"
+                                      >
+                                        <polyline points="4 12 9 17 20 6" />
+                                      </svg>
+                                      Nudge sent
+                                    </>
+                                  ) : isSaving ? (
+                                    "Sending…"
+                                  ) : (
+                                    <>
+                                      <svg
+                                        width="11"
+                                        height="11"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2.5"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        aria-hidden="true"
+                                      >
+                                        <line x1="22" y1="2" x2="11" y2="13" />
+                                        <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                                      </svg>
+                                      Send &ldquo;Where&rsquo;s your submission?&rdquo; nudge
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            );
+                          })()
                         )}
                       </div>
 
