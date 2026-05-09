@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { decrypt } from "@/lib/encryption";
 import { createLMSProvider } from "@/lib/lms";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 function createSupabaseServer(request: NextRequest) {
   return createServerClient(
@@ -24,18 +25,17 @@ function createSupabaseServer(request: NextRequest) {
  * Uses the provider factory — works with any LMS that implements LMSProvider.
  */
 export async function GET(request: NextRequest) {
-  const supabase = createSupabaseServer(request);
-  const { data: { user } } = await supabase.auth.getUser();
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const supabase = createSupabaseServer(request);
 
   // Get teacher's integration config
   const { data: integration } = await supabase
     .from("teacher_integrations")
     .select("provider, subdomain, encrypted_api_token")
-    .eq("teacher_id", user.id)
+    .eq("teacher_id", teacherId)
     .single();
 
   if (!integration) {

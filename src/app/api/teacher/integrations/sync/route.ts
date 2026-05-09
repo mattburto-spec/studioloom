@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { decrypt } from "@/lib/encryption";
 import { createLMSProvider } from "@/lib/lms";
 import { provisionStudentAuthUser } from "@/lib/access-v2/provision-student-auth-user";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 function createSupabaseServer(request: NextRequest) {
   return createServerClient(
@@ -29,12 +30,11 @@ function createSupabaseServer(request: NextRequest) {
  * Body: { classId: string, externalClassId: string }
  */
 export async function POST(request: NextRequest) {
-  const supabase = createSupabaseServer(request);
-  const { data: { user } } = await supabase.auth.getUser();
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const supabase = createSupabaseServer(request);
 
   const { classId, externalClassId } = await request.json();
 
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     .from("classes")
     .select("id, teacher_id, school_id")
     .eq("id", classId)
-    .eq("teacher_id", user.id)
+    .eq("teacher_id", teacherId)
     .single();
 
   if (!classData) {
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
   const { data: integration } = await supabase
     .from("teacher_integrations")
     .select("provider, subdomain, encrypted_api_token")
-    .eq("teacher_id", user.id)
+    .eq("teacher_id", teacherId)
     .single();
 
   if (!integration?.encrypted_api_token || !integration.subdomain) {

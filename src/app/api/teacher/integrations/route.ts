@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { encrypt } from "@/lib/encryption";
 import { nanoid } from "nanoid";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 function createSupabaseServer(request: NextRequest) {
   return createServerClient(
@@ -26,17 +27,16 @@ function createSupabaseServer(request: NextRequest) {
  * Returns the teacher's LMS integration config (never exposes raw API token).
  */
 export async function GET(request: NextRequest) {
-  const supabase = createSupabaseServer(request);
-  const { data: { user } } = await supabase.auth.getUser();
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const supabase = createSupabaseServer(request);
 
   const { data: integration } = await supabase
     .from("teacher_integrations")
     .select("id, provider, subdomain, lti_consumer_key, created_at, updated_at")
-    .eq("teacher_id", user.id)
+    .eq("teacher_id", teacherId)
     .single();
 
   if (!integration) {
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
   const { data: tokenCheck } = await supabase
     .from("teacher_integrations")
     .select("encrypted_api_token")
-    .eq("teacher_id", user.id)
+    .eq("teacher_id", teacherId)
     .single();
 
   return NextResponse.json({
@@ -65,12 +65,11 @@ export async function GET(request: NextRequest) {
  * Generates LTI consumer key + secret on first save.
  */
 export async function POST(request: NextRequest) {
-  const supabase = createSupabaseServer(request);
-  const { data: { user } } = await supabase.auth.getUser();
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const supabase = createSupabaseServer(request);
 
   const body = await request.json();
   const { provider, subdomain, apiToken } = body as {
@@ -87,7 +86,7 @@ export async function POST(request: NextRequest) {
   const { data: existing } = await supabase
     .from("teacher_integrations")
     .select("id, lti_consumer_key")
-    .eq("teacher_id", user.id)
+    .eq("teacher_id", teacherId)
     .single();
 
   const updateData: Record<string, unknown> = {
@@ -106,7 +105,7 @@ export async function POST(request: NextRequest) {
     const { error } = await supabase
       .from("teacher_integrations")
       .update(updateData)
-      .eq("teacher_id", user.id);
+      .eq("teacher_id", teacherId);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -123,7 +122,7 @@ export async function POST(request: NextRequest) {
     const ltiConsumerSecret = nanoid(32);
 
     const { error } = await supabase.from("teacher_integrations").insert({
-      teacher_id: user.id,
+      teacher_id: teacherId,
       ...updateData,
       lti_consumer_key: ltiConsumerKey,
       lti_consumer_secret: encrypt(ltiConsumerSecret),
