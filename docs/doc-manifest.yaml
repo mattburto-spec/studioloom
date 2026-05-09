@@ -336,6 +336,15 @@ docs:
     max_age_days: 90
     last_scanned: "2026-05-09"
 
+  - path: docs/projects/privacy-anonymous-mode-spec.md
+    title: "Anonymous Mode Spec (hidden class-creation flag, v1)"
+    purpose: "Workstream 2 of Privacy-First Positioning: handles-only-on-the-wire proof point. Per-class flag, teacher-side localStorage mapping with encrypted export/import. Ships before WS3 control panel."
+    category: projects
+    last_verified: "2026-05-09"
+    referenced_from: ["privacy-first-positioning.md WS2"]
+    max_age_days: 90
+    last_scanned: "2026-05-09"
+
   - path: docs/projects/access-model-v2.md
     title: "Access Model v2 — Auth Unification, Multi-Tenancy & Privacy Foundation"
     purpose: "Project plan (19-25 days, 6 phases — Path B chosen 28 Apr) for unifying StudioLoom's auth model (every student → auth.users, classcode+name as custom Supabase flow), introducing schools as a first-class entity with flat membership + no-designated-admin governance (two-tier change rules, 7-day revert, 48h confirm window), audit log, per-student AI budgets, FERPA/GDPR/PIPL data export+delete, OAuth (Google + Microsoft + email/PW; Apple deferred), and 8 forward-compat schema seams in §8.6 (school_resources polymorphic for PYP/Service library + alumni + partners; guardians; SIS external IDs; consents; school lifecycle; monetisation tier seam; school_responsibilities programme coordinators; student_mentors cross-program mentorship). Collapses FU-O/P/R/Q/W into one project. **Phase 0 MERGED to main 29 Apr 2026 (Checkpoint A1 ✅). Phase 1 CLOSED on branch 30 Apr 2026 under Option A — auth path live + 8 RLS migrations applied to prod + dual-mode wrapper covers all 63 routes; client-switch deferred to FU-AV2-PHASE-14-CLIENT-SWITCH (P2). Branch awaiting merge to main.**"

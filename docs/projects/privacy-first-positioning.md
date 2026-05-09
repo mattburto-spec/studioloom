@@ -54,7 +54,7 @@ In execution order. The proof-point sequencing is deliberate — Anonymous Mode 
 ### 1. Privacy posture page + data dictionary  *(SPEC drafted — see [`privacy-posture-page-spec.md`](privacy-posture-page-spec.md))*
 Public marketing-site page documenting exactly what StudioLoom collects, what it doesn't, what reaches AI providers, what students might disclose inside their work, and how the privacy control panel works. Includes a published data dictionary — every field stored about a student, classified. Foundation for every other workstream — the audit underneath the page tells you what the control panel can toggle. **~2-3 days writing + audit.**
 
-### 2. Anonymous Mode (hidden class-creation flag, v1)
+### 2. Anonymous Mode (hidden class-creation flag, v1)  *(SPEC drafted — see [`privacy-anonymous-mode-spec.md`](privacy-anonymous-mode-spec.md))*
 The proof point that the brand pillar is real. Teacher-side `localStorage` stores the name↔handle mapping; server stores only handles. Encrypted file export/import for cross-device. Per-class flag, set at class creation. Ships *before* the full control panel — gives demo-able evidence to first IB pilot schools and screenshots for marketing. Will later be presented as the "Anonymous" preset within the control panel UI. **~1 week.**
 
 ### 3. Privacy Control Panel
