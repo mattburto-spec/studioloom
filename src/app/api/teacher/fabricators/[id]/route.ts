@@ -11,7 +11,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { FAB_PRIVATE_CACHE_HEADERS } from "@/lib/fab/auth";
 import {
@@ -19,25 +18,7 @@ import {
   isOrchestrationError,
 } from "@/lib/fabrication/lab-orchestration";
 import { loadSchoolOwnedFabricator } from "@/lib/fabrication/fab-orchestration";
-
-async function getTeacherUser(request: NextRequest) {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
-}
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 function privateJson(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: FAB_PRIVATE_CACHE_HEADERS });
@@ -48,8 +29,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const user = await getTeacherUser(request);
-  if (!user) return privateJson({ error: "Unauthorized" }, 401);
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   let body: { is_active?: unknown };
   try {
@@ -62,7 +44,7 @@ export async function PATCH(
 
   // School-scoped ownership check (Phase 8-1 + Round 2 audit).
   // Cross-school → 404 (no existence leak).
-  const schoolResult = await loadTeacherSchoolId(admin, user.id);
+  const schoolResult = await loadTeacherSchoolId(admin, teacherId);
   if (isOrchestrationError(schoolResult)) {
     return privateJson(
       { error: schoolResult.error.message },
