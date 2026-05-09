@@ -1,29 +1,10 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createServerClient } from "@supabase/ssr";
 import { buildStorageProxyUrl } from "@/lib/storage/proxy-url";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 // Un-quarantined (9 Apr 2026) — Knowledge pipeline restored.
-
-async function getTeacherId(request: NextRequest): Promise<string | null> {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id || null;
-}
 
 const ALLOWED_TYPES = [
   "image/jpeg",
@@ -49,10 +30,9 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
  * Returns: { url: string }
  */
 export async function POST(request: NextRequest) {
-  const teacherId = await getTeacherId(request);
-  if (!teacherId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const formData = await request.formData();
   const file = formData.get("file") as File | null;

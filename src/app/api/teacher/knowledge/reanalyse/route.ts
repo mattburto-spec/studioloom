@@ -1,6 +1,7 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { withErrorHandler } from "@/lib/api/error-handler";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 // Quarantined 10 Apr 2026 (Phase 0.4). Legacy knowledge pipeline.
 // Bulk-reanalysis via 3-pass analyse.ts. Wrote lesson_profiles + knowledge_chunks.
@@ -18,5 +19,9 @@ const QUARANTINE_RESPONSE = NextResponse.json(
 
 export const POST = withErrorHandler(
   "teacher/knowledge/reanalyse:POST",
-  async (_request: NextRequest) => QUARANTINE_RESPONSE
+  async (request: NextRequest) => {
+    const auth = await requireTeacher(request);
+    if (auth.error) return auth.error;
+    return QUARANTINE_RESPONSE;
+  }
 );

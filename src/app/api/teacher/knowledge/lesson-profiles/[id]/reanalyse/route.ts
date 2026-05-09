@@ -1,5 +1,6 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 // Quarantined 10 Apr 2026 (Phase 0.4). Legacy knowledge pipeline.
 // Per-profile reanalysis via 3-pass analyse.ts. Wrote lesson_profiles.
@@ -16,8 +17,10 @@ const QUARANTINE_RESPONSE = NextResponse.json(
 );
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   _ctx: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
   return QUARANTINE_RESPONSE;
 }

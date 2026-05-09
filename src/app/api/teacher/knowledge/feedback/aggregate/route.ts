@@ -1,23 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { aggregateFeedback } from "@/lib/knowledge/feedback";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 // Un-quarantined (9 Apr 2026) — Knowledge pipeline restored.
-
-function createSupabaseServer(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-}
 
 /**
  * GET /api/teacher/knowledge/feedback/aggregate?lesson_profile_id={id}
@@ -28,14 +13,8 @@ function createSupabaseServer(request: NextRequest) {
  * This is the read-side of the feedback loop (Layer 2).
  */
 export async function GET(request: NextRequest) {
-  const supabase = createSupabaseServer(request);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
 
   const { searchParams } = new URL(request.url);
   const lessonProfileId = searchParams.get("lesson_profile_id");
