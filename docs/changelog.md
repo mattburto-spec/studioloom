@@ -4,6 +4,34 @@
 
 ---
 
+## 2026-05-09 (PM) — Privacy-First Positioning + Privacy Posture Page spec revised after pushback round
+
+**Context:** Same-day pushback round on the morning's Privacy-First Positioning draft. Several framings landed too narrow ("design-school GTM"), the workstream sequencing under-weighted the cheapest proof point, and the spec for the privacy posture page didn't acknowledge the honest edges of the story (self-disclosed PII, AI provider egress, IP/behavioural data). Both docs revised in place.
+
+**What changed:**
+
+- `docs/projects/privacy-first-positioning.md` (+88 / −15 lines) — broader framing + reorganised workstreams + new principles.
+- `docs/projects/privacy-posture-page-spec.md` (+59 / −15 lines) — honesty additions + presets-first control panel UX + mode-aware defaults.
+
+**Key decisions logged:**
+
+1. **Broader inquiry/capstone positioning, not design-only** — the GTM target widens from "IB design schools" to *every long, identity-touching, sometimes-sensitive student inquiry project*: Personal Project (PP), Extended Essay (EE), PYP Exhibition (PYPX), CAS, plus design. Same minimum-data argument, larger surface. The "design school" framing was leaving signal on the table — IB coordinators running PP/EE/PYPX/CAS are exactly the procurement audience this positioning was meant to reach.
+2. **Presets-first control panel UX** — the privacy-posture spec's teacher/admin control surface ships as 3 named presets (Strict / Balanced / Open) up front, with granular per-field advanced controls behind a disclosure. Forces a sane default for the 80% case; preserves power for the 20%. Avoids the failure mode of a 30-checkbox screen that nobody touches.
+3. **Anonymous Mode ships first as a hidden flag** — re-sequenced ahead of the public privacy posture page. Ships as an internal flag (no UI surface, no marketing) so the proof point is *real* before it's *claimed*. Lands the demonstrable artifact ~3 weeks earlier than the original plan, and means the privacy posture page can launch with screenshots of an actually-working Anonymous Mode rather than aspirational copy. The brand pillar gets harder to walk back this way.
+4. **SOC2 deferred from WS6 to trigger-based** — out of the priority sequence entirely. Activated when a real procurement conversation surfaces it as a blocker, not pre-emptively. ~$15-25k + 3 months elapsed is too much to spend on a checkbox that may not yet be the binding constraint.
+5. **Self-disclosed PII honesty principle added** — the privacy posture page now explicitly acknowledges that students sometimes type their real name / school / location into free-text fields the platform never asked for, and AI provider egress means that text reaches Anthropic. The honest framing ("we don't collect, but we don't censor") strengthens the story rather than weakening it — a vendor that names its own edges is more credible than one that papers them.
+6. **Mode-aware privacy defaults workstream** — new workstream connecting the privacy posture surface to StudioLoom's existing mode system (Studio / Classroom / Open Studio etc.). Default privacy posture varies by mode, not just by school setting. Captures that "minimum data" looks different in a 1-period structured lesson vs an 8-week Open Studio project.
+
+**Workstream count:** reorganised 6 → 9.
+
+**Files:** 2 docs in `docs/projects/` + this changelog entry.
+
+**Systems affected:** None yet — still planning. Future build will touch the marketing-site, schema-registry data hygiene, security-overview, and the existing mode system.
+
+**Session context:** Docs-only revision pass — no code, no migrations, no schema changes.
+
+---
+
 ## 2026-05-09 — Privacy-First Positioning project drafted (PLANNING) + workstream 1 spec wired into trackers
 
 **Context:** Positioning conversation about a minimum-data brand pillar — StudioLoom as the design learning platform with the data footprint of an exercise book, with inquiry-based design pedagogy and minimum-data architecture as equal halves of the product story for the IB → AU → ROW GTM. Concrete trigger was the recent Canvas LMS breach reframing the GTM story; the school IT procurement conversation in 2026 is materially different from where it was when the platform was originally pitched.
