@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-05-09 — Privacy-First Positioning project drafted (PLANNING) + workstream 1 spec wired into trackers
+
+**Context:** Positioning conversation about a minimum-data brand pillar — StudioLoom as the design learning platform with the data footprint of an exercise book, with inquiry-based design pedagogy and minimum-data architecture as equal halves of the product story for the IB → AU → ROW GTM. Concrete trigger was the recent Canvas LMS breach reframing the GTM story; the school IT procurement conversation in 2026 is materially different from where it was when the platform was originally pitched.
+
+**What changed:**
+
+- 2 new docs in `docs/projects/`:
+  - `privacy-first-positioning.md` — project doc (PLANNING, 6 workstreams in priority order: privacy posture page + data dictionary, Anonymous Mode localStorage v1, Vendor Approval Kit, in-product trust signals, IB pilot case studies, SOC2 Type 1).
+  - `privacy-posture-page-spec.md` — workstream 1 of 6 spec for the public marketing-site page that documents what StudioLoom collects about students, what it doesn't, what reaches AI providers, and how Anonymous Mode further reduces the footprint.
+- Tracker updates: `docs/projects/ALL-PROJECTS.md` (new entry under 🔵 Planned), `docs/projects/dashboard.html` (PROJECTS array), `docs/doc-manifest.yaml` (two new entries with `last_verified: 2026-05-09`).
+
+**Systems affected:** None yet — planning stage. Future build will touch the marketing-site (workstreams 1 + 4), schema-registry data hygiene (workstream 1's data dictionary forces an inventory of every field stored about a student), and `security-overview.md` (the privacy story is adjacent to but distinct from the security story; both will need to cross-link once workstream 1 ships). No WIRING.yaml change in this pass — a proper system entry will be added when workstream 1 begins, not while the project is still planning.
+
+**Session context:** Docs-only wiring pass — no code, no migrations, no schema changes.
+
+---
+
 ## 2026-05-09 — Pre-filled student login URL via `/login/[classcode]`
 
 **Context:** Cowork-spawned small-phase pickup. Closes the WeChat-share friction Matt's been working around when handing students their class — currently he tells them the 6-char code and they type it twice, once to find the class, once after a typo. This phase adds a sharable URL.
