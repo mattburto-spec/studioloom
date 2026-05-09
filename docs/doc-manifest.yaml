@@ -48,7 +48,7 @@ docs:
     title: "Build Methodology — Phased with Checkpoints"
     purpose: "Canonical build discipline for non-trivial work. Phased-with-checkpoints model, sandbox/sim baked in as first-class spec components, pre-flight ritual, stop triggers, verify=expected values, audit-then-fix patterns. Default discipline; prefer it even when not explicitly asked."
     category: root
-    last_verified: "2026-04-11"
+    last_verified: "2026-05-09"
     max_age_days: 90
     last_scanned: null
 

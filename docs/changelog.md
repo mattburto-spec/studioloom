@@ -4,6 +4,57 @@
 
 ---
 
+## 2026-05-09 — Pre-filled student login URL via `/login/[classcode]`
+
+**Context:** Cowork-spawned small-phase pickup. Closes the WeChat-share friction Matt's been working around when handing students their class — currently he tells them the 6-char code and they type it twice, once to find the class, once after a typo. This phase adds a sharable URL.
+
+**What shipped:**
+
+- **PR #145** (`prefilled-student-login`) — `/login/[classcode]` page route + form refactor:
+  - Extracted the inlined form from `src/app/(auth)/login/page.tsx` into `<StudentLoginForm initialClassCode?>` so both `/login` and `/login/[classcode]` render the same component.
+  - New dynamic route `src/app/(auth)/login/[classcode]/page.tsx` — server component reads `params.classcode`, normalises via `normalizeClassCodeFromUrl()` (`.trim().toUpperCase().slice(0,6)` — mirrors the server's `.toUpperCase().trim()` and clamps to the form's 6-char `maxLength`), passes to the form.
+  - Pre-fill stays on step 1 (code visible, Next/Enter advances) so a student arriving via WeChat sees what was filled and can correct a mis-shared code rather than auto-advancing past it.
+  - "Copy login link" button on the per-class teacher page (`src/app/teacher/classes/[classId]/page.tsx`) next to the existing class-code pill — copies `${origin}/login/${code}` with `navigator.clipboard`, "Copied!" feedback for 2s.
+  - **6 new helper tests** in `src/app/(auth)/login/__tests__/class-code-helpers.test.ts` — uppercase, trim, slice, valid pass-through, empty, short. Test suite 5028 → 5034.
+
+- **PR #146** (`copy-login-link-on-classes-index`) — same button on each card on the All Classes index (`src/app/teacher/classes/page.tsx`). Sits next to the existing "Share Code" button. Active classes only — Archived section intentionally omitted (see follow-up below).
+
+**Follow-up filed:**
+
+- `FU-LOGIN-ARCHIVED-CODE-LOCKOUT` (P3) in `docs/projects/access-model-v2-followups.md` — `POST /api/auth/student-classcode-login` doesn't filter `classes.is_archived`, so a stale WeChat link to an archived class still mints a session. Pre-pilot gate. Done-when: archive-aware 401 + audit `failureReason: "class_archived"` + UI hides/disables "Copy login link" on archived cards + test in classcode-login route tests.
+
+**Auth posture unchanged:**
+
+The new page route mints no cookies. Visiting `/login/<anything>` only sets state in the form; the only cookie-minting path remains `POST /api/auth/student-classcode-login`. Confirmed in audit before writing code; no change to the route.
+
+**Surprises caught in pre-flight:**
+
+- Brief said "students still type their own initials" — actual form uses `username` (not initials). Matt confirmed: brief had a wording slip, no rename intended.
+- Login form was one inlined `"use client"` component — refactor extraction was the cleanest pre-fill path. Avoided the `?code=` searchParam alternative.
+- `(auth)` is a Next.js route group, not a path segment — new route lives at `src/app/(auth)/login/[classcode]/page.tsx` and renders at `/login/<code>`.
+- The S1 RLS hardening commit (`99359fa`) that was sitting unpushed on local main got hard-reset off local main by `gh pr merge --squash` during PR #146 cleanup. Confirmed safe on `origin/phase-S1-wip` — Matt's wip-branch backup pattern from the methodology saved it. Worth noting for the next saveme: when `gh pr merge` cleans up, it will reset local main to origin/main if they've diverged, dropping any local-only commits even if they're unrelated to the merged branch.
+
+**Verification:**
+
+- `npm test` 5028 → 5034 (+6 helper tests, 0 regressions, 11 skipped unchanged).
+- `tsc --noEmit` errors all pre-existing in `src/lib/pipeline/` + `tests/e2e/checkpoint-1-2-ingestion.test.ts`; nothing new in any touched file.
+- Live dev preview confirmed `/login/abc123` → form pre-filled "ABC123" on step 1; `/login` still renders blank.
+- Vercel + GitHub Actions both green on both PRs before merge.
+
+**Registries (saveme sync, all 5 unconditional):**
+
+- `api-registry.yaml` — no diff. Page routes (not API) so nothing to register.
+- `ai-call-sites.yaml` — no diff. No AI calls touched.
+- `feature-flags.yaml` — pre-existing drift unchanged (18 registered / 29 in code — known orphan/missing entries from earlier sessions, not from this work).
+- `vendors.yaml` — no drift.
+- RLS coverage — clean, no drift.
+
+**Systems affected:** auth-system (only readers — new page route consumes existing classcode-login API), teacher-classes-index (UI), teacher-class-detail (UI). No WIRING.yaml changes.
+
+**Remaining for next session:** Matt's smoke on prod (the "Copy login link" buttons need a real teacher session to verify the WeChat-share UX end-to-end).
+
+---
+
 ## 2026-05-09 — Security audit + first fix round (P-1/P-2/P-3/P-5/P-6/P-10)
 
 **Context:** First substantive security-hardening pass since the initial audit. Two PRs already merged to origin/main close six items from `docs/security/security-plan.md`. The session also stood up the canonical `security-overview.md` + `security-plan.md` pair as the durable security source of truth and added a CI scanner for role-guard coverage so the next regression catches itself in PR review rather than leaking to prod.
