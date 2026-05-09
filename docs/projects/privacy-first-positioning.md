@@ -70,8 +70,8 @@ Three presets, named:
 ### 4. Landing page hero rework
 Front-page hero gives equal real-estate to the pedagogy claim and the privacy claim. Irreverent register on the hero copy, professional companion on the inner pages. Demo loop shows the control panel + a side-by-side "Open vs Anonymous" class. Depends on WS2 (Anonymous Mode shipping) for the demo screenshots and on WS3 (control panel shipped) for the full demo loop. **~1 week of marketing copy + design work**, sequenced after WS3.
 
-### 5. Vendor Approval Kit
-A bundled folder schools can request during procurement: DPA template, sub-processor list (already exists as [`vendors.yaml`](../vendors.yaml)), data flow diagram, incident response page, region-specific one-pagers (UK GDPR / AU Privacy Act / IB safeguarding / FERPA when US arrives). Half of school onboarding delays are document-chasing — pre-empting the request shaves 3-6 weeks per sale. Can run in parallel with WS2-4. **~1 week of writing.**
+### 5. Vendor Approval Kit  *(SPEC drafted — see [`privacy-vendor-approval-kit-spec.md`](privacy-vendor-approval-kit-spec.md))*
+A bundled folder schools can request during procurement: DPA template, sub-processor list (already exists as [`vendors.yaml`](../vendors.yaml)), data flow diagram, incident response page, region-specific one-pagers (UK GDPR / AU Privacy Act / IB safeguarding / FERPA when US arrives). Half of school onboarding delays are document-chasing — pre-empting the request shaves 3-6 weeks per sale. Can run in parallel with WS2-4. **~1 week of writing.** *Post-pushback synthesis (10 May 2026): this is the highest-leverage near-term move alongside WS1 — together they're the minimum credible cold-outreach artefact.*
 
 ### 6. Mode-aware privacy defaults
 Connects the existing mode system (design / PYP / Service / etc., already shipped via the topnav pill) to the privacy presets. PYP defaults to Anonymous (youngest students, strictest defaults). Design defaults to Standard. Service/CAS may default to Open because reflection sometimes wants identifying context. Schools can override per-class. **~3-5 days** after WS3 ships.
