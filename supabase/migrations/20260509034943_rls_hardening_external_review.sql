@@ -164,6 +164,9 @@ CREATE POLICY gallery_submissions_student_self
     )
   );
 
+-- gallery_rounds.class_id is TEXT (legacy, mig 049), but classes.id +
+-- class_members.class_id are UUID. Cast the subquery results to TEXT for
+-- the comparison.
 CREATE POLICY gallery_submissions_teacher_class_read
   ON gallery_submissions
   FOR SELECT
@@ -171,9 +174,9 @@ CREATE POLICY gallery_submissions_teacher_class_read
     round_id IN (
       SELECT gr.id FROM gallery_rounds gr
       WHERE gr.class_id IN (
-        SELECT id FROM classes WHERE teacher_id = auth.uid()
+        SELECT id::text FROM classes WHERE teacher_id = auth.uid()
         UNION
-        SELECT class_id FROM class_members
+        SELECT class_id::text FROM class_members
           WHERE member_user_id = auth.uid() AND removed_at IS NULL
       )
     )
@@ -201,6 +204,7 @@ CREATE POLICY gallery_reviews_student_self
     )
   );
 
+-- Same TEXT/UUID cast as gallery_submissions_teacher_class_read above.
 CREATE POLICY gallery_reviews_teacher_class_read
   ON gallery_reviews
   FOR SELECT
@@ -208,9 +212,9 @@ CREATE POLICY gallery_reviews_teacher_class_read
     round_id IN (
       SELECT gr.id FROM gallery_rounds gr
       WHERE gr.class_id IN (
-        SELECT id FROM classes WHERE teacher_id = auth.uid()
+        SELECT id::text FROM classes WHERE teacher_id = auth.uid()
         UNION
-        SELECT class_id FROM class_members
+        SELECT class_id::text FROM class_members
           WHERE member_user_id = auth.uid() AND removed_at IS NULL
       )
     )
