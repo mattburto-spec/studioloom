@@ -277,7 +277,22 @@ export interface ActivityLink {
   label: string;
 }
 
-export type ContentStyle = "info" | "warning" | "tip" | "context" | "activity" | "speaking" | "practical";
+export type ContentStyle = "info" | "warning" | "tip" | "context" | "activity" | "speaking" | "practical" | "key-callout";
+
+/**
+ * One row in a `key-callout` block — the brand-spine magazine layout
+ * shipped in src/components/lesson/KeyInformationCallout. Read-only on
+ * the student side; rendered when section.contentStyle === "key-callout"
+ * AND section.bullets is non-empty.
+ */
+export interface CalloutBullet {
+  /** The term being defined, e.g. "Choice". */
+  term: string;
+  /** Tiny ALL-CAPS hint shown beneath the term, e.g. "autonomy". */
+  hint?: string;
+  /** Body paragraph. */
+  body: string;
+}
 
 // --- Dimensions v2 types (Project Dimensions, 29 Mar 2026) ---
 
@@ -425,6 +440,17 @@ export interface ActivitySection {
   task?: string;
   /** v2 slot — what students produce/record/submit (≤200 chars). Renders with 🎯 prefix + bold weight. */
   success_signal?: string;
+
+  // ── Key-callout block (LIS.A, 10 May 2026) ──
+
+  /** For contentStyle === "key-callout": rows in the magazine-layout callout. When set, ActivityCard renders KeyInformationCallout instead of the default ComposedPrompt body. */
+  bullets?: CalloutBullet[];
+  /** For contentStyle === "key-callout": title rendered above the bullets. Array → one word per line for visual rhythm; string → single line. Falls back to `prompt` when omitted. */
+  bulletsTitle?: string | string[];
+  /** For contentStyle === "key-callout": short intro paragraph beneath the title. Optional. */
+  bulletsIntro?: string;
+  /** For contentStyle === "key-callout": override the default "Worth remembering" eyebrow chip. */
+  bulletsEyebrow?: string;
 }
 
 export interface Reflection {

@@ -8,6 +8,7 @@ import { ComposedPrompt } from "@/components/student/ComposedPrompt";
 import { composedPromptText } from "@/lib/lever-1/compose-prompt";
 import { TappableText } from "@/components/student/tap-a-word";
 import { toEmbedUrl } from "@/lib/video-embed";
+import { KeyInformationCallout } from "@/components/lesson";
 import type { ActivitySection } from "@/types";
 
 import type { IntegrityMetadata } from "./MonitoredTextarea";
@@ -154,15 +155,35 @@ export function ActivityCard({
       : [];
 
   const isContentOnly = !section.responseType;
-  const style = isContentOnly ? CONTENT_STYLE_CONFIG[section.contentStyle || "context"] : null;
+
+  // LIS.A — magazine-style "Worth remembering" callout. Opt in via
+  // contentStyle: "key-callout" + a non-empty bullets array. Falls back
+  // to the regular info-style content block when bullets are missing
+  // (so a half-authored section still renders something sensible).
+  const isKeyCallout =
+    isContentOnly &&
+    section.contentStyle === "key-callout" &&
+    Array.isArray(section.bullets) &&
+    section.bullets.length > 0;
+
+  // CONTENT_STYLE_CONFIG doesn't have a "key-callout" entry — bypass it
+  // for the callout path, and treat any orphan "key-callout" (no bullets)
+  // as "info" so the lookup stays type-safe.
+  const styleKey =
+    section.contentStyle === "key-callout" ? "info" : section.contentStyle || "context";
+  const style = isContentOnly && !isKeyCallout ? CONTENT_STYLE_CONFIG[styleKey] : null;
 
   return (
     <div ref={cardRef} className="scroll-mt-20">
-      {/* Content-only block wrapper — refreshed 8 May 2026.
-          Gradient bg + soft border + icon badge + larger body text +
-          subtle hover-lift. ComposedPrompt remains the body renderer
-          so click-for-word-definition (TappableText) keeps working. */}
-      {isContentOnly && style ? (
+      {/* LIS.A — Key-information magazine callout. */}
+      {isKeyCallout ? (
+        <KeyInformationCallout
+          title={section.bulletsTitle ?? section.prompt}
+          eyebrow={section.bulletsEyebrow}
+          intro={section.bulletsIntro}
+          bullets={section.bullets!}
+        />
+      ) : isContentOnly && style ? (
         <div
           className={`relative rounded-3xl p-6 md:p-8 shadow-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 ${style.bg} ${style.border} overflow-hidden`}
         >
