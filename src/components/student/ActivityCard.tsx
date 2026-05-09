@@ -127,6 +127,18 @@ const CONTENT_STYLE_CONFIG = {
     label: "Hands-On Activity",
     labelColor: "text-orange-700",
   },
+  // LIS.A.2 — present only to keep the record exhaustive over the
+  // ContentStyle union. Sections with contentStyle === "key-callout"
+  // never reach this lookup; they short-circuit through
+  // KeyInformationCallout via isCalloutStyle below.
+  "key-callout": {
+    bg: "",
+    border: "",
+    badgeBg: "",
+    icon: null,
+    label: "",
+    labelColor: "",
+  },
 };
 
 export function ActivityCard({
@@ -156,32 +168,47 @@ export function ActivityCard({
 
   const isContentOnly = !section.responseType;
 
-  // LIS.A — magazine-style "Worth remembering" callout. Opt in via
-  // contentStyle: "key-callout" + a non-empty bullets array. Falls back
-  // to the regular info-style content block when bullets are missing
-  // (so a half-authored section still renders something sensible).
-  const isKeyCallout =
+  // LIS.A.2 — both legacy "info" content blocks AND explicit "key-callout"
+  // sections render via KeyInformationCallout (magazine treatment). When
+  // bullets are present, the 3-card layout fires; otherwise the prose
+  // body renders in a single warm card. Other content styles (warning /
+  // tip / context / activity / speaking / practical) carry functional
+  // colour meanings (safety amber, pro-tip green, etc.) and stay on
+  // the legacy CONTENT_STYLE_CONFIG path.
+  const isCalloutStyle =
     isContentOnly &&
-    section.contentStyle === "key-callout" &&
-    Array.isArray(section.bullets) &&
-    section.bullets.length > 0;
+    (section.contentStyle === "info" || section.contentStyle === "key-callout");
 
-  // CONTENT_STYLE_CONFIG doesn't have a "key-callout" entry — bypass it
-  // for the callout path, and treat any orphan "key-callout" (no bullets)
-  // as "info" so the lookup stays type-safe.
-  const styleKey =
-    section.contentStyle === "key-callout" ? "info" : section.contentStyle || "context";
-  const style = isContentOnly && !isKeyCallout ? CONTENT_STYLE_CONFIG[styleKey] : null;
+  const calloutBullets =
+    Array.isArray(section.bullets) && section.bullets.length > 0
+      ? section.bullets
+      : undefined;
+
+  const style =
+    isContentOnly && !isCalloutStyle
+      ? CONTENT_STYLE_CONFIG[section.contentStyle || "context"]
+      : null;
 
   return (
     <div ref={cardRef} className="scroll-mt-20">
-      {/* LIS.A — Key-information magazine callout. */}
-      {isKeyCallout ? (
+      {/* LIS.A.2 — Magazine callout for both "info" + "key-callout". */}
+      {isCalloutStyle ? (
         <KeyInformationCallout
-          title={section.bulletsTitle ?? section.prompt}
+          title={section.bulletsTitle}
           eyebrow={section.bulletsEyebrow}
           intro={section.bulletsIntro}
-          bullets={section.bullets!}
+          bullets={calloutBullets}
+          body={
+            calloutBullets ? undefined : (
+              <>
+                <ComposedPrompt section={section} variant="compact" tappable />
+                {section.media && <MediaBlock media={section.media} />}
+                {section.links && section.links.length > 0 && (
+                  <LinksBlock links={section.links} pageColor={pageColor} />
+                )}
+              </>
+            )
+          }
         />
       ) : isContentOnly && style ? (
         <div
