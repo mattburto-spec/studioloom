@@ -30,6 +30,40 @@
   --color-border: #E5E7EB;
 }
 
+/* === Lesson surface tokens (used by src/components/lesson/*) ===
+   Spec-named aliases so the lesson components reference a stable contract
+   rather than the legacy --color-* + --sl-ink* variables. Mapped to
+   existing values where they overlap; new tokens are introduced for
+   radii and the cream background that the lesson scroller already uses
+   (see .sl-v2 .lesson-bold in BoldTopNav.tsx). */
+:root {
+  --sl-primary: #9333EA;
+  --sl-primary-hover: #7E22CE;
+  --sl-brand-purple: #7B2FF2;
+  --sl-brand-violet: #5C16C5;
+  --sl-brand-pink: #FF3366;
+
+  --sl-accent-orange: #E86F2C;
+  --sl-accent-blue: #2E86AB;
+  --sl-accent-green: #2DA05E;
+  --sl-accent-purple: #8B2FC9;
+
+  --sl-fg-primary: #1A1A2E;
+  --sl-fg-body: #2A2A3E;
+  --sl-fg-secondary: #6B7280;
+
+  --sl-surface-cream: #F5F0E8;
+  --sl-surface-paper: #FDFBF6;
+  --sl-hairline: #E5DFD2;
+
+  --sl-radius-md: 12px;
+  --sl-radius-xl: 18px;
+  --sl-radius-2xl: 24px;
+  --sl-radius-pill: 999px;
+
+  --sl-font-sans: var(--font-dm-sans), "Plus Jakarta Sans", system-ui, sans-serif;
+}
+
 @layer base {
   body {
     font-family: system-ui, -apple-system, sans-serif;

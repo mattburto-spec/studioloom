@@ -6,6 +6,7 @@ import { createAIProvider } from "@/lib/ai";
 import { getActivityCardById } from "@/lib/activity-cards";
 import type { CardTemplate, CardAIHints, ModifierAxis } from "@/types/activity-cards";
 import type { ActivityCardApplyRequest } from "@/types/activity-cards";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 function createSupabaseServer(request: NextRequest) {
   return createServerClient(
@@ -33,14 +34,11 @@ function createSupabaseServer(request: NextRequest) {
  * Returns adapted sections ready for insertion into a unit page.
  */
 export async function POST(request: NextRequest) {
-  const supabase = createSupabaseServer(request);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const supabase = createSupabaseServer(request);
 
   const body: ActivityCardApplyRequest = await request.json();
   const { cardId, modifiers, customPrompt, context } = body;
@@ -65,7 +63,7 @@ export async function POST(request: NextRequest) {
   const aiHints = card.ai_hints as CardAIHints;
 
   // Resolve AI credentials
-  const credentials = await resolveCredentials(supabase, user.id);
+  const credentials = await resolveCredentials(supabase, teacherId);
   if (!credentials) {
     return NextResponse.json(
       { error: "No AI provider configured. Set up AI settings or contact your administrator." },

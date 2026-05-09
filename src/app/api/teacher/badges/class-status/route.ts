@@ -22,33 +22,14 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-function createSupabaseServer(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-}
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createSupabaseServer(request);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireTeacher(request);
+    if (auth.error) return auth.error;
+    const { teacherId } = auth;
 
     const url = new URL(request.url);
     const classId = url.searchParams.get("classId");
@@ -68,7 +49,7 @@ export async function GET(request: NextRequest) {
       .from("classes")
       .select("id")
       .eq("id", classId)
-      .eq("teacher_id", user.id)
+      .eq("teacher_id", teacherId)
       .single();
 
     if (!cls) {

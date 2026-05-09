@@ -12,7 +12,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   createFabricatorSession,
@@ -25,27 +24,9 @@ import {
   isOrchestrationError,
 } from "@/lib/fabrication/lab-orchestration";
 import { findFabricatorByEmail } from "@/lib/fabrication/fab-orchestration";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 const INVITE_PENDING = "INVITE_PENDING";
-
-async function getTeacherUser(request: NextRequest) {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
-}
 
 function privateJson(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: FAB_PRIVATE_CACHE_HEADERS });
@@ -56,8 +37,9 @@ function privateJson(body: unknown, status = 200) {
 // -----------------------------------------------------------------
 
 export async function GET(request: NextRequest) {
-  const user = await getTeacherUser(request);
-  if (!user) return privateJson({ error: "Unauthorized" }, 401);
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const admin = createAdminClient();
 
@@ -65,7 +47,7 @@ export async function GET(request: NextRequest) {
   // Resolve the calling teacher's school, then return every fab
   // whose inviter is at the same school. Cross-school fabs are
   // invisible (consistent with labs/machines).
-  const schoolResult = await loadTeacherSchoolId(admin, user.id);
+  const schoolResult = await loadTeacherSchoolId(admin, teacherId);
   if (isOrchestrationError(schoolResult)) {
     return privateJson(
       { error: schoolResult.error.message },
@@ -149,8 +131,9 @@ interface InviteBody {
 }
 
 export async function POST(request: NextRequest) {
-  const user = await getTeacherUser(request);
-  if (!user) return privateJson({ error: "Unauthorized" }, 401);
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   let body: InviteBody;
   try {
@@ -186,7 +169,7 @@ export async function POST(request: NextRequest) {
   // Phase 8-1 + Round 2 audit: resolve calling teacher's school
   // first. Used for (a) school-scoped existence check on the email,
   // (b) display name for the invite email copy.
-  const schoolResult = await loadTeacherSchoolId(admin, user.id);
+  const schoolResult = await loadTeacherSchoolId(admin, teacherId);
   if (isOrchestrationError(schoolResult)) {
     return privateJson(
       { error: schoolResult.error.message },
@@ -199,7 +182,7 @@ export async function POST(request: NextRequest) {
   const { data: teacherRow } = await admin
     .from("teachers")
     .select("display_name, email")
-    .eq("id", user.id)
+    .eq("id", teacherId)
     .maybeSingle();
   // Prefer the teacher's display name. If unset, fall back to the
   // local-part of their email (everything before the @) rather than
@@ -272,7 +255,7 @@ export async function POST(request: NextRequest) {
         display_name: displayName,
         password_hash: INVITE_PENDING,
         is_active: true,
-        invited_by_teacher_id: user.id,
+        invited_by_teacher_id: teacherId,
       })
       .select("id")
       .single();
@@ -302,7 +285,7 @@ export async function POST(request: NextRequest) {
     const machineRows = machineIds.map((machineId) => ({
       fabricator_id: fabricatorId,
       machine_profile_id: machineId,
-      assigned_by_teacher_id: user.id,
+      assigned_by_teacher_id: teacherId,
     }));
     const { error: machineError } = await admin
       .from("fabricator_machines")

@@ -14,32 +14,13 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   SaveTileGradeValidationError,
   saveTileGrade,
   type SaveTileGradeInput,
 } from "@/lib/grading/save-tile-grade";
-
-async function getTeacherId(request: NextRequest): Promise<string | null> {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    },
-  );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id || null;
-}
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 interface PutBody {
   student_id?: string;
@@ -65,10 +46,9 @@ interface PutBody {
 }
 
 export async function PUT(request: NextRequest) {
-  const teacherId = await getTeacherId(request);
-  if (!teacherId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   let body: PutBody;
   try {

@@ -1,24 +1,9 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { nanoid } from "nanoid";
 import { BUILT_IN_BADGES } from "@/lib/safety/badge-definitions";
-
-function createSupabaseServer(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-}
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 /**
  * POST /api/teacher/badges/[id]/assign
@@ -37,16 +22,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-    const supabase = createSupabaseServer(request);
+    const auth = await requireTeacher(request);
+    if (auth.error) return auth.error;
 
-    // Verify teacher is authenticated
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { id } = await params;
 
     const body = await request.json();
     const { type, studentIds = [], unitId, classId, targetStudentIds, note } = body;

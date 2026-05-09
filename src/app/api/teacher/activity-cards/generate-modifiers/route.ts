@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
 import { createAIProvider } from "@/lib/ai";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 // QUARANTINED (3 Apr 2026) — Generation pipeline disabled pending architecture rebuild (Dimensions2).
 // See docs/quarantine.md for full rationale.
@@ -33,7 +34,10 @@ function createSupabaseServer(request: NextRequest) {
  * Returns: { modifierAxes: ModifierAxis[] }
  */
 export async function POST(request: NextRequest) {
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
   return QUARANTINE_RESPONSE;
+  // Dead code below — kept for reference until quarantine lifted.
   const supabase = createSupabaseServer(request);
   const {
     data: { user },

@@ -1,27 +1,12 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import {
   getActivityCards,
   searchActivityCards,
   recordActivityUsage,
 } from "@/lib/activity-cards";
 import type { ActivityCardFilters } from "@/types/activity-cards";
-
-function createSupabaseServer(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-}
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 /**
  * GET /api/teacher/activity-cards
@@ -35,14 +20,8 @@ function createSupabaseServer(request: NextRequest) {
  *   maxDuration — max duration in minutes
  */
 export async function GET(request: NextRequest) {
-  const supabase = createSupabaseServer(request);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
 
   const { searchParams } = new URL(request.url);
 
@@ -77,14 +56,9 @@ export async function GET(request: NextRequest) {
  * Body: { cardId, unitId?, pageId?, criterion?, modifiersApplied?, customPrompt?, sectionsBefore?, sectionsAfter? }
  */
 export async function POST(request: NextRequest) {
-  const supabase = createSupabaseServer(request);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const body = await request.json();
 
@@ -97,7 +71,7 @@ export async function POST(request: NextRequest) {
 
   await recordActivityUsage({
     cardId: body.cardId,
-    teacherId: user.id,
+    teacherId,
     unitId: body.unitId,
     pageId: body.pageId,
     criterion: body.criterion,

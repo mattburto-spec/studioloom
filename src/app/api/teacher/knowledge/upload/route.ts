@@ -1,6 +1,7 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { withErrorHandler } from "@/lib/api/error-handler";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 // Quarantined 10 Apr 2026. Old knowledge pipeline.
 // Use /api/teacher/knowledge/ingest (Dimensions3).
@@ -22,15 +23,27 @@ export const maxDuration = 300;
 
 export const POST = withErrorHandler(
   "teacher/knowledge/upload:POST",
-  async (_request: NextRequest) => QUARANTINE_RESPONSE
+  async (request: NextRequest) => {
+    const auth = await requireTeacher(request);
+    if (auth.error) return auth.error;
+    return QUARANTINE_RESPONSE;
+  }
 );
 
 export const GET = withErrorHandler(
   "teacher/knowledge/upload:GET",
-  async (_request: NextRequest) => QUARANTINE_RESPONSE
+  async (request: NextRequest) => {
+    const auth = await requireTeacher(request);
+    if (auth.error) return auth.error;
+    return QUARANTINE_RESPONSE;
+  }
 );
 
 export const DELETE = withErrorHandler(
   "teacher/knowledge/upload:DELETE",
-  async (_request: NextRequest) => QUARANTINE_RESPONSE
+  async (request: NextRequest) => {
+    const auth = await requireTeacher(request);
+    if (auth.error) return auth.error;
+    return QUARANTINE_RESPONSE;
+  }
 );

@@ -3,7 +3,6 @@
  *
  * GET /api/teacher/badges/list
  *   Returns all available badges (public + built-in).
- *   No auth required on this endpoint (teachers need to know what badges exist).
  *
  *   Returns: {
  *     badges: Array<{ id, name, slug, description, tier }>
@@ -13,9 +12,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import * as Sentry from "@sentry/nextjs";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireTeacher(request);
+    if (auth.error) return auth.error;
+
     const supabase = createAdminClient();
 
     // Fetch all badges

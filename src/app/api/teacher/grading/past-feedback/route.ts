@@ -16,8 +16,9 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
-async function buildClient(request: NextRequest) {
+function buildClient(request: NextRequest) {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -33,13 +34,10 @@ async function buildClient(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const supabase = await buildClient(request);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+
+  const supabase = buildClient(request);
 
   const { searchParams } = new URL(request.url);
   const studentId = searchParams.get("student_id");

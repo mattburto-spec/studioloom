@@ -1,7 +1,7 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 // Phase 0.4 (10 Apr 2026): GET kept as a historical read on the legacy
 // lesson_profiles table. PATCH re-quarantined — verification/rating writes
@@ -14,25 +14,6 @@ const QUARANTINE_RESPONSE = NextResponse.json(
   { status: 410 }
 );
 
-async function getTeacherId(request: NextRequest): Promise<string | null> {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id || null;
-}
-
 /**
  * GET: Fetch a stored lesson profile by ID
  */
@@ -40,10 +21,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const teacherId = await getTeacherId(request);
-  if (!teacherId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const { id } = await params;
   const supabaseAdmin = createAdminClient();
@@ -87,8 +67,10 @@ export async function GET(
  * PATCH: Update verification status and rating
  */
 export async function PATCH(
-  _request: NextRequest,
+  request: NextRequest,
   _ctx: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
   return QUARANTINE_RESPONSE;
 }

@@ -11,7 +11,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { BLOCK_TYPES, SKILL_TIERS } from "@/types/skills";
 import {
@@ -29,21 +28,7 @@ import type {
   SkillCardRow,
   UpdateSkillCardPayload,
 } from "@/types/skills";
-
-function createSupabaseServer(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-}
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 const VALID_BLOCK_TYPES = new Set<string>(BLOCK_TYPES);
 const VALID_CARD_TYPES: readonly CardType[] = ["lesson", "routine"];
@@ -140,14 +125,11 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireTeacher(request);
+    if (auth.error) return auth.error;
+    const { teacherId } = auth;
+
     const { id } = await context.params;
-    const supabase = createSupabaseServer(request);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
     const admin = createAdminClient();
     const card = await loadHydrated(admin, id);
@@ -159,12 +141,12 @@ export async function GET(
     const visible =
       card.is_published ||
       card.is_built_in ||
-      card.created_by_teacher_id === user.id;
+      card.created_by_teacher_id === teacherId;
     if (!visible) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const editable = !card.is_built_in && card.created_by_teacher_id === user.id;
+    const editable = !card.is_built_in && card.created_by_teacher_id === teacherId;
 
     return NextResponse.json({ card, editable });
   } catch (error) {
@@ -184,14 +166,11 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireTeacher(request);
+    if (auth.error) return auth.error;
+    const { teacherId } = auth;
+
     const { id } = await context.params;
-    const supabase = createSupabaseServer(request);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
     const admin = createAdminClient();
     const { data: card } = await admin
@@ -208,7 +187,7 @@ export async function PATCH(
         { status: 403 }
       );
     }
-    if (card.created_by_teacher_id !== user.id) {
+    if (card.created_by_teacher_id !== teacherId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -454,14 +433,11 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireTeacher(request);
+    if (auth.error) return auth.error;
+    const { teacherId } = auth;
+
     const { id } = await context.params;
-    const supabase = createSupabaseServer(request);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
     const admin = createAdminClient();
     const { data: card } = await admin
@@ -478,7 +454,7 @@ export async function DELETE(
         { status: 403 }
       );
     }
-    if (card.created_by_teacher_id !== user.id) {
+    if (card.created_by_teacher_id !== teacherId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

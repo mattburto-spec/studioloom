@@ -21,8 +21,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { approveRequest } from "@/lib/access-v2/school/unit-use-requests";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -35,22 +35,9 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       return NextResponse.json({ error: "Invalid request id" }, { status: 400 });
     }
 
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll: () => request.cookies.getAll(),
-          setAll: () => {},
-        },
-      }
-    );
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireTeacher(request);
+    if (auth.error) return auth.error;
+    const { teacherId } = auth;
 
     let body: { response?: unknown } = {};
     try {
@@ -62,7 +49,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
 
     const result = await approveRequest({
       requestId,
-      authorUserId: user.id,
+      authorUserId: teacherId,
       response:
         typeof body.response === "string" ? body.response.slice(0, 2000) : undefined,
     });

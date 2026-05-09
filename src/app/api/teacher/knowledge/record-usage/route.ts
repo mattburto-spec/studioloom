@@ -1,28 +1,9 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { recordGenerationUsage } from "@/lib/knowledge/feedback";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 // Un-quarantined (9 Apr 2026) — Knowledge pipeline restored.
-
-async function getUser(request: NextRequest) {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user ? { id: user.id } : null;
-}
 
 /**
  * POST /api/teacher/knowledge/record-usage
@@ -32,10 +13,8 @@ async function getUser(request: NextRequest) {
  * Body: { chunkIds: string[] }
  */
 export async function POST(request: NextRequest) {
-  const user = await getUser(request);
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
 
   const body = await request.json();
   const { chunkIds } = body as { chunkIds: string[] };

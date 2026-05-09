@@ -1,25 +1,10 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { nanoid } from "nanoid";
 import type { BadgeDefinition } from "@/lib/safety/types";
 import type { Badge, QuestionPoolItem, LearningCard } from "@/types";
-
-function createSupabaseServer(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-}
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 /**
  * GET /api/teacher/badges
@@ -32,15 +17,8 @@ function createSupabaseServer(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createSupabaseServer(request);
-
-    // Verify teacher is authenticated
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireTeacher(request);
+    if (auth.error) return auth.error;
 
     // Get query params
     const url = new URL(request.url);
@@ -93,15 +71,9 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createSupabaseServer(request);
-
-    // Verify teacher is authenticated
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireTeacher(request);
+    if (auth.error) return auth.error;
+    const { teacherId } = auth;
 
     const body = await request.json();
 
@@ -162,7 +134,7 @@ export async function POST(request: NextRequest) {
           icon_name,
           color,
           is_built_in: false,
-          created_by_teacher_id: user.id,
+          created_by_teacher_id: teacherId,
           pass_threshold,
           expiry_months,
           retake_cooldown_minutes,
@@ -667,15 +639,8 @@ const BUILT_IN_BADGES: Array<
 
 export async function POST_SEED(request: NextRequest) {
   try {
-    const supabase = createSupabaseServer(request);
-
-    // Verify teacher is authenticated
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireTeacher(request);
+    if (auth.error) return auth.error;
 
     const admin = createAdminClient();
 
