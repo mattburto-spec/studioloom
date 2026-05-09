@@ -18,7 +18,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { saveTileGrade } from "@/lib/grading/save-tile-grade";
 import { generateAiPrescore } from "@/lib/grading/ai-prescore";
@@ -28,25 +27,7 @@ import { getPageList } from "@/lib/unit-adapter";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
 import { getGradingScale } from "@/lib/constants";
 import type { UnitContentData } from "@/types";
-
-async function getTeacherId(request: NextRequest): Promise<string | null> {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    },
-  );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id || null;
-}
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 interface PostBody {
   class_id?: string;
@@ -69,10 +50,9 @@ interface PerStudentResult {
 const MAX_BATCH = 50; // safety cap so a 200-student typo doesn't auto-burn $0.40
 
 export async function POST(request: NextRequest) {
-  const teacherId = await getTeacherId(request);
-  if (!teacherId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   let body: PostBody;
   try {
