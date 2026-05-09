@@ -44,7 +44,20 @@ Full gap list with severities: [`security-plan.md`](security-plan.md) §"Top 10 
 
 ## §1 — How student data reaches the LLM
 
-The single concern most schools will ask about: *"do you send student names to AI?"* Answer in one sentence: **No — student names are placeholder-swapped before any Anthropic call, and no other student PII identifier (email, full name, DOB) is in any prompt.** Self-disclosed UDL/learning-style descriptors and student-authored text *do* go to Anthropic under COPPA art. 6 and parental consent.
+The single concern most schools will ask about: *"do you send student names to AI?"* Answer with the precise scope:
+
+**The platform never injects a student's name into an AI prompt.** Where a feature wants to address the student by name in AI output (Report Writer's third-person narrative, G3 grading's second-person feedback), the prompt body uses the placeholder `"Student"` and the real name is restored on the response client-side via [`restoreStudentName()`](../../src/lib/security/student-name-placeholder.ts). Anthropic only ever sees `"Student"`. CI test [`no-pii-in-ai-prompts.test.ts`](../../src/lib/security/__tests__/no-pii-in-ai-prompts.test.ts) enforces this — any new file calling `callAnthropicMessages` that references a PII identifier name (`firstName`, `displayName`, `.email`, etc.) fails the build unless allowlisted because it implements the placeholder pattern.
+
+**What does still flow to Anthropic** (declared in [`vendors.yaml`](../vendors.yaml) Anthropic entry, all under COPPA art. 6 + parental consent):
+- Student-authored free text (chat with the design-assistant mentor, Discovery Engine reflections, Open Studio check-ins, toolkit tool inputs). If a student types their own name into one of those fields, it reaches Anthropic verbatim. The platform does not run NER over student-typed content.
+- Student self-disclosed `learning_profile` JSONB (UDL accommodations, learning differences, languages_at_home).
+- Quest journey discovery profile + contract (project narrative, strengths, interests).
+- Open Studio discovery profile + check-in conversation turns.
+- Discovery Engine station outputs (irritations, archetype, fear cards, self-efficacy).
+- Student-uploaded images sent to Claude Vision specifically *to be moderated*.
+- Teacher-uploaded knowledge documents (text + extracted images).
+
+**What never reaches Anthropic** in any path: student email, full name (last name), DOB, classcode, session token, IP address.
 
 ### §1.1 — The chokepoint
 
@@ -314,6 +327,7 @@ Every Anthropic call writes a row: `endpoint`, `model`, `inputTokens`, `outputTo
 |---|---|
 | TLS 1.3 (Vercel + Supabase) | ✅ enforced |
 | `Cache-Control: private, no-cache, no-store, must-revalidate` on auth/student/admin/fab routes | ✅ ([`next.config.ts`](../../next.config.ts)) |
+| `SameSite=Lax` on Supabase Auth + Fabricator session cookies | ✅ default for Supabase SSR; explicit on Fab cookies. Blocks cross-site POST/PUT/DELETE — primary CSRF defense. |
 | `X-Frame-Options: DENY` | ✅ |
 | `X-Content-Type-Options: nosniff` | ✅ |
 | `Referrer-Policy: strict-origin-when-cross-origin` | ✅ |

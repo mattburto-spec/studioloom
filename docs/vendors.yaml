@@ -112,6 +112,21 @@ vendors:
       - category: auth_sessions
         fields: [auth.sessions, auth.refresh_tokens]
         basis: contract
+      - category: telemetry_metadata
+        # Added 2026-05-09 (Gemini external review). The ai_usage_log
+        # table stores per-call attribution (endpoint, model, tokens,
+        # studentId). The free-tool routes (Report Writer + Marking
+        # Comments) write teacher email + occasionally student first
+        # name into ai_usage_log.metadata for breakdown views. Doesn't
+        # leave the platform (Supabase IS the data store) but worth
+        # cataloguing as PII-bearing telemetry.
+        fields:
+          - ai_usage_log.endpoint
+          - ai_usage_log.model
+          - ai_usage_log.metadata  # may include teacher email + student first name
+          - audit_events.actor_id
+          - audit_events.target_id
+        basis: legitimate_interest
     dpa_signed: null
     subprocessors: [aws, cloudflare]
     student_data_eligible: true
