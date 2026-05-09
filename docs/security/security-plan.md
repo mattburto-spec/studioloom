@@ -504,6 +504,40 @@ The current state delivers (1) for the rls/audit/encryption/DSR/AI-chokepoint su
 | FU-SEC-VENDORS-AI-USAGE-LOG-METADATA | vendors.yaml drift: ai_usage_log.metadata holds PII | P3 | 5min | **DONE — 2026-05-09** (Supabase entry updated with telemetry_metadata category) | matt | — |
 | FU-SEC-NAME-REDACTION-SCOPE-CLARIFY | Clarify §1 of overview: student-self-typed names DO flow under COPPA | P3 | 10min | **DONE — 2026-05-09** (overview §1 rewritten with precise scope) | matt | — |
 
+### From cowork external review (filed 2026-05-09)
+
+Source: [`external-review-2026-05-09-findings.md`](external-review-2026-05-09-findings.md). Plan: [`projects/security-closure-2026-05-09-brief.md`](../projects/security-closure-2026-05-09-brief.md).
+
+| ID | Title | Severity | Effort | Status | Owner | Target |
+|---|---|---|---|---|---|---|
+| F-1 | RLS broken on `student_tool_sessions` (mig 026) — cross-school read/write of all student tool drafts | P0 | inc. in S1 | **PLANNED — phase S1** | matt | pre-pilot-expand |
+| F-2 | RLS broken on `open_studio_profiles` (mig 031) — cross-school student profile leak | P0 | inc. in S1 | **PLANNED — phase S1** | matt | pre-pilot-expand |
+| F-3 | `discovery_sessions` permissive policy short-circuits the strict one (mig 047) | P0 | inc. in S1 | **PLANNED — phase S1** | matt | pre-pilot-expand |
+| F-4 | `gallery_submissions` + `gallery_reviews` wide-open SELECT + tautological INSERT (mig 049) | P0 | inc. in S1 | **PLANNED — phase S1** | matt | pre-pilot-expand |
+| F-5 | `POST /api/teacher/units` `publish` case lacks ownership check — any teacher hijacks any unit | P0 | inc. in S2 | **PLANNED — phase S2** | matt | pre-pilot-expand |
+| F-6 | 80 `/api/teacher/*` routes still bypass `requireTeacher`; `badges/[id]/assign` confirmed exploitable from a student JWT | P1 | inc. in S3 | **PLANNED — phase S3** | matt | pre-pilot-expand |
+| F-7 | `own_time_*` 3 tables — wide-open SELECT (mig 028) | P1 | inc. in S1 | **PLANNED — phase S1** | matt | pre-pilot-expand |
+| F-8 | `open_studio_status` / `open_studio_sessions` — wide-open SELECT (mig 029) | P1 | inc. in S1 | **PLANNED — phase S1** | matt | pre-pilot-expand |
+| F-9 | Sentry PII filter doesn't scrub `event.message` or `event.exception.values[*]` | P1 | inc. in S4 | **PLANNED — phase S4** | matt | pre-paid |
+| F-10 | Sentry Replay sampled at 10% on errors with no masking | P1 | inc. in S4 | **PLANNED — phase S4** | matt | pre-paid |
+| F-11 | `unit-images` + `knowledge-media` proxy short-circuits to "any authenticated user" | P2 | inc. in S5 | **PLANNED — phase S5** | matt | pre-paid |
+| F-12 | Fabricator login is a timing oracle for email enumeration | P2 | inc. in S6 | **PLANNED — phase S6** | matt | pre-paid |
+| F-13 | Doc-vs-code drift: "Argon2id" claimed in CLAUDE.md, code uses bcryptjs | P2 | inc. in S6 | **PLANNED — phase S6** | matt | pre-paid |
+| F-14 | Fabricator login rate-limit is in-memory, no per-account lockout | P2 | inc. in S6 | **PLANNED — phase S6** | matt | pre-paid |
+| F-15 | `marking-comments` AI accepts free-text `studentWork` — student names flow if teacher pastes them | P2 | inc. in S7 | **PLANNED — phase S7** | matt | pre-paid |
+| F-16 | `resolveCredentials` swallows `decrypt()` failures silently — BYOK rotation drift goes invisible | P2 | inc. in S7 | **PLANNED — phase S7** | matt | pre-paid |
+| F-17 | `gallery_reviews` INSERT permits arbitrary `reviewer_id` | P2 | rolled into S1 (sub-finding of F-4) | **PLANNED — phase S1** | matt | pre-pilot-expand |
+| F-18 | `ai_usage_log.metadata` doc drift: comment claims "admins can read" but RLS is service-role-only | P3 | inc. in S7 | **PLANNED — phase S7** | matt | pre-paid |
+| F-19 | `restoreStudentName` regex is whole-word-on-`Student` — edge cases not unit-tested | P3 | inc. in S7 | **PLANNED — phase S7** | matt | pre-paid |
+| F-20 | Storage proxy URL path-segments leak student UUIDs into Sentry breadcrumbs | P3 | inc. in S7 | **PLANNED — phase S7** | matt | pre-paid |
+
+### Internally surfaced 2026-05-09 (sibling-table audit during S1 pre-flight)
+
+| ID | Title | Severity | Effort | Status | Owner | Target |
+|---|---|---|---|---|---|---|
+| F-21 | `class_units FOR SELECT USING (true)` (mig 001:201) — never replaced; cross-tenant class→unit assignment leak | P1 | inc. in S1 | **PLANNED — phase S1** | matt | pre-pilot-expand |
+| FU-SEC-MIG-035-PUBLIC-READ-AUDIT | Confirm `badges`, `unit_badge_requirements`, `safety_sessions_read_by_code` are intentional public-read; document or scope per Q2 in brief | P3 | 1h | **PLANNED — phase S1 pre-flight** | matt | — |
+
 Update on every `saveme` that touches a security item. Mark `IN PROGRESS` / `DONE` with date and PR link.
 
 ---
