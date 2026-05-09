@@ -17,14 +17,19 @@
  *   3. This route auth-checks the request, mints a fresh signed URL (5min
  *      TTL) via service-role, and 302-redirects to it.
  *
- * Auth model:
- *   - All 3 buckets require an authenticated Supabase session (any user
- *     type — teacher OR student).
- *   - Future hardening (P-3 follow-up): per-bucket authorization gates —
- *     `responses` should require class-membership when reading another
- *     student's path; `unit-images` could allow same-school teachers; etc.
- *     For now, "any logged-in user" is the gate. This is a strict upgrade
- *     over the prior "anyone with a guessed URL" state.
+ * Auth model (hardened 9 May 2026 after Gemini external review caught the
+ * IDOR — all 3 buckets used to allow "any authenticated user" which let
+ * Student A read Student B's avatar via /api/storage/responses/{StudentB_UUID}/...
+ * because the proxy uses service-role to mint, bypassing RLS):
+ *
+ *   - responses: per-student authorization. Student must own the path's
+ *     {studentId}/... first segment. Teachers must verifyTeacherCanManageStudent.
+ *     Platform admins read all.
+ *   - unit-images / knowledge-media: any authenticated user (these are
+ *     curriculum thumbnails + teaching materials, not student PII). Future
+ *     scoping tracked as FU-SEC-{UNIT-IMAGES,KNOWLEDGE-MEDIA}-SCOPING.
+ *
+ * See ./authorize.ts for the full rule table.
  *
  * Cache-Control:
  *   - The proxy redirect is `private, max-age=240` (4min) — slightly under
@@ -36,6 +41,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { authorizeBucketAccess } from "./authorize";
 
 const ALLOWED_BUCKETS = new Set(["responses", "unit-images", "knowledge-media"]);
 const SIGNED_URL_TTL_SECONDS = 300; // 5 min — caller refreshes via repeat hit
@@ -80,10 +86,20 @@ export async function GET(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Mint a signed URL server-side via the service role.
   // Path comes from the URL — Next.js [...path] catch-all already
   // path-decodes each segment.
   const fullPath = pathSegments.map(decodeURIComponent).join("/");
+
+  // Per-bucket authorization. Closes the IDOR surface: pre-fix, any
+  // authenticated user could read any path. See ./authorize.ts.
+  const authz = await authorizeBucketAccess(user, bucket, fullPath);
+  if (!authz.ok) {
+    // 403 (not 404) so we don't help an attacker probe whether a path
+    // exists. The 401-vs-403-vs-404 split: 401 = no session, 403 = wrong
+    // user / malformed path, 404 = file genuinely missing.
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const admin = createAdminClient();
   const { data, error } = await admin.storage
     .from(bucket)

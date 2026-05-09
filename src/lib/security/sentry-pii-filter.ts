@@ -15,8 +15,16 @@ import type { ErrorEvent, EventHint, Breadcrumb, BreadcrumbHint } from "@sentry/
  * Substring matches against object keys (case-insensitive). Conservative —
  * better to over-redact than to leak. Add new entries here as PII surfaces
  * are discovered.
+ *
+ * Expanded 9 May 2026 after Gemini external review caught two gaps: bare
+ * `ip` field wasn't matched (only `ip_address` / `ipaddress`), and the
+ * `students.learning_profile` JSONB self-disclosures (anxiety, autism,
+ * ADHD, dyslexia, learning_differences, accommodations) weren't on the
+ * list — those would land in Sentry plaintext on any error in the
+ * design-assistant or Open Studio mentor.
  */
 const SENSITIVE_KEY_FRAGMENTS = [
+  // Identity
   "email",
   "password",
   "passwd",
@@ -26,7 +34,7 @@ const SENSITIVE_KEY_FRAGMENTS = [
   "api_key",
   "authorization",
   "auth",
-  "token",
+  "token", // catches access_token / refresh_token / provider_token
   "session",
   "cookie",
   "displayname",
@@ -39,19 +47,66 @@ const SENSITIVE_KEY_FRAGMENTS = [
   "full_name",
   "studentname",
   "student_name",
+  // Network identifiers
   "ipaddress",
   "ip_address",
+  "ip_addr",
+  "ipv4",
+  "ipv6",
+  "x-forwarded-for",
+  "x_forwarded_for",
+  // Contact / sensitive
   "phone",
   "ssn",
   "dob",
   "date_of_birth",
+  "birthdate",
+  "address",
+  // Self-disclosure (UDL / learning_profile JSONB) — added 9 May 2026
+  // after Gemini external review.
+  "learning_difference",
+  "learning_differences",
+  "accommodation",
+  "accommodations",
+  "udl_strength",
+  "udl_strengths",
+  "udl_barrier",
+  "udl_barriers",
+  "anxiety",
+  "adhd",
+  "autism",
+  "dyslexia",
+  "asd",
+  "iep",
+  "504_plan",
+  "fivefourplan",
+  "diagnosis",
+  "medication",
+  "communication_preference",
+  "communication_preferences",
+  // Location-of-origin (sometimes sensitive in international school context)
+  "languages_at_home",
+  "countries_lived_in",
+  "country_of_birth",
 ];
+
+/**
+ * Bare-name match list (exact key match, case-insensitive). Used for keys
+ * that are too short to safely substring-match — e.g. matching every key
+ * containing "ip" would catch "tip", "skip", "recipient", etc.
+ */
+const SENSITIVE_EXACT_KEYS = new Set([
+  "ip",
+  "ssn",
+  "dob",
+]);
 
 const REDACTED = "[REDACTED]" as const;
 const REDACTED_OBJECT = { __redacted: true } as const;
 
 function keyIsSensitive(key: string): boolean {
   const lower = key.toLowerCase();
+  if (SENSITIVE_EXACT_KEYS.has(lower)) return true;
   return SENSITIVE_KEY_FRAGMENTS.some((frag) => lower.includes(frag));
 }
 

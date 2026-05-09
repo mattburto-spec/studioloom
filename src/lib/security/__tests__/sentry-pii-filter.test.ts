@@ -50,6 +50,58 @@ describe("scrubPII", () => {
     expect(out.session).toEqual({ __redacted: true });
   });
 
+  it("redacts Supabase Auth token names (substring match on 'token')", () => {
+    const out = scrubPII({
+      access_token: "eyJ...",
+      refresh_token: "eyJ...",
+      provider_token: "ya29...",
+      provider_refresh_token: "1//...",
+    });
+    expect(out.access_token).toBe("[REDACTED]");
+    expect(out.refresh_token).toBe("[REDACTED]");
+    expect(out.provider_token).toBe("[REDACTED]");
+    expect(out.provider_refresh_token).toBe("[REDACTED]");
+  });
+
+  it("redacts bare 'ip' field via the exact-keys list", () => {
+    const out = scrubPII({ ip: "1.2.3.4", topic: "ok" });
+    expect(out.ip).toBe("[REDACTED]");
+    expect(out.topic).toBe("ok");
+  });
+
+  it("does NOT over-redact substrings of 'ip' (tip, skip, recipient)", () => {
+    const out = scrubPII({ tip: "ok", skip: "ok", recipient: "ok" });
+    expect(out.tip).toBe("ok");
+    expect(out.skip).toBe("ok");
+    expect(out.recipient).toBe("ok");
+  });
+
+  it("redacts learning_profile self-disclosures", () => {
+    const out = scrubPII({
+      learning_differences: ["dyslexia", "adhd"], // array → object marker
+      accommodations: { extended_time: true }, // object → object marker
+      udl_strengths: ["visual"], // array → object marker
+      anxiety: true, // primitive → string marker
+      diagnosis: "ASD level 1", // primitive → string marker
+      medication: "Ritalin", // primitive → string marker
+    });
+    expect(out.learning_differences).toEqual({ __redacted: true });
+    expect(out.accommodations).toEqual({ __redacted: true });
+    expect(out.udl_strengths).toEqual({ __redacted: true });
+    expect(out.anxiety).toBe("[REDACTED]");
+    expect(out.diagnosis).toBe("[REDACTED]");
+    expect(out.medication).toBe("[REDACTED]");
+  });
+
+  it("redacts forwarded-for headers", () => {
+    const out = scrubPII({
+      "x-forwarded-for": "1.2.3.4",
+      "X-Forwarded-For": "5.6.7.8",
+    });
+    expect(out["x-forwarded-for"]).toBe("[REDACTED]");
+    expect(out["X-Forwarded-For"]).toBe("[REDACTED]");
+  });
+
   it("survives circular references", () => {
     const obj: Record<string, unknown> = { topic: "ok" };
     obj.self = obj;
