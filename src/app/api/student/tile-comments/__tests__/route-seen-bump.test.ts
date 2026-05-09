@@ -1,19 +1,32 @@
 /**
- * TFL.1.2 — source-static guards for /api/student/tile-comments.
+ * TFL.1.2 + TFL.1 hotfix — source-static guards for /api/student/tile-comments.
  *
  * Same shape as the timeline / kanban route tests. Per Lesson #38 +
  * #71: this repo doesn't run route handlers under vitest (no Next
  * runtime); we assert pattern + ordering against the source string.
  *
- * The TFL.1 contract:
+ * The TFL.1 contract (post-hotfix migration 20260509222601):
  *   1. Auth gate runs FIRST (requireStudentSession before any DB call).
- *   2. The seen-receipt UPDATE runs BEFORE the SELECT.
- *   3. The UPDATE filters rows with non-null + non-empty
- *      student_facing_comment (no false receipts on tiles with no
- *      teacher comment).
- *   4. The UPDATE writes student_seen_comment_at = a fresh ISO string.
+ *   2. The seen-receipt RPC runs BEFORE the SELECT.
+ *   3. The bump goes through the SECURITY DEFINER SQL function
+ *      `bump_student_seen_comment_at(p_student_id, p_unit_id, p_page_id)`
+ *      — NOT an inline `.update({ student_seen_comment_at: ... })` from
+ *      Node — so both `student_seen_comment_at` and the BEFORE-UPDATE
+ *      trigger's `updated_at` derive from the same Postgres `now()` and
+ *      can never race. The original JS-vs-DB clock skew bug landed
+ *      `student_seen_comment_at` ~100–200ms BEFORE `updated_at` and
+ *      produced spurious "seen the older version" tooltips on a fresh
+ *      receipt.
+ *   4. The function (defined in the migration, asserted in the
+ *      migration test) filters rows with non-null + non-empty
+ *      student_facing_comment so empty-string rows never get a false
+ *      receipt.
  *   5. No write to student_tile_grade_events (receipts aren't audit-
  *      worthy at the per-load grain).
+ *   6. The route does NOT call `new Date().toISOString()` for the seen
+ *      timestamp — that's the bug that was just fixed; pinning it in a
+ *      regression assertion so a future hand-edit can't silently bring
+ *      it back.
  */
 
 import { describe, it, expect } from "vitest";
@@ -45,61 +58,64 @@ describe("/api/student/tile-comments — module hygiene", () => {
   });
 });
 
-describe("/api/student/tile-comments — TFL.1.2 read-receipt write", () => {
-  it("bumps student_seen_comment_at on the row (UPDATE call)", () => {
-    expect(src).toContain("student_seen_comment_at");
-    // The new value is a fresh ISO timestamp, not a literal — assert the
-    // shape rather than the value.
-    expect(src).toMatch(/new Date\(\)\.toISOString\(\)/);
-    expect(src).toMatch(
-      /\.update\(\s*\{\s*student_seen_comment_at\s*:\s*\w+\s*\}/,
+describe("/api/student/tile-comments — TFL.1.2 read-receipt write (RPC, post-hotfix)", () => {
+  it("bumps student_seen_comment_at via the bump_student_seen_comment_at RPC", () => {
+    // The hotfix routes the bump through a SECURITY DEFINER SQL function
+    // so SET clause + trigger updated_at derive from the same now().
+    // Inline .update({ student_seen_comment_at: ... }) is the BUG path
+    // that just got removed — assert it stays gone.
+    expect(src).toContain('.rpc("bump_student_seen_comment_at"');
+    expect(src).toContain("p_student_id");
+    expect(src).toContain("p_unit_id");
+    expect(src).toContain("p_page_id");
+  });
+
+  it("does NOT generate the seen-at timestamp from Node (regression guard for the JS-vs-DB clock skew bug)", () => {
+    // The original TFL.1.2 used `new Date().toISOString()` and shipped
+    // it across the wire. Postgres `now()` then fired ~100–200ms later
+    // in the BEFORE-UPDATE trigger, leaving seen_at < updated_at on a
+    // fresh receipt. Code-only check (so the comment block above can
+    // mention the bug pattern without tripping the assertion).
+    const codeOnly = src
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/[^\n]*/g, "");
+    expect(codeOnly).not.toMatch(/new\s+Date\(\)\.toISOString\(\)/);
+    expect(codeOnly).not.toMatch(
+      /\.update\(\s*\{\s*student_seen_comment_at\s*:/,
     );
   });
 
-  it("filters the UPDATE to rows with a non-null AND non-empty student_facing_comment", () => {
-    // Both filters required: .not("student_facing_comment", "is", null)
-    // catches the SQL NULL case; .neq("student_facing_comment", "") catches
-    // the empty-string case the GET also strips. Without both, an empty-
-    // string row gets a false "seen" timestamp.
-    const updateBlock = src.match(
-      /\.update\([\s\S]*?\.not\([\s\S]*?\.neq\([\s\S]*?\)/,
+  it("scopes the RPC to (student_id, unit_id, page_id) — never other students", () => {
+    // Find the rpc(...) call payload. Match across the call so the
+    // assertion survives whitespace + key ordering changes.
+    const rpcCall = src.match(
+      /\.rpc\(\s*"bump_student_seen_comment_at"\s*,\s*\{[\s\S]*?\}\s*\)/,
     );
-    expect(updateBlock).not.toBeNull();
-    expect(updateBlock?.[0]).toContain('"student_facing_comment", "is", null');
-    expect(updateBlock?.[0]).toContain('"student_facing_comment", ""');
+    expect(rpcCall).not.toBeNull();
+    const payload = rpcCall?.[0] ?? "";
+    expect(payload).toMatch(/p_student_id\s*:\s*session\.studentId/);
+    expect(payload).toMatch(/p_unit_id\s*:\s*unitId/);
+    expect(payload).toMatch(/p_page_id\s*:\s*pageId/);
   });
 
-  it("scopes the UPDATE to (student_id, unit_id, page_id) — never other students", () => {
-    const updateBlock = src.match(/\.update\([\s\S]*?\.not\(/);
-    expect(updateBlock).not.toBeNull();
-    const block = updateBlock?.[0] ?? "";
-    expect(block).toContain('.eq("student_id"');
-    expect(block).toContain('.eq("unit_id"');
-    expect(block).toContain('.eq("page_id"');
-  });
-
-  it("runs the UPDATE BEFORE the SELECT (so the response reflects the just-written timestamp on a refresh race)", () => {
-    // First .update(...) appearance must precede the .select("tile_id, …")
-    // appearance. Using indexOf — order matters here.
-    const updateAt = src.indexOf(
-      '.update({ student_seen_comment_at',
-    );
+  it("runs the RPC BEFORE the SELECT (so the response reflects the just-written timestamp on a refresh race)", () => {
+    const rpcAt = src.indexOf('.rpc("bump_student_seen_comment_at"');
     const selectAt = src.indexOf(
       '.select("tile_id, page_id, student_facing_comment',
     );
-    expect(updateAt).toBeGreaterThan(-1);
+    expect(rpcAt).toBeGreaterThan(-1);
     expect(selectAt).toBeGreaterThan(-1);
-    expect(updateAt).toBeLessThan(selectAt);
+    expect(rpcAt).toBeLessThan(selectAt);
   });
 
-  it("auth gate still precedes any DB call (no UPDATE on the 401 path)", () => {
+  it("auth gate still precedes any DB call (no RPC on the 401 path)", () => {
     const authGateAt = src.indexOf("requireStudentSession");
-    const firstUpdateAt = src.indexOf(".update(");
+    const firstRpcAt = src.indexOf(".rpc(");
     expect(authGateAt).toBeGreaterThan(-1);
-    expect(firstUpdateAt).toBeGreaterThan(-1);
-    expect(authGateAt).toBeLessThan(firstUpdateAt);
-    // And the early-return on session error precedes the update.
+    expect(firstRpcAt).toBeGreaterThan(-1);
+    expect(authGateAt).toBeLessThan(firstRpcAt);
+    // And the early-return on session error precedes the rpc call.
     const earlyReturnAt = src.indexOf("session instanceof NextResponse");
-    expect(earlyReturnAt).toBeLessThan(firstUpdateAt);
+    expect(earlyReturnAt).toBeLessThan(firstRpcAt);
   });
 });
