@@ -1262,11 +1262,27 @@ function CalibrateInner({
                           seenAt: grade?.student_seen_comment_at ?? null,
                         })
                       : "unsent";
+                    // Dot colour ladder (revised per Checkpoint 1.1 smoke,
+                    // 10 May 2026 — the brief originally lumped seen-stale
+                    // in with seen-current as emerald, but Matt's smoke
+                    // surfaced that "I edited and the student hasn't
+                    // re-seen the new version" is a teacher-action state,
+                    // not a "no action needed" state):
+                    //   GREEN (emerald) = seen-current — student saw the
+                    //                     latest. No action needed.
+                    //   AMBER           = seen-stale (you edited since
+                    //                     they read) OR unread-stale
+                    //                     (>48h still unread). Both are
+                    //                     "nudge worth doing" buckets;
+                    //                     the tooltip disambiguates the
+                    //                     reason.
+                    //   GREY            = unread-fresh — just waiting,
+                    //                     recent. No action.
                     const dotClass = !hasComment
                       ? null
-                      : readState === "seen-current" || readState === "seen-stale"
+                      : readState === "seen-current"
                         ? "bg-emerald-500"
-                        : readState === "unread-stale"
+                        : readState === "seen-stale" || readState === "unread-stale"
                           ? "bg-amber-500"
                           : "bg-gray-300";
                     const receiptTooltip = hasComment

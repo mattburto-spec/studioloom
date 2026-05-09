@@ -58,12 +58,44 @@ describe("marking page — TFL.1.3 read-receipt wiring", () => {
   });
 
   it("colour mapping covers the three required states (emerald / amber / grey)", () => {
-    // The brief locks: seen-current/seen-stale → emerald, unread-stale →
-    // amber, unread-fresh → grey. Asserting class strings catches a
-    // typo or accidental tone change.
+    // Revised per Checkpoint 1.1 smoke (10 May 2026):
+    //   seen-current                       → emerald (no action needed)
+    //   seen-stale OR unread-stale         → amber   (nudge worth doing)
+    //   unread-fresh                       → grey    (just waiting)
+    // The original brief lumped seen-stale with seen-current as emerald,
+    // but Matt smoke-surfaced that "I edited and the student hasn't
+    // re-seen the new version" is a teacher-action state. Tooltips
+    // disambiguate seen-stale vs unread-stale.
     expect(src).toContain('"bg-emerald-500"');
     expect(src).toContain('"bg-amber-500"');
     expect(src).toContain('"bg-gray-300"');
+  });
+
+  it("seen-current is the ONLY state that maps to emerald (Checkpoint 1.1 smoke fix)", () => {
+    // Pin the new spec: seen-stale must NOT be lumped with seen-current
+    // into the emerald branch. The previous spec (PR #141) had
+    // `readState === "seen-current" || readState === "seen-stale"` mapping
+    // to emerald — Matt's edit-comment smoke showed dot stayed green
+    // when it should have flipped to amber. This regression guard pins
+    // the one-state-per-emerald rule.
+    expect(src).toMatch(
+      /readState\s*===\s*"seen-current"\s*[\r\n\s]*\?\s*"bg-emerald-500"/,
+    );
+    // And the reverse: a literal alternation joining seen-current to
+    // seen-stale on the emerald branch must NOT come back.
+    expect(src).not.toMatch(
+      /readState\s*===\s*"seen-current"\s*\|\|\s*readState\s*===\s*"seen-stale"\s*[\r\n\s]*\?\s*"bg-emerald-500"/,
+    );
+  });
+
+  it("seen-stale and unread-stale both map to amber (Checkpoint 1.1 smoke fix)", () => {
+    // Both states are "nudge worth doing" from the teacher's POV —
+    // either the student saw an older version (and should re-read) or
+    // the student hasn't opened it in 48h+. Same dot colour, different
+    // tooltips.
+    expect(src).toMatch(
+      /readState\s*===\s*"seen-stale"\s*\|\|\s*readState\s*===\s*"unread-stale"\s*[\r\n\s]*\?\s*"bg-amber-500"/,
+    );
   });
 
   it("chip tooltip falls back through receiptTooltip ?? existing-state copy", () => {

@@ -121,10 +121,17 @@ Spot-checked seven registries. Findings table:
 ### TFL.1 — Read receipts (~1 day)
 - Schema: `student_tile_grades.student_seen_comment_at TIMESTAMPTZ NULL`. NO DEFAULT (Lesson #38 — backfill explicitly).
 - API: extend `GET /api/student/tile-comments` to **also** bump `student_seen_comment_at = now()` for returned rows in the same transaction. (One round-trip per page open. Idempotent.) Alternative: separate POST endpoint — see Open Question 2.
-- UI (teacher): on each row in `src/app/teacher/marking/page.tsx`, render an unread/seen indicator next to the existing "Sent" / "Sent ✎" chip. "Unread" copy: small grey dot + tooltip "Sent {ago}, not yet seen." Becomes amber dot when `now() - student_facing_comment_updated_at > 48h AND student_seen_comment_at IS NULL`.
+- UI (teacher): on each row in `src/app/teacher/marking/page.tsx`, render an unread/seen indicator next to the existing "Sent" / "Sent ✎" chip. "Unread" copy: small grey dot + tooltip "Sent {ago}, not yet seen."
+- **Dot colour ladder (revised 10 May 2026 per Checkpoint 1.1 smoke):**
+  - **GREEN (emerald)** = `seen-current` — student has loaded the page since the comment was last edited. No teacher action needed.
+  - **AMBER** = `seen-stale` (you edited the comment since they read it) **OR** `unread-stale` (sent > 48h ago and still no receipt). Both states are "nudge worth doing" from the teacher's POV; tooltip disambiguates the reason.
+  - **GREY** = `unread-fresh` — comment sent recently (< 48h), student hasn't loaded the page yet. Just waiting.
+  - **No dot** = `unsent` — no comment exists on this row.
+  - The original brief lumped `seen-stale` with `seen-current` as emerald. Matt's TFL.1 Checkpoint 1.1 smoke surfaced that "I edited and the student hasn't re-seen the new version" should NOT render as a no-action-needed state — the spec is corrected here. Tooltips already disambiguate the two amber sub-states ("Seen the older version" vs "Sent X ago, still unread"). Pinned by static test in `src/app/teacher/marking/__tests__/marking-page-tfl1-static.test.ts`.
 - UI (student): no change — implicit on render.
 - Migration: `<TIMESTAMP>_add_student_seen_comment_at.sql` (mint via `bash scripts/migrations/new-migration.sh add_student_seen_comment_at` at start of TFL.1).
-- **Matt Checkpoint 1.1:** student opens lesson with comment → check Supabase that `student_seen_comment_at` flipped from null → now(). Teacher row chip shows "seen" pill instead of unread. After 48h with no read, grey dot becomes amber.
+- **Hotfix migration (10 May 2026, post-Checkpoint 1.1):** `20260509222601_add_bump_student_seen_comment_at_rpc.sql` adds a SECURITY DEFINER PL/pgSQL function `bump_student_seen_comment_at(p_student_id, p_unit_id, p_page_id)` that does `SET student_seen_comment_at = now()`. The route now calls this RPC instead of `.update({ student_seen_comment_at: new Date().toISOString() })`. Both the SET clause and the BEFORE-UPDATE trigger's `updated_at` derive from the same Postgres `now()` — eliminating the JS-vs-DB clock skew that previously left `seen_at` ~150ms behind `updated_at` on a fresh receipt.
+- **Matt Checkpoint 1.1:** student opens lesson with comment → check Supabase that `student_seen_comment_at` flipped from null → now(). Teacher row chip shows "seen" pill instead of unread. After 48h with no read, grey dot becomes amber. **Edit comment → dot flips emerald → amber until student re-loads.**
 
 ### TFL.2 — Replies + sentiment (~1.5 days)
 - Schema: new table `student_tile_grade_replies`:
