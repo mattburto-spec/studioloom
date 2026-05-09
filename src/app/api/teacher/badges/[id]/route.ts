@@ -1,23 +1,8 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { BUILT_IN_BADGES } from "@/lib/safety/badge-definitions";
-
-function createSupabaseServer(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-}
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 /**
  * GET /api/teacher/badges/[id]
@@ -29,16 +14,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-    const supabase = createSupabaseServer(request);
+    const auth = await requireTeacher(request);
+    if (auth.error) return auth.error;
 
-    // Verify teacher is authenticated
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { id } = await params;
 
     // Use admin client for read access
     const admin = createAdminClient();
@@ -109,16 +88,11 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-    const supabase = createSupabaseServer(request);
+    const auth = await requireTeacher(request);
+    if (auth.error) return auth.error;
+    const { teacherId } = auth;
 
-    // Verify teacher is authenticated
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { id } = await params;
 
     const body = await request.json();
 
@@ -141,7 +115,7 @@ export async function PATCH(
     }
 
     // Verify ownership (teacher must own the badge, or it's a service-role operation)
-    if (existingBadge.created_by_teacher_id && existingBadge.created_by_teacher_id !== user.id) {
+    if (existingBadge.created_by_teacher_id && existingBadge.created_by_teacher_id !== teacherId) {
       return NextResponse.json(
         { error: "Forbidden: You do not own this badge" },
         { status: 403 }
@@ -178,16 +152,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-    const supabase = createSupabaseServer(request);
+    const auth = await requireTeacher(request);
+    if (auth.error) return auth.error;
+    const { teacherId } = auth;
 
-    // Verify teacher is authenticated
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { id } = await params;
 
     // Use admin client for write access
     const admin = createAdminClient();
@@ -208,7 +177,7 @@ export async function DELETE(
     }
 
     // Verify ownership
-    if (existingBadge.created_by_teacher_id !== user.id) {
+    if (existingBadge.created_by_teacher_id !== teacherId) {
       return NextResponse.json(
         { error: "Forbidden: You do not own this badge" },
         { status: 403 }

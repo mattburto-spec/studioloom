@@ -15,42 +15,14 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import * as Sentry from "@sentry/nextjs";
-
-async function getTeacherAuth(request: NextRequest) {
-  const response = NextResponse.next();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet: Array<{ name: string; value: string; options?: Record<string, unknown> }>) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options);
-          });
-        },
-      },
-    }
-  );
-
-  const { data: { user }, error } = await supabase.auth.getUser();
-
-  if (error || !user) {
-    return { user: null, error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
-  }
-
-  return { user, error: null };
-}
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 export async function GET(request: NextRequest) {
-  const auth = await getTeacherAuth(request);
+  const auth = await requireTeacher(request);
   if (auth.error) return auth.error;
-  const user = auth.user!;
+  const { teacherId } = auth;
 
   try {
     const unitId = request.nextUrl.searchParams.get("unitId");
@@ -70,7 +42,7 @@ export async function GET(request: NextRequest) {
       .eq("id", unitId)
       .single();
 
-    if (unitError || !unit || unit.author_teacher_id !== user.id) {
+    if (unitError || !unit || unit.author_teacher_id !== teacherId) {
       return NextResponse.json(
         { error: "Not found or unauthorized" },
         { status: 404 }
@@ -112,9 +84,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await getTeacherAuth(request);
+  const auth = await requireTeacher(request);
   if (auth.error) return auth.error;
-  const user = auth.user!;
+  const { teacherId } = auth;
 
   try {
     const { unitId, badgeId, isRequired } = await request.json();
@@ -135,7 +107,7 @@ export async function POST(request: NextRequest) {
       .eq("id", unitId)
       .single();
 
-    if (unitError || !unit || unit.author_teacher_id !== user.id) {
+    if (unitError || !unit || unit.author_teacher_id !== teacherId) {
       return NextResponse.json(
         { error: "Not found or unauthorized" },
         { status: 404 }
@@ -171,9 +143,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const auth = await getTeacherAuth(request);
+  const auth = await requireTeacher(request);
   if (auth.error) return auth.error;
-  const user = auth.user!;
+  const { teacherId } = auth;
 
   try {
     const { requirementId } = await request.json();
@@ -202,7 +174,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const unitAuthor = (requirement.units as any)?.author_teacher_id;
-    if (unitAuthor !== user.id) {
+    if (unitAuthor !== teacherId) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 403 }
