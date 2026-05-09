@@ -17,32 +17,13 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { FAB_PRIVATE_CACHE_HEADERS } from "@/lib/fab/auth";
 import {
   bulkSetApprovalForLab,
   isOrchestrationError,
 } from "@/lib/fabrication/machine-orchestration";
-
-async function getTeacherUser(request: NextRequest) {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
-}
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 function privateJson(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: FAB_PRIVATE_CACHE_HEADERS });
@@ -56,8 +37,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await getTeacherUser(request);
-  if (!user) return privateJson({ error: "Unauthorized" }, 401);
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const { id: labId } = await params;
 
@@ -77,7 +59,7 @@ export async function POST(
 
   const admin = createAdminClient();
   const result = await bulkSetApprovalForLab(admin, {
-    teacherId: user.id,
+    teacherId,
     labId,
     requireApproval: body.requireApproval,
   });
