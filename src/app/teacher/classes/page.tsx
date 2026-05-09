@@ -50,6 +50,7 @@ export default function ClassesPage() {
   const [newLang, setNewLang] = useState("en");
   const [newAddLangs, setNewAddLangs] = useState<string[]>([]);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [copiedLoginLinkCode, setCopiedLoginLinkCode] = useState<string | null>(null);
   const [archiving, setArchiving] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ classId: string; name: string } | null>(null);
@@ -226,6 +227,13 @@ export default function ClassesPage() {
     navigator.clipboard.writeText(code);
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2000);
+  }
+
+  function copyLoginLink(code: string) {
+    const url = `${window.location.origin}/login/${code}`;
+    navigator.clipboard.writeText(url);
+    setCopiedLoginLinkCode(code);
+    setTimeout(() => setCopiedLoginLinkCode(null), 2000);
   }
 
   async function toggleArchive(classId: string, currentlyArchived: boolean) {
@@ -656,6 +664,19 @@ export default function ClassesPage() {
                             <line x1="12" y1="2" x2="12" y2="15" />
                           </svg>
                           {copiedCode === cls.code ? "Copied!" : "Share Code"}
+                        </button>
+
+                        {/* Copy login link — pre-filled student login URL for WeChat sharing */}
+                        <button
+                          onClick={() => copyLoginLink(cls.code)}
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-lg border border-gray-200 text-text-secondary hover:bg-gray-50 transition"
+                          title="Copy a pre-filled student login link to share via WeChat"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                          </svg>
+                          {copiedLoginLinkCode === cls.code ? "Copied!" : "Copy login link"}
                         </button>
 
                         {/* Archive */}
