@@ -1095,3 +1095,33 @@ threshold + name). Cron entry-point fire-drill produces real Resend
 delivery without the workaround script. Update the runbook to point
 at run-cost-alert.ts again (currently relies on
 scripts/ops/run-cost-alert-fire-drill.ts as the workaround).
+
+---
+
+## FU-LOGIN-ARCHIVED-CODE-LOCKOUT
+**Priority:** P3
+**Surfaced:** Pre-flight pilot URL audit (9 May 2026)
+**Target gate:** Pre-pilot expansion (no live impact yet)
+
+**Symptom:** `POST /api/auth/student-classcode-login` looks up the class by
+`classes.code` only — there is no `is_archived = false` filter
+(route.ts:222-226). A teacher can archive a class but the code remains a
+working login. Surface widens with the new pre-filled URL flow
+(`/login/[classcode]`): a WeChat link pinned last term keeps logging
+students into the archived class instead of failing cleanly.
+
+**Cause:** Auth route was lifted from the legacy `/api/auth/student-login`
+shape and never gained an archive guard. `classes.is_archived` exists
+(schema-registry.yaml:2586) but isn't consulted at login.
+
+**Done when:**
+1. `POST /api/auth/student-classcode-login` returns 401 "Invalid class code"
+   when `classes.is_archived = true` (same generic message as a missing
+   code — no info leak about archive state).
+2. Audit log captures the archive-blocked attempt distinctly
+   (`failureReason: "class_archived"`).
+3. Teacher class page shows a banner on archived classes warning that
+   pre-filled URLs no longer work, OR the "Copy login link" button is
+   hidden / disabled on archived classes.
+4. Test added in `student-classcode-login/__tests__/route.test.ts`
+   covering the archived-class 401 path.

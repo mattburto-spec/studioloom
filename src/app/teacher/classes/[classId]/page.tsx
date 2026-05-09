@@ -138,6 +138,23 @@ export default function ClassDetailPage({
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
   const [syncError, setSyncError] = useState("");
 
+  // Copy class login link (WeChat-share UX) — `idle` | `copied` | `error`.
+  // Resets to `idle` 2s after a successful copy so the button isn't sticky.
+  const [copyLoginLinkState, setCopyLoginLinkState] = useState<"idle" | "copied" | "error">("idle");
+
+  async function copyLoginLink() {
+    if (!classInfo?.code) return;
+    const url = `${window.location.origin}/login/${classInfo.code}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopyLoginLinkState("copied");
+      setTimeout(() => setCopyLoginLinkState("idle"), 2000);
+    } catch {
+      setCopyLoginLinkState("error");
+      setTimeout(() => setCopyLoginLinkState("idle"), 2000);
+    }
+  }
+
   // Class details editing
   const [showClassSettings, setShowClassSettings] = useState(false);
   const [editName, setEditName] = useState("");
@@ -875,6 +892,20 @@ export default function ClassDetailPage({
             <span className="font-mono font-semibold text-sm px-2.5 py-0.5 rounded-lg" style={{ background: "#DBEAFE", color: "#1E40AF" }}>
               {classInfo?.code}
             </span>
+            <button
+              type="button"
+              onClick={copyLoginLink}
+              disabled={!classInfo?.code}
+              className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md border border-gray-200 bg-white text-gray-600 hover:text-gray-900 hover:border-gray-300 transition disabled:opacity-40"
+              title="Copy a pre-filled student login link to share via WeChat"
+              aria-label="Copy class login link"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+              {copyLoginLinkState === "copied" ? "Copied!" : copyLoginLinkState === "error" ? "Copy failed" : "Copy login link"}
+            </button>
             {classInfo?.framework && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
                 style={{
