@@ -22,30 +22,17 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 const VALID_STATUSES = ["pending", "approved", "denied", "withdrawn"] as const;
 type ValidStatus = (typeof VALID_STATUSES)[number];
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll: () => request.cookies.getAll(),
-          setAll: () => {},
-        },
-      }
-    );
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireTeacher(request);
+    if (auth.error) return auth.error;
+    const { teacherId } = auth;
 
     const url = new URL(request.url);
     const statusParam = url.searchParams.get("status");
@@ -71,7 +58,7 @@ export async function GET(request: NextRequest) {
 
     const baseSelect =
       "id, unit_id, requester_user_id, author_user_id, school_id, intent_message, status, author_response, decided_at, decided_by_user_id, forked_unit_id, created_at";
-    const userId = user.id;
+    const userId = teacherId;
 
     async function fetchSide(role: "inbox" | "outbox") {
       const idColumn = role === "inbox" ? "author_user_id" : "requester_user_id";
