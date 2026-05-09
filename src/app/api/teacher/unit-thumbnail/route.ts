@@ -1,35 +1,15 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-async function getTeacherId(request: NextRequest): Promise<string | null> {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id || null;
-}
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 /**
  * PATCH: Update a unit's thumbnail_url (gallery selection or null to reset)
  */
 export async function PATCH(request: NextRequest) {
-  const teacherId = await getTeacherId(request);
-  if (!teacherId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const body = await request.json();
   const { unitId, thumbnailUrl } = body;

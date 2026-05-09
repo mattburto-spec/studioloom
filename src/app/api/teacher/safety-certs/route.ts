@@ -1,9 +1,9 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyTeacherOwnsClass } from "@/lib/auth/verify-teacher-unit";
 import { v4 as uuid } from "uuid";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 /**
  * Teacher Safety Certifications API
@@ -21,25 +21,10 @@ import { v4 as uuid } from "uuid";
  *   Body: { studentId, certType }
  */
 
-function getAuthClient(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return request.cookies.getAll(); },
-        setAll() {},
-      },
-    }
-  );
-}
-
 export async function GET(request: NextRequest) {
-  const supabase = getAuthClient(request);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const { searchParams } = new URL(request.url);
   const classId = searchParams.get("classId");
@@ -51,7 +36,7 @@ export async function GET(request: NextRequest) {
   const db = createAdminClient();
 
   // Phase 6.2 — gate via can()-backed shim.
-  const owns = await verifyTeacherOwnsClass(user.id, classId);
+  const owns = await verifyTeacherOwnsClass(teacherId, classId);
   if (!owns) {
     return NextResponse.json({ error: "Class not found" }, { status: 404 });
   }
@@ -72,11 +57,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = getAuthClient(request);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const body = await request.json();
   const { studentId, classId, certType, notes } = body;
@@ -88,7 +71,7 @@ export async function POST(request: NextRequest) {
   const db = createAdminClient();
 
   // Phase 6.2 — gate via can()-backed shim.
-  const owns = await verifyTeacherOwnsClass(user.id, classId);
+  const owns = await verifyTeacherOwnsClass(teacherId, classId);
   if (!owns) {
     return NextResponse.json({ error: "Class not found" }, { status: 404 });
   }
@@ -102,7 +85,7 @@ export async function POST(request: NextRequest) {
         student_id: studentId,
         class_id: classId,
         cert_type: certType,
-        granted_by: user.id,
+        granted_by: teacherId,
         granted_at: new Date().toISOString(),
         notes: notes || null,
       },
@@ -120,11 +103,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const supabase = getAuthClient(request);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const body = await request.json();
   const { studentId, certType } = body;
@@ -140,7 +121,7 @@ export async function DELETE(request: NextRequest) {
     .delete()
     .eq("student_id", studentId)
     .eq("cert_type", certType)
-    .eq("granted_by", user.id);
+    .eq("granted_by", teacherId);
 
   if (error) {
     console.error("[teacher/safety-certs] Revoke error:", error);

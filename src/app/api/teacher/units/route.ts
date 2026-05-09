@@ -1,42 +1,21 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyTeacherHasUnit } from "@/lib/auth/verify-teacher-unit";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 // Legacy knowledge pipeline helpers removed (Phase 0.4, 10 Apr 2026):
 //   - ingest-unit.ts deleted (was dead code, wrote knowledge_chunks)
 //   - recordFork() still in feedback.ts but not imported here
 import { getPageList } from "@/lib/unit-adapter";
 import type { PageContent } from "@/types";
 
-function createSupabaseServer(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-}
-
 /**
  * GET /api/teacher/units?browse=true&search=...&grade=...&tag=...
  * Browse published units in the global repository.
  */
 export async function GET(request: NextRequest) {
-  const supabase = createSupabaseServer(request);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
 
   const { searchParams } = new URL(request.url);
   const browse = searchParams.get("browse");
@@ -105,14 +84,9 @@ export async function GET(request: NextRequest) {
  *    OR { action: "create", title: string, contentData: object, ... }
  */
 export async function POST(request: NextRequest) {
-  const supabase = createSupabaseServer(request);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const body = await request.json();
   const { action } = body as { action: string };
@@ -161,7 +135,7 @@ export async function POST(request: NextRequest) {
       const { data: teacherRow } = await adminClient
         .from("teachers")
         .select("school_id")
-        .eq("id", user.id)
+        .eq("id", teacherId)
         .single();
       if (!teacherRow?.school_id) {
         return NextResponse.json(
@@ -176,8 +150,8 @@ export async function POST(request: NextRequest) {
         description: description || null,
         content_data: contentData,
         school_id: teacherRow.school_id,
-        author_teacher_id: user.id,
-        teacher_id: user.id,
+        author_teacher_id: teacherId,
+        teacher_id: teacherId,
         grade_level: gradeLevel || null,
         topic: topic || null,
         unit_type: unitType || "design",
@@ -225,7 +199,7 @@ export async function POST(request: NextRequest) {
       if (!unitId) {
         return NextResponse.json({ error: "unitId required" }, { status: 400 });
       }
-      const access = await verifyTeacherHasUnit(user.id, unitId);
+      const access = await verifyTeacherHasUnit(teacherId, unitId);
       if (!access.hasAccess) {
         return NextResponse.json({ error: "Unit not found" }, { status: 404 });
       }
@@ -244,7 +218,7 @@ export async function POST(request: NextRequest) {
       let teacherLookup = await adminClient
         .from("teachers")
         .select("name, display_name")
-        .eq("id", user.id)
+        .eq("id", teacherId)
         .maybeSingle();
 
       if (
@@ -256,7 +230,7 @@ export async function POST(request: NextRequest) {
         teacherLookup = await adminClient
           .from("teachers")
           .select("name")
-          .eq("id", user.id)
+          .eq("id", teacherId)
           .maybeSingle() as typeof teacherLookup;
       }
 
@@ -269,7 +243,7 @@ export async function POST(request: NextRequest) {
         const { data: profile } = await adminClient
           .from("teacher_profiles")
           .select("school_name")
-          .eq("teacher_id", user.id)
+          .eq("teacher_id", teacherId)
           .maybeSingle();
         profileSchoolName = (profile as { school_name?: string | null } | null)?.school_name || null;
       }
@@ -286,7 +260,7 @@ export async function POST(request: NextRequest) {
         .from("units")
         .update({
           is_published: true,
-          author_teacher_id: user.id,
+          author_teacher_id: teacherId,
           author_name: resolvedAuthorName,
           school_name: resolvedSchoolName,
           tags: tags || [],
@@ -304,8 +278,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "unitId required" }, { status: 400 });
       }
       // Phase 6.2 — gate via can()-backed shim before mutation. Replaces
-      // the inline `.eq("author_teacher_id", user.id)` predicate.
-      const access = await verifyTeacherHasUnit(user.id, unitId);
+      // the inline `.eq("author_teacher_id", teacherId)` predicate.
+      const access = await verifyTeacherHasUnit(teacherId, unitId);
       if (!access.hasAccess) {
         return NextResponse.json({ error: "Unit not found" }, { status: 404 });
       }
@@ -342,7 +316,7 @@ export async function POST(request: NextRequest) {
       const { data: forkTeacherRow } = await adminClient
         .from("teachers")
         .select("school_id")
-        .eq("id", user.id)
+        .eq("id", teacherId)
         .single();
       if (!forkTeacherRow?.school_id) {
         return NextResponse.json(
@@ -361,7 +335,7 @@ export async function POST(request: NextRequest) {
           thumbnail_url: source.thumbnail_url,
           is_published: false,
           school_id: forkTeacherRow.school_id,
-          author_teacher_id: user.id,
+          author_teacher_id: teacherId,
           grade_level: source.grade_level,
           duration_weeks: source.duration_weeks,
           topic: source.topic,

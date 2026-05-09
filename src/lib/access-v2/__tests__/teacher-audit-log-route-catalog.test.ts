@@ -42,16 +42,24 @@ describe("Phase 5.6 — /api/v1/teacher/students/[id]/audit-log route", () => {
     expect(src).toContain(
       'import { verifyTeacherCanManageStudent } from "@/lib/auth/verify-teacher-unit"',
     );
-    expect(src).toMatch(/await isPlatformAdmin\(user\.id\)/);
+    // S3 (10 May 2026): role gate via requireTeacher() replaces bare
+    // auth.getUser() — teacherId is destructured from the auth result and
+    // passed to the platform-admin + cross-class manageability checks.
+    expect(src).toContain(
+      'import { requireTeacher } from "@/lib/auth/require-teacher"',
+    );
+    expect(src).toMatch(/await isPlatformAdmin\(teacherId\)/);
     expect(src).toMatch(
-      /await verifyTeacherCanManageStudent\(user\.id, studentId\)/,
+      /await verifyTeacherCanManageStudent\(teacherId, studentId\)/,
     );
   });
 
   it("returns 401 unauthenticated / 403 forbidden / 404 not-found / 400 bad params", () => {
     expect(src).toMatch(/status: 400/);
-    expect(src).toMatch(/status: 401/);
-    expect(src).toMatch(/status: 403/);
+    // 401 + 403 now come from requireTeacher() helper (returns hard-coded
+    // NextResponse with those status codes), so they're not literal in this
+    // route file but still wired via `if (auth.error) return auth.error`.
+    expect(src).toContain("requireTeacher(request)");
     expect(src).toMatch(/status: 404/);
   });
 

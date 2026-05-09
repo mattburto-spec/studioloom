@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { withErrorHandler } from "@/lib/api/error-handler";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 import { getPageList } from "@/lib/unit-adapter";
 import type {
   DashboardData,
@@ -77,12 +78,11 @@ interface ProgressRow {
  * GET: Aggregated dashboard data for the teacher
  */
 export const GET = withErrorHandler("teacher/dashboard:GET", async (request: NextRequest) => {
-  const { supabase, user } = await getAuthenticatedClient(request);
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
-  const teacherId = user.id;
+  const supabase = (await getAuthenticatedClient(request)).supabase;
 
   // 1. Fetch all non-archived classes the teacher is a MEMBER of (Phase 3.4c —
   //    expanded from `.eq("teacher_id", teacherId)` to read class_members so

@@ -37,10 +37,10 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isPlatformAdmin } from "@/lib/auth/require-platform-admin";
 import { verifyTeacherCanManageStudent } from "@/lib/auth/verify-teacher-unit";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -94,32 +94,14 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
   }
 
   // ── Auth ───────────────────────────────────────────────────────
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => request.cookies.getAll(),
-        setAll: () => {
-          /* no-op */
-        },
-      },
-    },
-  );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401, headers: PRIVATE_HEADERS },
-    );
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
-  const platformAdmin = await isPlatformAdmin(user.id);
+  const platformAdmin = await isPlatformAdmin(teacherId);
   let canRead = platformAdmin;
   if (!canRead) {
-    canRead = await verifyTeacherCanManageStudent(user.id, studentId);
+    canRead = await verifyTeacherCanManageStudent(teacherId, studentId);
   }
   if (!canRead) {
     return NextResponse.json(

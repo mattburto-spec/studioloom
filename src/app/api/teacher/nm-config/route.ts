@@ -1,23 +1,10 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { NMUnitConfig, DEFAULT_NM_CONFIG } from "@/lib/nm/constants";
 import { verifyTeacherHasUnit, getNmConfigForClassUnit } from "@/lib/auth/verify-teacher-unit";
-
-function getAuthClient(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return request.cookies.getAll(); },
-        setAll() {},
-      },
-    }
-  );
-}
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 /**
  * GET  /api/teacher/nm-config?unitId={id}&classId={id}
@@ -31,11 +18,9 @@ function getAuthClient(request: NextRequest) {
  */
 
 export const GET = withErrorHandler("teacher/nm-config:GET", async (request: NextRequest) => {
-  const supabase = getAuthClient(request);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const { searchParams } = new URL(request.url);
   const unitId = searchParams.get("unitId");
@@ -46,7 +31,7 @@ export const GET = withErrorHandler("teacher/nm-config:GET", async (request: Nex
   }
 
   // Verify teacher has access to this unit
-  const { hasAccess } = await verifyTeacherHasUnit(user.id, unitId);
+  const { hasAccess } = await verifyTeacherHasUnit(teacherId, unitId);
   if (!hasAccess) {
     return NextResponse.json({ error: "Unit not found" }, { status: 404 });
   }
@@ -56,7 +41,7 @@ export const GET = withErrorHandler("teacher/nm-config:GET", async (request: Nex
   const { data: teacherProfile } = await db
     .from("teacher_profiles")
     .select("school_context")
-    .eq("teacher_id", user.id)
+    .eq("teacher_id", teacherId)
     .single();
   const globalNmEnabled = !!(teacherProfile?.school_context as { use_new_metrics?: boolean } | null)?.use_new_metrics;
 
@@ -82,11 +67,9 @@ export const GET = withErrorHandler("teacher/nm-config:GET", async (request: Nex
 });
 
 export const POST = withErrorHandler("teacher/nm-config:POST", async (request: NextRequest) => {
-  const supabase = getAuthClient(request);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const body = await request.json();
   const { unitId, classId, config } = body as {
@@ -99,7 +82,7 @@ export const POST = withErrorHandler("teacher/nm-config:POST", async (request: N
     return NextResponse.json({ error: "unitId and config are required" }, { status: 400 });
   }
 
-  const { hasAccess } = await verifyTeacherHasUnit(user.id, unitId);
+  const { hasAccess } = await verifyTeacherHasUnit(teacherId, unitId);
   if (!hasAccess) {
     return NextResponse.json({ error: "Unit not found" }, { status: 404 });
   }

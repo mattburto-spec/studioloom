@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 import { createAIProvider } from "@/lib/ai";
 import { OUTLINE_SYSTEM_PROMPT, buildOutlinePrompt } from "@/lib/ai/prompts";
 import { OUTLINE_GENERATION_TOOL } from "@/lib/ai/schemas";
@@ -47,14 +48,11 @@ export interface OutlineOption {
  * Uses tool use for structured output when Anthropic provider is active.
  */
 export async function POST(request: NextRequest) {
-  const supabase = createSupabaseServer(request);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const supabase = createSupabaseServer(request);
 
   const body = await request.json();
   const { wizardInput } = body as { wizardInput: UnitWizardInput };
@@ -67,7 +65,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Resolve AI credentials (teacher key → platform key fallback)
-  const creds = await resolveCredentials(supabase, user.id);
+  const creds = await resolveCredentials(supabase, teacherId);
 
   if (!creds) {
     return NextResponse.json(
@@ -86,14 +84,14 @@ export async function POST(request: NextRequest) {
     const [chunksResult, profilesResult] = await Promise.allSettled([
       retrieveContext({
         query: ragQuery,
-        teacherId: user.id,
+        teacherId: teacherId,
         includePublic: true,
         maxChunks: 8,
       }),
       retrieveLessonProfiles({
         query: profileQuery,
         gradeLevel: wizardInput.gradeLevel,
-        teacherId: user.id,
+        teacherId: teacherId,
         maxProfiles: 3,
       }),
     ]);

@@ -70,6 +70,13 @@ ALLOWLIST = {
     "src/app/api/teacher/welcome/request-school-access/route.ts": (
         "anonymous request route gated by Turnstile, audit-skip annotated"
     ),
+    # 2026-05-10 — anonymous public submission of teacher access requests
+    # (S3 sweep). Upserts by email so repeat submissions don't spam the
+    # admin queue. Service-role write to teacher_access_requests (deny-all
+    # RLS). No Turnstile yet — filed as FU-SEC-REQUEST-ACCESS-TURNSTILE.
+    "src/app/api/teacher/request-access/route.ts": (
+        "anonymous public route; needs Turnstile (FU-SEC-REQUEST-ACCESS-TURNSTILE)"
+    ),
     # 2026-05-09 — auth-establishment routes. Cannot have a session gate
     # because they CREATE the session. Each implements its own credential
     # check (Argon2id password verify + rate limit).

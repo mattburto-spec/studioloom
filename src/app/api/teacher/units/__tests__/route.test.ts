@@ -44,8 +44,8 @@ describe("/api/teacher/units POST create case — school_id hotfix", () => {
     const closingBrace = src.indexOf("};", insertPayloadIdx);
     const payloadLiteral = src.slice(insertPayloadIdx, closingBrace);
     expect(payloadLiteral).toContain("school_id: teacherRow.school_id");
-    expect(payloadLiteral).toContain("author_teacher_id: user.id");
-    expect(payloadLiteral).toContain("teacher_id: user.id");
+    expect(payloadLiteral).toContain("author_teacher_id: teacherId");
+    expect(payloadLiteral).toContain("teacher_id: teacherId");
   });
 
   it("flags the post-Phase-1 cleanup site so it isn't forgotten", () => {

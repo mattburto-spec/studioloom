@@ -51,7 +51,7 @@ describe("Teacher Safety Alerts API — Phase 6A", () => {
     vi.clearAllMocks();
     queryChain = buildQueryChain();
     mockGetUser.mockResolvedValue({
-      data: { user: { id: "teacher-uuid-1" } },
+      data: { user: { id: "teacher-uuid-1", app_metadata: { user_type: "teacher" } } },
     });
     // Dynamic import to pick up mocks
     const mod = await import("../alerts/route");

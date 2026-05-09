@@ -1,9 +1,9 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { v4 as uuid } from "uuid";
 import { verifyTeacherHasUnit, getNmConfigForClassUnit, verifyTeacherOwnsClass } from "@/lib/auth/verify-teacher-unit";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 /**
  * Teacher NM Observation API
@@ -22,25 +22,10 @@ import { verifyTeacherHasUnit, getNmConfigForClassUnit, verifyTeacherOwnsClass }
  *   → Fetch all NM assessment data for a unit in a class.
  */
 
-function getAuthClient(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return request.cookies.getAll(); },
-        setAll() {},
-      },
-    }
-  );
-}
-
 export async function GET(request: NextRequest) {
-  const supabase = getAuthClient(request);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const { searchParams } = new URL(request.url);
   const unitId = searchParams.get("unitId");
@@ -51,7 +36,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Verify teacher owns this class (FIX: was using author_teacher_id on classes table)
-  const ownsClass = await verifyTeacherOwnsClass(user.id, classId);
+  const ownsClass = await verifyTeacherOwnsClass(teacherId, classId);
   if (!ownsClass) {
     return NextResponse.json({ error: "Class not found" }, { status: 404 });
   }
@@ -114,11 +99,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = getAuthClient(request);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const body = await request.json();
   const { studentId, unitId, classId, pageId, assessments } = body as {
@@ -140,7 +123,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Verify teacher has access to this unit (authored OR assigned)
-  const { hasAccess } = await verifyTeacherHasUnit(user.id, unitId);
+  const { hasAccess } = await verifyTeacherHasUnit(teacherId, unitId);
   if (!hasAccess) {
     return NextResponse.json({ error: "Unit not found" }, { status: 404 });
   }

@@ -1,9 +1,10 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
-async function getAuthenticatedClient(request: NextRequest) {
-  const supabase = createServerClient(
+function getServerClient(request: NextRequest) {
+  return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -15,10 +16,6 @@ async function getAuthenticatedClient(request: NextRequest) {
       },
     }
   );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return { supabase, user };
 }
 
 /**
@@ -28,10 +25,11 @@ async function getAuthenticatedClient(request: NextRequest) {
  * Body: { studentId, classId, unitId, note? }
  */
 export async function POST(request: NextRequest) {
-  const { supabase, user } = await getAuthenticatedClient(request);
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
+
+  const supabase = getServerClient(request);
 
   const { studentId, classId, unitId, note } = await request.json();
 
@@ -44,7 +42,7 @@ export async function POST(request: NextRequest) {
     .from("classes")
     .select("id")
     .eq("id", classId)
-    .eq("teacher_id", user.id)
+    .eq("teacher_id", teacherId)
     .single();
 
   if (!cls) {
@@ -93,10 +91,11 @@ export async function POST(request: NextRequest) {
  * Get all Own Time approvals for a class.
  */
 export async function GET(request: NextRequest) {
-  const { supabase, user } = await getAuthenticatedClient(request);
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
+
+  const supabase = getServerClient(request);
 
   const classId = request.nextUrl.searchParams.get("classId");
   if (!classId) {
@@ -108,7 +107,7 @@ export async function GET(request: NextRequest) {
     .from("classes")
     .select("id")
     .eq("id", classId)
-    .eq("teacher_id", user.id)
+    .eq("teacher_id", teacherId)
     .single();
 
   if (!cls) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 /**
  * GET /api/teacher/class-profiles?classId=xxx
@@ -18,12 +18,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "classId required" }, { status: 400 });
   }
 
-  // Auth: verify teacher
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
 
   const admin = createAdminClient();
 

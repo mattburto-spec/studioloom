@@ -1,30 +1,9 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createServerClient } from "@supabase/ssr";
 import sharp from "sharp";
 import { buildStorageProxyUrl } from "@/lib/storage/proxy-url";
-
-// Verify teacher auth from Supabase cookies
-async function getTeacherId(request: NextRequest): Promise<string | null> {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id || null;
-}
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 // Resize and compress image for thumbnail use
 // Max 800px wide, JPEG at 80% quality — keeps files under ~100KB
@@ -40,10 +19,8 @@ async function compressImage(buffer: ArrayBuffer): Promise<Buffer> {
 
 // POST: Upload a unit image to Supabase Storage
 export async function POST(request: NextRequest) {
-  const teacherId = await getTeacherId(request);
-  if (!teacherId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
 
   const formData = await request.formData();
   const file = formData.get("file") as File | null;

@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 import { createAIProvider } from "@/lib/ai";
 import { SKELETON_SYSTEM_PROMPT, buildSkeletonPrompt, buildRAGSkeletonPrompt } from "@/lib/ai/prompts";
 import { buildUnitTypeSystemPrompt } from "@/lib/ai/unit-types";
@@ -36,14 +37,11 @@ function createSupabaseServer(request: NextRequest) {
  * }
  */
 export async function POST(request: NextRequest) {
-  const supabase = createSupabaseServer(request);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const supabase = createSupabaseServer(request);
 
   const body = await request.json();
   const { journeyInput, selectedOutline, skipRag } = body as {
@@ -64,7 +62,7 @@ export async function POST(request: NextRequest) {
     const { data: profile } = await supabase
       .from("teacher_profiles")
       .select("typical_period_minutes")
-      .eq("user_id", user.id)
+      .eq("user_id", teacherId)
       .single();
 
     if (profile?.typical_period_minutes && !journeyInput.lessonLengthMinutes) {
@@ -83,7 +81,7 @@ export async function POST(request: NextRequest) {
     : SKELETON_SYSTEM_PROMPT;
 
   // Resolve AI credentials
-  const creds = await resolveCredentials(supabase, user.id);
+  const creds = await resolveCredentials(supabase, teacherId);
   if (!creds) {
     return NextResponse.json(
       { error: "AI provider not configured. Go to Settings to add your API key." },
@@ -108,7 +106,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch teaching context for framework vocab + school context
-    const teachingContext = await getTeachingContext(user.id);
+    const teachingContext = await getTeachingContext(teacherId);
 
     // Build prompt — skip RAG if approach generation already did it
     let userPrompt: string;
@@ -121,7 +119,7 @@ export async function POST(request: NextRequest) {
       const ragResult = await buildRAGSkeletonPrompt(
         journeyInput,
         selectedOutline,
-        user.id,
+        teacherId,
         teachingContext
       );
       userPrompt = ragResult.prompt;

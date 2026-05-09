@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { withErrorHandler } from "@/lib/api/error-handler";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 import type {
   ClassHit,
   StudentHit,
@@ -8,8 +9,8 @@ import type {
   SearchResponse,
 } from "@/types/search";
 
-async function getAuthenticatedClient(request: NextRequest) {
-  const supabase = createServerClient(
+function getServerClient(request: NextRequest) {
+  return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -21,19 +22,16 @@ async function getAuthenticatedClient(request: NextRequest) {
       },
     }
   );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return { supabase, user };
 }
 
 const PER_BUCKET = 6;
 
 export const GET = withErrorHandler("teacher/search:GET", async (request: NextRequest) => {
-  const { supabase, user } = await getAuthenticatedClient(request);
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
+
+  const supabase = getServerClient(request);
 
   const url = new URL(request.url);
   const rawQ = (url.searchParams.get("q") ?? "").trim();
@@ -45,8 +43,6 @@ export const GET = withErrorHandler("teacher/search:GET", async (request: NextRe
   if (rawQ.length < 2) {
     return NextResponse.json(empty);
   }
-
-  const teacherId = user.id;
 
   // Get this teacher's class IDs first — every search is scoped to classes
   // they own. Co-teaching gates on Access Model v2 (FU-O).

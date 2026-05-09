@@ -21,7 +21,7 @@ vi.mock("@supabase/ssr", () => ({
   createServerClient: () => ({
     auth: {
       getUser: vi.fn(async () => ({
-        data: { user: mockUserId ? { id: mockUserId } : null },
+        data: { user: mockUserId ? { id: mockUserId, app_metadata: { user_type: "teacher" } } : null },
       })),
     },
   }),

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyTeacherHasUnit, getNmConfigForClassUnit } from "@/lib/auth/verify-teacher-unit";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
 import { normalizeContentData, getPageList } from "@/lib/unit-adapter";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 /**
  * Teacher NM Results API
@@ -27,20 +27,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "unitId required" }, { status: 400 });
   }
 
-  // Auth via Supabase SSR
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return request.cookies.getAll(); } } }
-  );
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   // Verify teacher has access to this unit (authored OR assigned)
-  const { hasAccess } = await verifyTeacherHasUnit(user.id, unitId);
+  const { hasAccess } = await verifyTeacherHasUnit(teacherId, unitId);
   if (!hasAccess) {
     return NextResponse.json({ error: "Unit not found" }, { status: 404 });
   }

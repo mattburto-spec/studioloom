@@ -103,7 +103,7 @@ describe("PATCH /api/teacher/gallery/[roundId]/layout", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    mockGetUser.mockResolvedValue({ data: { user: { id: "teacher-uuid-1" } } });
+    mockGetUser.mockResolvedValue({ data: { user: { id: "teacher-uuid-1", app_metadata: { user_type: "teacher" } } } });
     configureAdmin();
     const mod = await import("../route");
     PATCH = mod.PATCH;

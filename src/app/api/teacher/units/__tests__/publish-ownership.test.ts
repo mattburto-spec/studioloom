@@ -35,7 +35,7 @@ describe("/api/teacher/units POST publish case — source-static (F-5)", () => {
     expect(publishIdx).toBeGreaterThan(0);
     expect(unpublishIdx).toBeGreaterThan(publishIdx);
     const publishBody = src.slice(publishIdx, unpublishIdx);
-    const verifyIdx = publishBody.indexOf("verifyTeacherHasUnit(user.id, unitId)");
+    const verifyIdx = publishBody.indexOf("verifyTeacherHasUnit(teacherId, unitId)");
     const updateIdx = publishBody.indexOf('.update({');
     expect(verifyIdx).toBeGreaterThan(0);
     expect(updateIdx).toBeGreaterThan(verifyIdx);
@@ -73,7 +73,7 @@ vi.mock("@supabase/ssr", () => ({
   createServerClient: () => ({
     auth: {
       getUser: vi.fn(async () => ({
-        data: { user: { id: mockUserId, email: "teacher-b@example.com" } },
+        data: { user: { id: mockUserId, email: "teacher-b@example.com", app_metadata: { user_type: "teacher" } } },
       })),
     },
   }),

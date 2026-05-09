@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 import { createAIProvider } from "@/lib/ai";
 import {
   SINGLE_TIMELINE_OUTLINE_SYSTEM_PROMPT,
@@ -54,14 +55,11 @@ function createSupabaseServer(request: NextRequest) {
  * }
  */
 export async function POST(request: NextRequest) {
-  const supabase = createSupabaseServer(request);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const supabase = createSupabaseServer(request);
 
   const body = await request.json();
   const { journeyInput, angleHint, avoidApproaches, index } = body as {
@@ -83,7 +81,7 @@ export async function POST(request: NextRequest) {
     const { data: profile } = await supabase
       .from("teacher_profiles")
       .select("typical_period_minutes")
-      .eq("user_id", user.id)
+      .eq("user_id", teacherId)
       .single();
 
     if (profile?.typical_period_minutes && !journeyInput.lessonLengthMinutes) {
@@ -96,7 +94,7 @@ export async function POST(request: NextRequest) {
   if (!journeyInput.lessonsPerWeek) journeyInput.lessonsPerWeek = 3;
 
   // Resolve AI credentials
-  const creds = await resolveCredentials(supabase, user.id);
+  const creds = await resolveCredentials(supabase, teacherId);
   if (!creds) {
     return NextResponse.json(
       { error: "AI provider not configured. Go to Settings to add your API key." },
@@ -119,7 +117,7 @@ export async function POST(request: NextRequest) {
         const chunks = await retrieveContext({
           query,
           gradeLevel: journeyInput.gradeLevel,
-          teacherId: user.id,
+          teacherId: teacherId,
           includePublic: true,
           maxChunks: 3,
         });
@@ -134,7 +132,7 @@ export async function POST(request: NextRequest) {
         const profiles = await retrieveLessonProfiles({
           query,
           gradeLevel: journeyInput.gradeLevel,
-          teacherId: user.id,
+          teacherId: teacherId,
           maxProfiles: 2,
         });
         if (profiles.length > 0) {
@@ -159,7 +157,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Build teaching context + framework vocabulary
-    const teachingContext = await getTeachingContext(user.id);
+    const teachingContext = await getTeachingContext(teacherId);
     const frameworkBlock = buildFrameworkPromptBlock(getFrameworkFromContext(teachingContext));
     const teachingBlock = buildTeachingContextBlock(teachingContext || undefined);
     const teachingContextBlock = (frameworkBlock + teachingBlock).trim() || undefined;

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 import { createAIProvider } from "@/lib/ai";
 import { JOURNEY_SYSTEM_PROMPT, buildRAGJourneyPrompt } from "@/lib/ai/prompts";
 import { buildUnitTypeSystemPrompt } from "@/lib/ai/unit-types";
@@ -46,14 +47,11 @@ function createSupabaseServer(request: NextRequest) {
  * }
  */
 export const POST = withErrorHandler("teacher/generate-journey:POST", async (request: NextRequest) => {
-  const supabase = createSupabaseServer(request);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const supabase = createSupabaseServer(request);
 
   const body = await request.json();
   const {
@@ -95,7 +93,7 @@ export const POST = withErrorHandler("teacher/generate-journey:POST", async (req
     const { data: profile } = await supabase
       .from("teacher_profiles")
       .select("typical_period_minutes")
-      .eq("user_id", user.id)
+      .eq("user_id", teacherId)
       .single();
 
     if (profile?.typical_period_minutes && !journeyInput.lessonLengthMinutes) {
@@ -115,7 +113,7 @@ export const POST = withErrorHandler("teacher/generate-journey:POST", async (req
     : JOURNEY_SYSTEM_PROMPT;
 
   // Resolve AI credentials
-  const creds = await resolveCredentials(supabase, user.id);
+  const creds = await resolveCredentials(supabase, teacherId);
   if (!creds) {
     return NextResponse.json(
       { error: "AI provider not configured. Go to Settings to add your API key." },
@@ -131,13 +129,13 @@ export const POST = withErrorHandler("teacher/generate-journey:POST", async (req
     });
 
     // Fetch teaching context for framework vocab + school context
-    const teachingContext = await getTeachingContext(user.id);
+    const teachingContext = await getTeachingContext(teacherId);
 
     // Build prompts with RAG context + teaching context + feedback + framework
     const { prompt: userPrompt, chunkIds } = await buildRAGJourneyPrompt(
       lessonIds,
       journeyInput,
-      user.id,
+      teacherId,
       selectedOutline,
       previousLessonSummary,
       teachingContext,

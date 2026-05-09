@@ -8,37 +8,17 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-async function getTeacherId(request: NextRequest): Promise<string | null> {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id || null;
-}
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 /**
  * GET: Fetch pending blocks for teacher review.
  * Query params: ?status=pending (default) | approved | rejected
  */
 export async function GET(request: NextRequest) {
-  const teacherId = await getTeacherId(request);
-  if (!teacherId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status") || "pending";
@@ -84,10 +64,9 @@ export async function GET(request: NextRequest) {
  * Body: { blockId, action: 'approve' | 'reject' | 'edit', edits?: Partial<Block> }
  */
 export async function POST(request: NextRequest) {
-  const teacherId = await getTeacherId(request);
-  if (!teacherId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   let body: { blockId?: string; action?: string; edits?: Record<string, unknown> };
   try {
@@ -176,10 +155,9 @@ export async function POST(request: NextRequest) {
  * Body: { blockIds: string[] }
  */
 export async function PATCH(request: NextRequest) {
-  const teacherId = await getTeacherId(request);
-  if (!teacherId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   let body: { blockIds?: string[] };
   try {

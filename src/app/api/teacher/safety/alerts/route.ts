@@ -1,6 +1,7 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 /**
  * Teacher Safety Alerts API — Phase 6A
@@ -32,12 +33,10 @@ function createSupabaseServer(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const supabase = createSupabaseServer(request);
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const supabase = createSupabaseServer(request);
 
   const { searchParams } = new URL(request.url);
   const classId = searchParams.get("class_id");
@@ -82,12 +81,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const supabase = createSupabaseServer(request);
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const supabase = createSupabaseServer(request);
 
   const body = await request.json();
   const { id, action } = body as { id: string; action: string };
