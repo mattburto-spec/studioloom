@@ -443,6 +443,44 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
   const gradeKey = (studentId: string, tileId: string, pageId: string) =>
     `${studentId}::${pageId}::${tileId}`;
 
+  // Page-scoped response fetch. Called once during loadAll for the initial
+  // page, then re-run by the activePageId useEffect below when the teacher
+  // switches lessons via the page selector. The state shape stays flat
+  // (studentId → tileId → text) — switching a page replaces the map rather
+  // than nesting by page (workflow is "focus on one lesson at a time").
+  const loadResponsesForPage = useCallback(
+    async (unitIdParam: string, pageId: string, cohortIds: string[]) => {
+      if (cohortIds.length === 0) {
+        setResponses({});
+        return;
+      }
+      const supabase = createClient();
+      const { data: progressRows } = await supabase
+        .from("student_progress")
+        .select("student_id, page_id, responses")
+        .eq("unit_id", unitIdParam)
+        .eq("page_id", pageId)
+        .in("student_id", cohortIds);
+
+      type ProgressRow = {
+        student_id: string;
+        page_id: string;
+        responses: Record<string, unknown> | null;
+      };
+      const responseMap: Record<string, Record<string, string>> = {};
+      for (const p of (progressRows ?? []) as ProgressRow[]) {
+        if (!p.responses || typeof p.responses !== "object") continue;
+        const stringResponses: Record<string, string> = {};
+        for (const [k, v] of Object.entries(p.responses)) {
+          if (typeof v === "string") stringResponses[k] = v;
+        }
+        responseMap[p.student_id] = stringResponses;
+      }
+      setResponses(responseMap);
+    },
+    [],
+  );
+
   const loadAll = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
@@ -569,47 +607,77 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
       // Student responses for the active page (drives the override panel's
       // "see the actual work" view). Keyed by tile_id matching response keys
       // produced by the student page (`activity_<id>` / `section_<idx>`).
+      // The responses load is page-scoped (one page at a time) and gets
+      // re-run by the activePageId useEffect below when the teacher switches
+      // lessons via the selector.
       const cohortIds = cohort.map((s) => s.id);
-      if (cohortIds.length > 0) {
-        const { data: progressRows } = await supabase
-          .from("student_progress")
-          .select("student_id, page_id, responses")
-          .eq("unit_id", unitDetail.id)
-          .eq("page_id", firstWithSections.id)
-          .in("student_id", cohortIds);
-
-        type ProgressRow = {
-          student_id: string;
-          page_id: string;
-          responses: Record<string, unknown> | null;
-        };
-        const responseMap: Record<string, Record<string, string>> = {};
-        for (const p of (progressRows ?? []) as ProgressRow[]) {
-          if (!p.responses || typeof p.responses !== "object") continue;
-          const stringResponses: Record<string, string> = {};
-          for (const [k, v] of Object.entries(p.responses)) {
-            if (typeof v === "string") stringResponses[k] = v;
-          }
-          responseMap[p.student_id] = stringResponses;
-        }
-        setResponses(responseMap);
-      }
+      await loadResponsesForPage(unitDetail.id, firstWithSections.id, cohortIds);
 
       setLoading(false);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "Unexpected error loading data.");
       setLoading(false);
     }
-  }, [classId, unitId]);
+  }, [classId, unitId, loadResponsesForPage]);
 
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
 
+  // Refetch responses when the teacher switches lessons via the page
+  // selector. The initial page is loaded inside loadAll, so this effect
+  // skips when activePageId === firstWithSections.id (handled implicitly:
+  // the cohort-id list comes from the already-loaded `students` state, and
+  // the dependencies fire only after loadAll completes).
+  useEffect(() => {
+    if (!unit || !activePageId || students.length === 0) return;
+    const cohortIds = students.map((s) => s.id);
+    void loadResponsesForPage(unit.id, activePageId, cohortIds);
+    // Reset tile focus to the first tile of the newly active page so the
+    // override panel doesn't open against a tile from the previous lesson.
+    setActiveTileIdx(0);
+    // students is stable per cohort (loaded once per class); we depend on
+    // its identity rather than length to keep the effect minimal.
+  }, [unit, activePageId, students, loadResponsesForPage]);
+
   const activePage = useMemo(() => {
     if (!unit?.contentData || !activePageId) return undefined;
     return getPageList(unit.contentData).find((p) => p.id === activePageId);
   }, [unit, activePageId]);
+
+  // Pages-with-sections drive the page selector. We exclude pages with no
+  // sections (front-matter/intro pages with no gradeable tiles) — clicking
+  // those would land the teacher on an empty view. Counts per page are
+  // pre-computed so the chip can show "Lesson 2 · 3 / 8 graded" at a glance.
+  const gradeablePages = useMemo(() => {
+    if (!unit?.contentData) return [];
+    const all = getPageList(unit.contentData);
+    return all
+      .filter((p) => (p.content?.sections ?? []).length > 0)
+      .map((p) => {
+        const pageTiles = extractTilesFromPage(p, {
+          framework: klass?.framework ?? undefined,
+          unitType: klass?.subject ?? undefined,
+        });
+        const tileIds = new Set(pageTiles.map((t) => t.tileId));
+        // Count distinct (student, tile) pairs that are confirmed for this
+        // page. Students × tiles = denominator.
+        const denom = pageTiles.length * students.length;
+        let confirmedCount = 0;
+        for (const g of Object.values(grades)) {
+          if (g.page_id !== p.id) continue;
+          if (!tileIds.has(g.tile_id)) continue;
+          if (g.confirmed) confirmedCount += 1;
+        }
+        return {
+          id: p.id,
+          title: p.title ?? p.id,
+          tileCount: pageTiles.length,
+          confirmedCount,
+          denom,
+        };
+      });
+  }, [unit, klass, students, grades]);
 
   const tiles = useMemo<LessonTile[]>(() => {
     if (!activePage) return [];
@@ -843,6 +911,61 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
           </button>
         </div>
       </header>
+
+      {/* Page selector — horizontal pill strip above the view content.
+          Hidden when there's only one gradeable page (no point picking).
+          Switching pages refetches responses (effect above) + resets the
+          tile focus to tile 0. Counter shows "n / m graded" where n is
+          confirmed (student, tile) cells and m is tiles × students. */}
+      {gradeablePages.length > 1 && (
+        <nav
+          aria-label="Lesson selector"
+          data-testid="marking-page-selector"
+          className="mt-4 mb-2 flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1"
+        >
+          {gradeablePages.map((p, idx) => {
+            const isActive = p.id === activePageId;
+            const ratio = p.denom > 0 ? p.confirmedCount / p.denom : 0;
+            const isFullyGraded = p.denom > 0 && p.confirmedCount === p.denom;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setActivePageId(p.id)}
+                data-testid={`marking-page-chip-${p.id}`}
+                data-active={isActive}
+                className={[
+                  "flex-shrink-0 inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-md border transition",
+                  isActive
+                    ? "border-purple-400 bg-purple-50 text-purple-800"
+                    : isFullyGraded
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                      : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-800",
+                ].join(" ")}
+                title={`${p.title} — ${p.confirmedCount} of ${p.denom} graded`}
+              >
+                <span>
+                  Lesson {idx + 1}
+                  <span className="ml-1.5 font-normal text-[10px] opacity-70">{p.title}</span>
+                </span>
+                <span
+                  className={[
+                    "inline-flex items-center justify-center min-w-[34px] h-4 px-1.5 rounded text-[10px] font-bold",
+                    isActive
+                      ? "bg-purple-200 text-purple-900"
+                      : isFullyGraded
+                        ? "bg-emerald-200 text-emerald-900"
+                        : "bg-gray-100 text-gray-600",
+                  ].join(" ")}
+                  aria-label={`${p.confirmedCount} of ${p.denom} graded (${Math.round(ratio * 100)}%)`}
+                >
+                  {p.confirmedCount}/{p.denom}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+      )}
 
       {view === "synthesize" ? (
         <SynthesizeView
