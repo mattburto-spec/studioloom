@@ -1,31 +1,19 @@
 /**
- * Page selector — source-static guards for the marking page lesson
- * navigation. Surfaced during TFL.1 Checkpoint 1.1 smoke (10 May 2026):
- * Matt graded a response on lesson 2 as a student, switched to teacher,
- * and the marking page only ever showed lesson 1's tiles — no UI
- * affordance to switch lessons. The first-with-sections page was being
- * picked on mount and never changed.
+ * Page selector + work-driven view — source-static guards for the
+ * marking page lesson navigation. Surfaced during TFL.1 Checkpoint 1.1
+ * smoke (10 May 2026).
  *
- * The fix introduces:
- *   - A `gradeablePages` useMemo that filters all pages to those with
- *     ≥1 section (so we never land on a content-free intro page) and
- *     pre-computes (tileCount, confirmedCount, denom) for the chip.
- *   - A horizontal pill strip rendered above the view content when
- *     there are 2+ gradeable pages. Each chip carries data-testid
- *     `marking-page-chip-<pageId>` + a data-active marker so a
- *     downstream e2e test can assert active state.
- *   - A useEffect that refetches `student_progress.responses` for the
- *     newly active page when `activePageId` changes (the original
- *     loadAll only loaded responses for `firstWithSections.id`,
- *     which would otherwise leave the override panel empty for any
- *     non-default page).
- *   - A `loadResponsesForPage(unitId, pageId, cohortIds)` helper —
- *     extracted from loadAll so both initial load + page switch share
- *     a single fetch path.
+ * History:
+ *   - PR #149 introduced a per-page response refetch on chip click.
+ *   - PR-A (this commit) replaced that with a one-shot all-pages
+ *     rollup so the chip counter can show accurate "n / m graded"
+ *     across every lesson without paying a refetch on every click.
+ *     Also filters the tile carousel to only tiles with submissions
+ *     and switches the counter shape from `students × tiles` to
+ *     `submissions on this page`.
  *
  * Lesson #71: pure logic in `.tsx` isn't unit-testable in this repo's
- * vitest config; we assert pattern presence in the source string. Run
- * the route through Playwright when an e2e harness lands.
+ * vitest config; we assert pattern presence in the source string.
  */
 
 import { describe, it, expect } from "vitest";
@@ -45,15 +33,6 @@ describe("marking page — page selector source presence", () => {
     );
   });
 
-  it("computes confirmedCount + denom per page for the chip counter", () => {
-    // Without the precompute the chip can't show "3 / 8 graded" —
-    // teacher loses the at-a-glance progress signal.
-    expect(src).toMatch(/confirmedCount/);
-    expect(src).toMatch(/denom/);
-    // denom = tileCount × students.length
-    expect(src).toMatch(/pageTiles\.length\s*\*\s*students\.length/);
-  });
-
   it("renders the selector pill strip with per-chip data-testid", () => {
     expect(src).toContain('data-testid="marking-page-selector"');
     expect(src).toMatch(/data-testid=\{`marking-page-chip-\$\{p\.id\}`\}/);
@@ -71,48 +50,110 @@ describe("marking page — page selector source presence", () => {
   });
 });
 
-describe("marking page — page-switch response refetch", () => {
-  it("loadResponsesForPage is a useCallback helper", () => {
-    expect(src).toMatch(
-      /const loadResponsesForPage\s*=\s*useCallback\(/,
+describe("marking page — work-driven counter (PR-A, 10 May 2026)", () => {
+  it("counter denom is the count of student submissions on this page (NOT students × tiles)", () => {
+    // The previous shape (PR #149) was `pageTiles.length * students.length`.
+    // That counts every (student, tile) cell whether the student submitted
+    // or not, so a page full of pure-instruction tiles still showed huge
+    // denoms. PR-A removes that multiplication entirely from the
+    // gradeablePages useMemo body.
+    const gradeablePagesBlock = src.match(
+      /const gradeablePages\s*=\s*useMemo\([\s\S]*?\}\s*,\s*\[[^\]]*\]\)/,
     );
-    // Signature must take (unitId, pageId, cohortIds) — initial load
-    // + page switch share the same fetch path.
+    expect(gradeablePagesBlock).not.toBeNull();
+    const body = gradeablePagesBlock?.[0] ?? "";
+    expect(body).not.toMatch(/pageTiles\.length\s*\*\s*students\.length/);
+    // The new denom is computed by counting (student, tile) pairs in
+    // responsesByPage that match a tile on this page.
+    expect(body).toContain("submissions");
+    expect(body).toContain("responsesByPage");
+  });
+
+  it("confirmedCount only counts grades whose (student, tile) pair has a submission OR is NA", () => {
+    // Without this filter, n could exceed m on pages where the teacher
+    // confirmed scores for non-submitting students. NA scores are still
+    // counted because NA explicitly means "no submission expected" and
+    // shouldn't leave a chip stuck below 100% forever.
+    const gradeablePagesBlock = src.match(
+      /const gradeablePages\s*=\s*useMemo\([\s\S]*?\}\s*,\s*\[[^\]]*\]\)/,
+    );
+    expect(gradeablePagesBlock).not.toBeNull();
+    const body = gradeablePagesBlock?.[0] ?? "";
+    expect(body).toMatch(/score_na\s*===\s*true/);
+    expect(body).toMatch(/hasSubmission\s*\|\|\s*g\.score_na\s*===\s*true/);
+  });
+});
+
+describe("marking page — tile carousel filter (PR-A, 10 May 2026)", () => {
+  it("the tiles useMemo filters to tiles with at least one submission on this page", () => {
+    // The fix that hides "Studio rhythm", "Open Project Board", and other
+    // pure-instruction tiles from the marking flow. extractTilesFromPage
+    // returns ALL tiles including instruction-only ones; the filter
+    // narrows to tiles where any student has a non-empty response.
     expect(src).toMatch(
-      /async\s*\(\s*unitIdParam:\s*string\s*,\s*pageId:\s*string\s*,\s*cohortIds:\s*string\[\]\s*\)/,
+      /const tilesWithSubmissions\s*=\s*new\s+Set<string>\(\)/,
+    );
+    expect(src).toMatch(
+      /allTiles\.filter\(\(t\)\s*=>\s*tilesWithSubmissions\.has\(t\.tileId\)\)/,
     );
   });
 
-  it("loadAll calls loadResponsesForPage for the initial page", () => {
-    // Asserts the inline progress fetch is gone — replaced by the
-    // single shared helper. If the inline `.from("student_progress")
-    // .select(...)` block ever comes back, this will fail.
+  it("renders an explicit empty state when no submissions exist on the page", () => {
+    // tiles.length === 0 must NOT silently render an empty grid — that
+    // looks identical to a broken page. The empty state names the
+    // condition + suggests next action.
+    expect(src).toContain('data-testid="marking-no-submissions"');
+    expect(src).toContain("No submissions on this lesson yet.");
+  });
+});
+
+describe("marking page — all-pages response rollup (PR-A, 10 May 2026)", () => {
+  it("loadAllResponses is a useCallback helper (no .eq on page_id)", () => {
+    expect(src).toMatch(/const loadAllResponses\s*=\s*useCallback\(/);
+    // Anchor a region from `loadAllResponses` declaration through the
+    // `setResponsesByPage(byPage)` write — that's the unique end-of-helper
+    // marker. Nested braces inside the body break the lazy `[\s\S]*?\}`
+    // approach, so anchor on a known sentinel instead.
+    const helperBlock = src.match(
+      /const loadAllResponses[\s\S]*?setResponsesByPage\(byPage\)/,
+    );
+    expect(helperBlock).not.toBeNull();
+    const body = helperBlock?.[0] ?? "";
+    expect(body).toContain('.from("student_progress")');
+    expect(body).not.toMatch(/\.eq\(\s*"page_id"/);
+    expect(body).toMatch(/\.eq\(\s*"unit_id"/);
+    expect(body).toMatch(/\.in\(\s*"student_id"/);
+  });
+
+  it("state shape is responsesByPage: pageId → studentId → tileId → text", () => {
     expect(src).toMatch(
-      /await\s+loadResponsesForPage\(\s*unitDetail\.id\s*,\s*firstWithSections\.id\s*,\s*cohortIds\s*\)/,
+      /const \[responsesByPage,\s*setResponsesByPage\]\s*=\s*useState/,
+    );
+    // Type signature must be 3-deep nested record.
+    expect(src).toMatch(
+      /Record<string,\s*Record<string,\s*Record<string,\s*string>>>/,
     );
   });
 
-  it("a useEffect refetches responses on activePageId change", () => {
-    // The effect must depend on activePageId, students, unit, and the
-    // helper. Without students, the effect would fire before cohort is
-    // loaded; without unit, it'd fire pre-load. Anchor on
-    // `setActiveTileIdx(0)` since that's unique to the page-switch
-    // effect (loadAll resets tile idx differently via initial state).
-    const effectMatch = src.match(
-      /useEffect\(\(\)\s*=>\s*\{[^{}]*?activePageId[\s\S]*?loadResponsesForPage[\s\S]*?setActiveTileIdx\(0\)[\s\S]*?\},\s*\[([^\]]+)\]\)/,
+  it("loadAll calls loadAllResponses (no page_id-scoped fetch)", () => {
+    expect(src).toMatch(
+      /await\s+loadAllResponses\(\s*unitDetail\.id\s*,\s*cohortIds\s*\)/,
     );
-    expect(effectMatch).not.toBeNull();
-    const deps = effectMatch?.[1] ?? "";
-    expect(deps).toContain("unit");
-    expect(deps).toContain("activePageId");
-    expect(deps).toContain("students");
-    expect(deps).toContain("loadResponsesForPage");
+    // Regression guard: the per-page helper must not come back.
+    expect(src).not.toMatch(/loadResponsesForPage\(/);
+  });
+
+  it("override panel deep-indexes responsesByPage[activePageId] when slicing for CalibrateInner", () => {
+    // The prop wired into CalibrateInner is the active-page slice. Without
+    // this slice, the inner component would either need to know about the
+    // 3-deep shape or render empty.
+    expect(src).toMatch(
+      /responses=\{\s*activePageId\s*\?\s*responsesByPage\[activePageId\]\s*\?\?\s*\{\}\s*:\s*\{\}\s*\}/,
+    );
   });
 
   it("page switch resets activeTileIdx to 0 (override panel doesn't open against a stale tile)", () => {
-    // Without the reset, the teacher could be looking at lesson 2 with
-    // the override panel still pinned to lesson 1's tile index — would
-    // either crash or render an unrelated tile.
+    // Smaller useEffect than before — no refetch, just the focus reset.
     expect(src).toMatch(/setActiveTileIdx\(0\)/);
   });
 });
