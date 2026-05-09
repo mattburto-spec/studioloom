@@ -19,7 +19,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { FAB_PRIVATE_CACHE_HEADERS } from "@/lib/fab/auth";
 import {
@@ -27,25 +26,7 @@ import {
   loadSchoolOwnedLab,
   isOrchestrationError,
 } from "@/lib/fabrication/lab-orchestration";
-
-async function getTeacherUser(request: NextRequest) {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
-}
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 function privateJson(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: FAB_PRIVATE_CACHE_HEADERS });
@@ -59,8 +40,9 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ classId: string }> }
 ) {
-  const user = await getTeacherUser(request);
-  if (!user) return privateJson({ error: "Unauthorized" }, 401);
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const { classId } = await params;
 
@@ -84,7 +66,7 @@ export async function PATCH(
   const admin = createAdminClient();
 
   // Phase 8-3 audit MED-3 fold-in: resolve calling teacher's school first.
-  const schoolResult = await loadTeacherSchoolId(admin, user.id);
+  const schoolResult = await loadTeacherSchoolId(admin, teacherId);
   if (isOrchestrationError(schoolResult)) {
     return privateJson(
       { error: schoolResult.error.message },

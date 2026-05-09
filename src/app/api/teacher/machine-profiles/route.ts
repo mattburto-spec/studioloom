@@ -11,7 +11,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { FAB_PRIVATE_CACHE_HEADERS } from "@/lib/fab/auth";
 import {
@@ -21,25 +20,7 @@ import {
   type MachineCategory,
   type OperationColorMap,
 } from "@/lib/fabrication/machine-orchestration";
-
-async function getTeacherUser(request: NextRequest) {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
-}
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 function privateJson(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: FAB_PRIVATE_CACHE_HEADERS });
@@ -50,15 +31,16 @@ function privateJson(body: unknown, status = 200) {
 // -----------------------------------------------------------------
 
 export async function GET(request: NextRequest) {
-  const user = await getTeacherUser(request);
-  if (!user) return privateJson({ error: "Unauthorized" }, 401);
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const includeInactive =
     request.nextUrl.searchParams.get("includeInactive") === "true";
 
   const admin = createAdminClient();
   const result = await listMyMachines(admin, {
-    teacherId: user.id,
+    teacherId,
     includeInactive,
   });
   if (isOrchestrationError(result)) {
@@ -93,8 +75,9 @@ interface CreateMachineBody {
 }
 
 export async function POST(request: NextRequest) {
-  const user = await getTeacherUser(request);
-  if (!user) return privateJson({ error: "Unauthorized" }, 401);
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   let body: CreateMachineBody;
   try {
@@ -109,7 +92,7 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
   const result = await createMachineProfile(admin, {
-    teacherId: user.id,
+    teacherId,
     fromTemplateId:
       typeof body.fromTemplateId === "string" ? body.fromTemplateId : undefined,
     labId: body.labId,
