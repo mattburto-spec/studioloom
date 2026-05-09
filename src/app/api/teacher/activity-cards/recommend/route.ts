@@ -1,23 +1,8 @@
 // audit-skip: routine teacher pedagogy ops, low audit value
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { recommendCardsForPages } from "@/lib/activity-cards";
 import type { RecommendCardsRequest } from "@/types/activity-cards";
-
-function createSupabaseServer(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-}
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 /**
  * POST /api/teacher/activity-cards/recommend
@@ -29,14 +14,8 @@ function createSupabaseServer(request: NextRequest) {
  * Returns: { recommendations: CardRecommendation[] }
  */
 export async function POST(request: NextRequest) {
-  const supabase = createSupabaseServer(request);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
 
   const body: RecommendCardsRequest = await request.json();
   const { pages, unitContext } = body;
