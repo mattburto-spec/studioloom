@@ -17,7 +17,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { BLOCK_TYPES, SKILL_TIERS } from "@/types/skills";
 import {
@@ -35,21 +34,7 @@ import type {
   SkillCardRow,
   SkillTier,
 } from "@/types/skills";
-
-function createSupabaseServer(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-}
+import { requireTeacher } from "@/lib/auth/require-teacher";
 
 const VALID_BLOCK_TYPES = new Set<string>(BLOCK_TYPES);
 const VALID_CARD_TYPES: readonly CardType[] = ["lesson", "routine"];
@@ -104,13 +89,9 @@ const CARD_LIST_SELECT =
 // ============================================================================
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createSupabaseServer(request);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireTeacher(request);
+    if (auth.error) return auth.error;
+    const { teacherId } = auth;
 
     const url = new URL(request.url);
     const category = url.searchParams.get("category");
@@ -134,7 +115,7 @@ export async function GET(request: NextRequest) {
     //   - published: always visible
     //   - drafts: only own
     query = query.or(
-      `is_built_in.eq.true,is_published.eq.true,created_by_teacher_id.eq.${user.id}`
+      `is_built_in.eq.true,is_published.eq.true,created_by_teacher_id.eq.${teacherId}`
     );
 
     if (category) query = query.eq("category_id", category);
@@ -168,7 +149,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (ownership === "mine") {
-      query = query.eq("created_by_teacher_id", user.id);
+      query = query.eq("created_by_teacher_id", teacherId);
     } else if (ownership === "built_in") {
       query = query.eq("is_built_in", true);
     }
@@ -199,13 +180,9 @@ export async function GET(request: NextRequest) {
 // ============================================================================
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createSupabaseServer(request);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireTeacher(request);
+    if (auth.error) return auth.error;
+    const { teacherId } = auth;
 
     const payload = (await request.json()) as CreateSkillCardPayload;
     const {
@@ -393,7 +370,7 @@ export async function POST(request: NextRequest) {
         retake_cooldown_minutes: retake_cooldown_minutes ?? 0,
         question_count: question_count ?? null,
         is_built_in: false,
-        created_by_teacher_id: user.id,
+        created_by_teacher_id: teacherId,
         is_published: false,
       })
       .select()
