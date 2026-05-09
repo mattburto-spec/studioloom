@@ -514,7 +514,7 @@ Source: [`external-review-2026-05-09-findings.md`](external-review-2026-05-09-fi
 | F-2 | RLS broken on `open_studio_profiles` (mig 031) — cross-school student profile leak | P0 | S1 | **DONE — 2026-05-09** (same migration) | matt | — |
 | F-3 | `discovery_sessions` permissive policy short-circuits the strict one (mig 047) | P0 | S1 | **DONE — 2026-05-09** (same migration; also fixed the broken JWT-sub strict policy) | matt | — |
 | F-4 | `gallery_submissions` + `gallery_reviews` wide-open SELECT + tautological INSERT (mig 049) | P0 | S1 | **DONE — 2026-05-09** (same migration; required `::text` cast on classes.id for gallery_rounds.class_id TEXT join) | matt | — |
-| F-5 | `POST /api/teacher/units` `publish` case lacks ownership check — any teacher hijacks any unit | P0 | inc. in S2 | **PLANNED — phase S2** | matt | pre-pilot-expand |
+| F-5 | `POST /api/teacher/units` `publish` case lacks ownership check — any teacher hijacks any unit | P0 | S2 | **DONE — 2026-05-09** (verifyTeacherHasUnit gate added before mutation; mirrors unpublish case; 7 tests — 3 source-static + 4 behavioral including cross-teacher hijack returns 404) | matt | — |
 | F-6 | 80 `/api/teacher/*` routes still bypass `requireTeacher`; `badges/[id]/assign` confirmed exploitable from a student JWT | P1 | inc. in S3 | **PLANNED — phase S3** | matt | pre-pilot-expand |
 | F-7 | `own_time_*` 3 tables — wide-open SELECT (mig 028) | P1 | S1 | **DONE — 2026-05-09** (same migration; tables don't exist in prod — guarded with `to_regclass()` so policies will land if mig 028 is ever applied) | matt | — |
 | F-8 | `open_studio_status` / `open_studio_sessions` — wide-open SELECT (mig 029) | P1 | S1 | **DONE — 2026-05-09** (same migration) | matt | — |

@@ -215,6 +215,21 @@ export async function POST(request: NextRequest) {
     }
 
     case "publish": {
+      // S2 (F-5 9 May 2026) — gate via verifyTeacherHasUnit before mutation.
+      // Pre-fix the publish case had no ownership check + only `.eq("id", unitId)`.
+      // Combined with the absent role guard at line 33-38 (still using bare
+      // auth.getUser()), any logged-in teacher AND any logged-in student JWT
+      // could send {action:"publish", unitId:"<any-uuid>"} and overwrite
+      // author_teacher_id to themselves + force-publish another teacher's draft.
+      // Mirrors the unpublish case pattern at line 287-307.
+      if (!unitId) {
+        return NextResponse.json({ error: "unitId required" }, { status: 400 });
+      }
+      const access = await verifyTeacherHasUnit(user.id, unitId);
+      if (!access.hasAccess) {
+        return NextResponse.json({ error: "Unit not found" }, { status: 404 });
+      }
+
       const { authorName: authorNameOverride, schoolName: schoolNameOverride, tags } = body as {
         authorName?: string;
         schoolName?: string;
