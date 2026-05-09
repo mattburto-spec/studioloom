@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 443
+# Total routes: 445
 
 routes:
 - path: /api/admin/ai-budget
@@ -970,6 +970,15 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/storage/[bucket]/[...path]
+  method: GET
+  file: src/app/api/storage/[bucket]/[...path]/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/student/avatar
   method: POST
   file: src/app/api/student/avatar/route.ts
@@ -1719,6 +1728,16 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/student/recent-feedback
+  method: GET
+  file: src/app/api/student/recent-feedback/route.ts
+  auth: student
+  tables_read:
+  - student_tile_grades
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/student/safety-certs
   method: GET
   file: src/app/api/student/safety-certs/route.ts
@@ -1895,7 +1914,8 @@ routes:
   auth: student
   tables_read:
   - student_tile_grades
-  tables_written: []
+  tables_written:
+  - student_tile_grades
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
