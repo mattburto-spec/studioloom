@@ -422,8 +422,16 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
   const [unit, setUnit] = useState<UnitDetail | null>(null);
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [grades, setGrades] = useState<Record<string, TileGradeRow>>({});
-  // student_progress.responses, keyed: studentId → tileId → response text.
-  const [responses, setResponses] = useState<Record<string, Record<string, string>>>({});
+  // student_progress.responses keyed: pageId → studentId → tileId → text.
+  // PR-A (10 May 2026, post-Checkpoint 1.1 round 2 smoke): switched from
+  // a flat per-active-page shape to a one-shot all-pages rollup so the
+  // page-selector chips can show accurate "n / m graded" counts across
+  // every lesson without paying a refetch on every chip click. Same data
+  // volume is still cheap (cohort × pages = ~144 jsonb rows for a typical
+  // class). The override panel deep-indexes by activePageId.
+  const [responsesByPage, setResponsesByPage] = useState<
+    Record<string, Record<string, Record<string, string>>>
+  >({});
   const [activeTileIdx, setActiveTileIdx] = useState(0);
   const [activePageId, setActivePageId] = useState<string | null>(null);
   const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
@@ -443,15 +451,15 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
   const gradeKey = (studentId: string, tileId: string, pageId: string) =>
     `${studentId}::${pageId}::${tileId}`;
 
-  // Page-scoped response fetch. Called once during loadAll for the initial
-  // page, then re-run by the activePageId useEffect below when the teacher
-  // switches lessons via the page selector. The state shape stays flat
-  // (studentId → tileId → text) — switching a page replaces the map rather
-  // than nesting by page (workflow is "focus on one lesson at a time").
-  const loadResponsesForPage = useCallback(
-    async (unitIdParam: string, pageId: string, cohortIds: string[]) => {
+  // All-pages response rollup. Loaded once during loadAll. The shape is
+  // pageId → studentId → tileId → text so the page selector chip can
+  // pre-compute "n / m graded" per page without paying a refetch on every
+  // chip click. The override panel reads
+  // `responsesByPage[activePageId]?.[studentId]?.[activeTile.tileId]`.
+  const loadAllResponses = useCallback(
+    async (unitIdParam: string, cohortIds: string[]) => {
       if (cohortIds.length === 0) {
-        setResponses({});
+        setResponsesByPage({});
         return;
       }
       const supabase = createClient();
@@ -459,7 +467,6 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
         .from("student_progress")
         .select("student_id, page_id, responses")
         .eq("unit_id", unitIdParam)
-        .eq("page_id", pageId)
         .in("student_id", cohortIds);
 
       type ProgressRow = {
@@ -467,16 +474,24 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
         page_id: string;
         responses: Record<string, unknown> | null;
       };
-      const responseMap: Record<string, Record<string, string>> = {};
+      const byPage: Record<string, Record<string, Record<string, string>>> = {};
       for (const p of (progressRows ?? []) as ProgressRow[]) {
         if (!p.responses || typeof p.responses !== "object") continue;
         const stringResponses: Record<string, string> = {};
         for (const [k, v] of Object.entries(p.responses)) {
-          if (typeof v === "string") stringResponses[k] = v;
+          // Only keep non-empty string responses. Empty strings get
+          // treated as "no submission" by the work-driven counter +
+          // tile filter — same contract as the rest of the marking
+          // flow (sanitizeResponseText also returns "" for null/blank).
+          if (typeof v === "string" && v.trim().length > 0) {
+            stringResponses[k] = v;
+          }
         }
-        responseMap[p.student_id] = stringResponses;
+        if (Object.keys(stringResponses).length === 0) continue;
+        if (!byPage[p.page_id]) byPage[p.page_id] = {};
+        byPage[p.page_id][p.student_id] = stringResponses;
       }
-      setResponses(responseMap);
+      setResponsesByPage(byPage);
     },
     [],
   );
@@ -604,41 +619,32 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
       setOverrideNoteDraft(noteDraftMap);
       setStudentCommentDraft(commentDraftMap);
 
-      // Student responses for the active page (drives the override panel's
-      // "see the actual work" view). Keyed by tile_id matching response keys
-      // produced by the student page (`activity_<id>` / `section_<idx>`).
-      // The responses load is page-scoped (one page at a time) and gets
-      // re-run by the activePageId useEffect below when the teacher switches
-      // lessons via the selector.
+      // Student responses across ALL pages (drives both the override panel's
+      // "see the actual work" view AND the page-selector chip's per-lesson
+      // counter). One query at mount instead of per-page refetch — see
+      // loadAllResponses comment.
       const cohortIds = cohort.map((s) => s.id);
-      await loadResponsesForPage(unitDetail.id, firstWithSections.id, cohortIds);
+      await loadAllResponses(unitDetail.id, cohortIds);
 
       setLoading(false);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "Unexpected error loading data.");
       setLoading(false);
     }
-  }, [classId, unitId, loadResponsesForPage]);
+  }, [classId, unitId, loadAllResponses]);
 
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
 
-  // Refetch responses when the teacher switches lessons via the page
-  // selector. The initial page is loaded inside loadAll, so this effect
-  // skips when activePageId === firstWithSections.id (handled implicitly:
-  // the cohort-id list comes from the already-loaded `students` state, and
-  // the dependencies fire only after loadAll completes).
+  // Reset tile focus to the first tile of the newly active page so the
+  // override panel doesn't open against a tile from the previous lesson.
+  // No refetch here — responses for every page are already loaded by
+  // loadAllResponses on mount.
   useEffect(() => {
-    if (!unit || !activePageId || students.length === 0) return;
-    const cohortIds = students.map((s) => s.id);
-    void loadResponsesForPage(unit.id, activePageId, cohortIds);
-    // Reset tile focus to the first tile of the newly active page so the
-    // override panel doesn't open against a tile from the previous lesson.
+    if (!activePageId) return;
     setActiveTileIdx(0);
-    // students is stable per cohort (loaded once per class); we depend on
-    // its identity rather than length to keep the effect minimal.
-  }, [unit, activePageId, students, loadResponsesForPage]);
+  }, [activePageId]);
 
   const activePage = useMemo(() => {
     if (!unit?.contentData || !activePageId) return undefined;
@@ -646,9 +652,19 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
   }, [unit, activePageId]);
 
   // Pages-with-sections drive the page selector. We exclude pages with no
-  // sections (front-matter/intro pages with no gradeable tiles) — clicking
-  // those would land the teacher on an empty view. Counts per page are
-  // pre-computed so the chip can show "Lesson 2 · 3 / 8 graded" at a glance.
+  // sections (front-matter/intro pages with no gradeable tiles).
+  //
+  // PR-A counter shape (10 May 2026, post-Checkpoint 1.1 round 2): the
+  // "n / m graded" counter is WORK-DRIVEN, not roster-driven:
+  //   m (denom) = number of (student, tile) pairs where the student has a
+  //               non-empty response on this page. Tiles with no
+  //               submissions don't count toward m. A page with one fully
+  //               empty tile and 24 students contributes 0 to m, not 24.
+  //   n (num)   = confirmed grades among those (student, tile) pairs.
+  // So `0/0` means "no work has been submitted on this page yet" and is
+  // visually distinct from `0/24` ("24 submissions waiting"). Closes
+  // Matt's smoke gap that the previous students × tiles denom included
+  // pure-instruction tiles + non-submitting students.
   const gradeablePages = useMemo(() => {
     if (!unit?.contentData) return [];
     const all = getPageList(unit.contentData);
@@ -660,32 +676,65 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
           unitType: klass?.subject ?? undefined,
         });
         const tileIds = new Set(pageTiles.map((t) => t.tileId));
-        // Count distinct (student, tile) pairs that are confirmed for this
-        // page. Students × tiles = denominator.
-        const denom = pageTiles.length * students.length;
+        // Submissions: (student, tile) pairs with non-empty content for
+        // any tile that exists on this page.
+        const pageResponses = responsesByPage[p.id] ?? {};
+        let submissions = 0;
+        for (const studentResponses of Object.values(pageResponses)) {
+          for (const tid of Object.keys(studentResponses)) {
+            if (tileIds.has(tid)) submissions += 1;
+          }
+        }
+        // Confirmed grades on those submissions only.
         let confirmedCount = 0;
         for (const g of Object.values(grades)) {
           if (g.page_id !== p.id) continue;
           if (!tileIds.has(g.tile_id)) continue;
-          if (g.confirmed) confirmedCount += 1;
+          if (!g.confirmed) continue;
+          // Only count if the student actually had a submission OR the
+          // grade is NA (NA explicitly means "no submission expected /
+          // accepted"). This keeps confirmedCount aligned with the
+          // submissions denom — we never see n > m.
+          const hasSubmission =
+            !!pageResponses[g.student_id]?.[g.tile_id];
+          if (hasSubmission || g.score_na === true) {
+            confirmedCount += 1;
+          }
         }
         return {
           id: p.id,
           title: p.title ?? p.id,
           tileCount: pageTiles.length,
           confirmedCount,
-          denom,
+          denom: submissions,
         };
       });
-  }, [unit, klass, students, grades]);
+  }, [unit, klass, grades, responsesByPage]);
 
+  // PR-A (10 May 2026): the tile carousel filters to "tiles with at least
+  // one student submission on this page". Pure-instruction tiles ("Studio
+  // rhythm", "Open Project Board" — read-only teacher copy with no
+  // student-facing input) get extracted by extractTilesFromPage but never
+  // hold any student responses, so they're hidden from the marking flow.
+  // The teacher can still see them via the unit content authoring view;
+  // they just don't pollute the calibrate workflow.
   const tiles = useMemo<LessonTile[]>(() => {
     if (!activePage) return [];
-    return extractTilesFromPage(activePage, {
+    const allTiles = extractTilesFromPage(activePage, {
       framework: klass?.framework ?? undefined,
       unitType: klass?.subject ?? undefined,
     });
-  }, [activePage, klass]);
+    const pageResponses = activePageId ? responsesByPage[activePageId] ?? {} : {};
+    // A tile is "gradable" if any student in the cohort has a non-empty
+    // response keyed by that tile_id on this page.
+    const tilesWithSubmissions = new Set<string>();
+    for (const studentResponses of Object.values(pageResponses)) {
+      for (const tid of Object.keys(studentResponses)) {
+        tilesWithSubmissions.add(tid);
+      }
+    }
+    return allTiles.filter((t) => tilesWithSubmissions.has(t.tileId));
+  }, [activePage, klass, activePageId, responsesByPage]);
 
   const activeTile = tiles[activeTileIdx];
 
@@ -993,7 +1042,7 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
           students={students}
           confirmedRows={confirmedRows}
           grades={grades}
-          responses={responses}
+          responses={activePageId ? responsesByPage[activePageId] ?? {} : {}}
           gradeKey={gradeKey}
           scale={scale}
           savingKey={savingKey}
@@ -1146,7 +1195,23 @@ function CalibrateInner({
         </div>
       )}
 
-      {/* Tile strip */}
+      {/* Tile strip — only tiles with student submissions on this page.
+          Pure-instruction tiles (no responses) are filtered out by the
+          tiles useMemo upstream. If nothing's been submitted yet, render
+          an explicit empty state so the teacher knows it's a "no work"
+          page, not a broken view. */}
+      {tiles.length === 0 ? (
+        <div
+          data-testid="marking-no-submissions"
+          className="mb-6 rounded-xl border border-dashed border-gray-300 bg-white/60 p-6 text-center text-sm text-gray-500"
+        >
+          <div className="font-bold text-gray-700 mb-1">No submissions on this lesson yet.</div>
+          <div>
+            Tiles with no student work are hidden until someone submits something. Check
+            back after class or pick another lesson from the selector above.
+          </div>
+        </div>
+      ) : (
       <div className="mb-6 -mx-1 overflow-x-auto">
         <div className="flex gap-2 px-1 pb-2">
           {tiles.map((tile, idx) => {
@@ -1194,6 +1259,7 @@ function CalibrateInner({
           })}
         </div>
       </div>
+      )}
 
       {/* Active tile prompt + AI batch trigger */}
       {activeTile && (

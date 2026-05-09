@@ -41,11 +41,23 @@ let sessionSpy: ReturnType<typeof vi.fn>;
 let mockUserId: string | null = "teacher-1";
 
 // Mock SSR teacher client.
+//
+// Updated 10 May 2026 (PR-A bundle): added `app_metadata.user_type =
+// "teacher"` to the mocked user. PR #150 added `requireTeacher` to the
+// fabricator routes, which checks `user.app_metadata.user_type === "teacher"`
+// and 403s when missing. Without this field the bare `getUser`-only mock
+// fails 8/9 assertions in this file. The fix-ahead lives in this PR
+// because PR #151's CI was blocked on it; the fabricator route work was
+// shipped in PR #150 without updating its tests.
 vi.mock("@supabase/ssr", () => ({
   createServerClient: () => ({
     auth: {
       getUser: vi.fn(async () => ({
-        data: { user: mockUserId ? { id: mockUserId } : null },
+        data: {
+          user: mockUserId
+            ? { id: mockUserId, app_metadata: { user_type: "teacher" } }
+            : null,
+        },
       })),
     },
   }),
