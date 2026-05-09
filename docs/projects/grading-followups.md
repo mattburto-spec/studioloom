@@ -58,3 +58,21 @@
 4. If still broken: `git clean -fdx` + fresh worktree clone.
 
 **Why P2:** Code is verified by TypeScript + 46 unit tests. The runtime issue is environmental. Visual smoke is the only blocker on Checkpoint G1.1 sign-off, but the visual layer can also be smoked once route registration works (no code rewrite needed).
+
+---
+
+## Resolved
+
+### TFL-FU-CLOCK-SKEW — JS-vs-DB clock skew on read-receipt bump (RESOLVED 10 May 2026)
+**Surfaced:** TFL.1 Checkpoint 1.1 step 1 smoke (10 May 2026 — Matt saw GREEN dot in cold state, expected GREY)
+**Resolved by:** PR #147 / commit `27c8670` / migration `20260509222601_add_bump_student_seen_comment_at_rpc.sql`
+
+**What happened:** TFL.1.2's inline `.update({ student_seen_comment_at: new Date().toISOString() })` shipped a Node-stamped timestamp across the wire. The `student_tile_grades` BEFORE-UPDATE trigger then set `updated_at = now()` from Postgres time ~100–200ms LATER, so `student_seen_comment_at` landed BEFORE `updated_at` on the same UPDATE. The chip's `seen >= updated_at` rule returned false on a brand-new receipt and the tooltip read "Seen the older version" instead of "Seen the latest". Live Supabase row from the smoke: `seen = 05:31:14.302`, `updated_at = 05:31:14.455` — 153ms gap, all on the same connection.
+
+**Fix:** New SECURITY DEFINER PL/pgSQL function `bump_student_seen_comment_at(p_student_id, p_unit_id, p_page_id)` that does `SET student_seen_comment_at = now()`. Both the SET clause and the trigger's `updated_at` derive from the same Postgres `now()` (transaction-start time, identical across both). Route now calls `.rpc("bump_student_seen_comment_at", {...})` instead of an inline UPDATE. Migration locks `search_path = pg_catalog, public` (Lesson #66) and revokes EXECUTE from PUBLIC/anon/authenticated, granting only to `service_role` (Lesson #52). Filters non-null + non-empty `student_facing_comment` so empty rows still can't get a false receipt.
+
+**Regression guards:**
+- `src/app/api/student/tile-comments/__tests__/route-seen-bump.test.ts` rewritten to assert the `.rpc()` call; explicit code-only assertions that `new Date().toISOString()` and inline `.update({ student_seen_comment_at:` never come back.
+- `src/lib/grading/__tests__/migration-tfl1-rpc-shape.test.ts` NEW (8 assertions): function signature, SECURITY DEFINER, search_path lockdown, body uses `now()` + has no TIMESTAMP arg, non-null + non-empty filter, scope to student/unit/page, REVOKE+GRANT pattern, .down.sql drops with IF EXISTS.
+
+**Lesson generalised:** Anywhere two DB-written timestamps must compare correctly on the same row, never let one of them be stamped on the client. Either both come from Postgres `now()` (preferred — transaction-start time guarantees identity) or both come from the same wall clock the comparison runs against. The trigger-vs-SET-clause pattern is especially seductive because it looks atomic; it isn't.
