@@ -235,6 +235,10 @@ export const BLOCK_LIBRARY: BlockDefinition[] = [
       prompts: JOURNAL_PROMPTS,
       autoCreateKanbanCardOnSave: true,
       portfolioCapture: true,
+      // LIS.D — Process Journal defaults to stepper since DO/NOTICE/DECIDE/NEXT
+      // is the canonical criterion-coloured stepper use case. Teachers can
+      // uncheck the toggle in the section editor if they prefer all-at-once.
+      promptsLayout: "stepper" as const,
     }),
   },
   {
@@ -325,6 +329,42 @@ export const BLOCK_LIBRARY: BlockDefinition[] = [
       prompt: "",
       durationMinutes: 5,
       contentStyle: "info" as const,
+    }),
+  },
+  {
+    // LIS.D — Magazine callout palette entry. Pre-fills 3 sample
+    // bullets so teachers can see the 3-card layout immediately, then
+    // edit term/hint/body in the KeyCalloutEditor surface.
+    id: "magazine-callout",
+    label: "Magazine Callout",
+    icon: "📰",
+    category: "content",
+    description: "3-card 'Worth remembering' explainer (cream warm magazine layout)",
+    defaultPhase: "miniLesson",
+    create: () => ({
+      activityId: nanoid(8),
+      prompt: "Worth remembering — three things",
+      durationMinutes: 3,
+      contentStyle: "key-callout" as const,
+      bulletsTitle: ["The", "Three", "Cs."],
+      bulletsIntro: "Replace this intro with the one-line orient students should carry into the rest of the lesson.",
+      bullets: [
+        {
+          term: "Choice",
+          hint: "autonomy",
+          body: "Replace with the body for card 1 — what this term means and why it matters here.",
+        },
+        {
+          term: "Causation",
+          hint: "because-clauses",
+          body: "Replace with the body for card 2.",
+        },
+        {
+          term: "Change",
+          hint: "iteration",
+          body: "Replace with the body for card 3.",
+        },
+      ],
     }),
   },
   {

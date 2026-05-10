@@ -29,6 +29,7 @@ export const JOURNAL_PROMPTS: StructuredPromptsConfig = [
     helper: "Anti-fiction anchor. The gap between plan and reality is itself evidence.",
     required: true,
     softCharCap: 400,
+    criterion: "DO",
   },
   {
     id: "noticed",
@@ -37,6 +38,7 @@ export const JOURNAL_PROMPTS: StructuredPromptsConfig = [
     helper: "Noticing the unexpected is the doorway to learning.",
     required: true,
     softCharCap: 400,
+    criterion: "NOTICE",
   },
   {
     id: "decided",
@@ -45,6 +47,7 @@ export const JOURNAL_PROMPTS: StructuredPromptsConfig = [
     helper: "Use a because clause. Vague entries don't count as evidence.",
     required: true,
     softCharCap: 400,
+    criterion: "DECIDE",
   },
   {
     id: "next",
@@ -53,6 +56,7 @@ export const JOURNAL_PROMPTS: StructuredPromptsConfig = [
     helper: "This auto-creates a card in your Kanban backlog.",
     required: true,
     softCharCap: 300,
+    criterion: "NEXT",
   },
 ];
 

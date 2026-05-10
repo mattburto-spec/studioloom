@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { motion, useDragControls, AnimatePresence } from "framer-motion";
 import InlineEdit from "./InlineEdit";
+import { KeyCalloutEditor } from "./KeyCalloutEditor";
 import { SlotFieldEditor, SlotPreview } from "./SlotFieldEditor";
 import { CRITERIA, type CriterionKey } from "@/lib/constants";
 import type {
@@ -448,6 +449,54 @@ export default function ActivityBlock({
                   </div>
                 </div>
               </div>
+
+              {/* LIS.D — magazine callout authoring. Renders for content-only
+                  sections (no responseType) where the section is opted into
+                  the cream warm callout treatment via contentStyle:
+                  "info" (auto-flipped via LIS.A.2) or "key-callout".
+                  Other content styles (warning/tip/practical/etc.) keep
+                  their functional colour identities and don't get bullets. */}
+              {!activity.responseType &&
+                (activity.contentStyle === "info" ||
+                  activity.contentStyle === "key-callout") && (
+                  <KeyCalloutEditor activity={activity} onUpdate={onUpdate} />
+                )}
+
+              {/* LIS.D — stepper-layout toggle for structured-prompts.
+                  When checked, students see one question at a time
+                  (MultiQuestionResponse) instead of the all-at-once
+                  StructuredPromptsResponse render. Per-section opt-in
+                  because stepper isn't strictly better for every
+                  multi-prompt activity. */}
+              {responseType === "structured-prompts" && (
+                <div className="mt-3 p-3 bg-purple-50/60 border border-purple-200 rounded-lg space-y-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span>📐</span>
+                    <label className="text-[12px] font-bold text-purple-900">Layout</label>
+                  </div>
+                  <label className="flex items-center gap-2 text-[12px] text-purple-900 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={activity.promptsLayout === "stepper"}
+                      onChange={(e) =>
+                        onUpdate({
+                          promptsLayout: e.target.checked ? "stepper" : undefined,
+                        })
+                      }
+                      className="w-3.5 h-3.5 rounded border-purple-300 text-purple-600 focus:ring-purple-500"
+                    />
+                    <span>
+                      <strong>Stepper</strong> — students answer one prompt at a time
+                    </span>
+                  </label>
+                  <p className="text-[11px] text-purple-700/80 ml-6">
+                    Default (unchecked) shows all prompts on one page.
+                    Stepper drives a focus-one-question UX with optional
+                    DO / NOTICE / DECIDE / NEXT colour coding when prompts
+                    are tagged with a criterion.
+                  </p>
+                </div>
+              )}
 
               {/* Toolkit picker — only when responseType is toolkit-tool */}
               {responseType === "toolkit-tool" && (
