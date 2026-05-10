@@ -501,6 +501,8 @@ The current state delivers (1) for the rls/audit/encryption/DSR/AI-chokepoint su
 | FU-SEC-CSRF-ORIGIN-CHECK | Defence-in-depth Origin check on mutating routes | P2 | 1d | TODO | matt | pre-paid |
 | FU-SEC-UNIT-IMAGES-SCOPING | Tighten unit-images bucket from "any user" to "user-with-unit-access" | P3 | 0.5d | TODO | matt | post-pilot |
 | FU-SEC-KNOWLEDGE-MEDIA-SCOPING | Tighten knowledge-media bucket scoping | P3 | 1d | TODO | matt | post-pilot |
+| FU-SEC-BADGE-ASSIGN-PER-STUDENT | `POST /api/teacher/badges/[id]/assign` accepts `studentIds: string[]` — wrap each in `verifyTeacherCanManageStudent` so cross-class teacher self-grant is closed (requireTeacher alone closes student-self-grant). Surfaced by S3 sweep 9 May. | P2 | 0.5d | TODO | matt | pre-paid |
+| FU-SEC-REQUEST-ACCESS-TURNSTILE | `/api/teacher/request-access/route.ts` is anonymous-public (allowlisted in scan-role-guards.py) but lacks Turnstile + rate-limiting. Sister route `welcome/request-school-access` already has Turnstile — mirror the pattern. | P2 | 1h | TODO | matt | pre-paid |
 | FU-SEC-VENDORS-AI-USAGE-LOG-METADATA | vendors.yaml drift: ai_usage_log.metadata holds PII | P3 | 5min | **DONE — 2026-05-09** (Supabase entry updated with telemetry_metadata category) | matt | — |
 | FU-SEC-NAME-REDACTION-SCOPE-CLARIFY | Clarify §1 of overview: student-self-typed names DO flow under COPPA | P3 | 10min | **DONE — 2026-05-09** (overview §1 rewritten with precise scope) | matt | — |
 
@@ -515,7 +517,7 @@ Source: [`external-review-2026-05-09-findings.md`](external-review-2026-05-09-fi
 | F-3 | `discovery_sessions` permissive policy short-circuits the strict one (mig 047) | P0 | S1 | **DONE — 2026-05-09** (same migration; also fixed the broken JWT-sub strict policy) | matt | — |
 | F-4 | `gallery_submissions` + `gallery_reviews` wide-open SELECT + tautological INSERT (mig 049) | P0 | S1 | **DONE — 2026-05-09** (same migration; required `::text` cast on classes.id for gallery_rounds.class_id TEXT join) | matt | — |
 | F-5 | `POST /api/teacher/units` `publish` case lacks ownership check — any teacher hijacks any unit | P0 | S2 | **DONE — 2026-05-09** (verifyTeacherHasUnit gate added before mutation; mirrors unpublish case; 7 tests — 3 source-static + 4 behavioral including cross-teacher hijack returns 404) | matt | — |
-| F-6 | 80 `/api/teacher/*` routes still bypass `requireTeacher`; `badges/[id]/assign` confirmed exploitable from a student JWT | P1 | inc. in S3 | **PLANNED — phase S3** | matt | pre-pilot-expand |
+| F-6 | 80 `/api/teacher/*` routes still bypass `requireTeacher`; `badges/[id]/assign` confirmed exploitable from a student JWT | P1 | S3 | **DONE — 2026-05-09** (14 commits, 80 routes converted, scanner 0 missing, `--fail-on-missing` exit-0; negative-control proven; tests 5041/0; 2 follow-ups filed: `FU-SEC-BADGE-ASSIGN-PER-STUDENT` MED, `FU-SEC-REQUEST-ACCESS-TURNSTILE` P2) | matt | — |
 | F-7 | `own_time_*` 3 tables — wide-open SELECT (mig 028) | P1 | S1 | **DONE — 2026-05-09** (same migration; tables don't exist in prod — guarded with `to_regclass()` so policies will land if mig 028 is ever applied) | matt | — |
 | F-8 | `open_studio_status` / `open_studio_sessions` — wide-open SELECT (mig 029) | P1 | S1 | **DONE — 2026-05-09** (same migration) | matt | — |
 | F-9 | Sentry PII filter doesn't scrub `event.message` or `event.exception.values[*]` | P1 | inc. in S4 | **PLANNED — phase S4** | matt | pre-paid |
