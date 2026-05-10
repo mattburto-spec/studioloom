@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { MarkdownPrompt } from "@/components/student/MarkdownPrompt";
 import { BRAND_SPINE, type CalloutBullet, type CalloutPalette } from "./types";
 
 export type { CalloutBullet, CalloutPalette };
@@ -18,6 +19,14 @@ type Props = {
   body?: React.ReactNode;
   /** Override the default brand-spine palette. */
   palette?: CalloutPalette[];
+  /**
+   * Tap-a-word: wrap bullet body + intro text in MarkdownPrompt with
+   * per-word lookup buttons. Default true for production (matches the
+   * existing ComposedPrompt convention in ActivityCard). Set false for
+   * storybook / standalone usage where the student context provider
+   * isn't mounted.
+   */
+  tappable?: boolean;
   className?: string;
 };
 
@@ -47,6 +56,7 @@ export function KeyInformationCallout({
   bullets,
   body,
   palette = BRAND_SPINE,
+  tappable = true,
   className = "",
 }: Props) {
   const titleLines = title
@@ -96,7 +106,7 @@ export function KeyInformationCallout({
         </h2>
       )}
       {intro && (
-        <p
+        <div
           style={{
             marginTop: 14,
             fontSize: 13.5,
@@ -105,8 +115,8 @@ export function KeyInformationCallout({
             maxWidth: hasBullets ? 280 : 720,
           }}
         >
-          {intro}
-        </p>
+          <MarkdownPrompt text={intro} tappable={tappable} />
+        </div>
       )}
     </>
   );
@@ -186,7 +196,7 @@ export function KeyInformationCallout({
                           {b.hint}
                         </div>
                       )}
-                      <p
+                      <div
                         style={{
                           marginTop: 8,
                           fontSize: 14,
@@ -194,8 +204,8 @@ export function KeyInformationCallout({
                           color: ink,
                         }}
                       >
-                        {b.body}
-                      </p>
+                        <MarkdownPrompt text={b.body} tappable={tappable} />
+                      </div>
                     </div>
                   </div>
                 </article>

@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { SaveIndicator, useAutoSave } from "../shared";
 import { useIntegrityTracking } from "@/hooks/useIntegrityTracking";
 import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
+import { MarkdownPrompt } from "@/components/student/MarkdownPrompt";
 import {
   composeContent,
   parseComposedContent,
@@ -99,6 +100,13 @@ type Props = {
   enableIntegrityMonitoring?: boolean;
   onIntegrityUpdate?: (metadata: IntegrityMetadata) => void;
 
+  /**
+   * Tap-a-word: wrap field.helper text in MarkdownPrompt with per-word
+   * lookup buttons. Default true in production. Set false for storybook
+   * usage where the student context provider isn't mounted.
+   */
+  tappable?: boolean;
+
   className?: string;
 };
 
@@ -126,6 +134,7 @@ export function MultiQuestionResponse({
   autoCreateKanbanCardOnSave = false,
   enableIntegrityMonitoring = false,
   onIntegrityUpdate,
+  tappable = true,
   className = "",
 }: Props) {
   const fields = useMemo(() => adaptFields(rawFields), [rawFields]);
@@ -464,7 +473,7 @@ export function MultiQuestionResponse({
               <span style={{ color: accent }}>?</span>
             </h2>
             {field.helper && (
-              <p
+              <div
                 style={{
                   marginTop: 6,
                   fontSize: 13.5,
@@ -473,8 +482,8 @@ export function MultiQuestionResponse({
                   maxWidth: 640,
                 }}
               >
-                {field.helper}
-              </p>
+                <MarkdownPrompt text={field.helper} tappable={tappable} />
+              </div>
             )}
           </div>
         </div>
