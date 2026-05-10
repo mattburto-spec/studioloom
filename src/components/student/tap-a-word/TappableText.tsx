@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { tokenize } from "./tokenize";
 import { useWordLookup } from "./useWordLookup";
@@ -87,6 +87,39 @@ export function TappableText({ text, contextSentence, className, classId: classI
   // the popover-flakiness fix Matt reported on 4 May 2026.
   const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
   const containerRef = useRef<HTMLSpanElement | null>(null);
+
+  // Round 25 diagnostic — TappableText itself shouldn't mount/unmount
+  // unless its parent unmounts it. Log instance lifecycle so we can
+  // distinguish "popover unmounted because parent went away" from
+  // "popover unmounted because state went null". Bug B (11 May 2026):
+  // popover mount→unmount with no dismiss reason; suspected parent
+  // re-render tearing TappableText down.
+  const instanceIdRef = useRef<string>(Math.random().toString(36).slice(2, 8));
+  useEffect(() => {
+    tapLog("TappableText mount", {
+      instance: instanceIdRef.current,
+      textPreview: text.slice(0, 40),
+    });
+    return () =>
+      tapLog("TappableText unmount", {
+        instance: instanceIdRef.current,
+        textPreview: text.slice(0, 40),
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Round 25 diagnostic — log every transition of (openWord, anchorEl)
+  // so we can see WHO nulled them when the popover unmounts. If the
+  // last log before "popover unmount" is "(null, null)" we know
+  // handleClose ran (silent path); if there's no transition log at all
+  // before unmount, the parent unmounted TappableText entirely.
+  useEffect(() => {
+    tapLog("TappableText popover-state changed", {
+      instance: instanceIdRef.current,
+      openWord,
+      anchorElPresent: !!anchorEl,
+    });
+  }, [openWord, anchorEl]);
 
   // Phase 2.5 gate: while support settings are loading, render plain spans
   // (avoid flicker of buttons that might disappear). Once loaded, gate on
