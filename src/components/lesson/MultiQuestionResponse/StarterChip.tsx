@@ -1,21 +1,22 @@
 "use client";
 
 import React from "react";
-import { CRITERION_HEX, type Criterion } from "./types";
+import { fieldHex, type Criterion } from "./types";
 
 type Props = {
   text: string;
-  criterion: Criterion;
+  /** When undefined, falls back to the brand-purple neutral palette. */
+  criterion?: Criterion;
   onInsert: (text: string) => void;
 };
 
 /**
  * Rendered as a real <button> so keyboard users can Tab into the chips
- * and press Enter to insert. Hex tints come from CRITERION_HEX so we
+ * and press Enter to insert. Hex tints come from fieldHex so we
  * can use rgba()/border directly — var() doesn't compose with rgba.
  */
 export function StarterChip({ text, criterion, onInsert }: Props) {
-  const hex = CRITERION_HEX[criterion];
+  const hex = fieldHex(criterion);
 
   return (
     <button

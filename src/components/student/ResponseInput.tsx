@@ -13,6 +13,7 @@ import { VoiceInput } from "./VoiceInput";
 import { LinkInput } from "./LinkInput";
 import { ToolkitResponseInput } from "./ToolkitResponseInput";
 import StructuredPromptsResponse from "./StructuredPromptsResponse";
+import { MultiQuestionResponse } from "@/components/lesson";
 import type { StructuredPromptsConfig } from "@/lib/structured-prompts/types";
 
 interface ResponseInputProps {
@@ -33,6 +34,8 @@ interface ResponseInputProps {
   requirePhoto?: boolean;
   /** For structured-prompts responseType (AG.2.4): when true, after save, fire-and-forget append a Kanban backlog card from the "next" prompt's response. Default false. */
   autoCreateKanbanCardOnSave?: boolean;
+  /** LIS.C — opt into the stepper layout (MultiQuestionResponse) for this section. Default undefined → existing all-at-once StructuredPromptsResponse. */
+  promptsLayout?: "stepper";
   /** Round 11 — explicit-save flow that bypasses the lesson autosave debounce. */
   onSaveResponseImmediate?: (value: string) => Promise<void>;
   /** For structured-prompts responseType: callback fired after successful save (e.g. to seed AG.2 Kanban from the "next" prompt). */
@@ -54,6 +57,7 @@ export function ResponseInput({
   prompts,
   requirePhoto,
   autoCreateKanbanCardOnSave,
+  promptsLayout,
   onSaveResponseImmediate,
   onStructuredPromptsSaved,
   sectionIndex,
@@ -195,23 +199,47 @@ export function ResponseInput({
         />
       )}
 
-      {/* AG.1 — structured-prompts (journal entry, multi-prompt response) */}
-      {responseType === "structured-prompts" && prompts && unitId && pageId && (
-        <StructuredPromptsResponse
-          prompts={prompts}
-          unitId={unitId}
-          pageId={pageId}
-          sectionIndex={sectionIndex}
-          requirePhoto={requirePhoto}
-          autoCreateKanbanCardOnSave={autoCreateKanbanCardOnSave}
-          savedValue={value}
-          onChange={onChange}
-          onSaveImmediate={onSaveResponseImmediate}
-          onSaved={onStructuredPromptsSaved}
-          enableIntegrityMonitoring={enableIntegrityMonitoring}
-          onIntegrityUpdate={onIntegrityUpdate}
-        />
-      )}
+      {/* AG.1 — structured-prompts. LIS.C dispatch: when section opts in
+          via promptsLayout="stepper", route to MultiQuestionResponse
+          (one-question-at-a-time, criterion-coloured). Otherwise the
+          existing all-at-once StructuredPromptsResponse. Both paths
+          share the same persistence contract (composeContent +
+          /api/student/portfolio + onSaveImmediate + kanban). */}
+      {responseType === "structured-prompts" &&
+        prompts &&
+        unitId &&
+        pageId &&
+        (promptsLayout === "stepper" ? (
+          <MultiQuestionResponse
+            fields={prompts}
+            unitId={unitId}
+            pageId={pageId}
+            sectionIndex={sectionIndex}
+            requirePhoto={requirePhoto}
+            autoCreateKanbanCardOnSave={autoCreateKanbanCardOnSave}
+            savedValue={value}
+            onChange={onChange}
+            onSaveImmediate={onSaveResponseImmediate}
+            onSaved={onStructuredPromptsSaved}
+            enableIntegrityMonitoring={enableIntegrityMonitoring}
+            onIntegrityUpdate={onIntegrityUpdate}
+          />
+        ) : (
+          <StructuredPromptsResponse
+            prompts={prompts}
+            unitId={unitId}
+            pageId={pageId}
+            sectionIndex={sectionIndex}
+            requirePhoto={requirePhoto}
+            autoCreateKanbanCardOnSave={autoCreateKanbanCardOnSave}
+            savedValue={value}
+            onChange={onChange}
+            onSaveImmediate={onSaveResponseImmediate}
+            onSaved={onStructuredPromptsSaved}
+            enableIntegrityMonitoring={enableIntegrityMonitoring}
+            onIntegrityUpdate={onIntegrityUpdate}
+          />
+        ))}
     </div>
   );
 }

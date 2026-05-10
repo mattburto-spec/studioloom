@@ -2,7 +2,7 @@ export type Criterion = "DO" | "NOTICE" | "DECIDE" | "NEXT";
 
 export type MultiQuestionField = {
   id: string;
-  /** Question heading. The trailing "?" is colored by the criterion accent. */
+  /** Question heading. The trailing "?" is colored by the criterion accent (or brand purple when criterion is undefined). */
   label: string;
   /** Helper sentence shown beneath the heading. */
   helper?: string;
@@ -12,8 +12,13 @@ export type MultiQuestionField = {
   target: number;
   /** Hard cap. The textarea blocks input past this. */
   max: number;
-  /** Drives accent color, badge tone, ring color, etc. */
-  criterion: Criterion;
+  /**
+   * LIS.C — criterion is now optional. Drives accent color, badge tone,
+   * ring color, etc. when set. When undefined, the field falls back to
+   * the brand-purple neutral palette and the StepStrip label drops the
+   * criterion prefix (showing "01" instead of "01 · DO").
+   */
+  criterion?: Criterion;
   /** Sentence-starter chips below the textarea. */
   starters?: string[];
 };
@@ -36,3 +41,17 @@ export const CRITERION_HEX: Record<Criterion, string> = {
   DECIDE: "#2DA05E",
   NEXT: "#8B2FC9",
 };
+
+/** Fallback colors when a field has no criterion (LIS.C — opt-in stepper for
+ *  generic structured-prompts that aren't tagged with DO/NOTICE/DECIDE/NEXT). */
+export const NEUTRAL_COLOR = "var(--sl-primary)";
+export const NEUTRAL_HEX = "#9333EA";
+
+/** Resolve the criterion color for a field. Returns brand-purple when criterion is undefined. */
+export function fieldColor(criterion: Criterion | undefined): string {
+  return criterion ? CRITERION_COLOR[criterion] : NEUTRAL_COLOR;
+}
+
+export function fieldHex(criterion: Criterion | undefined): string {
+  return criterion ? CRITERION_HEX[criterion] : NEUTRAL_HEX;
+}

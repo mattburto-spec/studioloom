@@ -42,8 +42,14 @@ describe("ResponseInput — structured-prompts dispatch", () => {
   });
 
   it("dispatches to StructuredPromptsResponse when responseType === 'structured-prompts'", () => {
+    // LIS.C added a stepper-layout branch in front of the default
+    // StructuredPromptsResponse render. The dispatch must still reach
+    // StructuredPromptsResponse for the default (non-stepper) path —
+    // window widened to 800 chars to accommodate the ternary's
+    // MultiQuestionResponse JSX between the responseType check and
+    // the legacy StructuredPromptsResponse fallback.
     expect(RESPONSE_INPUT_SRC).toMatch(
-      /responseType === "structured-prompts"[\s\S]{0,200}<StructuredPromptsResponse/
+      /responseType === "structured-prompts"[\s\S]{0,800}<StructuredPromptsResponse/
     );
   });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { CRITERION_HEX, type MultiQuestionField } from "./types";
+import { fieldHex, type MultiQuestionField } from "./types";
 
 export type StepStatus = "idle" | "current" | "complete";
 
@@ -30,14 +30,16 @@ export function StepStrip({ fields, activeIndex, complete, onJump }: Props) {
         const color = isComplete
           ? SUCCESS
           : isCurrent
-          ? CRITERION_HEX[field.criterion]
+          ? fieldHex(field.criterion)
           : IDLE;
         const status: StepStatus = isComplete
           ? "complete"
           : isCurrent
           ? "current"
           : "idle";
-        const labelTxt = `${field.criterion} — ${field.label.replace(/\?$/, "")}`;
+        const labelTxt = field.criterion
+          ? `${field.criterion} — ${field.label.replace(/\?$/, "")}`
+          : field.label.replace(/\?$/, "");
 
         return (
           <button
@@ -77,8 +79,12 @@ export function StepStrip({ fields, activeIndex, complete, onJump }: Props) {
               }}
             >
               <span className="tnum">{String(i + 1).padStart(2, "0")}</span>
-              {" · "}
-              {field.criterion}
+              {field.criterion && (
+                <>
+                  {" · "}
+                  {field.criterion}
+                </>
+              )}
             </div>
           </button>
         );
