@@ -5,7 +5,7 @@ import { PortfolioCaptureAffordance } from "@/components/student/PortfolioCaptur
 import { TextToSpeech } from "@/components/student/TextToSpeech";
 import { stripMarkdown } from "@/components/student/MarkdownPrompt";
 import { ComposedPrompt } from "@/components/student/ComposedPrompt";
-import { composedPromptText } from "@/lib/lever-1/compose-prompt";
+import { composedPromptText, hasSlotFields } from "@/lib/lever-1/compose-prompt";
 import { TappableText } from "@/components/student/tap-a-word";
 import { toEmbedUrl } from "@/lib/video-embed";
 import { KeyInformationCallout } from "@/components/lesson";
@@ -184,6 +184,22 @@ export function ActivityCard({
       ? section.bullets
       : undefined;
 
+  // LIS.A.3 — promote section.framing to the magazine title when the
+  // teacher hasn't authored an explicit bulletsTitle. Only applies when
+  // slot fields are present (so we know `framing` is a heading-shaped
+  // string, not an empty placeholder). Tell ComposedPrompt to skip it
+  // so the body card doesn't render the title twice.
+  const sectionHasSlots = isCalloutStyle ? hasSlotFields(section) : false;
+  const calloutTitle =
+    section.bulletsTitle ??
+    (sectionHasSlots && section.framing ? section.framing : undefined);
+  const skipFramingInBody = !!(
+    calloutTitle &&
+    !section.bulletsTitle &&
+    sectionHasSlots &&
+    section.framing
+  );
+
   const style =
     isContentOnly && !isCalloutStyle
       ? CONTENT_STYLE_CONFIG[section.contentStyle || "context"]
@@ -194,14 +210,19 @@ export function ActivityCard({
       {/* LIS.A.2 — Magazine callout for both "info" + "key-callout". */}
       {isCalloutStyle ? (
         <KeyInformationCallout
-          title={section.bulletsTitle}
+          title={calloutTitle}
           eyebrow={section.bulletsEyebrow}
           intro={section.bulletsIntro}
           bullets={calloutBullets}
           body={
             calloutBullets ? undefined : (
               <>
-                <ComposedPrompt section={section} variant="compact" tappable />
+                <ComposedPrompt
+                  section={section}
+                  variant="compact"
+                  tappable
+                  skipFraming={skipFramingInBody}
+                />
                 {section.media && <MediaBlock media={section.media} />}
                 {section.links && section.links.length > 0 && (
                   <LinksBlock links={section.links} pageColor={pageColor} />

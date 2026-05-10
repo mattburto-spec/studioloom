@@ -63,14 +63,37 @@ describe("ActivityCard — callout dispatch (LIS.A.2)", () => {
     );
   });
 
-  it("passes title/eyebrow/intro from the bullets-prefixed section fields", () => {
+  it("passes title/eyebrow/intro/bullets to KeyInformationCallout", () => {
     const idx = ACTIVITY_CARD_SRC.indexOf("<KeyInformationCallout");
     expect(idx).toBeGreaterThan(0);
     const slice = ACTIVITY_CARD_SRC.slice(idx, idx + 600);
-    expect(slice).toContain("title={section.bulletsTitle}");
+    expect(slice).toContain("title={calloutTitle}");
     expect(slice).toContain("eyebrow={section.bulletsEyebrow}");
     expect(slice).toContain("intro={section.bulletsIntro}");
     expect(slice).toContain("bullets={calloutBullets}");
+  });
+
+  it("LIS.A.3 — hoists section.framing to magazine title when bulletsTitle is absent (slot-fields only)", () => {
+    // calloutTitle = bulletsTitle ?? (slot-fields && framing ? framing : undefined)
+    expect(ACTIVITY_CARD_SRC).toMatch(
+      /calloutTitle\s*=\s*\n?\s*section\.bulletsTitle\s*\?\?[\s\S]{0,200}section\.framing/,
+    );
+    // Hoist gates on slot fields presence — legacy single-prompt sections don't promote
+    expect(ACTIVITY_CARD_SRC).toMatch(/sectionHasSlots\s*=[\s\S]{0,100}hasSlotFields\(section\)/);
+  });
+
+  it("LIS.A.3 — passes skipFraming to ComposedPrompt only when title was hoisted from framing", () => {
+    expect(ACTIVITY_CARD_SRC).toMatch(/skipFramingInBody\s*=/);
+    // skipFraming guard requires: calloutTitle truthy, NO bulletsTitle (so framing was the source), slot fields present, framing non-empty
+    expect(ACTIVITY_CARD_SRC).toMatch(
+      /skipFramingInBody\s*=[\s\S]{0,300}calloutTitle[\s\S]{0,100}!section\.bulletsTitle[\s\S]{0,100}sectionHasSlots[\s\S]{0,100}section\.framing/,
+    );
+    // ComposedPrompt receives the boolean
+    const idx = ACTIVITY_CARD_SRC.indexOf("<ComposedPrompt");
+    expect(idx).toBeGreaterThan(0);
+    expect(ACTIVITY_CARD_SRC.slice(idx, idx + 400)).toContain(
+      "skipFraming={skipFramingInBody}",
+    );
   });
 
   it("falls back to <ComposedPrompt /> + media + links inside the body slot when bullets are missing", () => {
@@ -93,6 +116,25 @@ describe("ActivityCard — callout dispatch (LIS.A.2)", () => {
     expect(ACTIVITY_CARD_SRC).toMatch(
       /isContentOnly\s*&&\s*!isCalloutStyle\s*\?\s*CONTENT_STYLE_CONFIG/,
     );
+  });
+});
+
+describe("ComposedPrompt — skipFraming prop (LIS.A.3)", () => {
+  const COMPOSED_SRC = readFileSync(
+    join(__dirname, "..", "ComposedPrompt.tsx"),
+    "utf-8",
+  );
+
+  it("declares the skipFraming optional prop", () => {
+    expect(COMPOSED_SRC).toContain("skipFraming?: boolean");
+  });
+
+  it("destructures skipFraming with a false default", () => {
+    expect(COMPOSED_SRC).toMatch(/skipFraming\s*=\s*false/);
+  });
+
+  it("gates the framing render on !skipFraming", () => {
+    expect(COMPOSED_SRC).toMatch(/framing\s*&&\s*!skipFraming/);
   });
 });
 
