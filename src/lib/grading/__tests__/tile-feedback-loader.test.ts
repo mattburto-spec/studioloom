@@ -53,8 +53,22 @@ describe("loadTileFeedbackThreads — query shape", () => {
     );
   });
 
-  it("returns an empty object when no grades match the (student, unit, page) filter (early return)", () => {
-    expect(src).toMatch(/if\s*\(!grades\s*\|\|\s*grades\.length\s*===\s*0\)\s*\{[\s\S]*?return\s*\{\}/);
+  it("returns empty maps when no grades match the (student, unit, page) filter (early return)", () => {
+    // Updated B.3: return shape is { threadsByTileId, gradeIdByTileId }
+    // — both maps. Empty means no threads AND no grade rows yet.
+    expect(src).toMatch(
+      /if\s*\(!grades\s*\|\|\s*grades\.length\s*===\s*0\)\s*\{[\s\S]*?return\s*\{\s*threadsByTileId:\s*\{\}\s*,\s*gradeIdByTileId:\s*\{\}\s*\}/,
+    );
+  });
+
+  it("returns gradeIdByTileId even when no turns exist (B.3 — reply endpoint needs the grade id to insert the first turn)", () => {
+    // Tile has a grade row but no turns yet → empty turns map but
+    // populated gradeId map. Without this, the first reply would
+    // 404 because the lesson page wouldn't know which gradeId to
+    // POST to.
+    expect(src).toMatch(
+      /if\s*\(!turns\s*\|\|\s*turns\.length\s*===\s*0\)\s*\{[\s\S]*?return\s*\{\s*threadsByTileId:\s*\{\}\s*,\s*gradeIdByTileId\s*\}/,
+    );
   });
 });
 

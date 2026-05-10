@@ -39,7 +39,7 @@
  * until that endpoint exists.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { TeacherFeedback } from "@/components/lesson/TeacherFeedback";
 import type {
@@ -52,28 +52,74 @@ import type {
  *  should treat both `undefined` and `[]` as "no feedback". */
 export type ThreadsByTileId = Record<string, Turn[]>;
 
+/** Map from tile_id to grade.id. Populated from GET /api/student/
+ *  tile-feedback alongside the threads. The reply POST endpoint is
+ *  keyed by gradeId so InlineTeacherFeedback needs this to route. */
+export type GradeIdByTileId = Record<string, string>;
+
 // ─── Hook: useTileFeedbackThreads ─────────────────────────────────────────
 
 export function useTileFeedbackThreads(unitId: string, pageId: string) {
   const [threadsByTileId, setThreadsByTileId] =
     useState<ThreadsByTileId | null>(null);
+  const [gradeIdByTileId, setGradeIdByTileId] = useState<GradeIdByTileId>({});
+
+  // Wrap the fetch in a stable callback so the lesson page can call
+  // it again post-reply to refresh threads with the newly-inserted
+  // student turn. (Optimistic insertion at the wrapper level is also
+  // fine — both paths covered.)
+  const refresh = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `/api/student/tile-feedback?unitId=${encodeURIComponent(unitId)}&pageId=${encodeURIComponent(pageId)}`,
+        { cache: "no-store" },
+      );
+      if (!res.ok) {
+        setThreadsByTileId({});
+        setGradeIdByTileId({});
+        return;
+      }
+      const json = (await res.json()) as {
+        threadsByTileId?: ThreadsByTileId;
+        gradeIdByTileId?: GradeIdByTileId;
+      };
+      setThreadsByTileId(json.threadsByTileId ?? {});
+      setGradeIdByTileId(json.gradeIdByTileId ?? {});
+    } catch {
+      setThreadsByTileId({});
+      setGradeIdByTileId({});
+    }
+  }, [unitId, pageId]);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      // Use the same fetch path; abort if the effect unmounts mid-flight.
       try {
         const res = await fetch(
           `/api/student/tile-feedback?unitId=${encodeURIComponent(unitId)}&pageId=${encodeURIComponent(pageId)}`,
           { cache: "no-store" },
         );
         if (!res.ok) {
-          if (!cancelled) setThreadsByTileId({});
+          if (!cancelled) {
+            setThreadsByTileId({});
+            setGradeIdByTileId({});
+          }
           return;
         }
-        const json = (await res.json()) as { threadsByTileId: ThreadsByTileId };
-        if (!cancelled) setThreadsByTileId(json.threadsByTileId ?? {});
+        const json = (await res.json()) as {
+          threadsByTileId?: ThreadsByTileId;
+          gradeIdByTileId?: GradeIdByTileId;
+        };
+        if (!cancelled) {
+          setThreadsByTileId(json.threadsByTileId ?? {});
+          setGradeIdByTileId(json.gradeIdByTileId ?? {});
+        }
       } catch {
-        if (!cancelled) setThreadsByTileId({});
+        if (!cancelled) {
+          setThreadsByTileId({});
+          setGradeIdByTileId({});
+        }
       }
     })();
     return () => {
@@ -94,8 +140,10 @@ export function useTileFeedbackThreads(unitId: string, pageId: string) {
 
   return {
     threadsByTileId: threadsByTileId ?? {},
+    gradeIdByTileId,
     teacherFedTileIds,
     loading: threadsByTileId === null,
+    refresh,
   };
 }
 
@@ -179,31 +227,51 @@ export interface InlineTeacherFeedbackProps {
    *  state placeholder (the lesson page wants tiles with no feedback
    *  to look unaffected, not annotated). */
   turns: Turn[];
-  /** Stable id for ARIA wiring. Typically grade.id; the wrapper
-   *  passes it through. */
-  threadId: string;
+  /** student_tile_grades.id for this tile. Used as both the
+   *  TeacherFeedback ARIA threadId AND the path param of the reply
+   *  POST endpoint. The lesson page sources it from
+   *  useTileFeedbackThreads().gradeIdByTileId[tileId]. */
+  gradeId: string;
   /** Mark the first feedback wrapper on the page so the banner can
    *  scroll to it. */
   isFirst?: boolean;
+  /** Called after a successful reply POST so the parent can refresh
+   *  threads. Typically wired to useTileFeedbackThreads().refresh. */
+  onReplyPersisted?: () => void;
 }
 
 export function InlineTeacherFeedback({
   turns,
-  threadId,
+  gradeId,
   isFirst = false,
+  onReplyPersisted,
 }: InlineTeacherFeedbackProps) {
   // No turns at all → render nothing. Empty turns on a tile that
   // otherwise has none means "this tile has never had feedback" —
   // we don't want to clutter the lesson page with empty placeholders.
   if (turns.length === 0) return null;
 
-  // Pass B.2 onReply is a no-op resolved promise — the QuickReplies +
-  // ReplyBox aren't rendered (repliesEnabled=false) so this is just
-  // a TypeScript stub satisfying the prop. B.3 replaces this with
-  // a real persist-to-server handler.
-  const handleReply = async (_s: Sentiment, _text?: string) => {
-    // intentional no-op — replies disabled in Pass B.2
-    return;
+  // B.3 — persist student replies via POST. Refetch threads on
+  // success so the new turn appears in the bubble (the local
+  // selectedSentiment state inside TeacherFeedback already cleared
+  // after onReply resolved; the refetched server-side turns are the
+  // canonical source).
+  const handleReply = async (sentiment: Sentiment, text?: string) => {
+    const res = await fetch(
+      `/api/student/tile-feedback/${encodeURIComponent(gradeId)}/reply`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sentiment, text }),
+      },
+    );
+    if (!res.ok) {
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(
+        json.error ?? `Reply failed (${res.status})`,
+      );
+    }
+    onReplyPersisted?.();
   };
 
   return (
@@ -217,9 +285,9 @@ export function InlineTeacherFeedback({
       aria-label="Feedback from your teacher"
     >
       <TeacherFeedback
-        threadId={threadId}
+        threadId={gradeId}
         turns={turns}
-        repliesEnabled={false}
+        repliesEnabled={true}
         onReply={handleReply}
       />
     </div>

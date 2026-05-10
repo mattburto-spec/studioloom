@@ -96,14 +96,19 @@ function UnitPageViewInner({
 
   const { student, classInfo } = useStudent();
   const openStudio = useOpenStudio(unitId);
-  // G3.3 / TFL.2 Pass B.2 — fetch teacher feedback THREADS for this
+  // G3.3 / TFL.2 Pass B.2/B.3 — fetch teacher feedback THREADS for this
   // lesson once. Banner + per-tile inline cards both read from this
   // single map. Each value is an array of Turn (teacher OR student)
   // ordered by sent_at, ready to drop into <TeacherFeedback turns={...} />.
-  const { threadsByTileId, teacherFedTileIds } = useTileFeedbackThreads(
-    unitId,
-    pageId,
-  );
+  // gradeIdByTileId routes the reply POST endpoint per tile (B.3).
+  // refresh re-fetches after a student reply lands so the new turn
+  // appears in the bubble.
+  const {
+    threadsByTileId,
+    gradeIdByTileId,
+    teacherFedTileIds,
+    refresh: refreshThreads,
+  } = useTileFeedbackThreads(unitId, pageId);
   // Smoke-fix round 6 — renamed for honest mapping to the surfaces they
   // open. Old names (planOpen / ganttOpen) opened MYP-criteria + Gantt
   // panels that have been replaced by Kanban + Timeline drawers.
@@ -371,7 +376,7 @@ function UnitPageViewInner({
                 {/* G3.3 — anchored teacher feedback inline beneath the tile.
                     The first card on the page gets the data-feedback-anchor
                     so the top banner can scroll to it. */}
-                {threadsByTileId[responseKey] && threadsByTileId[responseKey].length > 0 && (() => {
+                {threadsByTileId[responseKey] && threadsByTileId[responseKey].length > 0 && gradeIdByTileId[responseKey] && (() => {
                   // First-anchor: the first tile WITH a teacher turn on
                   // this page. The hook already derives that list as
                   // teacherFedTileIds; isFirst is true if responseKey is
@@ -379,9 +384,10 @@ function UnitPageViewInner({
                   const isFirst = teacherFedTileIds[0] === responseKey;
                   return (
                     <InlineTeacherFeedback
-                      threadId={`tile-feedback-${responseKey}`}
+                      gradeId={gradeIdByTileId[responseKey]}
                       turns={threadsByTileId[responseKey]}
                       isFirst={isFirst}
+                      onReplyPersisted={refreshThreads}
                     />
                   );
                 })()}

@@ -38,11 +38,15 @@ describe("TeacherFeedbackPanel (B.2 rewrite) — hook", () => {
     expect(codeOnly).not.toContain("/api/student/tile-comments");
   });
 
-  it("returns threadsByTileId + teacherFedTileIds + loading", () => {
+  it("returns threadsByTileId + gradeIdByTileId + teacherFedTileIds + loading + refresh (B.3)", () => {
     const block = src.match(/return\s*\{[\s\S]*?\};/)?.[0] ?? "";
     expect(block).toContain("threadsByTileId");
+    // B.3 — gradeIdByTileId routes the reply POST endpoint per tile.
+    expect(block).toContain("gradeIdByTileId");
     expect(block).toContain("teacherFedTileIds");
     expect(block).toContain("loading");
+    // B.3 — refresh callback re-fetches threads after a reply lands.
+    expect(block).toContain("refresh");
   });
 
   it("teacherFedTileIds derives from tiles with at least one TEACHER turn", () => {
@@ -62,21 +66,36 @@ describe("TeacherFeedbackPanel (B.2 rewrite) — InlineTeacherFeedback wraps Pas
     );
   });
 
-  it("InlineTeacherFeedback renders <TeacherFeedback /> with turns + threadId", () => {
-    // Anchor on the export name then find the JSX inside. Closing-brace
-    // matching across nested braces is fiddly; just confirm the JSX is
-    // present somewhere AFTER the function declaration.
+  it("InlineTeacherFeedback renders <TeacherFeedback /> with turns + gradeId as threadId (B.3)", () => {
     expect(src).toMatch(/export function InlineTeacherFeedback/);
     const afterExport = src.slice(
       src.indexOf("export function InlineTeacherFeedback"),
     );
     expect(afterExport).toMatch(/<TeacherFeedback/);
     expect(afterExport).toMatch(/turns=\{turns\}/);
-    expect(afterExport).toMatch(/threadId=\{threadId\}/);
+    // B.3: threadId IS the gradeId — the reply POST endpoint is
+    // keyed by gradeId, and using it as threadId means the parent
+    // doesn't need to thread two separate identifiers.
+    expect(afterExport).toMatch(/threadId=\{gradeId\}/);
   });
 
-  it("repliesEnabled={false} during B.2 (no POST endpoint until B.3)", () => {
-    expect(src).toMatch(/repliesEnabled=\{false\}/);
+  it("repliesEnabled={true} once B.3 wires the POST endpoint", () => {
+    // Updated B.3: pills now render. The handler POSTs to
+    // /api/student/tile-feedback/[gradeId]/reply, then calls
+    // onReplyPersisted to refresh threads.
+    expect(src).toMatch(/repliesEnabled=\{true\}/);
+  });
+
+  it("InlineTeacherFeedback POSTs replies to /api/student/tile-feedback/[gradeId]/reply (B.3)", () => {
+    expect(src).toMatch(
+      /\/api\/student\/tile-feedback\/\$\{encodeURIComponent\(gradeId\)\}\/reply/,
+    );
+    expect(src).toMatch(/method:\s*"POST"/);
+    expect(src).toMatch(/sentiment\s*,\s*text/);
+  });
+
+  it("InlineTeacherFeedback calls onReplyPersisted on success (so parent can refetch threads)", () => {
+    expect(src).toMatch(/onReplyPersisted\?\.\(\)/);
   });
 
   it("renders nothing when turns array is empty (no clutter on tiles with no feedback)", () => {

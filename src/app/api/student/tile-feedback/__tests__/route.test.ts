@@ -33,8 +33,10 @@ describe("/api/student/tile-feedback — module hygiene", () => {
   });
 
   it("imports loadTileFeedbackThreads helper (single source of truth on the query)", () => {
+    // B.3: import also includes `type TileFeedbackResult` for the
+    // route's local result variable. Both names + the source path.
     expect(src).toMatch(
-      /import\s*\{\s*loadTileFeedbackThreads\s*\}[\s\S]*?from\s*"@\/lib\/grading\/tile-feedback-loader"/,
+      /import\s*\{[\s\S]*?loadTileFeedbackThreads[\s\S]*?\}[\s\S]*?from\s*"@\/lib\/grading\/tile-feedback-loader"/,
     );
   });
 });
@@ -95,8 +97,13 @@ describe("/api/student/tile-feedback — read-receipt + load order", () => {
 });
 
 describe("/api/student/tile-feedback — response shape", () => {
-  it("returns { threadsByTileId } JSON (matches useTileFeedbackThreads hook expectation)", () => {
-    expect(src).toMatch(/NextResponse\.json\(\s*\{\s*threadsByTileId\s*\}\s*\)/);
+  it("returns the TileFeedbackResult shape (threadsByTileId + gradeIdByTileId, B.3)", () => {
+    // B.3: response now carries both maps. The route returns the
+    // loader result directly via NextResponse.json(result).
+    expect(src).toMatch(/return\s+NextResponse\.json\(\s*result\s*\)/);
+    // Source must mention both shape members so a future "let me
+    // simplify" edit can't silently drop one.
+    expect(src).toContain("TileFeedbackResult");
   });
 
   it("missing query params return 400 with the exact copy the route documents", () => {
