@@ -87,9 +87,13 @@ describe("useWordLookup — round 24 friendly error mapping", () => {
     expect(HOOK_SRC).toMatch(/Couldn.{1,5}t reach the lookup service/);
   });
 
-  it("logs the underlying server error code in dev for diagnosis", () => {
+  it("logs the underlying server error code via tapLog for diagnosis", () => {
+    // Round 25 (11 May 2026) — was console.warn gated on NODE_ENV !==
+    // production, but Matt couldn't see the logs in prod. Migrated to
+    // tapLog (debug.ts) which respects a localStorage opt-in flag in
+    // production builds. The status + code payload shape is preserved.
     expect(HOOK_SRC).toMatch(
-      /\[tap-a-word\] server error[\s\S]{0,200}status:\s*res\.status[\s\S]{0,80}code/
+      /tapLog\("server error",[\s\S]{0,200}status:\s*res\.status[\s\S]{0,80}code/
     );
   });
 });

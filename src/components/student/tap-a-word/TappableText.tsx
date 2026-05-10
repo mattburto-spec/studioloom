@@ -7,6 +7,7 @@ import { useWordLookup } from "./useWordLookup";
 import { WordPopover } from "./WordPopover";
 import { useStudentSupportSettings } from "./useStudentSupportSettings";
 import { useStudent } from "@/app/(student)/student-context";
+import { tapLog } from "./debug";
 
 /**
  * TappableText — wraps an educational text string and renders each
@@ -101,19 +102,20 @@ export function TappableText({ text, contextSentence, className, classId: classI
     // refiring. Avoids a React state-thrash that briefly flashes the
     // "Looking up…" message when the cached entry is already there.
     if (openWord !== null && openWord.toLowerCase() === word.toLowerCase()) {
-      if (process.env.NODE_ENV !== "production") {
-        // eslint-disable-next-line no-console
-        console.debug("[tap-a-word] re-tap suppressed", { word });
-      }
+      tapLog("re-tap suppressed", { word });
       return;
     }
     setOpenWord(word);
     setAnchorEl(e.currentTarget);
     lookup.lookup(word, contextSentence);
-    if (process.env.NODE_ENV !== "production") {
-      // eslint-disable-next-line no-console
-      console.debug("[tap-a-word] tap", { word, classId, unitId });
-    }
+    tapLog("tap", {
+      word,
+      classId,
+      unitId,
+      tapEnabled,
+      supportLoaded: support.loaded,
+      supportData: support.data,
+    });
   }
 
   function handleClose() {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { imageForWord } from "@/lib/tap-a-word/image-dictionary";
+import { tapLog } from "./debug";
 
 /**
  * Hook for tap-a-word: fetches definitions from /api/student/word-lookup.
@@ -141,10 +142,7 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
     // Cache hit: skip the network round-trip entirely.
     const cached = cacheRef.current.get(normalized);
     if (cached) {
-      if (process.env.NODE_ENV !== "production") {
-        // eslint-disable-next-line no-console
-        console.debug("[tap-a-word] in-memory cache hit", { word: normalized });
-      }
+      tapLog("in-memory cache hit", { word: normalized });
       setState("loaded");
       setDefinition(cached.definition);
       setExampleSentence(cached.exampleSentence);
@@ -204,18 +202,15 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
           }),
           signal: controller.signal,
         });
-        if (process.env.NODE_ENV !== "production") {
-          const elapsed = Math.round(
-            (typeof performance !== "undefined" ? performance.now() : Date.now()) - t0
-          );
-          // eslint-disable-next-line no-console
-          console.debug("[tap-a-word] fetch resolved", {
-            word: normalized,
-            status: res.status,
-            ok: res.ok,
-            elapsed_ms: elapsed,
-          });
-        }
+        const elapsed = Math.round(
+          (typeof performance !== "undefined" ? performance.now() : Date.now()) - t0
+        );
+        tapLog("fetch resolved", {
+          word: normalized,
+          status: res.status,
+          ok: res.ok,
+          elapsed_ms: elapsed,
+        });
         if (!res.ok) {
           const body = await res.json().catch(() => ({ error: "lookup failed" }));
           const code = typeof body?.error === "string" ? body.error : "lookup failed";
@@ -235,14 +230,11 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
                     : code === "Unauthorized"
                       ? "Your session expired. Refresh the page and try again."
                       : "Couldn't load the definition. Tap retry.";
-          if (process.env.NODE_ENV !== "production") {
-            // eslint-disable-next-line no-console
-            console.warn("[tap-a-word] server error", {
-              word: normalized,
-              status: res.status,
-              code,
-            });
-          }
+          tapLog("server error", {
+            word: normalized,
+            status: res.status,
+            code,
+          });
           setState("error");
           setErrorMessage(friendly);
           return;
@@ -280,19 +272,13 @@ export function useWordLookup(opts: UseWordLookupOpts = {}): LookupResult {
         setImageUrl(img);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
-          if (process.env.NODE_ENV !== "production") {
-            // eslint-disable-next-line no-console
-            console.debug("[tap-a-word] fetch aborted", { word: normalized });
-          }
+          tapLog("fetch aborted", { word: normalized });
           return;
         }
-        if (process.env.NODE_ENV !== "production") {
-          // eslint-disable-next-line no-console
-          console.warn("[tap-a-word] fetch failed", {
-            word: normalized,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+        tapLog("fetch failed", {
+          word: normalized,
+          error: err instanceof Error ? err.message : String(err),
+        });
         setState("error");
         setErrorMessage(
           "Couldn't reach the lookup service. Check your connection and tap retry."

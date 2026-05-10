@@ -9,6 +9,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import type { LookupState } from "./useWordLookup";
+import { tapLog } from "./debug";
 
 /**
  * WordPopover — presentational. State is owned by the parent (TappableText).
@@ -203,13 +204,29 @@ export function WordPopover({
     setImageFailed(false);
   }, [imageUrl]);
 
+  // Diagnostic: log every mount + unmount of the popover. The 4-outcome
+  // bug Matt reported on 11 May 2026 needs visibility into whether the
+  // popover is unmounting or just rendering invisible. These two logs
+  // pin that down: see "popover mount" without "popover unmount" → it's
+  // there but invisible (positioning bug); see both → something is
+  // genuinely killing it (click-outside / state reset / parent unmount).
+  useEffect(() => {
+    tapLog("popover mount", { word });
+    return () => tapLog("popover unmount", { word });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Close on Esc — runs ONCE per mount via stable ref.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCloseRef.current();
+      if (e.key === "Escape") {
+        tapLog("dismiss via Esc", { word });
+        onCloseRef.current();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Close on click outside the popover — runs ONCE per mount via stable ref.
@@ -220,15 +237,34 @@ export function WordPopover({
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       // Don't dismiss while loading — wait for the definition (or error) to land.
-      if (stateRef.current === "loading") return;
+      if (stateRef.current === "loading") {
+        tapLog("click-outside ignored: loading", { word });
+        return;
+      }
       // Round 24 — minimum 500ms readable window after entering a
       // terminal state. Defends against the cache-hit-and-cursor-
       // already-moved race that made the popover feel flaky.
       const terminalAt = terminalAtRef.current;
-      if (terminalAt !== null && Date.now() - terminalAt < 500) return;
+      if (terminalAt !== null && Date.now() - terminalAt < 500) {
+        tapLog("click-outside ignored: grace window", {
+          word,
+          ms_since_terminal: Date.now() - terminalAt,
+        });
+        return;
+      }
       const node = popoverRef.current;
-      if (!node) return;
+      if (!node) {
+        tapLog("click-outside ignored: no popover ref", { word });
+        return;
+      }
       if (e.target instanceof Node && !node.contains(e.target)) {
+        const targetTag =
+          e.target instanceof Element ? e.target.tagName : "unknown";
+        tapLog("dismiss via click-outside", {
+          word,
+          target_tag: targetTag,
+          state: stateRef.current,
+        });
         onCloseRef.current();
       }
     };
