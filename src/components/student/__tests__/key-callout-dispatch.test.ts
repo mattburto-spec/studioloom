@@ -1,10 +1,10 @@
 /**
- * LIS.A — source-static guards for ActivityCard's key-callout dispatch.
+ * LIS.A.2 — source-static guards for ActivityCard's callout dispatch.
  *
  * Per Lesson #38: assert specific wiring patterns are present, not just
  * generic "the file mentions KeyInformationCallout." If a future edit
- * accidentally drops the bullets-non-empty guard or stops passing the
- * intro/eyebrow props, these tests catch the regression.
+ * accidentally drops the contentStyle === "info" route, stops passing the
+ * body fallback, or breaks the bullets-vs-prose branch, these catch it.
  *
  * Style mirrors structured-prompts-dispatch.test.ts (same directory):
  * read the source, assert specific patterns. Avoids the React render
@@ -24,55 +24,98 @@ const TYPES_SRC = readFileSync(
   "utf-8",
 );
 
-describe("ActivityCard — key-callout dispatch (LIS.A)", () => {
+const CALLOUT_SRC = readFileSync(
+  join(
+    __dirname,
+    "..",
+    "..",
+    "lesson",
+    "KeyInformationCallout",
+    "index.tsx",
+  ),
+  "utf-8",
+);
+
+describe("ActivityCard — callout dispatch (LIS.A.2)", () => {
   it("imports KeyInformationCallout from the lesson barrel", () => {
     expect(ACTIVITY_CARD_SRC).toMatch(
       /import\s*\{[^}]*KeyInformationCallout[^}]*\}\s*from\s*["']@\/components\/lesson["']/,
     );
   });
 
-  it("computes isKeyCallout from contentStyle === 'key-callout' AND a non-empty bullets array", () => {
+  it('routes BOTH contentStyle "info" AND "key-callout" through the new component', () => {
+    expect(ACTIVITY_CARD_SRC).toContain('section.contentStyle === "info"');
     expect(ACTIVITY_CARD_SRC).toContain('section.contentStyle === "key-callout"');
-    // Both the array-shape guard and the non-empty guard must be present —
-    // an orphan key-callout (no bullets) must NOT take this branch.
+    expect(ACTIVITY_CARD_SRC).toMatch(
+      /isCalloutStyle\s*=[\s\S]{0,300}contentStyle === "info"[\s\S]{0,200}contentStyle === "key-callout"/,
+    );
+  });
+
+  it("derives bullets only when the array is non-empty (orphan = undefined → body fallback)", () => {
     expect(ACTIVITY_CARD_SRC).toMatch(/Array\.isArray\(section\.bullets\)/);
     expect(ACTIVITY_CARD_SRC).toMatch(/section\.bullets\.length\s*>\s*0/);
+    expect(ACTIVITY_CARD_SRC).toMatch(/calloutBullets\s*=[\s\S]{0,200}: undefined/);
   });
 
-  it("renders KeyInformationCallout when isKeyCallout is true", () => {
+  it("renders KeyInformationCallout when isCalloutStyle is true", () => {
     expect(ACTIVITY_CARD_SRC).toMatch(
-      /isKeyCallout\s*\?\s*\(\s*<KeyInformationCallout/,
+      /isCalloutStyle\s*\?\s*\(\s*<KeyInformationCallout/,
     );
   });
 
-  it("passes title (with bulletsTitle override → prompt fallback), eyebrow, intro, bullets", () => {
+  it("passes title/eyebrow/intro from the bullets-prefixed section fields", () => {
     const idx = ACTIVITY_CARD_SRC.indexOf("<KeyInformationCallout");
     expect(idx).toBeGreaterThan(0);
-    const slice = ACTIVITY_CARD_SRC.slice(idx, idx + 400);
-    expect(slice).toContain("title={section.bulletsTitle ?? section.prompt}");
+    const slice = ACTIVITY_CARD_SRC.slice(idx, idx + 600);
+    expect(slice).toContain("title={section.bulletsTitle}");
     expect(slice).toContain("eyebrow={section.bulletsEyebrow}");
     expect(slice).toContain("intro={section.bulletsIntro}");
-    expect(slice).toContain("bullets={section.bullets!}");
+    expect(slice).toContain("bullets={calloutBullets}");
   });
 
-  it("re-routes the legacy CONTENT_STYLE_CONFIG lookup so 'key-callout' doesn't crash on the orphan path", () => {
-    // The lookup must coerce "key-callout" to "info" (a sensible fallback
-    // for half-authored sections) before indexing the record — otherwise
-    // an orphan key-callout would dereference undefined.
-    expect(ACTIVITY_CARD_SRC).toMatch(
-      /section\.contentStyle === "key-callout"\s*\?\s*"info"/,
-    );
+  it("falls back to <ComposedPrompt /> + media + links inside the body slot when bullets are missing", () => {
+    const idx = ACTIVITY_CARD_SRC.indexOf("<KeyInformationCallout");
+    const slice = ACTIVITY_CARD_SRC.slice(idx, idx + 1200);
+    // body prop must be a React fragment carrying ComposedPrompt + media/links
+    expect(slice).toMatch(/body=\{[\s\S]{0,400}<ComposedPrompt/);
+    expect(slice).toMatch(/calloutBullets\s*\?\s*undefined/);
+    expect(slice).toContain("<MediaBlock");
+    expect(slice).toContain("<LinksBlock");
   });
 
   it("only takes the callout path on content-only sections (no responseType)", () => {
-    // The isKeyCallout boolean must be gated on isContentOnly so the
-    // callout path doesn't fire for activities that also have a response.
-    expect(ACTIVITY_CARD_SRC).toMatch(/isKeyCallout\s*=\s*\n?\s*isContentOnly/);
+    expect(ACTIVITY_CARD_SRC).toMatch(/isCalloutStyle\s*=\s*\n?\s*isContentOnly/);
+  });
+
+  it("legacy CONTENT_STYLE_CONFIG path still serves warning/tip/context/activity/speaking/practical", () => {
+    // The legacy lookup must skip when isCalloutStyle is true so info+key-callout
+    // never double-render. Warning/tip/etc. still go through it.
+    expect(ACTIVITY_CARD_SRC).toMatch(
+      /isContentOnly\s*&&\s*!isCalloutStyle\s*\?\s*CONTENT_STYLE_CONFIG/,
+    );
+  });
+});
+
+describe("KeyInformationCallout — bullets-or-body shape (LIS.A.2)", () => {
+  it("makes title, bullets, and body all optional", () => {
+    expect(CALLOUT_SRC).toContain("title?: string | string[]");
+    expect(CALLOUT_SRC).toContain("bullets?: CalloutBullet[]");
+    expect(CALLOUT_SRC).toContain("body?: React.ReactNode");
+  });
+
+  it("computes hasBullets from a non-empty array", () => {
+    expect(CALLOUT_SRC).toMatch(/hasBullets\s*=\s*Array\.isArray\(bullets\)\s*&&\s*bullets\.length\s*>\s*0/);
+  });
+
+  it("renders the body slot in a single warm card when hasBullets is false", () => {
+    // Single-card fallback: { body && <article ...> { body } </article> }
+    expect(CALLOUT_SRC).toMatch(/hasBullets\s*\?[\s\S]{0,100}<div/);
+    expect(CALLOUT_SRC).toMatch(/body\s*&&\s*\(\s*\n?\s*<article/);
   });
 });
 
 describe("ActivitySection — key-callout schema fields (LIS.A)", () => {
-  it("ContentStyle union includes 'key-callout'", () => {
+  it("ContentStyle union includes 'key-callout' (kept for back-compat with LIS.A)", () => {
     expect(TYPES_SRC).toMatch(
       /export type ContentStyle\s*=\s*[^;]*"key-callout"/,
     );
@@ -86,8 +129,6 @@ describe("ActivitySection — key-callout schema fields (LIS.A)", () => {
   });
 
   it("ActivitySection carries the four optional callout fields", () => {
-    // All four must be optional — adding required fields would break
-    // every existing pageContent.sections row that doesn't have them.
     expect(TYPES_SRC).toContain("bullets?: CalloutBullet[]");
     expect(TYPES_SRC).toContain("bulletsTitle?: string | string[]");
     expect(TYPES_SRC).toContain("bulletsIntro?: string");
