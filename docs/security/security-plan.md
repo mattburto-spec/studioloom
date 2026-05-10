@@ -520,8 +520,8 @@ Source: [`external-review-2026-05-09-findings.md`](external-review-2026-05-09-fi
 | F-6 | 80 `/api/teacher/*` routes still bypass `requireTeacher`; `badges/[id]/assign` confirmed exploitable from a student JWT | P1 | S3 | **DONE — 2026-05-09** (14 commits, 80 routes converted, scanner 0 missing, `--fail-on-missing` exit-0; negative-control proven; tests 5041/0; 2 follow-ups filed: `FU-SEC-BADGE-ASSIGN-PER-STUDENT` MED, `FU-SEC-REQUEST-ACCESS-TURNSTILE` P2) | matt | — |
 | F-7 | `own_time_*` 3 tables — wide-open SELECT (mig 028) | P1 | S1 | **DONE — 2026-05-09** (same migration; tables don't exist in prod — guarded with `to_regclass()` so policies will land if mig 028 is ever applied) | matt | — |
 | F-8 | `open_studio_status` / `open_studio_sessions` — wide-open SELECT (mig 029) | P1 | S1 | **DONE — 2026-05-09** (same migration) | matt | — |
-| F-9 | Sentry PII filter doesn't scrub `event.message` or `event.exception.values[*]` | P1 | inc. in S4 | **PLANNED — phase S4** | matt | pre-paid |
-| F-10 | Sentry Replay sampled at 10% on errors with no masking | P1 | inc. in S4 | **PLANNED — phase S4** | matt | pre-paid |
+| F-9 | Sentry PII filter doesn't scrub `event.message` or `event.exception.values[*]` | P1 | S4 | **DONE — 2026-05-09** (4-pattern scrub: email, JWT-shape, Bearer token, classcode-shape; 8 new tests + negative-control proven (strip → 7/8 fail)) | matt | — |
+| F-10 | Sentry Replay sampled at 10% on errors with no masking | P1 | S4 | **DONE — 2026-05-09** (Q3 option A: `replaysOnErrorSampleRate: 0`. Re-enable WITH masking integration when concrete debugging need arises.) | matt | — |
 | F-11 | `unit-images` + `knowledge-media` proxy short-circuits to "any authenticated user" | P2 | inc. in S5 | **PLANNED — phase S5** | matt | pre-paid |
 | F-12 | Fabricator login is a timing oracle for email enumeration | P2 | inc. in S6 | **PLANNED — phase S6** | matt | pre-paid |
 | F-13 | Doc-vs-code drift: "Argon2id" claimed in CLAUDE.md, code uses bcryptjs | P2 | inc. in S6 | **PLANNED — phase S6** | matt | pre-paid |

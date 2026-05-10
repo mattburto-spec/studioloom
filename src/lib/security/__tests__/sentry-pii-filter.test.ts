@@ -164,6 +164,109 @@ describe("beforeSend", () => {
   });
 });
 
+describe("beforeSend — message + exception scrub (F-9)", () => {
+  it("scrubs an email out of event.message (string form)", () => {
+    const event = {
+      message: "Failed to find user with email maya@school.example.com",
+    } as unknown as ErrorEvent;
+    const out = beforeSend(event, {});
+    expect(typeof out!.message).toBe("string");
+    const msg = out!.message as unknown as string;
+    expect(msg).not.toContain("maya@school.example.com");
+    expect(msg).toContain("[REDACTED]");
+    expect(msg).toContain("Failed to find user with email");
+  });
+
+  it("scrubs an email out of event.message (object form: {message, formatted})", () => {
+    const event = {
+      message: {
+        message: "Lookup failed for student@example.org during checkin",
+        formatted: "Lookup failed for student@example.org during checkin",
+      },
+    } as unknown as ErrorEvent;
+    const out = beforeSend(event, {});
+    const msgObj = out!.message as unknown as { message: string; formatted: string };
+    expect(msgObj.message).not.toContain("@example.org");
+    expect(msgObj.formatted).not.toContain("@example.org");
+    expect(msgObj.message).toContain("[REDACTED]");
+  });
+
+  it("scrubs a classcode-shaped token out of event.message", () => {
+    const event = {
+      message: "Classcode AB12CDEF expired during login",
+    } as unknown as ErrorEvent;
+    const out = beforeSend(event, {});
+    const msg = out!.message as unknown as string;
+    expect(msg).not.toContain("AB12CDEF");
+    expect(msg).toContain("[REDACTED]");
+  });
+
+  it("scrubs an email out of exception.values[0].value", () => {
+    const event = {
+      exception: {
+        values: [
+          {
+            type: "AuthError",
+            value: "Token issued for parent@school.com is invalid",
+          },
+        ],
+      },
+    } as unknown as ErrorEvent;
+    const out = beforeSend(event, {});
+    expect(out!.exception!.values![0].value).not.toContain("parent@school.com");
+    expect(out!.exception!.values![0].value).toContain("[REDACTED]");
+    // Type ("AuthError") is a class name — NOT an email, NOT a classcode-shape.
+    expect(out!.exception!.values![0].type).toBe("AuthError");
+  });
+
+  it("scrubs a JWT-shape token (eyJ...) out of event.message", () => {
+    const event = {
+      message:
+        "Refresh failed: token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature was rejected",
+    } as unknown as ErrorEvent;
+    const out = beforeSend(event, {});
+    const msg = out!.message as unknown as string;
+    expect(msg).not.toMatch(/eyJ[\w-]+\.[\w-]+\.[\w-]+/);
+    expect(msg).toContain("[REDACTED]");
+  });
+
+  it("scrubs a Bearer token out of event.message", () => {
+    const event = {
+      message: "Header had Authorization: Bearer abc123def456 and was rejected",
+    } as unknown as ErrorEvent;
+    const out = beforeSend(event, {});
+    const msg = out!.message as unknown as string;
+    expect(msg).not.toContain("abc123def456");
+    expect(msg).toContain("Bearer [REDACTED]");
+  });
+
+  it("does NOT touch a benign exception with no PII shapes", () => {
+    const event = {
+      exception: {
+        values: [{ type: "TypeError", value: "Cannot read property 'foo' of undefined" }],
+      },
+    } as unknown as ErrorEvent;
+    const out = beforeSend(event, {});
+    expect(out!.exception!.values![0].value).toBe(
+      "Cannot read property 'foo' of undefined",
+    );
+    expect(out!.exception!.values![0].type).toBe("TypeError");
+  });
+
+  it("scrubs all 4 pattern shapes in a single multi-leak message", () => {
+    const event = {
+      message:
+        "User maya@school.com (classcode AB12CDEF) sent Bearer xyz999 with eyJhbc.def.ghi",
+    } as unknown as ErrorEvent;
+    const out = beforeSend(event, {});
+    const msg = out!.message as unknown as string;
+    expect(msg).not.toContain("@school.com");
+    expect(msg).not.toContain("AB12CDEF");
+    expect(msg).not.toContain("xyz999");
+    expect(msg).not.toMatch(/eyJ[\w-]+\.[\w-]+\.[\w-]+/);
+  });
+});
+
 describe("beforeBreadcrumb", () => {
   it("redacts query strings on fetch URLs", () => {
     const crumb: Breadcrumb = {

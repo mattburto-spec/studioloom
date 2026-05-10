@@ -144,8 +144,48 @@ export function scrubPII<T>(obj: T, seen: WeakSet<object> = new WeakSet()): T {
 }
 
 /**
+ * Pattern-match scrub for free-form strings (event.message,
+ * exception.values[*].value, exception.values[*].type). Closes F-9 from the
+ * 9 May external review (cowork). The key-walk in scrubPII() doesn't help
+ * here — these are unstructured text strings where PII appears mid-message.
+ *
+ * Patterns covered:
+ *   - Emails:           /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g
+ *   - Classcodes:       /\b[A-Z0-9]{6,8}\b/g (uppercase 6-8 alphanumeric;
+ *                       matches StudioLoom classcode shape; some collateral
+ *                       false-positives on UUIDs/SHA prefixes acceptable)
+ *   - Bearer tokens:    /Bearer\s+[\w._-]+/gi
+ *   - JWT-shape:        /eyJ[\w-]+\.[\w-]+\.[\w-]+/g (3-segment JWTs)
+ *
+ * Tradeoff: pattern-match WILL have false positives (a stack frame mentioning
+ * "Component AB12CDEF" gets the second token redacted). That's the right
+ * direction — better an over-redacted message than a leaked email. Per Lesson
+ * #38, the locked tests below assert specific redaction patterns; widen the
+ * regexes only with paired test capture-truth.
+ */
+const PATTERNS: { name: string; regex: RegExp; replacement: string }[] = [
+  { name: "email", regex: /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, replacement: REDACTED },
+  { name: "jwt", regex: /eyJ[\w-]+\.[\w-]+\.[\w-]+/g, replacement: REDACTED },
+  { name: "bearer", regex: /Bearer\s+[\w._-]+/gi, replacement: `Bearer ${REDACTED}` },
+  // Classcode = StudioLoom 6-8-char uppercase alphanumeric. Negative
+  // lookbehind/ahead exclude `[` and `]` so the regex doesn't re-match
+  // the literal "REDACTED" inside an already-redacted [REDACTED] token
+  // (which is 8 chars all-uppercase and would match the simple form).
+  // Also exclude word chars + `-` to skip mid-identifier matches.
+  { name: "classcode", regex: /(?<![[\w-])[A-Z0-9]{6,8}(?![\]\w-])/g, replacement: REDACTED },
+];
+
+function scrubMessageString(s: string): string {
+  if (!s) return s;
+  let out = s;
+  for (const p of PATTERNS) out = out.replace(p.regex, p.replacement);
+  return out;
+}
+
+/**
  * Sentry `beforeSend` hook. Redacts PII from contexts/extra/request, drops
- * everything from `user` except `id`, scrubs query strings.
+ * everything from `user` except `id`, scrubs query strings, and pattern-
+ * scrubs free-form strings on event.message + exception.values[*].
  */
 export function beforeSend(event: ErrorEvent, _hint: EventHint): ErrorEvent | null {
   if (event.contexts) event.contexts = scrubPII(event.contexts);
@@ -154,6 +194,29 @@ export function beforeSend(event: ErrorEvent, _hint: EventHint): ErrorEvent | nu
 
   if (event.user) {
     event.user = event.user.id ? { id: event.user.id } : undefined;
+  }
+
+  // F-9 9 May 2026: scrub event.message — Sentry serialises it as plain
+  // string when manually captured, OR as `{ message, formatted }` when it
+  // comes from interpolated console captures.
+  if (event.message) {
+    if (typeof event.message === "string") {
+      event.message = scrubMessageString(event.message);
+    } else {
+      const msgObj = event.message as { message?: string; formatted?: string };
+      if (typeof msgObj.message === "string") msgObj.message = scrubMessageString(msgObj.message);
+      if (typeof msgObj.formatted === "string") msgObj.formatted = scrubMessageString(msgObj.formatted);
+    }
+  }
+
+  // F-9 9 May 2026: scrub exception.values[*].{value,type}. The value is the
+  // thrown error's message (e.g. "Failed to find user with email x@y.com");
+  // the type is the constructor name (rarely PII but bound by the same rule).
+  if (event.exception?.values) {
+    for (const ev of event.exception.values) {
+      if (typeof ev.value === "string") ev.value = scrubMessageString(ev.value);
+      if (typeof ev.type === "string") ev.type = scrubMessageString(ev.type);
+    }
   }
 
   if (event.request) {
