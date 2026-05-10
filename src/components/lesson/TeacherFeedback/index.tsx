@@ -76,6 +76,7 @@ export function TeacherFeedback({
   turns,
   attentionGrab = false,
   needsReply = false,
+  repliesEnabled = true,
   onReply,
   onReopen,
 }: TeacherFeedbackProps) {
@@ -208,33 +209,37 @@ export function TeacherFeedback({
         {/* Latest turn is teacher → show pills below. Latest turn
             is student → no controls (teacher's move next). The Thread
             already shows the trailing student turn's sentiment chip;
-            we don't duplicate the pills until the teacher replies. */}
-        {turns[turns.length - 1].role === "teacher" && state !== "resolved" && (
-          <div className="mt-4 px-1">
-            <div
-              id={`${titleId}-pills`}
-              className="text-[10px] font-bold tracking-wider uppercase text-emerald-700/70 mb-2"
-            >
-              How does this land?
+            we don't duplicate the pills until the teacher replies.
+            repliesEnabled=false suppresses pills entirely (Pass B.2
+            ships read-only before the reply endpoint exists in B.3). */}
+        {repliesEnabled &&
+          turns[turns.length - 1].role === "teacher" &&
+          state !== "resolved" && (
+            <div className="mt-4 px-1">
+              <div
+                id={`${titleId}-pills`}
+                className="text-[10px] font-bold tracking-wider uppercase text-emerald-700/70 mb-2"
+              >
+                How does this land?
+              </div>
+              <QuickReplies
+                selected={selectedSentiment}
+                onSelect={handleSelect}
+                disableGotIt={needsReply}
+                labelId={`${titleId}-pills`}
+              />
+              {selectedSentiment &&
+                selectedSentiment !== "got_it" && (
+                  <ReplyBox
+                    sentiment={selectedSentiment}
+                    open={replyOpen}
+                    sending={sending}
+                    onCancel={handleCancel}
+                    onSend={handleSend}
+                  />
+                )}
             </div>
-            <QuickReplies
-              selected={selectedSentiment}
-              onSelect={handleSelect}
-              disableGotIt={needsReply}
-              labelId={`${titleId}-pills`}
-            />
-            {selectedSentiment &&
-              selectedSentiment !== "got_it" && (
-                <ReplyBox
-                  sentiment={selectedSentiment}
-                  open={replyOpen}
-                  sending={sending}
-                  onCancel={handleCancel}
-                  onSend={handleSend}
-                />
-              )}
-          </div>
-        )}
+          )}
       </section>
     );
   }
@@ -312,26 +317,32 @@ export function TeacherFeedback({
           className="prose prose-sm max-w-none text-emerald-950 leading-relaxed [&_em]:text-emerald-900 [&_strong]:text-emerald-950 mb-4"
           dangerouslySetInnerHTML={{ __html: turn.bodyHTML }}
         />
-        <div
-          id={`${titleId}-pills`}
-          className="text-[10px] font-bold tracking-wider uppercase text-emerald-700/70 mb-2"
-        >
-          {needsReply ? "Reply required to continue" : "How does this land?"}
-        </div>
-        <QuickReplies
-          selected={selectedSentiment}
-          onSelect={handleSelect}
-          disableGotIt={needsReply}
-          labelId={`${titleId}-pills`}
-        />
-        {selectedSentiment && selectedSentiment !== "got_it" && (
-          <ReplyBox
-            sentiment={selectedSentiment}
-            open={replyOpen}
-            sending={sending}
-            onCancel={handleCancel}
-            onSend={handleSend}
-          />
+        {/* repliesEnabled=false suppresses pills entirely (Pass B.2
+            ships read-only before the reply endpoint exists in B.3). */}
+        {repliesEnabled && (
+          <>
+            <div
+              id={`${titleId}-pills`}
+              className="text-[10px] font-bold tracking-wider uppercase text-emerald-700/70 mb-2"
+            >
+              {needsReply ? "Reply required to continue" : "How does this land?"}
+            </div>
+            <QuickReplies
+              selected={selectedSentiment}
+              onSelect={handleSelect}
+              disableGotIt={needsReply}
+              labelId={`${titleId}-pills`}
+            />
+            {selectedSentiment && selectedSentiment !== "got_it" && (
+              <ReplyBox
+                sentiment={selectedSentiment}
+                open={replyOpen}
+                sending={sending}
+                onCancel={handleCancel}
+                onSend={handleSend}
+              />
+            )}
+          </>
         )}
       </BubbleFrame>
     </motion.section>

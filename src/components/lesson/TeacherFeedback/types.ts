@@ -97,6 +97,11 @@ export interface TeacherFeedbackProps {
    *  red "Needs reply" pill. Component just signals the disabled state.
    *  Pass A keeps the prop for forward-compat + Storybook coverage. */
   needsReply?: boolean;
+  /** When false, suppress the QuickReplies + ReplyBox entirely — the
+   *  thread renders read-only. Used by TFL.2 Pass B sub-phase B.2 to
+   *  ship the multi-turn thread render BEFORE the reply endpoint
+   *  exists (B.3 flips this to true). Default true. */
+  repliesEnabled?: boolean;
   /** Called when the student picks a sentiment + (optionally) sends a
    *  reply. The promise resolves once persistence completes — the
    *  component shows a sending spinner until then. */

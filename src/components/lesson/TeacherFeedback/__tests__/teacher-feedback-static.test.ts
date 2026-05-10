@@ -53,12 +53,13 @@ describe("TeacherFeedback — types contract (Pass B will rely on this)", () => 
     expect(types).toMatch(/export type Turn\s*=\s*TeacherTurn\s*\|\s*StudentTurn/);
   });
 
-  it("Props expose threadId, turns, onReply (required) + attentionGrab/needsReply/onResolve/onReopen (optional)", () => {
+  it("Props expose threadId, turns, onReply (required) + attentionGrab/needsReply/repliesEnabled/onResolve/onReopen (optional)", () => {
     expect(types).toMatch(/threadId:\s*string/);
     expect(types).toMatch(/turns:\s*Turn\[\]/);
     expect(types).toMatch(/onReply:\s*\(/);
     expect(types).toMatch(/attentionGrab\?:\s*boolean/);
     expect(types).toMatch(/needsReply\?:\s*boolean/);
+    expect(types).toMatch(/repliesEnabled\?:\s*boolean/);
     expect(types).toMatch(/onReopen\?\s*:/);
   });
 });
@@ -298,5 +299,21 @@ describe("TeacherFeedback — index orchestrator state machine", () => {
 
   it("dev-only assertion that turns[0] is always teacher (Lesson #38 boundary check)", () => {
     expect(index).toMatch(/turns\[0\]\.role\s*!==\s*"teacher"/);
+  });
+
+  it("repliesEnabled gates the QuickReplies + ReplyBox in BOTH the Fresh and Active states (TFL.2 B.2)", () => {
+    // The active-state branch wraps QuickReplies + ReplyBox in a
+    // `repliesEnabled && turns[turns.length-1].role === "teacher" && ...`
+    // condition. The fresh-state branch wraps the same elements in
+    // a `repliesEnabled && (<>...</>)` fragment. B.2 ships
+    // repliesEnabled={false} on the lesson page — the pills must
+    // be fully suppressed, not just visually disabled.
+    const repliesEnabledChecks = (
+      index.match(/\{\s*repliesEnabled\s*&&/g) ?? []
+    ).length;
+    expect(repliesEnabledChecks).toBeGreaterThanOrEqual(2);
+    // Default is true so existing callers (sandbox, future B.3
+    // production) get pills without changing their props.
+    expect(index).toMatch(/repliesEnabled\s*=\s*true/);
   });
 });
