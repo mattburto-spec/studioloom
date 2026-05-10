@@ -415,7 +415,7 @@ Each gets its own pre-work → audit → write → test → NC → commit → re
 ### What landed
 
 - `src/lib/preflight/email.ts` + `email-templates.ts` — Resend helper with per-job, per-kind idempotency via `fabrication_jobs.notifications_sent` JSONB merge (Lesson #42). 4 email kinds: `invite`, `set_password_reset`, `scan_complete`, `pickup_ready` (latter two wired in Phase 2).
-- `src/lib/fab/auth.ts` + `token.ts` — Argon2id password hashing, opaque 32-byte session tokens (SHA-256 at rest), `requireFabricatorAuth` helper, `createFabricatorSession` with `isSetup` discriminator.
+- `src/lib/fab/auth.ts` + `token.ts` — bcryptjs password hashing (cost factor 12), opaque 32-byte session tokens (SHA-256 at rest), `requireFabricatorAuth` helper, `createFabricatorSession` with `isSetup` discriminator. (Doc-corrected 9 May 2026 — earlier drafts said "Argon2id"; the implementation has always used bcryptjs. Tracked as F-13 in 9 May external review.)
 - `/fab/login` + `/api/fab/login` + `/api/fab/logout` — Fabricator sign-in with `Cache-Control: private` on cookie responses (Lesson #11). Rejects is_setup sessions.
 - `/fab/set-password` + `/api/fab/set-password/verify` + `/api/fab/set-password/submit` — Consumes is_setup sessions; rotates to a normal session after password set. Suspense-wrapped (Next.js 15 prerender requirement).
 - `/teacher/preflight/fabricators` + `FabricatorsClient` — Teacher admin page: invite (email + display name + machine checkboxes), list invitees, toggle is_active, reset password, replace machine assignments. 7 invite-route tests asserting specific payload shapes (Lesson #38).
