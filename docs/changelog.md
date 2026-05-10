@@ -4,6 +4,67 @@
 
 ---
 
+## 2026-05-10 — Lesson Input Surfaces (LIS) v1 — 3 new student components + auto-replace + editor UI + Narrative gate fix
+
+**Context:** Visual + interaction upgrade for three text surfaces in the student lesson view (MultiQuestionResponse, RichTextResponse, KeyInformationCallout). Originally designed as a component library in PR #150 (10 May, end-of-day prior); shipped as a 7-sub-phase integration ladder across 11 PRs today (10 May). Closes the design-canvas "★ Picks" artboards Matt referenced at session start.
+
+**Per-sub-phase summary:**
+
+- **LIS.A (#152)** — KeyInformationCallout opt-in via `contentStyle: "key-callout"` + new `bullets[]` schema field on `ActivitySection`. Renders the magazine-style "Worth remembering" callout (brand-spine palette: deep purple → brand purple → brand pink).
+- **LIS.A.2 (#155)** — Auto-flip existing `contentStyle: "info"` blocks to the magazine callout. Component now accepts EITHER `bullets[]` (3-card layout) OR `body` (single warm-card fallback). Other content styles (`warning` / `tip` / `practical`) keep their functional colour identities.
+- **LIS.A.3 (#157)** — Hoist `section.framing` (Lever 1 slot field) to the magazine title slot when `bulletsTitle` is absent. Tells ComposedPrompt to skip framing in the body so the title doesn't render twice.
+- **LIS.B (#159)** — RichTextResponse auto-replaces BOTH `MonitoredTextarea` and `RichTextEditor` for every text response. Integrity-monitoring port via `useIntegrityTracking` hook (handler types widened from `HTMLTextAreaElement` to `HTMLElement` so contenteditable div surfaces can share). Sanitised paste, always-visible toolbar (B/I/UL/OL/quote).
+- **LIS.C (#164)** — MultiQuestionResponse stepper as opt-in via new `promptsLayout: "stepper"` field. Full persistence port (composeContent + portfolio API + photo upload + kanban auto-create + integrity tracking) — feature parity with StructuredPromptsResponse. Adapter accepts either `MultiQuestionField[]` (storybook) or `StructuredPromptsConfig` (production). `MultiQuestionField.criterion` made optional with brand-purple fallback.
+- **FU tracker (#162)** — Filed `FU-LIS-PORTFOLIO-NARRATIVE-DISPLAY` in new `lesson-input-surfaces-followups.md` tracker file (added to CLAUDE.md per-project trackers section).
+- **LIS.D (#167)** — Lesson editor authoring UI: (1) stepper toggle on structured-prompts sections, (2) JOURNAL_PROMPTS preset gains DO/NOTICE/DECIDE/NEXT criterion tags + Process Journal palette entry defaults to stepper, (3) new KeyCalloutEditor with eyebrow/title/intro/bullets[] form, (4) Magazine Callout palette entry with pre-filled sample bullets.
+- **Title-input fix (#169)** — KeyCalloutEditor title textarea was stripping spaces / newlines mid-edit (parsed on every keystroke). Switched to local-draft pattern with onBlur commit. Lesson #79 added.
+- **LIS.E (#171)** — Closed `FU-LIS-PORTFOLIO-NARRATIVE-DISPLAY`. `buildNarrativeSections` now accepts `portfolioEntries: PortfolioEntry[]` and widens the inclusion gate: section surfaces in /narrative when EITHER `section.portfolioCapture === true` OR a portfolio_entries row exists for the section's `(page_id, section_index)`. Manual Portfolio captures of regular text responses now show in Narrative. Lesson #81 added.
+- **Tap-a-word fix (#172)** — KeyInformationCallout bullet bodies + intro + MultiQuestionResponse helper text routed through `<MarkdownPrompt tappable />` so students can tap individual words for dictionary lookups. New `tappable?: boolean` prop (default true). Lesson #80 added.
+
+**Tests:** ~50 source-static dispatch tests added across the LIS surfaces. 0 type errors. 0 regressions on existing test suite.
+
+**Schema additions (all optional, JSONB-additive, no migration):**
+
+- `ActivitySection.bullets?: CalloutBullet[]` — 3-card magazine bullets
+- `ActivitySection.bulletsTitle?: string | string[]` — magazine title (array splits one-word-per-line)
+- `ActivitySection.bulletsIntro?: string` — short intro paragraph
+- `ActivitySection.bulletsEyebrow?: string` — chip text override (default "Worth remembering")
+- `ActivitySection.promptsLayout?: "stepper"` — stepper opt-in
+- `StructuredPrompt.criterion?: "DO" | "NOTICE" | "DECIDE" | "NEXT"` — optional per-prompt tag
+- `ContentStyle` union gains `"key-callout"` value
+- `CalloutBullet` interface added (term + hint + body)
+
+**Worktree:** Built in `/Users/matt/CWORK/questerra-lis` on `lesson-input-surfaces-integration` (then short-lived branches per fix). All 11 PRs squash-merged to `origin/main`.
+
+**Pending action:** NONE. All 11 PRs merged. Vercel rolling deploys on each merge. Tracker has 0 open FUs. No data migration needed.
+
+**Systems affected:**
+
+- `lesson-view` (depends_on gains `lesson-input-surfaces`)
+- NEW: `lesson-input-surfaces` (system entry added to WIRING.yaml)
+- `integrity-monitor-student` (handler types widened in `useIntegrityTracking`)
+- `tap-a-word` (new mount surfaces in lesson components)
+- `portfolio` (Narrative inclusion gate widened via LIS.E)
+
+**Key decisions banked:**
+
+- Auto-replace vs opt-in: visual-only swaps (LIS.A.2 magazine for info, LIS.B RichTextResponse for text) → auto-replace. Structural UX changes (LIS.C stepper) → opt-in via per-section flag.
+- All LIS schema additions are JSONB-additive on `pages.content_data.sections[]` — no SQL migrations, no Supabase touch.
+- Read-side filters that gate on per-unit signals (like "any section has portfolioCapture") must cross-reference EVERY mechanism that satisfies the underlying intent — not just the section flag. LIS.E cross-references `portfolio_entries` by `(page_id, section_index)`.
+- Tap-a-word is opt-in per surface, not inherited. Every new student-prose render path needs explicit `<MarkdownPrompt tappable />` (or direct `<TappableText>` call).
+- Controlled-input text fields with normalised storage need a local draft + boundary commit; aggressive parse-on-every-keystroke clobbers in-progress edits.
+
+**Doc updates this saveme:**
+
+- `docs/projects/ALL-PROJECTS.md` — LIS v1 entry added, complete-count 41 → 42.
+- `docs/projects/dashboard.html` — PROJECTS array gets the LIS v1 entry.
+- `docs/lessons-learned.md` — +3 lessons (#79 local-draft pattern, #80 tap-a-word inheritance, #81 narrative cross-reference).
+- `docs/projects/WIRING.yaml` — new `lesson-input-surfaces` system; `lesson-view` depends_on updated.
+- `docs/doc-manifest.yaml` — `lesson-input-surfaces-followups.md` added.
+- `docs/changelog.md` — this entry.
+
+---
+
 ## 2026-05-09 → 10 May 2026 — Security closure: ALL 20 cowork external-review findings (S1–S7)
 
 **Context:** Cowork delivered an external security review on 9 May 2026 with 20 numbered findings (F-1..F-20) spanning RLS gaps, route-auth holes, ownership-check bypasses, Sentry PII leakage, storage proxy authorization, fab-login timing/lockout, and assorted P3 hardening. This session closed every one of them across 7 sequenced phases (S1–S7), 20 commits, and 2 prod migrations. Every finding now has a closure commit + verification trace in `docs/security/security-plan.md`. Build brief: `docs/projects/security-closure-2026-05-09-brief.md`. Findings doc: `docs/security/external-review-2026-05-09-findings.md`.

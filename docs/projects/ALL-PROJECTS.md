@@ -489,7 +489,7 @@
 
 ---
 
-## ✅ Complete (41 shipped features)
+## ✅ Complete (42 shipped features)
 
 <details>
 <summary><strong>Click to expand all completed projects</strong></summary>
@@ -526,6 +526,7 @@
 - **Academic Integrity Monitoring** — MonitoredTextarea. 6-rule scoring. IntegrityReport with writing playback. Migrations 054/059.
 - **Toolkit (27 Interactive Tools)** — SCAMPER, Six Hats, PMI, Decision Matrix, Five Whys, Empathy Map, + 21 more. All wired with useToolSession persistence. Doc: [toolkit.md](toolkit.md)
 - **Toolkit Persistence** — useToolSession hook. Auto-save, session resume, state tracking.
+- **Lesson Input Surfaces (LIS) v1** — Shipped 10 May 2026 across 11 PRs (#150 → #172). Three new student-facing components under `src/components/lesson/`: `KeyInformationCallout` (magazine-layout "Worth remembering" callout with 3-card brand-spine palette + bulletless single-card fallback), `RichTextResponse` (cream-warm contenteditable with always-visible toolbar + sanitised paste + integrity-monitoring port via `useIntegrityTracking`), `MultiQuestionResponse` (criterion-coloured stepper for structured-prompts journals). Auto-replace for `contentStyle: "info"` blocks → magazine callout; auto-replace for every text response → RichTextResponse; opt-in for structured-prompts → stepper via new `promptsLayout: "stepper"` field. Lesson editor authoring UI: stepper toggle + KeyCalloutEditor + "Magazine Callout" palette entry. `JOURNAL_PROMPTS` preset gained DO/NOTICE/DECIDE/NEXT criterion tags + Process Journal palette entry defaults to stepper. Tap-a-word wired into bullet bodies + intro + helper text via MarkdownPrompt. `FU-LIS-PORTFOLIO-NARRATIVE-DISPLAY` closed: `buildNarrativeSections` now accepts `portfolioEntries` and widens the inclusion gate so manual Portfolio captures of regular text responses surface in Narrative. Schema additions on `ActivitySection` (all optional, JSONB-additive — no migration): `bullets`, `bulletsTitle`, `bulletsIntro`, `bulletsEyebrow`, `promptsLayout`. New `criterion?` on `StructuredPrompt`. Tests: +~50 source-static dispatch tests across the LIS surfaces. Tracker: [`lesson-input-surfaces-followups.md`](lesson-input-surfaces-followups.md).
 
 ### Teacher Experience
 - **Teaching Mode (Live Cockpit)** — 3-column layout. Phase timer. Live student grid. Dark projector view. "Needs Help" detection.

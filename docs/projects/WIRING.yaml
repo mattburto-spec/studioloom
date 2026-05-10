@@ -15,7 +15,7 @@ systems:
     status: complete
     currentVersion: 1
     summary: Interactive lesson display with sidebar navigation, content sections, and autosave response handling. Students navigate between pages and respond to activities.
-    depends_on: [activity-blocks, journey-engine, framework-adapter, student-profile, student-data]
+    depends_on: [activity-blocks, journey-engine, framework-adapter, student-profile, student-data, lesson-input-surfaces]
     affects: [student-dashboard, portfolio, toolkit, gallery]
     docs:
       - path: docs/specs/lesson-layer-architecture.md
@@ -40,6 +40,38 @@ systems:
     adrs: ["008", "009"]
     os_seam: ready
     change_impacts: Changes to response autosave affect all student-facing components. Changes to page rendering affect Teaching Mode display and portfolio capture.
+
+  - id: lesson-input-surfaces
+    name: Lesson Input Surfaces (LIS)
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: "v1 SHIPPED 10 May 2026 across 11 PRs (#150 → #172). Three new student-facing components under src/components/lesson/: KeyInformationCallout (magazine 'Worth remembering' callout with brand-spine palette + bulletless single-card fallback), RichTextResponse (cream-warm contenteditable with always-visible toolbar + sanitised paste + useIntegrityTracking port), MultiQuestionResponse (criterion-coloured stepper for structured-prompts). Auto-replace for contentStyle:'info' → magazine. Auto-replace for text responses → RichTextResponse (with integrity port preserved). Opt-in for structured-prompts → stepper via promptsLayout:'stepper'. Editor authoring UI in lesson-editor (stepper toggle, KeyCalloutEditor, Magazine Callout palette entry). JOURNAL_PROMPTS preset gained DO/NOTICE/DECIDE/NEXT criterion tags + Process Journal palette defaults to stepper. Tap-a-word wired into bullet bodies + intro + helper via MarkdownPrompt. FU-LIS-PORTFOLIO-NARRATIVE-DISPLAY closed — buildNarrativeSections widened to include manual Portfolio captures (cross-references portfolio_entries by (page_id, section_index)). Schema additions on ActivitySection (JSONB-additive, no migration): bullets, bulletsTitle, bulletsIntro, bulletsEyebrow, promptsLayout. New criterion? on StructuredPrompt. ~50 source-static dispatch tests."
+    depends_on: [integrity-monitor-student, tap-a-word, portfolio]
+    affects: [lesson-view, portfolio, narrative-view]
+    docs:
+      - path: docs/projects/lesson-input-surfaces-followups.md
+        purpose: FU tracker (1 closed, append-only for future surfacing)
+    data_fields:
+      - table: pages
+        columns: [content_data.sections.bullets, content_data.sections.bulletsTitle, content_data.sections.bulletsIntro, content_data.sections.bulletsEyebrow, content_data.sections.promptsLayout, content_data.sections.prompts[].criterion]
+        notes: All additive JSONB on ActivitySection inside the existing pages/content_data JSONB column. No SQL migration. Stored in both units.content_data (master) and class_units.content_data (class forks).
+    key_files:
+      - src/components/lesson/KeyInformationCallout/index.tsx
+      - src/components/lesson/RichTextResponse/index.tsx
+      - src/components/lesson/MultiQuestionResponse/index.tsx
+      - src/components/lesson/shared/SaveIndicator.tsx
+      - src/components/lesson/shared/useAutoSave.ts
+      - src/components/lesson/shared/LessonStepMarker.tsx
+      - src/components/student/ResponseInput.tsx
+      - src/components/student/ActivityCard.tsx
+      - src/components/teacher/lesson-editor/KeyCalloutEditor.tsx
+      - src/lib/structured-prompts/types.ts
+      - src/lib/structured-prompts/presets.ts
+      - src/lib/narrative-utils.ts
+    future_needs: "Visual nits to polish per smoke (stepper ProgressRing wrapping on narrow viewports). Possible Phase 2: drag-to-reorder bullets in KeyCalloutEditor, per-prompt criterion picker in editor (currently only via preset), in-editor preview of the magazine callout. Additional FUs file in lesson-input-surfaces-followups.md."
+    os_seam: ready
+    change_impacts: "Changes to ActivitySection schema fields (bullets / promptsLayout) affect every lesson surface that reads pageContent. Changes to RichTextResponse propagate to every text response (auto-replaced). Changes to MultiQuestionResponse opt-in path only — structured-prompts default render is unchanged. The buildNarrativeSections inclusion gate uses portfolioEntries, so changes to portfolio_entries schema would need to update narrative-utils.ts's buildSentToPortfolioSet helper."
 
   - id: student-dashboard
     name: Student Dashboard
