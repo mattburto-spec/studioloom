@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 445
+# Total routes: 447
 
 routes:
 - path: /api/admin/ai-budget
@@ -1918,6 +1918,27 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/student/tile-feedback
+  method: GET
+  file: src/app/api/student/tile-feedback/route.ts
+  auth: student
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/student/tile-feedback/[gradeId]/reply
+  method: POST
+  file: src/app/api/student/tile-feedback/[gradeId]/reply/route.ts
+  auth: student
+  tables_read:
+  - student_tile_grades
+  - tile_feedback_turns
+  tables_written:
+  - tile_feedback_turns
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'tile_feedback_turns' — not in schema-registry
 - path: /api/student/timeline
   method: GET
   file: src/app/api/student/timeline/route.ts

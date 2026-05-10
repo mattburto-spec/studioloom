@@ -1135,3 +1135,51 @@ Three rounds of guards in the gesture layer; the bug was three function calls up
 - **When a helper migration enters a layer that already has its own logging discipline, add a `skip` option, not a partial migration.** Partial = some sites log via helper, some via their own code, fragile mental model. `skipLogUsage` is honest: this site has its own attribution, helper steps back.
 - **Run the breakdown view by hand against a few real calls before declaring a migration done.** Double-logging is invisible until you check. Single-record + verify-totals catches it in seconds; trusting the migration catches it weeks later when costs look strange.
 - **Helper extensions justified by real call sites are fine; speculative options are not.** `skipLogUsage` exists because one real caller (toolkit) needed it. If a future caller needs another option (e.g. `customCostFormula`), add it then. Lesson #44 still applies — don't pre-fab options for hypothetical futures.
+
+### Lesson #79 — Controlled-input text fields that parse on every keystroke clobber whitespace before the next character lands
+**Date:** 10 May 2026
+**Phase:** LIS.D — KeyCalloutEditor title textarea
+
+**What happened:** The magazine-callout title field stored as `string | string[]` (single-line vs one-word-per-line array). The textarea ran `parseTitleInput(raw)` on every `onChange`, which did `.split("\n").map(s => s.trim()).filter(Boolean)`. Result: typing "Test Title" produced "TestTitle" — the trailing space was stripped on the keystroke when the space landed, then the textarea re-rendered with the trimmed value, so the user's next "T" came in as if "Test" was already there. Same root cause for Enter dying — empty trailing lines got `filter(Boolean)`-ed away before reaching `string[]` storage.
+
+**The trap:** the parse function was correct in isolation (collapsing single-line → string and multi-line → array is the right storage shape). The bug was *when* it ran — on every keystroke. The render → parse → store → re-render cycle clobbered the in-progress edit.
+
+**Fix:** local-draft pattern. `const [titleDraft, setTitleDraft] = useState(formatTitle(value))` owns the raw textarea content during editing. `onChange` only updates the draft. `onBlur` commits via `commitTitle(titleDraft)` (renamed from `parseTitleInput` to signal the boundary nature). `useEffect` syncs the draft from the prop on external changes.
+
+**Rules:**
+- **Controlled inputs whose storage shape differs from the raw textarea content need a local draft and a boundary commit.** Single-line `<input>`s usually parse fine on every keystroke because the storage IS the raw value. The moment your storage normalisation strips, trims, splits, or collapses, the textarea needs its own state during editing.
+- **Don't put aggressive normalisation in the controlled-value reduce step.** If the textarea displays its own committed value via `formatX(stored)` AND the parse runs on every onChange, mid-edit content can never include states like "trailing space" or "empty trailing line" — they get normalised away before the user can complete the keystroke.
+- **Rename to signal intent.** `parseTitleInput` sounded innocuous and was called everywhere. `commitTitle` makes it obvious this only runs at the boundary (blur, submit), so future readers don't reintroduce the per-keystroke call site.
+- **Spot-check by typing two-word phrases.** Single-word inputs hide this bug — you only notice when you try "Test Title" or press Enter. Add at least one multi-word test fixture per text-editing surface.
+
+### Lesson #80 — Tap-a-word doesn't get inherited; every new student-facing prose surface needs explicit wiring
+**Date:** 10 May 2026
+**Phase:** LIS.A through LIS.E ship sequence
+
+**What happened:** The LIS series introduced three new student-facing surfaces (`KeyInformationCallout`, `RichTextResponse`, `MultiQuestionResponse`). Students could see the text but couldn't tap individual words for dictionary lookups — the feature was silently missing. The legacy info-block path got tap-a-word for free via `ActivityCard → ComposedPrompt → MarkdownPrompt(tappable={true})`. The new surfaces rendered plain `<p>` tags and `<div>` content, bypassing MarkdownPrompt entirely. Only surfaced when Matt smoke-tested the magazine callout in production.
+
+**Why it slipped:** the components were spec'd as visual upgrades (chrome, layout, palette). Tap-a-word isn't visible in static design mocks — it's an interaction. The original spec didn't enumerate tap-a-word as a requirement, so the new components rendered text via the simplest path (`<p>{value}</p>`) which works visually but loses the wrap-each-word-in-`<TappableText>` behaviour MarkdownPrompt provides.
+
+**Fix:** route every student-visible prose surface in lesson components through `<MarkdownPrompt text={...} tappable={tappable} />` (default `true`). Storybook fixtures opt out via `tappable={false}` to avoid needing the student-context provider.
+
+**Rules:**
+- **Tap-a-word is an opt-in render flag, not an inherited behaviour.** Every new surface that renders student-facing prose has to explicitly route through MarkdownPrompt (or call TappableText directly). Audit the leaves: anywhere a string ends up inside `<p>`, `<div>`, or any text node is a candidate.
+- **When building new render surfaces parallel to existing ones, enumerate the cross-cutting features the existing surfaces give for free.** Tap-a-word, audio-button (TTS), copy-to-clipboard, integrity tracking, portfolio capture — none of these are visible in design mocks. Pulling them forward from the legacy path is part of the new-surface checklist.
+- **The signal that this was missed:** the LIS dispatch tests asserted the *visual* render contract (KeyInformationCallout receives bullets, MultiQuestionResponse renders helper, etc.) but didn't assert *which renderer* the text passes through. Next time, add a wiring test like "bullet body routes through MarkdownPrompt" — that catches the regression without needing a real React mount.
+- **Don't add a "tap-a-word-able" prop downstream that flips render behaviour.** Always opt in by default for production-mounted surfaces; let storybook opt out. The risk profile is asymmetric — students losing a feature is bad, storybook crashing is annoying but easy to detect.
+
+### Lesson #81 — Narrative filter activation gate is per-section, not per-write; "sent to portfolio" needs cross-reference at read time
+**Date:** 10 May 2026
+**Phase:** LIS.E — FU-LIS-PORTFOLIO-NARRATIVE-DISPLAY
+
+**What happened:** Students writing a regular text response and pressing the PortfolioCaptureAffordance "Send to Portfolio" button saw their entry appear in `/portfolio` but it was MISSING from `/narrative` — even though `student_progress.responses[responseKey]` held the data correctly. Root cause: `buildNarrativeSections` activated a portfolio-filter mode when ANY section in the unit had `portfolioCapture: true`, and in filter mode ONLY included sections where the section itself had `portfolioCapture: true`. Manual Portfolio captures of regular text responses (no `portfolioCapture` flag on the section, but a portfolio_entries row exists) fell into the gap — flag-on-section AND write-to-portfolio_entries were two independent paths that the read-side filter conflated.
+
+**Why it persisted:** the filter logic looked correct in isolation. The portfolio_entries table was used elsewhere (NarrativeView's `manualPortfolioEntries` filter) but never cross-referenced INTO buildNarrativeSections. Each surface had its own filter for its own use case; the gap was at the integration.
+
+**Fix:** `buildNarrativeSections` accepts a third arg `portfolioEntries: PortfolioEntry[]` (default `[]` for back-compat). Inclusion widens to: section shows in Narrative when EITHER `section.portfolioCapture === true` OR a `portfolio_entries` row exists for the section's `(page_id, section_index)`. Cross-reference at read time, not at write time — preserves the existing write contract.
+
+**Rules:**
+- **Read-side filters that activate on per-unit signals (like "any section in unit has flag X") must cross-reference EVERY mechanism that can satisfy the underlying intent.** Filter intent: "did the student want this response in their narrative?" Two mechanisms: (a) section has portfolioCapture flag (auto-capture path), (b) student pressed Portfolio affordance (manual path). Filter only checked (a). The integration was the bug.
+- **Don't fix this at write time.** Tempting fix: change PortfolioCaptureAffordance to ALSO flip `section.portfolioCapture = true` on the section. That mutates authoring data based on student action — fragile, surprising side effects.
+- **Cross-reference at read time, with a default-empty third arg for back-compat.** This let existing callers stay unbroken (they just don't get the inclusion widening) while new callers opt in by passing the data they already had.
+- **The signal that this was missed:** the narrative tests asserted dual-key lookup (`activity_${id}` vs `section_${i}`) but didn't have any test that combined `portfolioCapture: false` + a portfolio_entry. The "filter gate" axis wasn't covered. Add filter-activation-state tests when filters depend on multi-table signals.
