@@ -275,7 +275,7 @@ export function TeacherFeedback({
           smoke flagged: previously the tail SVG sat ABOVE a div with
           its own border, leaving the bubble's top border line drawing
           UNDER the tail's two feet (visible disconnect). */}
-      <BubbleFrame variant="teacher" tailX={36} contentClassName="px-5 py-4">
+      <BubbleFrame variant="teacher" contentClassName="px-5 py-4">
         <div className="flex items-center gap-2 mb-3">
           <div className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-500 text-white font-bold text-xs flex items-center justify-center ring-2 ring-white shadow-[0_0_0_3px_rgba(16,185,129,0.2)]">
             {teacherInitials(turn.authorName)}

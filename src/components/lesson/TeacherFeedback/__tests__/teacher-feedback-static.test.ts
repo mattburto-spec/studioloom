@@ -139,6 +139,39 @@ describe("TeacherFeedback — BubbleFrame (single-SVG outline + integrated tail)
     expect(bubbleFrame).toMatch(/pointerEvents:\s*"none"/);
     expect(bubbleFrame).toMatch(/position:\s*"absolute"/);
   });
+
+  it("clamps tailX to a minimum so the tail base never overlaps the rounded corner (Matt 10 May 2026 smoke regression guard)", () => {
+    // Pre-fix: with tailX=36 and TAIL_HALF_WIDTH=24, the tail's left
+    // base sat at x=12 — INSIDE the corner zone (corner ends at x=24).
+    // The path drew a backward L-segment from (24, top) to (12, top)
+    // BEFORE the tail rose, producing a phantom "second peak" reading
+    // as an M-shape in the rendered outline.
+    //
+    // Fix: TAIL_X_MIN = RADIUS + TAIL_HALF_WIDTH + safety_margin.
+    // Math.max(tailX, TAIL_X_MIN) clamps any caller's smaller value
+    // to the legal floor.
+    expect(bubbleFrame).toMatch(/const TAIL_X_MIN\s*=/);
+    expect(bubbleFrame).toMatch(/RADIUS\s*\+\s*TAIL_HALF_WIDTH/);
+    expect(bubbleFrame).toMatch(
+      /const clampedTailX\s*=\s*Math\.max\(tailX,\s*TAIL_X_MIN\)/,
+    );
+    // The path generator must receive the CLAMPED value, not the raw
+    // tailX prop — otherwise the clamp does nothing for the path.
+    expect(bubbleFrame).toMatch(
+      /buildBubblePath\([^)]*clampedTailX/,
+    );
+  });
+
+  it("default tailX is large enough that no caller gets a backward L-segment", () => {
+    // Pin the default >= TAIL_X_MIN. If a future edit drops the
+    // default below the minimum, the clamp will catch it at runtime,
+    // but the static check makes the intent explicit.
+    expect(bubbleFrame).toMatch(/const TAIL_X_DEFAULT\s*=\s*(\d+)/);
+    const defaultMatch = bubbleFrame.match(/const TAIL_X_DEFAULT\s*=\s*(\d+)/);
+    const defaultVal = defaultMatch ? parseInt(defaultMatch[1], 10) : 0;
+    // RADIUS=24, TAIL_HALF_WIDTH=24, margin=4 → minimum 52.
+    expect(defaultVal).toBeGreaterThanOrEqual(52);
+  });
 });
 
 describe("TeacherFeedback — QuickReplies a11y (radiogroup)", () => {
