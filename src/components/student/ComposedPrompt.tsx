@@ -33,6 +33,14 @@ interface ComposedPromptProps {
   tappable?: boolean;
   /** Visual variant. Default "standard". */
   variant?: "standard" | "compact";
+  /**
+   * LIS.A.3 — skip rendering the framing slot. Used when the parent has
+   * hoisted framing into a sibling surface (e.g. magazine callout title)
+   * so the body card doesn't render it again. No effect on the legacy
+   * single-prompt fallback path, since framing only renders when slot
+   * fields are present.
+   */
+  skipFraming?: boolean;
 }
 
 const FRAMING_CLASS_STANDARD =
@@ -50,6 +58,7 @@ export function ComposedPrompt({
   section,
   tappable = false,
   variant = "standard",
+  skipFraming = false,
 }: ComposedPromptProps) {
   // Legacy fallback — when ALL three slots are null/empty, render the
   // single-blob `prompt` via the existing MarkdownPrompt unchanged.
@@ -69,7 +78,7 @@ export function ComposedPrompt({
 
   return (
     <div className="space-y-3" data-testid="composed-prompt">
-      {framing && (
+      {framing && !skipFraming && (
         <div className={framingClass} data-testid="composed-prompt-framing">
           <MarkdownPrompt text={framing} tappable={tappable} />
         </div>
