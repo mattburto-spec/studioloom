@@ -21,8 +21,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { loadTileFeedbackThreads } from "@/lib/grading/tile-feedback-loader";
-import type { Turn } from "@/components/lesson/TeacherFeedback/types";
+import {
+  loadTileFeedbackThreads,
+  type TileFeedbackResult,
+} from "@/lib/grading/tile-feedback-loader";
 
 export async function GET(request: NextRequest) {
   const session = await requireStudentSession(request);
@@ -54,9 +56,9 @@ export async function GET(request: NextRequest) {
     p_page_id: pageId,
   });
 
-  let threadsByTileId: Record<string, Turn[]>;
+  let result: TileFeedbackResult;
   try {
-    threadsByTileId = await loadTileFeedbackThreads(
+    result = await loadTileFeedbackThreads(
       db,
       session.studentId,
       unitId,
@@ -74,5 +76,9 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ threadsByTileId });
+  // Return both: threads (the rendering payload) AND gradeIdByTileId
+  // (the lookup table the reply POST endpoint needs to route to the
+  // right grade row). Both populated from the same source query — no
+  // chance of inconsistency between them.
+  return NextResponse.json(result);
 }

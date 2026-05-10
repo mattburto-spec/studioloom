@@ -30,6 +30,18 @@ import type {
  *  (a tile with no feedback gets no key — caller checks for absence). */
 export type ThreadsByTileId = Record<string, Turn[]>;
 
+/** Map from tile_id to the corresponding student_tile_grades.id.
+ *  Needed by B.3 so the reply POST endpoint can route to the right
+ *  grade row without a second DB lookup. Every tile that has a row
+ *  in student_tile_grades for this (student, unit, page) appears
+ *  here, even if it has no feedback turns yet. */
+export type GradeIdByTileId = Record<string, string>;
+
+export interface TileFeedbackResult {
+  threadsByTileId: ThreadsByTileId;
+  gradeIdByTileId: GradeIdByTileId;
+}
+
 interface RawTurnRow {
   id: string;
   role: "teacher" | "student";
@@ -67,7 +79,7 @@ export async function loadTileFeedbackThreads(
   studentId: string,
   unitId: string,
   pageId: string,
-): Promise<ThreadsByTileId> {
+): Promise<TileFeedbackResult> {
   // Two-step query:
   //   1. Find grade_ids for this student × unit × page.
   //   2. Pull all turns under those grade_ids, ordered by sent_at.
@@ -86,13 +98,18 @@ export async function loadTileFeedbackThreads(
     );
   }
   if (!grades || grades.length === 0) {
-    return {};
+    return { threadsByTileId: {}, gradeIdByTileId: {} };
   }
 
   const gradeIds = (grades as { id: string; tile_id: string }[]).map((g) => g.id);
   const tileByGradeId = new Map<string, string>();
+  // Build the inverse map (tile → grade) at the same time. Both maps
+  // are derived from the same source query so they're guaranteed
+  // consistent with each other.
+  const gradeIdByTileId: GradeIdByTileId = {};
   for (const g of grades as { id: string; tile_id: string }[]) {
     tileByGradeId.set(g.id, g.tile_id);
+    gradeIdByTileId[g.tile_id] = g.id;
   }
 
   const { data: turns, error: tErr } = await client
@@ -109,7 +126,10 @@ export async function loadTileFeedbackThreads(
     );
   }
   if (!turns || turns.length === 0) {
-    return {};
+    // gradeIdByTileId still populated — a tile may have a grade row
+    // but no turns yet (the reply endpoint needs to know the
+    // grade_id to insert the first turn).
+    return { threadsByTileId: {}, gradeIdByTileId };
   }
 
   // Resolve teacher names in a single batched lookup.
@@ -141,17 +161,17 @@ export async function loadTileFeedbackThreads(
   }
 
   // Group turns by tile_id (resolved via grade_id).
-  const out: ThreadsByTileId = {};
+  const threadsByTileId: ThreadsByTileId = {};
   for (const raw of turns as RawTurnRow[]) {
     const tileId = tileByGradeId.get(raw.grade_id);
     if (!tileId) continue; // grade row was deleted between queries — skip
     const turn = mapRawToTurn(raw, teacherNamesById);
     if (!turn) continue;
-    if (!out[tileId]) out[tileId] = [];
-    out[tileId].push(turn);
+    if (!threadsByTileId[tileId]) threadsByTileId[tileId] = [];
+    threadsByTileId[tileId].push(turn);
   }
 
-  return out;
+  return { threadsByTileId, gradeIdByTileId };
 }
 
 /** Convert a raw DB row into the discriminated `Turn` shape the
