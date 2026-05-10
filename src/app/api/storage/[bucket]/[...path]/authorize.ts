@@ -16,21 +16,32 @@
  *       - any teacher who manages that student (verifyTeacherCanManageStudent)
  *       - platform admins (auth.users.is_platform_admin)
  *
- *   unit-images (curriculum thumbnails — low PII risk):
- *     Path shape: {unitId}/...
- *     Allowed: any authenticated user (these render in shared library views).
- *     Future tightening tracked as FU-SEC-UNIT-IMAGES-SCOPING.
+ *   unit-images (curriculum thumbnails):
+ *     Path shape: {unitId}/{timestamp}.jpg (single writer:
+ *     /api/teacher/upload-unit-image/route.ts:88).
+ *     Allowed (S5 9 May 2026 — F-11 closure):
+ *       - students enrolled in any class with this unit assigned
+ *         (auth.uid → students.user_id → class_students → class_units → unit)
+ *       - teachers with verifyTeacherHasUnit (authored OR assigned via class_members)
+ *       - platform admins
  *
  *   knowledge-media (teacher-uploaded teaching materials):
- *     Path shape: free-form
- *     Allowed: any authenticated user. These are teacher-uploaded curriculum
- *     content; the readers are students + teachers in the same school.
- *     Future tightening tracked as FU-SEC-KNOWLEDGE-MEDIA-SCOPING.
+ *     Path shape: {teacherId}/{timestamp}.{ext} (single writer:
+ *     /api/teacher/knowledge/media/route.ts:63).
+ *     Allowed (S5 9 May 2026 — F-11 closure):
+ *       - the owning teacher themselves (path[0] == auth.uid for teachers)
+ *       - any teacher in the same school as the owning teacher
+ *         (school-co-membership; v1 share-by-school model per pilot scope)
+ *       - any student in the same school as the owning teacher
+ *       - platform admins
  */
 
 import type { User } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { verifyTeacherCanManageStudent } from "@/lib/auth/verify-teacher-unit";
+import {
+  verifyTeacherCanManageStudent,
+  verifyTeacherHasUnit,
+} from "@/lib/auth/verify-teacher-unit";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -43,9 +54,11 @@ export async function authorizeBucketAccess(
   bucket: string,
   path: string,
 ): Promise<AuthorizeResult> {
-  // The two low-stakes buckets — any authenticated user OK.
-  if (bucket === "unit-images" || bucket === "knowledge-media") {
-    return { ok: true };
+  if (bucket === "unit-images") {
+    return authorizeUnitImagesAccess(user, path);
+  }
+  if (bucket === "knowledge-media") {
+    return authorizeKnowledgeMediaAccess(user, path);
   }
 
   if (bucket !== "responses") {
@@ -110,6 +123,156 @@ export async function authorizeBucketAccess(
     ]);
     if (profileResult.data?.is_platform_admin) return { ok: true };
     return manageResult ? { ok: true } : { ok: false, reason: "forbidden" };
+  }
+
+  return { ok: false, reason: "forbidden" };
+}
+
+// ─── unit-images bucket ────────────────────────────────────────────────
+//
+// Path shape: {unitId}/{timestamp}.jpg (verified by audit 9 May 2026 —
+// single writer at /api/teacher/upload-unit-image/route.ts:88).
+//
+// Scoping (S5 / F-11):
+//   - Students enrolled in any class with this unit assigned.
+//   - Teachers via verifyTeacherHasUnit (authored OR assigned via class_members).
+//   - Platform admins.
+
+async function authorizeUnitImagesAccess(
+  user: User,
+  path: string,
+): Promise<AuthorizeResult> {
+  const firstSegment = path.split("/")[0];
+  if (!firstSegment || !UUID_RE.test(firstSegment)) {
+    return { ok: false, reason: "malformed_path" };
+  }
+  const targetUnitId = firstSegment;
+
+  const userType = (user.app_metadata as Record<string, unknown> | undefined)
+    ?.user_type;
+  const admin = createAdminClient();
+
+  // Platform admin: read-all (check first; cheapest fast-path for admins).
+  const { data: profile } = await admin
+    .from("user_profiles")
+    .select("is_platform_admin")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (profile?.is_platform_admin) return { ok: true };
+
+  if (userType === "teacher") {
+    const result = await verifyTeacherHasUnit(user.id, targetUnitId);
+    return result.hasAccess
+      ? { ok: true }
+      : { ok: false, reason: "forbidden" };
+  }
+
+  if (userType === "student") {
+    // Chain: auth.uid → students.id → class_students → class_units(unit_id).
+    // Two queries because Supabase's PostgREST inner-join syntax for this
+    // shape is awkward and the indexes make 2 simple lookups fast.
+    const { data: studentRow } = await admin
+      .from("students")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!studentRow) return { ok: false, reason: "forbidden" };
+
+    // Get this unit's class assignments
+    const { data: classUnits } = await admin
+      .from("class_units")
+      .select("class_id")
+      .eq("unit_id", targetUnitId)
+      .eq("is_active", true);
+    const classIds = (classUnits ?? [])
+      .map((r) => r.class_id as string)
+      .filter(Boolean);
+    if (classIds.length === 0) return { ok: false, reason: "forbidden" };
+
+    // Is the student actively enrolled in any of those classes?
+    const { data: enrollment } = await admin
+      .from("class_students")
+      .select("class_id")
+      .eq("student_id", studentRow.id)
+      .eq("is_active", true)
+      .in("class_id", classIds)
+      .limit(1)
+      .maybeSingle();
+    return enrollment ? { ok: true } : { ok: false, reason: "forbidden" };
+  }
+
+  return { ok: false, reason: "forbidden" };
+}
+
+// ─── knowledge-media bucket ─────────────────────────────────────────────
+//
+// Path shape: {teacherId}/{timestamp}.{ext} (verified by audit 9 May 2026
+// — single writer at /api/teacher/knowledge/media/route.ts:63; teacherId
+// here is auth.users.id since teachers.id == auth.users.id 1:1 per Phase
+// 1.1+).
+//
+// Scoping (S5 / F-11):
+//   - Owning teacher themselves (auth.uid === path[0]).
+//   - Same-school teachers (school-co-membership; v1 share-by-school model).
+//   - Same-school students.
+//   - Platform admins.
+
+async function authorizeKnowledgeMediaAccess(
+  user: User,
+  path: string,
+): Promise<AuthorizeResult> {
+  const firstSegment = path.split("/")[0];
+  if (!firstSegment || !UUID_RE.test(firstSegment)) {
+    return { ok: false, reason: "malformed_path" };
+  }
+  const ownerTeacherId = firstSegment;
+
+  // Self-access fast-path.
+  const userType = (user.app_metadata as Record<string, unknown> | undefined)
+    ?.user_type;
+  if (userType === "teacher" && user.id === ownerTeacherId) {
+    return { ok: true };
+  }
+
+  const admin = createAdminClient();
+
+  // Platform admin: read-all.
+  const { data: profile } = await admin
+    .from("user_profiles")
+    .select("is_platform_admin")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (profile?.is_platform_admin) return { ok: true };
+
+  // Resolve the owning teacher's school.
+  const { data: ownerRow } = await admin
+    .from("teachers")
+    .select("school_id")
+    .eq("id", ownerTeacherId)
+    .maybeSingle();
+  const ownerSchoolId = ownerRow?.school_id as string | null | undefined;
+  if (!ownerSchoolId) return { ok: false, reason: "forbidden" };
+
+  if (userType === "teacher") {
+    const { data: accessorRow } = await admin
+      .from("teachers")
+      .select("school_id")
+      .eq("id", user.id)
+      .maybeSingle();
+    return accessorRow?.school_id === ownerSchoolId
+      ? { ok: true }
+      : { ok: false, reason: "forbidden" };
+  }
+
+  if (userType === "student") {
+    const { data: studentRow } = await admin
+      .from("students")
+      .select("school_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    return studentRow?.school_id === ownerSchoolId
+      ? { ok: true }
+      : { ok: false, reason: "forbidden" };
   }
 
   return { ok: false, reason: "forbidden" };

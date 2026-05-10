@@ -499,8 +499,8 @@ The current state delivers (1) for the rls/audit/encryption/DSR/AI-chokepoint su
 | FU-SEC-PROMPT-INJECTION-HARDENING | XML-delimit student input + ignore-injection system prompt | P2 | 1d | TODO | matt | pre-paid |
 | FU-SEC-AUDIT-COVERAGE-LEARNER-MUTATIONS | Re-walk 231 audit-skip annotations for student mutations | P3 | 0.5d | TODO | matt | pre-pilot-expand |
 | FU-SEC-CSRF-ORIGIN-CHECK | Defence-in-depth Origin check on mutating routes | P2 | 1d | TODO | matt | pre-paid |
-| FU-SEC-UNIT-IMAGES-SCOPING | Tighten unit-images bucket from "any user" to "user-with-unit-access" | P3 | 0.5d | TODO | matt | post-pilot |
-| FU-SEC-KNOWLEDGE-MEDIA-SCOPING | Tighten knowledge-media bucket scoping | P3 | 1d | TODO | matt | post-pilot |
+| FU-SEC-UNIT-IMAGES-SCOPING | Tighten unit-images bucket from "any user" to "user-with-unit-access" | P3 | 0.5d | **DONE — 2026-05-09** (rolled into S5 / F-11 closure) | matt | — |
+| FU-SEC-KNOWLEDGE-MEDIA-SCOPING | Tighten knowledge-media bucket scoping | P3 | 1d | **DONE — 2026-05-09** (rolled into S5 / F-11 closure; school-co-membership model) | matt | — |
 | FU-SEC-BADGE-ASSIGN-PER-STUDENT | `POST /api/teacher/badges/[id]/assign` accepts `studentIds: string[]` — wrap each in `verifyTeacherCanManageStudent` so cross-class teacher self-grant is closed (requireTeacher alone closes student-self-grant). Surfaced by S3 sweep 9 May. | P2 | 0.5d | TODO | matt | pre-paid |
 | FU-SEC-REQUEST-ACCESS-TURNSTILE | `/api/teacher/request-access/route.ts` is anonymous-public (allowlisted in scan-role-guards.py) but lacks Turnstile + rate-limiting. Sister route `welcome/request-school-access` already has Turnstile — mirror the pattern. | P2 | 1h | TODO | matt | pre-paid |
 | FU-SEC-VENDORS-AI-USAGE-LOG-METADATA | vendors.yaml drift: ai_usage_log.metadata holds PII | P3 | 5min | **DONE — 2026-05-09** (Supabase entry updated with telemetry_metadata category) | matt | — |
@@ -522,7 +522,7 @@ Source: [`external-review-2026-05-09-findings.md`](external-review-2026-05-09-fi
 | F-8 | `open_studio_status` / `open_studio_sessions` — wide-open SELECT (mig 029) | P1 | S1 | **DONE — 2026-05-09** (same migration) | matt | — |
 | F-9 | Sentry PII filter doesn't scrub `event.message` or `event.exception.values[*]` | P1 | S4 | **DONE — 2026-05-09** (4-pattern scrub: email, JWT-shape, Bearer token, classcode-shape; 8 new tests + negative-control proven (strip → 7/8 fail)) | matt | — |
 | F-10 | Sentry Replay sampled at 10% on errors with no masking | P1 | S4 | **DONE — 2026-05-09** (Q3 option A: `replaysOnErrorSampleRate: 0`. Re-enable WITH masking integration when concrete debugging need arises.) | matt | — |
-| F-11 | `unit-images` + `knowledge-media` proxy short-circuits to "any authenticated user" | P2 | inc. in S5 | **PLANNED — phase S5** | matt | pre-paid |
+| F-11 | `unit-images` + `knowledge-media` proxy short-circuits to "any authenticated user" | P2 | S5 | **DONE — 2026-05-09** (per-resource scoping in `authorize.ts`: unit-images via class_units→class_students chain (students) + verifyTeacherHasUnit (teachers); knowledge-media via school-co-membership; 16 new tests + negative-control proven (strip scope helpers → 9 fail)) | matt | — |
 | F-12 | Fabricator login is a timing oracle for email enumeration | P2 | inc. in S6 | **PLANNED — phase S6** | matt | pre-paid |
 | F-13 | Doc-vs-code drift: "Argon2id" claimed in CLAUDE.md, code uses bcryptjs | P2 | inc. in S6 | **PLANNED — phase S6** | matt | pre-paid |
 | F-14 | Fabricator login rate-limit is in-memory, no per-account lockout | P2 | inc. in S6 | **PLANNED — phase S6** | matt | pre-paid |
