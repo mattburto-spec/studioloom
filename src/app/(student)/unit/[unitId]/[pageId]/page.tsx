@@ -44,7 +44,7 @@ import { SkillRefsForPage } from "@/components/skills/SkillRefsForPage";
 import {
   InlineTeacherFeedback,
   TeacherFeedbackBanner,
-  useTileFeedback,
+  useTileFeedbackThreads,
 } from "@/components/grading/TeacherFeedbackPanel";
 import type { PageContent } from "@/types";
 import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
@@ -96,9 +96,11 @@ function UnitPageViewInner({
 
   const { student, classInfo } = useStudent();
   const openStudio = useOpenStudio(unitId);
-  // G3.3 — fetch teacher feedback for this lesson once. Banner + per-tile
-  // inline cards both read from this single map.
-  const { byTileId: feedbackByTileId, comments: feedbackComments } = useTileFeedback(
+  // G3.3 / TFL.2 Pass B.2 — fetch teacher feedback THREADS for this
+  // lesson once. Banner + per-tile inline cards both read from this
+  // single map. Each value is an array of Turn (teacher OR student)
+  // ordered by sent_at, ready to drop into <TeacherFeedback turns={...} />.
+  const { threadsByTileId, teacherFedTileIds } = useTileFeedbackThreads(
     unitId,
     pageId,
   );
@@ -302,11 +304,11 @@ function UnitPageViewInner({
             edit page. Zero noise when there are no pins. */}
         <SkillRefsForPage pageId={pageId} />
 
-        {/* G3.3 — top-of-lesson feedback banner. Renders only when ≥1
-            anchored teacher comment exists on this page. Click → scroll to
-            the first inline card. */}
-        {feedbackComments && feedbackComments.length > 0 && (
-          <TeacherFeedbackBanner comments={feedbackComments} />
+        {/* G3.3 / TFL.2 Pass B.2 — top-of-lesson feedback banner.
+            Renders only when ≥1 tile has a teacher turn on this page.
+            Click → scroll to the first inline card. */}
+        {teacherFedTileIds.length > 0 && (
+          <TeacherFeedbackBanner teacherFedTileIds={teacherFedTileIds} />
         )}
 
         {/* ── Activity sections with dividers ── */}
@@ -369,14 +371,16 @@ function UnitPageViewInner({
                 {/* G3.3 — anchored teacher feedback inline beneath the tile.
                     The first card on the page gets the data-feedback-anchor
                     so the top banner can scroll to it. */}
-                {feedbackByTileId[responseKey] && (() => {
-                  const ordered = (feedbackComments ?? [])
-                    .map((c) => c.tile_id)
-                    .filter((id) => Boolean(feedbackByTileId[id]));
-                  const isFirst = ordered[0] === responseKey;
+                {threadsByTileId[responseKey] && threadsByTileId[responseKey].length > 0 && (() => {
+                  // First-anchor: the first tile WITH a teacher turn on
+                  // this page. The hook already derives that list as
+                  // teacherFedTileIds; isFirst is true if responseKey is
+                  // its first entry.
+                  const isFirst = teacherFedTileIds[0] === responseKey;
                   return (
                     <InlineTeacherFeedback
-                      comment={feedbackByTileId[responseKey]}
+                      threadId={`tile-feedback-${responseKey}`}
+                      turns={threadsByTileId[responseKey]}
                       isFirst={isFirst}
                     />
                   );
