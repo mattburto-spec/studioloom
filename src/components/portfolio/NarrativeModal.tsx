@@ -77,9 +77,15 @@ export function NarrativeModal({
   // Falls back to the prop if the refresh failed (or hasn't fired yet).
   const effectiveProgress = freshProgress ?? progress;
 
-  // Build narrative sections from progress + pages (with portfolio filtering)
+  // Build narrative sections from progress + pages (with portfolio
+  // filtering). LIS.E — pass portfolioEntries so manual Portfolio
+  // captures of regular text responses surface in Narrative.
   const allPages = getPageList(unit.content_data);
-  const sections = buildNarrativeSections(allPages, effectiveProgress);
+  const sections = buildNarrativeSections(
+    allPages,
+    effectiveProgress,
+    portfolioEntries,
+  );
 
   // Date range
   const dates = [
