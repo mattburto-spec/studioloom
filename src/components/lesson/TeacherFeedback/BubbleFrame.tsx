@@ -144,6 +144,14 @@ export function BubbleFrame({
             top: -tailReach,
             left: 0,
             pointerEvents: "none",
+            // Lets the 2px stroke extend past the SVG's viewBox without
+            // getting half-clipped at the edges. Without this, strokes
+            // along the bubble's left edge (x=0), right edge (x=w), and
+            // bottom edge (y=h+tailReach) render at 1px while the top
+            // edge (at internal y=tailReach with clearance) renders at
+            // 2px — visible inconsistency Matt smoke caught (10 May
+            // 2026, post-#166).
+            overflow: "visible",
           }}
           aria-hidden="true"
         >
