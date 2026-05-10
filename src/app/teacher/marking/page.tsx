@@ -860,6 +860,44 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
     }
   }
 
+  // PR-C (10 May 2026): "NA all" bulk action for the active tile.
+  // Sets score_na=true + confirmed=true for every student in the
+  // cohort in parallel. Useful for tiles that have submissions but
+  // aren't gradable (e.g. checkpoint reflections, attendance markers,
+  // open-discussion prompts) — saves the teacher 24+ individual NA
+  // clicks. Idempotent: a student already at score_na=true gets
+  // re-stamped without complaint.
+  const [naAllRunning, setNaAllRunning] = useState(false);
+  async function naAllForActiveTile() {
+    if (!klass || !unit || !activePageId || !activeTile) return;
+    if (students.length === 0) return;
+    const proceed = window.confirm(
+      `Mark this tile NA for all ${students.length} students? ` +
+        `Each row gets score_na=true and is confirmed (chip counter ticks all the way up). ` +
+        `Doesn't touch comments. You can override individual rows after.`,
+    );
+    if (!proceed) return;
+    setNaAllRunning(true);
+    try {
+      // Chunked parallel saves — saveTile already optimistic-updates
+      // setGrades per row, so the UI ticks up as each chunk lands.
+      // Chunk size 8 keeps the route from being hammered while still
+      // finishing a 24-student class in ~3 round-trips.
+      const CHUNK = 8;
+      for (let i = 0; i < students.length; i += CHUNK) {
+        const slice = students.slice(i, i + CHUNK);
+        // eslint-disable-next-line no-await-in-loop
+        await Promise.all(
+          slice.map((s) =>
+            saveTile(s.id, null, true, { score_na: true }),
+          ),
+        );
+      }
+    } finally {
+      setNaAllRunning(false);
+    }
+  }
+
   async function runAiPrescoreBatch() {
     if (!klass || !unit || !activePageId || !activeTile) return;
     // PR-B: only send students who have a submission on the active tile.
@@ -1080,6 +1118,8 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
           aiBatchSummary={aiBatchSummary}
           runAiPrescoreBatch={runAiPrescoreBatch}
           submitterIdsForActiveTile={submitterIdsForActiveTile}
+          naAllRunning={naAllRunning}
+          naAllForActiveTile={naAllForActiveTile}
           unitContentData={unit?.contentData ?? null}
           framework={klass?.framework ?? undefined}
           unitType={klass?.subject ?? undefined}
@@ -1124,6 +1164,11 @@ interface CalibrateInnerProps {
    *  (saves Haiku tokens) and gated INTO the "Where's your submission?"
    *  nudge button (only renders for non-submitters). */
   submitterIdsForActiveTile: Set<string>;
+  /** PR-C — bulk "NA all" action wiring. naAllForActiveTile loops over
+   *  the cohort and stamps score_na=true + confirmed=true for every
+   *  student. naAllRunning gates the button + shows progress copy. */
+  naAllRunning: boolean;
+  naAllForActiveTile: () => Promise<void>;
   // G2.2 — heatmap inputs (unit-level coverage across all tiles).
   unitContentData: UnitContentData | null;
   framework: string | undefined;
@@ -1152,6 +1197,8 @@ function CalibrateInner({
   aiBatchSummary,
   runAiPrescoreBatch,
   submitterIdsForActiveTile,
+  naAllRunning,
+  naAllForActiveTile,
   unitContentData,
   framework,
   unitType,
@@ -1335,9 +1382,33 @@ function CalibrateInner({
                 : `AI suggest (${submitterIdsForActiveTile.size}/${students.length} submitted)`}
             </button>
           </div>
-          {aiBatchSummary && (
-            <p className="mt-2 text-[11px] text-gray-500 italic">{aiBatchSummary}</p>
-          )}
+          <div className="mt-3 flex items-center justify-between gap-3">
+            {aiBatchSummary ? (
+              <p className="text-[11px] text-gray-500 italic">{aiBatchSummary}</p>
+            ) : (
+              <span />
+            )}
+            {/* PR-C (10 May 2026): NA-all bulk action. Lives next to the
+                AI batch trigger because both are tile-level cohort actions.
+                Smaller + outline-only because it's a less common move
+                (~1-2 tiles per unit, not every tile). */}
+            <button
+              type="button"
+              data-testid="marking-na-all-button"
+              onClick={() => void naAllForActiveTile()}
+              disabled={naAllRunning || students.length === 0}
+              className={[
+                "flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-md border transition",
+                naAllRunning
+                  ? "bg-gray-50 text-gray-400 border-gray-200 cursor-wait"
+                  : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50 hover:text-gray-800",
+                students.length === 0 ? "opacity-50 cursor-not-allowed" : "",
+              ].join(" ")}
+              title={`Mark NA for all ${students.length} students on this tile. Useful for non-gradable tiles (reflections, attendance markers). Doesn't touch comments. Confirms before running.`}
+            >
+              {naAllRunning ? "Marking NA…" : `NA all (${students.length})`}
+            </button>
+          </div>
         </div>
       )}
 
