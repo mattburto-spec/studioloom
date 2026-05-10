@@ -289,4 +289,70 @@ describe("beforeBreadcrumb", () => {
     expect((out!.data as { studentEmail: string; topic: string }).studentEmail).toBe("[REDACTED]");
     expect((out!.data as { studentEmail: string; topic: string }).topic).toBe("ok");
   });
+
+  // F-20 9 May 2026 — UUID segments in path get redacted (not just query).
+  it("redacts UUID segments in /api/storage/responses/{uuid}/... breadcrumb URLs", () => {
+    const crumb: Breadcrumb = {
+      category: "fetch",
+      data: {
+        url: "/api/storage/responses/f706d6d1-ab8f-4d6c-b3d1-52dc076d1343/avatar/img.jpg",
+        method: "GET",
+      },
+    };
+    const out = beforeBreadcrumb(crumb);
+    const url = out!.data!.url as string;
+    expect(url).not.toContain("f706d6d1-ab8f-4d6c-b3d1-52dc076d1343");
+    expect(url).toContain("[REDACTED]");
+    // Path structure preserved
+    expect(url).toContain("/api/storage/responses/");
+    expect(url).toContain("/avatar/img.jpg");
+  });
+
+  it("redacts UUID segments in unit-images / knowledge-media URLs too", () => {
+    const crumb: Breadcrumb = {
+      category: "fetch",
+      data: {
+        url: "https://www.studioloom.org/api/storage/unit-images/abcdef01-2345-6789-abcd-ef0123456789/thumb.jpg",
+        method: "GET",
+      },
+    };
+    const out = beforeBreadcrumb(crumb);
+    const url = out!.data!.url as string;
+    expect(url).not.toContain("abcdef01-2345-6789-abcd-ef0123456789");
+    expect(url).toContain("[REDACTED]");
+  });
+
+  it("redacts UUID segments AND query-string PII in the same URL", () => {
+    const crumb: Breadcrumb = {
+      category: "fetch",
+      data: {
+        url: "/api/storage/responses/11111111-1111-1111-1111-111111111111/x.jpg?email=leak%40example.com&token=abc",
+        method: "GET",
+      },
+    };
+    const out = beforeBreadcrumb(crumb);
+    const url = out!.data!.url as string;
+    expect(url).not.toContain("11111111-1111-1111-1111-111111111111");
+    expect(url).not.toContain("leak%40example.com");
+    expect(url).not.toContain("leak@example.com");
+    // Both redacted
+    expect(url.match(/\[REDACTED\]|%5BREDACTED%5D/g)?.length).toBeGreaterThan(1);
+  });
+
+  it("does NOT redact non-UUID path segments", () => {
+    const crumb: Breadcrumb = {
+      category: "fetch",
+      data: {
+        url: "/api/teacher/badges/12345678-1234-1234-1234-123456789012/results",
+        method: "GET",
+      },
+    };
+    const out = beforeBreadcrumb(crumb);
+    const url = out!.data!.url as string;
+    // The badge id IS a UUID — gets redacted (correct). The static
+    // /api/teacher/badges/ + /results portions remain intact.
+    expect(url).toContain("/api/teacher/badges/");
+    expect(url).toContain("/results");
+    expect(url).not.toContain("12345678-1234-1234-1234-123456789012");
+  });
 });

@@ -19,7 +19,13 @@ CREATE INDEX idx_usage_student ON ai_usage_log(student_id, created_at DESC);
 CREATE INDEX idx_usage_endpoint ON ai_usage_log(endpoint, created_at DESC);
 CREATE INDEX idx_usage_created ON ai_usage_log(created_at DESC);
 
--- RLS: only service role can write; admins can read
+-- RLS: service-role-only. Admin pages (/admin/cost-usage,
+-- /admin/ai-budget) read this table via createAdminClient() which
+-- bypasses RLS — there is NO separate admin SELECT policy. The
+-- "service-role" policy below is the ONLY policy on this table; the
+-- earlier "admins can read" comment (corrected 9 May 2026, F-18) was
+-- imprecise — admins read via service-role bypass, not via a granted
+-- read role.
 ALTER TABLE ai_usage_log ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Service role full access"

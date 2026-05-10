@@ -257,7 +257,7 @@ export function beforeBreadcrumb(
         response_body_size: undefined,
       };
       if (typeof breadcrumb.data.url === "string") {
-        breadcrumb.data.url = redactUrlQueryString(breadcrumb.data.url);
+        breadcrumb.data.url = redactUrlPathAndQuery(breadcrumb.data.url);
       }
     }
   }
@@ -281,4 +281,29 @@ function redactUrlQueryString(url: string): string {
   const qIndex = url.indexOf("?");
   if (qIndex === -1) return url;
   return url.slice(0, qIndex + 1) + redactQueryString(url.slice(qIndex + 1));
+}
+
+/**
+ * F-20 9 May 2026: extends query-string redaction with PATH-segment
+ * UUID redaction for the storage proxy. Sentry breadcrumbs capture
+ * fetch URLs verbatim; for `/api/storage/responses/{studentId}/...`
+ * paths the studentId is a real student.id UUID — visible in Sentry
+ * dashboard breadcrumb trails. Replace any UUID segment in the path
+ * with [REDACTED] before serialising.
+ *
+ * UUID-shape regex matches the canonical 8-4-4-4-12 hex format. Only
+ * applied to path segments (not query params — those go through
+ * redactQueryString separately).
+ */
+const UUID_SEGMENT_RE = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
+
+function redactUrlPathAndQuery(url: string): string {
+  const qIndex = url.indexOf("?");
+  const pathPart = qIndex === -1 ? url : url.slice(0, qIndex);
+  const queryPart = qIndex === -1 ? "" : url.slice(qIndex + 1);
+
+  const redactedPath = pathPart.replace(UUID_SEGMENT_RE, REDACTED);
+  return qIndex === -1
+    ? redactedPath
+    : redactedPath + "?" + redactQueryString(queryPart);
 }

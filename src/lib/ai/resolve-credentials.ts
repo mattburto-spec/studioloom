@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { decrypt } from "@/lib/encryption";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export interface ResolvedCredentials {
   provider: "anthropic" | "openai-compatible";
@@ -43,8 +44,36 @@ export async function resolveCredentials(
         modelName: settings.model_name,
         source: "teacher",
       };
-    } catch {
-      // Decryption failed — fall through to platform key
+    } catch (err) {
+      // F-16 9 May 2026: don't swallow silently. The most common cause is
+      // ENCRYPTION_KEY rotation drift (key was rotated but ai_settings rows
+      // still have ciphertext encrypted with the old key). Without a log,
+      // the teacher's BYOK silently stops working and the platform falls
+      // back to the env-var key — which charges the platform tier instead
+      // of the teacher's tier with no visibility.
+      const cause = err instanceof Error ? err.message : "unknown";
+      const teacherShortId = teacherId.slice(0, 8);
+      console.error(
+        `[resolve-credentials] BYOK decrypt failed for teacher=${teacherShortId} cause=${cause} — falling back to platform key`,
+      );
+      // Best-effort audit emit so the failure shows up on /admin/audit-log.
+      // Use a fresh admin client (the SSR client passed in is RLS-bound and
+      // can't write audit_events). Fire-and-forget; never throw.
+      try {
+        const audit = createAdminClient();
+        await audit.from("audit_events").insert({
+          event_type: "byok.decrypt_failed",
+          actor_user_id: teacherId,
+          target_table: "ai_settings",
+          target_id: teacherId,
+          metadata: { cause, fell_back_to: "platform" },
+        });
+      } catch (auditErr) {
+        // Audit emit best-effort; don't block fallback chain.
+        console.warn("[resolve-credentials] audit emit failed:", auditErr);
+      }
+      // NEVER log key material (settings.encrypted_api_key, the decrypted
+      // apiKey, or the underlying ENCRYPTION_KEY env var).
     }
   }
 

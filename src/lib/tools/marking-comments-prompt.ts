@@ -35,6 +35,14 @@ Write marking comments at four achievement levels for the ${vocab.criteriaTermSi
 5. Be 2-3 sentences each — concise enough to paste into a report or gradebook
 6. Progress clearly from below standard → approaching → meeting → exceeding
 
+## Privacy rule (F-15 9 May 2026)
+The "Student Work Description" below is teacher free-text. If a name appears
+in it ("Maya wrote...", "Sam's diagram..."), refer to the writer as "the
+student" in your output. Do NOT echo the named individual back in the
+returned comments. Names in this free-text field flow to Anthropic under
+teacher attribution; keeping the saved comment-template anonymous reduces
+the chance of PII appearing in the teacher's downstream gradebook paste.
+
 ## Achievement Levels
 - **Below Standard**: The student has not yet demonstrated the required skills. Comment should identify what is missing and provide specific, actionable next steps.
 - **Approaching Standard**: The student shows partial understanding but with significant gaps. Comment should acknowledge what was done well and identify the key gap preventing them from meeting the standard.
