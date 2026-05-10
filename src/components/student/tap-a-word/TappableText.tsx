@@ -100,11 +100,31 @@ export function TappableText({ text, contextSentence, className, classId: classI
       instance: instanceIdRef.current,
       textPreview: text.slice(0, 40),
     });
-    return () =>
+    return () => {
       tapLog("TappableText unmount", {
         instance: instanceIdRef.current,
         textPreview: text.slice(0, 40),
       });
+      // Round 25 follow-up — stack trace on unmount so we can identify
+      // WHICH parent commit is destroying us. React's commit phase
+      // cleans up effects synchronously, so the call stack at this
+      // point traces back to the parent's render that decided to
+      // unmount this subtree. Look for "page" / "ScrollReveal" /
+      // "MarkdownPrompt" / "ActivityCard" frames in the trace.
+      try {
+        if (
+          typeof window !== "undefined" &&
+          window.localStorage.getItem("tap-a-word-debug") === "1"
+        ) {
+          // eslint-disable-next-line no-console
+          console.trace(
+            `[tap-a-word] unmount stack — ${instanceIdRef.current}`
+          );
+        }
+      } catch {
+        // no-op
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
