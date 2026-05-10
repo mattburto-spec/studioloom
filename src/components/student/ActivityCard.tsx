@@ -365,6 +365,7 @@ export function ActivityCard({
                 prompts={section.prompts}
                 requirePhoto={section.requirePhoto}
                 autoCreateKanbanCardOnSave={section.autoCreateKanbanCardOnSave}
+                promptsLayout={section.promptsLayout}
                 onSaveResponseImmediate={onSaveResponseImmediate}
                 enableIntegrityMonitoring={enableIntegrityMonitoring}
                 onIntegrityUpdate={

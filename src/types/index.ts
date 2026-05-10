@@ -441,6 +441,11 @@ export interface ActivitySection {
   /** v2 slot — what students produce/record/submit (≤200 chars). Renders with 🎯 prefix + bold weight. */
   success_signal?: string;
 
+  // ── LIS.C — Stepper layout opt-in for structured-prompts ──
+
+  /** When set to "stepper", structured-prompts render via the LIS MultiQuestionResponse component (one question at a time, criterion-coloured). Default undefined → existing all-at-once StructuredPromptsResponse. */
+  promptsLayout?: "stepper";
+
   // ── Key-callout block (LIS.A, 10 May 2026) ──
 
   /** For contentStyle === "key-callout": rows in the magazine-layout callout. When set, ActivityCard renders KeyInformationCallout instead of the default ComposedPrompt body. */

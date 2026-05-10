@@ -26,6 +26,13 @@ export interface StructuredPrompt {
   required?: boolean;
   /** Soft character cap — UI shows count, doesn't hard-block. */
   softCharCap?: number;
+  /**
+   * LIS.C — optional criterion tag, used by the stepper layout
+   * (MultiQuestionResponse) to drive accent colour, badge tone, and ring
+   * colour. DO=orange, NOTICE=blue, DECIDE=green, NEXT=purple. Only
+   * consumed when section.promptsLayout === "stepper"; ignored otherwise.
+   */
+  criterion?: "DO" | "NOTICE" | "DECIDE" | "NEXT";
 }
 
 /**
