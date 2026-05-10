@@ -141,6 +141,15 @@ describe("TeacherFeedback — BubbleFrame (single-SVG outline + integrated tail)
     expect(bubbleFrame).toMatch(/position:\s*"absolute"/);
   });
 
+  it("SVG has overflow: visible so 2px strokes don't half-clip at viewBox edges (Matt smoke regression guard)", () => {
+    // Without overflow: visible the stroke at x=0 (left edge) and x=w
+    // (right edge) and y=h+tailReach (bottom edge) gets half-clipped,
+    // making vertical edges render at 1px and horizontal edges at 2px.
+    // Pin the property here so a future "let me clean this up" CSS
+    // edit can't silently bring back the inconsistency.
+    expect(bubbleFrame).toMatch(/overflow:\s*"visible"/);
+  });
+
   it("clamps tailX to a minimum so the tail base never overlaps the rounded corner (Matt 10 May 2026 smoke regression guard)", () => {
     // Pre-fix: with tailX=36 and TAIL_HALF_WIDTH=24, the tail's left
     // base sat at x=12 — INSIDE the corner zone (corner ends at x=24).
