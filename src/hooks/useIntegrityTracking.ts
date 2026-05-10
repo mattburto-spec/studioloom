@@ -150,8 +150,13 @@ export function useIntegrityTracking({
 
   // ─── Handlers — bind to each <textarea> ────────────────────────────
 
+  // LIS.B — handlers typed for HTMLElement (the supertype of HTMLTextAreaElement
+  // AND HTMLDivElement) so contenteditable div surfaces (RichTextResponse)
+  // can use the same hook as plain textarea surfaces (StructuredPromptsResponse).
+  // Function parameter contravariance: an HTMLElement handler is assignable
+  // to slots typed for HTMLTextAreaElement or HTMLDivElement events.
   const onPaste = useCallback(
-    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    (e: React.ClipboardEvent<HTMLElement>) => {
       if (!enabled) return;
       const pasted = e.clipboardData.getData("text/plain");
       const now = Date.now();
@@ -168,7 +173,7 @@ export function useIntegrityTracking({
   );
 
   const onKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    (e: React.KeyboardEvent<HTMLElement>) => {
       if (!enabled) return;
       metricsRef.current.keystrokeCount++;
       metricsRef.current.lastActiveTime = Date.now();

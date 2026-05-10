@@ -2,23 +2,47 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useAutoSave } from "../shared";
+import { useIntegrityTracking } from "@/hooks/useIntegrityTracking";
+import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
 import { Toolbar, type ButtonId } from "./Toolbar";
 import { ALLOWED_TAGS, type RichTextPrompt } from "./types";
 
 export type { RichTextPrompt };
 
 type Props = {
-  prompt: RichTextPrompt;
-  /** HTML string. Plain text is also valid input. */
+  // ── Controlled mode (used by ResponseInput auto-replace) ────────────
+  /** HTML string. When provided alongside onChange, the parent owns the value and onSave/initialHTML are ignored. */
+  value?: string;
+  /** Called on every keystroke / format toggle / paste. Parent owns debounce/persistence. */
+  onChange?: (html: string) => void;
+
+  // ── Uncontrolled / autosave mode (storybook + standalone usage) ─────
+  /** HTML string. Plain text is also valid input. Used when value is not provided. */
   initialHTML?: string;
-  /** Called ~700ms after the last keystroke (debounced). */
-  onSave: (html: string) => void | Promise<void>;
-  /** Show "Send to Portfolio when submitted" checkbox. Default true. */
+  /** Called ~700ms after the last keystroke (debounced) — only fires in uncontrolled mode. */
+  onSave?: (html: string) => void | Promise<void>;
+
+  // ── Surface ─────────────────────────────────────────────────────────
+  /** Prompt header (eyebrow + heading). Renders when standalone. Skip when embedded inside ResponseInput. */
+  prompt?: RichTextPrompt;
+  /** Placeholder shown when the editor is empty. Falls back to prompt.placeholder. */
+  placeholder?: string;
+
+  // ── Integrity monitoring (LIS.B port) ───────────────────────────────
+  /** When true, paste/keystroke/focus/visibility events feed into IntegrityMetadata. Default false. */
+  enableIntegrityMonitoring?: boolean;
+  /** Receives the metadata object on debounced ticks + paste/blur. */
+  onIntegrityUpdate?: (metadata: IntegrityMetadata) => void;
+
+  // ── Portfolio toggle (default true when prompt provided, false when embedded) ──
+  /** Show the "Send to Portfolio when submitted" checkbox. */
   portfolioToggle?: boolean;
-  /** Called when the portfolio toggle is flipped. */
   onPortfolioChange?: (sendToPortfolio: boolean) => void;
-  /** Initial state of the portfolio toggle. Default true. */
   initialPortfolio?: boolean;
+
+  // ── Plumbing ────────────────────────────────────────────────────────
+  id?: string;
+  disabled?: boolean;
   className?: string;
 };
 
@@ -39,7 +63,6 @@ function sanitizeNode(node: Node): void {
     const el = node as HTMLElement;
     const tag = el.tagName.toUpperCase();
     if (!(ALLOWED_TAGS as readonly string[]).includes(tag)) {
-      // Unwrap unknown tags — keep their children, drop the element itself.
       const parent = el.parentNode;
       if (parent) {
         while (el.firstChild) parent.insertBefore(el.firstChild, el);
@@ -47,11 +70,9 @@ function sanitizeNode(node: Node): void {
       }
       return;
     }
-    // Strip every attribute — we don't need any.
     for (const attr of Array.from(el.attributes)) {
       el.removeAttribute(attr.name);
     }
-    // Recurse over a snapshot — sanitiseNode may mutate childNodes.
     for (const child of Array.from(el.childNodes)) sanitizeNode(child);
   } else if (node.nodeType !== Node.TEXT_NODE) {
     node.parentNode?.removeChild(node);
@@ -59,28 +80,62 @@ function sanitizeNode(node: Node): void {
 }
 
 export function RichTextResponse({
-  prompt,
+  value,
+  onChange,
   initialHTML = "",
   onSave,
-  portfolioToggle = true,
+  prompt,
+  placeholder,
+  enableIntegrityMonitoring = false,
+  onIntegrityUpdate,
+  portfolioToggle,
   onPortfolioChange,
   initialPortfolio = true,
+  id,
+  disabled = false,
   className = "",
 }: Props) {
+  const isControlled = value !== undefined && onChange !== undefined;
+  // Default portfolio toggle = true for standalone (prompt provided), false for embedded.
+  const showPortfolioToggle = portfolioToggle ?? !!prompt;
+
   const editorRef = useRef<HTMLDivElement | null>(null);
-  const [html, setHtml] = useState(initialHTML);
+  const [internalHtml, setInternalHtml] = useState(isControlled ? value! : initialHTML);
   const [focused, setFocused] = useState(false);
   const [active, setActive] = useState<Partial<Record<ButtonId, boolean>>>({});
   const [sendToPortfolio, setSendToPortfolio] = useState(initialPortfolio);
+  const lastSyncedRef = useRef<string>(isControlled ? value! : initialHTML);
 
-  const { state: saveState } = useAutoSave({ value: html, onSave });
+  const html = isControlled ? value! : internalHtml;
 
-  // One-way sync from prop on mount only — after that we own the DOM.
+  // Auto-save fires only in uncontrolled mode. In controlled mode the parent
+  // owns the persistence path, so we no-op here.
+  const { state: saveState } = useAutoSave({
+    value: html,
+    onSave: onSave ?? (() => {}),
+    disabled: isControlled || !onSave,
+  });
+
+  // Integrity hook — reads textContent (plain text) on each notify.
+  const integrity = useIntegrityTracking({
+    enabled: enableIntegrityMonitoring,
+    onIntegrityUpdate,
+    getCombinedText: useCallback(() => editorRef.current?.textContent ?? "", []),
+  });
+
+  // ── DOM sync ───────────────────────────────────────────────────────────
+  // On first mount, populate innerHTML from initial value. After that,
+  // we sync from the prop ONLY when it differs from what we last emitted —
+  // otherwise every keystroke that bubbles up to the parent and back would
+  // steal the cursor.
   useEffect(() => {
-    if (editorRef.current && initialHTML && editorRef.current.innerHTML === "") {
-      editorRef.current.innerHTML = initialHTML;
+    const el = editorRef.current;
+    if (!el) return;
+    if (html !== lastSyncedRef.current) {
+      el.innerHTML = html ?? "";
+      lastSyncedRef.current = html ?? "";
     }
-  }, [initialHTML]);
+  }, [html]);
 
   const refreshActiveStates = useCallback(() => {
     if (typeof document === "undefined") return;
@@ -93,36 +148,53 @@ export function RichTextResponse({
     });
   }, []);
 
-  const emitChange = useCallback(() => {
+  const emit = useCallback(
+    (next: string) => {
+      lastSyncedRef.current = next;
+      if (isControlled) {
+        onChange!(next);
+      } else {
+        setInternalHtml(next);
+      }
+    },
+    [isControlled, onChange],
+  );
+
+  const emitFromDom = useCallback(() => {
     const el = editorRef.current;
     if (!el) return;
-    setHtml(el.innerHTML);
+    emit(el.innerHTML);
     refreshActiveStates();
-  }, [refreshActiveStates]);
+  }, [emit, refreshActiveStates]);
 
   const onCommand = useCallback(
-    (id: ButtonId) => {
+    (btn: ButtonId) => {
+      if (disabled) return;
       editorRef.current?.focus();
-      const cmd = COMMAND_MAP[id];
-      if (id === "quote") {
+      const cmd = COMMAND_MAP[btn];
+      if (btn === "quote") {
         document.execCommand(cmd, false, "blockquote");
       } else {
         document.execCommand(cmd, false);
       }
-      emitChange();
+      emitFromDom();
     },
-    [emitChange],
+    [disabled, emitFromDom],
   );
 
   const onPaste = useCallback(
     (e: React.ClipboardEvent<HTMLDivElement>) => {
-      // Always paste as plain text — no foreign HTML, no styles.
+      // Sanitise: insert as plain text only — no foreign HTML, no styles.
       e.preventDefault();
       const text = e.clipboardData.getData("text/plain");
       document.execCommand("insertText", false, text);
-      emitChange();
+      emitFromDom();
+      // Forward to integrity tracker so it records the paste event.
+      if (enableIntegrityMonitoring) {
+        integrity.handlers.onPaste(e);
+      }
     },
-    [emitChange],
+    [emitFromDom, enableIntegrityMonitoring, integrity.handlers],
   );
 
   const onInput = () => {
@@ -130,19 +202,70 @@ export function RichTextResponse({
     if (!el) return;
     // Sanitise in-place — covers IME, drag-drop, and any rogue paste paths.
     for (const child of Array.from(el.childNodes)) sanitizeNode(child);
-    emitChange();
+    emitFromDom();
   };
+
+  const onKeyDownLocal = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (enableIntegrityMonitoring) integrity.handlers.onKeyDown(e);
+    },
+    [enableIntegrityMonitoring, integrity.handlers],
+  );
+
+  const onFocusLocal = useCallback(() => {
+    setFocused(true);
+    refreshActiveStates();
+    if (enableIntegrityMonitoring) integrity.handlers.onFocus();
+  }, [enableIntegrityMonitoring, integrity.handlers, refreshActiveStates]);
+
+  const onBlurLocal = useCallback(() => {
+    setFocused(false);
+    if (enableIntegrityMonitoring) integrity.handlers.onBlur();
+  }, [enableIntegrityMonitoring, integrity.handlers]);
 
   const togglePortfolio = (next: boolean) => {
     setSendToPortfolio(next);
     onPortfolioChange?.(next);
   };
 
+  const effectivePlaceholder =
+    placeholder ?? prompt?.placeholder ?? "Type your response here…";
+
   return (
     <div
       className={className}
       style={{ fontFamily: "var(--sl-font-sans)", color: "var(--sl-fg-body)" }}
     >
+      {prompt && (
+        <div className="mb-3">
+          {prompt.eyebrow && (
+            <div
+              style={{
+                fontSize: 10.5,
+                fontWeight: 800,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                color: "var(--sl-primary)",
+                marginBottom: 6,
+              }}
+            >
+              {prompt.eyebrow}
+            </div>
+          )}
+          <div
+            style={{
+              fontSize: 22,
+              fontWeight: 800,
+              lineHeight: 1.25,
+              letterSpacing: "-0.01em",
+              color: "var(--sl-fg-primary)",
+            }}
+          >
+            {prompt.heading}
+          </div>
+        </div>
+      )}
+
       <div
         style={{
           background: "white",
@@ -153,25 +276,26 @@ export function RichTextResponse({
             : "0 1px 2px rgba(15,14,12,0.04)",
           transition: "border-color 200ms ease, box-shadow 200ms ease",
           overflow: "hidden",
+          opacity: disabled ? 0.6 : 1,
         }}
       >
         <Toolbar onCommand={onCommand} saveState={saveState} active={active} />
 
         <div
           ref={editorRef}
-          contentEditable
+          id={id}
+          contentEditable={!disabled}
           suppressContentEditableWarning
           role="textbox"
           aria-multiline="true"
-          aria-label={prompt.heading}
-          data-ph={prompt.placeholder ?? ""}
+          aria-label={prompt?.heading ?? "Response"}
+          aria-disabled={disabled || undefined}
+          data-ph={effectivePlaceholder}
           onInput={onInput}
           onPaste={onPaste}
-          onFocus={() => {
-            setFocused(true);
-            refreshActiveStates();
-          }}
-          onBlur={() => setFocused(false)}
+          onKeyDown={onKeyDownLocal}
+          onFocus={onFocusLocal}
+          onBlur={onBlurLocal}
           onKeyUp={refreshActiveStates}
           onMouseUp={refreshActiveStates}
           style={{
@@ -204,7 +328,7 @@ export function RichTextResponse({
         [contenteditable] ol { padding-left: 22px; list-style: decimal; margin: 4px 0; }
       `}</style>
 
-      {portfolioToggle && (
+      {showPortfolioToggle && (
         <label
           className="mt-4 inline-flex items-center gap-2 cursor-pointer"
           style={{
