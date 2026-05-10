@@ -175,7 +175,7 @@ export function TeacherFeedback({
         data-testid="teacher-feedback"
         data-state="resolved"
         aria-labelledby={titleId}
-        className="relative mt-6"
+        className="relative mt-2"
       >
         <h3 id={titleId} className="sr-only">
           Teacher feedback (resolved)
@@ -200,7 +200,7 @@ export function TeacherFeedback({
         data-testid="teacher-feedback"
         data-state={state === "resolved" ? "resolved-expanded" : "active"}
         aria-labelledby={titleId}
-        className="relative mt-6"
+        className="relative mt-2"
       >
         <h3 id={titleId} className="sr-only">
           Teacher feedback thread
@@ -252,7 +252,7 @@ export function TeacherFeedback({
       data-testid="teacher-feedback"
       data-state="fresh-unread"
       aria-labelledby={titleId}
-      className="relative mt-6"
+      className="relative mt-2"
       animate={
         attentionGrab
           ? {

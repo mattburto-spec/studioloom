@@ -207,8 +207,12 @@ export function InlineTeacherFeedback({
   };
 
   return (
+    // mt-0 (was mt-3) — the bubble's own section wrapper supplies the
+    // remaining breathing room above. Matt's smoke (10 May 2026) flagged
+    // the bubble was sitting too far below the activity card; combined
+    // with the inner section's mt-2 (was mt-6) this halves the gap.
     <div
-      className="max-w-3xl mx-auto px-4 mt-3 mb-6"
+      className="max-w-3xl mx-auto px-4 mt-0 mb-6"
       data-feedback-anchor={isFirst ? "true" : undefined}
       aria-label="Feedback from your teacher"
     >
