@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import type { ResponseType } from "@/types";
-import { MonitoredTextarea } from "./MonitoredTextarea";
 import type { IntegrityMetadata } from "./MonitoredTextarea";
-import { RichTextEditor } from "./RichTextEditor";
+import { RichTextResponse } from "@/components/lesson";
 import { DecisionMatrix } from "./DecisionMatrix";
 import { PMIFramework } from "./PMIFramework";
 import { PairwiseComparison } from "./PairwiseComparison";
@@ -128,28 +127,25 @@ export function ResponseInput({
           </div>
         )}
 
-      {/* Text input */}
+      {/* Text input — LIS.B auto-replace. RichTextResponse handles BOTH
+          integrity-monitored and plain text via the same component. The
+          integrity hook is enabled when enableIntegrityMonitoring=true,
+          contributing the same IntegrityMetadata callback shape that
+          MonitoredTextarea used to. portfolioToggle is forced off here —
+          PortfolioCaptureAffordance handles that surface separately. */}
       {(activeType === "text" ||
         (responseType === "text" &&
-          (responseType as string) !== "multi")) &&
-        (enableIntegrityMonitoring ? (
-          <MonitoredTextarea
-            id={`response-${sectionIndex}`}
-            value={value}
-            onChange={onChange}
-            onIntegrityUpdate={onIntegrityUpdate}
-            placeholder={placeholder}
-            rows={4}
-          />
-        ) : (
-          <RichTextEditor
-            id={`response-${sectionIndex}`}
-            value={value}
-            onChange={onChange}
-            placeholder={placeholder}
-            rows={4}
-          />
-        ))}
+          (responseType as string) !== "multi")) && (
+        <RichTextResponse
+          id={`response-${sectionIndex}`}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          enableIntegrityMonitoring={enableIntegrityMonitoring}
+          onIntegrityUpdate={onIntegrityUpdate}
+          portfolioToggle={false}
+        />
+      )}
 
       {/* Upload */}
       {activeType === "upload" && (
