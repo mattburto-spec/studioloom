@@ -92,15 +92,26 @@ describe("KeyCalloutEditor — authoring surface (LIS.D)", () => {
     expect(KEY_CALLOUT_EDITOR_SRC).toContain("body");
   });
 
-  it("title input parses newlines into a string[] (one-word-per-line magazine rhythm)", () => {
-    // parseTitleInput collapses single line → string, multi-line → string[].
+  it("title input commits parsed value on blur — newlines split to string[], single line stays string", () => {
+    // commitTitle collapses single line → string, multi-line → string[].
     // Single-line collapse keeps the JSONB tidy; without it every title
     // would persist as a 1-element array.
-    expect(KEY_CALLOUT_EDITOR_SRC).toMatch(/parseTitleInput/);
+    expect(KEY_CALLOUT_EDITOR_SRC).toMatch(/commitTitle/);
     expect(KEY_CALLOUT_EDITOR_SRC).toMatch(
       /lines\.length === 1[\s\S]{0,100}return lines\[0\]/,
     );
     expect(KEY_CALLOUT_EDITOR_SRC).toMatch(/return lines/);
+  });
+
+  it("title textarea uses a local draft synced on blur — preserves spaces and newlines mid-edit", () => {
+    // Without the draft, parsing on every onChange strips trailing
+    // whitespace and clears empty lines, making it impossible to type
+    // "Test Title" because the space gets clobbered before "T" lands.
+    expect(KEY_CALLOUT_EDITOR_SRC).toMatch(/titleDraft/);
+    expect(KEY_CALLOUT_EDITOR_SRC).toMatch(/setTitleDraft\(e\.target\.value\)/);
+    expect(KEY_CALLOUT_EDITOR_SRC).toMatch(
+      /onBlur=\{\(\)\s*=>\s*onUpdate\(\{\s*bulletsTitle:\s*commitTitle\(titleDraft\)/,
+    );
   });
 
   it("addBullet/removeBullet preserve immutability (return new arrays)", () => {

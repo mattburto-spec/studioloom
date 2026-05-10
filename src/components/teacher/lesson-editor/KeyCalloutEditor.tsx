@@ -17,8 +17,15 @@
  *   - bullets[]       — 3-card magazine layout (term + optional hint + body)
  *
  * Empty bullets[] keeps the renderer in its single-card body fallback.
+ *
+ * Title-input UX: stored as string | string[], but the textarea owns a
+ * raw draft during editing so trailing spaces and newlines survive
+ * keystrokes (parsing during typing was stripping them mid-input,
+ * making "Test Title" → "TestTitle" because the trailing space died
+ * before the "T" was typed). Commit happens on blur.
  */
 
+import { useEffect, useState } from "react";
 import type { ActivitySection, CalloutBullet } from "@/types";
 
 interface Props {
@@ -30,14 +37,18 @@ function emptyBullet(): CalloutBullet {
   return { term: "", hint: "", body: "" };
 }
 
-/** Title is stored as string|string[]. Editor presents a single textarea
- *  where each non-empty line becomes an array entry. Single-line input
- *  collapses to a string for cleaner data. */
-function parseTitleInput(raw: string): string | string[] | undefined {
-  const lines = raw
-    .split("\n")
-    .map((s) => s.trim())
-    .filter(Boolean);
+/**
+ * Commit the draft textarea value to the section's bulletsTitle field.
+ * Single-line collapses to a string; multi-line stays as string[]. Empty
+ * trailing lines are filtered (otherwise a stray Enter at the end would
+ * render an empty <span> in the magazine layout). Only invoked on blur,
+ * so trailing whitespace and in-progress edits are never clobbered.
+ */
+function commitTitle(raw: string): string | string[] | undefined {
+  if (raw === "") return undefined;
+  // Preserve in-line whitespace; only filter trailing empty lines.
+  const lines = raw.split("\n");
+  while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
   if (lines.length === 0) return undefined;
   if (lines.length === 1) return lines[0];
   return lines;
@@ -51,6 +62,15 @@ function formatTitle(value: string | string[] | undefined): string {
 
 export function KeyCalloutEditor({ activity, onUpdate }: Props) {
   const bullets = activity.bullets ?? [];
+
+  // Local draft for the title textarea — owns the raw text during editing
+  // so trailing spaces / newlines survive keystrokes. Synced from the
+  // committed value on prop change (e.g. external set, undo). Committed
+  // on blur via commitTitle().
+  const [titleDraft, setTitleDraft] = useState(formatTitle(activity.bulletsTitle));
+  useEffect(() => {
+    setTitleDraft(formatTitle(activity.bulletsTitle));
+  }, [activity.bulletsTitle]);
 
   const updateBullet = (index: number, patch: Partial<CalloutBullet>) => {
     const next = bullets.map((b, i) => (i === index ? { ...b, ...patch } : b));
@@ -93,16 +113,17 @@ export function KeyCalloutEditor({ activity, onUpdate }: Props) {
         />
       </div>
 
-      {/* Title (string or array via newlines) */}
+      {/* Title (string or array via newlines).
+          Local draft so spaces / newlines aren't clobbered on each
+          keystroke; commits to bulletsTitle on blur. */}
       <div>
         <label className="text-[10px] le-cap text-amber-800 block mb-1">
           Title (one word per line for big magazine rhythm — optional)
         </label>
         <textarea
-          value={formatTitle(activity.bulletsTitle)}
-          onChange={(e) =>
-            onUpdate({ bulletsTitle: parseTitleInput(e.target.value) })
-          }
+          value={titleDraft}
+          onChange={(e) => setTitleDraft(e.target.value)}
+          onBlur={() => onUpdate({ bulletsTitle: commitTitle(titleDraft) })}
           placeholder={"The\nThree\nCs."}
           rows={3}
           className="w-full px-2 py-1.5 text-[12px] border border-amber-200 rounded bg-white placeholder-amber-300 resize-y font-mono"
