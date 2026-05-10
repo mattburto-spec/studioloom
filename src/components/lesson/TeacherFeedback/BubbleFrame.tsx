@@ -58,10 +58,17 @@ export interface BubbleFrameProps {
    *  The wrapper has margin-top reserved for the tail's vertical
    *  reach, so padding on it would push the bubble down. */
   contentClassName?: string;
-  /** Tail anchor x (px from bubble left edge). Default 36. Set null
-   *  to suppress the tail (used for resolved-summary single-line row,
-   *  although the resolved summary now also gets a tail for visual
-   *  consistency — keep the prop for forward-compat). */
+  /** Tail anchor x (px from bubble left edge). The tail's TIP sits at
+   *  this x; the base spans tailX±TAIL_HALF_WIDTH. Must be ≥ RADIUS +
+   *  TAIL_HALF_WIDTH so the base doesn't sit INSIDE the rounded
+   *  corner (which produces a backward L-segment that reads as a
+   *  second peak). The component clamps to enforce this — passing a
+   *  smaller value lifts it to the minimum.
+   *
+   *  Default 56 (matches the original SpeechBubbleTail anchor of
+   *  left:28 in the bubble's coordinate space — the tail tip sat at
+   *  x=28+24=52 with a 48px-wide base. Bumped to 56 here so the base
+   *  has a tiny breathing margin past the corner end). */
   tailX?: number;
   showTail?: boolean;
   variant?: BubbleVariant;
@@ -70,11 +77,20 @@ export interface BubbleFrameProps {
   dataState?: string;
 }
 
+/** Minimum legal tailX so the tail's left base stays clear of the
+ *  rounded corner. With RADIUS=24 and TAIL_HALF_WIDTH=24, the minimum
+ *  is 48 (corner end + half-base = the corner ends at x=24, the
+ *  base needs to start at >=24, so tip x = base_left + tw >= 48).
+ *  We add a 4px safety margin so the base sits cleanly past the
+ *  corner's curve. */
+const TAIL_X_MIN = RADIUS + TAIL_HALF_WIDTH + 4;
+const TAIL_X_DEFAULT = 56;
+
 export function BubbleFrame({
   children,
   className,
   contentClassName,
-  tailX = 36,
+  tailX = TAIL_X_DEFAULT,
   showTail = true,
   variant = "teacher",
   dataState,
@@ -99,7 +115,13 @@ export function BubbleFrame({
 
   const tokens = TOKENS[variant];
   const tailReach = showTail ? TAIL_HEIGHT : 0;
-  const path = buildBubblePath(size.w, size.h, showTail ? tailX : null);
+  // Clamp tailX so the tail's left base is always clear of the
+  // rounded corner. Without this clamp, a small tailX produces a
+  // backward L-segment from the corner end to the base, which renders
+  // as a phantom second peak ("M-shape") instead of a clean drip.
+  // Matt smoke caught this on PR #160; the clamp pins it.
+  const clampedTailX = Math.max(tailX, TAIL_X_MIN);
+  const path = buildBubblePath(size.w, size.h, showTail ? clampedTailX : null);
 
   return (
     <div

@@ -154,7 +154,6 @@ export function Thread({ turns, showHeader = true }: ThreadProps) {
   return (
     <BubbleFrame
       variant="teacher"
-      tailX={36}
       dataState="thread"
       contentClassName="overflow-hidden"
     >

@@ -45,7 +45,7 @@ export function ResolvedSummary({
   return (
     // BubbleFrame supplies the outline + tail. The button inside is
     // border/bg-transparent so the SVG outline reads cleanly.
-    <BubbleFrame variant="teacher" tailX={36} dataState="resolved-summary">
+    <BubbleFrame variant="teacher" dataState="resolved-summary">
       <button
         type="button"
         onClick={onReopen}
