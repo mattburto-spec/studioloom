@@ -1,4 +1,4 @@
-import type { UnitPage, StudentProgress } from "@/types";
+import type { UnitPage, StudentProgress, PortfolioEntry } from "@/types";
 import type { NarrativeSection } from "@/components/portfolio/NarrativeView";
 import { CRITERIA, type CriterionKey, getPageColor, PAGE_TYPE_LABELS } from "@/lib/constants";
 
@@ -13,15 +13,51 @@ function hasAnyPortfolioCaptureFlags(pages: UnitPage[]): boolean {
 }
 
 /**
+ * LIS.E (FU-LIS-PORTFOLIO-NARRATIVE-DISPLAY) — build the set of
+ * (pageId, sectionIndex) coords that have a portfolio_entries row for
+ * this student/unit. Used to widen the portfolio-filter so a section
+ * shows up in Narrative when the student manually pressed the Portfolio
+ * affordance, even if `section.portfolioCapture` is false on the section
+ * itself (which is the common case for plain text responses — only
+ * structured-prompts and lever-1-flagged sections set portfolioCapture
+ * by default).
+ */
+function buildSentToPortfolioSet(
+  portfolioEntries: PortfolioEntry[]
+): Set<string> {
+  const set = new Set<string>();
+  for (const entry of portfolioEntries) {
+    if (entry.page_id && entry.section_index !== null && entry.section_index !== undefined) {
+      set.add(`${entry.page_id}:${entry.section_index}`);
+    }
+  }
+  return set;
+}
+
+/**
  * Build narrative sections from pages + progress.
- * If any section in the unit has portfolioCapture set, only include those sections.
- * Otherwise (legacy units), include all sections with responses.
+ *
+ * Inclusion rules:
+ *   1. If any section in the unit has `portfolioCapture` set, the
+ *      portfolio filter activates. In filter mode a section's response
+ *      is included when EITHER:
+ *      a) the section has `portfolioCapture: true` (auto-capture path:
+ *         AG.1 structured-prompts, lever-1 flagged blocks, etc.); OR
+ *      b) the student has manually sent the response to portfolio (a
+ *         portfolio_entries row exists for the section's `(page_id,
+ *         section_index)` — LIS.E fix for FU-LIS-PORTFOLIO-NARRATIVE-
+ *         DISPLAY where manual Portfolio captures of regular text
+ *         responses were silently dropped).
+ *   2. Otherwise (legacy units with no portfolio flags anywhere),
+ *      include all sections that have a non-empty response.
  */
 export function buildNarrativeSections(
   allPages: UnitPage[],
-  allProgress: StudentProgress[]
+  allProgress: StudentProgress[],
+  portfolioEntries: PortfolioEntry[] = []
 ): NarrativeSection[] {
   const usePortfolioFilter = hasAnyPortfolioCaptureFlags(allPages);
+  const sentToPortfolio = buildSentToPortfolioSet(portfolioEntries);
   const sections: NarrativeSection[] = [];
   let currentGroup: NarrativeSection | null = null;
 
@@ -59,7 +95,11 @@ export function buildNarrativeSections(
         if (value === null || value === undefined || value === "") return;
 
         if (usePortfolioFilter) {
-          if (section.portfolioCapture) {
+          // LIS.E — include if the section has portfolioCapture OR the
+          // student manually sent it to portfolio (Portfolio affordance
+          // on a regular text response).
+          const wasSentToPortfolio = sentToPortfolio.has(`${page.id}:${i}`);
+          if (section.portfolioCapture || wasSentToPortfolio) {
             filteredResponses[sectionKey] = value;
           }
         } else {

@@ -50,8 +50,13 @@ describe("NarrativeModal — fresh-progress fetch on open", () => {
     expect(MODAL_SRC).toMatch(
       /const effectiveProgress\s*=\s*freshProgress\s*\?\?\s*progress/
     );
-    // buildNarrativeSections gets effectiveProgress, not the stale prop
-    expect(MODAL_SRC).toContain("buildNarrativeSections(allPages, effectiveProgress)");
+    // buildNarrativeSections gets effectiveProgress, not the stale prop.
+    // LIS.E added a third arg (portfolioEntries) — match the call with
+    // any whitespace + that third positional so the freshProgress check
+    // doesn't break when the call gets future args added.
+    expect(MODAL_SRC).toMatch(
+      /buildNarrativeSections\(\s*allPages,\s*effectiveProgress,\s*portfolioEntries/,
+    );
   });
 });
 

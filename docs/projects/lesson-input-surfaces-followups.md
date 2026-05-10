@@ -14,7 +14,13 @@
 
 ---
 
-## FU-LIS-PORTFOLIO-NARRATIVE-DISPLAY — Response visible in Portfolio but not Narrative
+## ✅ FU-LIS-PORTFOLIO-NARRATIVE-DISPLAY — RESOLVED 10 May 2026 (LIS.E)
+
+**Resolution:** `buildNarrativeSections` now accepts a third arg `portfolioEntries: PortfolioEntry[]` (default `[]` for back-compat) and widens the portfolio-filter inclusion: a section's response surfaces in Narrative when **either** the section has `portfolioCapture: true` (auto-capture path) **OR** there's a `portfolio_entries` row for the section's `(page_id, section_index)` (manual capture path). Both callers (`narrative/page.tsx` + `NarrativeModal.tsx`) updated to pass through the entries that were already being fetched. Tests added: 7 → 12 (+5 covering the inclusion gate, negative control, back-compat default, exact-coord matching, and standalone-note exclusion).
+
+**Root cause (preserved for the archive):**
+
+
 **Surfaced:** 10 May 2026, LIS.B smoke (Matt)
 **Target phase:** LIS.E (close before LIS v1 declared done)
 **Severity:** 🟡 MEDIUM — display gap; data is being saved, just not surfaced

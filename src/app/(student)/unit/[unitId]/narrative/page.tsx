@@ -71,9 +71,16 @@ export default async function NarrativePage({
     return p as unknown as StudentProgress;
   });
 
-  // Get ordered pages and build narrative sections (with portfolio filtering)
+  // Get ordered pages and build narrative sections (with portfolio
+  // filtering). LIS.E — pass portfolioEntries so sections the student
+  // manually sent to portfolio surface in Narrative even when the
+  // section itself doesn't carry portfolioCapture: true.
   const allPages = getPageList(unit.content_data);
-  const sections = buildNarrativeSections(allPages, allProgress);
+  const sections = buildNarrativeSections(
+    allPages,
+    allProgress,
+    (portfolioEntries || []) as PortfolioEntry[],
+  );
 
   const studentName = student.display_name || student.username;
 

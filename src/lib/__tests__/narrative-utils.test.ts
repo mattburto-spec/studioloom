@@ -222,3 +222,209 @@ describe("buildNarrativeSections — dual key-scheme lookup", () => {
     );
   });
 });
+
+describe("buildNarrativeSections — portfolio-filter inclusion (LIS.E)", () => {
+  // FU-LIS-PORTFOLIO-NARRATIVE-DISPLAY: when ANY section in the unit has
+  // portfolioCapture: true, the filter activates. Pre-fix, manual
+  // Portfolio captures of regular text responses (PortfolioCaptureAffordance
+  // → portfolio_entries with type='auto', no media_url) were silently
+  // dropped because the section itself didn't carry portfolioCapture.
+  // Post-fix: passing portfolioEntries through includes those sections.
+
+  function makePortfolioEntry(
+    pageId: string,
+    sectionIndex: number,
+    over?: Record<string, unknown>
+  ) {
+    return {
+      id: `pe-${pageId}-${sectionIndex}`,
+      student_id: "s1",
+      unit_id: "u1",
+      type: "auto" as const,
+      content: null,
+      media_url: null,
+      link_url: null,
+      link_title: null,
+      page_id: pageId,
+      section_index: sectionIndex,
+      created_at: "2026-05-10T12:00:00Z",
+      ...over,
+    };
+  }
+
+  it("includes a non-portfolioCapture section when student manually sent it to portfolio", () => {
+    // p1 has a portfolioCapture section (activates the filter); p1 ALSO
+    // has a regular text-response section that the student manually sent
+    // via PortfolioCaptureAffordance. Pre-fix: only the portfolioCapture
+    // section showed in Narrative. Post-fix: both show.
+    const page = makePage({
+      id: "p1",
+      type: "lesson",
+      content: {
+        sections: [
+          {
+            // Section 0: portfolioCapture-flagged — shows pre + post fix
+            activityId: "auto1",
+            responseType: "structured-prompts",
+            portfolioCapture: true,
+            prompt: "Auto-capture journal",
+          },
+          {
+            // Section 1: regular text response, manually sent to portfolio
+            activityId: "manual1",
+            responseType: "text",
+            prompt: "Open response",
+          },
+        ],
+      },
+    });
+    const progress = makeProgress("p1", {
+      activity_auto1: "auto value",
+      activity_manual1: "manual value",
+    });
+    const portfolioEntries = [
+      // Auto-capture entry for section 0 (would've existed via the
+      // structured-prompts auto-save anyway)
+      makePortfolioEntry("p1", 0),
+      // Manual capture entry for section 1 — this is the one whose
+      // (pageId, sectionIndex) opens the gate for the section
+      makePortfolioEntry("p1", 1),
+    ];
+    const out = buildNarrativeSections([page], [progress], portfolioEntries);
+    expect(out).toHaveLength(1);
+    expect(out[0].pages).toHaveLength(1);
+    const responses = out[0].pages[0].responses;
+    expect(responses["section_0"]).toBe("auto value");
+    expect(responses["section_1"]).toBe("manual value");
+  });
+
+  it("excludes a non-portfolioCapture section when no portfolio entry exists for it (other sections in unit set portfolioCapture)", () => {
+    // Negative control: same shape, but no portfolio_entries for
+    // section 1. Filter excludes it (the response wasn't sent to
+    // portfolio, so it shouldn't surface in the narrative).
+    const page = makePage({
+      id: "p1",
+      type: "lesson",
+      content: {
+        sections: [
+          {
+            activityId: "auto1",
+            responseType: "structured-prompts",
+            portfolioCapture: true,
+            prompt: "Auto-capture journal",
+          },
+          {
+            activityId: "manual1",
+            responseType: "text",
+            prompt: "Open response",
+          },
+        ],
+      },
+    });
+    const progress = makeProgress("p1", {
+      activity_auto1: "auto value",
+      activity_manual1: "draft, never sent to portfolio",
+    });
+    const portfolioEntries = [makePortfolioEntry("p1", 0)]; // only section 0
+    const out = buildNarrativeSections([page], [progress], portfolioEntries);
+    expect(out[0].pages[0].responses["section_0"]).toBe("auto value");
+    expect(out[0].pages[0].responses["section_1"]).toBeUndefined();
+  });
+
+  it("portfolioEntries default empty array — legacy callers stay back-compat", () => {
+    // Existing buildNarrativeSections(pages, progress) callers that
+    // haven't been updated yet should still work. They lose only the
+    // LIS.E manual-capture inclusion, not any pre-existing behaviour.
+    const page = makePage({
+      id: "p1",
+      type: "lesson",
+      content: {
+        sections: [
+          {
+            activityId: "auto1",
+            responseType: "structured-prompts",
+            portfolioCapture: true,
+            prompt: "Journal",
+          },
+        ],
+      },
+    });
+    const progress = makeProgress("p1", { activity_auto1: "value" });
+    // No third argument
+    const out = buildNarrativeSections([page], [progress]);
+    expect(out[0].pages[0].responses["section_0"]).toBe("value");
+  });
+
+  it("matches portfolio_entries on the (page_id, section_index) coord — not unit-wide", () => {
+    // Defensive: a portfolio entry on page p2 must NOT trigger inclusion
+    // on page p1's section. Coord match has to be exact.
+    const p1 = makePage({
+      id: "p1",
+      type: "lesson",
+      content: {
+        sections: [
+          {
+            activityId: "auto1",
+            responseType: "structured-prompts",
+            portfolioCapture: true,
+            prompt: "Auto",
+          },
+          {
+            activityId: "manual1",
+            responseType: "text",
+            prompt: "Manual",
+          },
+        ],
+      },
+    });
+    const progress = makeProgress("p1", {
+      activity_auto1: "auto value",
+      activity_manual1: "manual value",
+    });
+    // Portfolio entry is for p2:0, NOT p1:1
+    const portfolioEntries = [makePortfolioEntry("p2", 0)];
+    const out = buildNarrativeSections([p1], [progress], portfolioEntries);
+    expect(out[0].pages[0].responses["section_1"]).toBeUndefined();
+  });
+
+  it("ignores portfolio entries with null page_id or null section_index (e.g. QuickCaptureFAB notes)", () => {
+    // Notes / photos uploaded via QuickCaptureFAB don't carry pageId/
+    // sectionIndex. They live in portfolio_entries but shouldn't open
+    // gates on any section.
+    const page = makePage({
+      id: "p1",
+      type: "lesson",
+      content: {
+        sections: [
+          {
+            activityId: "auto1",
+            responseType: "structured-prompts",
+            portfolioCapture: true,
+            prompt: "Auto",
+          },
+          {
+            activityId: "manual1",
+            responseType: "text",
+            prompt: "Manual",
+          },
+        ],
+      },
+    });
+    const progress = makeProgress("p1", {
+      activity_auto1: "auto value",
+      activity_manual1: "draft, not sent",
+    });
+    const portfolioEntries = [
+      makePortfolioEntry("p1", 0),
+      // Standalone note — no page_id or section_index
+      {
+        ...makePortfolioEntry("", 0),
+        page_id: null,
+        section_index: null,
+      },
+    ];
+    const out = buildNarrativeSections([page], [progress], portfolioEntries);
+    expect(out[0].pages[0].responses["section_0"]).toBe("auto value");
+    expect(out[0].pages[0].responses["section_1"]).toBeUndefined();
+  });
+});
