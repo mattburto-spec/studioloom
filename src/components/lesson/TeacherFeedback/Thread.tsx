@@ -25,6 +25,7 @@ import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Turn, TeacherTurn, StudentTurn } from "./types";
 import { SENTIMENT_LABELS } from "./types";
+import { BubbleFrame } from "./BubbleFrame";
 
 interface ThreadProps {
   turns: Turn[];
@@ -151,26 +152,30 @@ function StudentCard({ turn }: { turn: StudentTurn }) {
 
 export function Thread({ turns, showHeader = true }: ThreadProps) {
   return (
-    <div
-      data-testid="teacher-feedback-thread"
-      className="rounded-3xl border-2 border-emerald-500 bg-white overflow-hidden"
+    <BubbleFrame
+      variant="teacher"
+      tailX={36}
+      dataState="thread"
+      contentClassName="overflow-hidden"
     >
-      {showHeader && (
-        <div className="px-4 py-2 bg-emerald-50 border-b border-emerald-500/25 text-[11px] font-bold tracking-wider uppercase text-emerald-800">
-          Feedback thread · {turns.length} turn{turns.length === 1 ? "" : "s"}
+      <div data-testid="teacher-feedback-thread">
+        {showHeader && (
+          <div className="px-4 py-2 border-b border-emerald-500/25 text-[11px] font-bold tracking-wider uppercase text-emerald-800">
+            Feedback thread · {turns.length} turn{turns.length === 1 ? "" : "s"}
+          </div>
+        )}
+        <div className="p-4 flex flex-col gap-3">
+          <AnimatePresence initial={false}>
+            {turns.map((turn) =>
+              turn.role === "teacher" ? (
+                <TeacherCard key={turn.id} turn={turn} />
+              ) : (
+                <StudentCard key={turn.id} turn={turn} />
+              ),
+            )}
+          </AnimatePresence>
         </div>
-      )}
-      <div className="p-4 flex flex-col gap-3">
-        <AnimatePresence initial={false}>
-          {turns.map((turn) =>
-            turn.role === "teacher" ? (
-              <TeacherCard key={turn.id} turn={turn} />
-            ) : (
-              <StudentCard key={turn.id} turn={turn} />
-            ),
-          )}
-        </AnimatePresence>
       </div>
-    </div>
+    </BubbleFrame>
   );
 }

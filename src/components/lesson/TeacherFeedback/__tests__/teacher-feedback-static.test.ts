@@ -1,15 +1,19 @@
 /**
  * <TeacherFeedback /> Pass A — source-static guards.
  *
- * The component is presentational; no business logic to assert
- * functionally beyond UI shape. We pin (a) the public API surface,
- * (b) the a11y wiring the spec calls for, (c) the contract that
- * Pass B's wiring will need to keep intact when it lands.
+ * Updated 10 May 2026 (post-smoke): the original SpeechBubbleTail.tsx
+ * separate-SVG implementation was replaced with BubbleFrame.tsx, a
+ * single-SVG outline that integrates the tail into the bubble's top
+ * edge as one continuous stroke. Matt's smoke caught the seam between
+ * the old tail SVG and the bubble's CSS top border — see
+ * BubbleFrame.tsx header for the diagnosis. Tests now assert the
+ * BubbleFrame architecture.
  *
  * Lesson #71: pure-render assertions in source-text rather than
- * spinning a JSDOM render harness — saves a dependency tax for what
- * is essentially a visual component, and the sandbox + Vercel preview
- * are the visual proof.
+ * spinning a JSDOM render harness — the sandbox + Vercel preview are
+ * the visual proof, source-static tests pin the contracts that
+ * downstream code (Pass B wiring, future visual edits) needs to keep
+ * intact.
  */
 
 import { describe, it, expect } from "vitest";
@@ -19,7 +23,7 @@ import { join } from "path";
 const ROOT = join(__dirname, "..");
 const types = readFileSync(join(ROOT, "types.ts"), "utf-8");
 const fixtures = readFileSync(join(ROOT, "fixtures.ts"), "utf-8");
-const tail = readFileSync(join(ROOT, "SpeechBubbleTail.tsx"), "utf-8");
+const bubbleFrame = readFileSync(join(ROOT, "BubbleFrame.tsx"), "utf-8");
 const pills = readFileSync(join(ROOT, "QuickReplies.tsx"), "utf-8");
 const replyBox = readFileSync(join(ROOT, "ReplyBox.tsx"), "utf-8");
 const thread = readFileSync(join(ROOT, "Thread.tsx"), "utf-8");
@@ -69,11 +73,7 @@ describe("TeacherFeedback — fixtures cover the 5 designer states", () => {
   });
 
   it("ACTIVE_THREAD_TURNS demonstrates teacher → student → teacher (multi-turn)", () => {
-    // Pass B's loader will produce shapes like this — we want the
-    // fixture to be representative.
-    const block = fixtures.match(
-      /ACTIVE_THREAD_TURNS[\s\S]*?\];/,
-    )?.[0] ?? "";
+    const block = fixtures.match(/ACTIVE_THREAD_TURNS[\s\S]*?\];/)?.[0] ?? "";
     expect(block).toContain('role: "teacher"');
     expect(block).toContain('role: "student"');
     expect(block.match(/role: "teacher"/g)?.length).toBeGreaterThanOrEqual(2);
@@ -85,24 +85,59 @@ describe("TeacherFeedback — fixtures cover the 5 designer states", () => {
   });
 });
 
-describe("TeacherFeedback — speech bubble tail (designer spec)", () => {
-  it("renders the cubic-curve SVG path the designer specified (drip, not triangle)", () => {
-    // The exact path: M0 26 C ... Z. Without these curves it'd render
-    // as a hard triangle which the designer explicitly rejected.
-    expect(tail).toContain("M0 26 C 6 26");
-    expect(tail).toContain("Z");
-    expect(tail).toMatch(/strokeWidth=\{1\.5\}/);
+describe("TeacherFeedback — BubbleFrame (single-SVG outline + integrated tail)", () => {
+  it("draws the entire bubble + tail as one continuous SVG path", () => {
+    // The post-smoke fix: no separate SpeechBubbleTail. The bubble's
+    // outline (rounded rect + tail dip) is one path. The path
+    // generator emits a single `M ... Z` block — only one Z (close)
+    // means single closed sub-path.
+    expect(bubbleFrame).toMatch(/function buildBubblePath/);
+    expect(bubbleFrame).toMatch(/segs\.push\("Z"\)/);
+    // Only ONE Z in the entire path output — single continuous outline.
+    const generator =
+      bubbleFrame.match(/function buildBubblePath[\s\S]*?return segs\.join/)?.[0] ?? "";
+    expect((generator.match(/"Z"/g) ?? []).length).toBe(1);
   });
 
-  it("defines an emerald (teacher) and purple (student) variant", () => {
-    expect(tail).toMatch(/teacher:\s*\{/);
-    expect(tail).toMatch(/student:\s*\{/);
+  it("uses ResizeObserver to size the path to the content (no preserveAspectRatio distortion)", () => {
+    // The path is recomputed from real measured dimensions, not
+    // stretched via preserveAspectRatio="none" which would distort
+    // the rounded corners + tail proportions. Strip block + line
+    // comments before the negative assertion so the comment block
+    // explaining the rule doesn't trip the check.
+    expect(bubbleFrame).toContain("ResizeObserver");
+    const codeOnly = bubbleFrame
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/[^\n]*/g, "");
+    expect(codeOnly).not.toContain('preserveAspectRatio="none"');
   });
 
-  it("includes the seam-mask rect that hides the tail/border join", () => {
-    // Without this, the bubble's top stroke draws a horizontal line
-    // cutting across the drip. Designer called this out explicitly.
-    expect(tail).toMatch(/<rect[^>]*y="22"/);
+  it("path includes the rounded corners (4 arcs) AND the tail M-curves (4 cubic curves)", () => {
+    const generator =
+      bubbleFrame.match(/function buildBubblePath[\s\S]*?return segs\.join/)?.[0] ?? "";
+    // 4 corner arcs (top-left, top-right, bottom-right, bottom-left).
+    // Each arc command starts with backtick-A-space.
+    expect((generator.match(/`A /g) ?? []).length).toBe(4);
+    // 4 cubic curves total (rising left, tip-left, tip-right,
+    // descending right) for the tail M-shape. The body uses only
+    // arcs + lines, so any cubic in the generator is from the tail.
+    expect((generator.match(/`C /g) ?? []).length).toBe(4);
+  });
+
+  it("defines emerald (teacher) and purple (student) variants", () => {
+    expect(bubbleFrame).toMatch(/teacher:\s*\{/);
+    expect(bubbleFrame).toMatch(/student:\s*\{/);
+    expect(bubbleFrame).toMatch(/16 185 129/); // emerald-500 stroke
+    expect(bubbleFrame).toMatch(/168 85 247/); // purple-500 stroke
+  });
+
+  it("integer-rounds measured dimensions to avoid sub-pixel stroke blur", () => {
+    expect(bubbleFrame).toMatch(/Math\.round\(/);
+  });
+
+  it("SVG is positioned absolutely with pointer-events: none so clicks pass through", () => {
+    expect(bubbleFrame).toMatch(/pointerEvents:\s*"none"/);
+    expect(bubbleFrame).toMatch(/position:\s*"absolute"/);
   });
 });
 
@@ -119,9 +154,6 @@ describe("TeacherFeedback — QuickReplies a11y (radiogroup)", () => {
   });
 
   it("disables Got-it via aria-disabled (NOT the disabled attr) so roving-tabindex still includes it", () => {
-    // aria-disabled keeps the pill in the radiogroup nav order;
-    // disabled would skip it. The keyboard contract for radiogroups
-    // requires the disabled option to remain reachable.
     expect(pills).toMatch(/aria-disabled=\{isDisabled\}/);
   });
 });
@@ -141,12 +173,19 @@ describe("TeacherFeedback — ReplyBox enforces ≥10 char minimum", () => {
   });
 });
 
-describe("TeacherFeedback — Thread (multi-turn renderer)", () => {
+describe("TeacherFeedback — Thread (multi-turn renderer) wraps in BubbleFrame", () => {
+  it("renders inside BubbleFrame instead of its own bordered div (post-smoke fix)", () => {
+    expect(thread).toMatch(/import.*BubbleFrame.*from.*BubbleFrame/);
+    expect(thread).toMatch(/<BubbleFrame[\s\S]*?variant="teacher"/);
+    // Regression guard: the old standalone `rounded-3xl border-2
+    // border-emerald-500` outer container is gone. Thread no longer
+    // draws its own border.
+    expect(thread).not.toMatch(
+      /<div\s+[^>]*className="rounded-3xl border-2 border-emerald-500/,
+    );
+  });
+
   it("teacher cards are full-width emerald; student cards are indented purple (visual identity)", () => {
-    // The indent is the load-bearing visual cue that distinguishes
-    // student turns from teacher turns. Without it, identity would
-    // collapse to colour alone — fails the a11y "colour is not the
-    // only signal" rule.
     expect(thread).toMatch(/StudentCard/);
     expect(thread).toMatch(/ml-6/);
     expect(thread).toMatch(/bg-emerald-50/);
@@ -154,8 +193,6 @@ describe("TeacherFeedback — Thread (multi-turn renderer)", () => {
   });
 
   it("new teacher turns get a 1.4s emerald glow ring (designer spec)", () => {
-    // Spec calls for a one-shot glow on first paint of a new teacher
-    // turn. We use framer-motion's animate prop on the box-shadow.
     expect(thread).toContain("rgba(16,185,129,0.25)");
     expect(thread).toMatch(/duration:\s*1\.4/);
   });
@@ -166,7 +203,17 @@ describe("TeacherFeedback — Thread (multi-turn renderer)", () => {
   });
 });
 
-describe("TeacherFeedback — ResolvedSummary (collapsed state)", () => {
+describe("TeacherFeedback — ResolvedSummary uses BubbleFrame too", () => {
+  it("wraps the row content in BubbleFrame so the tail integrates cleanly", () => {
+    expect(resolved).toMatch(/import.*BubbleFrame.*from.*BubbleFrame/);
+    expect(resolved).toMatch(/<BubbleFrame[\s\S]*?variant="teacher"/);
+  });
+
+  it("button has bg-transparent border-0 (BubbleFrame supplies the visual)", () => {
+    expect(resolved).toMatch(/bg-transparent/);
+    expect(resolved).toMatch(/border-0/);
+  });
+
   it("renders as a single button with aria-expanded={false}", () => {
     expect(resolved).toMatch(/<button/);
     expect(resolved).toMatch(/aria-expanded=\{false\}/);
@@ -177,7 +224,7 @@ describe("TeacherFeedback — ResolvedSummary (collapsed state)", () => {
     expect(resolved).toMatch(/maxChars\s*=\s*80/);
   });
 
-  it("Re-open affordance is present in the row (not hidden behind a hover)", () => {
+  it("Re-open affordance is present in the row", () => {
     expect(resolved).toContain("Re-open");
   });
 });
@@ -191,17 +238,22 @@ describe("TeacherFeedback — index orchestrator state machine", () => {
     expect(fn).toContain('"resolved"');
   });
 
+  it("Fresh state uses BubbleFrame (no separate SpeechBubbleTail)", () => {
+    expect(index).toMatch(/import.*BubbleFrame.*from.*BubbleFrame/);
+    expect(index).toMatch(/<BubbleFrame[\s\S]*?contentClassName="px-5 py-4"/);
+    // Regression guard: the old SpeechBubbleTail import + usage must
+    // not come back. The post-smoke architecture is one SVG outline
+    // per bubble, drawn by BubbleFrame.
+    expect(index).not.toContain("SpeechBubbleTail");
+  });
+
   it("got_it short-circuits to onReply without opening the reply box", () => {
-    // Single-click resolution. The reply box is skipped entirely for
-    // got_it — opening it would force the student to type confirmation.
     expect(index).toMatch(
       /if\s*\(s\s*===\s*"got_it"\)\s*\{[\s\S]*?onReply\("got_it"\)/,
     );
   });
 
   it("not_sure / pushback open the reply box (no short-circuit)", () => {
-    // The else branch sets selectedSentiment + replyOpen — required
-    // path for the "must justify" sentiments.
     expect(index).toMatch(/setSelectedSentiment\(s\)/);
     expect(index).toMatch(/setReplyOpen\(true\)/);
   });
@@ -212,8 +264,6 @@ describe("TeacherFeedback — index orchestrator state machine", () => {
   });
 
   it("dev-only assertion that turns[0] is always teacher (Lesson #38 boundary check)", () => {
-    expect(index).toMatch(
-      /turns\[0\]\.role\s*!==\s*"teacher"/,
-    );
+    expect(index).toMatch(/turns\[0\]\.role\s*!==\s*"teacher"/);
   });
 });

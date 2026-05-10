@@ -30,7 +30,7 @@ import type {
   Turn,
 } from "./types";
 import { SENTIMENT_LABELS } from "./types";
-import { SpeechBubbleTail } from "./SpeechBubbleTail";
+import { BubbleFrame } from "./BubbleFrame";
 import { QuickReplies } from "./QuickReplies";
 import { ReplyBox } from "./ReplyBox";
 import { Thread } from "./Thread";
@@ -162,6 +162,8 @@ export function TeacherFeedback({
   }
 
   // Resolved (collapsed) state — unless the user re-opened it.
+  // ResolvedSummary now renders its own BubbleFrame internally (single-
+  // SVG outline + integrated tail, no seam) — see BubbleFrame.tsx.
   if (state === "resolved" && !reopenedFromResolved) {
     const latestTeacherTurn = [...turns]
       .reverse()
@@ -177,7 +179,6 @@ export function TeacherFeedback({
         <h3 id={titleId} className="sr-only">
           Teacher feedback (resolved)
         </h3>
-        <SpeechBubbleTail variant="teacher" />
         <ResolvedSummary
           latestTeacherTurn={latestTeacherTurn}
           turnCount={turns.length}
@@ -191,6 +192,7 @@ export function TeacherFeedback({
   }
 
   // Active thread (or re-opened resolved) — render the multi-turn Thread.
+  // Thread renders its own BubbleFrame (single-SVG outline + tail).
   if (state === "active" || (state === "resolved" && reopenedFromResolved)) {
     return (
       <section
@@ -202,7 +204,6 @@ export function TeacherFeedback({
         <h3 id={titleId} className="sr-only">
           Teacher feedback thread
         </h3>
-        <SpeechBubbleTail variant="teacher" />
         <Thread turns={turns} />
         {/* Latest turn is teacher → show pills below. Latest turn
             is student → no controls (teacher's move next). The Thread
@@ -268,8 +269,13 @@ export function TeacherFeedback({
       <h3 id={titleId} className="sr-only">
         Teacher feedback
       </h3>
-      <SpeechBubbleTail variant="teacher" />
-      <div className="rounded-3xl border-2 border-emerald-500 bg-emerald-50 px-5 py-4">
+      {/* BubbleFrame draws the entire bubble outline (rounded body +
+          tail dip) as one continuous SVG path. No CSS border on the
+          content — the SVG IS the border. Fixes the seam Matt's
+          smoke flagged: previously the tail SVG sat ABOVE a div with
+          its own border, leaving the bubble's top border line drawing
+          UNDER the tail's two feet (visible disconnect). */}
+      <BubbleFrame variant="teacher" tailX={36} contentClassName="px-5 py-4">
         <div className="flex items-center gap-2 mb-3">
           <div className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-500 text-white font-bold text-xs flex items-center justify-center ring-2 ring-white shadow-[0_0_0_3px_rgba(16,185,129,0.2)]">
             {teacherInitials(turn.authorName)}
@@ -327,7 +333,7 @@ export function TeacherFeedback({
             onSend={handleSend}
           />
         )}
-      </div>
+      </BubbleFrame>
     </motion.section>
   );
 }
