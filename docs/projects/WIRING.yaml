@@ -1863,7 +1863,7 @@ systems:
     category: Platform Core
     status: complete
     currentVersion: 2
-    summary: "Polymorphic auth via Supabase Auth + auth.users + app_metadata.user_type claim. Teachers, students, and platform admins all live in auth.users with `app_metadata.user_type` ∈ {teacher, student, platform_admin}. Polymorphic dispatch helpers in src/lib/access-v2/actor-session.ts: getActorSession() / getStudentSession() / getTeacherSession() / requireStudentSession() / requireActorSession(). Phase 1.2 added /api/auth/student-classcode-login route that mints Supabase sessions via generateLink({type:'magiclink'}) + verifyOtp({token_hash}) — produces sb-*-auth-token.0/.1 split-cookies. Phase 1.4a wrapped legacy requireStudentAuth in a dual-mode shim: tries getStudentSession first, falls back to legacy questerra_student_session cookie + student_sessions table lookup. Grace period until Phase 6 cutover, documented in docs/security/student-auth-cookie-grace-period.md. Fabricator (lab tech) auth remains separate with Argon2id-hashed passwords + opaque 32-byte session tokens (Preflight Phase 1B-2)."
+    summary: "Polymorphic auth via Supabase Auth + auth.users + app_metadata.user_type claim. Teachers, students, and platform admins all live in auth.users with `app_metadata.user_type` ∈ {teacher, student, platform_admin}. Polymorphic dispatch helpers in src/lib/access-v2/actor-session.ts: getActorSession() / getStudentSession() / getTeacherSession() / requireStudentSession() / requireActorSession(). Phase 1.2 added /api/auth/student-classcode-login route that mints Supabase sessions via generateLink({type:'magiclink'}) + verifyOtp({token_hash}) — produces sb-*-auth-token.0/.1 split-cookies. Phase 1.4a wrapped legacy requireStudentAuth in a dual-mode shim: tries getStudentSession first, falls back to legacy questerra_student_session cookie + student_sessions table lookup. Grace period CLOSED in Phase 6.1 (4 May 2026). Fabricator (lab tech) auth remains separate with bcryptjs-hashed passwords + opaque 32-byte session tokens (Preflight Phase 1B-2). S6 (9 May 2026 cowork F-12/F-13/F-14) hardened /fab/login: DUMMY_HASH constant-time path for unknown emails + 5-fail/15-min lockout columns on fabricators."
     depends_on: []
     affects: [student-signin, student-dashboard, student-onboarding, student-pm, student-open-studio, student-grade-view, student-nm, student-profile, student-learning-support, teacher-dashboard, teach-mode, preflight-pipeline]
     docs:
@@ -1886,8 +1886,8 @@ systems:
       # with auth.uid() chain equivalents in the same migration. Historic
       # references in older WIRING comments left intact for archeology.
       - table: fabricators
-        columns: [id, email, display_name, password_hash, invited_by_teacher_id, is_active]
-        notes: Fabricator (lab tech) accounts. password_hash is Argon2id; sentinel value during INVITE_PENDING until /fab/set-password lands.
+        columns: [id, email, display_name, password_hash, invited_by_teacher_id, is_active, failed_login_attempts, locked_until]
+        notes: "Fabricator (lab tech) accounts. password_hash is bcryptjs (NOT Argon2id — earlier WIRING note was incorrect, doc reconciled S6/F-13 9 May 2026); sentinel value during INVITE_PENDING until /fab/set-password lands. failed_login_attempts + locked_until columns added by migration `20260510090841_fabricators_failed_login_lockout` (S6/F-14, applied prod 10 May 2026): 5 failed attempts → 15-min lockout window, reset on success. /fab/login uses DUMMY_HASH constant-time bcrypt.compare for unknown-email path (S6/F-12) so success/fail timing matches."
       - table: fabricator_sessions
         columns: [id, fabricator_id, token_hash, is_setup, expires_at]
         notes: Opaque 32-byte session tokens (stored as SHA-256 hash). is_setup=true means the session only grants access to /fab/set-password (invite/reset flow). Normal login creates is_setup=false sessions.
@@ -1895,8 +1895,8 @@ systems:
       - src/lib/access-v2/actor-session.ts  # Polymorphic session helpers (Phase 1.3) + Phase 6.3b user_type middleware guard
       - src/lib/access-v2/provision-student-auth-user.ts
       - src/lib/auth/verify-teacher-unit.ts  # requireTeacherAuth + verifyTeacherHasUnit/OwnsClass shims (Phase 3.4d, can()-backed). HARDENED in PR #140 (9 May 2026 — P-6).
-      - src/lib/auth/require-teacher.ts  # NEW (PR #140, 9 May 2026 — P-6) — canonical teacher-route auth helper. 13 highest-risk teacher routes migrated; remaining 80 flagged by scan-role-guards.py.
-      - src/lib/auth/require-student.ts  # NEW (PR #140, 9 May 2026 — P-6) — canonical student-route auth helper.
+      - src/lib/auth/require-teacher.ts  # PR #140 (9 May 2026 — P-6) canonical teacher-route auth helper. S3 sweep (9–10 May 2026) migrated ~80 long-tail routes across 14 sub-phases (S3.1 knowledge, S3.2 badges, S3.3 skills, S3.4 activity-cards, S3.5 grading, S3.6 me, S3.7 fabricators, S3.8 labs, S3.9 gallery, S3.10 library, S3.11 integrations, S3.12 machine-profiles+fabrication, S3.13 long-tail, S3.14 scanner reports). scan-role-guards.py now reports 198/206 covered + 8 allowlisted (clean).
+      - src/lib/auth/require-student.ts  # PR #140 (9 May 2026 — P-6) — canonical student-route auth helper.
       - src/app/api/auth/student-classcode-login/route.ts
       - src/lib/fab/auth.ts
       - src/lib/fab/token.ts
@@ -1907,9 +1907,9 @@ systems:
       FU-AV2-LTI-PHASE-6-REWORK). QR code login. Fabricator email
       verification column + weekly digest. Unified loominary.org-only
       sender story. Cross-tab role collision deeper fix
-      (FU-AV2-CROSS-TAB-ROLE-COLLISION P2). Migrate remaining 80
-      teacher routes flagged by scan-role-guards.py onto requireTeacher
-      / requireTeacherAuth (post-PR-#140 backlog).
+      (FU-AV2-CROSS-TAB-ROLE-COLLISION P2). FU-SEC-ROLE-GUARD-SWEEP
+      CLOSED 10 May 2026 via S3 sweep (cowork external-review F-1..F-3
+      bundle).
     adrs: ["011", "012"]  # ADR-011 (school-entity-and-governance) + ADR-012 (audit-log infra). ADR-003 (student token auth) was superseded by Phase 1 + Phase 6.1.
     os_seam: ready
     change_impacts: Changes to user_type claim semantics affect every actor-session call site. Changes to dual-mode fallback in src/lib/auth/student.ts affect all 63 /api/student/* routes. Changes to is_setup session semantics affect both /fab/set-password flow and normal /fab/* routing. Removing the legacy fallback before Phase 6 will break logged-in users on the legacy cookie path. The new requireTeacher / requireStudent helpers (PR #140) are the canonical auth chokepoints — new routes MUST use one of them; CI scanner enforces.
@@ -1970,7 +1970,7 @@ systems:
     data_fields:
       - table: audit_events
         columns: [id, actor_id, actor_type, impersonated_by, action, target_table, target_id, school_id, class_id, payload_jsonb, ip_address, user_agent, severity, school_subscription_tier_at_event, created_at]
-        notes: Immutable append-only. NO INSERT/UPDATE/DELETE policies (service role only via wrapper). 7-value actor_type enum (student/teacher/fabricator/platform_admin/community_member/guardian/system). 5 indexes (created/actor/school/action/severity).
+        notes: "Immutable append-only. NO INSERT/UPDATE/DELETE policies (service role only via wrapper). 7-value actor_type enum (student/teacher/fabricator/platform_admin/community_member/guardian/system). 5 indexes (created/actor/school/action/severity). Action enum extended S7/F-16 (9 May 2026): added `byok.decrypt_failed` for teacher BYOK key decryption failures (was previously silent); now severity:warn audited at the resolveCredentials boundary."
     key_files:
       - src/lib/access-v2/audit-log.ts
       - src/lib/access-v2/__tests__/audit-log.test.ts
@@ -2074,23 +2074,25 @@ systems:
     category: Compliance & Privacy
     status: complete
     currentVersion: 1
-    summary: "P-3 (PR #142, 9 May 2026) — Privatised the 3 legacy public Supabase Storage buckets (student-uploads, unit-images, lesson-attachments) and replaced direct getPublicUrl() consumption with an auth-gated proxy at /api/storage/[bucket]/[...path]. The route resolves the caller's actor session, checks read-permission for the bucket+path, then issues a short-lived signed URL server-side and streams/redirects. buildProxyUrl(bucket, path) at src/lib/storage/proxy-url.ts is the single helper callers import; no new code should construct getPublicUrl() against these buckets. Migration 20260508232012_privatise_legacy_buckets.sql flips public:true→false + adds service-role-only RLS policies. STATUS: pending prod-apply (deferred per migration discipline)."
+    summary: "P-3 (PR #142, 9 May 2026) — Privatised the 3 legacy public Supabase Storage buckets (responses, unit-images, knowledge-media) and replaced direct getPublicUrl() consumption with an auth-gated proxy at /api/storage/[bucket]/[...path]. The route resolves the caller's actor session, then runs per-bucket authorization (S5 / cowork F-11, 9 May 2026) before issuing a short-lived signed URL: responses → student-owns or teacher-on-class chain (auth.uid → students.user_id → students.id → student_progress / class enrollment); unit-images → teacher-owns-unit OR student-enrolled-in-class-using-unit (chain via class_units → class_students); knowledge-media → teacher-owns-knowledge OR teacher-on-school chain. buildProxyUrl(bucket, path) at src/lib/storage/proxy-url.ts is the single helper callers import; no new code should construct getPublicUrl() against these buckets. Migration 20260508232012_privatise_legacy_buckets.sql flips public:true→false + adds service-role-only RLS policies. STATUS: pending prod-apply (deferred per migration discipline)."
     depends_on: [auth-system]
-    affects: [student-data, student-pm, student-work-pipeline, portfolio, gallery, unit-editor, lesson-view, teacher-dashboard, preflight-pipeline]
+    affects: [student-data, student-pm, student-work-pipeline, portfolio, gallery, unit-editor, lesson-view, teacher-dashboard, preflight-pipeline, class-management, permission-helper]
     docs:
       - path: docs/security/security-overview.md
         purpose: Storage section — current state of bucket privacy + proxy semantics
       - path: docs/security/security-plan.md
-        purpose: P-3 tracking row (DONE 9 May 2026, PR #142)
+        purpose: P-3 tracking row (DONE 9 May 2026, PR #142). External-review F-11 closure DONE 9 May 2026 (S5).
+      - path: docs/security/external-review-2026-05-09-findings.md
+        purpose: F-11 — storage proxy was permissive (any authed user could read any bucket path); S5 added per-bucket scoping
     data_fields: []
     key_files:
-      - src/app/api/storage/[bucket]/[...path]/route.ts
+      - src/app/api/storage/[bucket]/[...path]/route.ts  # S5 (9 May 2026 / F-11) per-bucket authorization gate before signed-URL issuance
       - src/lib/storage/proxy-url.ts
       - supabase/migrations/20260508232012_privatise_legacy_buckets.sql  # PENDING prod-apply as of 9 May 2026
-    future_needs: Apply migration 20260508232012 to prod Supabase. Add per-bucket access-policy seam so non-legacy buckets (e.g. preflight scanner artefacts) can plug into the same proxy. Audit-log integration (record signed-URL issuance to admin_audit_log when caller is platform_admin viewing student data — pairs with audit-log system).
+    future_needs: Apply migration 20260508232012 to prod Supabase. FU-SEC-RESPONSES-PATH-MIGRATION (P2) — JSONB-embedded URLs in student_progress.responses still hold raw getPublicUrl strings; needs sweep. Audit-log integration (record signed-URL issuance to admin_audit_log when caller is platform_admin viewing student data — pairs with audit-log system).
     adrs: []
     os_seam: ready
-    change_impacts: Any system that previously displayed assets from the 3 legacy buckets via getPublicUrl() must switch to buildProxyUrl(). Once migration 20260508232012 is applied to prod, raw bucket URLs return 401 — uncovered call sites will hard-fail. Adding a new private bucket means extending the proxy's bucket allowlist + adding a read-permission check.
+    change_impacts: Any system that previously displayed assets from the 3 legacy buckets via getPublicUrl() must switch to buildProxyUrl(). Once migration 20260508232012 is applied to prod, raw bucket URLs return 401 — uncovered call sites will hard-fail. Adding a new private bucket means extending the proxy's bucket allowlist + adding a per-bucket authorization branch (the S5 chain pattern: auth.uid → students.user_id → students.id for student-owned content; teacher chains via class_units / class_students / teachers.school_id for teacher-owned content).
 
   - id: class-management
     name: Class Management
@@ -2876,7 +2878,7 @@ systems:
     future_needs: "Phase 8-2 onwards (lab/machine CRUD APIs + visual admin page + class-disambiguation on fab queue). Phase 8-1 schema + backfill code-complete 27 Apr (school-scoped revision); pending prod apply via mini-checkpoint. Pipeline 2 coupling (auto-attach completion photos to work_items). Slicer integration. Pickup tokens for walk-up tablets (Phase 8+)."
     adrs: []
     os_seam: ready
-    change_impacts: "Changes to status transitions affect fabricator queue plus teacher dashboard. Changes to scan result shape require scanner worker redeploy in lockstep."
+    change_impacts: "Changes to status transitions affect fabricator queue plus teacher dashboard. Changes to scan result shape require scanner worker redeploy in lockstep. /fab/login auth path was hardened by S6 (cowork F-12/F-13/F-14, 9–10 May 2026): bcryptjs (NOT Argon2id — earlier doc was wrong), DUMMY_HASH constant-time path for unknown emails, 5-fail/15-min lockout via fabricators.failed_login_attempts + locked_until columns (mig 20260510090841, applied prod). Teacher fab admin routes (/api/teacher/fabricators/*) hardened to requireTeacher in S3.7."
 
   - id: preflight-scanner
     name: "Preflight Scanner Worker (Python on Fly.io)"

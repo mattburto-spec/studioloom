@@ -1914,8 +1914,7 @@ routes:
   auth: student
   tables_read:
   - student_tile_grades
-  tables_written:
-  - student_tile_grades
+  tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
@@ -2366,7 +2365,7 @@ routes:
 - path: /api/teacher/badges/list
   method: GET
   file: src/app/api/teacher/badges/list/route.ts
-  auth: service-role
+  auth: teacher
   tables_read:
   - badges
   tables_written: []
@@ -3139,7 +3138,7 @@ routes:
 - path: /api/teacher/knowledge/lesson-profiles/[id]/reanalyse
   method: POST
   file: src/app/api/teacher/knowledge/lesson-profiles/[id]/reanalyse/route.ts
-  auth: public
+  auth: teacher
   tables_read: []
   tables_written: []
   ai_call_sites: []
@@ -3166,7 +3165,7 @@ routes:
 - path: /api/teacher/knowledge/reanalyse
   method: POST
   file: src/app/api/teacher/knowledge/reanalyse/route.ts
-  auth: public
+  auth: teacher
   tables_read: []
   tables_written: []
   ai_call_sites: []
@@ -3193,7 +3192,7 @@ routes:
 - path: /api/teacher/knowledge/upload
   method: GET
   file: src/app/api/teacher/knowledge/upload/route.ts
-  auth: public
+  auth: teacher
   tables_read: []
   tables_written: []
   ai_call_sites: []
@@ -3202,7 +3201,7 @@ routes:
 - path: /api/teacher/knowledge/upload
   method: POST
   file: src/app/api/teacher/knowledge/upload/route.ts
-  auth: public
+  auth: teacher
   tables_read: []
   tables_written: []
   ai_call_sites: []
@@ -3211,7 +3210,7 @@ routes:
 - path: /api/teacher/knowledge/upload
   method: DELETE
   file: src/app/api/teacher/knowledge/upload/route.ts
-  auth: public
+  auth: teacher
   tables_read: []
   tables_written: []
   ai_call_sites: []

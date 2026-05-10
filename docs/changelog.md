@@ -4,6 +4,51 @@
 
 ---
 
+## 2026-05-09 → 10 May 2026 — Security closure: ALL 20 cowork external-review findings (S1–S7)
+
+**Context:** Cowork delivered an external security review on 9 May 2026 with 20 numbered findings (F-1..F-20) spanning RLS gaps, route-auth holes, ownership-check bypasses, Sentry PII leakage, storage proxy authorization, fab-login timing/lockout, and assorted P3 hardening. This session closed every one of them across 7 sequenced phases (S1–S7), 20 commits, and 2 prod migrations. Every finding now has a closure commit + verification trace in `docs/security/security-plan.md`. Build brief: `docs/projects/security-closure-2026-05-09-brief.md`. Findings doc: `docs/security/external-review-2026-05-09-findings.md`.
+
+**Per-phase summary:**
+
+- **S1 — RLS hardening (`b9dcab0` claim + `7bc963f` body + `b4b99d5` cast fix).** Migration `20260509034943_rls_hardening_external_review` applied to prod. Closes the 4 cross-tenant tables cowork flagged (gallery_rounds + 3 siblings). Includes a TEXT-cast fix for `gallery_rounds.class_id` against `classes.id` UUID. Smoke procedure documented in `docs/security/rls-smoke-2026-05-09.md`.
+- **S2 — Units publish ownership gate (`823888f`).** Closes F-5: publish endpoint was tier-gating but not author-gating. Now requires teacher-owns-unit chain via `verifyTeacherHasUnit`.
+- **S3 — `requireTeacher` sweep (`9be06b5` … `15ca185`, 14 sub-phases).** Closes F-1/F-2/F-3 (~80 long-tail teacher routes that PR #140 hadn't reached): S3.1 knowledge (11), S3.2 badges (9), S3.3 skills (6), S3.4 activity-cards (5), S3.5 grading (4), S3.6 me (4), S3.7 fabricators (4), S3.8 labs (3), S3.9 gallery (3), S3.10 library (3), S3.11 integrations (3), S3.12 machine-profiles + fabrication (4), S3.13 long-tail (21), S3.14 scanner reports refresh + `58f03a8` sign-off. `scan-role-guards.py` now reports 198/206 covered + 8 allowlisted (clean). `FU-SEC-ROLE-GUARD-SWEEP` CLOSED.
+- **S4 — Sentry hardening (`32c949c`).** Closes F-9 + F-10. `beforeSend` now applies a 4-pattern regex + UUID-segment redaction across event message, exception messages, AND breadcrumb URLs (the breadcrumb gap was the F-10 lift). Tests verify the full chain.
+- **S5 — Storage proxy per-bucket scoping (`784687e`).** Closes F-11. `/api/storage/[bucket]/[...path]` now runs per-bucket authorization before issuing the signed URL: `responses` → student-owns or teacher-on-class chain (auth.uid → students.user_id → students.id → student_progress / class enrollment); `unit-images` → teacher-owns-unit OR student-enrolled-via-class_units chain; `knowledge-media` → teacher-owns-knowledge OR teacher-on-school chain. Spinoff follow-ups `FU-SEC-UNIT-IMAGES-SCOPING` + `FU-SEC-KNOWLEDGE-MEDIA-SCOPING` rolled into S5 closure.
+- **S6 — Fab login hardening (`0582728`).** Closes F-12 + F-13 + F-14. F-12: DUMMY_HASH constant-time `bcrypt.compare` for unknown-email path so success/fail timing matches. F-13: doc reconciliation — Fabricator passwords are bcryptjs (not Argon2id; earlier WIRING/CLAUDE notes were wrong). F-14: 5-fail/15-min lockout via new `failed_login_attempts` + `locked_until` columns on `fabricators` (migration `20260510090841_fabricators_failed_login_lockout`, applied prod). Reset on success.
+- **S7 — P3 bundle (`df49623`).** Closes F-15 + F-16 + F-18 + F-19 + F-20. F-16: new audit event type `byok.decrypt_failed` (was previously silent at the `resolveCredentials` boundary). Other items: doc/copy/headers tightening per `external-review-2026-05-09-findings.md`.
+
+**Spinoff follow-ups filed:**
+
+- `FU-SEC-BADGE-ASSIGN-PER-STUDENT` — surfaced during S3.2 review of badge-assignment route shape (defer until per-student badge UX redesign).
+- `FU-SEC-REQUEST-ACCESS-TURNSTILE` — surfaced during S3 long-tail review of `/api/teacher/access-request` endpoint (Turnstile / hCaptcha gate, P3).
+- (S5 spinoffs `FU-SEC-UNIT-IMAGES-SCOPING` + `FU-SEC-KNOWLEDGE-MEDIA-SCOPING` were both rolled into the S5 closure rather than carried forward.)
+
+**Tests:** 5028 → 5180 (+152 across the 7 phases).
+
+**Scanner state (post-closure, all clean):**
+
+- `scan-rls-coverage.py` — 123/123 tables, 118 with policies, 5 intentional deny-all (clean).
+- `scan-role-guards.py` — 198/206 covered + 8 allowlisted (clean).
+- `scan-api-routes.py --check-audit-coverage` — 7 covered, 231 skipped (allowlisted), 0 missing.
+- `scan-api-routes.py --check-budget-coverage` — 5/5 student AI routes covered (clean).
+- `scan-vendors.py` — no drift.
+- `scan-feature-flags.py` — pre-existing drift unchanged (RUN_E2E + SENTRY_AUTH_TOKEN + auth.permission_helper_rollout — all known orphan/missing entries from earlier sessions, not session-introduced).
+
+**Key decisions banked:**
+
+- The Phase-1.5 canonical chain `auth.uid → students.user_id → students.id` is THE pattern for all student-data RLS. S5 storage proxy authorization mirrors it column-for-column.
+- The storage proxy is the single source of authorization for the 3 private buckets — RLS is the deny-all backstop, the proxy is the live gate.
+- Fabricator password hashing is bcryptjs (NOT Argon2id). Doc was wrong; reconciled across CLAUDE.md, WIRING.yaml `auth-system`, `preflight-phase-1b-2-brief.md`, `security-overview.md`.
+- Fab lockout is a DB column (`fabricators.failed_login_attempts` + `locked_until`), NOT an in-memory rate limit — survives restarts and works across distributed scanner pods.
+- Sentry scrubbing happens in 3 places per event (message + exception + breadcrumb URL) via 4-pattern regex + UUID-segment redaction.
+
+**Pending action:** NONE. All migrations applied, all code on main, all 20 findings closed. Closes the cowork external-review cycle in full.
+
+**Systems affected:** auth-system (S3 sweep, S6 fab login), storage-proxy (S5 per-bucket scoping), audit-log (S7 byok.decrypt_failed event type), preflight-pipeline (S6 fab columns + S3.7 admin routes). WIRING.yaml + dashboard updated; doc-manifest entries added for the 3 new docs (closure brief, findings, RLS smoke) and `last_verified` bumped on the 4 docs touched in S6.
+
+---
+
 ## 2026-05-09 (PM) — Privacy-First Positioning + Privacy Posture Page spec revised after pushback round
 
 **Context:** Same-day pushback round on the morning's Privacy-First Positioning draft. Several framings landed too narrow ("design-school GTM"), the workstream sequencing under-weighted the cheapest proof point, and the spec for the privacy posture page didn't acknowledge the honest edges of the story (self-disclosed PII, AI provider egress, IP/behavioural data). Both docs revised in place.
