@@ -1,41 +1,42 @@
 "use client";
 
 /**
- * ProjectSpecResponse — v1 unified Project Spec lesson-page activity.
+ * ProductBriefResponse — v2 Product Brief lesson-page activity.
  *
- * Three phases:
- *   1. Picker  — archetype chip (Toy / Architecture).
- *   2. Walker  — Q1-Q7, one screen at a time, with skip + length nudge.
+ * Three phases (mirrors v1):
+ *   1. Picker  — archetype chip (Toy / Architecture, shared with v1).
+ *   2. Walker  — Q1-Q9, one screen at a time.
  *   3. Card    — read-only summary.
  *
- * State lives in student_unit_project_specs. Loads via GET
- * /api/student/project-spec; saves via POST partial-patch upsert.
- * Service-role API + studentId from token session (Lesson #4).
+ * Adds 4 surfaces over v1's 7 slots: precedents (slot 8), constraints
+ * multi-chip (slot 7), technical risks multifield (slot 9), and an
+ * optional secondary material (slot 5).
  *
- * v2 split — this v1 block stays running alongside the three new
- * v2 blocks (Product Brief / User Profile / Success Criteria). Shared
- * walker / picker / input-dispatcher / format helpers extracted to
- * @/components/student/project-spec/shared/* + @/lib/project-spec/format
- * and reused across all four blocks.
+ * State lives in student_unit_product_briefs. Loads via GET
+ * /api/student/product-brief; saves via POST partial-patch upsert.
+ *
+ * See docs/projects/project-spec-v2-split-brief.md §4 for slot defs.
  */
 
 import { useCallback, useEffect, useState } from "react";
 import {
   ARCHETYPE_LIST,
-  getArchetype,
-  type ArchetypeDefinition,
   type SlotAnswer,
 } from "@/lib/project-spec/archetypes";
 import { buildSummary, formatAnswer } from "@/lib/project-spec/format";
-import { SlotWalker } from "./shared/SlotWalker";
-import { ArchetypePicker } from "./shared/ArchetypePicker";
-import { useSpecBridge } from "./shared/useSpecBridge";
+import {
+  getProductBriefArchetype,
+  type ProductBriefArchetype,
+} from "@/lib/project-spec/product-brief";
+import { SlotWalker } from "@/components/student/project-spec/shared/SlotWalker";
+import { ArchetypePicker } from "@/components/student/project-spec/shared/ArchetypePicker";
+import { useSpecBridge } from "@/components/student/project-spec/shared/useSpecBridge";
 
 // ────────────────────────────────────────────────────────────────────
 // State shape
 // ────────────────────────────────────────────────────────────────────
 
-interface SpecState {
+interface BriefState {
   archetype_id: string | null;
   slot_1: SlotAnswer | null;
   slot_2: SlotAnswer | null;
@@ -44,6 +45,8 @@ interface SpecState {
   slot_5: SlotAnswer | null;
   slot_6: SlotAnswer | null;
   slot_7: SlotAnswer | null;
+  slot_8: SlotAnswer | null;
+  slot_9: SlotAnswer | null;
   completed_at: string | null;
 }
 
@@ -54,7 +57,9 @@ type SlotKey =
   | "slot_4"
   | "slot_5"
   | "slot_6"
-  | "slot_7";
+  | "slot_7"
+  | "slot_8"
+  | "slot_9";
 
 const SLOT_KEYS: SlotKey[] = [
   "slot_1",
@@ -64,11 +69,13 @@ const SLOT_KEYS: SlotKey[] = [
   "slot_5",
   "slot_6",
   "slot_7",
+  "slot_8",
+  "slot_9",
 ];
 
-const TOTAL_SLOTS = 7;
+const TOTAL_SLOTS = 9;
 
-function emptySpec(): SpecState {
+function emptyBrief(): BriefState {
   return {
     archetype_id: null,
     slot_1: null,
@@ -78,6 +85,8 @@ function emptySpec(): SpecState {
     slot_5: null,
     slot_6: null,
     slot_7: null,
+    slot_8: null,
+    slot_9: null,
     completed_at: null,
   };
 }
@@ -89,26 +98,21 @@ function emptySpec(): SpecState {
 interface Props {
   unitId: string;
   sectionIndex: number;
-  /** Standard ResponseInput onChange — pushed via useSpecBridge so the
-   *  spec summary lands in student_progress.responses for marking. */
   onChange?: (value: string) => void;
 }
 
-export default function ProjectSpecResponse({ unitId, onChange }: Props) {
-  const [spec, setSpec] = useState<SpecState | null>(null);
+export default function ProductBriefResponse({ unitId, onChange }: Props) {
+  const [brief, setBrief] = useState<BriefState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [currentSlotIdx, setCurrentSlotIdx] = useState(0);
 
-  // Push a summary to student_progress.responses on every state change
-  // so the marking page sees the spec as a submission. Pattern + ref-
-  // capture rationale: see PR #184 + useSpecBridge.
-  useSpecBridge(spec, onChange, (s) => {
-    const archetype = getArchetype(s.archetype_id);
+  useSpecBridge(brief, onChange, (s) => {
+    const archetype = getProductBriefArchetype(s.archetype_id);
     if (!archetype) return null;
     return buildSummary(
-      `Project Spec — ${archetype.emoji} ${archetype.label}`,
+      `Product Brief — ${archetype.emoji} ${archetype.label}`,
       archetype.slots.map((slotDef, i) => ({
         slotDef,
         answer: s[SLOT_KEYS[i]],
@@ -125,24 +129,24 @@ export default function ProjectSpecResponse({ unitId, onChange }: Props) {
       setError(null);
       try {
         const res = await fetch(
-          `/api/student/project-spec?unitId=${encodeURIComponent(unitId)}`,
+          `/api/student/product-brief?unitId=${encodeURIComponent(unitId)}`,
           { cache: "no-store" },
         );
         if (!res.ok) throw new Error(`Load failed: ${res.status}`);
         const data = await res.json();
         if (cancelled) return;
-        setSpec(data.spec ?? emptySpec());
-        // Resume at first incomplete slot
-        if (data.spec?.archetype_id && !data.spec?.completed_at) {
+        setBrief(data.brief ?? emptyBrief());
+        if (data.brief?.archetype_id && !data.brief?.completed_at) {
           const firstIncomplete = SLOT_KEYS.findIndex(
-            (k) => !data.spec[k],
+            (k) => !data.brief[k],
           );
           setCurrentSlotIdx(
             firstIncomplete === -1 ? TOTAL_SLOTS - 1 : firstIncomplete,
           );
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load");
+        if (!cancelled)
+          setError(e instanceof Error ? e.message : "Failed to load");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -155,18 +159,18 @@ export default function ProjectSpecResponse({ unitId, onChange }: Props) {
 
   // Save (partial patch → POST → reflect locally)
   const save = useCallback(
-    async (patch: Partial<SpecState> & { completed?: boolean }) => {
+    async (patch: Partial<BriefState> & { completed?: boolean }) => {
       setSaving(true);
       setError(null);
       try {
-        const res = await fetch("/api/student/project-spec", {
+        const res = await fetch("/api/student/product-brief", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ unitId, ...patch }),
         });
         if (!res.ok) throw new Error(`Save failed: ${res.status}`);
         const data = await res.json();
-        setSpec(data.spec);
+        setBrief(data.brief);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to save");
       } finally {
@@ -180,40 +184,42 @@ export default function ProjectSpecResponse({ unitId, onChange }: Props) {
   if (loading) {
     return (
       <div className="rounded-2xl border border-purple-200 bg-purple-50/40 p-6 text-center text-sm text-purple-700">
-        Loading your project spec…
+        Loading your product brief…
       </div>
     );
   }
-  if (error || !spec) {
+  if (error || !brief) {
     return (
       <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-        Something went wrong loading your project spec. {error ?? ""}
+        Something went wrong loading your product brief. {error ?? ""}
       </div>
     );
   }
 
-  const archetype = getArchetype(spec.archetype_id);
+  const archetype = getProductBriefArchetype(brief.archetype_id);
 
   // ─── Phase 1: Archetype picker
-  if (!spec.archetype_id || !archetype) {
+  if (!brief.archetype_id || !archetype) {
     return (
       <ArchetypePicker
         archetypes={ARCHETYPE_LIST}
         onPick={(id) => save({ archetype_id: id })}
         saving={saving}
+        heading="Shape your product"
+        subhead="Pick the kind of thing you're going to make. You can't change this later."
       />
     );
   }
 
-  // ─── Phase 3: Project Card (completed)
-  if (spec.completed_at) {
-    return <ProjectCard archetype={archetype} spec={spec} />;
+  // ─── Phase 3: Brief Card (completed)
+  if (brief.completed_at) {
+    return <BriefCard archetype={archetype} brief={brief} />;
   }
 
   // ─── Phase 2: Walker
   const slotDef = archetype.slots[currentSlotIdx];
   const slotKey = SLOT_KEYS[currentSlotIdx];
-  const currentAnswer = spec[slotKey];
+  const currentAnswer = brief[slotKey];
 
   return (
     <SlotWalker
@@ -224,7 +230,7 @@ export default function ProjectSpecResponse({ unitId, onChange }: Props) {
       currentAnswer={currentAnswer}
       saving={saving}
       onSave={async (answer) => {
-        await save({ [slotKey]: answer } as Partial<SpecState>);
+        await save({ [slotKey]: answer } as Partial<BriefState>);
         if (currentSlotIdx < TOTAL_SLOTS - 1) {
           setCurrentSlotIdx(currentSlotIdx + 1);
         }
@@ -244,33 +250,33 @@ export default function ProjectSpecResponse({ unitId, onChange }: Props) {
 }
 
 // ────────────────────────────────────────────────────────────────────
-// Phase 3 — Project Card (read-only summary)
+// Phase 3 — Brief Card (read-only summary)
 // ────────────────────────────────────────────────────────────────────
 
-function ProjectCard({
+function BriefCard({
   archetype,
-  spec,
+  brief,
 }: {
-  archetype: ArchetypeDefinition;
-  spec: SpecState;
+  archetype: ProductBriefArchetype;
+  brief: BriefState;
 }) {
   return (
     <div className="rounded-2xl border-2 border-purple-300 bg-gradient-to-br from-purple-50 via-white to-purple-50/50 p-6 shadow-sm">
       <div className="flex items-center gap-3 mb-5 pb-4 border-b border-purple-200">
-        <span className="text-4xl">{archetype.emoji}</span>
+        <span className="text-4xl">🧰</span>
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-purple-600">
-            Project Spec
+            Product Brief
           </p>
           <h3 className="text-xl font-bold text-purple-900">
-            {archetype.label}
+            {archetype.emoji} {archetype.label}
           </h3>
         </div>
       </div>
 
       <div className="space-y-3">
         {archetype.slots.map((slotDef, i) => {
-          const answer = spec[SLOT_KEYS[i]];
+          const answer = brief[SLOT_KEYS[i]];
           return (
             <div
               key={i}
@@ -294,7 +300,7 @@ function ProjectCard({
       </div>
 
       <p className="mt-5 text-xs text-purple-700/70 text-right">
-        ✓ Saved — your spec is locked in. Move on to the next activity.
+        ✓ Saved — brief locked in. Move on to the next activity.
       </p>
     </div>
   );

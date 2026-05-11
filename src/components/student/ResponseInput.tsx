@@ -16,6 +16,7 @@ import StructuredPromptsResponse from "./StructuredPromptsResponse";
 import { MultiQuestionResponse } from "@/components/lesson";
 import type { StructuredPromptsConfig } from "@/lib/structured-prompts/types";
 import ProjectSpecResponse from "./project-spec/ProjectSpecResponse";
+import ProductBriefResponse from "./product-brief/ProductBriefResponse";
 
 interface ResponseInputProps {
   sectionIndex: number;
@@ -210,6 +211,18 @@ export function ResponseInput({
           component re-loads canonical state from its own API on mount. */}
       {responseType === "project-spec" && unitId && (
         <ProjectSpecResponse
+          unitId={unitId}
+          sectionIndex={sectionIndex}
+          onChange={onChange}
+        />
+      )}
+
+      {/* Project Spec v2 — Product Brief block (archetype-driven, 9 slots
+          covering name, pitch, mechanism, primary+secondary material,
+          scale, constraints, precedents, technical risks). Storage in
+          student_unit_product_briefs. */}
+      {responseType === "product-brief" && unitId && (
+        <ProductBriefResponse
           unitId={unitId}
           sectionIndex={sectionIndex}
           onChange={onChange}

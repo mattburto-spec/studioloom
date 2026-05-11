@@ -71,6 +71,12 @@ export type SlotInputType =
       secondMin?: number;
       secondMax?: number;
       unit?: string;
+    }
+  | {
+      // v2 Product Brief slot 7 — 0-N selectable chips, e.g. constraints.
+      kind: "multi-chip-picker";
+      chips: Array<{ id: string; label: string; emoji?: string }>;
+      maxSelected?: number;
     };
 
 // ────────────────────────────────────────────────────────────────────
@@ -86,7 +92,8 @@ export type SlotValue =
       ref: string;
       cm?: { w?: number; h?: number; d?: number };
     }
-  | { kind: "pair"; first: number; second: number };
+  | { kind: "pair"; first: number; second: number }
+  | { kind: "multi-chip"; selected: string[] };
 
 /** Persisted per-slot answer. Stored in student_unit_project_specs.slot_N JSONB. */
 export interface SlotAnswer {
