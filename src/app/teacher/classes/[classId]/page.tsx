@@ -57,10 +57,15 @@ const ELL_COLORS: Record<number, { bg: string; color: string; label: string }> =
   3: { bg: "#D1FAE5", color: "#065F46", label: "ELL 3 — Bridging" },
 };
 
-interface StudentProgress {
+// Per-row shape returned by the student_progress query — one row per
+// (student, unit, page) tuple. Aggregation to "X of Y" happens in the
+// loop below. Pre-fix this interface claimed `completed_pages` and
+// `total_pages` columns that don't exist on the table, which caused a
+// 400 Bad Request from Supabase REST and silently hid the per-student
+// progress bars in the class hub. Schema-aligned now.
+interface StudentProgressRow {
   student_id: string;
-  completed_pages: number;
-  total_pages: number;
+  status: "not_started" | "in_progress" | "complete";
 }
 
 interface StudioStatus {
@@ -271,7 +276,9 @@ export default function ClassDetailPage({
       const [studioRes, badgeRes, progressRes] = await Promise.all([
         supabase.from("open_studio_status").select("student_id, status").in("student_id", studentIds).eq("status", "unlocked"),
         supabase.from("student_badges").select("student_id, badge_id").in("student_id", studentIds).eq("status", "earned"),
-        supabase.from("student_progress").select("student_id, completed_pages, total_pages").in("student_id", studentIds),
+        // Per-page rows only — student_progress is keyed (student, unit,
+        // page). Aggregate to "X completed of Y touched" in the loop below.
+        supabase.from("student_progress").select("student_id, status").in("student_id", studentIds),
       ]);
 
       // Build studio map
@@ -288,12 +295,16 @@ export default function ClassDetailPage({
       }
       setBadgeMap(bm);
 
-      // Build progress map (aggregate across all units)
+      // Build progress map (aggregate across all units this student
+      // has touched). `total` counts pages the student has any progress
+      // row for (not "total pages in the unit" — that'd require joining
+      // units/pages). `completed` counts rows with status='complete'.
+      // Approximate enough for an at-a-glance class-hub progress bar.
       const pm = new Map<string, { completed: number; total: number }>();
-      for (const p of (progressRes.data || []) as StudentProgress[]) {
+      for (const p of (progressRes.data || []) as StudentProgressRow[]) {
         const existing = pm.get(p.student_id) || { completed: 0, total: 0 };
-        existing.completed += p.completed_pages || 0;
-        existing.total += p.total_pages || 0;
+        existing.total += 1;
+        if (p.status === "complete") existing.completed += 1;
         pm.set(p.student_id, existing);
       }
       setProgressMap(pm);
