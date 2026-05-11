@@ -38,6 +38,13 @@ VALUES (
 | # | Applied at (UTC) | Migration filename | Applied by | Source | Notes |
 |---|---|---|---|---|---|
 | 1 | 2026-05-11T08:30Z | `20260511085324_handpatch_handle_new_teacher_skip_students_search_path` | matt+claude | hand-patch | Hand-applied via Supabase SQL Editor during student-creation incident. SQL identical to the codified migration file. Verified via probe — function body contains user_type guard + public.teachers + search_path + EXCEPTION. |
+| 2 | 2026-05-11T~10:00Z | `20260502024657_phase_4_0_governance_engine_rollout_flag` | matt+claude | manual | Applied via Supabase SQL Editor during audit Phase D. Single INSERT into admin_settings (`school.governance_engine_rollout = true`). The only genuine drift in the 83-migration audit. |
+
+## STATUS: SUPERSEDED by `public.applied_migrations` tracker table (Phase E, 11 May 2026)
+
+The tracker table now exists in prod with all 81 rows (this file's 2 rows + 79 audit-backfill rows). This file is no longer the source of truth — `public.applied_migrations` is. Logging future applies goes directly to the table via the SQL printed by `scripts/migrations/new-migration.sh`.
+
+This file kept for historical reference until Phase G close-out, then deleted.
 
 ## Notes
 

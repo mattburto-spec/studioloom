@@ -5,7 +5,8 @@
 **Phase:** A (Enumerate) → COMPLETE + signed off (Checkpoint A.1 PASSED, 11 May 2026)
 **Phase:** B (Probe) → COMPLETE (Checkpoint B.1 PASSED pending combined sign-off)
 **Phase:** C (Categorise) → COMPLETE (Checkpoint C.1 PASSED pending combined sign-off)
-**Phase:** D (Apply) → READY — 1 single INSERT for #49 governance_engine_rollout
+**Phase:** D (Apply) → READY — 1 single INSERT for #49 (see [`prod-migration-backlog-audit-2026-05-11-apply-and-tracker.sql`](prod-migration-backlog-audit-2026-05-11-apply-and-tracker.sql))
+**Phase:** E (Tracker) → READY — bundled in same SQL file as Phase D for a single paste-and-go
 **Companion brief:** [prod-migration-backlog-audit-brief.md](prod-migration-backlog-audit-brief.md)
 
 ## Scope
