@@ -4,6 +4,64 @@
 
 ---
 
+## 2026-05-11/12 — Project Spec v2 split (3 new blocks + shared library)
+
+**Context:** After v1 unified Project Spec shipped (11 May), Matt's observation that the 7 Qs were a mashup of three concerns (product / user / success criteria) drove a phase brief for splitting into three focused blocks. Built end-to-end the same evening per `docs/projects/project-spec-v2-split-brief.md`.
+
+**What shipped (5 PRs):**
+
+1. **PR #188 — Phase A (schema + types)**
+   - 3 new tables, all parallel + additive (no FK between them, no v1 changes):
+     - `student_unit_product_briefs` (9 slots, archetype-driven)
+     - `student_unit_user_profiles` (8 slots, universal)
+     - `student_unit_success_criteria` (5 slots, universal)
+   - `ResponseType` union extended with `"product-brief" | "user-profile" | "success-criteria"`
+   - RESPONSE_TYPE_LABELS / ICON (🧰/👤/🎯) / TINT entries
+   - All 3 migrations applied to prod via Supabase SQL editor
+
+2. **PR #191 — Phase B+C (shared library + Product Brief block)**
+   - **Phase B refactor:** v1's 800-line `ProjectSpecResponse.tsx` → **301 lines** (-62%) by extracting:
+     - `src/lib/project-spec/format.ts` — `isValueNonEmpty`, `computeLengthHint`, `formatAnswer`, `buildSummary` (generic across slot counts via `SummaryEntry[]` array)
+     - `src/components/student/project-spec/shared/SlotInput.tsx` — 5-input dispatcher (later +2: multi-chip-picker, image-upload)
+     - `src/components/student/project-spec/shared/SlotWalker.tsx` — parameterised walker shell (`headerLabel` + `totalSlots` props)
+     - `src/components/student/project-spec/shared/ArchetypePicker.tsx` — Q0 chip picker
+     - `src/components/student/project-spec/shared/useSpecBridge.ts` — PR #184 ref pattern bottled into a reusable hook (banked critical lesson)
+   - **Phase C:** Product Brief block (🧰) — 9 slots, archetype-driven via `PRODUCT_BRIEF_ARCHETYPES`. New `multi-chip-picker` input kind for Constraints slot (6 chips, cap 3). Slots: name / pitch / mechanism / primary material / secondary material / scale / constraints / precedents / technical risks.
+
+3. **PR #194 — Phase D (User Profile + image upload)**
+   - New private storage bucket `user-profile-photos` with service-role RLS (migration `20260511221713`, Option B from brief §12.4 — dedicated bucket not shared with `responses`).
+   - New `image-upload` SlotInputType variant + ImageUploadInput sub-component (10MB cap, file picker, thumbnail + Replace + Remove + inline caption).
+   - User Profile block (👤) — 8 slots, universal. Slots: name+relationship / age band / context / problem / alternatives (2-field) / unique value / **optional photo** / optional quote.
+   - Photo upload route `/api/student/user-profile/upload-photo` (FormData, moderates via `moderateAndLog`, returns proxy URL).
+   - `SlotWalker` gained optional `onUploadImage` callback — pure UI dispatcher, block owns the POST.
+
+4. **Phase E+F PR (this commit) — Success Criteria + registries**
+   - Success Criteria block (🎯) — 5 slots, universal. Slots: observable success signal / measurement protocol (chip picker) / test setup (4-field where/when/how long/who watches) / failure mode / iteration trigger.
+   - 3 new entries in `schema-registry.yaml` documenting product_briefs / user_profiles / success_criteria tables (RLS policies, columns, writers, readers, applied_via).
+   - `WIRING.yaml` `project-spec-block` system bumped to currentVersion: 2 — now documents the whole v1 + v2 family (4 tables, 4 components, 4 API routes, 5 migrations).
+   - `api-registry.yaml` auto-synced via `scan-api-routes.py --apply`.
+   - 9 follow-ups filed in `project-spec-v2-followups.md`.
+
+**Architecture decisions banked:**
+- **Three separate tables, not one with sub-types.** Each block evolves independently. Future blocks can add slots without coordinating.
+- **Shared library extraction.** Walker / picker / dispatcher / hook live in one place; 4 consumers (v1 + 3 v2 blocks) compose them.
+- **Image upload via callback pattern.** SlotInput stays pure UI; block component owns the POST endpoint. Different blocks can upload to different buckets.
+- **useSpecBridge hook bakes Lesson #82.** Ref-captured onChange — never put a callback prop in a useEffect dep array unless the parent guarantees stable identity.
+- **v1 frozen + coexisting.** Both v1 and v2 in BlockPalette during pilot. v1 retired via `FU-PSV2-V1-DEPRECATION` (P3) after 90 days of zero new inserts.
+
+**Test posture:** 5370 → 5385 (4 new tests added by Phase D unrelated work; v2 build added no regressions). tsc strict clean across every commit. `verify-no-collision.sh` clean for all 4 migrations.
+
+**Code stats (v2 surface):**
+- 5 shared files (~700 lines) — extracted from v1's 800-line component
+- 3 v2 slot-definition files (~600 lines combined)
+- 3 v2 components (~700 lines combined)
+- 4 v2 API routes (~600 lines combined)
+- 4 v2 migrations (~400 lines combined)
+
+**Open follow-ups (9):** aggregated student view (P3), per-block AI mentor (P2), user-photo moderation policy (P2), Class Gallery user-research surfacing (P2), cross-block sync (P3), v1 deprecation (P3), archetypes 3-6 (P3), archetype versioning (P3), teacher RLS via Access v2 (P2).
+
+---
+
 ## 2026-05-11 — Project Spec Block v1 (lesson-page activity for G9 first session)
 
 **Context:** Matt's G9 design class opens StudioLoom for the first time on 12 May 2026 (14 sessions, 12 May → 16 June). Original brief scoped 7 phases including timeline/kanban auto-seeding and AI mentor pass. Matt scaled back at scope-review: "all seems very complicated. can we scale back the scope of the block for tomorrows class. dont want to wreck timeline or kanban in rushing this." Final v1 scope: lesson-page activity card, own table, own API, no kanban/timeline writes, no AI calls, two archetypes hardcoded in TS.
