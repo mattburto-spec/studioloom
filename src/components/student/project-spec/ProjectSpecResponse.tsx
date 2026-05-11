@@ -73,14 +73,34 @@ function emptySpec(): SpecState {
 interface Props {
   unitId: string;
   sectionIndex: number;
+  /**
+   * Standard ResponseInput onChange. We use it to push a readable
+   * spec summary into student_progress.responses so the canonical
+   * marking flow (which reads responses[tileId]) can see the spec
+   * as a submission. Mirrors how every other response type plays
+   * with the existing autosave pipeline.
+   */
+  onChange?: (value: string) => void;
 }
 
-export default function ProjectSpecResponse({ unitId }: Props) {
+export default function ProjectSpecResponse({ unitId, onChange }: Props) {
   const [spec, setSpec] = useState<SpecState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [currentSlotIdx, setCurrentSlotIdx] = useState(0);
+
+  // Whenever the spec state changes (load, slot save, completion),
+  // push a fresh summary string to the parent so the standard
+  // student_progress.responses autosave picks it up. This is what
+  // makes the Project Spec activity discoverable in the marking page
+  // (which keys tile detection off non-empty response strings).
+  useEffect(() => {
+    if (!spec || !onChange) return;
+    const archetype = getArchetype(spec.archetype_id);
+    if (!archetype) return;
+    onChange(buildSpecSummary(spec, archetype));
+  }, [spec, onChange]);
 
   // Load on mount
   useEffect(() => {
@@ -705,6 +725,33 @@ function computeLengthHint(input: SlotInputType, value: SlotValue | null): strin
     }
   }
   return null;
+}
+
+/**
+ * Format a completed (or in-progress) spec as readable multi-line text.
+ * Pushed via onChange into student_progress.responses so the marking
+ * page sees the spec as a submission (its tile-progress check requires
+ * a non-empty string in responses[tileId]). Teachers will read this
+ * directly in the marking detail pane.
+ */
+function buildSpecSummary(spec: SpecState, archetype: ArchetypeDefinition): string {
+  const lines: string[] = [];
+  lines.push(`Project Spec — ${archetype.emoji} ${archetype.label}`);
+  archetype.slots.forEach((slotDef, i) => {
+    const answer = spec[SLOT_KEYS[i]];
+    lines.push("");
+    lines.push(`Q${i + 1} — ${slotDef.title}`);
+    if (!answer || answer.skipped) {
+      lines.push("(skipped or not yet defined)");
+    } else {
+      lines.push(formatAnswer(answer, slotDef.input));
+    }
+  });
+  if (spec.completed_at) {
+    lines.push("");
+    lines.push(`(completed ${spec.completed_at})`);
+  }
+  return lines.join("\n");
 }
 
 function formatAnswer(answer: SlotAnswer, input: SlotInputType): string {
