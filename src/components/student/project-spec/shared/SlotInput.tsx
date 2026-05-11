@@ -12,16 +12,28 @@
  * the inputs).
  */
 
+import { useRef, useState } from "react";
 import type { SlotInputType, SlotValue } from "@/lib/project-spec/archetypes";
+
+/**
+ * Callback contract for the `image-upload` input kind. The consuming
+ * block component owns the actual POST to its dedicated upload
+ * endpoint (different bucket per block). Returns the proxy URL of
+ * the uploaded asset.
+ */
+export type ImageUploadFn = (file: File) => Promise<{ url: string }>;
 
 export function SlotInput({
   input,
   value,
   onChange,
+  onUploadImage,
 }: {
   input: SlotInputType;
   value: SlotValue | null;
   onChange: (v: SlotValue | null) => void;
+  /** Only consulted when `input.kind === "image-upload"`. */
+  onUploadImage?: ImageUploadFn;
 }) {
   if (input.kind === "text") {
     const text = value?.kind === "text" ? value.text : "";
@@ -178,6 +190,17 @@ export function SlotInput({
     );
   }
 
+  if (input.kind === "image-upload") {
+    return (
+      <ImageUploadInput
+        value={value?.kind === "image" ? value : null}
+        onChange={onChange}
+        onUploadImage={onUploadImage}
+        altPlaceholder={input.altPlaceholder ?? "Caption (optional)"}
+      />
+    );
+  }
+
   if (input.kind === "multi-chip-picker") {
     const selected = value?.kind === "multi-chip" ? value.selected : [];
     const cap = input.maxSelected;
@@ -277,4 +300,124 @@ export function SlotInput({
   }
 
   return null;
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Image upload sub-component
+// ────────────────────────────────────────────────────────────────────
+
+function ImageUploadInput({
+  value,
+  onChange,
+  onUploadImage,
+  altPlaceholder,
+}: {
+  value: { kind: "image"; url: string; alt?: string } | null;
+  onChange: (v: SlotValue | null) => void;
+  onUploadImage?: ImageUploadFn;
+  altPlaceholder: string;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleFile(file: File) {
+    if (!onUploadImage) {
+      setError("Upload not wired in this context");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError("Image too large (max 10MB).");
+      return;
+    }
+    setError(null);
+    setUploading(true);
+    try {
+      const { url } = await onUploadImage(file);
+      onChange({ kind: "image", url, alt: value?.alt });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  // Empty state — no photo yet
+  if (!value) {
+    return (
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading || !onUploadImage}
+          className="w-full rounded-lg border-2 border-dashed border-purple-300 bg-purple-50/30 px-4 py-6 text-sm text-purple-700 hover:border-purple-500 hover:bg-purple-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {uploading ? "Uploading…" : "📷  Upload a photo or sketch"}
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void handleFile(f);
+          }}
+        />
+        {error && <p className="text-xs text-rose-600">{error}</p>}
+      </div>
+    );
+  }
+
+  // Filled state — thumbnail + replace + remove
+  return (
+    <div className="space-y-2">
+      <div className="rounded-lg border border-purple-200 bg-white p-3 flex gap-3 items-start">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={value.url}
+          alt={value.alt ?? "User photo"}
+          className="w-28 h-28 object-cover rounded-md border border-gray-200 bg-gray-50"
+        />
+        <div className="flex-1 min-w-0">
+          <input
+            type="text"
+            value={value.alt ?? ""}
+            onChange={(e) => onChange({ ...value, alt: e.target.value })}
+            placeholder={altPlaceholder}
+            className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+          />
+          <div className="flex gap-2 mt-2">
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              className="px-3 py-1 text-xs rounded border border-purple-300 text-purple-700 hover:bg-purple-50 disabled:opacity-50"
+            >
+              {uploading ? "Uploading…" : "Replace"}
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange(null)}
+              disabled={uploading}
+              className="px-3 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Remove
+            </button>
+          </div>
+        </div>
+      </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void handleFile(f);
+        }}
+      />
+      {error && <p className="text-xs text-rose-600">{error}</p>}
+    </div>
+  );
 }

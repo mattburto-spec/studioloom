@@ -32,6 +32,8 @@ export function isValueNonEmpty(v: SlotValue): boolean {
       return Number.isFinite(v.first) && Number.isFinite(v.second);
     case "multi-chip":
       return v.selected.length > 0;
+    case "image":
+      return v.url.length > 0;
   }
 }
 
@@ -100,6 +102,12 @@ export function formatAnswer(answer: SlotAnswer, input: SlotInputType): string {
         return `${chip.emoji ?? ""} ${chip.label}`.trim();
       });
       return labels.join(", ");
+    }
+    case "image": {
+      // For marking summary: keep the URL in the plaintext so a teacher
+      // can copy + paste it into their browser. Caption gets prepended
+      // when present.
+      return v.alt ? `${v.alt} — ${v.url}` : `[Photo] ${v.url}`;
     }
   }
 }

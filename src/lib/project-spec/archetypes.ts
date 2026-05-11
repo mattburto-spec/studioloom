@@ -77,6 +77,16 @@ export type SlotInputType =
       kind: "multi-chip-picker";
       chips: Array<{ id: string; label: string; emoji?: string }>;
       maxSelected?: number;
+    }
+  | {
+      // v2 User Profile slot 7 — optional image upload. The bucket
+      // declaration is data-side so the dispatcher can render a
+      // reasonable empty state even if no upload callback is wired.
+      // Bucket name corresponds to the Supabase storage bucket id;
+      // permission is enforced server-side via the upload endpoint.
+      kind: "image-upload";
+      bucket: "user-profile-photos";
+      altPlaceholder?: string;
     };
 
 // ────────────────────────────────────────────────────────────────────
@@ -93,7 +103,8 @@ export type SlotValue =
       cm?: { w?: number; h?: number; d?: number };
     }
   | { kind: "pair"; first: number; second: number }
-  | { kind: "multi-chip"; selected: string[] };
+  | { kind: "multi-chip"; selected: string[] }
+  | { kind: "image"; url: string; alt?: string };
 
 /** Persisted per-slot answer. Stored in student_unit_project_specs.slot_N JSONB. */
 export interface SlotAnswer {

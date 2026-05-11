@@ -21,7 +21,7 @@ import type {
   SlotDefinition,
   SlotValue,
 } from "@/lib/project-spec/archetypes";
-import { SlotInput } from "./SlotInput";
+import { SlotInput, type ImageUploadFn } from "./SlotInput";
 
 interface SlotWalkerProps {
   /**
@@ -40,6 +40,8 @@ interface SlotWalkerProps {
   onBack: (() => void) | null;
   /** Non-null on the last slot — clicking finish saves the current answer + marks the block complete. */
   onComplete: (() => Promise<void>) | null;
+  /** Threaded to SlotInput for image-upload slot kinds. Required for User Profile slot 7. */
+  onUploadImage?: ImageUploadFn;
 }
 
 export function SlotWalker({
@@ -52,6 +54,7 @@ export function SlotWalker({
   onSave,
   onBack,
   onComplete,
+  onUploadImage,
 }: SlotWalkerProps) {
   const [draftValue, setDraftValue] = useState<SlotValue | null>(
     currentAnswer && !currentAnswer.skipped ? currentAnswer.value ?? null : null,
@@ -141,6 +144,7 @@ export function SlotWalker({
         input={slotDef.input}
         value={draftValue}
         onChange={setDraftValue}
+        onUploadImage={onUploadImage}
       />
 
       {/* Length nudge */}
