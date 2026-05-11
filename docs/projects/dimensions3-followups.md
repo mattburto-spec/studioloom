@@ -2117,6 +2117,22 @@ This is a real product capability, not just a UX rename. The data is already per
 
 ---
 
+## ✅ FU-PROD-MIGRATION-BACKLOG-AUDIT — RESOLVED 11 May 2026 (P1)
+
+**Audit complete + tracker table live.** All 7 phases (A-G) shipped in a single session on 11 May 2026.
+
+- **Truth doc:** [`docs/projects/prod-migration-backlog-audit-2026-05-11-truth.md`](prod-migration-backlog-audit-2026-05-11-truth.md) — 83 migrations probed.
+- **Result:** drift was 1 missing row (not the "~10+ missing migrations" originally feared). 76 APPLIED, 4 SKIP-EQUIVALENT, 2 RETIRE, 1 APPLY (`school.governance_engine_rollout` admin_settings).
+- **Tracker:** `public.applied_migrations` table created with 81 rows backfilled (79 backfill + 1 hand-patch + 1 manual). Verified via Phase E.2 `phase_e_source_breakdown`.
+- **Tooling:** [`scripts/migrations/check-applied.sh`](../../scripts/migrations/check-applied.sh) runs in saveme step 11(h). [`scripts/migrations/new-migration.sh`](../../scripts/migrations/new-migration.sh) prints the apply-reminder banner with the INSERT command. CLAUDE.md "Migration discipline" section updated with the 3 mandates from the brief.
+- **Sister FU-EE** (no canonical applied log) closed by the tracker table.
+- **Lesson #83** banked.
+- **Side FU filed:** `FU-AUDIT-PASS4-CLASSES-DEFAULT-LAB` (P3) — non-blocking gap in the Phase 8-1 backfill's Pass 4. Listed below.
+
+Original 11 May entry preserved below for historical context.
+
+---
+
 ## FU-PROD-MIGRATION-BACKLOG-AUDIT — Prod schema has drifted hard from repo migrations (P1)
 **Surfaced:** 4 May 2026 during Lever 1 (slot fields) seed work
 **Priority:** P1 — prod-state divergence from repo; risk of seeded INSERTs failing or writing to phantom columns
@@ -2161,6 +2177,76 @@ applied-log permanent fix.
 
 **Sister FU:** FU-EE (no canonical migration-applied log) — this
 P1 is the symptom, FU-EE is the underlying systemic issue.
+
+**Update — 11 May 2026 (severity upgraded):** Student-creation
+incident traced to this drift. `handle_new_teacher` trigger in prod
+was migration-001's buggy version for ~12 days; three fix
+migrations (`20260501103415`, `20260502102745`, `20260502105711`)
+had never been applied. Hand-patched + codified in
+[migration `20260511085324`](../../supabase/migrations/20260511085324_handpatch_handle_new_teacher_skip_students_search_path.sql).
+Worse discovery during the trace: `supabase_migrations.schema_migrations`
+table doesn't exist in prod at all — there is NO application-level
+migration tracking. Only `auth.schema_migrations`,
+`storage.migrations`, `realtime.schema_migrations` (Supabase
+internal). See [Lesson #83](../lessons-learned.md#lesson-83) for
+the systemic implication.
+
+**Build brief filed:**
+[`docs/projects/prod-migration-backlog-audit-brief.md`](prod-migration-backlog-audit-brief.md) —
+7-phase plan A-G, named Matt Checkpoints, suggests fresh worktree
+`questerra-migration-audit` and dedicated session. End-state
+includes a `public.applied_migrations` tracking table backfilled
+from the audit so this drift class cannot recur.
+
+---
+
+## FU-AUDIT-PASS4-CLASSES-DEFAULT-LAB — Phase 8-1 backfill's Pass 4 didn't propagate to classes.default_lab_id (P3)
+**Surfaced:** 11 May 2026, prod-migration-backlog-audit Phase B re-probe
+**Priority:** P3 — non-blocking; current platform behaviour unaffected
+
+**Symptom:** During Phase B of the audit, the re-probe of `20260427135108_backfill_fabrication_labs` showed:
+- ✅ Pass 1 ran: `fabrication_labs has any row` = 2
+- ✅ Pass 2 ran: `machine_profiles.lab_id non-null count` = 18
+- ✅ Pass 3 ran: `teachers.default_lab_id non-null count` = 2
+- ❌ Pass 4 did NOT propagate: `classes.default_lab_id non-null count` = 0
+
+Pass 4 was supposed to cascade `classes.default_lab_id` from the owning teacher's `default_lab_id` (set in Pass 3). 2 teachers have non-null default_lab_id, so Pass 4 SHOULD have updated their classes. But 0 classes have it set.
+
+**Suspected causes:**
+1. Pass 4 was skipped at apply time (e.g. only Passes 1-3 manually run).
+2. No eligible classes existed at apply time, and classes created later didn't get backfilled.
+3. Pass 4 SQL has a subtle bug — the cascade JOIN didn't match expected rows.
+
+**Investigation steps:**
+1. Read `supabase/migrations/20260427135108_backfill_fabrication_labs.sql` Pass 4 SQL to confirm the join logic.
+2. Run the Pass 4 SQL ad-hoc against prod and observe row count. If it updates non-zero rows now, the issue was timing (case 2). If still 0, the JOIN is wrong (case 3).
+3. If the JOIN is wrong, file a small re-run migration.
+
+**Definition of done:** Either (a) classes.default_lab_id non-null count > 0 after a re-run, OR (b) confirmed Pass 4 is a no-op for the current platform state and the issue is closed as "not needed". Either way, log the resolution in `public.applied_migrations` for the original migration's row.
+
+**Non-urgency:** the platform doesn't appear to use `classes.default_lab_id` in the hot path — this is for future class-level default-lab routing if/when it matters. Won't break anything today.
+
+---
+
+## FU-MIGRATION-CI-CHECK — GitHub Action to block PR merge on applied_migrations drift (P2)
+**Surfaced:** 11 May 2026, prod-migration-backlog-audit Phase F+G close-out planning
+**Priority:** P2 — last 1% of bulletproofing the migration discipline
+
+**Symptom:** The current safety net for migration drift is `scripts/migrations/check-applied.sh` called from saveme step 11(h). This works IF saveme is run. It does NOT enforce on PRs.
+
+**Risk:** a human (or Claude session) authors a migration in a PR, applies it manually to prod, but forgets to INSERT into `public.applied_migrations`. Saveme catches it eventually, but a PR could land in main before saveme runs.
+
+**Fix:** GitHub Action on PR open/sync that:
+1. Lists migrations on the PR branch (`git diff --name-only origin/main...HEAD -- 'supabase/migrations/*.sql' | grep -v down.sql`).
+2. Queries prod's `public.applied_migrations` via service-role connection (uses a secret env `SUPABASE_DB_URL`).
+3. For each PR migration NOT in `applied_migrations`, posts a PR comment: "Migration X has not been applied + logged to prod yet. Apply + log before merge." 
+4. Optionally block merge via required status check.
+
+**Out of scope for the original audit** because it requires GitHub Actions infrastructure + a service-role secret in GitHub. The saveme drift check is the working safety net.
+
+**Definition of done:** Action exists at `.github/workflows/check-applied-migrations.yml`, runs on every PR that touches `supabase/migrations/*.sql`, posts a comment listing missing tracker entries.
+
+**Estimated effort:** ~1-2 hours.
 
 ---
 

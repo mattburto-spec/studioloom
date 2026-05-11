@@ -1202,3 +1202,32 @@ Three rounds of guards in the gesture layer; the bug was three function calls up
 - **Defensive architecture (Path A — lift state to a stable parent) and root-cause fix (Path B — fix the parent's render churn) are NOT mutually exclusive.** Ship both. Path A makes the bug fixable today; Path B prevents the next instance of the same anti-pattern from reproducing. Belt and braces is correct when the cost is one extra commit.
 
 **Wider applicability:** any React app using a markdown / DSL / DOM-mapping library with a `components` / `renderers` / `mapping` prop. Audit those props NOW — if any are inline-declared, they're tearing down their subtrees on every render. Fix them BEFORE you instrument; the bug is structurally identical regardless of which library.
+
+### Lesson #83 — Prod has NO application migration tracking table; assume nothing about applied state
+**Date:** 11 May 2026
+**Phase:** Student-creation incident close-out
+
+**What happened:** Adding a student via `/teacher/classes/[classId]` returned 500. Root cause: the `handle_new_teacher` trigger in prod was migration-001's buggy version (unqualified `teachers`, no `search_path`, no `EXCEPTION`), even though three repo migrations had fixed it (`20260501103415` student guard, `20260502102745` search_path, `20260502105711` auto-personal-school). When I probed `supabase_migrations.schema_migrations` to find what was applied to prod, the table didn't exist. `information_schema.schemata` confirmed: the only migration-tracking tables in prod are Supabase's internal ones (`auth.schema_migrations`, `storage.migrations`, `realtime.schema_migrations`). NO application-level tracking exists. Migrations in `supabase/migrations/*.sql` have been applied by hand all along, with no record of what landed when.
+
+**Why it bit on 11 May, not 29 April when the bug was deployed:** `provisionStudentAuthUser` went live on 29 April (Phase 1.1d). Every student creation through the UI since then should have failed — but Matt was the only active teacher and didn't add a fresh student through the broken paths for 12 days. When he did, the UI silently swallowed the 500 (sister anti-pattern, see [Lesson #67-style silent error swallow]) and looked like the click did nothing. Took a full DevTools-Network-Vercel-Supabase-logs trace to extract the underlying `relation "teachers" does not exist (SQLSTATE 42P01)`.
+
+**Why this matters more than it sounds:** every future `CREATE OR REPLACE FUNCTION` / `ALTER TABLE` / `CREATE POLICY` in the repo's `supabase/migrations/` folder layers checks against assumed prior state. Without a tracking table that assumption is unverifiable — and as discovered here, sometimes false. The May-2 trigger (Phase 4.3.y) inserts into a `schools` table that may or may not be in prod; the May-9 RLS hardening assumes student-RLS chains that may or may not be in place. The repo has been steadily writing migrations against assumed prod state for ~6 months with no way to verify.
+
+**Rules:**
+- **Never assume a repo migration is applied to prod.** Before authoring a follow-on migration that depends on prior schema state, probe directly:
+  ```sql
+  SELECT to_regclass('public.expected_table');         -- table exists?
+  SELECT column_name FROM information_schema.columns   -- column exists?
+   WHERE table_name='x' AND column_name='y';
+  SELECT proname FROM pg_proc                          -- function/trigger exists?
+   WHERE proname='handle_new_teacher';
+  SELECT pg_get_functiondef(oid) FROM pg_proc          -- function body matches?
+   WHERE proname='handle_new_teacher';
+  ```
+  These are cheap (<100ms) and stop you from layering migrations on a phantom foundation. The Lesson #68 pre-flight discipline applies here too — capture truth from prod, not from the registry.
+- **The `schema-registry.yaml` and `api-registry.yaml` are aspirational, not authoritative.** They reflect what the REPO believes; they cannot be trusted as a description of prod. The actual prod schema is the only source of truth — query it.
+- **When a migration adds a `CREATE OR REPLACE FUNCTION` or `CREATE OR REPLACE TRIGGER`, codify the EXACT body including all safety properties** (`SET search_path`, `EXCEPTION WHEN others`, `public.` qualifier). One omission cascades through every later migration that touches the same function. Lesson #66 was the first manifestation; this Lesson #83 is the second.
+- **Triggers on `auth.users` are the single highest-leverage drift surface** — failures there block every signup path simultaneously (teacher signup, student auth-provision, LTI launch, LMS sync, lazy classcode fallback). Audit `auth.users` triggers first whenever investigating prod drift.
+- **The systemic fix is FU-PROD-MIGRATION-BACKLOG-AUDIT (P1)** — now upgraded in severity. Plan filed at `docs/projects/prod-migration-backlog-audit-brief.md`. End-state: create a `public.applied_migrations` tracking table, backfill it from a probe-driven audit, then wire `scripts/migrations/new-migration.sh` to require a tracker row before a migration is considered done. Saveme should diff `supabase/migrations/*.sql` against this table on every run.
+
+**Sister lessons:** Lesson #65 (old triggers don't know about new user types) and Lesson #66 (re-apply search_path lockdown on every function rewrite) are both downstream of this one. Without a tracking log, the fixes from Lessons #65+#66 silently failed to land in prod, and the bug they were authored to prevent struck anyway 10 days later.

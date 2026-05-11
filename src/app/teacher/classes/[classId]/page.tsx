@@ -106,6 +106,7 @@ export default function ClassDetailPage({
   const [newDisplayName, setNewDisplayName] = useState("");
   const [newYearLevel, setNewYearLevel] = useState<string>("");
   const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string>("");
   const [addMode, setAddMode] = useState<"existing" | "single" | "bulk">("existing");
   const [bulkText, setBulkText] = useState("");
   const [bulkResult, setBulkResult] = useState<{ added: number; skipped: string[] } | null>(null);
@@ -316,6 +317,7 @@ export default function ClassDetailPage({
   async function addStudent() {
     if (!newUsername.trim()) return;
     setAdding(true);
+    setAddError("");
 
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -356,6 +358,11 @@ export default function ClassDetailPage({
         }),
       });
       if (!res.ok) {
+        // Surface the server's error so the user knows what failed (e.g. 11 May
+        // 2026 — "Failed to provision student auth" went unseen for hours
+        // because this previously silently `return`ed without setting state).
+        const body = await res.json().catch(() => ({} as { error?: string }));
+        setAddError(body?.error || `Failed to add student (HTTP ${res.status})`);
         setAdding(false);
         return;
       }
@@ -1437,7 +1444,7 @@ export default function ClassDetailPage({
               {/* Mode tabs */}
               <div className="flex gap-1 bg-surface-alt rounded-lg p-1 mb-4">
                 <button
-                  onClick={() => { setAddMode("existing"); setBulkResult(null); loadRosterStudents(); }}
+                  onClick={() => { setAddMode("existing"); setBulkResult(null); setAddError(""); loadRosterStudents(); }}
                   className={`flex-1 py-1.5 text-sm font-medium rounded-md transition ${
                     addMode === "existing"
                       ? "bg-white text-text-primary shadow-sm"
@@ -1447,7 +1454,7 @@ export default function ClassDetailPage({
                   Existing
                 </button>
                 <button
-                  onClick={() => { setAddMode("single"); setBulkResult(null); }}
+                  onClick={() => { setAddMode("single"); setBulkResult(null); setAddError(""); }}
                   className={`flex-1 py-1.5 text-sm font-medium rounded-md transition ${
                     addMode === "single"
                       ? "bg-white text-text-primary shadow-sm"
@@ -1457,7 +1464,7 @@ export default function ClassDetailPage({
                   New
                 </button>
                 <button
-                  onClick={() => { setAddMode("bulk"); setBulkResult(null); }}
+                  onClick={() => { setAddMode("bulk"); setBulkResult(null); setAddError(""); }}
                   className={`flex-1 py-1.5 text-sm font-medium rounded-md transition ${
                     addMode === "bulk"
                       ? "bg-white text-text-primary shadow-sm"
@@ -1636,7 +1643,7 @@ export default function ClassDetailPage({
                       <input
                         type="text"
                         value={newUsername}
-                        onChange={(e) => setNewUsername(e.target.value)}
+                        onChange={(e) => { setNewUsername(e.target.value); if (addError) setAddError(""); }}
                         placeholder="e.g. jsmith"
                         className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-transparent"
                         autoFocus
@@ -1671,9 +1678,12 @@ export default function ClassDetailPage({
                       <p className="text-xs text-text-tertiary mt-1">Auto-advances each academic year based on your school calendar</p>
                     </div>
                   </div>
+                  {addError && (
+                    <p className="text-xs text-red-600 mt-3 bg-red-50 px-3 py-2 rounded-lg">{addError}</p>
+                  )}
                   <div className="flex gap-2 mt-4">
                     <button
-                      onClick={() => { setShowAddStudent(false); setBulkResult(null); setAddMode("single"); }}
+                      onClick={() => { setShowAddStudent(false); setBulkResult(null); setAddMode("single"); setAddError(""); }}
                       className="flex-1 py-2 border border-border rounded-lg text-sm text-text-secondary hover:bg-surface-alt transition"
                     >
                       Cancel

@@ -4588,3 +4588,80 @@ Plus the NIS tier flip + Gmail-Matt detach as ops changes.
 - `vendors.json`: ok. `rls-coverage.json`: clean.
 
 **Systems affected:** `cost-usage-admin` (rebuilt) + `report-writer` (anonymization). No system-level pivots; WIRING.yaml unchanged.
+
+## 11 May 2026 (afternoon CST) — Student-creation incident closed + prod-migration-backlog audit scoped
+
+**Incident:** Teacher add-student via `/teacher/classes/[classId]` returned 500 with `Failed to provision student auth — please retry`. Traced through Vercel logs → Supabase auth logs → `relation "teachers" does not exist (SQLSTATE 42P01)`. Root cause: `handle_new_teacher` trigger in prod was running migration-001's buggy version (unqualified `teachers`, no `search_path`, no `EXCEPTION` block). Three repo migrations that fixed this (`20260501103415`, `20260502102745`, `20260502105711`) had never been applied to prod. Bug went undetected for 12 days — every auth.users INSERT since Phase 1.1d on 29 April was failing silently because the client modal swallowed the 500 with `if (!res.ok) return`.
+
+**Mitigation:** Hand-patched `handle_new_teacher` in prod via Supabase SQL Editor (~08:30 UTC) — replaced with the full safe version (student `user_type` guard + `public.teachers` qualifier + `SET search_path = public, pg_temp` + `EXCEPTION WHEN others`). Verified by adding student "MC" successfully. Cleanly codified as new repo migration so prod and repo agree.
+
+**PR shipped:**
+- [`#178`](https://github.com/mattburto-spec/studioloom/pull/178) `fix: unblock student creation (codify trigger hotfix + surface server errors)` — two commits:
+  - `86a2ba9` New migration `20260511085324_handpatch_handle_new_teacher_skip_students_search_path.sql` — the SQL applied by hand, with `DO $$` sanity check asserting all four safety properties.
+  - `ec58b2a` `fix(teacher/classes): surface server error on failed single-add student` — the single-add modal at `src/app/teacher/classes/[classId]/page.tsx` was the only of three add-student callsites that silently swallowed errors. Added `addError` state + red banner display, clears on input change, mode switch, modal close.
+
+**Discovery during the trace — severity upgraded:** Probed `supabase_migrations.schema_migrations` to find what was applied; the table doesn't exist. Only Supabase's internal trackers (`auth.schema_migrations`, `storage.migrations`, `realtime.schema_migrations`) exist. **Prod has NO application-level migration tracking at all.** Migrations in `supabase/migrations/*.sql` have been applied by hand for 18 months with no record. Every future migration is gambling on assumed prior state. Existing follow-up `FU-PROD-MIGRATION-BACKLOG-AUDIT` (P1) upgraded from "registry might be wrong" to "we have no idea what's applied".
+
+**Bucket 3 verification (data check post-hotfix):**
+- Students created since 29 Apr with `user_id IS NULL`: **0 rows** — no stuck students from the broken window.
+- Prod `handle_new_teacher` body re-probed: confirmed patched version live.
+
+**Audit brief filed:** [`docs/projects/prod-migration-backlog-audit-brief.md`](projects/prod-migration-backlog-audit-brief.md) — 7-phase plan (A Enumerate → B Probe → C Categorise → D Apply → E Tracking table → F Tooling → G Close-out), named Matt Checkpoints, fresh worktree recommended (`questerra-migration-audit`), `public.applied_migrations` table proposed as end-state so this drift class cannot recur.
+
+**Decisions banked** (`docs/decisions-log.md`): none new — applying existing build-methodology discipline to the audit.
+
+**Lessons banked** (`docs/lessons-learned.md`):
+- **Lesson #83** — Prod has NO application migration tracking table; assume nothing about applied state. Generalises Lessons #65 (old triggers don't know about new user types) and #66 (re-apply search_path lockdown on every function rewrite) — both of those fixes silently failed to land in prod for the same reason. Adds probe-first discipline + the end-state design for a tracking table.
+
+**Tests:** No net change in this session — Bucket 2 change to `page.tsx` is small enough to merit code review over new test infrastructure; recommended manual smoke is in the PR test plan.
+
+**Registry sync (this saveme):**
+- `api-registry.yaml`: 1 new route picked up (`/api/teacher/upload-image` from PR #174, prior session).
+- `ai-call-sites.yaml`: no diff.
+- `feature-flags.json`: drift unchanged from last session.
+- `vendors.json`: ok. `rls-coverage.json`: clean (124/124).
+- `schema-registry.yaml`: NOT touched — `handle_new_teacher` is a function not a table, no row to update. Migration 20260511085324 noted in `dimensions3-followups.md` under FU-PROD-MIGRATION-BACKLOG-AUDIT instead.
+
+**Systems affected:** `auth-system` (handle_new_teacher trigger fixed). No WIRING.yaml change — system entry is current.
+
+**What's next:** Audit per the brief. Open questions for Matt at the bottom of the brief — answer before Phase A begins. Recommend dedicated session in fresh worktree, half-day to full-day block.
+
+## 11 May 2026 (evening CST) — Prod migration backlog audit CLOSED in one session
+
+**Outcome:** All 7 phases (A→G) of `prod-migration-backlog-audit-brief.md` shipped in a single session, same-day as the morning's student-creation incident. Audit revealed drift was **1 missing admin_settings row**, not "~10+ missing migrations" as originally feared.
+
+**Phases:**
+- **A — Enumerate:** 83 migrations since 1 Apr 2026 catalogued with one probe SQL each. Truth doc at [`docs/projects/prod-migration-backlog-audit-2026-05-11-truth.md`](projects/prod-migration-backlog-audit-2026-05-11-truth.md). Checkpoint A.1 PASSED.
+- **B — Probe:** Single CTE with 83 UNION-ALL probes run in Supabase SQL Editor (no RLS). 77/83 returned true on first run. 4 false-negatives investigated via re-probe ([`prod-migration-backlog-audit-2026-05-11-probes-review.sql`](projects/prod-migration-backlog-audit-2026-05-11-probes-review.sql)) — 3 were probe-name bugs (missed `'auth.'` / `'school.'` prefixes on admin_settings keys) or stale-policy-on-dropped-table; only 1 genuine APPLY remained.
+- **C — Categorise:** 76 APPLIED, 4 SKIP-EQUIVALENT (#5 labs renamed, #43/#53/#54 superseded by #83 handpatch), 2 RETIRE (#33 policy on dropped table, #48 empty stub), 1 APPLY (#49 governance_engine_rollout). Checkpoint B.1 + C.1 PASSED combined.
+- **D — Apply:** Single INSERT for `admin_settings('school.governance_engine_rollout','true'::jsonb)`. Verified live.
+- **E — Tracker:** Created `public.applied_migrations` table (name PK, applied_at, applied_by, source CHECK enum, notes), RLS platform-admin-only. Backfilled 81 rows (79 backfill + 1 hand-patch + 1 manual). Verified via `phase_e_source_breakdown` SELECT.
+- **F — Tooling:**
+  - New `scripts/migrations/check-applied.sh` — diffs repo migrations against tracker. Dual-mode (psql with `DATABASE_URL`, or print-SQL fallback). Hardcodes 2 retired migrations.
+  - `scripts/migrations/new-migration.sh` extended with apply-reminder banner printing the INSERT INTO applied_migrations template after every mint.
+- **G — Close-out:**
+  - `CLAUDE.md` "Migration discipline" section gets permanent 3-mandate block (per-apply INSERT, saveme drift check, trigger phrases).
+  - Saveme step 11(h) added — runs `check-applied.sh` every saveme.
+  - "Prod migration backlog audit — active build plan" section removed from CLAUDE.md (audit closed).
+  - FU-PROD-MIGRATION-BACKLOG-AUDIT marked ✅ RESOLVED.
+  - Filed FU-AUDIT-PASS4-CLASSES-DEFAULT-LAB (P3) for small Pass 4 gap in fabrication_labs backfill.
+  - Filed FU-MIGRATION-CI-CHECK (P2) for optional GitHub Action PR-time drift block (last 1% of bulletproofing).
+  - Interim apply log deleted; tracker table is now authoritative.
+
+**Result:** the bug class that started this session — *"repo migration silently fails to land in prod; gap detected 12 days later via user error"* — is now structurally prevented. Future Claude sessions read the CLAUDE.md mandate, log every apply, saveme catches any misses, and the optional FU-MIGRATION-CI-CHECK can add CI enforcement when needed.
+
+**PR #178 — 9 commits, merged to main this session.** Pre-merge collision check confirmed safe.
+
+**Decisions banked** (`docs/decisions-log.md`): none new — applied existing build-methodology discipline.
+
+**Lessons banked** (`docs/lessons-learned.md`): Lesson #83 from morning incident already covers this.
+
+**Tests:** No npm test changes; tooling changes are bash + SQL. Verified by running `check-applied.sh` (clean) + `verify-no-collision.sh` (no collisions) before merge.
+
+**Registry sync (this saveme):**
+- All scanners already run in earlier saveme this session; no new code changes between then and now.
+- `schema-registry.yaml` will pick up `public.applied_migrations` table in next saveme run (manual addition pending).
+
+**Systems affected:** `migration-discipline` (new tracker table + 2 scripts). WIRING.yaml could get a new entry for this in next saveme; deferred since it's tooling not application surface.
+
+**What's next:** Optional FU-MIGRATION-CI-CHECK (P2, ~1-2 hr GitHub Action). Otherwise, audit is fully closed. Return to ordinary build work — Lever 0 / Lever 2-5 / Open Studio v2 / etc.
