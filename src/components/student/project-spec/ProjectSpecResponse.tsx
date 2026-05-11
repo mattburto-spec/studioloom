@@ -14,7 +14,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import {
   ARCHETYPE_LIST,
   getArchetype,
@@ -163,7 +162,7 @@ export default function ProjectSpecResponse({ unitId }: Props) {
 
   // ─── Phase 3: Project Card (completed)
   if (spec.completed_at) {
-    return <ProjectCard archetype={archetype} spec={spec} unitId={unitId} />;
+    return <ProjectCard archetype={archetype} spec={spec} />;
   }
 
   // ─── Phase 2: Walker
@@ -630,11 +629,9 @@ function SlotInput({
 function ProjectCard({
   archetype,
   spec,
-  unitId,
 }: {
   archetype: ArchetypeDefinition;
   spec: SpecState;
-  unitId: string;
 }) {
   return (
     <div className="rounded-2xl border-2 border-purple-300 bg-gradient-to-br from-purple-50 via-white to-purple-50/50 p-6 shadow-sm">
@@ -666,14 +663,9 @@ function ProjectCard({
         })}
       </div>
 
-      <div className="mt-6 flex justify-end">
-        <Link
-          href={`/unit/${unitId}/board`}
-          className="px-5 py-2.5 text-sm font-semibold bg-purple-600 text-white rounded-lg hover:bg-purple-700 inline-block"
-        >
-          Continue to Timeline →
-        </Link>
-      </div>
+      <p className="mt-5 text-xs text-purple-700/70 text-right">
+        ✓ Saved — your spec is locked in. Move on to the next activity.
+      </p>
     </div>
   );
 }
