@@ -175,8 +175,25 @@ Then insert one row per migration the audit determined to be applied (truth doc 
 
 1. Mark FU-PROD-MIGRATION-BACKLOG-AUDIT resolved in [`docs/projects/dimensions3-followups.md`](dimensions3-followups.md), with link to truth doc + apply summary.
 2. Mark sister FU-EE resolved by Phase E.
-3. Update [`CLAUDE.md`](../../CLAUDE.md) — remove the FU mention from "Known follow-ups", elevate the `applied_migrations` table to the migration discipline section.
-4. Run `saveme` to capture everything.
+3. **Update [`CLAUDE.md`](../../CLAUDE.md) — both surfaces.** This is the load-bearing step — without it, future sessions won't know to keep the tracker fresh and drift will recur.
+
+   **(a) Migration discipline section** — add these 3 mandates verbatim:
+
+   > - **After applying any migration to prod, INSERT a row into `public.applied_migrations` within the same session.** Use the SQL printed by `scripts/migrations/new-migration.sh` (or the inline INSERT command in [`docs/projects/applied-migrations-interim-log.md`](docs/projects/applied-migrations-interim-log.md) for pre-tracker migrations). Do NOT defer to a later session — the gap is exactly how the May-2026 drift accumulated. Lesson #83.
+   > - **Saveme step 11 MUST run `bash scripts/migrations/check-applied.sh`.** If it exits non-zero, reconcile drift before saveme completes — either apply the missing migration or log the existing applied state.
+   > - **Trigger phrases to log a forgotten apply:** "log this migration apply", "backfill applied_migrations". Single-row INSERT, takes 30 seconds.
+
+   **(b) Active build plan section** — REMOVE the "Prod migration backlog audit" entry I added on 11 May; the audit is closed. Replace it with a one-line note in the Migration discipline section pointing to the closed truth doc as the canonical record of what was applied pre-tracker.
+
+   **(c) Saveme command section (step 11)** — extend to mention the new sub-step:
+
+   > - **(h) Migration drift check** — run `bash scripts/migrations/check-applied.sh`. If non-zero exit, reconcile before saveme completes.
+
+4. **Migrate the interim log into the tracker.** Read [`docs/projects/applied-migrations-interim-log.md`](docs/projects/applied-migrations-interim-log.md) row by row — each entry becomes an `INSERT INTO public.applied_migrations`. After all rows migrated, delete the interim log file and remove its references from CLAUDE.md.
+
+5. **Optional: file FU-MIGRATION-CI-CHECK** (P2) — a GitHub Action that runs `check-applied.sh` on every PR and blocks merge on drift. Saveme drift check is the safety net; CI is the hard gate. Out of scope for this audit but worth queueing.
+
+6. Run `saveme` to capture everything.
 
 ---
 
