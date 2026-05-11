@@ -3,7 +3,9 @@
 **Date:** 11 May 2026
 **Owner:** Matt
 **Phase:** A (Enumerate) → COMPLETE + signed off (Checkpoint A.1 PASSED, 11 May 2026)
-**Phase:** B (Probe) → IN PROGRESS — see [`prod-migration-backlog-audit-2026-05-11-probes.sql`](prod-migration-backlog-audit-2026-05-11-probes.sql) to run
+**Phase:** B (Probe) → COMPLETE (Checkpoint B.1 PASSED pending combined sign-off)
+**Phase:** C (Categorise) → COMPLETE (Checkpoint C.1 PASSED pending combined sign-off)
+**Phase:** D (Apply) → READY — 1 single INSERT for #49 governance_engine_rollout
 **Companion brief:** [prod-migration-backlog-audit-brief.md](prod-migration-backlog-audit-brief.md)
 
 ## Scope
@@ -154,10 +156,84 @@ Signed off by Matt ("go with your recommendations"). All five questions:
 
 ---
 
-## Phase B — Probe (in progress)
+## Phase B — Probe (COMPLETE, 11 May 2026)
 
-**How to run:** open Supabase SQL Editor in the studioloom project, paste the entire contents of [`prod-migration-backlog-audit-2026-05-11-probes.sql`](prod-migration-backlog-audit-2026-05-11-probes.sql), click Run. ~83 rows return in a single result table with columns `row`, `name`, `applied` (bool), `notes`.
+Both probe runs executed against prod via Supabase SQL Editor (no RLS / postgres role). Initial run: 77/83 returned `applied=true`. 4 false-negatives investigated via re-probe SQL ([`prod-migration-backlog-audit-2026-05-11-probes-review.sql`](prod-migration-backlog-audit-2026-05-11-probes-review.sql)) — 3 turned out to be probe-name bugs or stale-policy-on-dropped-table; only **1 genuine APPLY** remains.
 
-**After running:** copy the `applied` value back into the table above (YES if true, NO if false, RETIRE for #48 which returns NULL by design). Spot-check any rows where the result is unexpected against the migration body before classifying. Paste the result table back to Claude when done so Phase C can begin.
+### Final results per migration
 
-**Checkpoint B.1 acceptance:** every row in the table above has a YES/NO/PARTIAL/RETIRE value in the "Applied?" column; any surprises flagged with a note.
+| # | Migration | Probe result | Final state |
+|---|---|---|---|
+| 1-4, 6-32, 34-43, 45-47, 50-53, 55-83 (excl. 44/48/49/54) | All applied true on first run | **APPLIED** | 76 rows |
+| 44 | First run false (probe missed `'auth.'` prefix); re-probe true | **APPLIED** | probe bug |
+| 5 | Probe false (no 'Default lab' name); re-probe: 2 labs exist, 18 machines linked, 2 teachers linked, **0 classes linked (Pass 4 gap)** | **SKIP-EQUIVALENT** | + file FU for Pass 4 |
+| 33 | Probe false; re-probe confirms `student_sessions` table dropped by #66 | **RETIRE** | policy on dead table |
+| 43, 53 | Probe true | **SKIP-EQUIVALENT** | superseded by #83 handpatch per A.1 |
+| 48 | Probe null | **RETIRE** | empty stub per A.1 |
+| 49 | Probe false; re-probe confirms `'school.governance_engine_rollout'` key genuinely missing from `admin_settings` | **APPLY** | **the only genuine drift in the whole audit** |
+| 54 | Probe false (expected — handpatch stripped auto-personal-school INSERT) | **SKIP-EQUIVALENT** | superseded by #83 handpatch per A.1 |
+
+### Summary
+
+| Category | Count |
+|---|---|
+| APPLIED | 77 |
+| SKIP-EQUIVALENT | 4 (#5, #43, #53, #54) |
+| RETIRE | 2 (#33, #48) |
+| **APPLY** (must run in Phase D) | **1 (#49)** |
+| **TOTAL** | **83** |
+
+**Checkpoint B.1 — PASSED 11 May 2026**
+
+---
+
+## Phase C — Categorise (COMPLETE, 11 May 2026)
+
+Mechanical given Phase B results + Checkpoint A.1 sign-off rules. No new investigation; categories above ARE the Phase C output.
+
+### Tracker-table-bound rows (will INSERT into `public.applied_migrations` at Phase E)
+
+- **77 APPLIED** rows: `source='backfill'`, `applied_by='audit-2026-05-11'`, `notes='applied pre-tracker; verified via probe'`
+- **4 SKIP-EQUIVALENT** rows:
+  - **#5**: `source='backfill'`, notes: `'backfill substantially ran (Passes 1-3 of 4); Pass 4 (classes.default_lab_id) gap exists; labs renamed manually post-Pass-1; FU filed for re-run if needed'`
+  - **#43, #53**: `source='backfill'`, notes: `'superseded by handpatch #83 (11 May 2026); function body has all safety properties from this migration'`
+  - **#54**: `source='backfill'`, notes: `'superseded by handpatch #83; auto-personal-school INSERT intentionally stripped from prod state — see incident doc'`
+
+### NOT inserted into tracker
+
+- **2 RETIRE** rows:
+  - **#33** (`student_sessions_deny_all`): table dropped by #66; policy moot. Logged in truth doc only.
+  - **#48** (empty stub): no SQL body. Logged in truth doc only.
+
+### Phase D scope
+
+**1 INSERT** to run in prod:
+
+```sql
+INSERT INTO admin_settings (key, value)
+VALUES ('school.governance_engine_rollout', 'true'::jsonb)
+ON CONFLICT (key) DO NOTHING;
+```
+
+This is the entire Phase D. After applying, append row to [`applied-migrations-interim-log.md`](applied-migrations-interim-log.md), then move to Phase E (build tracker).
+
+**Checkpoint C.1 — PASSED 11 May 2026** (mechanical; awaiting combined B.1+C.1 sign-off)
+
+### Follow-up filed
+
+- **FU-AUDIT-PASS4-CLASSES-DEFAULT-LAB** (P3): Phase 8-1 backfill migration's Pass 4 (cascade `classes.default_lab_id` from owning teacher's default_lab_id) returned 0 rows updated in prod despite teachers + machines having lab links. Either no eligible classes at apply time OR Pass 4 was skipped. Low-priority — current platform behaviour is fine without it; re-run Pass 4 SQL if class-level default lab routing matters in the future.
+
+---
+
+## Combined Checkpoint B.1 + C.1 — sign-off needed
+
+**Matt, before Phase D begins, please confirm:**
+
+1. ✅ **77 APPLIED rows look right** (no surprise applies; matches your memory of what's been applied to prod).
+2. ✅ **4 SKIP-EQUIVALENT rows are correctly categorised** — especially #5 (backfill substantially ran, labs renamed manually).
+3. ✅ **#33 → RETIRE** (policy on dropped table — moot).
+4. ✅ **#48 → RETIRE** (empty stub).
+5. ✅ **#49 is the only APPLY** — single `INSERT INTO admin_settings` run against prod is the entire Phase D apply.
+6. ✅ **FU-AUDIT-PASS4-CLASSES-DEFAULT-LAB filed as P3** — acceptable to defer.
+
+Phase D after sign-off: paste the one-line INSERT into Supabase SQL Editor, log it in the interim log, then move to Phase E (build tracker + bulk INSERT 81 rows).
