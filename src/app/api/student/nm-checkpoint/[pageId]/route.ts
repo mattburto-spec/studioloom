@@ -59,12 +59,16 @@ export async function GET(
   let nmConfig: NMUnitConfig | null = null;
 
   if (classIds.length > 0) {
-    // Check all enrolled classes for this unit's NM config
+    // Check all enrolled classes for this unit's NM config. Filter
+    // is_active so soft-removed assignments don't surface stale NM
+    // config. Same root cause as PRs #189/#196/#199 —
+    // FU-CLASS-UNITS-IS-ACTIVE-AUDIT.
     const { data: classUnits } = await supabase
       .from("class_units")
       .select("nm_config")
       .in("class_id", classIds)
-      .eq("unit_id", unitId);
+      .eq("unit_id", unitId)
+      .eq("is_active", true);
 
     // Use the first class-unit with NM config
     const cuWithNm = (classUnits || []).find((cu: { nm_config: NMUnitConfig | null }) => cu.nm_config);

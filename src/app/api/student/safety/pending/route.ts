@@ -74,11 +74,15 @@ export async function GET(request: NextRequest) {
       studentClassIds = [student.class_id];
     }
 
-    // 2. Get unit IDs assigned to this student's classes via class_units
+    // 2. Get unit IDs ACTIVELY assigned to this student's classes via
+    // class_units. Filter is_active so soft-removed assignments don't
+    // surface stale "pending badge" requirements. Same root cause as
+    // PRs #189/#196/#199 — FU-CLASS-UNITS-IS-ACTIVE-AUDIT.
     const { data: classUnits } = await db
       .from("class_units")
       .select("unit_id")
-      .in("class_id", studentClassIds);
+      .in("class_id", studentClassIds)
+      .eq("is_active", true);
 
     const unitIds = (classUnits || []).map((cu: { unit_id: string }) => cu.unit_id);
     if (unitIds.length === 0) {

@@ -104,11 +104,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Get unit IDs assigned to student's classes
+    // Get unit IDs ACTIVELY assigned to student's classes. Filter
+    // is_active so soft-removed assignments (set via the class page's
+    // "Remove unit" toggle) don't drive stale insight cards. Same
+    // root cause as PRs #189/#196/#199.
     const { data: classUnits } = await db
       .from("class_units")
       .select("unit_id")
-      .in("class_id", studentClassIds);
+      .in("class_id", studentClassIds)
+      .eq("is_active", true);
 
     const unitIds = (classUnits || []).map((cu: { unit_id: string }) => cu.unit_id);
 
@@ -307,10 +311,14 @@ export async function GET(request: NextRequest) {
     // === INSIGHT TYPE 4: NM CHECKPOINTS (P55) ===
     if (studentClassIds.length > 0) {
       try {
+        // Filter is_active so soft-removed assignments don't drive NM
+        // checkpoint insight cards. Same root cause as PRs #189/#196/#199
+        // — FU-CLASS-UNITS-IS-ACTIVE-AUDIT.
         const { data: classUnitData } = await db
           .from("class_units")
           .select("nm_config")
-          .in("class_id", studentClassIds);
+          .in("class_id", studentClassIds)
+          .eq("is_active", true);
 
         for (const cu of classUnitData || []) {
           const nmConfig = cu.nm_config as any;
