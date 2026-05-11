@@ -184,3 +184,53 @@ The filter is also a hard block with no `?override=true` query param, no teacher
 **Origin:** Student-side smoke 10 May 2026. Investigation update 10 May 2026 after grepping the codebase for the exact error string.
 
 ---
+
+## FU-CLASS-UNITS-IS-ACTIVE-AUDIT — Audit all class_units reads for the same is_active=true filter gap
+**Surfaced:** 10 May 2026, post unit/class sync fix
+**Target phase:** Trigger when another sync drift surfaces, or batch with broader teacher-side admin polish
+**Severity:** 🟢 LOW — symptom-driven, no known additional surfaces today
+
+**Origin:** Fix for the unit-page-vs-class-page assignment sync (the unit page was reading `class_units` without `is_active=true`, so soft-removed assignments surfaced as active). The fix is one line on `src/app/teacher/units/[unitId]/page.tsx`, but the codebase has ~20 other files that read `class_units`. Many should filter on `is_active=true`; some legitimately don't (e.g. the class page itself, which reads the full set to render the per-unit toggle state).
+
+**Files that touch `class_units`** (audit needed for each: should this read filter on `is_active`?):
+
+```
+src/app/api/student/unit/route.ts
+src/app/api/student/progress/route.ts
+src/app/api/student/design-assistant/route.ts
+src/app/api/student/insights/route.ts
+src/app/api/student/open-studio/check-in/route.ts
+src/app/api/student/search/route.ts
+src/app/api/student/units/route.ts
+src/app/api/student/safety/pending/route.ts
+src/app/api/student/nm-assessment/route.ts
+src/app/api/student/nm-checkpoint/[pageId]/route.ts
+src/app/api/storage/[bucket]/[...path]/authorize.ts
+src/app/api/teacher/pypx-cohort/route.ts
+src/app/api/teacher/schedule/today/route.ts
+src/app/api/teacher/nm-results/route.ts
+src/app/api/teacher/grading/tile-grades/ai-prescore/route.ts
+src/app/api/teacher/class-units/route.ts
+src/app/api/teacher/class-units/content/route.ts
+src/app/api/teacher/units/versions/route.ts
+src/app/api/teacher/dashboard/route.ts
+src/app/api/teacher/search/route.ts
+```
+
+**Decision rule per file:**
+
+- **Student-side routes:** should always filter `is_active=true`. A student should never see content from an assignment that's been removed.
+- **Teacher admin routes (`/api/teacher/dashboard`, `/api/teacher/search`, etc.):** should usually filter `is_active=true` unless the surface intentionally shows soft-removed assignments (e.g. an "Unit History" panel).
+- **Storage proxy:** the `/api/storage/[bucket]/[...path]/authorize.ts` file uses `class_units` for the per-bucket authorization chain (the LIS S5 security closure). If a class soft-removes a unit, should students lose access to the unit's images? Probably yes — but worth confirming the intent.
+- **Grading + NM:** assessment data should persist past assignment removal (don't lose student work), but new write paths should refuse. Read for display vs read for write authorization are different checks.
+
+**Suggested investigation:**
+
+1. Walk each file in the list above. For each, ask: "if a soft-removed assignment row is included, what UX bug does that cause?" If the answer is "the student sees stale content" or "the teacher sees a stale assignment toggle," add `.eq("is_active", true)`. If the answer is "no bug" or "we want history," leave it.
+2. After the audit, file a single PR with all the fixes + a corresponding source-static test per file.
+
+**When to revisit:** If Matt or a teacher reports another "I removed it but it's still showing up" issue. The unit/class sync fix only patched the surface he reported.
+
+**Origin:** Fix shipped via PR (forthcoming). Audit list captured from `grep -rln "from.*class_units" src` on 10 May 2026.
+
+---
