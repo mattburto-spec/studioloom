@@ -1594,8 +1594,15 @@ function CalibrateInner({
                   isExpanded ? "border-purple-300 shadow-md" : "border-gray-200",
                 ].join(" ")}
               >
-                {/* ── Compact row ── */}
-                <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto] items-center gap-3 px-4 py-3">
+                {/* ── Compact row ──
+                    8 grid columns (was 7 pre-B.4): avatar / name+quote /
+                    score-selector / score-pill / confirm / sent-chip /
+                    sentiment-pill (TFL.2 B.4 — student-reply pill,
+                    renders empty-width when no reply) / chevron.
+                    Without the 8th column the pill became an "extra"
+                    item and pushed the chevron to a new grid row —
+                    Matt smoke caught it (11 May 2026). */}
+                <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto_auto] items-center gap-3 px-4 py-3">
                   <div className="flex items-center gap-3">
                     {s.avatar_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -1792,12 +1799,17 @@ function CalibrateInner({
                       Pulls from latestStudentReplyByGradeId[grade.id].
                       Three colour tones match the bubble's quick-reply
                       pills on the student side: emerald/amber/purple
-                      for got_it/not_sure/pushback. */}
+                      for got_it/not_sure/pushback.
+                      Always renders a node (empty <span /> when no
+                      pill) so the grid's 8-column layout keeps the
+                      chevron in its own column. Returning null here
+                      would short the grid by one child and push the
+                      chevron onto a new row — Matt smoke caught it. */}
                   {(() => {
                     const reply = grade
                       ? latestStudentReplyByGradeId[grade.id]
                       : undefined;
-                    if (!reply) return null;
+                    if (!reply) return <span aria-hidden="true" />;
                     // Only show the pill if the reply is AFTER the
                     // latest teacher turn (i.e. the conversation is
                     // currently in student's-court). If the teacher
@@ -1806,7 +1818,8 @@ function CalibrateInner({
                     // unanswered". The latestTurnRoleByGradeId map
                     // makes this single-lookup-fast.
                     const latestRole = latestTurnRoleByGradeId[grade!.id];
-                    if (latestRole !== "student") return null;
+                    if (latestRole !== "student")
+                      return <span aria-hidden="true" />;
                     const tone =
                       reply.sentiment === "got_it"
                         ? "bg-emerald-50 border-emerald-300 text-emerald-800"
@@ -1819,21 +1832,37 @@ function CalibrateInner({
                         : reply.sentiment === "not_sure"
                           ? "Not sure"
                           : "I disagree";
+                    // Reply icon ⇠ visually marks "they pushed back to
+                    // you". Tighter than "Reply: I disagree" — the
+                    // colour + label already carry the sentiment.
                     return (
                       <span
                         data-testid="row-chip-sentiment-pill"
                         data-sentiment={reply.sentiment}
                         title={
                           reply.reply_text
-                            ? `Student replied "${reply.sentiment}": ${reply.reply_text}`
-                            : `Student replied "${reply.sentiment}".`
+                            ? `Student replied "${label}": ${reply.reply_text}`
+                            : `Student replied "${label}".`
                         }
                         className={[
-                          "inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold",
+                          "inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold flex-shrink-0",
                           tone,
                         ].join(" ")}
                       >
-                        <span className="opacity-60">Reply:</span>
+                        <svg
+                          width="9"
+                          height="9"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <polyline points="9 17 4 12 9 7" />
+                          <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+                        </svg>
                         <span>{label}</span>
                       </span>
                     );

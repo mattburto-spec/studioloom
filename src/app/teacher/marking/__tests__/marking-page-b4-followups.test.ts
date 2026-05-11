@@ -78,10 +78,37 @@ describe("marking page B.4 — row chip sentiment pill", () => {
   it("pill only renders when latest turn is student (hides after teacher follow-up)", () => {
     // Without this gate the pill would persist after the teacher
     // replied, reading as "still unanswered". Pin the predicate.
+    // Post-row-overflow fix (11 May 2026): returns an empty <span />
+    // placeholder rather than null so the grid's 8-column layout
+    // keeps the chevron in its own column.
     expect(src).toMatch(
       /const latestRole\s*=\s*latestTurnRoleByGradeId\[grade!\.id\]/,
     );
-    expect(src).toMatch(/if\s*\(latestRole\s*!==\s*"student"\)\s*return\s+null/);
+    expect(src).toMatch(
+      /if\s*\(latestRole\s*!==\s*"student"\)\s*[\s\S]{0,40}?return\s*<span\s+aria-hidden=/,
+    );
+  });
+
+  it("row uses 8-column grid (was 7 pre-B.4) so the sentiment pill has a slot and chevron stays put", () => {
+    expect(src).toMatch(
+      /grid-cols-\[auto_1fr_auto_auto_auto_auto_auto_auto\]/,
+    );
+  });
+
+  it("returns an empty span placeholder when no reply (keeps grid alignment)", () => {
+    // The IIFE returns <span aria-hidden /> for two cases: no reply
+    // at all, AND reply exists but teacher already followed up.
+    // Both branches need a node (not null) so the grid sees a child
+    // in the sentiment-pill column.
+    const codeBlock = src.slice(
+      src.indexOf("row-chip-sentiment-pill") - 2000,
+      src.indexOf("row-chip-sentiment-pill") + 200,
+    );
+    // At least TWO empty-placeholder returns (no-reply + teacher-latest).
+    const placeholderCount = (codeBlock.match(
+      /return\s*<span\s+aria-hidden="true"\s*\/>/g,
+    ) ?? []).length;
+    expect(placeholderCount).toBeGreaterThanOrEqual(2);
   });
 
   it("uses three colour tones (emerald/amber/purple) matching the bubble's quick-reply pills", () => {
