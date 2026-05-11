@@ -134,7 +134,7 @@ There's no curated library for "I need an icebreaker image for this lesson but d
 
 ---
 
-## FU-LIS-STUDENT-IMAGE-MODERATION-FALSE-POSITIVE — Beach photo blocked by checkClientImage
+## FU-LIS-STUDENT-IMAGE-MODERATION-FALSE-POSITIVE — Beach photo blocked, but the gate that fired is unclear
 **Surfaced:** 10 May 2026, post-image-upload smoke (Matt)
 **Target phase:** Trigger when more student-side image-upload usage surfaces additional false-positives (currently N=1)
 **Severity:** 🟡 MEDIUM — students who hit it have no escape hatch (error message says "talk to your teacher" but no teacher-override path exists)
@@ -143,26 +143,44 @@ There's no curated library for "I need an icebreaker image for this lesson but d
 
 Screenshot included in the originating chat. The image is clearly benign (landscape photo, no people, no problematic content) — clean false positive.
 
-**Suspected cause:**
-The client-side image filter at `src/lib/content-safety/client-image-filter.ts` uses **NSFWJS** ([`@tensorflow/tfjs` + nsfwjs model](https://github.com/infinitered/nsfwjs)) for browser-side classification. NSFWJS has known false-positive rates on:
-- Beach scenes (skin-tone heuristics + sand colour confusion)
-- Sunset / warm-colour gradients (similar to skin tones)
-- Anything with lots of orange / pink in the foreground
+**Diagnosis update 10 May 2026 (post-investigation):**
 
-The filter is also a hard block — no `?override=true` query param, no teacher-bypass token, no whitelist by file hash. When it fires, the student is stuck.
+The error text Matt saw maps to `MODERATION_MESSAGES.en` in `src/lib/content-safety/client-filter.ts:144` — the **TEXT-content** filter, NOT the **IMAGE** filter. The image filter uses a different message: `IMAGE_MODERATION_MESSAGES.en` = "This **image** can't be **uploaded**…" (`src/lib/content-safety/client-image-filter.ts:141`).
 
-**Suggested investigation:**
-1. **Reproduce** with the exact beach photo Matt used (preserved in the screenshot) — confirm NSFWJS classification scores.
-2. **Read** `src/lib/content-safety/client-image-filter.ts` to see the current thresholds. NSFWJS returns 5 categories: Drawing / Hentai / Neutral / Porn / Sexy. The block likely fires when one of the latter four crosses a threshold. The "Sexy" category is the most common false-positive driver on beach photos.
-3. **Three possible fixes** (any combo):
-   - **Tune thresholds:** raise the "Sexy" threshold (e.g. from 0.5 → 0.7) — trades a few false negatives for many fewer false positives. Hard to land without ground-truth data.
-   - **Add teacher override path:** when a student gets blocked, surface a "Request teacher review" button that posts to a teacher inbox. Teacher can mark the image as approved + reset the block (existing `safety/log-client-block` route can be extended).
-   - **Migrate to server-side moderation:** push the image to Supabase Storage with a "pending" flag, then run a server-side moderation step (could use OpenAI's moderation API, or AWS Rekognition's content moderation) before flipping the flag to "approved". Removes the false-positive from the student's perceived experience entirely — they see "Uploading..." then either success or a held-for-review state.
+That means **whatever gate fired was not NSFWJS image classification**, OR the image filter fired and the wrapping component surfaced the wrong message constant. Two candidates:
 
-**Lesson #57-flavour:** the client-side moderation is on a fast path (NSFWJS is ~200ms). Server-side moderation would be ~1-2s. The right trade-off depends on the false-positive rate against real student uploads — N=1 isn't enough data to commit to migration.
+1. **A text-content filter ran on the response payload.** The prompt asks for a caption ("Caption it in one line"). If the caption tripped the text filter, or if a stringified JSON of the upload metadata got passed through `checkClientSide`, this is the error path. Worth checking what content was passed to moderation.
+2. **An image-filter false positive surfaced via the wrong message constant.** Some unfound wrapping component uses `MODERATION_MESSAGES` when it should use `IMAGE_MODERATION_MESSAGES`. Grep for callers of `checkClientImage` that don't import `IMAGE_MODERATION_MESSAGES`.
 
-**When to revisit:** When ≥3 false-positives are reported, OR a student loses a portfolio submission to it (currently the only signal is "the teacher hears about it"). The CTA to add **right now** is logging — every block fires `/api/safety/log-client-block` with the NSFWJS scores; surface those on the existing teacher safety dashboard so Matt can see the false-positive rate over time without students having to flag it manually.
+Audit of grep results in the lesson page path: `UploadInput` uses `IMAGE_MODERATION_MESSAGES` correctly; `StructuredPromptsResponse` uses `IMAGE_MODERATION_MESSAGES` correctly. The only file in the codebase that uses `MODERATION_MESSAGES` (text) on an upload path is `src/components/quest/EvidenceCapture.tsx` — which is the Quest/Open-Studio surface, not the lesson page. So if Matt's surface was a lesson page, candidate #1 (text filter on caption/payload) is more likely.
 
-**Origin:** Student-side smoke 10 May 2026. PortfolioCaptureAffordance / MultiQuestionResponse / StructuredPromptsResponse all share the same `checkClientImage` gate; this would also fix the structured-prompts photo-attach path if it's ever hit there.
+**About the image filter (relevant if it turns out to be #2):**
+
+`src/lib/content-safety/client-image-filter.ts` uses **NSFWJS** ([`@tensorflow/tfjs` + nsfwjs model](https://github.com/infinitered/nsfwjs)) with a **SUMMED** threshold rule (lines 113-118):
+
+```js
+const combined = porn + hentai + sexy;  // sum of 3 categories
+if (combined > BLOCK_THRESHOLD) { /* block, default 0.6 */ }
+```
+
+NSFWJS routinely returns small non-zero scores across all categories (model uncertainty). On beach scenes the typical pattern is porn≈0.10 + hentai≈0.05 + sexy≈0.45 = 0.60 → blocked, even though no single category clears 0.5 alone. A **MAX-of-three** rule would not false-positive on the same image. (Trade-off: any single category > 0.4 catches more borderline cases.)
+
+The filter is also a hard block with no `?override=true` query param, no teacher-bypass token, no whitelist by file hash. When it fires, the student is stuck. There IS a `/api/safety/log-client-block` POST that logs `flags` + `layer`, but no surface today exposes those flags to the teacher.
+
+**Suggested investigation (now sharper):**
+
+1. **Reproduce with DevTools open.** Repeat the upload; watch the Network tab for `POST /api/safety/log-client-block`. The request body's `layer` field tells you which gate fired (`client_text` vs `client_image`). The `flags` array tells you what categories tripped. Console may also log `[content-safety]` warnings.
+2. **If layer === "client_image":** check NSFWJS scores in the flag detail (the filter emits `"NSFW scores: porn=X, hentai=Y, sexy=Z"`). Confirm sum > 0.6 with no single category > 0.5 — i.e. the summed-threshold problem. Fix is **MAX-of-three** rule.
+3. **If layer === "client_text":** trace what text content was passed. Check the caption field, then walk back the response-input wrappers to see if the upload metadata JSON gets stringified into a moderation call (Phase 5F-style submit-time check).
+4. **If a layer reported in flags doesn't match any known component:** there's an unfound moderation gate. Grep harder.
+
+**Three possible fixes (still applies regardless of which gate fired):**
+- **Tune thresholds / rule:** for image filter, MAX-of-three instead of SUM. For text filter, look at what tripped (we don't have ground truth yet).
+- **Add teacher override path:** "Request teacher review" button posts to a teacher inbox. Existing `safety/log-client-block` route can carry the override request.
+- **Migrate to server-side moderation:** "Uploading..." then either success or "held for review" — removes the perceived false positive from the student's flow.
+
+**When to revisit:** When ≥3 false-positives are reported, OR a student loses a portfolio submission to it. **First CTA: build a teacher-visible block log.** Every block already fires `/api/safety/log-client-block`; surfacing those on the existing teacher safety dashboard would let Matt see the false-positive rate over time without students having to flag it manually. That's the cheapest move before doing rule changes.
+
+**Origin:** Student-side smoke 10 May 2026. Investigation update 10 May 2026 after grepping the codebase for the exact error string.
 
 ---
