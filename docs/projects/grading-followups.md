@@ -76,3 +76,42 @@
 - `src/lib/grading/__tests__/migration-tfl1-rpc-shape.test.ts` NEW (8 assertions): function signature, SECURITY DEFINER, search_path lockdown, body uses `now()` + has no TIMESTAMP arg, non-null + non-empty filter, scope to student/unit/page, REVOKE+GRANT pattern, .down.sql drops with IF EXISTS.
 
 **Lesson generalised:** Anywhere two DB-written timestamps must compare correctly on the same row, never let one of them be stamped on the client. Either both come from Postgres `now()` (preferred — transaction-start time guarantees identity) or both come from the same wall clock the comparison runs against. The trigger-vs-SET-clause pattern is especially seductive because it looks atomic; it isn't.
+
+---
+
+## Open
+
+### TFL2-FU-AUDIT-LOG-STUDENT-REPLIES — Audit log for student feedback replies
+**Surfaced:** TFL.2 Pass B sub-phase B.3 (10 May 2026 — deferred mid-build)
+**Priority:** P3
+**Target phase:** Post-Pass-B if compliance / dispute review requires it
+
+**Symptom:** Student replies persist in `tile_feedback_turns` (the source of truth) but produce no row in any audit table. The existing `student_tile_grade_events` audit table requires a non-null `teacher_id` and has a fixed source enum (`ai_pre_score`/`teacher_confirm`/`teacher_override`/`teacher_revise`/`rollup_release`/`system_correction`) — student-initiated events don't fit.
+
+**What we know:**
+- Pass B brief (10 May 2026) called for new event types `student_reply_got_it` / `_not_sure` / `_pushback`.
+- Schema modification is non-trivial: either (a) drop the NOT NULL on `teacher_id` + extend the source enum, or (b) create a parallel `student_tile_grade_student_events` table.
+- (a) introduces a polymorphic-events smell; (b) creates two audit surfaces to keep in sync.
+- For v1 pilot scope: the turn row itself is the audit record (immutable on this branch since `tile_feedback_turns` doesn't UPDATE student rows post-insert).
+
+**Investigation steps:**
+1. Decide between options (a) and (b) when a compliance / dispute use case actually demands it.
+2. If (a): migration ALTER TABLE drop-NOT-NULL + extend CHECK enum. Backfill not needed.
+3. If (b): new table + RLS + reader for /admin/audit surface.
+4. Either way: surface a `parent_grade_id` + `student_id` so the audit row is traceable.
+
+**Why deferred:** No compliance use case exercising it yet. The `tile_feedback_turns` row IS the audit record for v1. Bigger schema move than B.3 could absorb.
+
+### TFL2-FU-PER-TURN-READ-RECEIPTS — Per-turn read-receipt tracking
+**Surfaced:** TFL.2 Pass B planning (10 May 2026 — explicitly out of v1 scope)
+**Priority:** P3
+**Target phase:** Post-Pass-B if multi-turn read-state ambiguity becomes a real complaint
+
+**Symptom:** TFL.1's `student_seen_comment_at` column tracks "latest time the student loaded a page with feedback turns on it" — single timestamp per grade row, not per turn. With multi-turn threads, a student could "see" turn 1 but not be aware of turn 3 (the teacher's follow-up) before the chip's read-state ladder considers them caught up. In practice this rarely matters because the student loads the page, sees the FULL thread, and the chip dot reflects "latest seen" — but if a teacher sends a follow-up while the student is offline, the next page load updates `student_seen_comment_at` even though the student may not have actually scrolled to / processed the new turn.
+
+**What we know:**
+- v1 design choice: latest-seen-only is sufficient for the chip dot ladder (green / amber / grey).
+- The `<TeacherFeedback />` component does already pulse the new teacher turn with a 1.4s glow ring on first paint, which is the visual cue students get.
+- Per-turn tracking would require: new `tile_feedback_turn_seen` association table (turn_id, student_id, seen_at) + RPC bumps per turn rendered + chip logic to derive "any unseen turn exists in this thread?"
+
+**Why deferred:** No use case yet. v1 latest-seen is good enough for the chip + bell. Track in case multi-turn ambiguity surfaces in real classroom use.
