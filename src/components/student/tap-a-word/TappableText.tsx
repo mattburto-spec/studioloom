@@ -1,40 +1,43 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useMemo, useRef } from "react";
 import { tokenize } from "./tokenize";
-import { useWordLookup } from "./useWordLookup";
-import { WordPopover } from "./WordPopover";
 import { useStudentSupportSettings } from "./useStudentSupportSettings";
 import { useStudent } from "@/app/(student)/student-context";
+import { useParams } from "next/navigation";
+import { useTapAWord } from "./TapAWordProvider";
 import { tapLog } from "./debug";
 
 /**
  * TappableText — wraps an educational text string and renders each
- * tappable word as a <button> that opens a definition popover.
+ * tappable word as a <button> that asks the global TapAWordProvider to
+ * open a definition popover.
  *
- * Phase 1A: plain strings, single popover, basic tokenization.
- * Phase 2A: + L1 translation slot in the popover.
- * Phase 2B: + audio buttons (English + L1 voice).
- * Phase 2.5: + teacher-controlled per-class disable. Reads
- * `tapAWordEnabled` from the support-settings hook on mount; if false,
- * renders ALL tokens as plain spans (no buttons, no hover) — students
- * see plain text, no signal that the feature exists.
+ * Round 26 (11 May 2026) — Path A architectural fix. Popover state
+ * formerly lived inside this component, which meant any parent re-render
+ * that destroyed TappableText also destroyed the popover. Confirmed in
+ * prod 11 May: the lesson page re-renders entire activity-block tree on
+ * every interaction (Path B is the open question). Lifted popover state
+ * to a stable layout-level provider so the popover survives parent
+ * re-renders.
  *
- * Bug 2 (28 Apr 2026): when mounted on a /unit/[unitId]/... route, auto-
- * detects unitId from URL params and passes it to the support-settings
- * + word-lookup hooks. Server then derives the (verified) classId via
- * class_units × class_students — fixes the multi-class case where
- * StudentContext's session-default classId was for a different class than
- * the lesson's. Explicit `classId` prop still wins.
+ * What's left in TappableText:
+ *   - tokenize text into tappable / non-tappable spans
+ *   - gate buttons-vs-spans on `tapAWordEnabled` (so the user literally
+ *     cannot trigger an open() when teacher has disabled it)
+ *   - on click, capture the button rect and call useTapAWord().open(...)
  *
- * classId resolution priority:
- *   1. classId prop (explicit override)
- *   2. unitId from URL → server resolves the right class
- *   3. classInfo.id from StudentContext (session default)
+ * What's gone:
+ *   - openWord state
+ *   - anchorEl state
+ *   - useWordLookup call (popover host owns it)
+ *   - WordPopover render (provider renders the singleton popover)
+ *   - all the cleanup / dismiss-reason / unmount-survival defenses —
+ *     no longer needed because the popover doesn't live here anymore
  *
- * Untappable tokens (whitespace, punctuation, URLs, 1-char tokens,
- * pure numbers) render as plain spans preserving the original text.
+ * Phase 2.5 + Bug 2 behaviour preserved: the provider derives classId
+ * + unitId from the SAME inputs (URL params + StudentContext), so
+ * per-class overrides + multi-class context disambiguation still work.
  */
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -53,139 +56,83 @@ export interface TappableTextProps {
   /**
    * Optional explicit classId override — for mounts that have classId
    * available but aren't inside the student layout (rare). Most mounts
-   * should rely on the StudentContext fallback.
+   * should rely on the StudentContext fallback (which the provider also
+   * uses). Threaded directly to the provider's `classIdOverride`.
    */
   classId?: string;
 }
 
-export function TappableText({ text, contextSentence, className, classId: classIdProp }: TappableTextProps) {
+export function TappableText({
+  text,
+  contextSentence,
+  className,
+  classId: classIdProp,
+}: TappableTextProps) {
   const tokens = useMemo(() => tokenize(text), [text]);
   const studentCtx = useStudent();
-  // useParams returns a record of dynamic segments; on /unit/[unitId]/[pageId]
-  // routes this is { unitId, pageId }. UUID-validate to ignore non-UUID
-  // segment values that other routes might surface.
   const params = useParams();
   const rawParamUnitId = typeof params?.unitId === "string" ? params.unitId : undefined;
   const unitId = rawParamUnitId && UUID_RE.test(rawParamUnitId) ? rawParamUnitId : undefined;
-  // Resolution priority:
-  //   1. classIdProp — explicit caller override, trust it.
-  //   2. unitId from URL — let the server derive the verified classId;
-  //      we deliberately skip context.classInfo here because the layout's
-  //      unit-context fetch may not have settled yet, so context could
-  //      briefly hold the (wrong) session-default classId for a different
-  //      class. Server resolves correctly via the unitId path.
-  //   3. context.classInfo — non-unit routes fall back to session default.
+  // Same resolution priority used by the provider — when on a unit
+  // route, defer to URL-derived classId; else fall back to session
+  // default. classIdProp wins always.
   const classId = classIdProp ?? (unitId ? undefined : studentCtx.classInfo?.id);
-  const support = useStudentSupportSettings(classId, unitId);
-  const lookup = useWordLookup({ classId, unitId });
-  const [openWord, setOpenWord] = useState<string | null>(null);
-  // Store the anchor ELEMENT, not its rect. Layout can shift while the
-  // popover is open (lazy images load, ScrollReveal animates a sibling,
-  // textareas expand) — re-measuring on each render + on scroll/resize
-  // keeps the popover glued to the word instead of floating off into
-  // empty space and looking like it spontaneously dismissed. Round 2 of
-  // the popover-flakiness fix Matt reported on 4 May 2026.
-  const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
-  const containerRef = useRef<HTMLSpanElement | null>(null);
 
-  // Round 25 diagnostic — TappableText itself shouldn't mount/unmount
-  // unless its parent unmounts it. Log instance lifecycle so we can
-  // distinguish "popover unmounted because parent went away" from
-  // "popover unmounted because state went null". Bug B (11 May 2026):
-  // popover mount→unmount with no dismiss reason; suspected parent
-  // re-render tearing TappableText down.
+  const support = useStudentSupportSettings(classId, unitId);
+  const tap = useTapAWord();
+
+  // Gate ON support being loaded AND tapAWordEnabled being true. While
+  // loading, render plain spans (avoids button flicker). When disabled,
+  // also plain spans — no signal to the student that the feature exists.
+  const tapEnabled =
+    support.loaded && support.data ? support.data.tapAWordEnabled : false;
+
+  // Round 25 diagnostic logs — kept for Path B investigation. Will fire
+  // every time the parent re-renders AND TappableText is recreated. If
+  // the lifted-popover fix works, we can leave these in place to spot
+  // future regressions in the underlying parent-render bug.
   const instanceIdRef = useRef<string>(Math.random().toString(36).slice(2, 8));
   useEffect(() => {
     tapLog("TappableText mount", {
       instance: instanceIdRef.current,
       textPreview: text.slice(0, 40),
     });
-    return () => {
+    return () =>
       tapLog("TappableText unmount", {
         instance: instanceIdRef.current,
         textPreview: text.slice(0, 40),
       });
-      // Round 25 follow-up — stack trace on unmount so we can identify
-      // WHICH parent commit is destroying us. React's commit phase
-      // cleans up effects synchronously, so the call stack at this
-      // point traces back to the parent's render that decided to
-      // unmount this subtree. Look for "page" / "ScrollReveal" /
-      // "MarkdownPrompt" / "ActivityCard" frames in the trace.
-      try {
-        if (
-          typeof window !== "undefined" &&
-          window.localStorage.getItem("tap-a-word-debug") === "1"
-        ) {
-          // eslint-disable-next-line no-console
-          console.trace(
-            `[tap-a-word] unmount stack — ${instanceIdRef.current}`
-          );
-        }
-      } catch {
-        // no-op
-      }
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Round 25 diagnostic — log every transition of (openWord, anchorEl)
-  // so we can see WHO nulled them when the popover unmounts. If the
-  // last log before "popover unmount" is "(null, null)" we know
-  // handleClose ran (silent path); if there's no transition log at all
-  // before unmount, the parent unmounted TappableText entirely.
-  useEffect(() => {
-    tapLog("TappableText popover-state changed", {
-      instance: instanceIdRef.current,
-      openWord,
-      anchorElPresent: !!anchorEl,
-    });
-  }, [openWord, anchorEl]);
-
-  // Phase 2.5 gate: while support settings are loading, render plain spans
-  // (avoid flicker of buttons that might disappear). Once loaded, gate on
-  // the resolved tapAWordEnabled flag. If disabled OR loading-failed, no
-  // buttons — just plain text. Server enforces too.
-  const tapEnabled =
-    support.loaded && support.data ? support.data.tapAWordEnabled : false;
-
   function handleClick(e: React.MouseEvent<HTMLButtonElement>, word: string) {
     e.stopPropagation();
-    // Tap-same-word-no-refire: if the popover is already showing this exact
-    // word, treat the click as a no-op rather than tearing down state and
-    // refiring. Avoids a React state-thrash that briefly flashes the
-    // "Looking up…" message when the cached entry is already there.
-    if (openWord !== null && openWord.toLowerCase() === word.toLowerCase()) {
-      tapLog("re-tap suppressed", { word });
-      return;
-    }
-    setOpenWord(word);
-    setAnchorEl(e.currentTarget);
-    lookup.lookup(word, contextSentence);
     tapLog("tap", {
       word,
+      instance: instanceIdRef.current,
       classId,
       unitId,
       tapEnabled,
       supportLoaded: support.loaded,
-      supportData: support.data,
+    });
+    tap.open({
+      word,
+      anchorEl: e.currentTarget,
+      contextSentence,
+      classIdOverride: classIdProp,
     });
   }
 
-  function handleClose() {
-    setOpenWord(null);
-    setAnchorEl(null);
-    lookup.reset();
-  }
+  const openWord = tap.openWord;
 
   return (
-    <span ref={containerRef} className={className}>
+    <span className={className}>
       {tokens.map((tok, i) => {
-        // When tap-a-word is disabled (or still loading on mount), render
-        // ALL tokens as plain spans — no visual signal that the feature exists.
         if (!tok.tappable || !tapEnabled) {
           return <span key={i}>{tok.text}</span>;
         }
-        const isOpen = openWord !== null && openWord === tok.text.toLowerCase();
+        const isOpen =
+          openWord !== null && openWord === tok.text.toLowerCase();
         return (
           <button
             key={i}
@@ -194,7 +141,9 @@ export function TappableText({ text, contextSentence, className, classId: classI
             className={
               "inline border-0 bg-transparent p-0 m-0 font-inherit text-inherit cursor-pointer " +
               "hover:underline hover:decoration-dotted hover:decoration-gray-400 hover:underline-offset-2 " +
-              (isOpen ? "underline decoration-dotted decoration-gray-500 underline-offset-2" : "")
+              (isOpen
+                ? "underline decoration-dotted decoration-gray-500 underline-offset-2"
+                : "")
             }
             aria-label={`Look up ${tok.text}`}
           >
@@ -202,21 +151,6 @@ export function TappableText({ text, contextSentence, className, classId: classI
           </button>
         );
       })}
-      {openWord && anchorEl && (
-        <WordPopover
-          word={openWord}
-          state={lookup.state}
-          definition={lookup.definition}
-          exampleSentence={lookup.exampleSentence}
-          l1Translation={lookup.l1Translation}
-          l1Target={lookup.l1Target}
-          imageUrl={lookup.imageUrl}
-          errorMessage={lookup.errorMessage}
-          anchorEl={anchorEl}
-          onClose={handleClose}
-          onRetry={lookup.retry}
-        />
-      )}
     </span>
   );
 }

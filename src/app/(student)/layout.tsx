@@ -11,6 +11,7 @@ import { BugReportButton } from "@/components/shared/BugReportButton";
 import { BoldTopNav } from "@/components/student/BoldTopNav";
 import { BellCountContext } from "@/components/student/BellCountContext";
 import { SidebarSlotContext } from "@/components/student/SidebarSlotContext";
+import { TapAWordProvider } from "@/components/student/tap-a-word/TapAWordProvider";
 import { getThemeStyles, type ThemeId } from "@/lib/student/themes";
 import { MENTORS, type MentorId } from "@/lib/student/mentors";
 import type { Student, Class } from "@/types";
@@ -222,6 +223,7 @@ export default function StudentLayout({
         }}
       >
         <SidebarSlotContext.Provider value={{ handler: sidebarHandler, setHandler: setSidebarHandler }}>
+        <TapAWordProvider>
         <div className="sl-v2">
           <BoldTopNav
             student={student}
@@ -324,6 +326,7 @@ export default function StudentLayout({
             </div>
           )}
         </div>
+        </TapAWordProvider>
         </SidebarSlotContext.Provider>
       </BellCountContext.Provider>
     </StudentContext.Provider>

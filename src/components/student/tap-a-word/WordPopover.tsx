@@ -50,8 +50,22 @@ export interface WordPopoverProps {
    * glued to the word even when surrounding layout shifts (lazy images
    * loading, ScrollReveal animations, textareas growing). Round 2 fix
    * after Matt's "still a bit flaky" report on 4 May 2026.
+   *
+   * Round 26 (11 May 2026): now optional. If undefined OR if the element
+   * has detached from the DOM (anchorEl.isConnected === false), the
+   * popover falls back to `anchorRectFallback`. This is part of the
+   * lifted-popover architecture (TapAWordProvider) — when the lesson
+   * page re-renders and destroys the button, the popover survives
+   * because it lives in the layout, but the original anchorEl reference
+   * is now detached. Cached rect keeps positioning sane.
    */
-  anchorEl: HTMLElement;
+  anchorEl?: HTMLElement;
+  /**
+   * Round 26 fallback rect. Captured at popover-open time. Used when
+   * anchorEl is undefined or detached. Required because the popover
+   * needs SOMETHING to position against.
+   */
+  anchorRectFallback: DOMRect;
   onClose: () => void;
   /** Optional retry handler — surfaced as a "Retry" button in the error state. */
   onRetry?: () => void;
@@ -67,6 +81,7 @@ export function WordPopover({
   imageUrl,
   errorMessage,
   anchorEl,
+  anchorRectFallback,
   onClose,
   onRetry,
 }: WordPopoverProps) {
@@ -137,8 +152,17 @@ export function WordPopover({
   // 60px estimate; once pos is set the popover renders; then the
   // observer effect attaches and re-measures with the actual size).
   const computePosition = useCallback(() => {
-    if (!anchorEl) return;
-    const r = anchorEl.getBoundingClientRect();
+    // Round 26 — prefer live anchorEl when connected to DOM, fall back
+    // to cached rect when the original button has detached (lesson page
+    // re-render destroyed it). Without the fallback the popover would
+    // silently float off-screen because getBoundingClientRect on a
+    // detached element returns zeros.
+    let r: DOMRect;
+    if (anchorEl && anchorEl.isConnected) {
+      r = anchorEl.getBoundingClientRect();
+    } else {
+      r = anchorRectFallback;
+    }
     const pop = popoverRef.current;
     // Defaults are sane for the very first paint before popoverRef
     // attaches. ResizeObserver will fire on mount and re-position with
@@ -159,7 +183,7 @@ export function WordPopover({
       // the popover stays anchored to the word visually.
     }
     setPos({ top, left });
-  }, [anchorEl]);
+  }, [anchorEl, anchorRectFallback]);
 
   // Initial measurement — runs synchronously during layout so there's
   // no flash at (0,0). popoverRef.current is null on this first pass
@@ -172,15 +196,16 @@ export function WordPopover({
   // Scroll + resize listeners — keep the popover glued to the anchor
   // when surrounding layout shifts. Capture phase catches scrolling
   // inside any ancestor scroll container (chat panels, sidebars).
+  // Round 26 — always attach (even when anchorEl is undefined) so the
+  // cached-rect fallback path also re-positions on resize.
   useEffect(() => {
-    if (!anchorEl) return;
     window.addEventListener("scroll", computePosition, true);
     window.addEventListener("resize", computePosition);
     return () => {
       window.removeEventListener("scroll", computePosition, true);
       window.removeEventListener("resize", computePosition);
     };
-  }, [anchorEl, computePosition]);
+  }, [computePosition]);
 
   // ResizeObserver — re-position when the popover's OWN content grows.
   // Critical for the loading→loaded transition: the popover starts at
