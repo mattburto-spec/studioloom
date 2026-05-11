@@ -59,6 +59,9 @@ const RESPONSE_TYPE_LABELS: Record<ResponseType, string> = {
   canvas: "Canvas Drawing",
   "structured-prompts": "Structured Prompts",
   "project-spec": "Project Spec",
+  "product-brief": "Product Brief",
+  "user-profile": "User Profile",
+  "success-criteria": "Success Criteria",
 };
 
 // Glyph + tint per response type — matches the warm-paper design.
@@ -76,6 +79,9 @@ const RESPONSE_ICON: Record<ResponseType, string> = {
   canvas: "✏️",
   "structured-prompts": "📓",
   "project-spec": "📐",
+  "product-brief": "🧰",
+  "user-profile": "👤",
+  "success-criteria": "🎯",
 };
 const RESPONSE_TINT: Record<ResponseType, string> = {
   text: "#9333EA",
@@ -91,6 +97,9 @@ const RESPONSE_TINT: Record<ResponseType, string> = {
   canvas: "#9333EA",
   "structured-prompts": "#0EA5E9",
   "project-spec": "#7C3AED",
+  "product-brief": "#C2410C",
+  "user-profile": "#0891B2",
+  "success-criteria": "#059669",
 };
 
 // ── Dimensions constants ──────────────────────────────────────────
