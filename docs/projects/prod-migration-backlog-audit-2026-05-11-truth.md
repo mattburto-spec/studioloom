@@ -2,7 +2,8 @@
 
 **Date:** 11 May 2026
 **Owner:** Matt
-**Phase:** A (Enumerate) → COMPLETE pending Matt sign-off at Checkpoint A.1
+**Phase:** A (Enumerate) → COMPLETE + signed off (Checkpoint A.1 PASSED, 11 May 2026)
+**Phase:** B (Probe) → IN PROGRESS — see [`prod-migration-backlog-audit-2026-05-11-probes.sql`](prod-migration-backlog-audit-2026-05-11-probes.sql) to run
 **Companion brief:** [prod-migration-backlog-audit-brief.md](prod-migration-backlog-audit-brief.md)
 
 ## Scope
@@ -142,14 +143,21 @@ Total migrations enumerated: **83**.
 
 ---
 
-## Checkpoint A.1 — sign-off needed
+## Checkpoint A.1 — PASSED 11 May 2026
 
-**Matt, before Phase B begins, please confirm:**
+Signed off by Matt ("go with your recommendations"). All five questions:
+1. ✅ 8 REVIEW probes run as-is; refine in Phase B if surprises emerge.
+2. ✅ handle_new_teacher chain (#43/#53/#54) → SKIP-EQUIVALENT in Phase C.
+3. ✅ #48 empty stub → RETIRE in Phase C.
+4. ✅ All probes read-only confirmed.
+5. ✅ 83 matches expectation.
 
-1. **The 8 REVIEW probes are acceptable to run as-is** OR you want me to tighten specific ones before probing prod.
-2. **The handle_new_teacher chain (#43, #53, #54) should classify as SKIP-EQUIVALENT in Phase C** — given the handpatch (#83) is the live prod state.
-3. **#48 (empty stub) should classify as RETIRE.**
-4. **No probe in the table modifies state.** (You can confirm by skimming — every `SELECT` is from a system catalog or simple table SELECT.)
-5. **Coverage of 83 matches your expectations.** (You can verify with `ls supabase/migrations/2026*.sql | grep -v down.sql | wc -l`.)
+---
 
-Once you sign off, Phase B is: paste each probe SQL into the Supabase SQL Editor in order, fill in the "Applied?" + "Notes" columns of this doc, and stop at Checkpoint B.1.
+## Phase B — Probe (in progress)
+
+**How to run:** open Supabase SQL Editor in the studioloom project, paste the entire contents of [`prod-migration-backlog-audit-2026-05-11-probes.sql`](prod-migration-backlog-audit-2026-05-11-probes.sql), click Run. ~83 rows return in a single result table with columns `row`, `name`, `applied` (bool), `notes`.
+
+**After running:** copy the `applied` value back into the table above (YES if true, NO if false, RETIRE for #48 which returns NULL by design). Spot-check any rows where the result is unexpected against the migration body before classifying. Paste the result table back to Claude when done so Phase C can begin.
+
+**Checkpoint B.1 acceptance:** every row in the table above has a YES/NO/PARTIAL/RETIRE value in the "Applied?" column; any surprises flagged with a note.
