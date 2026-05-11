@@ -319,6 +319,24 @@ export const BLOCK_LIBRARY: BlockDefinition[] = [
       durationMinutes: 20,
     }),
   },
+  {
+    // Project Spec v2 — Product Brief block. 9 slots covering name,
+    // pitch, mechanism, primary + secondary material, scale, constraints,
+    // precedents, technical risks. Archetype-driven (Toy / Architecture
+    // share IDs with v1). Storage in student_unit_product_briefs.
+    id: "product-brief",
+    label: "Product Brief",
+    icon: "🧰",
+    category: "response",
+    description: "v2 Product Brief — 9-slot archetype-driven product spec. Adds precedents, constraints, technical risks.",
+    defaultPhase: "workTime",
+    create: () => ({
+      activityId: nanoid(8),
+      prompt: "Lock in what you're going to make. Materials, scale, mechanism, risks.",
+      responseType: "product-brief" as ResponseType,
+      durationMinutes: 15,
+    }),
+  },
   // ── Content ──
   {
     id: "teacher-notes",
