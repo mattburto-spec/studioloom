@@ -63,11 +63,16 @@ async function GET(request: NextRequest) {
       classNameMap.set(c.id, c.name);
     }
 
-    // Fetch class-unit mappings so we can link to teach pages
+    // Fetch class-unit mappings so we can link to teach pages.
+    // Filter on is_active=true so soft-removed assignments don't surface
+    // in "Next up · Period N" / "Your day" / today's schedule entries.
+    // Same root cause as the unit page sync bugs (PRs #189, #196) — the
+    // dashboard route already filters correctly; this one slipped.
     const { data: classUnits } = await supabase
       .from("class_units")
       .select("class_id, unit_id, units!inner(id, title)")
-      .in("class_id", classIds.length > 0 ? classIds : ["__none__"]);
+      .in("class_id", classIds.length > 0 ? classIds : ["__none__"])
+      .eq("is_active", true);
 
     const classUnitMap = new Map<string, { unitId: string; unitTitle: string }>();
     for (const cu of classUnits || []) {
