@@ -613,6 +613,7 @@ export default function LessonEditor({
                       index={i}
                       framework={framework}
                       udlEnabled={udlEnabled}
+                      unitId={unitId}
                       onUpdate={(partial) =>
                         section.activityId &&
                         handleUpdateActivity(section.activityId, partial)
@@ -1116,6 +1117,7 @@ export default function LessonEditor({
               <LessonIntroEditor
                 pageContent={pageContent}
                 onUpdate={handleUpdatePageContent}
+                unitId={unitId}
               />
 
               {/* ─── Skills pinned to this lesson ─── */}
