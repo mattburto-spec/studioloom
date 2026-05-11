@@ -1,11 +1,11 @@
 {
   "registry": "audit-coverage",
-  "timestamp": "2026-05-10T09:50:24.371993+00:00",
+  "timestamp": "2026-05-11T01:14:27.320927+00:00",
   "version": 1,
   "stats": {
-    "total_mutation_routes": 238,
+    "total_mutation_routes": 239,
     "covered": 7,
-    "skipped": 231,
+    "skipped": 232,
     "missing": 0
   },
   "covered": [
@@ -553,6 +553,13 @@
         "POST"
       ],
       "reason": "routine learner activity, low audit value"
+    },
+    {
+      "file": "src/app/api/student/tile-feedback/[gradeId]/reply/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "student-driven reply, source-of-truth in tile_feedback_turns"
     },
     {
       "file": "src/app/api/student/timeline/route.ts",

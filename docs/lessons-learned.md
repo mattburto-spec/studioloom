@@ -1183,3 +1183,22 @@ Three rounds of guards in the gesture layer; the bug was three function calls up
 - **Don't fix this at write time.** Tempting fix: change PortfolioCaptureAffordance to ALSO flip `section.portfolioCapture = true` on the section. That mutates authoring data based on student action — fragile, surprising side effects.
 - **Cross-reference at read time, with a default-empty third arg for back-compat.** This let existing callers stay unbroken (they just don't get the inclusion widening) while new callers opt in by passing the data they already had.
 - **The signal that this was missed:** the narrative tests asserted dual-key lookup (`activity_${id}` vs `section_${i}`) but didn't have any test that combined `portfolioCapture: false` + a portfolio_entry. The "filter gate" axis wasn't covered. Add filter-activation-state tests when filters depend on multi-table signals.
+
+### Lesson #82 — Inline component-prop functions to react-markdown destroy the entire markdown subtree on every render
+**Date:** 11 May 2026
+**Phase:** Tap-a-word reliability — Path B root-cause fix
+**Trigger:** Matt: "tap a word is still buggy. we need to get to the bottom of it. sometimes need to click 4 times with 4 different outcomes" (no popup / quick popup gone / loading then gone / works). Diagnostic logs showed every TappableText on the lesson page unmounting + remounting with new instance IDs on each tap. ~18 simultaneous unmount→mount cascades per click.
+
+**What happened:** `MarkdownPrompt` rendered `<ReactMarkdown components={{ p, strong, em, li, a }}>` with the `components` object **declared inline** in the JSX. Every render created brand new function references for each entry. `react-markdown` uses these as React COMPONENT TYPES (`React.createElement(components[nodeName], props)`). When the function reference changes between renders, React's reconciler sees a new component type → unmounts the entire matching subtree → remounts fresh. All TappableText children (and their popovers) were destroyed on every render of MarkdownPrompt.
+
+**Why this hid for a year:** the rendered HTML was identical between renders, so visually nothing looked wrong. The unmount cascade was invisible until we instrumented TappableText with mount/unmount lifecycle logs (round 25 diagnostic, commit `c9ce573`). The popover-disappearing UX was the symptom — the cause was 18 children dying on every parent tick.
+
+**Fix:** hoisted all five overrides to module-scope component functions (`MarkdownAnchor`, `MarkdownP`, `MarkdownStrong`, `MarkdownEm`, `MarkdownLi`) and exported two stable `Components` constants (`PLAIN_COMPONENTS`, `TAPPABLE_COMPONENTS`). The component overrides close over no state — they're pure renderers — so module-scope is correct. If they ever need to close over state, useMemo with the right deps is the equivalent.
+
+**Rules:**
+- **NEVER pass an inline-declared `components` prop to react-markdown.** The reference must be stable (module-scope const, useMemo with stable deps, or hoisted shared constant). Same applies to any library that treats its prop value as a React component type — react-syntax-highlighter, MDXProvider, slate, prosemirror plugins.
+- **Pure render-config props that close over no state belong at module scope, not in the component body.** Lifecycle: declared once when the module loads, never re-allocated. Zero overhead, immune to render churn.
+- **When a child component is mysteriously unmounting + remounting with no obvious dismiss reason, instrument its lifecycle.** Mount/unmount `console.log` with a stable per-instance ID + a content preview is enough to spot remount cascades within minutes. Round 25 diagnostic patches (`16fac5a`, `c9ce573`, `3b26b22`) located the bug in ~3 commits and zero speculation. Diagnostic-instrumentation-first is a much shorter path than guess-and-fix.
+- **Defensive architecture (Path A — lift state to a stable parent) and root-cause fix (Path B — fix the parent's render churn) are NOT mutually exclusive.** Ship both. Path A makes the bug fixable today; Path B prevents the next instance of the same anti-pattern from reproducing. Belt and braces is correct when the cost is one extra commit.
+
+**Wider applicability:** any React app using a markdown / DSL / DOM-mapping library with a `components` / `renderers` / `mapping` prop. Audit those props NOW — if any are inline-declared, they're tearing down their subtrees on every render. Fix them BEFORE you instrument; the bug is structurally identical regardless of which library.

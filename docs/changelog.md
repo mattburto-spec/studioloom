@@ -4,6 +4,35 @@
 
 ---
 
+## 2026-05-11 — Tap-a-word reliability: Path A (provider) + Path B (markdown root cause) + Lesson #82
+
+**Context:** Matt: "tap a word is still buggy. we need to get to the bottom of it. sometimes need to click 4 times with 4 different outcomes (no popup / quick popup gone / loading then gone / works)." Despite multiple rounds of defensive patching since 27 April, the popover was still flaky in prod. This session traced the bug to its structural root cause and shipped both a defensive workaround and the actual fix.
+
+**Investigation timeline (round 25 diagnostic methodology):**
+1. **Existing console.debug logs were silent in prod** — gated on `NODE_ENV !== "production"`. Couldn't see anything from studioloom.org.
+2. **Built a localStorage-gated logger** (`debug.ts`, commit `16fac5a`). Set `localStorage.setItem("tap-a-word-debug", "1")`, refresh, ALL tap-a-word events log via `console.log` (visible in default Info filter).
+3. **First trace (commit `c9ce573`)** — added `TappableText` lifecycle logs (mount / unmount / popover-state-changed) plus per-instance IDs. Pinned the bug as "popover unmounts with no dismiss reason" — meaning openWord wasn't being nulled by the close flow.
+4. **Second trace (commit `3b26b22`)** — added `console.trace()` on TappableText unmount. Showed the call stack reached React's scheduler (`postMessage` + `unstable_scheduleCallback`), confirming a deferred state update was triggering the unmount, not a synchronous click handler.
+5. **Code inspection of MarkdownPrompt** — found the smoking gun: inline `components={{ p, strong, em, li, a }}` prop with new function references on every render.
+
+**Path A — defensive (commit `5599314`):** New `TapAWordProvider` lives in `(student)/layout.tsx`. Owns global `openWord`, captured anchor element + cached rect fallback, the `useWordLookup` lifecycle, and renders ONE `<WordPopover>` for the entire student app. `TappableText` becomes a thin renderer that calls `useTapAWord().open()` on click and owns no popover state. `WordPopover` now accepts an optional `anchorEl` (preferred when `.isConnected`) plus a required `anchorRectFallback: DOMRect` (used when the anchor has detached from DOM). Net: the popover survives any parent re-render that destroys the original button, because the popover lives one level above.
+
+**Path B — root cause (commit `2e58127`):** `MarkdownPrompt` was creating brand new `components` object + brand new inline functions for `p`, `strong`, `em`, `li`, `a` on every render. `react-markdown` uses these as React component types via `React.createElement(components[nodeName], props)` — new references mean different component types to React's reconciler → entire subtree unmount/remount cascade. Fix: hoisted all five overrides to module-scope (`MarkdownAnchor`, `MarkdownP`, `MarkdownStrong`, `MarkdownEm`, `MarkdownLi`) and exported two stable `Components` constants (`PLAIN_COMPONENTS`, `TAPPABLE_COMPONENTS`). Pure renderers, close over no state, module-scope is correct.
+
+**Test posture:** 5321 passing throughout (no test changes — the refactor preserves all existing behaviour). tsc clean.
+
+**Decision logged:** "Tap-a-word reliability: Path A AND Path B, shipped together" — see `decisions-log.md`. Trade-off considered: ship just Path B (root cause gone) vs ship both. Picked both: Path A removes the "popover lives in the parent's blast radius" architectural smell permanently; Path B prevents the specific anti-pattern from re-occurring; belt-and-braces is cheap when the second commit is one file.
+
+**Lesson learned:** Lesson #82 — inline component-prop functions to react-markdown destroy the entire markdown subtree on every render. Wider applicability flagged: any library that treats prop values as React component types (react-syntax-highlighter, MDXProvider, slate, prosemirror) is vulnerable to the same anti-pattern. Audit any such props for inline declaration.
+
+**API surface:** zero new routes, zero new AI calls, zero new migrations. Pure refactor. api-registry + ai-call-sites scans clean.
+
+**Diagnostic infrastructure shipped this session, kept in place:** `src/components/student/tap-a-word/debug.ts` (localStorage-gated logger), `TappableText` mount/unmount/popover-state lifecycle logs, `WordPopover` mount/unmount/dismiss-reason logs. Future regressions in this surface will be diagnosable from prod by setting one localStorage key.
+
+**Pending verification (Matt's smoke):** Once Vercel deploys `2e58127`, hard-refresh the lesson page and tap any word. The popover should appear and stay until clicked-outside or Esc. Console with the debug flag enabled should show NO `TappableText unmount` events between page load and dismiss. If unmount cascades still appear, Path B has another instance of the same anti-pattern elsewhere in the lesson page tree to find.
+
+---
+
 ## 2026-05-10 — Lesson Input Surfaces (LIS) v1 — 3 new student components + auto-replace + editor UI + Narrative gate fix
 
 **Context:** Visual + interaction upgrade for three text surfaces in the student lesson view (MultiQuestionResponse, RichTextResponse, KeyInformationCallout). Originally designed as a component library in PR #150 (10 May, end-of-day prior); shipped as a 7-sub-phase integration ladder across 11 PRs today (10 May). Closes the design-canvas "★ Picks" artboards Matt referenced at session start.
