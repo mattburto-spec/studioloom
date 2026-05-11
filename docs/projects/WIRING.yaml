@@ -392,6 +392,64 @@ systems:
       Attention-Rotation Panel and any future "1:1 today" rotation
       surface; changes ripple into Cowork-pedagogy alignment.
 
+  - id: project-spec-block
+    name: Project Spec Block (lesson-page activity)
+    category: Student Experience
+    status: in_progress
+    currentVersion: 1
+    summary: |
+      New lesson-page activity type "project-spec" mirroring the
+      structured-prompts (AG.1) pattern. Three phases inside a single
+      activity card: archetype chip picker (Toy / Architecture in v1) →
+      7-question slot walker (5 input types: text, text-multifield,
+      chip-picker, size-reference, number-pair) → read-only Project
+      Card with "Continue to Timeline" CTA. State persists in
+      student_unit_project_specs (one row per student+unit). Built
+      11 May 2026 for Matt's G9 design class first session on
+      12 May 2026. Archetype copy lives in TS constants
+      (src/lib/project-spec/archetypes.ts), no project_archetypes
+      table in v1. No AI calls in v1 — mentor sharpening pass deferred.
+      No kanban / timeline integration in v1 — Continue-to-Timeline
+      CTA is a plain link; auto-seeding both surfaces filed as FUs.
+    depends_on: [lesson-editor]
+    affects: [student-experience]
+    docs:
+      - path: docs/projects/project-spec-followups.md
+        purpose: 9 deferred items (mentor sharpen, kanban/timeline seed, archetypes 3-6, etc.)
+    data_fields:
+      - table: student_unit_project_specs
+        columns: [student_id, unit_id, class_id, archetype_id, slot_1, slot_2, slot_3, slot_4, slot_5, slot_6, slot_7, completed_at]
+        notes: |
+          One row per (student, unit). Each slot JSONB shape
+          { value: SlotValue, skipped: boolean, updated_at: ISO }.
+          archetype_id is stable kebab-case string; not a FK (no
+          project_archetypes table in v1).
+    key_files:
+      - src/lib/project-spec/archetypes.ts
+      - src/components/student/project-spec/ProjectSpecResponse.tsx
+      - src/components/student/ResponseInput.tsx (dispatch)
+      - src/components/teacher/lesson-editor/ActivityBlock.tsx (RESPONSE_TYPE_LABELS / ICON / TINT)
+      - src/components/teacher/lesson-editor/BlockPalette.tsx (palette entry)
+      - src/app/api/student/project-spec/route.ts (GET + POST)
+      - src/types/index.ts (ResponseType union — added "project-spec")
+      - supabase/migrations/20260511083114_student_unit_project_specs.sql
+    future_needs: |
+      Mentor sharpening pass (Haiku, one question after ≥5/7 slots
+      filled). Teacher RLS via Access Model v2 (class_members /
+      can() helper) so co-teachers can see student specs. Auto-seed
+      kanban cards from slots 4 + 6 on completion. Auto-seed timeline
+      success anchor from slot 7. Archetypes 3-6 (Film / App /
+      Fashion / Event-Service). Generic-words detector (per-archetype
+      boost lists). Free-text Q0 with AI archetype classifier.
+      Teacher archetype editor (CMS). Archetype versioning strategy.
+    os_seam: candidate
+    change_impacts: |
+      Lesson-page activities of responseType "project-spec" depend on
+      this block — changing the slot-answer JSONB shape breaks reads
+      and writes. ARCHETYPE_LIST drives the chip picker — adding new
+      archetypes is purely additive. Archetype IDs are LOAD-BEARING
+      and must NOT be renamed once student rows reference them.
+
   - id: student-open-studio
     name: Open Studio (Self-Directed Mode)
     category: Student Experience

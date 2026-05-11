@@ -1,11 +1,11 @@
 {
   "registry": "audit-coverage",
-  "timestamp": "2026-05-11T01:14:27.320927+00:00",
+  "timestamp": "2026-05-11T08:44:32.649238+00:00",
   "version": 1,
   "stats": {
-    "total_mutation_routes": 239,
+    "total_mutation_routes": 241,
     "covered": 7,
-    "skipped": 232,
+    "skipped": 234,
     "missing": 0
   },
   "covered": [
@@ -464,6 +464,13 @@
         "POST"
       ],
       "reason": "routine learner activity, low audit value"
+    },
+    {
+      "file": "src/app/api/student/project-spec/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "Project Spec v1 \u2014 student-side CRUD via token session."
     },
     {
       "file": "src/app/api/student/quest/contract/route.ts",
@@ -1412,6 +1419,13 @@
     },
     {
       "file": "src/app/api/teacher/units/versions/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
+    },
+    {
+      "file": "src/app/api/teacher/upload-image/route.ts",
       "methods": [
         "POST"
       ],
