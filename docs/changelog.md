@@ -4504,3 +4504,40 @@ Plus the NIS tier flip + Gmail-Matt detach as ops changes.
 - `vendors.json`: ok. `rls-coverage.json`: clean.
 
 **Systems affected:** `cost-usage-admin` (rebuilt) + `report-writer` (anonymization). No system-level pivots; WIRING.yaml unchanged.
+
+## 11 May 2026 (afternoon CST) — Student-creation incident closed + prod-migration-backlog audit scoped
+
+**Incident:** Teacher add-student via `/teacher/classes/[classId]` returned 500 with `Failed to provision student auth — please retry`. Traced through Vercel logs → Supabase auth logs → `relation "teachers" does not exist (SQLSTATE 42P01)`. Root cause: `handle_new_teacher` trigger in prod was running migration-001's buggy version (unqualified `teachers`, no `search_path`, no `EXCEPTION` block). Three repo migrations that fixed this (`20260501103415`, `20260502102745`, `20260502105711`) had never been applied to prod. Bug went undetected for 12 days — every auth.users INSERT since Phase 1.1d on 29 April was failing silently because the client modal swallowed the 500 with `if (!res.ok) return`.
+
+**Mitigation:** Hand-patched `handle_new_teacher` in prod via Supabase SQL Editor (~08:30 UTC) — replaced with the full safe version (student `user_type` guard + `public.teachers` qualifier + `SET search_path = public, pg_temp` + `EXCEPTION WHEN others`). Verified by adding student "MC" successfully. Cleanly codified as new repo migration so prod and repo agree.
+
+**PR shipped:**
+- [`#178`](https://github.com/mattburto-spec/studioloom/pull/178) `fix: unblock student creation (codify trigger hotfix + surface server errors)` — two commits:
+  - `86a2ba9` New migration `20260511085324_handpatch_handle_new_teacher_skip_students_search_path.sql` — the SQL applied by hand, with `DO $$` sanity check asserting all four safety properties.
+  - `ec58b2a` `fix(teacher/classes): surface server error on failed single-add student` — the single-add modal at `src/app/teacher/classes/[classId]/page.tsx` was the only of three add-student callsites that silently swallowed errors. Added `addError` state + red banner display, clears on input change, mode switch, modal close.
+
+**Discovery during the trace — severity upgraded:** Probed `supabase_migrations.schema_migrations` to find what was applied; the table doesn't exist. Only Supabase's internal trackers (`auth.schema_migrations`, `storage.migrations`, `realtime.schema_migrations`) exist. **Prod has NO application-level migration tracking at all.** Migrations in `supabase/migrations/*.sql` have been applied by hand for 18 months with no record. Every future migration is gambling on assumed prior state. Existing follow-up `FU-PROD-MIGRATION-BACKLOG-AUDIT` (P1) upgraded from "registry might be wrong" to "we have no idea what's applied".
+
+**Bucket 3 verification (data check post-hotfix):**
+- Students created since 29 Apr with `user_id IS NULL`: **0 rows** — no stuck students from the broken window.
+- Prod `handle_new_teacher` body re-probed: confirmed patched version live.
+
+**Audit brief filed:** [`docs/projects/prod-migration-backlog-audit-brief.md`](projects/prod-migration-backlog-audit-brief.md) — 7-phase plan (A Enumerate → B Probe → C Categorise → D Apply → E Tracking table → F Tooling → G Close-out), named Matt Checkpoints, fresh worktree recommended (`questerra-migration-audit`), `public.applied_migrations` table proposed as end-state so this drift class cannot recur.
+
+**Decisions banked** (`docs/decisions-log.md`): none new — applying existing build-methodology discipline to the audit.
+
+**Lessons banked** (`docs/lessons-learned.md`):
+- **Lesson #83** — Prod has NO application migration tracking table; assume nothing about applied state. Generalises Lessons #65 (old triggers don't know about new user types) and #66 (re-apply search_path lockdown on every function rewrite) — both of those fixes silently failed to land in prod for the same reason. Adds probe-first discipline + the end-state design for a tracking table.
+
+**Tests:** No net change in this session — Bucket 2 change to `page.tsx` is small enough to merit code review over new test infrastructure; recommended manual smoke is in the PR test plan.
+
+**Registry sync (this saveme):**
+- `api-registry.yaml`: 1 new route picked up (`/api/teacher/upload-image` from PR #174, prior session).
+- `ai-call-sites.yaml`: no diff.
+- `feature-flags.json`: drift unchanged from last session.
+- `vendors.json`: ok. `rls-coverage.json`: clean (124/124).
+- `schema-registry.yaml`: NOT touched — `handle_new_teacher` is a function not a table, no row to update. Migration 20260511085324 noted in `dimensions3-followups.md` under FU-PROD-MIGRATION-BACKLOG-AUDIT instead.
+
+**Systems affected:** `auth-system` (handle_new_teacher trigger fixed). No WIRING.yaml change — system entry is current.
+
+**What's next:** Audit per the brief. Open questions for Matt at the bottom of the brief — answer before Phase A begins. Recommend dedicated session in fresh worktree, half-day to full-day block.

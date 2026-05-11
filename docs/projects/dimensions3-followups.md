@@ -2162,6 +2162,26 @@ applied-log permanent fix.
 **Sister FU:** FU-EE (no canonical migration-applied log) — this
 P1 is the symptom, FU-EE is the underlying systemic issue.
 
+**Update — 11 May 2026 (severity upgraded):** Student-creation
+incident traced to this drift. `handle_new_teacher` trigger in prod
+was migration-001's buggy version for ~12 days; three fix
+migrations (`20260501103415`, `20260502102745`, `20260502105711`)
+had never been applied. Hand-patched + codified in
+[migration `20260511085324`](../../supabase/migrations/20260511085324_handpatch_handle_new_teacher_skip_students_search_path.sql).
+Worse discovery during the trace: `supabase_migrations.schema_migrations`
+table doesn't exist in prod at all — there is NO application-level
+migration tracking. Only `auth.schema_migrations`,
+`storage.migrations`, `realtime.schema_migrations` (Supabase
+internal). See [Lesson #83](../lessons-learned.md#lesson-83) for
+the systemic implication.
+
+**Build brief filed:**
+[`docs/projects/prod-migration-backlog-audit-brief.md`](prod-migration-backlog-audit-brief.md) —
+7-phase plan A-G, named Matt Checkpoints, suggests fresh worktree
+`questerra-migration-audit` and dedicated session. End-state
+includes a `public.applied_migrations` tracking table backfilled
+from the audit so this drift class cannot recur.
+
 ---
 
 ## FU-LEVER-1-SEED-IDEMPOTENT — Seed script's units INSERT lacks idempotency guard (P3)
