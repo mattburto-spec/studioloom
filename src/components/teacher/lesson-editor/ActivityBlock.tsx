@@ -58,6 +58,7 @@ const RESPONSE_TYPE_LABELS: Record<ResponseType, string> = {
   "toolkit-tool": "Toolkit Tool",
   canvas: "Canvas Drawing",
   "structured-prompts": "Structured Prompts",
+  "project-spec": "Project Spec",
 };
 
 // Glyph + tint per response type — matches the warm-paper design.
@@ -74,6 +75,7 @@ const RESPONSE_ICON: Record<ResponseType, string> = {
   "toolkit-tool": "🧭",
   canvas: "✏️",
   "structured-prompts": "📓",
+  "project-spec": "📐",
 };
 const RESPONSE_TINT: Record<ResponseType, string> = {
   text: "#9333EA",
@@ -88,6 +90,7 @@ const RESPONSE_TINT: Record<ResponseType, string> = {
   "toolkit-tool": "#EA580C",
   canvas: "#9333EA",
   "structured-prompts": "#0EA5E9",
+  "project-spec": "#7C3AED",
 };
 
 // ── Dimensions constants ──────────────────────────────────────────

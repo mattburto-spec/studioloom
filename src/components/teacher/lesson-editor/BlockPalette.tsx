@@ -302,6 +302,23 @@ export const BLOCK_LIBRARY: BlockDefinition[] = [
       portfolioCapture: true,
     }),
   },
+  {
+    // Project Spec v1 — archetype-driven 7-question intake (Toy /
+    // Architecture for tomorrow's G9 class, 12 May 2026). Standalone
+    // ActivityCard type; state lives in student_unit_project_specs.
+    id: "project-spec",
+    label: "Project Spec",
+    icon: "📐",
+    category: "response",
+    description: "Archetype picker + 7-question intake producing a structured project deliverable card.",
+    defaultPhase: "workTime",
+    create: () => ({
+      activityId: nanoid(8),
+      prompt: "Lock in the shape of what you're going to make. Pick the kind of project, then answer 7 questions.",
+      responseType: "project-spec" as ResponseType,
+      durationMinutes: 20,
+    }),
+  },
   // ── Content ──
   {
     id: "teacher-notes",
