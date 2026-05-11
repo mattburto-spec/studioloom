@@ -4,6 +4,8 @@ import { useState, useCallback } from "react";
 import { motion, useDragControls, AnimatePresence } from "framer-motion";
 import InlineEdit from "./InlineEdit";
 import { KeyCalloutEditor } from "./KeyCalloutEditor";
+import { ImageUploadButton } from "./ImageUploadButton";
+import { looksLikeVideoUrl } from "@/lib/video-embed";
 import { SlotFieldEditor, SlotPreview } from "./SlotFieldEditor";
 import { CRITERIA, type CriterionKey } from "@/lib/constants";
 import type {
@@ -23,6 +25,8 @@ interface ActivityBlockProps {
   index: number;
   framework?: string | null;
   udlEnabled?: boolean;
+  /** Required by ImageUploadButton — scopes the storage path so a unit's images stay grouped under unit-images/{unitId}/blocks/. */
+  unitId: string;
   onUpdate: (partial: Partial<ActivitySection>) => void;
   onDelete: () => void;
   onDuplicate?: () => void;
@@ -186,6 +190,7 @@ export default function ActivityBlock({
   activity,
   index,
   udlEnabled = false,
+  unitId,
   onUpdate,
   onDelete,
   onDuplicate,
@@ -1058,22 +1063,72 @@ export default function ActivityBlock({
                         />
                       )}
 
-                      {/* ── Media tab ── */}
+                      {/* ── Media tab ──
+                          Image upload from device OR paste a URL. Uploads
+                          go to the unit-images bucket via /api/teacher/
+                          upload-image, returning the proxy URL that gets
+                          written into activity.media.url. Existing URL
+                          paste flow stays — YouTube / Vimeo / any
+                          external image URL works as before. */}
                       {activeTab === "media" && (
-                        <div className="space-y-2">
-                          {activity.media && (
-                            <div className="p-2 bg-[var(--le-paper)] rounded border border-[var(--le-hair)]">
-                              <p className="text-[11px] text-[var(--le-ink-2)]">
-                                <span className="font-bold">Media URL:</span>{" "}
+                        <div className="space-y-3">
+                          {activity.media?.url && (
+                            <div className="p-2 bg-[var(--le-paper)] rounded border border-[var(--le-hair)] space-y-2">
+                              {activity.media.type === "image" && (
+                                /* eslint-disable-next-line @next/next/no-img-element */
+                                <img
+                                  src={activity.media.url}
+                                  alt="Block media preview"
+                                  style={{
+                                    maxHeight: 120,
+                                    maxWidth: "100%",
+                                    borderRadius: 6,
+                                    border: "1px solid var(--le-hair)",
+                                  }}
+                                />
+                              )}
+                              <p className="text-[10px] text-[var(--le-ink-3)] break-all">
+                                <span className="font-bold uppercase tracking-wider">
+                                  {activity.media.type}:
+                                </span>{" "}
                                 {activity.media.url}
                               </p>
+                              <button
+                                type="button"
+                                onClick={() => onUpdate({ media: undefined })}
+                                className="text-[10.5px] text-rose-600 hover:text-rose-800 font-semibold"
+                              >
+                                × Remove media
+                              </button>
                             </div>
                           )}
-                          <input
-                            type="url"
-                            placeholder="Media URL (image or video)"
-                            className="w-full px-2 py-1.5 text-[12px] border border-[var(--le-hair)] rounded bg-[var(--le-paper)] focus:outline-none focus:border-[var(--le-ink-2)]"
-                          />
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="url"
+                              value={activity.media?.url || ""}
+                              onChange={(e) => {
+                                const url = e.target.value.trim();
+                                if (!url) {
+                                  onUpdate({ media: undefined });
+                                  return;
+                                }
+                                onUpdate({
+                                  media: {
+                                    type: looksLikeVideoUrl(url) ? "video" : "image",
+                                    url,
+                                  },
+                                });
+                              }}
+                              placeholder="Paste image or video URL"
+                              className="flex-1 px-2 py-1.5 text-[12px] border border-[var(--le-hair)] rounded bg-[var(--le-paper)] focus:outline-none focus:border-[var(--le-ink-2)]"
+                            />
+                            <ImageUploadButton
+                              unitId={unitId}
+                              onUploaded={(url) =>
+                                onUpdate({ media: { type: "image", url } })
+                              }
+                            />
+                          </div>
                         </div>
                       )}
                     </div>

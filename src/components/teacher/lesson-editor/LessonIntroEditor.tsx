@@ -3,10 +3,14 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import type { PageContent, ActivityMedia } from "@/types";
+import { looksLikeVideoUrl } from "@/lib/video-embed";
+import { ImageUploadButton } from "./ImageUploadButton";
 
 interface LessonIntroEditorProps {
   pageContent: PageContent;
   onUpdate: (partial: Partial<PageContent>) => void;
+  /** Required by ImageUploadButton — scopes the storage path under unit-images/{unitId}/blocks/. */
+  unitId: string;
 }
 
 /**
@@ -21,6 +25,7 @@ interface LessonIntroEditorProps {
 export default function LessonIntroEditor({
   pageContent,
   onUpdate,
+  unitId,
 }: LessonIntroEditorProps) {
   const hasContent =
     !!pageContent.introduction?.text ||
@@ -33,7 +38,7 @@ export default function LessonIntroEditor({
   const mediaUrl = pageContent.introduction?.media?.url || "";
   const mediaType: ActivityMedia["type"] =
     pageContent.introduction?.media?.type ||
-    (looksLikeVideo(mediaUrl) ? "video" : "image");
+    (looksLikeVideoUrl(mediaUrl) ? "video" : "image");
 
   const updateIntroText = (text: string) => {
     const current = pageContent.introduction;
@@ -51,7 +56,7 @@ export default function LessonIntroEditor({
     const text = current?.text || "";
     const links = current?.links;
     const media = trimmed
-      ? { type: looksLikeVideo(trimmed) ? ("video" as const) : ("image" as const), url: trimmed }
+      ? { type: looksLikeVideoUrl(trimmed) ? ("video" as const) : ("image" as const), url: trimmed }
       : undefined;
     if (!text && !media?.url && !links?.length) {
       onUpdate({ introduction: undefined });
@@ -124,16 +129,22 @@ export default function LessonIntroEditor({
             <label className="text-[10px] le-cap text-[var(--le-ink-3)] block mb-1">
               Hero video or image
               <span className="ml-1 font-normal text-[var(--le-ink-3)] tracking-normal normal-case">
-                — paste a YouTube / Vimeo URL or image URL
+                — paste a YouTube / Vimeo URL, image URL, or upload from device
               </span>
             </label>
-            <input
-              type="url"
-              value={mediaUrl}
-              onChange={(e) => updateMediaUrl(e.target.value)}
-              placeholder="https://www.youtube.com/watch?v=…"
-              className="w-full px-3 py-2 text-[12.5px] bg-[var(--le-bg)] border border-[var(--le-hair)] rounded-md text-[var(--le-ink-2)] focus:outline-none focus:border-[var(--le-ink-2)]"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="url"
+                value={mediaUrl}
+                onChange={(e) => updateMediaUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=…"
+                className="flex-1 px-3 py-2 text-[12.5px] bg-[var(--le-bg)] border border-[var(--le-hair)] rounded-md text-[var(--le-ink-2)] focus:outline-none focus:border-[var(--le-ink-2)]"
+              />
+              <ImageUploadButton
+                unitId={unitId}
+                onUploaded={(url) => updateMediaUrl(url)}
+              />
+            </div>
             {mediaUrl && (
               <div className="mt-1 text-[10px] text-[var(--le-ink-3)]">
                 Detected as {mediaType}. Students see this as a “Watch” block at the top of the lesson.
@@ -167,14 +178,4 @@ export default function LessonIntroEditor({
   );
 }
 
-function looksLikeVideo(url: string): boolean {
-  if (!url) return false;
-  const u = url.toLowerCase();
-  return (
-    u.includes("youtube.com") ||
-    u.includes("youtu.be") ||
-    u.includes("vimeo.com") ||
-    u.endsWith(".mp4") ||
-    u.endsWith(".webm")
-  );
-}
+// looksLikeVideoUrl moved to @/lib/video-embed — shared with ActivityBlock.

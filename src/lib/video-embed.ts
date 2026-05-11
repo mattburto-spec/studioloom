@@ -1,4 +1,22 @@
 /**
+ * Cheap detection of "is this URL a video?" used by the lesson editor to
+ * auto-set ActivityMedia.type when a teacher pastes a URL. Matches the
+ * heuristic in LessonIntroEditor — YouTube / Vimeo hosts + .mp4 / .webm
+ * extensions. Anything else falls through as "image" by default.
+ */
+export function looksLikeVideoUrl(url: string): boolean {
+  if (!url) return false;
+  const u = url.toLowerCase();
+  return (
+    u.includes("youtube.com") ||
+    u.includes("youtu.be") ||
+    u.includes("vimeo.com") ||
+    u.endsWith(".mp4") ||
+    u.endsWith(".webm")
+  );
+}
+
+/**
  * Converts standard YouTube/Vimeo watch URLs to embeddable iframe URLs.
  * Returns null for unrecognized URLs.
  */
