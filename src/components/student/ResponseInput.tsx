@@ -18,6 +18,7 @@ import type { StructuredPromptsConfig } from "@/lib/structured-prompts/types";
 import ProjectSpecResponse from "./project-spec/ProjectSpecResponse";
 import ProductBriefResponse from "./product-brief/ProductBriefResponse";
 import UserProfileResponse from "./user-profile/UserProfileResponse";
+import SuccessCriteriaResponse from "./success-criteria/SuccessCriteriaResponse";
 
 interface ResponseInputProps {
   sectionIndex: number;
@@ -237,6 +238,18 @@ export function ResponseInput({
           user-profile-photos bucket. */}
       {responseType === "user-profile" && unitId && (
         <UserProfileResponse
+          unitId={unitId}
+          sectionIndex={sectionIndex}
+          onChange={onChange}
+        />
+      )}
+
+      {/* Project Spec v2 — Success Criteria block (universal, 5 slots
+          covering observable signal, measurement protocol, test setup,
+          failure mode, iteration trigger). Storage in
+          student_unit_success_criteria. */}
+      {responseType === "success-criteria" && unitId && (
+        <SuccessCriteriaResponse
           unitId={unitId}
           sectionIndex={sectionIndex}
           onChange={onChange}

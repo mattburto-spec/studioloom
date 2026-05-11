@@ -355,6 +355,24 @@ export const BLOCK_LIBRARY: BlockDefinition[] = [
       durationMinutes: 15,
     }),
   },
+  {
+    // Project Spec v2 — Success Criteria block. UNIVERSAL across
+    // archetypes. 5 slots covering observable signal, measurement
+    // protocol, test setup, failure mode, iteration trigger. Storage
+    // in student_unit_success_criteria.
+    id: "success-criteria",
+    label: "Success Criteria",
+    icon: "🎯",
+    category: "response",
+    description: "v2 Success Criteria — 5-slot research planning: observable signal, measurement, setup, failure mode, iteration trigger.",
+    defaultPhase: "workTime",
+    create: () => ({
+      activityId: nanoid(8),
+      prompt: "Decide how you'll test this and what success looks like — BEFORE you build.",
+      responseType: "success-criteria" as ResponseType,
+      durationMinutes: 10,
+    }),
+  },
   // ── Content ──
   {
     id: "teacher-notes",
