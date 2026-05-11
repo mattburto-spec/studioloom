@@ -119,13 +119,13 @@ WITH probes AS (
     EXISTS(SELECT 1 FROM pg_policies WHERE tablename='students' AND policyname='Students read own row'),
     NULL
   UNION ALL SELECT 27, '20260429130731_phase_1_5_competency_assessments_student_rewrite',
-    COALESCE((SELECT pg_get_expr(qual, polrelid) FROM pg_policy WHERE polname='students_read_own' AND polrelid='public.competency_assessments'::regclass) LIKE '%user_id%', false),
+    COALESCE((SELECT qual FROM pg_policies WHERE policyname='students_read_own' AND tablename='competency_assessments' AND schemaname='public') LIKE '%user_id%', false),
     'true=new chain via auth.uid→user_id; false=legacy jwt.claims form'
   UNION ALL SELECT 28, '20260429130732_phase_1_5_quest_journeys_student_rewrite',
-    COALESCE((SELECT pg_get_expr(qual, polrelid) FROM pg_policy WHERE polname='quest_journeys_student_select' AND polrelid='public.quest_journeys'::regclass) LIKE '%user_id%', false),
+    COALESCE((SELECT qual FROM pg_policies WHERE policyname='quest_journeys_student_select' AND tablename='quest_journeys' AND schemaname='public') LIKE '%user_id%', false),
     'true=new chain; false=legacy'
   UNION ALL SELECT 29, '20260429130733_phase_1_5_design_conversations_student_rewrite',
-    COALESCE((SELECT pg_get_expr(qual, polrelid) FROM pg_policy WHERE polname='Students can manage own conversations' AND polrelid='public.design_conversations'::regclass) LIKE '%user_id%', false),
+    COALESCE((SELECT qual FROM pg_policies WHERE policyname='Students can manage own conversations' AND tablename='design_conversations' AND schemaname='public') LIKE '%user_id%', false),
     'true=new chain; false=legacy'
   UNION ALL SELECT 30, '20260429133359_phase_1_5b_class_students_self_read_authuid',
     EXISTS(SELECT 1 FROM pg_policies WHERE tablename='class_students' AND policyname='Students read own enrollments via auth.uid'),
@@ -148,7 +148,7 @@ WITH probes AS (
     EXISTS(SELECT 1 FROM pg_policies WHERE tablename='assessment_records' AND policyname='Students read own published assessments'),
     NULL
   UNION ALL SELECT 36, '20260429231130_phase_1_4_cs1_student_badges_rewrite',
-    COALESCE((SELECT pg_get_expr(qual, polrelid) FROM pg_policy WHERE polname='student_badges_read_own' AND polrelid='public.student_badges'::regclass) LIKE '%user_id%', false),
+    COALESCE((SELECT qual FROM pg_policies WHERE policyname='student_badges_read_own' AND tablename='student_badges' AND schemaname='public') LIKE '%user_id%', false),
     'true=new chain; false=legacy app.student_id'
   UNION ALL SELECT 37, '20260430010922_phase_1_4_cs2_fix_students_rls_recursion',
     EXISTS(SELECT 1 FROM pg_proc WHERE proname='is_teacher_of_student' AND pronamespace='public'::regnamespace),
