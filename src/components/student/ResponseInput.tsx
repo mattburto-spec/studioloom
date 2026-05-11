@@ -201,12 +201,19 @@ export function ResponseInput({
       )}
 
       {/* Project Spec v1 — lesson-page activity that walks students
-          through an archetype picker (Toy/Architecture) + 7 questions
-          to produce a structured deliverable card. State persists in
-          student_unit_project_specs (own table, own API). value/onChange
-          intentionally not threaded — component manages its own state. */}
+          through an archetype picker (Toy/Architecture) + 7 questions.
+          Canonical state lives in student_unit_project_specs (own table,
+          own API). We thread onChange so the component can push a
+          readable summary into student_progress.responses — that's what
+          makes the spec discoverable on the marking page (tile detection
+          keys off non-empty response strings). value is ignored: the
+          component re-loads canonical state from its own API on mount. */}
       {responseType === "project-spec" && unitId && (
-        <ProjectSpecResponse unitId={unitId} sectionIndex={sectionIndex} />
+        <ProjectSpecResponse
+          unitId={unitId}
+          sectionIndex={sectionIndex}
+          onChange={onChange}
+        />
       )}
 
       {/* AG.1 — structured-prompts. LIS.C dispatch: when section opts in
