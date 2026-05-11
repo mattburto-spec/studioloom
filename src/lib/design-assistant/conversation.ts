@@ -463,12 +463,16 @@ async function getClassFrameworkForStudent(
 
     if (!student?.class_id) return null;
 
-    // Check if this class has the unit assigned
+    // Check if this class has the unit ACTIVELY assigned. Filter
+    // is_active so soft-removed assignments don't drive framework
+    // resolution. Same root cause as PRs #189/#196/#199 —
+    // FU-CLASS-UNITS-IS-ACTIVE-AUDIT.
     const { data: classUnit } = await supabase
       .from("class_units")
       .select("class_id")
       .eq("class_id", student.class_id)
       .eq("unit_id", unitId)
+      .eq("is_active", true)
       .maybeSingle();
 
     if (!classUnit) return null;
@@ -486,11 +490,15 @@ async function getClassFrameworkForStudent(
   // Find the class that has this unit assigned
   const classIds = classStudents.map((cs: { class_id: string }) => cs.class_id);
 
+  // Filter is_active so soft-removed assignments don't drive framework
+  // resolution. Same root cause as PRs #189/#196/#199 —
+  // FU-CLASS-UNITS-IS-ACTIVE-AUDIT.
   const { data: classUnit } = await supabase
     .from("class_units")
     .select("class_id")
     .eq("unit_id", unitId)
     .in("class_id", classIds)
+    .eq("is_active", true)
     .maybeSingle();
 
   if (!classUnit) return null;

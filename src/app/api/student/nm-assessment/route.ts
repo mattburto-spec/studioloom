@@ -159,11 +159,15 @@ export async function POST(request: NextRequest) {
   let nmConfig: any = null;
 
   if (classIds.length > 0) {
+    // Filter is_active so soft-removed assignments don't surface stale
+    // NM config. Same root cause as PRs #189/#196/#199 —
+    // FU-CLASS-UNITS-IS-ACTIVE-AUDIT.
     const { data: classUnits } = await supabase
       .from("class_units")
       .select("class_id, nm_config")
       .in("class_id", classIds)
-      .eq("unit_id", unitId);
+      .eq("unit_id", unitId)
+      .eq("is_active", true);
 
     const cuWithNm = (classUnits || []).find((cu: { nm_config: unknown }) => cu.nm_config);
     if (cuWithNm) {

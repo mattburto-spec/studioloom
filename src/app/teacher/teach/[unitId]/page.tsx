@@ -121,10 +121,15 @@ export default function TeachingDashboard({
 
       const [unitRes, classesRes] = await Promise.all([
         supabase.from("units").select("*").eq("id", unitId).single(),
+        // Filter is_active so soft-removed class assignments don't show
+        // up in the teach-mode class picker. Matt smoke caught this on
+        // the unit page after unassigning — same root cause as PRs
+        // #189/#196/#199 — FU-CLASS-UNITS-IS-ACTIVE-AUDIT.
         supabase
           .from("class_units")
           .select("class_id, content_data, classes(id, name, code)")
-          .eq("unit_id", unitId),
+          .eq("unit_id", unitId)
+          .eq("is_active", true),
       ]);
 
       setUnit(unitRes.data);

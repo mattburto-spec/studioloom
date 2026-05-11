@@ -37,11 +37,16 @@ export default function EditUnitPage({
     async function load() {
       const supabase = createClient();
 
-      // Redirect to Phase 0.5 lesson editor if unit has any assigned class
+      // Redirect to Phase 0.5 lesson editor if unit has any ACTIVELY
+      // assigned class. Filter is_active so soft-removed assignments
+      // don't drive the redirect target (otherwise the editor opens
+      // against a class that no longer has the unit). Same root cause
+      // as PRs #189/#196/#199 — FU-CLASS-UNITS-IS-ACTIVE-AUDIT.
       const { data: classUnits } = await supabase
         .from("class_units")
         .select("class_id")
-        .eq("unit_id", unitId);
+        .eq("unit_id", unitId)
+        .eq("is_active", true);
       if (classUnits && classUnits.length > 0) {
         router.replace(`/teacher/units/${unitId}/class/${classUnits[0].class_id}/edit`);
         return;
