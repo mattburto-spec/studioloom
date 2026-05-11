@@ -3,10 +3,14 @@
 **Date:** 11 May 2026
 **Owner:** Matt
 **Phase:** A (Enumerate) → COMPLETE + signed off (Checkpoint A.1 PASSED, 11 May 2026)
-**Phase:** B (Probe) → COMPLETE (Checkpoint B.1 PASSED pending combined sign-off)
-**Phase:** C (Categorise) → COMPLETE (Checkpoint C.1 PASSED pending combined sign-off)
-**Phase:** D (Apply) → READY — 1 single INSERT for #49 (see [`prod-migration-backlog-audit-2026-05-11-apply-and-tracker.sql`](prod-migration-backlog-audit-2026-05-11-apply-and-tracker.sql))
-**Phase:** E (Tracker) → READY — bundled in same SQL file as Phase D for a single paste-and-go
+**Phase:** B (Probe) → COMPLETE + signed off (Checkpoint B.1 PASSED, 11 May 2026)
+**Phase:** C (Categorise) → COMPLETE + signed off (Checkpoint C.1 PASSED, 11 May 2026)
+**Phase:** D (Apply) → COMPLETE — 1 INSERT applied to prod, verified via SELECT
+**Phase:** E (Tracker) → COMPLETE — `public.applied_migrations` table created with 81 rows (79 backfill + 1 hand-patch + 1 manual); breakdown verified
+**Phase:** F (Tooling) → COMPLETE — `check-applied.sh` script created; `new-migration.sh` updated with apply-reminder banner
+**Phase:** G (Close-out) → COMPLETE — CLAUDE.md updated with 3 mandates + saveme step 11(h); FU-PROD-MIGRATION-BACKLOG-AUDIT marked RESOLVED; FU-AUDIT-PASS4-CLASSES-DEFAULT-LAB (P3) + FU-MIGRATION-CI-CHECK (P2) filed; interim log deleted
+
+**🎉 AUDIT CLOSED 11 May 2026.** Total elapsed: ~1 session. All 7 phases shipped.
 **Companion brief:** [prod-migration-backlog-audit-brief.md](prod-migration-backlog-audit-brief.md)
 
 ## Scope
