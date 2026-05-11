@@ -133,7 +133,12 @@ export default function UnitDetailPage({
       // Fetch ALL teacher's classes + which ones have this unit assigned + terms + versions
       const [classesRes, classUnitsRes, termsRes, versionsRes] = await Promise.all([
         supabase.from("classes").select("id, name, code, is_archived").order("name"),
-        supabase.from("class_units").select("class_id, nm_config, term_id, forked_at").eq("unit_id", unitId),
+        // Filter on is_active so soft-removed assignments (set via the
+        // class page's "Remove unit" toggle) don't surface as assigned
+        // here. Pre-fix, the unit page read every class_units row for
+        // this unit regardless of is_active — soft-removed assignments
+        // still showed the class as "assigned" in the toggle list.
+        supabase.from("class_units").select("class_id, nm_config, term_id, forked_at").eq("unit_id", unitId).eq("is_active", true),
         fetch("/api/teacher/school-calendar").then((r) => (r.ok ? r.json() : Promise.resolve({ terms: [] }))),
         fetch(`/api/teacher/units/versions?unitId=${unitId}`).then((r) => (r.ok ? r.json() : Promise.resolve(null))).catch(() => null),
       ]);
@@ -243,18 +248,23 @@ export default function UnitDetailPage({
     const supabase = createClient();
 
     if (currentlyAssigned) {
-      // Remove assignment — also close any pending term picker
+      // Remove assignment — also close any pending term picker.
+      // Soft-toggle to is_active=false (matches the class page's toggle
+      // pattern in /teacher/classes/[id]/page.tsx). Preserves per-class
+      // metadata (term_id, nm_config, forked content) so a re-toggle
+      // restores the prior assignment state rather than losing it.
       if (pendingTermClass === classId) {
         setPendingTermClass(null);
         setPendingTermId(null);
       }
       await supabase
         .from("class_units")
-        .delete()
+        .update({ is_active: false })
         .eq("class_id", classId)
         .eq("unit_id", unitId);
     } else {
-      // Create assignment
+      // Create or re-activate assignment. The upsert flips is_active
+      // back to true if a prior soft-removed row exists.
       await supabase
         .from("class_units")
         .upsert({

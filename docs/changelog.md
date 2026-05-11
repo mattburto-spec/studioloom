@@ -4,6 +4,90 @@
 
 ---
 
+## 2026-05-11/12 — Project Spec v2 split (3 new blocks + shared library)
+
+**Context:** After v1 unified Project Spec shipped (11 May), Matt's observation that the 7 Qs were a mashup of three concerns (product / user / success criteria) drove a phase brief for splitting into three focused blocks. Built end-to-end the same evening per `docs/projects/project-spec-v2-split-brief.md`.
+
+**What shipped (5 PRs):**
+
+1. **PR #188 — Phase A (schema + types)**
+   - 3 new tables, all parallel + additive (no FK between them, no v1 changes):
+     - `student_unit_product_briefs` (9 slots, archetype-driven)
+     - `student_unit_user_profiles` (8 slots, universal)
+     - `student_unit_success_criteria` (5 slots, universal)
+   - `ResponseType` union extended with `"product-brief" | "user-profile" | "success-criteria"`
+   - RESPONSE_TYPE_LABELS / ICON (🧰/👤/🎯) / TINT entries
+   - All 3 migrations applied to prod via Supabase SQL editor
+
+2. **PR #191 — Phase B+C (shared library + Product Brief block)**
+   - **Phase B refactor:** v1's 800-line `ProjectSpecResponse.tsx` → **301 lines** (-62%) by extracting:
+     - `src/lib/project-spec/format.ts` — `isValueNonEmpty`, `computeLengthHint`, `formatAnswer`, `buildSummary` (generic across slot counts via `SummaryEntry[]` array)
+     - `src/components/student/project-spec/shared/SlotInput.tsx` — 5-input dispatcher (later +2: multi-chip-picker, image-upload)
+     - `src/components/student/project-spec/shared/SlotWalker.tsx` — parameterised walker shell (`headerLabel` + `totalSlots` props)
+     - `src/components/student/project-spec/shared/ArchetypePicker.tsx` — Q0 chip picker
+     - `src/components/student/project-spec/shared/useSpecBridge.ts` — PR #184 ref pattern bottled into a reusable hook (banked critical lesson)
+   - **Phase C:** Product Brief block (🧰) — 9 slots, archetype-driven via `PRODUCT_BRIEF_ARCHETYPES`. New `multi-chip-picker` input kind for Constraints slot (6 chips, cap 3). Slots: name / pitch / mechanism / primary material / secondary material / scale / constraints / precedents / technical risks.
+
+3. **PR #194 — Phase D (User Profile + image upload)**
+   - New private storage bucket `user-profile-photos` with service-role RLS (migration `20260511221713`, Option B from brief §12.4 — dedicated bucket not shared with `responses`).
+   - New `image-upload` SlotInputType variant + ImageUploadInput sub-component (10MB cap, file picker, thumbnail + Replace + Remove + inline caption).
+   - User Profile block (👤) — 8 slots, universal. Slots: name+relationship / age band / context / problem / alternatives (2-field) / unique value / **optional photo** / optional quote.
+   - Photo upload route `/api/student/user-profile/upload-photo` (FormData, moderates via `moderateAndLog`, returns proxy URL).
+   - `SlotWalker` gained optional `onUploadImage` callback — pure UI dispatcher, block owns the POST.
+
+4. **Phase E+F PR (this commit) — Success Criteria + registries**
+   - Success Criteria block (🎯) — 5 slots, universal. Slots: observable success signal / measurement protocol (chip picker) / test setup (4-field where/when/how long/who watches) / failure mode / iteration trigger.
+   - 3 new entries in `schema-registry.yaml` documenting product_briefs / user_profiles / success_criteria tables (RLS policies, columns, writers, readers, applied_via).
+   - `WIRING.yaml` `project-spec-block` system bumped to currentVersion: 2 — now documents the whole v1 + v2 family (4 tables, 4 components, 4 API routes, 5 migrations).
+   - `api-registry.yaml` auto-synced via `scan-api-routes.py --apply`.
+   - 9 follow-ups filed in `project-spec-v2-followups.md`.
+
+**Architecture decisions banked:**
+- **Three separate tables, not one with sub-types.** Each block evolves independently. Future blocks can add slots without coordinating.
+- **Shared library extraction.** Walker / picker / dispatcher / hook live in one place; 4 consumers (v1 + 3 v2 blocks) compose them.
+- **Image upload via callback pattern.** SlotInput stays pure UI; block component owns the POST endpoint. Different blocks can upload to different buckets.
+- **useSpecBridge hook bakes Lesson #82.** Ref-captured onChange — never put a callback prop in a useEffect dep array unless the parent guarantees stable identity.
+- **v1 frozen + coexisting.** Both v1 and v2 in BlockPalette during pilot. v1 retired via `FU-PSV2-V1-DEPRECATION` (P3) after 90 days of zero new inserts.
+
+**Test posture:** 5370 → 5385 (4 new tests added by Phase D unrelated work; v2 build added no regressions). tsc strict clean across every commit. `verify-no-collision.sh` clean for all 4 migrations.
+
+**Code stats (v2 surface):**
+- 5 shared files (~700 lines) — extracted from v1's 800-line component
+- 3 v2 slot-definition files (~600 lines combined)
+- 3 v2 components (~700 lines combined)
+- 4 v2 API routes (~600 lines combined)
+- 4 v2 migrations (~400 lines combined)
+
+**Open follow-ups (9):** aggregated student view (P3), per-block AI mentor (P2), user-photo moderation policy (P2), Class Gallery user-research surfacing (P2), cross-block sync (P3), v1 deprecation (P3), archetypes 3-6 (P3), archetype versioning (P3), teacher RLS via Access v2 (P2).
+
+---
+
+## 2026-05-11 — Project Spec Block v1 (lesson-page activity for G9 first session)
+
+**Context:** Matt's G9 design class opens StudioLoom for the first time on 12 May 2026 (14 sessions, 12 May → 16 June). Original brief scoped 7 phases including timeline/kanban auto-seeding and AI mentor pass. Matt scaled back at scope-review: "all seems very complicated. can we scale back the scope of the block for tomorrows class. dont want to wreck timeline or kanban in rushing this." Final v1 scope: lesson-page activity card, own table, own API, no kanban/timeline writes, no AI calls, two archetypes hardcoded in TS.
+
+**What shipped (4 commits on `claude/festive-pike-64401d` worktree):**
+1. **Migration `20260511083114_student_unit_project_specs`** — new table, one row per (student, unit). 7 JSONB slot columns + archetype_id (kebab-case string, no FK). UNIQUE(student_id, unit_id). Single teacher-SELECT RLS policy via `class_units` join (Lesson #4 — students bypass RLS via service-role API). Down migration has safety guard: refuses if any archetype_id is set. `verify-no-collision.sh` clean.
+2. **Component + types + dispatch** — `"project-spec"` added to `ResponseType` union; `RESPONSE_TYPE_LABELS`/`RESPONSE_ICON` (📐)/`RESPONSE_TINT` (#7C3AED) wired. `ARCHETYPES` registry with Toy (🧸) + Architecture (🏛️) and full slot copy from the brief. 5 input types: text, text-multifield, chip-picker, size-reference, number-pair. `ProjectSpecResponse` (~620 LOC) renders 3 phases: archetype picker → walker (Q1-Q7 with skip, length nudge, examples drawer, progress bar) → read-only Project Card. Dispatched from `ResponseInput.tsx` when `responseType === "project-spec" && unitId`.
+3. **API + BlockPalette + follow-ups** — `/api/student/project-spec` GET (returns empty initial if no row) + POST (partial-patch upsert, server-merge to preserve unspecified fields, `completed: true` sets `completed_at = now()`). Validates archetype_id against `ARCHETYPES` registry. BlockPalette entry in Response category so Matt can drag-drop into tomorrow's lesson. 9 follow-ups filed in `project-spec-followups.md` covering everything cut from the original brief.
+4. **Registries** — api-registry scanner auto-picked up GET + POST; schema-registry entry added for `student_unit_project_specs` (also flagged spec_drift in the kanban + timeline entries: they claim a `students_manage_own` policy that doesn't exist in the actual migration); WIRING.yaml gained `project-spec-block` system entry.
+
+**Architecture decision:** Mirrored the `structured-prompts` (AG.1) pattern as precedent rather than building a new mount mechanism. Same dispatch shape, same auth pattern, same persistence boundary (own table, own API). Students use token sessions; teacher RLS via `class_units` join (mirrors AG.2.1 kanban). Archetype copy lives in TS source (`src/lib/project-spec/archetypes.ts`) not a DB table — keeps v1 to a single migration. Archetype IDs are stable kebab-case strings and load-bearing once student rows reference them.
+
+**Test posture:** Tests 5337 → 5337 (stable). tsc strict clean across all modified files (`src/types/index.ts`, `ActivityBlock.tsx`, `ResponseInput.tsx`, `BlockPalette.tsx`, `archetypes.ts`, `ProjectSpecResponse.tsx`, API route).
+
+**Dev-server smoke** (this worktree, no `.env.local` Supabase keys): server starts clean, homepage renders, `/api/student/project-spec` compiles + reachable + hits `requireStudentSession` correctly (500 because no Supabase env, not a code bug). End-to-end student smoke deferred to Vercel-preview by Matt after migration applied + push.
+
+**Cut from v1 (filed as FUs):** mentor sharpening pass (Haiku), teacher RLS via Access Model v2 (`class_members`), auto-seed kanban from slots 4 + 6, auto-seed timeline success anchor from slot 7, archetypes 3-6 (Film / App / Fashion / Event-Service), generic-words nudge detector, free-text Q0 AI classifier, teacher archetype editor (CMS), archetype versioning strategy, class_id backfill. See `docs/projects/project-spec-followups.md`.
+
+**Pre-merge needs from Matt:** (1) apply migration `20260511083114_student_unit_project_specs.sql` to prod Supabase; (2) `git push` to trigger Vercel deploy; (3) drag Project Spec block into tomorrow's G9 lesson via the BlockPalette; (4) smoke as a test student before class.
+
+**Worktree:** `/Users/matt/CWORK/questerra/.claude/worktrees/festive-pike-64401d`, branch `claude/festive-pike-64401d`. 4 commits ahead of `origin/main`, not pushed (Matt pushes from terminal).
+
+**Worktree notes from saveme reminder:** Main worktree at `/Users/matt/CWORK/questerra` still has 13 modified + 4 untracked files from prior unsaved session — flagged in pre-flight, untouched by this session. Worth a `saveme` from whoever owns that state.
+
+---
+
 ## 2026-05-11 — Tap-a-word reliability: Path A (provider) + Path B (markdown root cause) + Lesson #82
 
 **Context:** Matt: "tap a word is still buggy. we need to get to the bottom of it. sometimes need to click 4 times with 4 different outcomes (no popup / quick popup gone / loading then gone / works)." Despite multiple rounds of defensive patching since 27 April, the popover was still flaky in prod. This session traced the bug to its structural root cause and shipped both a defensive workaround and the actual fix.

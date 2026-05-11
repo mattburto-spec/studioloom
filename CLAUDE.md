@@ -119,6 +119,9 @@ Each active build project gets its own `docs/projects/<project>-followups.md`. I
 - [`docs/projects/access-model-v2-followups.md`](docs/projects/access-model-v2-followups.md) — Access Model v2
 - [`docs/projects/co2-racers-followups.md`](docs/projects/co2-racers-followups.md) — **CO2 Racers agency unit (AG.*)** — created 6 May 2026
 - [`docs/projects/lesson-input-surfaces-followups.md`](docs/projects/lesson-input-surfaces-followups.md) — **Lesson Input Surfaces (LIS.*)** — created 10 May 2026
+- [`docs/projects/project-spec-followups.md`](docs/projects/project-spec-followups.md) — **Project Spec v1 (PSB.*)** — created 11 May 2026
+- [`docs/projects/project-spec-v2-followups.md`](docs/projects/project-spec-v2-followups.md) — **Project Spec v2 split (PSV2.*)** — created 11 May 2026
+- [`docs/projects/platform-followups.md`](docs/projects/platform-followups.md) — **Cross-cutting platform items (PLATFORM.*)** — created 12 May 2026
 
 When a smoke round or build phase surfaces a deferred item, file it in the matching tracker under the convention: `## FU-<PROJECT-PREFIX>-<SHORT-TAG>` followed by the surfaced/target/severity/origin/scope template used by all five files. New project? Create `docs/projects/<project>-followups.md` and add it to this list.
 

@@ -302,6 +302,77 @@ export const BLOCK_LIBRARY: BlockDefinition[] = [
       portfolioCapture: true,
     }),
   },
+  {
+    // Project Spec v1 — archetype-driven 7-question intake (Toy /
+    // Architecture for tomorrow's G9 class, 12 May 2026). Standalone
+    // ActivityCard type; state lives in student_unit_project_specs.
+    id: "project-spec",
+    label: "Project Spec",
+    icon: "📐",
+    category: "response",
+    description: "Archetype picker + 7-question intake producing a structured project deliverable card.",
+    defaultPhase: "workTime",
+    create: () => ({
+      activityId: nanoid(8),
+      prompt: "Lock in the shape of what you're going to make. Pick the kind of project, then answer 7 questions.",
+      responseType: "project-spec" as ResponseType,
+      durationMinutes: 20,
+    }),
+  },
+  {
+    // Project Spec v2 — Product Brief block. 9 slots covering name,
+    // pitch, mechanism, primary + secondary material, scale, constraints,
+    // precedents, technical risks. Archetype-driven (Toy / Architecture
+    // share IDs with v1). Storage in student_unit_product_briefs.
+    id: "product-brief",
+    label: "Product Brief",
+    icon: "🧰",
+    category: "response",
+    description: "v2 Product Brief — 9-slot archetype-driven product spec. Adds precedents, constraints, technical risks.",
+    defaultPhase: "workTime",
+    create: () => ({
+      activityId: nanoid(8),
+      prompt: "Lock in what you're going to make. Materials, scale, mechanism, risks.",
+      responseType: "product-brief" as ResponseType,
+      durationMinutes: 15,
+    }),
+  },
+  {
+    // Project Spec v2 — User Profile block. UNIVERSAL across archetypes.
+    // 8 slots covering name, age band, context, problem, alternatives,
+    // unique value, optional photo (user-profile-photos bucket), optional
+    // quote. Storage in student_unit_user_profiles.
+    id: "user-profile",
+    label: "User Profile",
+    icon: "👤",
+    category: "response",
+    description: "v2 User Profile — 8-slot empathy work for the person you're designing for. Optional photo + quote.",
+    defaultPhase: "workTime",
+    create: () => ({
+      activityId: nanoid(8),
+      prompt: "Build a real picture of your user. Name them. Watch them. Quote them.",
+      responseType: "user-profile" as ResponseType,
+      durationMinutes: 15,
+    }),
+  },
+  {
+    // Project Spec v2 — Success Criteria block. UNIVERSAL across
+    // archetypes. 5 slots covering observable signal, measurement
+    // protocol, test setup, failure mode, iteration trigger. Storage
+    // in student_unit_success_criteria.
+    id: "success-criteria",
+    label: "Success Criteria",
+    icon: "🎯",
+    category: "response",
+    description: "v2 Success Criteria — 5-slot research planning: observable signal, measurement, setup, failure mode, iteration trigger.",
+    defaultPhase: "workTime",
+    create: () => ({
+      activityId: nanoid(8),
+      prompt: "Decide how you'll test this and what success looks like — BEFORE you build.",
+      responseType: "success-criteria" as ResponseType,
+      durationMinutes: 10,
+    }),
+  },
   // ── Content ──
   {
     id: "teacher-notes",

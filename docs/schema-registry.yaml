@@ -9614,6 +9614,186 @@ tables:
     - /api/student/timeline (GET)
   applied_via:
     - 20260506010518_student_unit_timeline_v1.sql
+- name: student_unit_project_specs
+  source_migration: 20260511083114_student_unit_project_specs.sql
+  status: pending_apply
+  applied_date: null
+  purpose: |
+    Per-student-per-unit Project Spec state for the new lesson-page
+    activity (responseType "project-spec"). One row per
+    (student_id, unit_id). Student picks an archetype (Toy /
+    Architecture in v1) then answers 7 slot questions; each slot lives
+    in its own JSONB column with shape { value, skipped, updated_at }.
+    completed_at set when student clicks "Continue to Timeline"
+    (skipped slots allowed). archetype_id is a stable kebab-case
+    string referencing src/lib/project-spec/archetypes.ts — no
+    project_archetypes table in v1 (archetype copy lives in TS source).
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    unit_id: UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE
+    class_id: UUID REFERENCES classes(id)
+    archetype_id: TEXT
+    slot_1: JSONB
+    slot_2: JSONB
+    slot_3: JSONB
+    slot_4: JSONB
+    slot_5: JSONB
+    slot_6: JSONB
+    slot_7: JSONB
+    completed_at: TIMESTAMPTZ
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  unique_constraints:
+    - "(student_id, unit_id)"
+  rls_enabled: true
+  rls_policies:
+    - name: student_unit_project_specs_teacher_read
+      action: SELECT
+      target: teacher
+      check: |
+        Teacher owns a class with this unit assigned (via class_units
+        join, is_active = true). Platform admins also pass.
+        Students access via service-role API (Lesson #4 — token
+        sessions, not auth.uid()) so no student policy needed.
+  writers:
+    - /api/student/project-spec (POST partial-patch upsert)
+  readers:
+    - /api/student/project-spec (GET)
+  applied_via:
+    - 20260511083114_student_unit_project_specs.sql
+  spec_drift:
+    - date: '2026-05-11'
+      note: |
+        AG.2 kanban + AG.3 timeline registry entries claim
+        `students_manage_own` ALL policy that doesn't exist in the
+        actual migration (only the teacher_read policy is in code).
+        This entry documents ACTUAL state. Pattern bug worth
+        cleaning up across kanban + timeline registry entries.
+- name: student_unit_product_briefs
+  source_migration: 20260511142232_student_unit_product_briefs.sql
+  status: applied
+  applied_date: '2026-05-11'
+  purpose: |
+    Project Spec v2 Phase A — Product Brief lesson-page activity.
+    Archetype-driven (Toy / Architecture mirror v1 ARCHETYPES IDs).
+    9 slots: name + pitch + mechanism + primary material + secondary
+    material + scale + constraints (multi-chip ≤3) + precedents +
+    technical risks. Per-student-per-unit.
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    unit_id: UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE
+    class_id: UUID REFERENCES classes(id)
+    archetype_id: TEXT
+    slot_1: JSONB
+    slot_2: JSONB
+    slot_3: JSONB
+    slot_4: JSONB
+    slot_5: JSONB
+    slot_6: JSONB
+    slot_7: JSONB
+    slot_8: JSONB
+    slot_9: JSONB
+    completed_at: TIMESTAMPTZ
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  unique_constraints:
+    - "(student_id, unit_id)"
+  rls_enabled: true
+  rls_policies:
+    - name: student_unit_product_briefs_teacher_read
+      action: SELECT
+      target: teacher
+      check: |
+        Teacher owns a class with this unit assigned (via class_units
+        join, is_active = true). Platform admins also pass. Students
+        access via service-role API (Lesson #4 — token sessions, not
+        auth.uid()) so no student policy needed.
+  writers:
+    - /api/student/product-brief (POST partial-patch upsert)
+  readers:
+    - /api/student/product-brief (GET)
+  applied_via:
+    - 20260511142232_student_unit_product_briefs.sql
+- name: student_unit_user_profiles
+  source_migration: 20260511142234_student_unit_user_profiles.sql
+  status: applied
+  applied_date: '2026-05-11'
+  purpose: |
+    Project Spec v2 Phase A — User Profile lesson-page activity.
+    Universal across archetypes. 8 slots: name + age band + context +
+    problem + alternatives + unique value + optional photo +
+    optional quote. Pedagogical anchor for empathy work. Slot 7
+    carries an /api/storage/user-profile-photos/<path> proxy URL.
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    unit_id: UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE
+    class_id: UUID REFERENCES classes(id)
+    slot_1: JSONB
+    slot_2: JSONB
+    slot_3: JSONB
+    slot_4: JSONB
+    slot_5: JSONB
+    slot_6: JSONB
+    slot_7: JSONB
+    slot_8: JSONB
+    completed_at: TIMESTAMPTZ
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  unique_constraints:
+    - "(student_id, unit_id)"
+  rls_enabled: true
+  rls_policies:
+    - name: student_unit_user_profiles_teacher_read
+      action: SELECT
+      target: teacher
+      check: Teacher via class_units join (mirrors v1 pattern).
+  writers:
+    - /api/student/user-profile (POST partial-patch upsert)
+    - /api/student/user-profile/upload-photo (POST FormData, writes to user-profile-photos bucket)
+  readers:
+    - /api/student/user-profile (GET)
+  applied_via:
+    - 20260511142234_student_unit_user_profiles.sql
+- name: student_unit_success_criteria
+  source_migration: 20260511142235_student_unit_success_criteria.sql
+  status: applied
+  applied_date: '2026-05-11'
+  purpose: |
+    Project Spec v2 Phase A — Success Criteria lesson-page activity.
+    Universal across archetypes. 5 slots: observable signal +
+    measurement protocol + test setup (4 fields) + failure mode +
+    iteration trigger. Pedagogical: students plan logistics + decide
+    failure modes BEFORE building.
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    unit_id: UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE
+    class_id: UUID REFERENCES classes(id)
+    slot_1: JSONB
+    slot_2: JSONB
+    slot_3: JSONB
+    slot_4: JSONB
+    slot_5: JSONB
+    completed_at: TIMESTAMPTZ
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  unique_constraints:
+    - "(student_id, unit_id)"
+  rls_enabled: true
+  rls_policies:
+    - name: student_unit_success_criteria_teacher_read
+      action: SELECT
+      target: teacher
+      check: Teacher via class_units join (mirrors v1 pattern).
+  writers:
+    - /api/student/success-criteria (POST partial-patch upsert)
+  readers:
+    - /api/student/success-criteria (GET)
+  applied_via:
+    - 20260511142235_student_unit_success_criteria.sql
 - name: students
   source_migration: 001_initial_schema.sql
   status: applied

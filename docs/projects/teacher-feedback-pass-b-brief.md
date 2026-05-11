@@ -1,9 +1,31 @@
 # TFL.2 Pass B — Schema + wiring brief
 
-**Status:** B.1 in flight (10 May 2026)
+**Status:** ALL SUB-PHASES SHIPPED (11 May 2026)
 **Builds on:** [TFL.1 Read Receipts](feedback-loop-closure-phase-1-brief.md), TFL.2 Pass A (PRs #158, #160, #161)
 **Owner:** Matt
 **Methodology:** [build-methodology.md](../build-methodology.md)
+
+## Shipped sub-phases
+
+| Phase | Merge PR | Commit | Migration applied |
+|---|---|---|---|
+| B.1 — Schema (`tile_feedback_turns` + backfill + sync trigger) | #163 | `bcdc4e8` | `20260510101533` (10 May 2026) |
+| B.2 — Read API + lesson-page wiring | #165 | `6781d5c` | n/a |
+| B.2 polish (spacing) | #166 | `19d1d4f` | n/a |
+| B.2 polish (stroke clip) | #168 | `f5a1699` | n/a |
+| B.3 — Reply endpoint + onReply + repliesEnabled=true | #170 | `bdf2146` | n/a |
+| B.4 — Marking page surfaces replies + composer flip + trigger update | #183 | `4aefe5d` | `20260511094231` (11 May 2026) |
+| B.4 polish (row overflow) | #185 | `c6a5015` | n/a |
+| B.5 — Bell regression test + follow-ups filed + brief closeout | (this PR) | — | n/a |
+
+The dialogic loop is end-to-end functional in prod. Teacher → student → teacher follow-up → student response chain is visible across both surfaces, persisted in `tile_feedback_turns`, with TFL.1 read receipts firing correctly and the chip's read-state ladder reflecting the latest comment edit. Sandbox at `/admin/teacher-feedback-sandbox` retained as the visual smoke surface.
+
+## Open follow-ups
+
+See [`grading-followups.md`](grading-followups.md):
+
+- **TFL2-FU-AUDIT-LOG-STUDENT-REPLIES** (P3) — student replies persist but produce no audit row. The existing `student_tile_grade_events` table requires a non-null `teacher_id` and has a fixed source enum. Either drop NOT NULL + extend enum, or create a parallel table. Deferred until compliance / dispute use case exercises it.
+- **TFL2-FU-PER-TURN-READ-RECEIPTS** (P3) — latest-seen-only is sufficient for the chip dot ladder in v1. Per-turn tracking via a new association table can land if multi-turn ambiguity surfaces in real classroom use.
 
 ## Goal
 

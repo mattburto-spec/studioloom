@@ -15,6 +15,10 @@ import { ToolkitResponseInput } from "./ToolkitResponseInput";
 import StructuredPromptsResponse from "./StructuredPromptsResponse";
 import { MultiQuestionResponse } from "@/components/lesson";
 import type { StructuredPromptsConfig } from "@/lib/structured-prompts/types";
+import ProjectSpecResponse from "./project-spec/ProjectSpecResponse";
+import ProductBriefResponse from "./product-brief/ProductBriefResponse";
+import UserProfileResponse from "./user-profile/UserProfileResponse";
+import SuccessCriteriaResponse from "./success-criteria/SuccessCriteriaResponse";
 
 interface ResponseInputProps {
   sectionIndex: number;
@@ -195,6 +199,59 @@ export function ResponseInput({
         <ToolkitResponseInput
           toolId={toolId}
           challenge={toolChallenge}
+          onChange={onChange}
+        />
+      )}
+
+      {/* Project Spec v1 — lesson-page activity that walks students
+          through an archetype picker (Toy/Architecture) + 7 questions.
+          Canonical state lives in student_unit_project_specs (own table,
+          own API). We thread onChange so the component can push a
+          readable summary into student_progress.responses — that's what
+          makes the spec discoverable on the marking page (tile detection
+          keys off non-empty response strings). value is ignored: the
+          component re-loads canonical state from its own API on mount. */}
+      {responseType === "project-spec" && unitId && (
+        <ProjectSpecResponse
+          unitId={unitId}
+          sectionIndex={sectionIndex}
+          onChange={onChange}
+        />
+      )}
+
+      {/* Project Spec v2 — Product Brief block (archetype-driven, 9 slots
+          covering name, pitch, mechanism, primary+secondary material,
+          scale, constraints, precedents, technical risks). Storage in
+          student_unit_product_briefs. */}
+      {responseType === "product-brief" && unitId && (
+        <ProductBriefResponse
+          unitId={unitId}
+          sectionIndex={sectionIndex}
+          onChange={onChange}
+        />
+      )}
+
+      {/* Project Spec v2 — User Profile block (universal, 8 slots
+          covering name, age band, context, problem, alternatives, unique
+          value, optional photo, optional quote). Storage in
+          student_unit_user_profiles. Slot 7 photos in the dedicated
+          user-profile-photos bucket. */}
+      {responseType === "user-profile" && unitId && (
+        <UserProfileResponse
+          unitId={unitId}
+          sectionIndex={sectionIndex}
+          onChange={onChange}
+        />
+      )}
+
+      {/* Project Spec v2 — Success Criteria block (universal, 5 slots
+          covering observable signal, measurement protocol, test setup,
+          failure mode, iteration trigger). Storage in
+          student_unit_success_criteria. */}
+      {responseType === "success-criteria" && unitId && (
+        <SuccessCriteriaResponse
+          unitId={unitId}
+          sectionIndex={sectionIndex}
           onChange={onChange}
         />
       )}

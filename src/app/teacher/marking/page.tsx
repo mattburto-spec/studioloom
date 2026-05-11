@@ -392,6 +392,25 @@ interface StudentRow {
   avatar_url: string | null;
 }
 
+/** TFL.2 B.4 — latest student reply summary per grade row. The marking
+ *  page uses these to (a) surface the sentiment pill on the row chip
+ *  ("Reply: Got it / Not sure / I disagree") and (b) render the reply
+ *  text inline in the override panel above the composer. */
+interface StudentReplySummary {
+  id: string;
+  sentiment: "got_it" | "not_sure" | "pushback";
+  reply_text: string | null;
+  sent_at: string;
+}
+
+/** TFL.2 B.4 — latest turn role per grade row, regardless of role.
+ *  Drives the composer label ("Send follow-up" when latest turn is
+ *  student, "Edit feedback" when latest is teacher or no turns
+ *  yet). The trigger updated in migration 20260511094231 INSERTs a
+ *  new teacher turn when the latest is student, so this state
+ *  refreshes itself after a teacher save. */
+type LatestTurnRole = "teacher" | "student" | null;
+
 interface TileGradeRow {
   id: string;
   student_id: string;
@@ -446,6 +465,15 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
   const [releasingStudentId, setReleasingStudentId] = useState<string | null>(null);
   const [synthCommentDraft, setSynthCommentDraft] = useState<Record<string, string>>({});
   const [releasedAtByStudent, setReleasedAtByStudent] = useState<Record<string, string>>({});
+  // TFL.2 B.4 — latest student reply per grade row + latest turn role
+  // per grade row. Both populated from a single tile_feedback_turns
+  // query in loadAll. The chip + override panel read these to surface
+  // student reply sentiment + flip the composer label.
+  const [latestStudentReplyByGradeId, setLatestStudentReplyByGradeId] =
+    useState<Record<string, StudentReplySummary>>({});
+  const [latestTurnRoleByGradeId, setLatestTurnRoleByGradeId] = useState<
+    Record<string, LatestTurnRole>
+  >({});
 
   // Compose a stable key for the grade map.
   const gradeKey = (studentId: string, tileId: string, pageId: string) =>
@@ -618,6 +646,59 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
       setGrades(map);
       setOverrideNoteDraft(noteDraftMap);
       setStudentCommentDraft(commentDraftMap);
+
+      // TFL.2 B.4 — load the feedback turns for the loaded grade rows.
+      // Two derived maps from one query (ordered by sent_at DESC):
+      //   - latestStudentReplyByGradeId: first STUDENT row per grade
+      //     drives the row chip's sentiment pill + the override panel's
+      //     inline reply rendering.
+      //   - latestTurnRoleByGradeId: first row per grade (any role)
+      //     drives the composer label ("Send follow-up" when latest
+      //     is student; "Edit feedback" otherwise).
+      // Both batched — one query for the whole class+unit cohort.
+      const gradeIdsForTurns = Object.values(map).map((g) => g.id);
+      if (gradeIdsForTurns.length > 0) {
+        const { data: turnRows } = await supabase
+          .from("tile_feedback_turns")
+          .select("id, grade_id, role, sentiment, reply_text, sent_at")
+          .in("grade_id", gradeIdsForTurns)
+          .order("sent_at", { ascending: false });
+
+        type TurnRow = {
+          id: string;
+          grade_id: string;
+          role: "teacher" | "student";
+          sentiment: "got_it" | "not_sure" | "pushback" | null;
+          reply_text: string | null;
+          sent_at: string;
+        };
+        const studentReplyMap: Record<string, StudentReplySummary> = {};
+        const latestRoleMap: Record<string, LatestTurnRole> = {};
+        for (const t of (turnRows ?? []) as TurnRow[]) {
+          // First row per grade in DESC order = latest turn.
+          if (!latestRoleMap[t.grade_id]) {
+            latestRoleMap[t.grade_id] = t.role;
+          }
+          // First STUDENT row per grade in DESC order = latest reply.
+          if (
+            t.role === "student" &&
+            t.sentiment &&
+            !studentReplyMap[t.grade_id]
+          ) {
+            studentReplyMap[t.grade_id] = {
+              id: t.id,
+              sentiment: t.sentiment,
+              reply_text: t.reply_text,
+              sent_at: t.sent_at,
+            };
+          }
+        }
+        setLatestStudentReplyByGradeId(studentReplyMap);
+        setLatestTurnRoleByGradeId(latestRoleMap);
+      } else {
+        setLatestStudentReplyByGradeId({});
+        setLatestTurnRoleByGradeId({});
+      }
 
       // Student responses across ALL pages (drives both the override panel's
       // "see the actual work" view AND the page-selector chip's per-lesson
@@ -852,6 +933,51 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
           ...prev,
           [key]: newRow.student_facing_comment ?? "",
         }));
+        // TFL.2 B.4: when student_facing_comment changes, the trigger
+        // either INSERTs (latest was student) or UPDATEs (latest was
+        // teacher) a turn. Either way the latestTurnRoleByGradeId map
+        // needs to refresh — after a follow-up send the latest is now
+        // teacher, so the composer flips back from "Send follow-up"
+        // to "Edit feedback". Refetch the per-grade row's turns and
+        // patch both maps.
+        if (newRow.id) {
+          const supabase = createClient();
+          const { data: turnRows } = await supabase
+            .from("tile_feedback_turns")
+            .select("id, role, sentiment, reply_text, sent_at")
+            .eq("grade_id", newRow.id)
+            .order("sent_at", { ascending: false });
+          type TurnRow = {
+            id: string;
+            role: "teacher" | "student";
+            sentiment: "got_it" | "not_sure" | "pushback" | null;
+            reply_text: string | null;
+            sent_at: string;
+          };
+          const rows = (turnRows ?? []) as TurnRow[];
+          const latestTurn = rows[0];
+          const latestStudent = rows.find(
+            (r) => r.role === "student" && r.sentiment,
+          );
+          setLatestTurnRoleByGradeId((prev) => ({
+            ...prev,
+            [newRow.id]: latestTurn?.role ?? null,
+          }));
+          setLatestStudentReplyByGradeId((prev) => {
+            const next = { ...prev };
+            if (latestStudent && latestStudent.sentiment) {
+              next[newRow.id] = {
+                id: latestStudent.id,
+                sentiment: latestStudent.sentiment,
+                reply_text: latestStudent.reply_text,
+                sent_at: latestStudent.sent_at,
+              };
+            } else {
+              delete next[newRow.id];
+            }
+            return next;
+          });
+        }
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : "Save failed");
@@ -1125,6 +1251,8 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
           unitType={klass?.subject ?? undefined}
           studentCommentDraft={studentCommentDraft}
           setStudentCommentDraft={setStudentCommentDraft}
+          latestStudentReplyByGradeId={latestStudentReplyByGradeId}
+          latestTurnRoleByGradeId={latestTurnRoleByGradeId}
         />
       )}
     </div>
@@ -1173,6 +1301,14 @@ interface CalibrateInnerProps {
   unitContentData: UnitContentData | null;
   framework: string | undefined;
   unitType: string | undefined;
+  /** TFL.2 B.4 — latest student reply per grade row. Used to render
+   *  the sentiment pill on the row chip + the inline reply text in
+   *  the override panel. */
+  latestStudentReplyByGradeId: Record<string, StudentReplySummary>;
+  /** TFL.2 B.4 — latest turn role per grade row. Used to flip the
+   *  composer label between "Edit feedback" (teacher latest) and
+   *  "Send follow-up" (student latest). */
+  latestTurnRoleByGradeId: Record<string, LatestTurnRole>;
 }
 
 function CalibrateInner({
@@ -1204,6 +1340,8 @@ function CalibrateInner({
   unitType,
   studentCommentDraft,
   setStudentCommentDraft,
+  latestStudentReplyByGradeId,
+  latestTurnRoleByGradeId,
 }: CalibrateInnerProps) {
   // G2.2 — criterion coverage heatmap (unit-level, across all pages).
   const coverage = useMemo(
@@ -1456,8 +1594,15 @@ function CalibrateInner({
                   isExpanded ? "border-purple-300 shadow-md" : "border-gray-200",
                 ].join(" ")}
               >
-                {/* ── Compact row ── */}
-                <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto] items-center gap-3 px-4 py-3">
+                {/* ── Compact row ──
+                    8 grid columns (was 7 pre-B.4): avatar / name+quote /
+                    score-selector / score-pill / confirm / sent-chip /
+                    sentiment-pill (TFL.2 B.4 — student-reply pill,
+                    renders empty-width when no reply) / chevron.
+                    Without the 8th column the pill became an "extra"
+                    item and pushed the chevron to a new grid row —
+                    Matt smoke caught it (11 May 2026). */}
+                <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto_auto] items-center gap-3 px-4 py-3">
                   <div className="flex items-center gap-3">
                     {s.avatar_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -1649,6 +1794,80 @@ function CalibrateInner({
                     );
                   })()}
 
+                  {/* TFL.2 B.4 — sentiment pill. Renders when the
+                      student has replied to the latest teacher turn.
+                      Pulls from latestStudentReplyByGradeId[grade.id].
+                      Three colour tones match the bubble's quick-reply
+                      pills on the student side: emerald/amber/purple
+                      for got_it/not_sure/pushback.
+                      Always renders a node (empty <span /> when no
+                      pill) so the grid's 8-column layout keeps the
+                      chevron in its own column. Returning null here
+                      would short the grid by one child and push the
+                      chevron onto a new row — Matt smoke caught it. */}
+                  {(() => {
+                    const reply = grade
+                      ? latestStudentReplyByGradeId[grade.id]
+                      : undefined;
+                    if (!reply) return <span aria-hidden="true" />;
+                    // Only show the pill if the reply is AFTER the
+                    // latest teacher turn (i.e. the conversation is
+                    // currently in student's-court). If the teacher
+                    // already wrote a follow-up after the reply, the
+                    // pill should hide so it doesn't read as "still
+                    // unanswered". The latestTurnRoleByGradeId map
+                    // makes this single-lookup-fast.
+                    const latestRole = latestTurnRoleByGradeId[grade!.id];
+                    if (latestRole !== "student")
+                      return <span aria-hidden="true" />;
+                    const tone =
+                      reply.sentiment === "got_it"
+                        ? "bg-emerald-50 border-emerald-300 text-emerald-800"
+                        : reply.sentiment === "not_sure"
+                          ? "bg-amber-50 border-amber-300 text-amber-800"
+                          : "bg-purple-50 border-purple-300 text-purple-800";
+                    const label =
+                      reply.sentiment === "got_it"
+                        ? "Got it"
+                        : reply.sentiment === "not_sure"
+                          ? "Not sure"
+                          : "I disagree";
+                    // Reply icon ⇠ visually marks "they pushed back to
+                    // you". Tighter than "Reply: I disagree" — the
+                    // colour + label already carry the sentiment.
+                    return (
+                      <span
+                        data-testid="row-chip-sentiment-pill"
+                        data-sentiment={reply.sentiment}
+                        title={
+                          reply.reply_text
+                            ? `Student replied "${label}": ${reply.reply_text}`
+                            : `Student replied "${label}".`
+                        }
+                        className={[
+                          "inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold flex-shrink-0",
+                          tone,
+                        ].join(" ")}
+                      >
+                        <svg
+                          width="9"
+                          height="9"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <polyline points="9 17 4 12 9 7" />
+                          <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+                        </svg>
+                        <span>{label}</span>
+                      </span>
+                    );
+                  })()}
+
                   {/* Expand chevron */}
                   <button
                     type="button"
@@ -1787,16 +2006,87 @@ function CalibrateInner({
                         )}
                       </div>
 
+                      {/* TFL.2 B.4 — student's reply rendered inline ABOVE the
+                          composer when latest turn is student. Pulls from
+                          latestStudentReplyByGradeId. Shows the sentiment
+                          chip + the reply text (if any). Lavender-toned to
+                          mirror the student-side bubble's identity. */}
+                      {(() => {
+                        const reply = grade
+                          ? latestStudentReplyByGradeId[grade.id]
+                          : undefined;
+                        const latestRole = grade
+                          ? latestTurnRoleByGradeId[grade.id]
+                          : null;
+                        if (!reply || latestRole !== "student") return null;
+                        const sentimentLabel =
+                          reply.sentiment === "got_it"
+                            ? "Got it"
+                            : reply.sentiment === "not_sure"
+                              ? "Not sure"
+                              : "I disagree";
+                        const chipTone =
+                          reply.sentiment === "got_it"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : reply.sentiment === "not_sure"
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-purple-100 text-purple-800";
+                        return (
+                          <div
+                            data-testid="override-panel-student-reply"
+                            className="rounded-xl border border-purple-300 bg-purple-50/60 px-3 py-2.5"
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center text-[10px] font-bold">
+                                {displayName.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase() || "S"}
+                              </div>
+                              <span className="text-xs font-bold text-purple-950">
+                                {displayName.split(" ")[0] || "student"} replied
+                              </span>
+                              <span
+                                className={[
+                                  "inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold",
+                                  chipTone,
+                                ].join(" ")}
+                              >
+                                {sentimentLabel}
+                              </span>
+                            </div>
+                            {reply.reply_text ? (
+                              <p className="text-sm text-purple-950 leading-relaxed whitespace-pre-wrap">
+                                {reply.reply_text}
+                              </p>
+                            ) : (
+                              <p className="text-[11px] italic text-purple-700/70">
+                                (no message — single-click reply)
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
+
                       {/* G3 polish — Feedback block sits FIRST, directly under
                           the response, full-width. Matt's "make the grading
                           card as wide as the student text box and move it
-                          closer." */}
+                          closer."
+                          TFL.2 B.4: when latest turn is a student reply, the
+                          composer flips to "follow-up" mode — label, placeholder,
+                          and send-button copy all reflect that the next save
+                          creates a NEW teacher turn (via the migration
+                          20260511094231 trigger logic) rather than editing the
+                          old comment. */}
+                      {(() => {
+                        const isFollowUpMode =
+                          grade?.id != null &&
+                          latestTurnRoleByGradeId[grade.id] === "student";
+                        return (
                       <div>
                         <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase text-emerald-700 mb-2">
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                             </svg>
-                            Feedback to {displayName.split(" ")[0] || "student"}
+                            {isFollowUpMode ? "Follow-up to " : "Feedback to "}
+                            {displayName.split(" ")[0] || "student"}
                             {(() => {
                               // G3.1 — show "AI drafted" badge when:
                               //   the textarea content equals the AI draft AND nothing has been
@@ -1823,14 +2113,30 @@ function CalibrateInner({
                             })()}
                           </div>
                           <textarea
-                            value={studentComment}
+                            // TFL.2 B.4: in follow-up mode AND when the draft
+                            // still matches the persisted comment (teacher
+                            // hasn't started typing), render empty so the
+                            // textarea reads as a NEW message, not an edit
+                            // of the old one. Once teacher starts typing,
+                            // the draft diverges and we render whatever
+                            // they typed.
+                            value={
+                              grade?.id != null &&
+                              latestTurnRoleByGradeId[grade.id] === "student" &&
+                              studentComment === persistedStudentComment
+                                ? ""
+                                : studentComment
+                            }
                             onChange={(e) =>
                               setStudentCommentDraft((prev) => ({ ...prev, [key]: e.target.value }))
                             }
                             placeholder={
-                              grade?.ai_comment_draft
-                                ? "Edit the AI draft, or replace it entirely."
-                                : "What landed well, what to work on. Specific is better than encouraging."
+                              grade?.id != null &&
+                              latestTurnRoleByGradeId[grade.id] === "student"
+                                ? `Write a follow-up to ${displayName.split(" ")[0] || "student"}'s reply.`
+                                : grade?.ai_comment_draft
+                                  ? "Edit the AI draft, or replace it entirely."
+                                  : "What landed well, what to work on. Specific is better than encouraging."
                             }
                             rows={4}
                             className="w-full px-3 py-2 text-sm border border-emerald-200 bg-emerald-50/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
@@ -1856,25 +2162,70 @@ function CalibrateInner({
                               )}
                               <button
                                 type="button"
-                                onClick={() =>
+                                onClick={() => {
+                                  // In follow-up mode the textarea
+                                  // showed empty but the underlying draft
+                                  // still held the prior comment text.
+                                  // Build the payload from the visible
+                                  // value (the controlled-input above
+                                  // overrode `value` to empty in
+                                  // follow-up mode), so a stray Send
+                                  // doesn't accidentally re-submit the
+                                  // old comment as the new turn.
+                                  const visibleValue =
+                                    isFollowUpMode &&
+                                    studentComment === persistedStudentComment
+                                      ? ""
+                                      : studentComment;
                                   void saveTile(s.id, score, confirmed, {
                                     student_facing_comment:
-                                      studentComment.trim() === "" ? null : studentComment,
-                                  })
-                                }
-                                disabled={isSaving || !studentCommentDirty}
+                                      visibleValue.trim() === "" ? null : visibleValue,
+                                  });
+                                }}
+                                // Disable when nothing to send. In follow-up
+                                // mode we ALSO require typed content
+                                // (visibleValue non-empty) since the draft
+                                // could still equal the prior comment
+                                // without dirty=true firing.
+                                disabled={(() => {
+                                  if (isSaving) return true;
+                                  const visibleValue =
+                                    isFollowUpMode &&
+                                    studentComment === persistedStudentComment
+                                      ? ""
+                                      : studentComment;
+                                  if (isFollowUpMode) return visibleValue.trim().length === 0;
+                                  return !studentCommentDirty;
+                                })()}
                                 className={[
                                   "px-3 py-1.5 text-xs font-bold rounded-lg transition",
-                                  studentCommentDirty
-                                    ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                                    : "bg-gray-100 text-gray-400 cursor-not-allowed",
+                                  (() => {
+                                    if (isSaving) return "bg-gray-100 text-gray-400 cursor-not-allowed";
+                                    const visibleValue =
+                                      isFollowUpMode &&
+                                      studentComment === persistedStudentComment
+                                        ? ""
+                                        : studentComment;
+                                    const hasContent = isFollowUpMode
+                                      ? visibleValue.trim().length > 0
+                                      : studentCommentDirty;
+                                    return hasContent
+                                      ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                                      : "bg-gray-100 text-gray-400 cursor-not-allowed";
+                                  })(),
                                 ].join(" ")}
                               >
-                                {isSaving ? "Saving…" : "Send to student"}
+                                {isSaving
+                                  ? "Saving…"
+                                  : isFollowUpMode
+                                    ? "Send follow-up"
+                                    : "Send to student"}
                               </button>
                             </div>
                           </div>
                         </div>
+                        );
+                      })()}
 
                       {/* AI suggestion (purple) — reference info, full width below feedback */}
                       {grade?.ai_pre_score !== null && grade?.ai_pre_score !== undefined && (

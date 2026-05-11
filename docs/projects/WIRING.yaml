@@ -392,6 +392,108 @@ systems:
       Attention-Rotation Panel and any future "1:1 today" rotation
       surface; changes ripple into Cowork-pedagogy alignment.
 
+  - id: project-spec-block
+    name: Project Spec Block family (v1 + v2 split)
+    category: Student Experience
+    status: in_progress
+    currentVersion: 2
+    summary: |
+      Lesson-page activity family for capturing structured project
+      intake. Two generations coexist:
+
+      v1 — unified "project-spec" block, shipped 11 May 2026.
+      Archetype chip picker (Toy / Architecture) → 7-slot walker →
+      Project Card. State in student_unit_project_specs.
+
+      v2 — split into three focused blocks (Product Brief / User
+      Profile / Success Criteria), shipped 11-12 May 2026 per
+      docs/projects/project-spec-v2-split-brief.md. Each block has
+      its own table + API + slot definitions but shares the
+      walker / picker / dispatcher / format helpers extracted into
+      src/components/student/project-spec/shared/ + src/lib/project-spec/
+      format.ts during the Phase B refactor. Product Brief is
+      archetype-driven (9 slots); User Profile (8 slots, includes
+      optional photo via user-profile-photos bucket) and Success
+      Criteria (5 slots) are universal. Marking visibility for all
+      four blocks via the useSpecBridge hook (ref-captured onChange
+      pushing a summary into student_progress.responses).
+    depends_on: [lesson-editor]
+    affects: [student-experience]
+    docs:
+      - path: docs/projects/project-spec-followups.md
+        purpose: v1 follow-ups (mentor sharpen, kanban/timeline seed, archetypes 3-6, etc.)
+      - path: docs/projects/project-spec-v2-split-brief.md
+        purpose: v2 split design + 6-phase build plan
+      - path: docs/projects/project-spec-v2-followups.md
+        purpose: v2 deferred items (aggregated view, AI mentor per block, photo moderation, etc.)
+    data_fields:
+      - table: student_unit_project_specs
+        columns: [student_id, unit_id, class_id, archetype_id, slot_1, slot_2, slot_3, slot_4, slot_5, slot_6, slot_7, completed_at]
+        notes: |
+          v1 — One row per (student, unit). Slot JSONB shape
+          { value: SlotValue, skipped: boolean, updated_at: ISO }.
+          archetype_id stable kebab-case string. Frozen post-v2;
+          retired via FU-PSV2-V1-DEPRECATION (P3).
+      - table: student_unit_product_briefs
+        columns: [student_id, unit_id, class_id, archetype_id, slot_1, slot_2, slot_3, slot_4, slot_5, slot_6, slot_7, slot_8, slot_9, completed_at]
+        notes: v2 Product Brief, 9 slots, archetype-driven.
+      - table: student_unit_user_profiles
+        columns: [student_id, unit_id, class_id, slot_1, slot_2, slot_3, slot_4, slot_5, slot_6, slot_7, slot_8, completed_at]
+        notes: |
+          v2 User Profile, 8 slots, universal. slot_7 carries an image
+          URL pointing at the user-profile-photos bucket (private,
+          service-role RLS).
+      - table: student_unit_success_criteria
+        columns: [student_id, unit_id, class_id, slot_1, slot_2, slot_3, slot_4, slot_5, completed_at]
+        notes: v2 Success Criteria, 5 slots, universal.
+    key_files:
+      - src/lib/project-spec/archetypes.ts (shared types + v1 ARCHETYPES registry + MATERIALS_CHIPS)
+      - src/lib/project-spec/format.ts (shared helpers — isValueNonEmpty / computeLengthHint / formatAnswer / buildSummary)
+      - src/lib/project-spec/product-brief.ts (v2 PRODUCT_BRIEF_ARCHETYPES + CONSTRAINT_CHIPS)
+      - src/lib/project-spec/user-profile.ts (v2 USER_PROFILE_SLOTS + AGE_BAND_CHIPS)
+      - src/lib/project-spec/success-criteria.ts (v2 SUCCESS_CRITERIA_SLOTS + MEASUREMENT_PROTOCOL_CHIPS)
+      - src/components/student/project-spec/ProjectSpecResponse.tsx (v1)
+      - src/components/student/product-brief/ProductBriefResponse.tsx (v2)
+      - src/components/student/user-profile/UserProfileResponse.tsx (v2)
+      - src/components/student/success-criteria/SuccessCriteriaResponse.tsx (v2)
+      - src/components/student/project-spec/shared/SlotInput.tsx (5+2 input kinds incl. multi-chip-picker + image-upload)
+      - src/components/student/project-spec/shared/SlotWalker.tsx (parameterised walker shell)
+      - src/components/student/project-spec/shared/ArchetypePicker.tsx
+      - src/components/student/project-spec/shared/useSpecBridge.ts (ref-captured onChange — PR #184 pattern)
+      - src/components/student/ResponseInput.tsx (4 dispatch branches: project-spec / product-brief / user-profile / success-criteria)
+      - src/components/teacher/lesson-editor/ActivityBlock.tsx (4× RESPONSE_TYPE_LABELS / ICON / TINT entries)
+      - src/components/teacher/lesson-editor/BlockPalette.tsx (4 palette entries)
+      - src/app/api/student/project-spec/route.ts (v1 GET + POST)
+      - src/app/api/student/product-brief/route.ts (v2 GET + POST)
+      - src/app/api/student/user-profile/route.ts (v2 GET + POST)
+      - src/app/api/student/user-profile/upload-photo/route.ts (v2 image upload to user-profile-photos bucket)
+      - src/app/api/student/success-criteria/route.ts (v2 GET + POST)
+      - src/types/index.ts (ResponseType union — added project-spec + product-brief + user-profile + success-criteria)
+      - supabase/migrations/20260511083114_student_unit_project_specs.sql (v1)
+      - supabase/migrations/20260511142232_student_unit_product_briefs.sql (v2 Phase A)
+      - supabase/migrations/20260511142234_student_unit_user_profiles.sql (v2 Phase A)
+      - supabase/migrations/20260511142235_student_unit_success_criteria.sql (v2 Phase A)
+      - supabase/migrations/20260511221713_user_profile_photos_bucket.sql (v2 Phase D)
+    future_needs: |
+      v1 retirement (FU-PSV2-V1-DEPRECATION). AI mentor pass per block
+      (supersedes v1 FU-PSB-MENTOR-SHARPEN). Aggregated "My Project Plan"
+      student view combining all 3 v2 blocks. User Profile photo
+      moderation pipeline + Class Gallery integration. Cross-block
+      sync (auto-populate overlapping fields). Archetype-3-6 (Film /
+      App / Fashion / Event-Service) for Product Brief. Archetype
+      versioning strategy. v1 kanban/timeline auto-seed still applies
+      where v1 is in use.
+    os_seam: candidate
+    change_impacts: |
+      Four lesson-page activities depend on this family (v1 project-spec,
+      v2 product-brief, v2 user-profile, v2 success-criteria). Changes
+      to the shared SlotInputType / SlotValue / SlotAnswer types ripple
+      across all four consumers + the marking summary format. Adding
+      a new input kind requires updating SlotInput dispatcher +
+      isValueNonEmpty + formatAnswer. Archetype IDs are LOAD-BEARING
+      for both v1 ARCHETYPES and v2 PRODUCT_BRIEF_ARCHETYPES — must
+      stay synchronised when adding archetypes 3-6.
+
   - id: student-open-studio
     name: Open Studio (Self-Directed Mode)
     category: Student Experience

@@ -223,9 +223,14 @@ export default function TeacherUnitsPage() {
 
       // Load class assignments separately (non-critical — page works without it)
       try {
+        // Filter on is_active=true so soft-removed assignments don't
+        // surface on the unit cards as "1 class" or "Customized" tags.
+        // Same root cause as PR #189 (toggle list) and the versions
+        // route fix in this PR.
         const { data: classUnitData, error: cuError } = await supabase
           .from("class_units")
-          .select("unit_id, class_id, forked_at, classes(name)");
+          .select("unit_id, class_id, forked_at, classes(name)")
+          .eq("is_active", true);
 
         if (cuError) {
           console.error("[loadUnits] class_units query error:", cuError);
