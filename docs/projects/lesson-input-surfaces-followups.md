@@ -185,10 +185,32 @@ The filter is also a hard block with no `?override=true` query param, no teacher
 
 ---
 
-## FU-CLASS-UNITS-IS-ACTIVE-AUDIT — Audit all class_units reads for the same is_active=true filter gap
+## ✅ FU-CLASS-UNITS-IS-ACTIVE-AUDIT — RESOLVED 11 May 2026 (PR #202)
 **Surfaced:** 10 May 2026, post unit/class sync fix
-**Target phase:** Trigger when another sync drift surfaces, or batch with broader teacher-side admin polish
-**Severity:** 🟢 LOW — symptom-driven, no known additional surfaces today
+**Resolved:** 11 May 2026 via PR #202 (squash-merged at `8d60623`)
+**Severity at resolution:** 🟢 LOW — proactive sweep after three reactive fixes (#189/#196/#199)
+
+**What shipped:** Walked every `class_units` read in `src/`. 9 read sites that lacked `.eq("is_active", true)` were fixed in one batch:
+
+- `/api/student/insights` (×2: unit_id list + nm_config list)
+- `/api/student/nm-assessment` (NM config lookup)
+- `/api/student/nm-checkpoint/[pageId]` (NM config lookup)
+- `/api/student/open-studio/check-in` (framework probe)
+- `/api/student/safety/pending` (badge requirement unit list)
+- `src/lib/design-assistant/conversation.ts` (×2: legacy + multi-class framework probes)
+- `/teacher/teach/[unitId]` (teach-mode class picker — Matt's smoke surface)
+- `/teacher/units/[unitId]/edit` (first-class redirect target)
+
+Writes / probes targeting a single explicit `(class_id, unit_id)` pair (toggle, fork, promote, nm-config update) were intentionally left alone — they need to see soft-removed rows. Decision is documented in the audit test header.
+
+**Lock-in:** `src/__tests__/class-units-is-active-audit.test.ts` source-statics each filter with regex. 10 tests pass. Future regressions trip a test, not a smoke round.
+
+**Closed via PR:** [#202](https://github.com/mattburto-spec/studioloom/pull/202).
+
+---
+
+## ARCHIVED — original FU body for reference
+**Severity at filing:** 🟢 LOW — symptom-driven, no known additional surfaces today
 
 **Origin:** Fix for the unit-page-vs-class-page assignment sync (the unit page was reading `class_units` without `is_active=true`, so soft-removed assignments surfaced as active). The fix is one line on `src/app/teacher/units/[unitId]/page.tsx`, but the codebase has ~20 other files that read `class_units`. Many should filter on `is_active=true`; some legitimately don't (e.g. the class page itself, which reads the full set to render the per-unit toggle state).
 
