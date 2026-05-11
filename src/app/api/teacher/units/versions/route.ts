@@ -51,11 +51,15 @@ async function GET(request: NextRequest) {
       }
     }
 
-    // Get fork status for all class-units (which classes have forked)
+    // Get fork status for active class-units (which classes have forked).
+    // Filter on is_active=true so soft-removed assignments don't surface
+    // as "still customizing" — pre-fix this counted every fork ever made,
+    // including from classes that have since unassigned the unit.
     const { data: classUnits } = await supabase
       .from("class_units")
       .select("class_id, forked_at, forked_from_version")
       .eq("unit_id", unitId)
+      .eq("is_active", true)
       .not("content_data", "is", null);
 
     const forks = (classUnits || []).map((cu) => ({
