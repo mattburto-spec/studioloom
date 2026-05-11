@@ -143,10 +143,10 @@ export default function TimelineBoard({ unitId, nowIso }: TimelineBoardProps) {
         )}
       </div>
 
-      {/* Race day */}
+      {/* Project end date (was "Race day" — kept that label for CO2 Racers unit; generic phrasing here). */}
       <label className="flex items-center gap-2 px-1 py-1 bg-violet-50 border border-violet-200 rounded text-[11.5px]">
         <span className="font-semibold text-violet-900 uppercase tracking-wide">
-          🏁 Race day
+          🏁 Project end
         </span>
         <input
           type="date"
@@ -167,7 +167,7 @@ export default function TimelineBoard({ unitId, nowIso }: TimelineBoardProps) {
             className="text-[11px] text-gray-400 italic text-center py-3 bg-gray-50 rounded border border-dashed border-gray-300"
             data-testid="timeline-empty"
           >
-            No milestones yet. Set race day above, then add milestones working backwards.
+            No milestones yet. Set your project end date above, then add milestones working backwards.
           </div>
         )}
         <ul className="flex flex-col gap-1.5">

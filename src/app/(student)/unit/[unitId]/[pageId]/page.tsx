@@ -523,7 +523,7 @@ function UnitPageViewInner({
       <BoardDrawer
         open={timelineOpen}
         title="Timeline & Milestones"
-        subtitle="Backward-map from race day. Variance dots flip as deadlines approach."
+        subtitle="Backward-map from your project end. Variance dots flip as deadlines approach."
         onClose={() => setTimelineOpen(false)}
         fullBoardHref={`/unit/${unitId}/board`}
       >
