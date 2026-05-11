@@ -13,7 +13,7 @@
  * + studentId from token session (Lesson #4) — no RLS path for writes.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ARCHETYPE_LIST,
   getArchetype,
@@ -95,12 +95,23 @@ export default function ProjectSpecResponse({ unitId, onChange }: Props) {
   // student_progress.responses autosave picks it up. This is what
   // makes the Project Spec activity discoverable in the marking page
   // (which keys tile detection off non-empty response strings).
+  //
+  // CRITICAL: onChange is captured through a ref, NOT a dependency,
+  // because the parent (UnitPageViewInner → ActivityCard → ResponseInput)
+  // creates a new onResponseChange closure on every render. Putting
+  // onChange in this effect's dep array caused an infinite render
+  // loop that froze the lesson page (broke every top-nav click, every
+  // interaction). Verified bug 2026-05-11 — see PR fixing #182.
+  const onChangeRef = useRef(onChange);
   useEffect(() => {
-    if (!spec || !onChange) return;
+    onChangeRef.current = onChange;
+  });
+  useEffect(() => {
+    if (!spec) return;
     const archetype = getArchetype(spec.archetype_id);
     if (!archetype) return;
-    onChange(buildSpecSummary(spec, archetype));
-  }, [spec, onChange]);
+    onChangeRef.current?.(buildSpecSummary(spec, archetype));
+  }, [spec]);
 
   // Load on mount
   useEffect(() => {
