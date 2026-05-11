@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use, useCallback, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 // Lever-MM (4 May 2026): NMConfigPanel no longer mounted from this surface
 // — configuration moved to the lesson editor's New Metrics block category.
@@ -45,7 +46,11 @@ type HubTab = "progress" | "grade" | "students" | "gallery" | "studio" | "metric
 
 const TABS: { id: HubTab; label: string; icon: string }[] = [
   { id: "progress", label: "Progress", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
-  { id: "grade", label: "Grade", icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" },
+  // Renamed from "Grade" → "Marking" (11 May 2026). Rendered as a Link below
+  // (not an internal tab) — sends the teacher to the proper /teacher/marking
+  // page with class+unit context. The activeTab === "grade" branch further
+  // down is dead code now; left for later cleanup.
+  { id: "grade", label: "Marking", icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" },
   { id: "students", label: "Students", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zm13 10v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" },
   { id: "gallery", label: "Gallery", icon: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" },
   { id: "studio", label: "Open Studio", icon: "M3 11h18M3 11v8a2 2 0 002 2h14a2 2 0 002-2v-8M7 11V7a5 5 0 0110 0v4" },
@@ -226,6 +231,7 @@ export default function ClassHubPage({
   params: Promise<{ unitId: string; classId: string }>;
 }) {
   const { unitId, classId } = use(params);
+  const router = useRouter();
 
   // Tab state (from URL or default)
   const [activeTab, setActiveTab] = useState<HubTab>(() => {
@@ -238,6 +244,16 @@ export default function ClassHubPage({
     }
     return "progress";
   });
+
+  // Legacy redirect: ?tab=grade is the old internal grading view. The
+  // canonical Marking surface now lives at /teacher/marking — send any
+  // old bookmark there with class+unit context so the page lands on
+  // the calibrate view directly.
+  useEffect(() => {
+    if (activeTab === "grade") {
+      router.replace(`/teacher/marking?class=${classId}&unit=${unitId}`);
+    }
+  }, [activeTab, classId, unitId, router]);
 
   // Shared data (loaded once)
   const [unit, setUnit] = useState<Unit | null>(null);
@@ -313,12 +329,16 @@ export default function ClassHubPage({
     async function load() {
       const supabase = createClient();
 
-      const [unitRes, classRes, studentsRes, classUnitRes, termsRes] = await Promise.all([
+      const [unitRes, classRes, studentsRes, classUnitRes, termsRes, cohortTermRes] = await Promise.all([
         supabase.from("units").select("*").eq("id", unitId).single(),
         supabase.from("classes").select("name, code, framework").eq("id", classId).single(),
         supabase.from("class_students").select("student_id, students(id, display_name, username, graduation_year)").eq("class_id", classId).eq("is_active", true),
         supabase.from("class_units").select("term_id, schedule_overrides, content_data, forked_at, forked_from_version, nm_config").eq("class_id", classId).eq("unit_id", unitId).single(),
         fetch("/api/teacher/school-calendar").then((r) => (r.ok ? r.json() : Promise.resolve({ terms: [] }))),
+        // Class "current cohort" — derived from the most-recent active enrollment
+        // that has a term_id set. Mirrors the logic in src/app/teacher/classes/page.tsx.
+        // Used below to auto-inherit the unit's term_id when it's null.
+        supabase.from("class_students").select("term_id").eq("class_id", classId).eq("is_active", true).not("term_id", "is", null).order("enrolled_at", { ascending: false }).limit(1).maybeSingle(),
       ]);
 
       setUnit(unitRes.data);
@@ -354,7 +374,22 @@ export default function ClassHubPage({
 
       // Settings data
       if (classUnitRes.data) {
-        setSelectedTermId(classUnitRes.data.term_id || null);
+        // Auto-inherit unit term_id from the class's current cohort term
+        // when unset. This closes the surprise gap where a teacher sets
+        // "Semester 2 2025-2026" on the class but the unit's Settings tab
+        // shows "— No term assigned —". Fire-and-forget the persist:
+        // self-heals on next reload if the PATCH fails.
+        let resolvedTermId: string | null = classUnitRes.data.term_id || null;
+        const cohortTermId = (cohortTermRes.data?.term_id as string | undefined) || null;
+        if (!resolvedTermId && cohortTermId) {
+          resolvedTermId = cohortTermId;
+          void fetch("/api/teacher/class-units", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ classId, unitId, term_id: cohortTermId }),
+          });
+        }
+        setSelectedTermId(resolvedTermId);
         if (classUnitRes.data.schedule_overrides) {
           setScheduleOverrides(classUnitRes.data.schedule_overrides as ScheduleOverrides);
         }
@@ -815,22 +850,41 @@ export default function ClassHubPage({
 
       {/* Tab bar */}
       <div className="flex gap-1 mb-6 border-b border-border">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => switchTab(tab.id)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab.id
-                ? "border-purple-600 text-purple-700"
-                : "border-transparent text-text-secondary hover:text-text-primary hover:border-gray-300"
-            }`}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d={tab.icon} />
-            </svg>
-            {tab.label}
-          </button>
-        ))}
+        {TABS.map((tab) => {
+          // Marking tab: navigate out to the canonical /teacher/marking page
+          // with class+unit context (skips the picker steps). Never renders
+          // as "active" here — the destination owns that state.
+          if (tab.id === "grade") {
+            return (
+              <Link
+                key={tab.id}
+                href={`/teacher/marking?class=${classId}&unit=${unitId}`}
+                className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors border-transparent text-text-secondary hover:text-text-primary hover:border-gray-300"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d={tab.icon} />
+                </svg>
+                {tab.label}
+              </Link>
+            );
+          }
+          return (
+            <button
+              key={tab.id}
+              onClick={() => switchTab(tab.id)}
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === tab.id
+                  ? "border-purple-600 text-purple-700"
+                  : "border-transparent text-text-secondary hover:text-text-primary hover:border-gray-300"
+              }`}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d={tab.icon} />
+              </svg>
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
