@@ -30,6 +30,8 @@ export function isValueNonEmpty(v: SlotValue): boolean {
       return Boolean(v.ref);
     case "pair":
       return Number.isFinite(v.first) && Number.isFinite(v.second);
+    case "multi-chip":
+      return v.selected.length > 0;
   }
 }
 
@@ -89,6 +91,15 @@ export function formatAnswer(answer: SlotAnswer, input: SlotInputType): string {
     case "pair": {
       if (input.kind !== "number-pair") return `${v.first} × ${v.second}`;
       return `${v.first} × ${v.second}${input.unit ? " " + input.unit : ""}`;
+    }
+    case "multi-chip": {
+      if (input.kind !== "multi-chip-picker") return v.selected.join(", ");
+      const labels = v.selected.map((id) => {
+        const chip = input.chips.find((c) => c.id === id);
+        if (!chip) return id;
+        return `${chip.emoji ?? ""} ${chip.label}`.trim();
+      });
+      return labels.join(", ");
     }
   }
 }

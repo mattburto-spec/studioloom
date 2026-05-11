@@ -178,6 +178,51 @@ export function SlotInput({
     );
   }
 
+  if (input.kind === "multi-chip-picker") {
+    const selected = value?.kind === "multi-chip" ? value.selected : [];
+    const cap = input.maxSelected;
+    const toggle = (id: string) => {
+      const has = selected.includes(id);
+      const next = has
+        ? selected.filter((s) => s !== id)
+        : [...selected, id];
+      if (cap && next.length > cap) return; // refuse to exceed cap
+      onChange(
+        next.length === 0
+          ? null
+          : { kind: "multi-chip", selected: next },
+      );
+    };
+    return (
+      <div className="space-y-2">
+        <div className="flex flex-wrap gap-2">
+          {input.chips.map((chip) => {
+            const isSelected = selected.includes(chip.id);
+            return (
+              <button
+                key={chip.id}
+                onClick={() => toggle(chip.id)}
+                className={`px-3 py-1.5 rounded-full text-sm border-2 transition ${
+                  isSelected
+                    ? "border-purple-600 bg-purple-600 text-white"
+                    : "border-gray-300 bg-white text-gray-700 hover:border-purple-400"
+                }`}
+              >
+                {chip.emoji ? `${chip.emoji} ` : ""}
+                {chip.label}
+              </button>
+            );
+          })}
+        </div>
+        {cap && (
+          <p className="text-xs text-gray-500">
+            Pick up to {cap}. Selected: {selected.length}
+          </p>
+        )}
+      </div>
+    );
+  }
+
   if (input.kind === "number-pair") {
     const first = value?.kind === "pair" ? value.first : NaN;
     const second = value?.kind === "pair" ? value.second : NaN;
