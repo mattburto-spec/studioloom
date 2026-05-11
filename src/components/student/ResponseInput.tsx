@@ -15,6 +15,7 @@ import { ToolkitResponseInput } from "./ToolkitResponseInput";
 import StructuredPromptsResponse from "./StructuredPromptsResponse";
 import { MultiQuestionResponse } from "@/components/lesson";
 import type { StructuredPromptsConfig } from "@/lib/structured-prompts/types";
+import ProjectSpecResponse from "./project-spec/ProjectSpecResponse";
 
 interface ResponseInputProps {
   sectionIndex: number;
@@ -197,6 +198,15 @@ export function ResponseInput({
           challenge={toolChallenge}
           onChange={onChange}
         />
+      )}
+
+      {/* Project Spec v1 — lesson-page activity that walks students
+          through an archetype picker (Toy/Architecture) + 7 questions
+          to produce a structured deliverable card. State persists in
+          student_unit_project_specs (own table, own API). value/onChange
+          intentionally not threaded — component manages its own state. */}
+      {responseType === "project-spec" && unitId && (
+        <ProjectSpecResponse unitId={unitId} sectionIndex={sectionIndex} />
       )}
 
       {/* AG.1 — structured-prompts. LIS.C dispatch: when section opts in
