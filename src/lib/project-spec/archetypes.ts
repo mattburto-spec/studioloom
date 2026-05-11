@@ -15,6 +15,31 @@
  */
 
 // ────────────────────────────────────────────────────────────────────
+// Shared chip catalogs
+// ────────────────────────────────────────────────────────────────────
+
+/**
+ * Materials catalog — shared across Toy slot 4 and Architecture slot 6.
+ * 12 options covering common DT-lab materials. IDs are LOAD-BEARING
+ * (persisted as slot_N.value.primary on student_unit_project_specs);
+ * don't rename once students have picked. Add new IDs at the end.
+ */
+export const MATERIALS_CHIPS = [
+  { id: "cardboard", label: "Cardboard", emoji: "📦" },
+  { id: "foamboard", label: "Foamboard", emoji: "⬜" },
+  { id: "balsa", label: "Balsa wood", emoji: "🪶" },
+  { id: "pine", label: "Pine timber", emoji: "🪵" },
+  { id: "ply-3mm", label: "3mm Plywood", emoji: "🟫" },
+  { id: "laser-mdf", label: "Laser-cut MDF", emoji: "🪚" },
+  { id: "laser-acrylic", label: "Laser-cut acrylic", emoji: "🟦" },
+  { id: "3d-print", label: "3D print (PLA)", emoji: "🖨️" },
+  { id: "resin", label: "Cast resin", emoji: "💧" },
+  { id: "wire-metal", label: "Wire / sheet metal", emoji: "🔩" },
+  { id: "clay", label: "Air-dry clay", emoji: "🧱" },
+  { id: "mixed", label: "Mixed media", emoji: "🧩" },
+] as const;
+
+// ────────────────────────────────────────────────────────────────────
 // Slot input types
 // ────────────────────────────────────────────────────────────────────
 
@@ -139,16 +164,10 @@ const TOY_DESIGN: ArchetypeDefinition = {
     },
     {
       title: "What will you build it from?",
-      subhead: "Pick one primary. Optional secondary.",
+      subhead: "Pick the main material. You can always combine — pick what dominates.",
       input: {
         kind: "chip-picker",
-        chips: [
-          { id: "cardboard", label: "Cardboard prototype", emoji: "📦" },
-          { id: "laser-wood", label: "Laser-cut wood", emoji: "🪵" },
-          { id: "laser-acrylic", label: "Laser-cut acrylic", emoji: "🟦" },
-          { id: "3d-print", label: "3D print", emoji: "🖨️" },
-          { id: "mixed", label: "Mixed media", emoji: "🧩" },
-        ],
+        chips: [...MATERIALS_CHIPS],
       },
     },
     {
@@ -267,16 +286,10 @@ const ARCHITECTURE_INTERIOR: ArchetypeDefinition = {
     },
     {
       title: "What's your model made of?",
-      subhead: "Pick one primary. Optional secondary.",
+      subhead: "Pick the main material. You can always combine — pick what dominates.",
       input: {
         kind: "chip-picker",
-        chips: [
-          { id: "cardboard", label: "Cardboard", emoji: "📦" },
-          { id: "foamboard", label: "Foamboard", emoji: "⬜" },
-          { id: "laser-mdf", label: "Laser-cut MDF", emoji: "🪵" },
-          { id: "laser-acrylic", label: "Laser-cut acrylic", emoji: "🟦" },
-          { id: "mixed", label: "Mixed media", emoji: "🧩" },
-        ],
+        chips: [...MATERIALS_CHIPS],
       },
     },
     {
