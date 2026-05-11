@@ -302,23 +302,15 @@ export const BLOCK_LIBRARY: BlockDefinition[] = [
       portfolioCapture: true,
     }),
   },
-  {
-    // Project Spec v1 — archetype-driven 7-question intake (Toy /
-    // Architecture for tomorrow's G9 class, 12 May 2026). Standalone
-    // ActivityCard type; state lives in student_unit_project_specs.
-    id: "project-spec",
-    label: "Project Spec",
-    icon: "📐",
-    category: "response",
-    description: "Archetype picker + 7-question intake producing a structured project deliverable card.",
-    defaultPhase: "workTime",
-    create: () => ({
-      activityId: nanoid(8),
-      prompt: "Lock in the shape of what you're going to make. Pick the kind of project, then answer 7 questions.",
-      responseType: "project-spec" as ResponseType,
-      durationMinutes: 20,
-    }),
-  },
+  // Project Spec v1 — PALETTE ENTRY HIDDEN (12 May 2026) per
+  // FU-PSV2-V1-DEPRECATION step 2. Replaced in the lesson editor by
+  // the three v2 blocks (Product Brief / User Profile / Success
+  // Criteria) below. The underlying system stays running — existing
+  // student_unit_project_specs rows continue to render in marking,
+  // and any lesson that already has a v1 block placed continues to
+  // work end-to-end. Pure UI hide; no schema or component changes.
+  // Full retirement (drop table + delete component) deferred to
+  // FU-PSV2-V1-DEPRECATION step 3 (~90 days zero new inserts).
   {
     // Project Spec v2 — Product Brief block. 9 slots covering name,
     // pitch, mechanism, primary + secondary material, scale, constraints,

@@ -106,10 +106,11 @@
 **Why deferred:** Existing v1 submissions (e.g. Scott's spec from the pilot) need to remain readable in marking until they're either archived or migrated. Sequencing:
 
 1. Monitor inserts on `student_unit_project_specs` for 90 days post-v2 ship
-2. If zero new inserts, hide the v1 BlockPalette entry (visible only in legacy lessons)
+2. ~~If zero new inserts, hide the v1 BlockPalette entry (visible only in legacy lessons)~~ ✅ **DONE 12 May 2026** — Matt called for early hide to avoid teacher confusion between v1 and v2 Product Brief. Palette entry removed in `BlockPalette.tsx`; v1 component / API / table all still running for any lessons that already have a v1 block placed. Step 1's 90-day monitoring still in effect to inform step 3.
 3. After teacher confirms all v1 specs are archived / addressed, drop the table
 
 **Definition of done:**
+- ~~Palette entry hidden~~ ✅ done early
 - 90-day monitoring period elapsed
 - Decision: archive v1 specs to a frozen table or hard-delete
 - Migration dropping v1 table + safety guard
