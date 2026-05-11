@@ -1,7 +1,7 @@
 "use client";
 
 import { Children, isValidElement, type ReactNode } from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import { TappableText } from "@/components/student/tap-a-word";
 
 interface MarkdownPromptProps {
@@ -33,6 +33,81 @@ function wrapStringChildren(children: ReactNode): ReactNode {
   });
 }
 
+// ─── Stable component overrides for ReactMarkdown ────────────────────
+//
+// CRITICAL — these MUST live at module scope, NOT inside the component.
+//
+// react-markdown receives the `components` prop and uses each entry as a
+// React component type for matching markdown nodes (`React.createElement(
+// components[nodeName], props)`). If those component functions are
+// recreated on every render, React's reconciler sees a different
+// component TYPE between renders → unmounts the entire subtree → remounts
+// fresh.
+//
+// In June 2026 (round 26 / Path B fix) this was diagnosed as the root
+// cause of the tap-a-word "popover briefly appears then disappears" bug:
+// every render of MarkdownPrompt destroyed all its TappableText children
+// (which then destroyed their popovers). Cascade observed in prod when
+// any state changed on a lesson page — even an unrelated re-render
+// triggered by autosave or context updates would tear down all activity
+// content.
+//
+// The functions here close over no state — they're pure renderers that
+// take only `children` and `href`. So module-scope is correct.
+
+function MarkdownAnchor({
+  children,
+  href,
+}: {
+  children?: ReactNode;
+  href?: string;
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-blue-600 underline hover:text-blue-800"
+    >
+      {children}
+    </a>
+  );
+}
+
+function MarkdownP({ children }: { children?: ReactNode }) {
+  return <p>{wrapStringChildren(children)}</p>;
+}
+
+function MarkdownStrong({ children }: { children?: ReactNode }) {
+  return <strong>{wrapStringChildren(children)}</strong>;
+}
+
+function MarkdownEm({ children }: { children?: ReactNode }) {
+  return <em>{wrapStringChildren(children)}</em>;
+}
+
+function MarkdownLi({ children }: { children?: ReactNode }) {
+  return <li>{wrapStringChildren(children)}</li>;
+}
+
+const ALLOWED_ELEMENTS = ["p", "strong", "em", "ul", "ol", "li", "a"] as const;
+
+// Plain (non-tappable) — only the anchor needs override, for new-tab / styling.
+const PLAIN_COMPONENTS: Components = {
+  a: MarkdownAnchor,
+};
+
+// Tappable — every text-bearing leaf overridden so its string children get
+// wrapped in <TappableText>. Anchors stay non-tappable (they're navigation,
+// not vocabulary).
+const TAPPABLE_COMPONENTS: Components = {
+  p: MarkdownP,
+  strong: MarkdownStrong,
+  em: MarkdownEm,
+  li: MarkdownLi,
+  a: MarkdownAnchor,
+};
+
 /**
  * Lightweight markdown renderer for activity prompts.
  * Allows: p, strong, em, ul, ol, li, a (opens new tab).
@@ -42,52 +117,11 @@ function wrapStringChildren(children: ReactNode): ReactNode {
  * Tap-a-word lookup feature (Phase 1B mounts).
  */
 export function MarkdownPrompt({ text, tappable = false }: MarkdownPromptProps) {
-  if (!tappable) {
-    return (
-      <ReactMarkdown
-        allowedElements={["p", "strong", "em", "ul", "ol", "li", "a"]}
-        unwrapDisallowed
-        components={{
-          a: ({ children, href }) => (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 underline hover:text-blue-800"
-            >
-              {children}
-            </a>
-          ),
-        }}
-      >
-        {text}
-      </ReactMarkdown>
-    );
-  }
-
-  // Tappable mode: override each text-bearing leaf so its string children get
-  // wrapped in <TappableText>. Anchors stay non-tappable (they're navigation,
-  // not vocabulary).
   return (
     <ReactMarkdown
-      allowedElements={["p", "strong", "em", "ul", "ol", "li", "a"]}
+      allowedElements={[...ALLOWED_ELEMENTS]}
       unwrapDisallowed
-      components={{
-        p: ({ children }) => <p>{wrapStringChildren(children)}</p>,
-        strong: ({ children }) => <strong>{wrapStringChildren(children)}</strong>,
-        em: ({ children }) => <em>{wrapStringChildren(children)}</em>,
-        li: ({ children }) => <li>{wrapStringChildren(children)}</li>,
-        a: ({ children, href }) => (
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 underline hover:text-blue-800"
-          >
-            {children}
-          </a>
-        ),
-      }}
+      components={tappable ? TAPPABLE_COMPONENTS : PLAIN_COMPONENTS}
     >
       {text}
     </ReactMarkdown>
