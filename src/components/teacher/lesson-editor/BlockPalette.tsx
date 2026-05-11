@@ -337,6 +337,24 @@ export const BLOCK_LIBRARY: BlockDefinition[] = [
       durationMinutes: 15,
     }),
   },
+  {
+    // Project Spec v2 — User Profile block. UNIVERSAL across archetypes.
+    // 8 slots covering name, age band, context, problem, alternatives,
+    // unique value, optional photo (user-profile-photos bucket), optional
+    // quote. Storage in student_unit_user_profiles.
+    id: "user-profile",
+    label: "User Profile",
+    icon: "👤",
+    category: "response",
+    description: "v2 User Profile — 8-slot empathy work for the person you're designing for. Optional photo + quote.",
+    defaultPhase: "workTime",
+    create: () => ({
+      activityId: nanoid(8),
+      prompt: "Build a real picture of your user. Name them. Watch them. Quote them.",
+      responseType: "user-profile" as ResponseType,
+      durationMinutes: 15,
+    }),
+  },
   // ── Content ──
   {
     id: "teacher-notes",

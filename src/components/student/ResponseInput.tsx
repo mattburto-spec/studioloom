@@ -17,6 +17,7 @@ import { MultiQuestionResponse } from "@/components/lesson";
 import type { StructuredPromptsConfig } from "@/lib/structured-prompts/types";
 import ProjectSpecResponse from "./project-spec/ProjectSpecResponse";
 import ProductBriefResponse from "./product-brief/ProductBriefResponse";
+import UserProfileResponse from "./user-profile/UserProfileResponse";
 
 interface ResponseInputProps {
   sectionIndex: number;
@@ -223,6 +224,19 @@ export function ResponseInput({
           student_unit_product_briefs. */}
       {responseType === "product-brief" && unitId && (
         <ProductBriefResponse
+          unitId={unitId}
+          sectionIndex={sectionIndex}
+          onChange={onChange}
+        />
+      )}
+
+      {/* Project Spec v2 — User Profile block (universal, 8 slots
+          covering name, age band, context, problem, alternatives, unique
+          value, optional photo, optional quote). Storage in
+          student_unit_user_profiles. Slot 7 photos in the dedicated
+          user-profile-photos bucket. */}
+      {responseType === "user-profile" && unitId && (
+        <UserProfileResponse
           unitId={unitId}
           sectionIndex={sectionIndex}
           onChange={onChange}
