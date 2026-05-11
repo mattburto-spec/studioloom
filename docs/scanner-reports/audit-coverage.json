@@ -1,11 +1,11 @@
 {
   "registry": "audit-coverage",
-  "timestamp": "2026-05-11T08:44:32.649238+00:00",
+  "timestamp": "2026-05-11T22:32:52.610101+00:00",
   "version": 1,
   "stats": {
-    "total_mutation_routes": 241,
+    "total_mutation_routes": 245,
     "covered": 7,
-    "skipped": 234,
+    "skipped": 238,
     "missing": 0
   },
   "covered": [
@@ -459,6 +459,13 @@
       "reason": "routine learner activity, low audit value"
     },
     {
+      "file": "src/app/api/student/product-brief/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "Project Spec v2 \u2014 Product Brief student-side CRUD via"
+    },
+    {
       "file": "src/app/api/student/progress/route.ts",
       "methods": [
         "POST"
@@ -562,6 +569,13 @@
       "reason": "routine learner activity, low audit value"
     },
     {
+      "file": "src/app/api/student/success-criteria/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "Project Spec v2 \u2014 Success Criteria student-side CRUD via"
+    },
+    {
       "file": "src/app/api/student/tile-feedback/[gradeId]/reply/route.ts",
       "methods": [
         "POST"
@@ -595,6 +609,20 @@
         "POST"
       ],
       "reason": "routine learner activity, low audit value"
+    },
+    {
+      "file": "src/app/api/student/user-profile/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "Project Spec v2 \u2014 User Profile student-side CRUD via"
+    },
+    {
+      "file": "src/app/api/student/user-profile/upload-photo/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "Project Spec v2 \u2014 User Profile slot 7 image upload."
     },
     {
       "file": "src/app/api/student/word-lookup/route.ts",

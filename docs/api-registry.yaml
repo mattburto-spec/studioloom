@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 450
+# Total routes: 458
 
 routes:
 - path: /api/admin/ai-budget
@@ -1493,6 +1493,28 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/student/product-brief
+  method: GET
+  file: src/app/api/student/product-brief/route.ts
+  auth: student
+  tables_read:
+  - student_unit_product_briefs
+  tables_written:
+  - student_unit_product_briefs
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/student/product-brief
+  method: POST
+  file: src/app/api/student/product-brief/route.ts
+  auth: student
+  tables_read:
+  - student_unit_product_briefs
+  tables_written:
+  - student_unit_product_briefs
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/student/progress
   method: GET
   file: src/app/api/student/progress/route.ts
@@ -1531,7 +1553,7 @@ routes:
   - student_unit_project_specs
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'student_unit_project_specs' — not in schema-registry
+  notes: null
 - path: /api/student/project-spec
   method: POST
   file: src/app/api/student/project-spec/route.ts
@@ -1542,7 +1564,7 @@ routes:
   - student_unit_project_specs
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'student_unit_project_specs' — not in schema-registry
+  notes: null
 - path: /api/student/quest
   method: GET
   file: src/app/api/student/quest/route.ts
@@ -1930,6 +1952,28 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/student/success-criteria
+  method: GET
+  file: src/app/api/student/success-criteria/route.ts
+  auth: student
+  tables_read:
+  - student_unit_success_criteria
+  tables_written:
+  - student_unit_success_criteria
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/student/success-criteria
+  method: POST
+  file: src/app/api/student/success-criteria/route.ts
+  auth: student
+  tables_read:
+  - student_unit_success_criteria
+  tables_written:
+  - student_unit_success_criteria
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/student/tile-comments
   method: GET
   file: src/app/api/student/tile-comments/route.ts
@@ -2070,6 +2114,37 @@ routes:
 - path: /api/student/upload
   method: POST
   file: src/app/api/student/upload/route.ts
+  auth: student
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/student/user-profile
+  method: GET
+  file: src/app/api/student/user-profile/route.ts
+  auth: student
+  tables_read:
+  - student_unit_user_profiles
+  tables_written:
+  - student_unit_user_profiles
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/student/user-profile
+  method: POST
+  file: src/app/api/student/user-profile/route.ts
+  auth: student
+  tables_read:
+  - student_unit_user_profiles
+  tables_written:
+  - student_unit_user_profiles
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/student/user-profile/upload-photo
+  method: POST
+  file: src/app/api/student/user-profile/upload-photo/route.ts
   auth: student
   tables_read: []
   tables_written: []
@@ -3005,6 +3080,15 @@ routes:
   - classes
   - student_progress
   - students
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/inbox/items
+  method: GET
+  file: src/app/api/teacher/inbox/items/route.ts
+  auth: teacher
+  tables_read: []
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
