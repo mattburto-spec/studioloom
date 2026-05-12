@@ -20,7 +20,12 @@ import ProductBriefResponse from "./product-brief/ProductBriefResponse";
 import UserProfileResponse from "./user-profile/UserProfileResponse";
 import SuccessCriteriaResponse from "./success-criteria/SuccessCriteriaResponse";
 import ChoiceCardsBlock from "./choice-cards/ChoiceCardsBlock";
-import type { ChoiceCardsBlockConfig } from "@/components/teacher/lesson-editor/BlockPalette.types";
+import InspirationBoardBlock from "./inspiration-board/InspirationBoardBlock";
+import type {
+  ChoiceCardsBlockConfig,
+  InspirationBoardConfig,
+} from "@/components/teacher/lesson-editor/BlockPalette.types";
+import type { ActivitySection } from "@/types";
 
 interface ResponseInputProps {
   sectionIndex: number;
@@ -54,6 +59,15 @@ interface ResponseInputProps {
   activityId?: string;
   /** For responseType === "choice-cards": deck composition + behaviour from the lesson editor. */
   choiceCardsConfig?: ChoiceCardsBlockConfig;
+  /** For responseType === "inspiration-board": board behaviour from the lesson editor. */
+  inspirationBoardConfig?: InspirationBoardConfig;
+  /**
+   * Full ActivitySection — passed to archetype-aware blocks so they can
+   * read `archetype_overrides` + base framing/task/success_signal via
+   * `getArchetypeAwareContent`. Only consumed by archetype-aware blocks;
+   * other branches ignore it.
+   */
+  section?: ActivitySection;
 }
 
 const TYPE_OPTIONS: { type: ResponseType; label: string; icon: string }[] = [
@@ -85,6 +99,8 @@ export function ResponseInput({
   onIntegrityUpdate,
   activityId,
   choiceCardsConfig,
+  inspirationBoardConfig,
+  section,
 }: ResponseInputProps) {
   // Filter type options based on allowed types
   const typeOptions = allowedTypes
@@ -279,6 +295,28 @@ export function ResponseInput({
           onChange={onChange}
         />
       )}
+
+      {/* Inspiration Board — archetype-aware lesson activity. Fetches
+          the student's archetype on mount and renders task copy from
+          archetype_overrides[archetypeId] when available, falling back
+          to the base section.task. Students upload 3–5 images +
+          commentary + a synthesis. Saved state lives in
+          student_progress.responses as a JSON-encoded payload (see
+          Phase 4 audit for the canonical save pattern). */}
+      {responseType === "inspiration-board" &&
+        activityId &&
+        inspirationBoardConfig &&
+        section &&
+        unitId && (
+          <InspirationBoardBlock
+            activityId={activityId}
+            section={section}
+            config={inspirationBoardConfig}
+            unitId={unitId}
+            value={value}
+            onChange={onChange}
+          />
+        )}
 
       {/* AG.1 — structured-prompts. LIS.C dispatch: when section opts in
           via promptsLayout="stepper", route to MultiQuestionResponse

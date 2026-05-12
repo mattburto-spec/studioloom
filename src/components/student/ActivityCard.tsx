@@ -375,6 +375,8 @@ export function ActivityCard({
                 }
                 activityId={section.activityId}
                 choiceCardsConfig={section.choiceCardsConfig}
+                inspirationBoardConfig={section.inspirationBoardConfig}
+                section={section}
               />
 
               {section.responseType !== "structured-prompts" &&
