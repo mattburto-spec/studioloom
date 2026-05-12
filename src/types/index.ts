@@ -264,7 +264,7 @@ export interface EllScaffolding {
   ell3?: { extensionPrompts?: string[] };
 }
 
-export type ResponseType = "text" | "upload" | "voice" | "link" | "multi" | "canvas" | "decision-matrix" | "pmi" | "pairwise" | "trade-off-sliders" | "toolkit-tool" | "structured-prompts" | "project-spec" | "product-brief" | "user-profile" | "success-criteria";
+export type ResponseType = "text" | "upload" | "voice" | "link" | "multi" | "canvas" | "decision-matrix" | "pmi" | "pairwise" | "trade-off-sliders" | "toolkit-tool" | "structured-prompts" | "project-spec" | "product-brief" | "user-profile" | "success-criteria" | "choice-cards";
 
 export interface ActivityMedia {
   type: "image" | "video";
@@ -456,6 +456,11 @@ export interface ActivitySection {
   bulletsIntro?: string;
   /** For contentStyle === "key-callout": override the default "Worth remembering" eyebrow chip. */
   bulletsEyebrow?: string;
+
+  // ── Choice Cards block (12 May 2026) ──
+
+  /** For responseType === "choice-cards": deck composition + behaviour. See ChoiceCardsBlockConfig. */
+  choiceCardsConfig?: import("@/components/teacher/lesson-editor/BlockPalette.types").ChoiceCardsBlockConfig;
 }
 
 export interface Reflection {

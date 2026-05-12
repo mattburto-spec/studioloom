@@ -365,6 +365,34 @@ export const BLOCK_LIBRARY: BlockDefinition[] = [
       durationMinutes: 10,
     }),
   },
+  {
+    // Choice Cards block (12 May 2026) — Framer Motion flippable deck.
+    // Students browse cards (image + hook on front, detail + Pick on
+    // back) and pick one. Reusable across project briefs, mentor picks,
+    // theme picks, constraint picks, role picks. First consumer: G8
+    // cohort's 6 project briefs. Decoupled from any specific downstream
+    // consumer — on_pick_action JSONB is a structured event subscribers
+    // register for at runtime. Storage in choice_cards (library) +
+    // choice_card_selections (per-student picks).
+    id: "choice-cards",
+    label: "Choice Cards",
+    icon: "🃏",
+    category: "collaboration",
+    description: "A deck of flippable cards students browse and pick one from. Project briefs, mentor picks, theme picks, constraints, roles.",
+    defaultPhase: "opening",
+    create: () => ({
+      activityId: nanoid(8),
+      prompt: "Pick your card.",
+      responseType: "choice-cards" as ResponseType,
+      durationMinutes: 10,
+      choiceCardsConfig: {
+        cardIds: [],
+        selectionMode: "single" as const,
+        showPitchYourOwn: false,
+        layout: "grid" as const,
+      },
+    }),
+  },
   // ── Content ──
   {
     id: "teacher-notes",
