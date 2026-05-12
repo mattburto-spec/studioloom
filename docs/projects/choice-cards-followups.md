@@ -8,13 +8,18 @@ Dispatcher: [`src/lib/choice-cards/action-dispatcher.ts`](../../src/lib/choice-c
 
 ---
 
-## FU-CCB-PROJECT-SPEC-WIRE
+## ~~FU-CCB-PROJECT-SPEC-WIRE~~ ✅ RESOLVED 12 May 2026
 
-- **Surfaced:** 12 May 2026 (build of v1).
-- **Target:** Wire a `set-archetype` action subscriber once the Project Spec block ships, so picking a G8 brief card mounts the corresponding Project Spec preset with the seeded kanban.
-- **Severity:** P1 — the 3 ships_to_platform briefs + 3 physical-making briefs all reference archetype IDs (`app-digital-tool`, `architecture-interior`, `toy-design`) that today are logged-but-unconsumed.
-- **Origin:** Phase 7 seed migration. Phase 8 dispatcher's `set-archetype` action type is defined but no subscribers register at boot.
-- **Scope:** Project Spec block side. Choice Cards v1 is decoupled by design — the dispatcher already accepts a subscriber for `set-archetype` and will pass through the `archetypeId` + `seedKanban` payload. The Project Spec block boot code calls `registerChoiceCardSubscriber('project-spec', 'set-archetype', handler)` once at module init.
+- **Resolved:** Wired Choice Cards → Project Spec v2 blocks via lazy resolve (Phases A–D, commits `e291727`..`897e708`).
+- **Approach pivoted:** The brief's "Project Spec block" was a v1 reference. v2's split (Product Brief + User Profile + Success Criteria) is the current shape — all three were already shipped. Wired to those instead of the mythical v1 block. Implementation:
+  - **Phase A:** Added `app-digital-tool` archetype to `PRODUCT_BRIEF_ARCHETYPES` (9 slots, with new `DIGITAL_MEDIUM_CHIPS` catalogue for slots 4/5 and digital-scope size-references for slot 6). Grounds the 3 ships_to_platform briefs.
+  - **Phase B:** New shared helper `src/lib/choice-cards/resolve-for-unit.ts`. Product Brief GET route lazy-resolves archetype from `choice_card_selections` (newest pick wins). Suggested-not-persisted: next POST writes it for real. UI gets a `🃏 From your card pick: <label> — archetype pre-selected` banner via `FromChoiceCardBanner` component.
+  - **Phase C:** Same banner on User Profile + Success Criteria (universal blocks — no archetype pre-fill, but banner gives the same orientation).
+  - **Phase D:** Kanban GET lazy-seeds backlog cards from the action's `seedKanban` payload when no row exists yet. 4 starter tasks per brief land in backlog on first kanban open.
+- **Architecture seam preserved:** No subscriber registered in the dispatcher. Consumers pull via `resolveChoiceCardPickForUnit()` at their own mount time. Choice Cards stays decoupled — could swap any consumer without touching it.
+- **Original framing kept for historical context:**
+  - Original target: wire a `set-archetype` action subscriber once the Project Spec block ships.
+  - Why pivoted: v1 Project Spec was deprecated 12 May; v2 split was already in production. The action-dispatcher subscriber pattern still works (and the dispatcher still emits to `learning_events`), but the v2 blocks consume via direct lazy-read for the simpler, mount-time semantics this case needs.
 
 ## FU-CCB-AI-IMAGE-GEN
 

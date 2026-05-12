@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 466
+# Total routes: 467
 
 routes:
 - path: /api/admin/ai-budget
@@ -3137,6 +3137,17 @@ routes:
   - student_tile_grades
   tables_written:
   - assessment_records
+  - student_tile_grades
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/grading/resolve-thread
+  method: POST
+  file: src/app/api/teacher/grading/resolve-thread/route.ts
+  auth: teacher
+  tables_read:
+  - student_tile_grades
+  tables_written:
   - student_tile_grades
   ai_call_sites: []
   cost_ceiling_usd: null

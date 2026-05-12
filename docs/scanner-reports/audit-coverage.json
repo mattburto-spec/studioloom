@@ -1,11 +1,11 @@
 {
   "registry": "audit-coverage",
-  "timestamp": "2026-05-12T01:02:48.756361+00:00",
+  "timestamp": "2026-05-12T03:14:23.873427+00:00",
   "version": 1,
   "stats": {
-    "total_mutation_routes": 246,
-    "covered": 7,
-    "skipped": 239,
+    "total_mutation_routes": 251,
+    "covered": 8,
+    "skipped": 243,
     "missing": 0
   },
   "covered": [
@@ -41,6 +41,12 @@
     },
     {
       "file": "src/app/api/school/[id]/invitations/[inviteId]/revoke/route.ts",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "file": "src/app/api/teacher/grading/resolve-thread/route.ts",
       "methods": [
         "POST"
       ]
@@ -328,6 +334,13 @@
         "POST"
       ],
       "reason": "routine learner activity, low audit value"
+    },
+    {
+      "file": "src/app/api/student/choice-cards/[activityId]/pick/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "pick is self-auditing \u2014 choice_card_selections row IS the"
     },
     {
       "file": "src/app/api/student/design-assistant/route.ts",
@@ -741,6 +754,20 @@
         "POST"
       ],
       "reason": "routine teacher pedagogy ops, low audit value"
+    },
+    {
+      "file": "src/app/api/teacher/choice-cards/[cardId]/route.ts",
+      "methods": [
+        "PATCH"
+      ],
+      "reason": "library content edits \u2014 `updated_at` + creator-or-admin"
+    },
+    {
+      "file": "src/app/api/teacher/choice-cards/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "library content authoring \u2014 `choice_cards` rows carry"
     },
     {
       "file": "src/app/api/teacher/class-students/route.ts",
@@ -1458,6 +1485,13 @@
         "POST"
       ],
       "reason": "routine teacher pedagogy ops, low audit value"
+    },
+    {
+      "file": "src/app/api/teacher/upload-choice-card-image/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "low-blast-radius teacher image upload for library cards."
     },
     {
       "file": "src/app/api/teacher/upload-image/route.ts",
