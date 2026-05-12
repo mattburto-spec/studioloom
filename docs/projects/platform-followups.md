@@ -211,6 +211,31 @@ Both routes work but neither is a *real* pitch workflow. The student just fills 
 
 ---
 
+## FU-PLATFORM-CHOICE-CARDS-DOWNSTREAM-CASCADE — Cascade re-picks to downstream state
+**Surfaced:** 12 May 2026, while shipping "Change my mind" on Choice Cards.
+**Severity:** 🟢 LOW — edge case (student changes mind AFTER starting downstream work).
+**Target phase:** Post-pilot when real cascade-cases are observed.
+
+**Context:** Choice Cards now allow students to re-pick at any time (`setSelection(null)` resets the local lock; new pick upserts on `(student_id, activity_id)`). But downstream consumers that already wrote state from the previous pick are NOT auto-rolled back. Specifically:
+
+- **Product Brief** reads the Choice Cards pick in its GET handler (`src/app/api/student/product-brief/route.ts`) and pre-fills `archetype_id` only when `!brief.archetype_id`. If the student already saved `archetype_id` (or filled in slots), a new card pick doesn't override.
+- **Open Studio** / **future consumers** that read the resolved pick similarly snapshot at first-write.
+
+**What it adds:** A cascade mechanism for when a student re-picks AFTER triggering downstream state. Options:
+
+1. **Detection only** — UI warns "Changing your card may not roll back work you've already done elsewhere. Want to continue?"
+2. **Soft cascade** — emit an `action-superseded` event when a re-pick happens; downstream consumers can subscribe and decide what to do (e.g., Product Brief could clear archetype_id IF no slot writes have happened yet).
+3. **Hard cascade** — re-picks delete downstream state. Too aggressive for student work.
+
+**Why deferred:** Matt's "change mind at the start" use case is by definition pre-downstream — students re-pick BEFORE they've written anything. The edge case (re-pick mid-build) is rare and probably better handled with a teacher conversation than an automated cascade.
+
+**Definition of done:**
+- Decide between Option 1 / 2 / 3
+- If Option 2: define the event payload + subscriber contract
+- If Option 1: just the confirmation modal
+
+---
+
 ## Resolved
 
 _None yet._
