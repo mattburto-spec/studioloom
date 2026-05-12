@@ -4760,3 +4760,54 @@ After applying, remember to `INSERT INTO public.applied_migrations` for both (Le
 **Systems affected:** new `choice-cards-block` system (complete). Tangential: `lesson-editor` + `student-response-input` gained new branches.
 
 **What's next:** Phase 10 — Matt Checkpoint smoke. After Matt applies migrations to prod + smoke-walks teacher unit-builder + student pick flow, push to origin/main. Then upload real card images via the lesson editor library picker.
+
+## 12 May 2026 (CST) — Archetype-Aware Block Infrastructure + Inspiration Board v1 SHIPPED
+
+**Context:** G8 cohort starts using Inspiration Board in Lesson 2 (next G8 class after the deferred debut). Bundled two units in one brief because they prove each other — Inspiration Board is the first archetype-aware block, and the universal infrastructure (`archetype_overrides` + `getArchetypeAwareContent` + `getStudentArchetype`) gets exercised in production from day 1 instead of sitting as a feature in search of a use case.
+
+**Pre-flight findings:**
+- Foundational docs (first-project-scaffolds.md + A11 + 3 strategy docs) were stashed at session start — popped them as Phase 0 so the brief's references resolved on main.
+- `ActivitySection` lives at `src/types/index.ts:383` (JSONB-additive — no SQL migration needed).
+- Student dispatch confirmed at `src/components/student/ResponseInput.tsx`.
+- `/api/student/upload/route.ts` exists with the right shape (image moderation gate + responses bucket + proxy URL) — reused instead of building a parallel.
+- `student_unit_product_briefs.archetype_id` is already shipped (Project Spec v2 Phase A) — added it as step 2 of `getStudentArchetype` (the "committed" source between the hypothetical project_specs and choice_card_selections).
+- Existing `resolveChoiceCardPickForUnit` + `extractArchetypeId` in `src/lib/choice-cards/resolve-for-unit.ts` overlapped with the brief's proposed resolver — wrote the new resolver to compose existing primitives + 3-step fallback.
+- Canonical response-save pattern audited: existing blocks call `onChange(JSON.stringify(state))` and lesson autosave persists to `student_progress.responses`. Inspiration Board follows this — no dedicated board-state route in v1.
+
+**9 commits shipped across 8 phases (commits e07b2bc..c4619cc):**
+- **Phase 0 — `3f7f919`:** Pop stashed docs (A10 + A11 in design-guidelines, first-project-scaffolds.md, 3 strategy docs).
+- **Phase 1 — `870d574`:** Universal infrastructure. `ActivitySection.archetype_overrides` field, `getArchetypeAwareContent` reader (with `getArchetypeAwareContentByChain` for card-slug-first lookups), `getStudentArchetype` 3-step resolver, A12 in design-guidelines.md, 11 unit tests covering precedence + edge cases + negative control.
+- **Phase 2 — `5ab5718`:** Block registration. ResponseType union extension, `InspirationBoardConfig` interface, BLOCK_LIBRARY palette entry (Response/opening, 🖼️) with 6 universal archetype overrides + 3 G8 card-slug overrides seeded, 3 LABEL/ICON/TINT records updated.
+- **Phase 3a — `6804805`:** Dispatch + stub. `ResponseInputProps` gains `inspirationBoardConfig` + `section` (the full ActivitySection — needed for archetype_overrides reads in archetype-aware blocks). ActivityCard threads both. Stub component for clean tsc through Phase 4.
+- **Phase 4 — `4c78bf2`:** GET `/api/student/archetype/[unitId]` — canonical client-facing read endpoint, Cache-Control private/60s.
+- **Phase 3b — `e9d06a6`:** Full Pinterest-style component (~470 lines). CSS-columns masonry (no new deps), Framer Motion Reorder for drag, per-card commentary + optional steal note, locked synthesis card until min items, mark-complete gate, reduced-motion + ARIA, archetype-aware framing/task/success_signal via `getArchetypeAwareContent`.
+- **Phase 5 — `97a2eb4`:** Teacher config UX. Reusable `ArchetypeOverridesEditor` (drop-in for any archetype-aware block) + Inspiration-Board-specific `InspirationBoardConfigPanel` (6 toggles + min/max + embedded overrides editor). Mounted in ActivityBlock.tsx alongside ChoiceCardsConfigPanel.
+- **Phase 6 — `c4619cc`:** Resolver unit tests. 8 tests covering all 3 fallback branches + null + table-doesn't-exist + non-set-archetype actions + missing payload + negative-control precedence.
+- **Phase 7 — this commit:** Registry sync + 8 follow-ups filed + WIRING +2 systems + changelog entry.
+
+**Decisions banked:**
+- Universal infrastructure landed alongside the first consumer rather than as a separate "platform" build. Avoids "feature in search of a use case" trap.
+- Lazy resolve everywhere — `getStudentArchetype` is called on mount by archetype-aware blocks, never pushed by upstream sources. Same seam as Product Brief's lazy archetype pre-fill from Choice Cards last build.
+- `getArchetypeAwareContent` MERGES override over base on a field-by-field basis (override.task wins, override.framing falls back to base if undefined) — partial overrides are first-class.
+- Card-slug-keyed overrides exist in v1 seed data but DON'T fire yet (FU-IB-CARD-SLUG-LOOKUP P2) — only archetype-level keys match. The 3 G8 brief-specific overrides are dormant until that helper ships.
+- Storage: existing autosave pattern (JSON blob in `student_progress.responses`) for v1. Dedicated table deferred (FU-IB-DEDICATED-TABLE P2).
+- Image upload: reuse existing `/api/student/upload` rather than building parallel. Already has Phase 5F image moderation gate + private bucket.
+
+**Tests:** Baseline 5543 passing / 11 skipped / 0 failing. After Phase 1: +11 archetype-aware tests. After Phase 6: +8 resolver tests. Net **+19 tests, 0 failing.** Tsc baseline preserved (266 pre-existing errors throughout).
+
+**Migrations pending prod apply:** _None._ This build is JSONB-additive — no SQL migration in scope (per brief).
+
+**Follow-ups filed** ([`inspiration-board-followups.md`](projects/inspiration-board-followups.md)):
+- FU-IB-AI-PATTERN-SUGGESTION (P2)
+- FU-IB-COMPETITOR-SCAN (P3)
+- FU-IB-PINTEREST-IMPORT (P3)
+- FU-IB-REUSE-FROM-PORTFOLIO (P3)
+- FU-IB-CARD-SLUG-LOOKUP (P2) — known v1 limitation; G8 card-slug overrides currently dormant
+- FU-IB-COMPONENT-TESTS (P2) — Framer/DOM-heavy smoke deferred
+- FU-IB-DEDICATED-TABLE (P2)
+- FU-AAB-OVERRIDE-VERSION-DRIFT (P2)
+- FU-AAB-PROJECT-SPEC-FALLBACK (P1, conditional — activates when project_specs table ships)
+
+**Systems affected:** 2 NEW (`archetype-aware-blocks` complete + `inspiration-board-block` complete). Tangential: `lesson-editor` + `student-response-input` gained new branches.
+
+**What's next:** Phase 8 — Matt Checkpoint smoke. Smoke as student: pick a Choice Card → open lesson with Inspiration Board block → verify task copy adapts to archetype → upload 3+ images + synthesise → verify state hydrates on reload. Then push.

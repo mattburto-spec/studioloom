@@ -3079,6 +3079,66 @@ systems:
     os_seam: ready
     change_impacts: "Profile schema changes propagate to scanner worker input shape. Rule-override JSONB structure must match worker's expected contract. System-template edits require service_role."
 
+  - id: archetype-aware-blocks
+    name: "Archetype-Aware Block Infrastructure"
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: "v1 SHIPPED 12 May 2026. Universal primitive that lets any Activity Block accept per-archetype variants via an optional `archetype_overrides` field on the section's config JSONB. Three pieces: (1) the optional field on ActivitySection; (2) `getArchetypeAwareContent(block, archetypeId)` reader that merges override over base and surfaces non-canonical keys via `extras`; (3) `getStudentArchetype(studentId, unitId)` resolver with 3-step fallback (project_specs → student_unit_product_briefs → choice_card_selections). Canonical doc: A12 in design-guidelines.md. Inspiration Board is the first consumer; every future archetype-aware block reuses the same primitives."
+    depends_on: [database, choice-cards-block, student-response-input]
+    affects: [inspiration-board-block, student-response-input, lesson-editor]
+    docs:
+      - path: docs/design-guidelines.md
+        purpose: "A12 — Archetype-Aware Blocks (canonical principle)"
+      - path: docs/projects/first-project-scaffolds.md
+        purpose: "A11 (Earnable and Fadeable) context — overrides exist so blocks fade their voice, not just personalise"
+    data_fields:
+      - table: student_unit_product_briefs
+        columns: [archetype_id]
+        notes: "Resolver step 2 — read when student has committed to an archetype via Product Brief"
+      - table: choice_card_selections
+        columns: [action_resolved]
+        notes: "Resolver step 3 — read when student has picked a Choice Card with on_pick_action: set-archetype"
+    key_files:
+      - src/lib/blocks/archetype-aware.ts (getArchetypeAwareContent + getArchetypeAwareContentByChain)
+      - src/lib/students/archetype-resolver.ts (getStudentArchetype, 3-step fallback)
+      - src/app/api/student/archetype/[unitId]/route.ts (canonical client-facing read endpoint)
+      - src/components/teacher/lesson-editor/ArchetypeOverridesEditor.tsx (REUSABLE editor for any archetype-aware block)
+      - src/types/index.ts (ActivitySection.archetype_overrides field)
+    future_needs: "FU-AAB-OVERRIDE-VERSION-DRIFT (version which override was active at response time when authors change overrides later). FU-AAB-PROJECT-SPEC-FALLBACK (P1, conditional — when unified Project Spec table ships, step 1 of the resolver activates; currently a placeholder try/catch). FU-IB-CARD-SLUG-LOOKUP (card-slug-keyed overrides require a slug-resolver helper that doesn't exist yet)."
+    adrs: []
+    os_seam: ready
+    change_impacts: "Type changes to ActivitySection.archetype_overrides ripple to every consumer of getArchetypeAwareContent. Resolver fallback chain changes affect all archetype-aware blocks. Be especially careful: this is load-bearing infrastructure."
+
+  - id: inspiration-board-block
+    name: "Inspiration Board Activity Block"
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: "v1 SHIPPED 12 May 2026. First archetype-aware block. Students upload 3–5 images, write commentary on each, then synthesise the pattern across them. Pinterest-style CSS-columns masonry grid (no new deps). Drag-to-reorder via Framer Motion Reorder. Reads task/framing/success_signal via getArchetypeAwareContent(section, resolvedArchetype) — so a student whose Choice Card pick set archetype to 'app-digital-tool' reads the digital-tool task variant. Ships with archetype_overrides seeded for all 6 universal archetypes + 3 G8 brief-specific overrides. State persists as JSON via the existing lesson autosave (student_progress.responses). Image upload reuses /api/student/upload (existing student route with image moderation gate)."
+    depends_on: [archetype-aware-blocks, choice-cards-block, storage, lesson-editor, student-response-input]
+    affects: [lesson-editor, student-response-input]
+    docs:
+      - path: docs/projects/inspiration-board-followups.md
+        purpose: "v1 follow-up tracker"
+    data_fields:
+      - table: student_progress
+        columns: [responses]
+        notes: "JSON blob serialised by the block: { items: [{id, url, commentary, stealNote, altText}], synthesis: string, completed: boolean }"
+    key_files:
+      - src/components/student/inspiration-board/InspirationBoardBlock.tsx
+      - src/components/teacher/lesson-editor/InspirationBoardConfigPanel.tsx
+      - src/components/teacher/lesson-editor/BlockPalette.tsx (palette entry)
+      - src/components/teacher/lesson-editor/BlockPalette.types.ts (InspirationBoardConfig)
+      - src/components/teacher/lesson-editor/ActivityBlock.tsx (3× Record<ResponseType,…> entries + config mount)
+      - src/components/student/ResponseInput.tsx (dispatch + section prop)
+      - src/components/student/ActivityCard.tsx (section pass-through)
+      - src/types/index.ts (ResponseType union + ActivitySection.inspirationBoardConfig)
+    future_needs: "FU-IB-AI-PATTERN-SUGGESTION (Haiku suggests pattern after 3+ items). FU-IB-COMPETITOR-SCAN (auto-suggest images from project mission). FU-IB-PINTEREST-IMPORT (paste Pinterest URL). FU-IB-REUSE-FROM-PORTFOLIO (drag from own portfolio). FU-IB-COMPONENT-TESTS (Framer/DOM-heavy component smoke). FU-IB-DEDICATED-TABLE (move from JSONB blob to dedicated table when teacher analytics need it)."
+    adrs: []
+    os_seam: ready
+    change_impacts: "State shape changes ripple to JSON parsing on hydrate. archetype_overrides keys (universal archetype IDs vs G8 card slugs) interact with the resolver's return convention — only archetype IDs match in v1; card-slug matching requires FU-IB-CARD-SLUG-LOOKUP."
+
   - id: choice-cards-block
     name: "Choice Cards Activity Block"
     category: Student Experience
@@ -3125,8 +3185,8 @@ systems:
 
 # Summary Statistics
 meta:
-  total_systems: 98
-  complete_systems: 36
+  total_systems: 100
+  complete_systems: 38
   active_systems: 16
   planned_systems: 8
   idea_systems: 19
