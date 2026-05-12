@@ -8,6 +8,7 @@ import { ImageUploadButton } from "./ImageUploadButton";
 import { looksLikeVideoUrl } from "@/lib/video-embed";
 import { SlotFieldEditor, SlotPreview } from "./SlotFieldEditor";
 import ChoiceCardsConfigPanel from "./ChoiceCardsConfigPanel";
+import InspirationBoardConfigPanel from "./InspirationBoardConfigPanel";
 import { CRITERIA, type CriterionKey } from "@/lib/constants";
 import type {
   ActivitySection,
@@ -581,6 +582,14 @@ export default function ActivityBlock({
                 <ChoiceCardsConfigPanel
                   config={activity.choiceCardsConfig}
                   onUpdate={(next) => onUpdate({ choiceCardsConfig: next })}
+                />
+              )}
+
+              {/* Inspiration Board config — only when responseType is inspiration-board */}
+              {responseType === "inspiration-board" && (
+                <InspirationBoardConfigPanel
+                  activity={activity}
+                  onUpdate={onUpdate}
                 />
               )}
 
