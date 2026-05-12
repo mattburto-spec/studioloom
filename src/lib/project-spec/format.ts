@@ -104,10 +104,18 @@ export function formatAnswer(answer: SlotAnswer, input: SlotInputType): string {
       return labels.join(", ");
     }
     case "image": {
-      // For marking summary: keep the URL in the plaintext so a teacher
-      // can copy + paste it into their browser. Caption gets prepended
-      // when present.
-      return v.alt ? `${v.alt} — ${v.url}` : `[Photo] ${v.url}`;
+      // For marking summary: do NOT include the URL. Two reasons:
+      //   1. The URL contains the student_id + unit_id UUIDs in their
+      //      raw form. UUIDs that happen to have an all-digit last
+      //      segment (12 consecutive digits) trip the CN-landline PII
+      //      regex in src/lib/content-safety/client-filter.ts, which
+      //      blocks the autosave in usePageResponses. ~0.7% of UUIDs
+      //      hit this — bites real users non-deterministically.
+      //   2. The teacher views the photo inline in the block's Card
+      //      render anyway (separate from formatAnswer). The URL was
+      //      never useful in the plaintext.
+      // The caption (if any) IS the user-meaningful content for marking.
+      return v.alt ? `[Photo: ${v.alt}]` : "[Photo uploaded]";
     }
   }
 }
