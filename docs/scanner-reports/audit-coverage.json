@@ -1,11 +1,11 @@
 {
   "registry": "audit-coverage",
-  "timestamp": "2026-05-12T03:14:23.873427+00:00",
+  "timestamp": "2026-05-12T05:01:11.265681+00:00",
   "version": 1,
   "stats": {
-    "total_mutation_routes": 251,
+    "total_mutation_routes": 253,
     "covered": 8,
-    "skipped": 243,
+    "skipped": 245,
     "missing": 0
   },
   "covered": [
@@ -969,6 +969,13 @@
       "reason": "AI draft generation only \u2014 no DB mutations. The draft is returned to the inbox UI for the teacher to review; the eventual approve/discard happens via PUT /api/teacher/grading/tile-grades (which carries its own audit)."
     },
     {
+      "file": "src/app/api/teacher/grading/regenerate-draft/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "AI draft regeneration only \u2014 no DB mutations. The regenerated draft is returned to the inbox for review; eventual approve/discard writes through PUT /api/teacher/grading/tile-grades (which carries its own audit)."
+    },
+    {
       "file": "src/app/api/teacher/grading/release/route.ts",
       "methods": [
         "POST"
@@ -1225,6 +1232,13 @@
         "POST"
       ],
       "reason": "routine teacher pedagogy ops, low audit value"
+    },
+    {
+      "file": "src/app/api/teacher/product-brief-pitch/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "FU-PLATFORM-CUSTOM-PROJECT-PITCH MVP. Teacher pitch"
     },
     {
       "file": "src/app/api/teacher/profile/route.ts",
