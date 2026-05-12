@@ -88,6 +88,50 @@
 
 ---
 
+## 2026-05-11 (PM) — Summative Lessons reconciled as B′ (presentation moves on Task System); DEFERRED to next semester
+
+**Context:** Matt opened a new session to scope a "Summative Lessons" feature — distinct lesson type with menu icon/colour + inline rubric + per-criterion scoring on the lesson page. Wanted a master spec drafted at `docs/projects/summative-lessons.md` with phases + checkpoints per build-methodology.
+
+**Stop trigger fired during audit-before-touch.** Found that the work Matt was describing has substantial pre-existing architecture under a different name:
+
+- Task System Architecture brief signed off 5 May 2026 — explicitly rejected a "summative as lesson type" framing ("Supersedes... the would-be `summative-tasks.md` brief I almost wrote on 4 May") in favour of summative as a `task_type` discriminator on unified `assessment_tasks`
+- Migration `20260505032750_task_system_v1_schema.sql` applied to prod: `assessment_tasks` + `task_lesson_links` + `task_criterion_weights` + `submissions` (with `draft→submitted→graded→returned` state machine, exactly what Matt specced) + `grade_entries` — all 5 tables live
+- TG.0C (Tasks panel sidebar + Quick-Check inline formative form) MERGED to main
+- TG.0D (5-tab summative project-task drawer) BUILT, awaiting smoke
+
+**Audit also found:** active LIS worktree (`questerra-lis`, `lesson-input-surfaces-integration` branch) editing the student lesson renderer right now — collides with the proposed inline-rubric work. Flagged as coordination concern.
+
+**Resolution path:** ran a self-contained reconciliation prompt by Cowork + Gemini independently (same pattern as 4-5 May Task System review + 9 May Procurement audit). Both reviewers independently picked **Option B = keep locked architecture, deliver visibility/inline-rubric/accessibility as presentation moves on top**. Cowork refined to **B′ = B + three named presentation moves**:
+
+- **B′(a)** — Lesson menu visual differentiation (icon + colour, accessibility satisfied) when row has `task_lesson_links` entry pointing at summative task. Sibling to TG.0E.
+- **B′(b)** — Inline rubric + score inputs on the lesson page (TG.0F redesigned to render inside the lesson view, not standalone `/(student)/tasks/[taskId]/submit`).
+- **B′(c)** — "Where does this happen?" first question in TG.0D drawer + auto-create-lesson writer path for single-lesson summatives.
+
+Deepest reasons both reviewers cited: UbD explicitly stages assessment design (Stage 2) BEFORE lesson design (Stage 3) — Option A collapses them, reinforcing the coverage-teaching anti-pattern UbD was written to fix; every major LMS (Toddle, ManageBac, Canvas, Schoology, Seesaw, Schoolbox) keeps assessment as a first-class entity separate from lessons; Option A degenerates `task_lesson_links` to a self-pointer + reinvents Option B with a worse entry point; A and C both let first-year MYP teachers skip the GRASPS scaffold, calcifying the habit MYP coordinators spend years trying to undo.
+
+**Matt accepted B′ and DEFERRED to next semester** — rest of current semester is formative-only testing in StudioLoom. Estimate when picked up: ~3–4 days. No schema change. No throwaway. Sequence: smoke + merge TG.0D, then B′(c) as TG.0D follow-up, then B′(a) (possibly with TG.0E), then B′(b) (after LIS merge).
+
+**What was recorded (5 surfaces touched):**
+- NEW `docs/projects/summative-lessons.md` — primary record with TL;DR, B′ moves, what's NOT changing, when to pick up, coordination concerns, reading order. Trigger phrase "continue summative lessons" or "summative" documented inline.
+- NEW `docs/projects/summative-lessons-reviews-2026-05-11.md` — full verbatim Cowork + Gemini reviews + convergence/divergence tables. Load-bearing source material; preserve verbatim.
+- EDIT `docs/projects/ALL-PROJECTS.md` — new entry under 🔵 Planned (just above Skills Library).
+- EDIT `docs/projects/task-system-architecture.md` — added "Amendment — Summative Lessons (B′) presentation moves (11 May 2026)" section after Final Notes so future readers of the locked brief see B′ exists.
+- EDIT `docs/decisions-log.md` — appended dated entry capturing the conflict + reviews + the methodology lesson (this is the stop-trigger pattern working as designed).
+
+**Systems affected:** None at code level (no schema, no API, no AI calls, no migrations). Documentation + decision-log only.
+
+**Tests:** No code changes. Test suite unchanged.
+
+**Registry sync:** api-registry picked up one drift — new `/api/teacher/upload-image` route exists in main but wasn't in the registry (from a prior unsynced session, not from this session). Committed via saveme.
+
+**Methodology note banked:** this session is the stop-trigger pattern from build-methodology.md working as designed. Pre-flight audit-before-touch surfaced architecture conflict; paused before drafting; used independent review (Cowork + Gemini, same pattern as prior sessions) to resolve. Cost to pause: ~30 min. Cost to skip: a wasted spec contradicting locked architecture + 3–5 days TG.0D throwaway. The audit-before-touch is the saving grace.
+
+**Pending verification:** when picking up B′ next semester, screen-share Toddle's actual summative task UX as a rationalisation-root check (Cowork's specific recommendation). If Matt's mental model is "Toddle's summatives are a kind of LE," that's the rationalisation root and worth surfacing. Toddle's actual pattern (Tasks separate from LEs) is the strongest external validation for B′.
+
+**Unrelated WIP in main worktree (NOT touched this session):** dashboard.html + privacy-first-positioning.md modifications + untracked world-class-procurement-readiness.md from prior procurement-readiness work. Left alone for whoever owns that work to saveme.
+
+---
+
 ## 2026-05-11 — Tap-a-word reliability: Path A (provider) + Path B (markdown root cause) + Lesson #82
 
 **Context:** Matt: "tap a word is still buggy. we need to get to the bottom of it. sometimes need to click 4 times with 4 different outcomes (no popup / quick popup gone / loading then gone / works)." Despite multiple rounds of defensive patching since 27 April, the popover was still flaky in prod. This session traced the bug to its structural root cause and shipped both a defensive workaround and the actual fix.

@@ -30,9 +30,9 @@ docs:
 
   - path: docs/decisions-log.md
     title: "Key Decisions Log"
-    purpose: "215+ architectural and design decisions. Latest 8 May 2026 marathon: kanban save-race fix as actual fly-back cause; hard-nav for Next.js 15 silent fail; Vercel Analytics consolidation; auto-merge default workflow; Backlog Ideation tool design; NextActionPill in hero; defense-in-depth admin chrome flash; separate Chrome profiles for multi-role testing."
+    purpose: "215+ architectural and design decisions. Latest 11 May 2026: Summative Lessons reconciled as B′ (presentation moves on Task System) — deferred to next semester after independent Cowork + Gemini review confirmed 5 May verdict. 8 May 2026 marathon: kanban save-race fix; hard-nav for Next.js 15 silent fail; Vercel Analytics consolidation; auto-merge default workflow."
     category: root
-    last_verified: "2026-05-08"
+    last_verified: "2026-05-11"
     max_age_days: 90
     last_scanned: null
 
@@ -313,10 +313,10 @@ docs:
     title: "StudioLoom — Master Project Index"
     purpose: "CANONICAL project tracker. ALL project status, new projects, completions. Single source of truth."
     category: projects
-    last_verified: "2026-04-27"
+    last_verified: "2026-05-11"
     referenced_from: ["CLAUDE.md project tracking section"]
     max_age_days: 90
-    last_scanned: "2026-04-27"
+    last_scanned: "2026-05-11"
 
   - path: docs/projects/privacy-first-positioning.md
     title: "Privacy-First Positioning"
@@ -688,10 +688,28 @@ docs:
 
   - path: docs/projects/task-system-architecture.md
     title: "Task System Architecture (TG brief)"
-    purpose: "Unified architectural brief for gradeable events in StudioLoom — single assessment_tasks table with task_type discriminator, SPLIT teacher UI surfaces, polymorphic submissions for inquiry-mode future-proofing, ManageBac as export-not-integration. 855 lines. Replaces grading-phase-g1-brief.md (G1 was a 3-day cut that sidestepped the assessment_tasks question). Three-layer architecture explicit: Layer 1 = shared infra (rubric_descriptors, polymorphic submissions, grade_entries); Layer 2 = cross-mode PM tools (placeholder); Layer 3 = mode-specific (STRUCTURED = this brief; INQUIRY = sister project). Cowork's 7 spec corrections applied. G1 code rolls forward with task_id FK on student_tile_grades. ~16 days end-to-end. Build sequence: TG.0A pre-flight → TG.0B schema (gates Lever 0) → TG.0C-K parallel → Matt Checkpoint TG.1. Status: BRIEF SIGNED OFF 5 May 2026 (PR #23 commit 2a948a3); awaiting TG.0B implementation start."
+    purpose: "Unified architectural brief for gradeable events in StudioLoom — single assessment_tasks table with task_type discriminator, SPLIT teacher UI surfaces, polymorphic submissions for inquiry-mode future-proofing, ManageBac as export-not-integration. ~920 lines. Replaces grading-phase-g1-brief.md (G1 was a 3-day cut that sidestepped the assessment_tasks question). Three-layer architecture explicit: Layer 1 = shared infra (rubric_descriptors, polymorphic submissions, grade_entries); Layer 2 = cross-mode PM tools (placeholder); Layer 3 = mode-specific (STRUCTURED = this brief; INQUIRY = sister project). Cowork's 7 spec corrections applied. G1 code rolls forward with task_id FK on student_tile_grades. ~16 days end-to-end. Build sequence: TG.0A pre-flight → TG.0B schema (gates Lever 0) → TG.0C-K parallel → Matt Checkpoint TG.1. Status: BRIEF SIGNED OFF 5 May 2026; TG.0B applied to prod; TG.0C merged; TG.0D built awaiting smoke. 11 May amendment — Summative Lessons (B′) presentation moves recorded as future work on top of this brief; see summative-lessons.md."
     category: projects
-    last_verified: "2026-05-05"
-    referenced_from: ["ALL-PROJECTS.md Task System Architecture entry", "CLAUDE.md What's next (when next saveme runs)", "decisions-log.md 5 May 2026 entries", "grading.md (master spec, this picks up the assessment_tasks vision)", "tasks-v1 prototype README"]
+    last_verified: "2026-05-11"
+    referenced_from: ["ALL-PROJECTS.md Task System Architecture entry", "CLAUDE.md What's next (when next saveme runs)", "decisions-log.md 5 May 2026 + 11 May 2026 entries", "grading.md (master spec, this picks up the assessment_tasks vision)", "tasks-v1 prototype README", "summative-lessons.md (B′ amendment)"]
+    max_age_days: 365
+    last_scanned: null
+
+  - path: docs/projects/summative-lessons.md
+    title: "Summative Lessons (B′ — presentation moves on Task System)"
+    purpose: "PLANNED/DEFERRED to next semester. Records the 11 May 2026 reconciliation between Matt's proposed 'Summative Lessons as a distinct lesson type' framing and the 5 May 2026 locked Task System architecture (which already treats summative as a task_type discriminator with schema applied to prod). Audit-before-touch fired the stop-trigger; independent Cowork + Gemini review confirmed the 5 May verdict; Matt accepted B′ = three presentation moves on top of the locked schema. B′(a) lesson menu visual differentiation when row has task_lesson_links entry pointing at summative task; B′(b) inline rubric + score inputs on the lesson page (TG.0F redesigned to render inside the lesson view); B′(c) 'Where does this happen?' first question in TG.0D drawer + auto-create-lesson writer path. ~3–4 days when picked up. No schema change. Trigger phrase: 'continue summative lessons' or 'summative'. Created 11 May 2026."
+    category: projects
+    last_verified: "2026-05-11"
+    referenced_from: ["ALL-PROJECTS.md Planned section", "task-system-architecture.md 11 May 2026 amendment", "decisions-log.md 11 May 2026 entry", "summative-lessons-reviews-2026-05-11.md (load-bearing source material)"]
+    max_age_days: 180
+    last_scanned: null
+
+  - path: docs/projects/summative-lessons-reviews-2026-05-11.md
+    title: "Summative Lessons — Architecture Review Archive (11 May 2026)"
+    purpose: "Verbatim text of the Cowork + Gemini independent reviews that resolved the 'Summative Lessons vs Task System' reconciliation on 11 May 2026. Both reviewers independently picked Option B; Cowork refined to B′ = B + three named presentation moves. Industry pattern check (Toddle, ManageBac, Canvas, Schoology, Seesaw, Schoolbox all keep assessment as a separate first-class entity from lessons). UbD pedagogical research (Wiggins/McTighe explicitly stages assessment Stage 2 BEFORE lesson Stage 3). Hattie + Black & Wiliam framing. Teacher cognitive-load personas (Ms. Okafor 5-min, Mr. Patel Sunday backward-design, first-year MYP teacher writing GRASPS). Schema implications analysis. Sunk-cost honesty on TG.0D. Convergence + divergence tables between the two reviews. Preserve verbatim — load-bearing source material for the deferred B′ work."
+    category: projects
+    last_verified: "2026-05-11"
+    referenced_from: ["summative-lessons.md (primary record)", "decisions-log.md 11 May 2026 entry", "ALL-PROJECTS.md Summative Lessons entry"]
     max_age_days: 365
     last_scanned: null
 
@@ -2722,11 +2740,11 @@ docs:
 
 # --- SUMMARY STATISTICS ---
 summary:
-  total_documents: 284
+  total_documents: 286
   by_category:
     root: 40
     brain: 9
-    projects: 94
+    projects: 96
     specs: 50
     research: 7
     testing: 8
@@ -2741,5 +2759,5 @@ summary:
     marketing: 1
     safety: 1
     email-templates: 5
-  last_updated: "2026-05-08"
+  last_updated: "2026-05-11"
   referenced_in_claude_md: 18

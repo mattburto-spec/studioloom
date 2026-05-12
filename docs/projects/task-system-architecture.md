@@ -899,3 +899,17 @@ That's v1. Layer 2 PM tools and inquiry mode follow in their own briefs.
 - **Push discipline:** standard rules. Don't push to main until checkpoint signed off + migrations applied to prod. Use `task-system-architecture` branch (this branch) until TG.0B applies; then use the dedicated `questerra-tasks` worktree if recommended in OQ #7.
 - **No code in this brief.** All implementation lives in the TG.0B-K phases. Stop reading and write code only after sign-off.
 - **The brief replaces the would-be `summative-tasks.md`** that was never written. The summative-task feature is fully captured here as `task_type='summative'` with the 5-tab config.
+
+---
+
+## Amendment — Summative Lessons (B′) presentation moves (11 May 2026)
+
+On 11 May 2026 Matt proposed a "Summative Lessons" feature as a distinct lesson type with menu icon/colour + inline rubric + per-criterion scoring on the lesson page. The audit-before-touch found this would contradict the 5 May verdict (which explicitly rejected summative-as-lesson-type). Independent Cowork + Gemini reviews on 11 May reconfirmed the 5 May verdict and recommended **Option B′ = three presentation moves on top of the locked architecture**, no schema change.
+
+**B′ is deferred to next semester** (current semester is formative-only testing). When picked up:
+
+- **B′(a)** — Lesson menu visual differentiation (icon + colour) when a row has a `task_lesson_links` entry pointing at a summative task. Sibling to TG.0E or one PR with it.
+- **B′(b)** — Inline rubric + score inputs on the lesson page. Replaces TG.0F's standalone `/(student)/tasks/[taskId]/submit` route with in-lesson rendering for single-lesson summatives. Multi-lesson summatives keep their standalone landing.
+- **B′(c)** — "Where does this happen?" first question in this brief's 5-tab drawer + auto-create-lesson writer path for the "one new lesson I'll add now" option. Folds into TG.0D pre-merge OR ships as follow-up.
+
+Full record: [`summative-lessons.md`](summative-lessons.md). Reviews: [`summative-lessons-reviews-2026-05-11.md`](summative-lessons-reviews-2026-05-11.md). Decision-log entry: 11 May 2026 in `docs/decisions-log.md`.
