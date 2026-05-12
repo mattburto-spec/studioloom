@@ -94,7 +94,12 @@ export const CheckInRow: FC<CheckInRowProps> = ({
   snoozed,
   onSnooze,
 }) => {
-  if (onlineCount === 0) return null;
+  // Hide entirely when no student has loaded the lesson yet — no class
+  // context at all (preview before any student opens the page).
+  const hasAnyActivity = students.some(
+    (s) => s.status === "in_progress" || s.status === "complete",
+  );
+  if (!hasAnyActivity) return null;
 
   const flagged = students
     .filter((s) => !snoozed.has(s.id))
@@ -103,7 +108,37 @@ export const CheckInRow: FC<CheckInRowProps> = ({
     .sort((a, b) => PRIORITY[a.reason.kind] - PRIORITY[b.reason.kind])
     .slice(0, MAX_CHIPS);
 
-  if (flagged.length === 0) return null;
+  // Empty state — calm, neutral, confirms the feature is watching but
+  // doesn't overclaim ("on pace" would be presumptuous when no one has
+  // typed yet). Matches the chip row's height so layout stays stable
+  // when chips appear/disappear.
+  if (flagged.length === 0) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          padding: "10px 12px",
+          borderRadius: "12px",
+          background: "rgba(107, 114, 128, 0.04)",
+          border: "1px solid #E5E7EB",
+        }}
+      >
+        <span style={{ fontSize: "14px", flexShrink: 0 }}>👀</span>
+        <span
+          style={{
+            fontSize: "13px",
+            color: "#6B7280",
+            lineHeight: 1.3,
+          }}
+        >
+          <strong style={{ fontWeight: 700, color: "#374151" }}>Check-in</strong>
+          <span style={{ opacity: 0.85 }}> — no students need attention right now</span>
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div
