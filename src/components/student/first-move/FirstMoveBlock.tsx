@@ -196,137 +196,182 @@ export default function FirstMoveBlock({
     );
   }
 
+  // Shared label style — consistent across all four sections so the
+  // composition reads as one card, not four boxes-in-a-box.
+  const LabelClass =
+    "text-[10.5px] font-bold uppercase tracking-[0.08em] text-amber-700";
+
+  const showPhilosophySection = config.showDesignPhilosophy;
+  const showWhereLeftOffSection =
+    config.showWhereLeftOff && (payload.lastJournalNext || payload.lastDoneCard);
+
   return (
-    <div className="space-y-3 rounded-2xl border-2 border-amber-200 bg-gradient-to-br from-amber-50/80 via-white to-amber-50/40 p-4 shadow-sm">
-      {/* 1. Hero scrim */}
-      {config.showDesignPhilosophy && (
-        <div className="rounded-lg bg-white/70 px-3 py-2 ring-1 ring-amber-200/60">
-          <div className="text-[10.5px] font-bold uppercase tracking-wide text-amber-700">
-            Your design philosophy
+    <div className="rounded-2xl border border-amber-200 bg-white shadow-sm">
+      {/* Header strip — single visual anchor so the block has an
+          identity without shouting. */}
+      <div className="flex items-center gap-2 border-b border-amber-100 bg-amber-50/60 px-5 py-2.5 rounded-t-2xl">
+        <span className="text-base" aria-hidden>
+          ⚡
+        </span>
+        <div className="flex-1 leading-tight">
+          <div className="text-[13px] font-bold text-amber-900">
+            Today&apos;s first move
           </div>
-          <div className="mt-0.5 text-sm leading-snug text-zinc-800">
-            {payload.designPhilosophy ?? (
-              <span className="italic text-zinc-500">
-                Not yet set — visit your Class 1 Strategy Canvas to write
-                one. (You can still pick today&apos;s move below.)
-              </span>
-            )}
+          <div className="text-[11px] text-amber-700/80">
+            Five minutes before you dive in. Glance back, pick one card,
+            name what you&apos;ll do.
           </div>
         </div>
-      )}
+      </div>
 
-      {/* 2. Where you left off */}
-      {config.showWhereLeftOff &&
-        (payload.lastJournalNext || payload.lastDoneCard) && (
-          <div className="rounded-lg bg-white/70 px-3 py-2 ring-1 ring-amber-200/60">
-            <div className="text-[10.5px] font-bold uppercase tracking-wide text-amber-700">
-              Where you left off
+      <div className="px-5 py-4 space-y-4">
+        {/* 1. Design philosophy */}
+        {showPhilosophySection && (
+          <div>
+            <div className={LabelClass}>Your design philosophy</div>
+            <div className="mt-1 text-[14px] leading-snug text-zinc-800">
+              {payload.designPhilosophy ?? (
+                <span className="italic text-zinc-500">
+                  Not yet set — visit your Class 1 Strategy Canvas to write
+                  one. You can still pick today&apos;s move below.
+                </span>
+              )}
             </div>
+          </div>
+        )}
+
+        {/* 2. Where you left off — only renders when there's content + a
+            hairline separator above if the previous section showed. */}
+        {showWhereLeftOffSection && (
+          <div
+            className={showPhilosophySection ? "border-t border-amber-100 pt-4" : ""}
+          >
+            <div className={LabelClass}>Where you left off</div>
             {payload.lastJournalNext && (
-              <div className="mt-1 text-sm text-zinc-800">
-                <span className="text-zinc-500">Last NEXT prompt</span>
+              <div className="mt-1 text-[14px] leading-snug text-zinc-800">
+                <span className="italic">
+                  &ldquo;{payload.lastJournalNext}&rdquo;
+                </span>
                 {payload.lastJournalUpdatedAt && (
-                  <span className="text-[10.5px] text-zinc-400">
-                    {" "}
-                    · {relativeTime(payload.lastJournalUpdatedAt)}
+                  <span className="ml-1.5 text-[11px] text-zinc-500">
+                    last NEXT · {relativeTime(payload.lastJournalUpdatedAt)}
                   </span>
                 )}
-                <div className="mt-0.5 italic">
-                  &ldquo;{payload.lastJournalNext}&rdquo;
-                </div>
               </div>
             )}
             {payload.lastDoneCard && (
-              <div className="mt-1.5 text-[12px] text-zinc-700">
-                <span className="text-zinc-500">Last completed:</span>{" "}
-                🟢 {payload.lastDoneCard.title}
+              <div className="mt-1.5 text-[13px] text-zinc-700">
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500"
+                    aria-hidden
+                  />
+                  Last completed:{" "}
+                  <span className="font-medium">
+                    {payload.lastDoneCard.title}
+                  </span>
+                </span>
               </div>
             )}
           </div>
         )}
 
-      {/* 3. Today's options — this_class cards */}
-      <div>
-        <div className="mb-1.5 text-[10.5px] font-bold uppercase tracking-wide text-amber-700">
-          Today&apos;s options ({payload.thisClassCards.length})
-        </div>
-        {payload.thisClassCards.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50/70 p-3 text-[12px] text-zinc-600">
-            Your &ldquo;This Class&rdquo; lane is empty. Open your Kanban,
-            promote a card from Backlog, then come back. (You can still
-            write today&apos;s commitment below without picking one.)
+        {/* 3. Today's options — this_class cards */}
+        <div
+          className={
+            showPhilosophySection || showWhereLeftOffSection
+              ? "border-t border-amber-100 pt-4"
+              : ""
+          }
+        >
+          <div className="flex items-baseline justify-between gap-2">
+            <div className={LabelClass}>Today&apos;s options</div>
+            <span className="text-[11px] text-zinc-500">
+              {payload.thisClassCards.length} in &ldquo;This Class&rdquo;
+            </span>
           </div>
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {payload.thisClassCards.map((card) => {
-              const selected = chosenCardId === card.id;
-              return (
-                <button
-                  key={card.id}
-                  type="button"
-                  onClick={() => setChosenCardId(selected ? null : card.id)}
-                  className={`group inline-flex max-w-full items-start gap-2 rounded-full border px-3 py-1.5 text-left text-[12px] transition ${
-                    selected
-                      ? "border-amber-600 bg-amber-600 text-white shadow"
-                      : "border-amber-300 bg-white text-zinc-800 hover:border-amber-500 hover:bg-amber-50"
-                  }`}
-                >
-                  <span aria-hidden>{selected ? "●" : "○"}</span>
-                  <span className="truncate">{card.title}</span>
-                </button>
-              );
-            })}
+          {payload.thisClassCards.length === 0 ? (
+            <div className="mt-2 rounded-lg border border-dashed border-zinc-300 bg-zinc-50/60 px-3 py-2 text-[12.5px] text-zinc-600">
+              Your &ldquo;This Class&rdquo; lane is empty. Open your Kanban,
+              promote a card from Backlog, then come back.
+            </div>
+          ) : (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {payload.thisClassCards.map((card) => {
+                const selected = chosenCardId === card.id;
+                return (
+                  <button
+                    key={card.id}
+                    type="button"
+                    onClick={() => setChosenCardId(selected ? null : card.id)}
+                    aria-pressed={selected}
+                    className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] transition ${
+                      selected
+                        ? "border-amber-600 bg-amber-600 text-white shadow-sm"
+                        : "border-zinc-300 bg-white text-zinc-800 hover:border-amber-400 hover:bg-amber-50"
+                    }`}
+                  >
+                    <span aria-hidden className="text-[11px]">
+                      {selected ? "✓" : "○"}
+                    </span>
+                    <span className="truncate">{card.title}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* 4. Today I will… commitment — the hero input. */}
+        <div className="border-t border-amber-100 pt-4">
+          <label className={LabelClass} htmlFor="first-move-commitment">
+            Today I will…
+          </label>
+          <input
+            id="first-move-commitment"
+            type="text"
+            value={commitment}
+            onChange={(e) => updateCommitment(e.target.value)}
+            placeholder="One sentence. Verbs, not adjectives."
+            maxLength={200}
+            className="mt-1.5 w-full rounded-lg border border-amber-300 bg-white px-3.5 py-2.5 text-[15px] text-zinc-900 placeholder:text-zinc-400 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-200"
+          />
+          <div className="mt-1 flex items-center justify-between text-[11px] text-zinc-500">
+            <span>
+              {wordCount(commitment)} / {config.minCommitmentWords} words min
+            </span>
+            <span>{commitment.length} / 200</span>
+          </div>
+        </div>
+
+        {commitError && (
+          <div className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-700">
+            ⚠ {commitError}
           </div>
         )}
-      </div>
 
-      {/* 4. Today I will… commitment */}
-      <div>
-        <label className="mb-1 block text-[10.5px] font-bold uppercase tracking-wide text-amber-700">
-          Today I will…
-        </label>
-        <input
-          type="text"
-          value={commitment}
-          onChange={(e) => updateCommitment(e.target.value)}
-          placeholder="One sentence. Verbs, not adjectives."
-          maxLength={200}
-          className="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-200"
-        />
-        <div className="mt-1 flex items-center justify-between text-[10.5px] text-zinc-500">
-          <span>
-            {wordCount(commitment)} / {config.minCommitmentWords} words min
-          </span>
-          <span>{commitment.length} / 200 chars</span>
+        {/* Action row */}
+        <div className="flex items-center justify-between gap-2 pt-1">
+          <div className="text-[11.5px] text-zinc-500">
+            {config.requireCardChoice && !chosenCardId
+              ? "Pick a card above to enable Start."
+              : !canStart
+                ? `Need ${config.minCommitmentWords}+ words.`
+                : "Ready when you are."}
+          </div>
+          <button
+            type="button"
+            onClick={handleStart}
+            disabled={!canStart || committing}
+            className={`rounded-full px-5 py-2 text-sm font-bold transition ${
+              canStart
+                ? "bg-amber-600 text-white shadow-sm hover:bg-amber-700"
+                : "cursor-not-allowed bg-zinc-200 text-zinc-500"
+            }`}
+          >
+            {committing ? "Saving…" : "Start studio →"}
+          </button>
         </div>
-      </div>
-
-      {commitError && (
-        <div className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-700">
-          ⚠ {commitError}
-        </div>
-      )}
-
-      <div className="flex items-center justify-between gap-2 pt-1">
-        <div className="text-[11px] text-zinc-500">
-          {config.requireCardChoice && !chosenCardId
-            ? "Pick a card above to enable Start."
-            : !canStart
-              ? `Need ${config.minCommitmentWords}+ words.`
-              : "Ready when you are."}
-        </div>
-        <button
-          type="button"
-          onClick={handleStart}
-          disabled={!canStart || committing}
-          className={`rounded-full px-4 py-2 text-sm font-bold transition ${
-            canStart
-              ? "bg-amber-600 text-white hover:bg-amber-700"
-              : "cursor-not-allowed bg-zinc-200 text-zinc-500"
-          }`}
-        >
-          {committing ? "Saving…" : "Start studio →"}
-        </button>
       </div>
     </div>
   );

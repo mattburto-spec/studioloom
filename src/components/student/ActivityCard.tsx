@@ -275,32 +275,37 @@ export function ActivityCard({
         </div>
       ) : (
         <>
-          {/* Prompt header — Lever 1 hybrid composition (framing + task + 🎯 success) */}
-          <div className="mb-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1">
-                <ComposedPrompt section={section} variant="standard" tappable />
+          {/* Prompt header — Lever 1 hybrid composition (framing + task + 🎯 success).
+              Suppressed for self-contained blocks (First Move) whose own UI
+              subsumes the orientation copy. Add to SUPPRESS_HEADER_TYPES when
+              a block ships its own integrated hero. */}
+          {section.responseType !== "first-move" && (
+            <div className="mb-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1">
+                  <ComposedPrompt section={section} variant="standard" tappable />
+                </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0 mt-1">
+                  {section.portfolioCapture && (
+                    <span
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-pink/10 text-brand-pink text-[10px] font-semibold"
+                      title="This response will appear in your portfolio"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                      </svg>
+                      Portfolio
+                    </span>
+                  )}
+                  {/* TTS reads the COMPOSED prompt — students hear framing + task + signal */}
+                  <TextToSpeech text={stripMarkdown(composedPromptText(section))} />
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 flex-shrink-0 mt-1">
-                {section.portfolioCapture && (
-                  <span
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-pink/10 text-brand-pink text-[10px] font-semibold"
-                    title="This response will appear in your portfolio"
-                  >
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-                    </svg>
-                    Portfolio
-                  </span>
-                )}
-                {/* TTS reads the COMPOSED prompt — students hear framing + task + signal */}
-                <TextToSpeech text={stripMarkdown(composedPromptText(section))} />
-              </div>
+              {/* Colored accent bar under prompt */}
+              <div className="w-12 h-1 rounded-full mt-3" style={{ backgroundColor: pageColor }} />
             </div>
-            {/* Colored accent bar under prompt */}
-            <div className="w-12 h-1 rounded-full mt-3" style={{ backgroundColor: pageColor }} />
-          </div>
+          )}
 
           {/* Media */}
           {section.media && <MediaBlock media={section.media} />}

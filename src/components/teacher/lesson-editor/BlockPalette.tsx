@@ -495,13 +495,13 @@ export const BLOCK_LIBRARY: BlockDefinition[] = [
     defaultPhase: "opening",
     create: () => ({
       activityId: nanoid(8),
-      prompt: "Today's first move",
-      framing:
-        "Five minutes before you dive in. Glance at where you've been, pick the one card you'll work on next, name it.",
-      task:
-        "Pick one card from your 'This Class' lane. Write one sentence about what you'll do with it. Then start.",
-      success_signal:
-        "You can say what you're about to do in a single sentence before you touch a tool.",
+      // The First Move block renders its own self-contained hero (design
+      // philosophy + where you left off + this_class cards + commitment),
+      // so we deliberately ship without framing / task / success_signal —
+      // the standard lesson-page header would just duplicate what the
+      // block already shows. ActivityCard suppresses the header when
+      // responseType === "first-move".
+      prompt: "First Move",
       responseType: "first-move" as ResponseType,
       durationMinutes: 5,
       firstMoveConfig: {
