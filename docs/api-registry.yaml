@@ -3184,6 +3184,15 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/teacher/inbox/count
+  method: GET
+  file: src/app/api/teacher/inbox/count/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/teacher/inbox/items
   method: GET
   file: src/app/api/teacher/inbox/items/route.ts

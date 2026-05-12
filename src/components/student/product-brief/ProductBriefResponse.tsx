@@ -19,12 +19,10 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import {
-  ARCHETYPE_LIST,
-  type SlotAnswer,
-} from "@/lib/project-spec/archetypes";
+import type { SlotAnswer } from "@/lib/project-spec/archetypes";
 import { buildSummary, formatAnswer } from "@/lib/project-spec/format";
 import {
+  PRODUCT_BRIEF_ARCHETYPE_LIST,
   getProductBriefArchetype,
   type ProductBriefArchetype,
 } from "@/lib/project-spec/product-brief";
@@ -209,7 +207,7 @@ export default function ProductBriefResponse({ unitId, onChange }: Props) {
       <>
         {fromChoiceCard && <FromChoiceCardBanner cardLabel={fromChoiceCard.label} />}
         <ArchetypePicker
-          archetypes={ARCHETYPE_LIST}
+          archetypes={PRODUCT_BRIEF_ARCHETYPE_LIST}
           onPick={(id) => save({ archetype_id: id })}
           saving={saving}
           heading="Shape your product"

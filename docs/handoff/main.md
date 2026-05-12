@@ -1,85 +1,50 @@
 # Handoff — main
 
-**Last session ended:** 2026-05-11T07:41Z
-**Worktree:** `/Users/matt/CWORK/questerra`
-**HEAD:** `d26e811` "docs(saveme): close 11 May — tap-a-word Path A + B + Lesson #82"
+**Last session ended:** 2026-05-12T03:30Z
+**Worktree:** `/Users/matt/CWORK/questerra-grading` (parallel session — main worktree at `/Users/matt/CWORK/questerra`)
+**HEAD on main after merges:** `e2a0caf` "feat(tfl.3 C.4): tweak buttons (Shorter / Warmer / Sharper / + Ask) (#213)" → C.5 PR #214 merging at session close
 
-> Supersedes the prior `main.md` (PM session of 11 May 2026). AM tap-a-word work is captured in `changelog.md` and `decisions-log.md` — see those for context.
+> Supersedes the prior `main.md` (11 May 2026 PM Summative Lessons B′ scoping). Summative Lessons remains deferred per `docs/projects/summative-lessons.md`.
 
-## What just happened (PM session, 11 May 2026)
+## What just happened (12 May 2026 session)
 
-Scoped a proposed "Summative Lessons" feature → audit-before-touch fired the stop trigger → found the work conflicted with the locked Task System architecture (5 May 2026, schema applied to prod via mig `20260505032750`, TG.0C merged, TG.0D built awaiting smoke) → ran independent Cowork + Gemini review → both picked Option B (Cowork refined to B′ = B + three named presentation moves) → Matt accepted B′ and deferred to next semester.
+Closed the **TFL.3 Pass C** brief end-to-end in a single long session — 8 PRs (#193, #195, #198, #204, #205, #206, #210, #213, #214) covering the entire C.1 → C.5 build plus three smoke-driven polish iterations. The Teacher Marking Inbox at `/teacher/inbox` is now the daily-driver approve-and-go surface. Legacy `/teacher/marking` cohort heatmap stays as the deep-dive (one click away).
 
-**No code changes.** Documentation + decision-log only.
+**Highlights:**
+- **C.3.3** prod migration `20260512023440_student_tile_grades_resolved_at` applied + logged in `applied_migrations`. Cross-device "Mark resolved" via new `resolved_at` + `resolved_by` columns + partial index.
+- **C.4** new `regenerateDraft` helper + `/api/teacher/grading/regenerate-draft` route — 4 tweak directives (shorter / warmer / sharper / ask) with PII round-trip (real → placeholder → real).
+- **C.5** TopNav Marking badge + `/api/teacher/inbox/count` endpoint — amber when reply_waiting, purple-tint otherwise, 60s tab-aware polling.
+- Three smoke-driven hotfixes mid-session: handleApprove silently no-op'd because it read the wrong draft slot (#205); marking page kicked back to Lesson 1 after AI suggest (#206); inbox didn't auto-refresh (#206).
+- One approach pivot mid-session: PR #208 (localStorage for Mark resolved) was closed in favour of server-side persistence (PR #210) when Matt flagged the school-laptop ↔ home-laptop case. Migration discipline followed — paused for prod apply before merge.
 
-- **NEW** `docs/projects/summative-lessons.md` — primary record. B′ TL;DR + three moves (a/b/c) + what's NOT changing + when to pick up + coordination concerns + FUs. Trigger phrase: "continue summative lessons" or "summative".
-- **NEW** `docs/projects/summative-lessons-reviews-2026-05-11.md` — verbatim Cowork + Gemini reviews + convergence/divergence tables. Load-bearing source material.
-- **EDIT** `docs/projects/ALL-PROJECTS.md` — new entry under 🔵 Planned, above Skills Library.
-- **EDIT** `docs/projects/task-system-architecture.md` — added "Amendment — Summative Lessons (B′)" section after Final Notes.
-- **EDIT** `docs/decisions-log.md` — appended 11 May (PM) entry.
-- **EDIT** `docs/doc-manifest.yaml` — 2 new entries + `last_verified` bumps + totals (284 → 286 / projects 94 → 96) + `last_updated` → 2026-05-11.
-- **EDIT** `docs/changelog.md` — appended PM entry above the AM tap-a-word entry.
-- **EDIT** `docs/api-registry.yaml` — scanner picked up one pre-existing drift: `/api/teacher/upload-image` route was in code but missing from the registry (from a prior unsynced session, not this session).
+See `docs/changelog.md` 2026-05-12 entry for the full breakdown.
 
 ## State of working tree
 
-```
-Branch: main (up to date with origin/main; HEAD = d26e811)
-Tests: not run this session (no code changes). Carry-over: 5321 passing / 11 skipped.
-tsc: not run this session. Carry-over: clean.
-Pending push: 0 (this session's work is all uncommitted; commit + push is the next step).
-
-Modified by THIS session:
-  M  docs/api-registry.yaml          (pre-existing drift picked up by scanner)
-  M  docs/changelog.md
-  M  docs/decisions-log.md
-  M  docs/doc-manifest.yaml
-  M  docs/projects/ALL-PROJECTS.md
-  M  docs/projects/task-system-architecture.md
-  M  docs/scanner-reports/feature-flags.json   (timestamp)
-  M  docs/scanner-reports/rls-coverage.json    (timestamp)
-  M  docs/scanner-reports/vendors.json         (timestamp)
-  ?? docs/handoff/main.md                      (this file)
-  ?? docs/projects/summative-lessons.md
-  ?? docs/projects/summative-lessons-reviews-2026-05-11.md
-
-Modified by PRIOR sessions (NOT touched this session — leave for their owners):
-  M  docs/projects/dashboard.html
-  M  docs/projects/privacy-first-positioning.md
-  ?? docs/projects/world-class-procurement-readiness.md
-```
+- **Branch:** `feat/inbox-c5-dashboard-chip` (PR #214, CI green, awaiting merge at session end)
+- **Pending push:** 1 commit (saveme docs — this handoff + changelog + 3 new FUs + registry sync). Will be bundled into #214.
+- **Tests:** 831/831 in last broader sweep (grading + teacher + api + components + PII grep)
+- **tsc:** strict clean on all touched files (pre-existing pipeline `framing/task/success_signal` errors in stage2/4/6 tests are unchanged and unrelated)
+- **Migrations applied to prod this session:** 1 (`20260512023440_student_tile_grades_resolved_at`)
+- **Migration tracker:** logged via `applied_migrations` INSERT
+- **Worktrees:** main worktree at `/Users/matt/CWORK/questerra` is reserved as the cutover baseline; this session ran in `/Users/matt/CWORK/questerra-grading`
 
 ## Next steps
 
-- [ ] **Commit this session's saveme bundle.** Suggested message: `docs(saveme): Summative Lessons reconciled as B′ — deferred to next semester`. Stage the 9 files listed above under "Modified by THIS session" plus the 2 new files. **Do not** stage `dashboard.html`, `privacy-first-positioning.md`, or `world-class-procurement-readiness.md` — those belong to other in-flight work.
-- [ ] **Push to `origin/main`.** No migrations this session, no prod-apply gate.
-- [ ] **Toddle screen-share (when B′ work resumes).** Cowork's specific recommendation: pull up Toddle's actual summative task UX for 5 minutes before B′ starts. Confirms "Tasks separate from Learning Experiences" pattern. Reduces risk of re-litigating the call.
-- [ ] **Other sessions' WIP.** Someone owns the 3 unrelated files left modified — their saveme will pick them up. If they've sat for >24h, ping the owner.
+- [ ] **Matt smokes Pass C end-to-end** on live (`studioloom.org/teacher/inbox`):
+  - Tweak buttons: click each of Shorter / Warmer / Sharper / + Ask on a drafted item + on a reply_waiting item. Verify the text rewrites + no "Student" leaks back into output (real-name restore should always swap back).
+  - Marking badge: open any teacher page → amber pill on "Marking" when reply_waiting exists; purple-tint pill when only drafts; hidden when zero. Hover for tooltip.
+  - 60s polling: leave inbox open, have a student submit something fresh; verify it shows up within ~60s without refresh.
+  - Cross-device Mark resolved: mark a got-it resolved on laptop A → reload on laptop B (or incognito) → stays gone. Have student send another reply → re-surfaces.
+- [ ] **Pick the next inflection point.** Three filed FUs sit at P3 (cohort comparison in inbox, ask-templates, push escalation). All gated on real pilot usage data. Worth waiting for ≥2 weeks of teacher use before picking.
+- [ ] **Watch for Pass C regressions** in the first week of real use. The four sub-phases interact tightly (the C.3.1 sentinel UX, C.3.3 resolved_at re-surface, C.4 tweak-state, C.5 count endpoint all share state derivation in inbox-loader.ts).
 
 ## Open questions / blockers
 
-- **When to pick up B′.** Doc says "next semester (August/September 2026)." Three prerequisites: formative-only testing surfaces confidence, LIS work merged, TG.0D smoked and merged. Confirm all three before kicking off.
-- **B′(c) folding decision.** Whether to fold "Where does this happen?" into TG.0D pre-smoke OR ship as TG.0D follow-up. Both paths documented; smoke-first is the recommended lower-risk path. Re-decide when work resumes.
-- _None blocking._
+_None active._ Pass C is structurally complete. The 3 new follow-ups in `docs/projects/grading-followups.md` are explicitly post-pilot work — they wait on usage data, not on architectural decisions.
 
-## Pre-existing drift surfaced this session (FYI, NOT new)
+## Trigger phrases
 
-- **api-registry** had a missing route entry for `/api/teacher/upload-image` — picked up + committed by this saveme. Whoever added that route should annotate the entry with `notes` + correct `tables_read/written` fields (currently null/empty).
-- **feature-flags** scanner reports 2 orphaned (SENTRY_AUTH_TOKEN, auth.permission_helper_rollout) + 1 missing (RUN_E2E). Tracked as FU-CC (P3) per CLAUDE.md known follow-ups. Not new this session.
-
-## Saveme protocol completion
-
-| Step | Status | Note |
-|---|---|---|
-| 1. ALL-PROJECTS.md updated | ✅ | Summative Lessons entry under Planned |
-| 2. dashboard.html PROJECTS sync | ⚠ skipped | File has unrelated WIP from prior session; defer to owner |
-| 3. CLAUDE.md only if key decisions/lessons changed | ✅ unchanged | Decisions handled by decisions-log; status by ALL-PROJECTS |
-| 4. roadmap.md only if strategic content changed | ✅ unchanged | None |
-| 5. Trigger refresh-project-dashboard task | ⚠ skipped | Lives at CWORK level, not in this worktree's MCP |
-| 6. WIRING.yaml | ✅ unchanged | No new system or affects-change |
-| 7. system-architecture-map.html | ✅ unchanged | No system level-up |
-| 8. doc-manifest.yaml | ✅ | 2 new + 3 last_verified bumps + totals/last_updated |
-| 9. changelog.md | ✅ | PM entry appended |
-| 10. (auto-saveme reminder) | ✅ n/a | Saveme running now |
-| 11. Registry scanners | ✅ | All 5 run; only api-registry committed; FF orphans pre-existing |
-| 12. Handoff note | ✅ | This file |
+- `continue tfl3` / `inbox` → resume on the Pass D backlog (currently the 3 P3 FUs above)
+- `continue marking` → resume on the legacy /teacher/marking page (still alive for cohort heatmap; not currently scheduled)
+- `summative` → resume the deferred Summative Lessons B′ work (semester boundary)

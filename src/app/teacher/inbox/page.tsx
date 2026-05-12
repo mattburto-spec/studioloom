@@ -106,6 +106,15 @@ export default function TeacherInboxPage() {
     Record<string, boolean>
   >({});
 
+  /** TFL.3 C.4 — Tweak-button regeneration. Per-item: which directive
+   *  is currently in flight ("shorter" | "warmer" | "sharper" | "ask"
+   *  | null) and the in-progress free-form ask text. */
+  const [tweaking, setTweaking] = React.useState<
+    Record<string, "shorter" | "warmer" | "sharper" | "ask" | null>
+  >({});
+  const [askOpen, setAskOpen] = React.useState<Record<string, boolean>>({});
+  const [askText, setAskText] = React.useState<Record<string, string>>({});
+
   // ─── Fetch inbox ───
   const refetch = React.useCallback(async () => {
     try {
@@ -446,6 +455,91 @@ export default function TeacherInboxPage() {
     }
   }, [selectedItem]);
 
+  /** TFL.3 C.4 — tweak-button regeneration. POSTs to
+   *  /api/teacher/grading/regenerate-draft with the current draft +
+   *  directive, then OVERWRITES the appropriate draft state
+   *  (followupDrafts for reply_waiting; draftEdits for drafted/no_draft).
+   *  Teacher can still edit the result inline + approve normally. */
+  const handleTweak = React.useCallback(
+    async (
+      directive: "shorter" | "warmer" | "sharper" | "ask",
+      askTextValue?: string,
+    ) => {
+      if (!selectedItem) return;
+      const item = selectedItem;
+      const itemKey = item.itemKey;
+
+      // Mirror DetailPane's baseDraft logic so the "current draft" we
+      // send matches what the teacher is reading on screen.
+      const NO_FOLLOWUP_SENTINEL = "(no follow-up needed)";
+      const followupForItem = followupDrafts[itemKey];
+      const baseDraft =
+        item.state === "reply_waiting"
+          ? followupForItem === NO_FOLLOWUP_SENTINEL
+            ? ""
+            : followupForItem ?? ""
+          : item.aiCommentDraft ?? "";
+      const currentDraft = draftEdits[itemKey] ?? baseDraft;
+      if (!currentDraft.trim()) return;
+
+      setTweaking((prev) => ({ ...prev, [itemKey]: directive }));
+      try {
+        const res = await fetch("/api/teacher/grading/regenerate-draft", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            grade_id: item.gradeId,
+            current_draft: currentDraft,
+            directive,
+            ...(directive === "ask" ? { ask_text: askTextValue ?? "" } : {}),
+          }),
+        });
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          throw new Error(
+            (json as { error?: string }).error ??
+              `Regenerate failed (${res.status})`,
+          );
+        }
+        const json = (await res.json()) as { draftBody: string };
+        const newBody = json.draftBody ?? "";
+        // Store the regenerated body in the appropriate slot. For
+        // reply_waiting → followupDrafts. For drafted/no_draft →
+        // draftEdits (so the textarea picks it up via the
+        // draftEdits[itemKey] ?? baseDraft fall-through).
+        if (item.state === "reply_waiting") {
+          setFollowupDrafts((prev) => ({ ...prev, [itemKey]: newBody }));
+          // Drop any stale edit so the new body shows immediately.
+          setDraftEdits((prev) => {
+            const next = { ...prev };
+            delete next[itemKey];
+            return next;
+          });
+        } else {
+          setDraftEdits((prev) => ({ ...prev, [itemKey]: newBody }));
+        }
+        // Close the ask input on success.
+        if (directive === "ask") {
+          setAskOpen((prev) => ({ ...prev, [itemKey]: false }));
+          setAskText((prev) => {
+            const next = { ...prev };
+            delete next[itemKey];
+            return next;
+          });
+        }
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "Regenerate failed");
+      } finally {
+        setTweaking((prev) => {
+          const next = { ...prev };
+          delete next[itemKey];
+          return next;
+        });
+      }
+    },
+    [selectedItem, draftEdits, followupDrafts],
+  );
+
   // ─── Render: loading + error states ───
   if (items === null) {
     return (
@@ -620,6 +714,22 @@ export default function TeacherInboxPage() {
                 followupFetching={
                   !!followupFetching[selectedItem.itemKey]
                 }
+                onTweak={handleTweak}
+                tweaking={tweaking[selectedItem.itemKey] ?? null}
+                askOpen={!!askOpen[selectedItem.itemKey]}
+                setAskOpen={(open) =>
+                  setAskOpen((prev) => ({
+                    ...prev,
+                    [selectedItem.itemKey]: open,
+                  }))
+                }
+                askText={askText[selectedItem.itemKey] ?? ""}
+                setAskText={(text) =>
+                  setAskText((prev) => ({
+                    ...prev,
+                    [selectedItem.itemKey]: text,
+                  }))
+                }
               />
             ) : (
               <div className="h-full flex items-center justify-center text-gray-400 text-sm">
@@ -767,6 +877,12 @@ function DetailPane({
   resolving,
   followupDraft,
   followupFetching,
+  onTweak,
+  tweaking,
+  askOpen,
+  setAskOpen,
+  askText,
+  setAskText,
 }: {
   item: InboxItem;
   draftEdits: Record<string, string>;
@@ -782,6 +898,16 @@ function DetailPane({
    *  for reply_waiting items. Lazy-loaded by the parent. */
   followupDraft: string | undefined;
   followupFetching: boolean;
+  /** TFL.3 C.4 — tweak-button regeneration. */
+  onTweak: (
+    directive: "shorter" | "warmer" | "sharper" | "ask",
+    askText?: string,
+  ) => void;
+  tweaking: "shorter" | "warmer" | "sharper" | "ask" | null;
+  askOpen: boolean;
+  setAskOpen: (open: boolean) => void;
+  askText: string;
+  setAskText: (text: string) => void;
 }) {
   /** Hide approve when the follow-up is still fetching OR when the
    *  AI returned the "no follow-up needed" sentinel. The sentinel
@@ -990,16 +1116,30 @@ function DetailPane({
           })()}
           rows={5}
           disabled={
-            item.state === "reply_waiting"
+            tweaking !== null ||
+            (item.state === "reply_waiting"
               ? followupFetching
-              : !item.aiCommentDraft
+              : !item.aiCommentDraft)
           }
           className="w-full px-3 py-2 text-sm border border-emerald-200 bg-emerald-50/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none disabled:bg-gray-50 disabled:text-gray-400"
         />
-        {/* Tweak buttons (Shorter / Warmer / Sharper / + Ask) land in C.4. */}
-        <div className="mt-1 text-[10px] text-gray-400 italic">
-          Tweak buttons (Shorter / Warmer / Sharper / + Ask) ship in C.4.
-        </div>
+        {/* TFL.3 C.4 — tweak buttons. Each fires POST /regenerate-draft
+            and overwrites the textarea content with the AI's rewrite.
+            Disabled when there's nothing to tweak (empty draft / still
+            fetching the initial follow-up) or while a tweak is in
+            flight. */}
+        <TweakRow
+          item={item}
+          tweaking={tweaking}
+          draftValue={draftValue}
+          followupFetching={followupFetching}
+          isNoFollowupSentinel={isNoFollowupSentinel}
+          askOpen={askOpen}
+          setAskOpen={setAskOpen}
+          askText={askText}
+          setAskText={setAskText}
+          onTweak={onTweak}
+        />
       </section>
 
       {/* Actions. When the AI returned the "no follow-up needed" sentinel
@@ -1058,5 +1198,153 @@ function DetailPane({
         </Link>
       </footer>
     </article>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TweakRow — 4-button regenerate row (TFL.3 C.4).
+// ════════════════════════════════════════════════════════════════════════════
+
+function TweakRow({
+  item,
+  tweaking,
+  draftValue,
+  followupFetching,
+  isNoFollowupSentinel,
+  askOpen,
+  setAskOpen,
+  askText,
+  setAskText,
+  onTweak,
+}: {
+  item: InboxItem;
+  tweaking: "shorter" | "warmer" | "sharper" | "ask" | null;
+  draftValue: string;
+  followupFetching: boolean;
+  isNoFollowupSentinel: boolean;
+  askOpen: boolean;
+  setAskOpen: (open: boolean) => void;
+  askText: string;
+  setAskText: (text: string) => void;
+  onTweak: (
+    directive: "shorter" | "warmer" | "sharper" | "ask",
+    askText?: string,
+  ) => void;
+}) {
+  // Hide entire row when there's no draft to tweak — the placeholder
+  // textarea is empty in the sentinel + follow-up-fetching cases.
+  const disabledReason: string | null = (() => {
+    if (followupFetching) return "Wait for the AI follow-up to load.";
+    if (isNoFollowupSentinel) return "Nothing to tweak — thread closed.";
+    if (!draftValue.trim()) return "Nothing to tweak — draft is empty.";
+    if (tweaking) return "Regenerating…";
+    return null;
+  })();
+  const disabled = disabledReason !== null;
+
+  const presetClass =
+    "px-2.5 py-1 text-[11px] font-bold rounded-md border transition disabled:cursor-not-allowed";
+  const enabledClass =
+    "border-purple-200 bg-white text-purple-700 hover:bg-purple-50 hover:border-purple-300";
+  const disabledClass = "border-gray-200 bg-gray-50 text-gray-400";
+
+  return (
+    <div
+      data-testid="inbox-tweak-row"
+      className="mt-2 flex flex-col gap-2"
+    >
+      <div className="flex flex-wrap items-center gap-1.5">
+        {(["shorter", "warmer", "sharper"] as const).map((d) => (
+          <button
+            key={d}
+            type="button"
+            data-testid={`inbox-tweak-${d}`}
+            disabled={disabled}
+            onClick={() => onTweak(d)}
+            className={[
+              presetClass,
+              disabled ? disabledClass : enabledClass,
+              tweaking === d ? "ring-2 ring-purple-400" : "",
+            ].join(" ")}
+            title={disabledReason ?? `Regenerate this draft to be ${d}.`}
+          >
+            {tweaking === d ? "…" : d.charAt(0).toUpperCase() + d.slice(1)}
+          </button>
+        ))}
+        <button
+          type="button"
+          data-testid="inbox-tweak-ask"
+          disabled={disabled && !askOpen}
+          onClick={() => setAskOpen(!askOpen)}
+          className={[
+            presetClass,
+            disabled && !askOpen ? disabledClass : enabledClass,
+            askOpen ? "ring-2 ring-purple-400" : "",
+          ].join(" ")}
+          title={
+            disabledReason ?? "Type a free-form instruction (e.g. 'mention the design cycle')."
+          }
+        >
+          {askOpen ? "× Cancel" : "+ Ask"}
+        </button>
+        {tweaking && (
+          <span className="text-[10px] text-purple-700 italic ml-1 inline-flex items-center gap-1">
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+              className="animate-pulse"
+            >
+              <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+            </svg>
+            regenerating ({tweaking})…
+          </span>
+        )}
+      </div>
+
+      {askOpen && (
+        <div
+          data-testid="inbox-tweak-ask-panel"
+          className="flex flex-col gap-1.5 p-2 rounded-md border border-purple-200 bg-purple-50/30"
+        >
+          <input
+            type="text"
+            data-testid="inbox-tweak-ask-input"
+            value={askText}
+            onChange={(e) => setAskText(e.target.value)}
+            placeholder='e.g. "mention the design cycle stages", "shorter and warmer"'
+            disabled={tweaking !== null}
+            className="px-2 py-1 text-xs border border-purple-200 bg-white rounded focus:outline-none focus:ring-2 focus:ring-purple-400 disabled:bg-gray-50"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && askText.trim() && !tweaking) {
+                e.preventDefault();
+                onTweak("ask", askText);
+              }
+            }}
+          />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              data-testid="inbox-tweak-ask-apply"
+              disabled={!askText.trim() || tweaking !== null}
+              onClick={() => onTweak("ask", askText)}
+              className={[
+                "px-2.5 py-1 text-[11px] font-bold rounded-md transition",
+                askText.trim() && !tweaking
+                  ? "bg-purple-600 text-white hover:bg-purple-700"
+                  : "bg-gray-100 text-gray-400 cursor-not-allowed",
+              ].join(" ")}
+            >
+              {tweaking === "ask" ? "Applying…" : "Apply"}
+            </button>
+            <span className="text-[10px] text-gray-500">
+              ~$0.001 per tweak · {item.studentName.length > 0 ? "your name redaction is preserved" : ""}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
