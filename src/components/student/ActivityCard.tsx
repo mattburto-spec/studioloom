@@ -373,6 +373,8 @@ export function ActivityCard({
                     ? (metadata) => onIntegrityUpdate(index, metadata)
                     : undefined
                 }
+                activityId={section.activityId}
+                choiceCardsConfig={section.choiceCardsConfig}
               />
 
               {section.responseType !== "structured-prompts" &&

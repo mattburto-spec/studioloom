@@ -19,6 +19,8 @@ import ProjectSpecResponse from "./project-spec/ProjectSpecResponse";
 import ProductBriefResponse from "./product-brief/ProductBriefResponse";
 import UserProfileResponse from "./user-profile/UserProfileResponse";
 import SuccessCriteriaResponse from "./success-criteria/SuccessCriteriaResponse";
+import ChoiceCardsBlock from "./choice-cards/ChoiceCardsBlock";
+import type { ChoiceCardsBlockConfig } from "@/components/teacher/lesson-editor/BlockPalette.types";
 
 interface ResponseInputProps {
   sectionIndex: number;
@@ -48,6 +50,10 @@ interface ResponseInputProps {
   enableIntegrityMonitoring?: boolean;
   /** Callback to receive integrity metadata from MonitoredTextarea */
   onIntegrityUpdate?: (metadata: IntegrityMetadata) => void;
+  /** For responseType === "choice-cards": stable activity ID from the lesson section (nanoid8). Required for pick persistence. */
+  activityId?: string;
+  /** For responseType === "choice-cards": deck composition + behaviour from the lesson editor. */
+  choiceCardsConfig?: ChoiceCardsBlockConfig;
 }
 
 const TYPE_OPTIONS: { type: ResponseType; label: string; icon: string }[] = [
@@ -77,6 +83,8 @@ export function ResponseInput({
   toolChallenge,
   enableIntegrityMonitoring = false,
   onIntegrityUpdate,
+  activityId,
+  choiceCardsConfig,
 }: ResponseInputProps) {
   // Filter type options based on allowed types
   const typeOptions = allowedTypes
@@ -252,6 +260,22 @@ export function ResponseInput({
         <SuccessCriteriaResponse
           unitId={unitId}
           sectionIndex={sectionIndex}
+          onChange={onChange}
+        />
+      )}
+
+      {/* Choice Cards block — flippable deck students browse + pick one
+          from. Library state in choice_cards, per-student picks in
+          choice_card_selections. onChange pushes the picked card's
+          label so the marking surface tile-detects a non-empty response
+          (same pattern as project-spec/product-brief). The component
+          authenticates server-side via requireStudentAuth — studentId
+          is not threaded as a prop. */}
+      {responseType === "choice-cards" && activityId && choiceCardsConfig && (
+        <ChoiceCardsBlock
+          activityId={activityId}
+          config={choiceCardsConfig}
+          unitId={unitId}
           onChange={onChange}
         />
       )}
