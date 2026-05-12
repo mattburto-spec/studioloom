@@ -79,6 +79,15 @@ export default function TeacherInboxPage() {
   const [lessonFilter, setLessonFilter] = React.useState<string | null>(null);
   const [selectedKey, setSelectedKey] = React.useState<string | null>(null);
   const [skipped, setSkipped] = React.useState<Set<string>>(new Set());
+  /** TFL.3 C.3.3 — server-side "Mark resolved" tracking. The persistent
+   *  intent lives in student_tile_grades.resolved_at (migration
+   *  20260512023440); a NEW student reply re-surfaces the thread
+   *  automatically because the loader filter compares against
+   *  latestStudentReply.sentAt. Client state is just an optimistic
+   *  hide so the item disappears instantly while the POST is in flight. */
+  const [resolving, setResolving] = React.useState<Record<string, boolean>>(
+    {},
+  );
   /** Drafts edited inline by the teacher before approve. Keyed by
    *  itemKey. Falls back to item.aiCommentDraft if absent. */
   const [draftEdits, setDraftEdits] = React.useState<Record<string, string>>(
@@ -385,6 +394,58 @@ export default function TeacherInboxPage() {
     setSkipped((prev) => new Set(prev).add(selectedItem.itemKey));
   }, [selectedItem]);
 
+  /** TFL.3 C.3.3 — persistent thread resolution. POSTs to the
+   *  resolve-thread route which sets student_tile_grades.resolved_at.
+   *  The loader filter hides resolved threads on the next poll
+   *  (unless a new student reply lands after resolved_at).
+   *
+   *  Optimistic: add to the in-memory skipped set immediately so the
+   *  item drops from the queue before the network roundtrip. If the
+   *  POST fails, restore + surface an alert; the next poll would
+   *  bring it back anyway, but the alert tells the teacher their
+   *  click didn't take. */
+  const handleResolve = React.useCallback(async () => {
+    if (!selectedItem) return;
+    const item = selectedItem;
+    const itemKey = item.itemKey;
+    setResolving((prev) => ({ ...prev, [itemKey]: true }));
+    setSkipped((prev) => new Set(prev).add(itemKey));
+    try {
+      const res = await fetch("/api/teacher/grading/resolve-thread", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ grade_id: item.gradeId, resolved: true }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(
+          (json as { error?: string }).error ??
+            `Resolve failed (${res.status})`,
+        );
+      }
+      // Server-side resolved_at is now stamped; the next polling
+      // refetch will already exclude this row. Drop from local items
+      // too so the cohort/total counters refresh.
+      setItems((prev) =>
+        prev ? prev.filter((p) => p.itemKey !== itemKey) : prev,
+      );
+    } catch (err) {
+      // Restore: un-skip + surface so the teacher knows it didn't land.
+      setSkipped((prev) => {
+        const next = new Set(prev);
+        next.delete(itemKey);
+        return next;
+      });
+      alert(err instanceof Error ? err.message : "Resolve failed");
+    } finally {
+      setResolving((prev) => {
+        const next = { ...prev };
+        delete next[itemKey];
+        return next;
+      });
+    }
+  }, [selectedItem]);
+
   // ─── Render: loading + error states ───
   if (items === null) {
     return (
@@ -553,6 +614,8 @@ export default function TeacherInboxPage() {
                 approving={approving}
                 onApprove={handleApprove}
                 onSkip={handleSkip}
+                onResolve={handleResolve}
+                resolving={!!resolving[selectedItem.itemKey]}
                 followupDraft={followupDrafts[selectedItem.itemKey]}
                 followupFetching={
                   !!followupFetching[selectedItem.itemKey]
@@ -700,6 +763,8 @@ function DetailPane({
   approving,
   onApprove,
   onSkip,
+  onResolve,
+  resolving,
   followupDraft,
   followupFetching,
 }: {
@@ -709,6 +774,10 @@ function DetailPane({
   approving: boolean;
   onApprove: () => void;
   onSkip: () => void;
+  /** TFL.3 C.3.3 — Mark resolved → POST to resolve-thread route. Used
+   *  by the purple sentinel-state button; persists across devices. */
+  onResolve: () => void;
+  resolving: boolean;
   /** TFL.3 C.3 — the AI follow-up draft (got_it/not_sure/pushback)
    *  for reply_waiting items. Lazy-loaded by the parent. */
   followupDraft: string | undefined;
@@ -945,11 +1014,11 @@ function DetailPane({
             <button
               type="button"
               data-testid="inbox-mark-resolved-button"
-              onClick={onSkip}
-              disabled={approving}
+              onClick={onResolve}
+              disabled={approving || resolving}
               className="px-5 py-2.5 text-sm font-extrabold rounded-xl transition bg-purple-600 text-white hover:bg-purple-700 shadow-sm disabled:opacity-50"
             >
-              ✓ Mark resolved
+              {resolving ? "Resolving…" : "✓ Mark resolved"}
             </button>
           ) : (
             <>

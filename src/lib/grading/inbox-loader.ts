@@ -94,6 +94,10 @@ interface GradeRow {
   student_facing_comment: string | null;
   updated_at: string;
   created_at: string;
+  // TFL.3 C.3.3 — persistent "Mark resolved" intent. NULL = open;
+  // non-NULL = teacher closed at this wall-clock time. Loader hides
+  // resolved rows unless a NEW student reply landed after resolved_at.
+  resolved_at: string | null;
 }
 
 interface ClassRow {
@@ -164,7 +168,7 @@ export async function loadInboxItems(
   const { data: grades } = await client
     .from("student_tile_grades")
     .select(
-      "id, student_id, class_id, unit_id, page_id, tile_id, score, confirmed, ai_pre_score, ai_comment_draft, ai_reasoning, ai_quote, ai_confidence, student_facing_comment, updated_at, created_at",
+      "id, student_id, class_id, unit_id, page_id, tile_id, score, confirmed, ai_pre_score, ai_comment_draft, ai_reasoning, ai_quote, ai_confidence, student_facing_comment, updated_at, created_at, resolved_at",
     )
     .in("class_id", classIds)
     .gte("updated_at", since)
@@ -346,6 +350,16 @@ export async function loadInboxItems(
       state = "no_draft";
     }
     if (!state) continue;
+
+    // TFL.3 C.3.3 — persistent resolution filter. If the teacher
+    // marked this thread resolved (resolved_at set), hide it UNLESS
+    // a new student reply has landed since then. The re-surface check
+    // uses latestStudentReply.sentAt; if no reply ever existed (e.g.
+    // teacher resolved a drafted thread early) the row stays hidden.
+    if (g.resolved_at) {
+      const replyAt = latestStudentReply?.sentAt;
+      if (!replyAt || replyAt <= g.resolved_at) continue;
+    }
 
     items.push({
       itemKey: `${g.id}::${g.tile_id}`,
