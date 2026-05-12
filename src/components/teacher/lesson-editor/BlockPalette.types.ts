@@ -111,4 +111,6 @@ export interface FirstMoveConfig {
   showDesignPhilosophy: boolean;
   /** When true, the "Where you left off" panel surfaces last journal NEXT + last done card. Default true. */
   showWhereLeftOff: boolean;
+  /** When true, the "Coming up next" forward-look strip surfaces the next 2-3 incomplete planning_tasks by target_date. Default true. */
+  showComingUp: boolean;
 }

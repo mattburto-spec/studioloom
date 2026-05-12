@@ -24,12 +24,21 @@ import { motion } from "framer-motion";
 import type { FirstMoveConfig } from "@/components/teacher/lesson-editor/BlockPalette.types";
 import type { KanbanCard } from "@/lib/unit-tools/kanban/types";
 
+interface UpcomingMilestone {
+  id: string;
+  title: string;
+  targetDate: string;
+  daysFromNow: number;
+  status: "todo" | "in_progress";
+}
+
 interface Payload {
   designPhilosophy: string | null;
   lastJournalNext: string | null;
   lastJournalUpdatedAt: string | null;
   thisClassCards: KanbanCard[];
   lastDoneCard: { id: string; title: string; doneAt: string | null } | null;
+  upcomingMilestones: UpcomingMilestone[];
 }
 
 interface Props {
@@ -57,6 +66,42 @@ function relativeTime(iso: string | null): string {
   const days = Math.floor(hrs / 24);
   if (days < 7) return `${days}d ago`;
   return new Date(then).toLocaleDateString();
+}
+
+// Formats `daysFromNow` for the "Coming up next" strip. Examples:
+//   -2 → "2 days overdue"   (red urgency)
+//    0 → "today"
+//    1 → "tomorrow"
+//    3 → "in 3 days"
+//   12 → "in ~2 weeks"
+function formatMilestoneDistance(daysFromNow: number): {
+  text: string;
+  tone: "overdue" | "today" | "soon" | "later";
+} {
+  if (daysFromNow < 0) {
+    const n = Math.abs(daysFromNow);
+    return {
+      text: n === 1 ? "1 day overdue" : `${n} days overdue`,
+      tone: "overdue",
+    };
+  }
+  if (daysFromNow === 0) return { text: "today", tone: "today" };
+  if (daysFromNow === 1) return { text: "tomorrow", tone: "soon" };
+  if (daysFromNow <= 7) return { text: `in ${daysFromNow} days`, tone: "soon" };
+  if (daysFromNow <= 21)
+    return { text: `in ~${Math.round(daysFromNow / 7)} weeks`, tone: "later" };
+  return { text: `in ${Math.round(daysFromNow / 7)} weeks`, tone: "later" };
+}
+
+function formatMilestoneDate(iso: string): string {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return iso;
+  // "Fri 16 May" — locale-aware short format.
+  return d.toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
 }
 
 export default function FirstMoveBlock({
@@ -205,6 +250,8 @@ export default function FirstMoveBlock({
   const showPhilosophySection = config.showDesignPhilosophy;
   const showWhereLeftOffSection =
     config.showWhereLeftOff && (payload.lastJournalNext || payload.lastDoneCard);
+  const showComingUpSection =
+    config.showComingUp && payload.upcomingMilestones.length > 0;
 
   return (
     <div className="rounded-2xl border border-amber-200 bg-white shadow-sm">
@@ -277,10 +324,57 @@ export default function FirstMoveBlock({
           </div>
         )}
 
-        {/* 3. Today's options — this_class cards */}
+        {/* 3. Coming up next — forward look from planning_tasks */}
+        {showComingUpSection && (
+          <div
+            className={
+              showPhilosophySection || showWhereLeftOffSection
+                ? "border-t border-amber-100 pt-5"
+                : ""
+            }
+          >
+            <div className={LabelClass}>Coming up next</div>
+            <ul className="mt-2 space-y-1.5">
+              {payload.upcomingMilestones.map((m) => {
+                const distance = formatMilestoneDistance(m.daysFromNow);
+                const dateText = formatMilestoneDate(m.targetDate);
+                const toneClass =
+                  distance.tone === "overdue"
+                    ? "text-rose-700"
+                    : distance.tone === "today"
+                      ? "text-amber-800 font-semibold"
+                      : distance.tone === "soon"
+                        ? "text-amber-700"
+                        : "text-zinc-500";
+                return (
+                  <li
+                    key={m.id}
+                    className="flex items-baseline gap-2 text-[15px] leading-snug text-zinc-800"
+                  >
+                    <span
+                      aria-hidden
+                      className="inline-block h-1.5 w-1.5 flex-shrink-0 translate-y-[5px] rounded-full bg-amber-400"
+                    />
+                    <span className="flex-1">
+                      {m.title}{" "}
+                      <span className="text-[12.5px] text-zinc-500">
+                        · {dateText}
+                      </span>
+                    </span>
+                    <span className={`text-[12.5px] ${toneClass}`}>
+                      {distance.text}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
+        {/* 4. Today's options — this_class cards */}
         <div
           className={
-            showPhilosophySection || showWhereLeftOffSection
+            showPhilosophySection || showWhereLeftOffSection || showComingUpSection
               ? "border-t border-amber-100 pt-5"
               : ""
           }

@@ -22,7 +22,9 @@ import {
   extractDesignPhilosophy,
   extractLastJournalNext,
   extractKanbanSummary,
+  extractUpcomingMilestones,
   type ProgressRowLike,
+  type UpcomingMilestone,
 } from "@/lib/first-move/payload-builder";
 
 interface FirstMovePayload {
@@ -31,6 +33,7 @@ interface FirstMovePayload {
   lastJournalUpdatedAt: string | null;
   thisClassCards: KanbanCard[];
   lastDoneCard: { id: string; title: string; doneAt: string | null } | null;
+  upcomingMilestones: UpcomingMilestone[];
 }
 
 export async function GET(
@@ -80,12 +83,36 @@ export async function GET(
   const cards: KanbanCard[] = (kanbanRow?.cards as KanbanState["cards"]) ?? [];
   const { thisClassCards, lastDoneCard } = extractKanbanSummary(cards);
 
+  // Planning tasks — query the next ~5 candidates (incomplete with a
+  // target_date) and let the helper trim + compute daysFromNow.
+  // Overdue tasks are still returned (negative daysFromNow) so students
+  // see what they missed.
+  const { data: planningRows } = await db
+    .from("planning_tasks")
+    .select("id, title, status, target_date")
+    .eq("student_id", studentId)
+    .eq("unit_id", unitId)
+    .neq("status", "done")
+    .not("target_date", "is", null)
+    .order("target_date", { ascending: true })
+    .limit(5);
+
+  const upcomingMilestones = extractUpcomingMilestones(
+    (planningRows ?? []) as Array<{
+      id: string;
+      title: string;
+      status: "todo" | "in_progress" | "done";
+      target_date: string | null;
+    }>,
+  );
+
   const payload: FirstMovePayload = {
     designPhilosophy: philosophy.value,
     lastJournalNext: journalNext.value,
     lastJournalUpdatedAt: journalNext.updatedAt,
     thisClassCards,
     lastDoneCard,
+    upcomingMilestones,
   };
 
   return NextResponse.json(payload, {

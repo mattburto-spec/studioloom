@@ -509,6 +509,7 @@ export const BLOCK_LIBRARY: BlockDefinition[] = [
         requireCardChoice: true,
         showDesignPhilosophy: true,
         showWhereLeftOff: true,
+        showComingUp: true,
       },
     }),
   },

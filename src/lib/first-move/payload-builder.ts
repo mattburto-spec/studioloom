@@ -98,6 +98,72 @@ export function extractKanbanSummary(cards: KanbanCard[]): {
   return { thisClassCards, lastDoneCard };
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// Upcoming milestones — forward-look from planning_tasks
+// ─────────────────────────────────────────────────────────────────────
+
+export interface PlanningTaskLike {
+  id: string;
+  title: string;
+  status: "todo" | "in_progress" | "done";
+  target_date: string | null; // ISO YYYY-MM-DD
+}
+
+export interface UpcomingMilestone {
+  id: string;
+  title: string;
+  /** ISO YYYY-MM-DD */
+  targetDate: string;
+  /** Days from `now` to `targetDate`. Negative = overdue. */
+  daysFromNow: number;
+  status: "todo" | "in_progress";
+}
+
+/**
+ * Filter + sort planning_tasks into the next N incomplete milestones
+ * for the First Move "Coming up next" section. Excludes done tasks and
+ * tasks with no target_date set. Sorted by target_date ascending so
+ * imminent deadlines surface first; overdue tasks (daysFromNow < 0)
+ * still appear (with negative `daysFromNow`) so students see what they
+ * missed.
+ *
+ * `nowIso` is injected for testability (defaults to current time).
+ */
+export function extractUpcomingMilestones(
+  tasks: PlanningTaskLike[],
+  nowIso?: string,
+  limit = 3,
+): UpcomingMilestone[] {
+  const now = nowIso ? new Date(nowIso) : new Date();
+  // Normalise `now` to midnight UTC for day-math stability so a task
+  // dated "today" never returns -1.
+  const nowMidnight = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  );
+  const dayMs = 86_400_000;
+
+  const filtered: UpcomingMilestone[] = [];
+  for (const task of tasks) {
+    if (task.status === "done") continue;
+    if (!task.target_date) continue;
+    const target = Date.parse(task.target_date);
+    if (!Number.isFinite(target)) continue;
+    const daysFromNow = Math.round((target - nowMidnight) / dayMs);
+    filtered.push({
+      id: task.id,
+      title: task.title,
+      targetDate: task.target_date,
+      daysFromNow,
+      status: task.status,
+    });
+  }
+
+  filtered.sort((a, b) => Date.parse(a.targetDate) - Date.parse(b.targetDate));
+  return filtered.slice(0, limit);
+}
+
 /**
  * Build the new kanban cards array when a student picks a chosenCardId
  * via First Move. Any existing "doing" cards get demoted to

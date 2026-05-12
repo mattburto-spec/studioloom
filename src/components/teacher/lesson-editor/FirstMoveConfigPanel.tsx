@@ -11,6 +11,7 @@ const DEFAULT_CONFIG: FirstMoveConfig = {
   requireCardChoice: true,
   showDesignPhilosophy: true,
   showWhereLeftOff: true,
+  showComingUp: true,
 };
 
 interface Props {
@@ -67,6 +68,11 @@ export default function FirstMoveConfigPanel({ activity, onUpdate }: Props) {
           label='Show "Where you left off" panel (last journal NEXT + last done card)'
           checked={cfg.showWhereLeftOff}
           onChange={(v) => patch({ showWhereLeftOff: v })}
+        />
+        <Toggle
+          label='Show "Coming up next" panel (next 3 milestones from Timeline)'
+          checked={cfg.showComingUp}
+          onChange={(v) => patch({ showComingUp: v })}
         />
       </div>
 
