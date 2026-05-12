@@ -29,6 +29,16 @@ export const JOURNAL_PROMPTS: StructuredPromptsConfig = [
     helper: "Anti-fiction anchor. The gap between plan and reality is itself evidence.",
     required: true,
     softCharCap: 400,
+    // End-of-class journal — a single specific sentence is enough.
+    // Bumped down from default 80 after Matt's smoke: 80 was too long
+    // for non-native speakers under time pressure.
+    targetChars: 40,
+    sentenceStarters: [
+      "I started by",
+      "I worked on",
+      "I finished",
+      "I got stuck on",
+    ],
     criterion: "DO",
   },
   {
@@ -38,6 +48,13 @@ export const JOURNAL_PROMPTS: StructuredPromptsConfig = [
     helper: "Noticing the unexpected is the doorway to learning.",
     required: true,
     softCharCap: 400,
+    targetChars: 40,
+    sentenceStarters: [
+      "I noticed that",
+      "It surprised me that",
+      "It didn't work because",
+      "What worked was",
+    ],
     criterion: "NOTICE",
   },
   {
@@ -47,6 +64,13 @@ export const JOURNAL_PROMPTS: StructuredPromptsConfig = [
     helper: "Use a because clause. Vague entries don't count as evidence.",
     required: true,
     softCharCap: 400,
+    targetChars: 50, // Slightly higher — the "because" clause needs room.
+    sentenceStarters: [
+      "I decided to",
+      "I'm switching to",
+      "I changed my mind about",
+      "I'll keep going with",
+    ],
     criterion: "DECIDE",
   },
   {
@@ -56,6 +80,13 @@ export const JOURNAL_PROMPTS: StructuredPromptsConfig = [
     helper: "This auto-creates a card in your Kanban backlog.",
     required: true,
     softCharCap: 300,
+    targetChars: 30,
+    sentenceStarters: [
+      "Next class I'll",
+      "First I need to",
+      "I'll start by",
+      "Before that I need",
+    ],
     criterion: "NEXT",
   },
 ];

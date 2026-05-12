@@ -55,14 +55,21 @@ function adaptFields(
     }
     const sp = f as StructuredPrompt & { criterion?: Criterion };
     const cap = sp.softCharCap ?? DEFAULT_MAX;
+    // Author can override the default 80-char target per-prompt via
+    // `targetChars` — useful for quick-reflection prompts (Journal) where
+    // a sentence is enough, vs substantive prompts (Strategy Canvas,
+    // Final Reflection) where the default still fits.
+    const target = Math.min(sp.targetChars ?? DEFAULT_TARGET, cap);
     return {
       id: sp.id,
       label: sp.label,
       helper: sp.helper,
       placeholder: sp.placeholder,
-      target: Math.min(DEFAULT_TARGET, cap),
+      target,
       max: cap,
       criterion: sp.criterion,
+      // Forward sentence starters to the StarterChip renderer.
+      starters: sp.sentenceStarters,
     };
   });
 }
