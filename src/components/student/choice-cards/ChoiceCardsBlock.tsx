@@ -178,7 +178,7 @@ export default function ChoiceCardsBlock({ activityId, config, unitId, onChange 
   return (
     <div className="relative">
       <div
-        className="grid gap-4"
+        className="choice-cards-deck grid gap-4"
         style={{
           gridTemplateColumns: "repeat(auto-fit, minmax(min(260px, 100%), 1fr))",
         }}
@@ -323,6 +323,7 @@ function CardFace({
           <>
             <div
               className="absolute inset-0"
+              data-choice-face="front"
               style={{
                 backfaceVisibility: "hidden",
                 WebkitBackfaceVisibility: "hidden",
@@ -332,6 +333,7 @@ function CardFace({
             </div>
             <div
               className="absolute inset-0"
+              data-choice-face="back"
               style={{
                 backfaceVisibility: "hidden",
                 WebkitBackfaceVisibility: "hidden",
@@ -443,7 +445,7 @@ function CardBack({
           </p>
         ) : (
           <div className="text-sm leading-relaxed text-zinc-700">
-            <MarkdownPrompt text={cardData!.detail_md} />
+            <MarkdownPrompt text={cardData!.detail_md} tappable />
           </div>
         )}
       </div>
