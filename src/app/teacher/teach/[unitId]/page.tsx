@@ -8,6 +8,7 @@ import { computeLessonBoundaries } from "@/lib/timeline";
 import PhaseTimer from "@/components/teach/PhaseTimer";
 import TeachingToolbar from "@/components/teach/TeachingToolbar";
 import { CheckInRow } from "@/components/teach/CheckInRow";
+import { getLiveStatusLabel } from "@/lib/teaching-mode/live-status-label";
 import { ObservationSnap } from "@/components/nm";
 import { AGENCY_ELEMENT_MAP } from "@/lib/nm/constants";
 import type { NMUnitConfig } from "@/lib/nm/constants";
@@ -55,30 +56,12 @@ interface LiveSummary {
 
 type PhaseId = "opening" | "miniLesson" | "workTime" | "debrief";
 
-// =========================================================================
-// Status helpers
-// =========================================================================
-
-const STATUS_CONFIG = {
-  not_started: { label: "Not Started", color: "#9CA3AF", bg: "#F3F4F6", ring: "#E5E7EB" },
-  in_progress: { label: "Working", color: "#2563EB", bg: "#EFF6FF", ring: "#BFDBFE" },
-  complete: { label: "Done", color: "#059669", bg: "#ECFDF5", ring: "#A7F3D0" },
-};
-
 const PHASE_COLORS: Record<PhaseId, string> = {
   opening: "#7C3AED",
   miniLesson: "#2563EB",
   workTime: "#10B981",
   debrief: "#F59E0B",
 };
-
-function timeSince(dateStr: string | null): string {
-  if (!dateStr) return "—";
-  const secs = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-  if (secs < 60) return "just now";
-  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
-  return `${Math.floor(secs / 3600)}h ago`;
-}
 
 // =========================================================================
 // Main page
@@ -665,18 +648,23 @@ export default function TeachingDashboard({
                 </div>
               ) : (
                 sortedStudents.map((s) => {
-                  const config = STATUS_CONFIG[s.status];
+                  const liveLabel = getLiveStatusLabel({
+                    status: s.status,
+                    isOnline: s.isOnline,
+                    lastActive: s.lastActive,
+                  });
                   return (
                     <div
                       key={s.id}
                       style={{
-                        display: "flex", alignItems: "center", gap: "12px", padding: "14px 16px",
-                        borderBottom: "1px solid #E5E7EB",
+                        display: "flex", alignItems: "center", gap: "10px", padding: "8px 16px",
+                        borderBottom: "1px solid #F3F4F6",
                         background: s.needsHelp ? "#FFFBEB" : "transparent",
-                        transition: "background 0.2s",
+                        transition: "background 0.15s",
+                        minHeight: "44px",
                       }}
                       onMouseEnter={(e) => {
-                        if (!s.needsHelp) e.currentTarget.style.background = "#FFFFFF";
+                        if (!s.needsHelp) e.currentTarget.style.background = "#FAFAFA";
                       }}
                       onMouseLeave={(e) => {
                         if (!s.needsHelp) e.currentTarget.style.background = "transparent";
@@ -686,67 +674,68 @@ export default function TeachingDashboard({
                       <div style={{ position: "relative", flexShrink: 0 }}>
                         <div
                           style={{
-                            width: "40px", height: "40px", borderRadius: "50%",
+                            width: "28px", height: "28px", borderRadius: "50%",
                             display: "flex", alignItems: "center", justifyContent: "center",
-                            fontSize: "13px", fontWeight: 700, color: "#FFF",
-                            background: config.color,
-                            border: `2px solid ${config.ring}`,
+                            fontSize: "11px", fontWeight: 700, color: "#FFF",
+                            background: liveLabel.color,
+                            border: `1.5px solid ${liveLabel.ring}`,
                           }}
                         >
                           {s.avatar ? (
-                            <img src={s.avatar} alt="" style={{ width: "40px", height: "40px", borderRadius: "50%", objectFit: "cover" }} />
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={s.avatar} alt="" style={{ width: "28px", height: "28px", borderRadius: "50%", objectFit: "cover" }} />
                           ) : (
                             s.name.charAt(0).toUpperCase()
                           )}
                         </div>
                         {s.isOnline && (
                           <span style={{
-                            position: "absolute", bottom: "-2px", right: "-2px",
-                            width: "14px", height: "14px", borderRadius: "50%",
+                            position: "absolute", bottom: "-1px", right: "-1px",
+                            width: "10px", height: "10px", borderRadius: "50%",
                             background: "#10B981", border: "2px solid #FFFFFF"
                           }} />
                         )}
                       </div>
 
-                      {/* Name + badges */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                          <span style={{ fontSize: "14px", fontWeight: 600, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                            {s.name}
+                      {/* Name + meta (single line) */}
+                      <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                        <span style={{ fontSize: "13px", fontWeight: 600, color: "#111827", whiteSpace: "nowrap" }}>
+                          {s.name}
+                        </span>
+                        {s.needsHelp && (
+                          <span style={{
+                            padding: "1px 6px", borderRadius: "4px",
+                            fontSize: "9px", fontWeight: 700, color: "#92400E",
+                            background: "#FFFBEB", border: "1px solid #FDE68A",
+                            lineHeight: 1.4,
+                          }}>
+                            HELP?
                           </span>
-                          {s.needsHelp && (
-                            <span style={{
-                              padding: "2px 8px", borderRadius: "4px",
-                              fontSize: "7px", fontWeight: 700, color: "#92400E",
-                              background: "#FFFBEB", border: "1px solid #FDE68A"
-                            }}>
-                              HELP?
-                            </span>
-                          )}
-                          {s.ellLevel && s.ellLevel !== "none" && (
-                            <span style={{
-                              padding: "2px 8px", borderRadius: "4px",
-                              fontSize: "7px", fontWeight: 700, color: "#1E40AF",
-                              background: "#EFF6FF", border: "1px solid #BFDBFE"
-                            }}>
-                              ELL{String(s.ellLevel).replace(/ell/i, "")}
-                            </span>
-                          )}
-                        </div>
-                        <p style={{ fontSize: "12px", color: "#9CA3AF", margin: 0 }}>
+                        )}
+                        {s.ellLevel && s.ellLevel !== "none" && (
+                          <span style={{
+                            padding: "1px 6px", borderRadius: "4px",
+                            fontSize: "9px", fontWeight: 700, color: "#1E40AF",
+                            background: "#EFF6FF", border: "1px solid #BFDBFE",
+                            lineHeight: 1.4,
+                          }}>
+                            ELL{String(s.ellLevel).replace(/ell/i, "")}
+                          </span>
+                        )}
+                        <span style={{ fontSize: "12px", color: "#9CA3AF", whiteSpace: "nowrap" }}>
                           {s.responseCount > 0 ? `${s.responseCount} responses` : "No responses yet"}
-                          {s.lastActive ? ` · ${timeSince(s.lastActive)}` : ""}
-                        </p>
+                        </span>
                       </div>
 
-                      {/* Status badge */}
+                      {/* Status badge (live-aware) */}
                       <span style={{
-                        padding: "4px 12px", borderRadius: "12px",
-                        fontSize: "12px", fontWeight: 700,
-                        background: config.bg, color: config.color,
+                        padding: "3px 10px", borderRadius: "10px",
+                        fontSize: "11px", fontWeight: 700,
+                        background: liveLabel.bg, color: liveLabel.color,
                         whiteSpace: "nowrap",
+                        flexShrink: 0,
                       }}>
-                        {config.label}
+                        {liveLabel.label}
                       </span>
 
                       {/* NM button */}
@@ -755,11 +744,11 @@ export default function TeachingDashboard({
                           onClick={() => setNmObsStudent({ id: s.id, name: s.name })}
                           title={`NM Observation for ${s.name}`}
                           style={{
-                            width: "32px", height: "32px", borderRadius: "6px",
+                            width: "28px", height: "28px", borderRadius: "6px",
                             border: "2px solid #1a1a1a", background: "#FF2D78",
                             display: "flex", alignItems: "center", justifyContent: "center",
-                            cursor: "pointer", boxShadow: "2px 2px 0 #1a1a1a",
-                            fontSize: "10px", fontWeight: 900, color: "#fff",
+                            cursor: "pointer", boxShadow: "1px 1px 0 #1a1a1a",
+                            fontSize: "9px", fontWeight: 900, color: "#fff",
                             fontFamily: "'Arial Black', sans-serif",
                             flexShrink: 0, transition: "transform 0.1s",
                           }}
