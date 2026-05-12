@@ -115,3 +115,46 @@
 - Per-turn tracking would require: new `tile_feedback_turn_seen` association table (turn_id, student_id, seen_at) + RPC bumps per turn rendered + chip logic to derive "any unseen turn exists in this thread?"
 
 **Why deferred:** No use case yet. v1 latest-seen is good enough for the chip + bell. Track in case multi-turn ambiguity surfaces in real classroom use.
+
+### TFL3-FU-INBOX-COHORT-COMPARISON — Cohort comparison view inside the inbox
+**Surfaced:** TFL.3 Pass C close-out (12 May 2026 — explicitly out of C scope)
+**Priority:** P3
+**Target phase:** Post-pilot polish if teachers ask to spot class-level patterns
+
+**Symptom:** The inbox lists items linearly (Scott, Scott, Scott, Maya, …). For a teacher with 100+ items across 5 classes the per-student firehose obscures patterns — e.g. "in 9 Design S2, half the class is confused about the same prompt" is something the cohort view at /teacher/marking surfaces but the inbox flatness doesn't.
+
+**What we know:**
+- Existing infra: `/teacher/marking` cohort heatmap already groups by class × tile. Inbox could co-locate a "by cohort" toggle that re-buckets the visible items.
+- Grouping key would be `${classId}::${unitId}::${pageId}::${tileId}` (same key the auto-draft warm-up already uses).
+- Probably an inline expander rather than a separate view — "▾ Show all 8 students with this tile in 9 Design S2" under a section header.
+
+**Why deferred:** v1 of the inbox is the daily-driver "approve and go" surface. Cohort grouping is a power-user feature that needs real teacher feedback before designing. Pilot first, then re-evaluate.
+
+### TFL3-FU-ASK-TEMPLATES — Pre-set ask templates for the + Ask tweak
+**Surfaced:** TFL.3 C.4 close-out (12 May 2026)
+**Priority:** P3
+**Target phase:** Post-pilot polish when teacher usage tells us which directives recur
+
+**Symptom:** The "+ Ask" tweak is free-form (teacher types any instruction). Likely the same 3-5 instructions get typed repeatedly across the cohort ("mention the design cycle", "reference the criterion descriptor", "ask for an example", "use simpler vocabulary"). Saving these as one-click templates would compress the workflow further.
+
+**What we know:**
+- Helper accepts arbitrary askText already (capped at 400 chars), so no helper change needed.
+- UI lives in TweakRow → ask panel: add a row of preset chips above the input ("mention design cycle" · "ask for example" · "simpler language") that pre-fill the input on click; teacher hits Enter to fire.
+- Persistence layer: per-teacher in localStorage for v1; promote to `teacher_preferences.ask_templates` JSONB if cross-device demand emerges (same trajectory as C.3.3 resolved_at).
+
+**Why deferred:** Need ≥2 weeks of real usage data to know which templates teachers actually want. Hard-coding 3 generic ones now risks polluting the muscle memory before it forms. Add usage logging to /api/teacher/grading/regenerate-draft → metadata: { directive, askText } so we can mine for repeat patterns.
+
+### TFL3-FU-INBOX-PUSH-ESCALATION — Notification escalation when reply_waiting crosses threshold
+**Surfaced:** TFL.3 Pass C close-out (12 May 2026)
+**Priority:** P3
+**Target phase:** Post-pilot polish if backlog drift becomes a real problem
+
+**Symptom:** A teacher who's away from school for a day comes back to 12 reply_waiting items + a few drafted that have aged 24h+. The TopNav badge surfaces the COUNT but doesn't escalate when the count crosses a threshold or when individual items age past N hours. The bell + email notification systems exist (TFL.1 + Phase 6 / Resend helper) but aren't wired to inbox state.
+
+**What we know:**
+- Existing infra: Resend email helper + `notifications_sent` idempotency table (from Preflight Phase 1B-2), bell endpoint at /api/teacher/notifications.
+- Thresholds to consider: (a) reply_waiting > 5 — generate a daily digest email if not opened in 48h, (b) any single reply_waiting > 72h old — bell notification, (c) Friday afternoon "you have N waiting going into the weekend" nudge.
+- Risk: notifying too aggressively trains teachers to dismiss them. v1 should be opt-in via teacher_preferences.inbox_digest_email_enabled.
+- The count endpoint /api/teacher/inbox/count already returns the data; a daily cron + email template + opt-in toggle finishes it.
+
+**Why deferred:** v1 of the inbox + Marking badge is enough surface area. Teachers need to internalize the daily-driver flow before adding escalation layers — otherwise it just becomes noise. Re-evaluate after 2 weeks of pilot use.
