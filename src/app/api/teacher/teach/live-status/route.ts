@@ -89,16 +89,32 @@ export const GET = withErrorHandler("teacher/teach/live-status:GET", async (requ
   const { data: progressRows } = await progressQuery;
 
   // Phase 6.1 (4 May 2026) — derive "online" from student_progress activity
-  // rather than student_sessions (table dropped in 6.1). A student counts as
-  // online if they updated *any* progress row in the last 5 minutes. This is
-  // a better Teach-Mode signal than session-token presence: it tracks actual
-  // engagement, not "logged in 4 hours ago and walked away".
+  // rather than student_sessions (table dropped in 6.1).
+  //
+  // 13 May 2026: scoped to this unit AND (when applicable) this page. The
+  // original unscoped version flagged a student as "online" if they had
+  // touched any progress row anywhere in the last 5 min — so a student
+  // working on a different page in this unit (or even a different unit)
+  // counted as "online here". That made the needsHelp signal fire with
+  // lastActive deltas of hours (Scott showed "no activity for 551m" — he
+  // was elsewhere, not stuck on this page).
+  //
+  // Page mode (Teaching Mode): isOnline means "active on this exact page
+  // in the last 5 min". Unit mode (overview): means "active anywhere in
+  // this unit in the last 5 min".
   const FIVE_MIN_AGO = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-  const { data: recentActivity } = await db
+  let recentActivityQuery = db
     .from("student_progress")
     .select("student_id")
     .in("student_id", studentIds)
+    .eq("unit_id", unitId)
     .gte("updated_at", FIVE_MIN_AGO);
+
+  if (pageId) {
+    recentActivityQuery = recentActivityQuery.eq("page_id", pageId);
+  }
+
+  const { data: recentActivity } = await recentActivityQuery;
 
   const activeSessionSet = new Set(
     (recentActivity || []).map((s) => s.student_id)
