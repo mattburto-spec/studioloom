@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 458
+# Total routes: 465
 
 routes:
 - path: /api/admin/ai-budget
@@ -1003,6 +1003,41 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: Reference to unknown table 'responses' — not in schema-registry
+- path: /api/student/choice-cards/[activityId]/pick
+  method: POST
+  file: src/app/api/student/choice-cards/[activityId]/pick/route.ts
+  auth: student
+  tables_read:
+  - choice_card_selections
+  - choice_cards
+  tables_written:
+  - choice_card_selections
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'choice_card_selections' — not in schema-registry; Reference to unknown table 'choice_cards'
+    — not in schema-registry
+- path: /api/student/choice-cards/[activityId]/selection
+  method: GET
+  file: src/app/api/student/choice-cards/[activityId]/selection/route.ts
+  auth: student
+  tables_read:
+  - choice_card_selections
+  - choice_cards
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'choice_card_selections' — not in schema-registry; Reference to unknown table 'choice_cards'
+    — not in schema-registry
+- path: /api/student/choice-cards/deck
+  method: GET
+  file: src/app/api/student/choice-cards/deck/route.ts
+  auth: student
+  tables_read:
+  - choice_cards
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'choice_cards' — not in schema-registry
 - path: /api/student/design-assistant
   method: GET
   file: src/app/api/student/design-assistant/route.ts
@@ -2540,6 +2575,39 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/teacher/choice-cards
+  method: POST
+  file: src/app/api/teacher/choice-cards/route.ts
+  auth: teacher
+  tables_read:
+  - choice_cards
+  tables_written:
+  - choice_cards
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'choice_cards' — not in schema-registry
+- path: /api/teacher/choice-cards/[cardId]
+  method: PATCH
+  file: src/app/api/teacher/choice-cards/[cardId]/route.ts
+  auth: teacher
+  tables_read:
+  - choice_cards
+  - user_profiles
+  tables_written:
+  - choice_cards
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'choice_cards' — not in schema-registry
+- path: /api/teacher/choice-cards/library
+  method: GET
+  file: src/app/api/teacher/choice-cards/library/route.ts
+  auth: teacher
+  tables_read:
+  - choice_cards
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'choice_cards' — not in schema-registry
 - path: /api/teacher/class-profiles
   method: GET
   file: src/app/api/teacher/class-profiles/route.ts
@@ -4635,6 +4703,15 @@ routes:
   - class_units
   - classes
   - units
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/upload-choice-card-image
+  method: POST
+  file: src/app/api/teacher/upload-choice-card-image/route.ts
+  auth: teacher
+  tables_read: []
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null

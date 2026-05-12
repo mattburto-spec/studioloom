@@ -4709,3 +4709,54 @@ Plus the NIS tier flip + Gmail-Matt detach as ops changes.
 **Systems affected:** `migration-discipline` (new tracker table + 2 scripts). WIRING.yaml could get a new entry for this in next saveme; deferred since it's tooling not application surface.
 
 **What's next:** Optional FU-MIGRATION-CI-CHECK (P2, ~1-2 hr GitHub Action). Otherwise, audit is fully closed. Return to ordinary build work — Lever 0 / Lever 2-5 / Open Studio v2 / etc.
+
+## 12 May 2026 (CST) — Choice Cards Activity Block v1 SHIPPED end-to-end
+
+**Context:** Matt deferred G8's StudioLoom debut by one class to ship this properly. G8 cohort picks one of 6 project briefs for the unit kickoff. Reusable Activity Block — future consumers: pathway choices, designer mentors, themes, constraints, group roles. Crucially **decoupled from any specific downstream consumer** — `on_pick_action` JSONB is a structured event payload subscribers register for at runtime. Project Spec block doesn't exist yet (and isn't part of this scope) — v1 set-archetype actions are logged to `learning_events` but unconsumed.
+
+**Pre-flight findings** (all greenlit):
+- Block registration pattern: `BLOCK_LIBRARY` array in `BlockPalette.tsx` — copied the v2 Project Spec sibling shape (product-brief/user-profile/success-criteria).
+- Student dispatch: NOT a switch — series of `responseType === "..."` JSX branches in `ResponseInput.tsx`. Added a new branch after the success-criteria block.
+- `learning_events` table exists (migration 106) — used for the `choice-card.picked` event row. **`FU-LEARNING-EVENTS-TABLE` NOT filed** (table exists).
+- Image upload coupling — `upload-image` requires `unitId`, but Choice Cards are LIBRARY-scoped. Built a parallel route `/api/teacher/upload-choice-card-image` per decision (b).
+- 266 baseline tsc errors — Phase 1–9 added zero net.
+
+**10 commits shipped across 9 phases:**
+- Phase 1 — schema migration `20260512012304_choice_cards_and_selections.sql`: 2 tables (choice_cards TEXT slug PK, choice_card_selections UUID PK), 3 RLS policies (library readable to all authenticated; teacher SELECT on selections via class_units→unit_id join; students access via service-role per Lesson #4), 4 indexes (GIN on tags + 3 lookup), updated_at trigger.
+- Phase 2 — `ResponseType` union extension, `ChoiceCardsBlockConfig` interface in `BlockPalette.types.ts`, `BLOCK_LIBRARY` palette entry (collaboration/opening), 3 `Record<ResponseType,...>` maps in `ActivityBlock.tsx` filled with `choice-cards` entries.
+- Phase 3a — dispatch wiring in `ResponseInput.tsx` + props thread-through in `ActivityCard.tsx`, stub `ChoiceCardsBlock`.
+- Phase 4 — 5 API routes: student pick (POST), student selection (GET), teacher library (GET), teacher create (POST), teacher patch (PATCH). All gated via `requireStudentSession` / `requireTeacher`. Pitch-your-own sentinel `_pitch-your-own` handled in-route.
+- Phase 3b — full Framer Motion deck: grid auto-fit min-260px, rotateY 180° flip (preserve-3d + backfaceVisibility), hover lift -8px + 1° rotate, reduced-motion crossfade fallback, focus mode on pick (chosen 1.05x, others 0.35 opacity 0.92 scale), 'Pitch your own' dashed 7th card, ARIA radiogroup, keyboard Enter/Space to flip. Bundled an extra route — `/api/student/choice-cards/deck` — missed in Phase 4 (student deck-fetch via service-role since choice_cards RLS grants TO authenticated and students use token sessions).
+- Phase 5 — `ChoiceCardsConfigPanel.tsx` (layout chips Grid functional + Fan/Stack greyed, single/multi selection, pitch-your-own toggle, selected cards chip list with hover-remove) + `ChoiceCardsLibraryPicker.tsx` modal (search + 7-tag filter chips + multi-select + inline create-card form with 7 action-type options + JSON payload field).
+- Phase 6 — parallel image upload route `/api/teacher/upload-choice-card-image` (no unitId, writes to `unit-images/choice-cards/{timestamp}.jpg`) + sibling `ChoiceCardImageUploadButton` integrated into the create-card form.
+- Phase 7 — seed migration `20260512015124_seed_choice_cards_g8_briefs.sql`: 6 G8 brief cards (designer-mentor, studio-theme, scaffold — ships_to_platform; 1m2-space, desktop-object, board-game — physical making). All image_url NULL; emoji + bg_color fallback. Matt uploads real images this week.
+- Phase 8 — `src/lib/choice-cards/action-dispatcher.ts`: typed `ChoiceCardAction` discriminated union (7 types), `parseChoiceCardAction` loose coercion, in-memory subscriber registry (`registerChoiceCardSubscriber`), `dispatchCardAction` (writes `learning_events` row + notifies subscribers). Pick route wired to dispatch after selection write.
+- Phase 9 — registry sync: api-registry +7 routes (458→465), schema-registry +2 tables, WIRING +1 system (`choice-cards-block`), `docs/projects/choice-cards-followups.md` filed.
+
+**Decisions banked:**
+- Card slug TEXT primary key (not UUID) for human-readable handles like `g8-brief-designer-mentor`. UUID selection-row PK bridges to `learning_events.subject_id`.
+- `learning_events` subject_type=`choice_card_selection`, subject_id=selection.id (uuid), card slug in payload. Keeps learning_events schema clean.
+- Decoupled from Project Spec by design — dispatcher is the seam.
+- Parallel image upload route, not extension — Choice Cards are library-scoped not unit-scoped.
+- Students access via service-role API (Lesson #4 — token sessions, not Supabase auth.uid). No student-side RLS policies needed.
+- Lesson #29 NULL class_id fallback NOT needed for `choice_card_selections` — teacher policy routes through `unit_id`, not `class_id`.
+
+**Tests:** Baseline 5457 passing / 11 skipped / 0 failing (npm test before Phase 1). No new tests added in v1 — `FU-CCB-PROJECT-SPEC-WIRE` follow-up will gain its own tests when wired. Tsc baseline preserved (266 pre-existing errors throughout).
+
+**Migrations pending prod apply** (Matt's call):
+- `20260512012304_choice_cards_and_selections.sql`
+- `20260512015124_seed_choice_cards_g8_briefs.sql`
+
+After applying, remember to `INSERT INTO public.applied_migrations` for both (Lesson #83).
+
+**Follow-ups filed** ([`choice-cards-followups.md`](projects/choice-cards-followups.md)):
+- FU-CCB-PROJECT-SPEC-WIRE (P1) — subscribe to `set-archetype` when Project Spec block ships.
+- FU-CCB-AI-IMAGE-GEN (P2)
+- FU-CCB-MULTI-PICK (P2)
+- FU-CCB-LAYOUT-FAN-STACK (P3)
+- FU-CCB-INLINE-CARD-EDIT (P3)
+- FU-CCB-CHANGE-PICK-TOGGLE (P3)
+
+**Systems affected:** new `choice-cards-block` system (complete). Tangential: `lesson-editor` + `student-response-input` gained new branches.
+
+**What's next:** Phase 10 — Matt Checkpoint smoke. After Matt applies migrations to prod + smoke-walks teacher unit-builder + student pick flow, push to origin/main. Then upload real card images via the lesson editor library picker.

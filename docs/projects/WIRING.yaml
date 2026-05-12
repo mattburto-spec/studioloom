@@ -3079,10 +3079,54 @@ systems:
     os_seam: ready
     change_impacts: "Profile schema changes propagate to scanner worker input shape. Rule-override JSONB structure must match worker's expected contract. System-template edits require service_role."
 
+  - id: choice-cards-block
+    name: "Choice Cards Activity Block"
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: "v1 SHIPPED 12 May 2026. Reusable Activity Block: Framer Motion deck of flippable cards (front: image + hook; back: detail_md + Pick button) where students tap to pick one. Library state in choice_cards (TEXT slug PK), per-student picks in choice_card_selections (UUID PK for learning_events ref). on_pick_action JSONB is a structured event subscribers register for at runtime via src/lib/choice-cards/action-dispatcher.ts. First production deck: 6 G8 project briefs seeded for Matt's cohort StudioLoom debut. Decoupled from any consumer — Project Spec block doesn't exist yet, so v1 set-archetype actions are logged to learning_events but unconsumed."
+    depends_on: [database, auth-system, lesson-editor, student-response-input, storage]
+    affects: [lesson-editor, student-response-input]
+    docs:
+      - path: docs/projects/choice-cards-followups.md
+        purpose: "v1 follow-up tracker"
+    data_fields:
+      - table: choice_cards
+        columns: [id, label, hook_text, detail_md, image_url, image_prompt, emoji, bg_color, tags, on_pick_action, ships_to_platform, is_seeded, created_by, version]
+        notes: "TEXT slug primary key (a-z, 0-9, dashes, 2-80 chars). tags GIN-indexed for tag-filtered library search."
+      - table: choice_card_selections
+        columns: [id, student_id, activity_id, unit_id, class_id, card_id, action_resolved, picked_at]
+        notes: "UUID PK so learning_events references via subject_id. UNIQUE(student_id, activity_id) — NULL activity_id (ad-hoc) bypasses uniqueness."
+    key_files:
+      - supabase/migrations/20260512012304_choice_cards_and_selections.sql
+      - supabase/migrations/20260512015124_seed_choice_cards_g8_briefs.sql
+      - src/components/student/choice-cards/ChoiceCardsBlock.tsx (Framer Motion flip + pick flow)
+      - src/components/teacher/lesson-editor/ChoiceCardsConfigPanel.tsx (in-editor config)
+      - src/components/teacher/lesson-editor/ChoiceCardsLibraryPicker.tsx (modal picker + create form)
+      - src/components/teacher/lesson-editor/ChoiceCardImageUploadButton.tsx (library-scoped upload sibling)
+      - src/app/api/student/choice-cards/[activityId]/pick/route.ts
+      - src/app/api/student/choice-cards/[activityId]/selection/route.ts
+      - src/app/api/student/choice-cards/deck/route.ts
+      - src/app/api/teacher/choice-cards/route.ts (POST create)
+      - src/app/api/teacher/choice-cards/[cardId]/route.ts (PATCH update)
+      - src/app/api/teacher/choice-cards/library/route.ts (GET search)
+      - src/app/api/teacher/upload-choice-card-image/route.ts (library-scoped sibling of upload-image)
+      - src/lib/choice-cards/action-dispatcher.ts (typed action union + subscriber registry + learning_events emission)
+      - src/components/teacher/lesson-editor/BlockPalette.tsx (palette entry, line ~370)
+      - src/components/teacher/lesson-editor/BlockPalette.types.ts (ChoiceCardsBlockConfig)
+      - src/components/teacher/lesson-editor/ActivityBlock.tsx (3× Record<ResponseType,…> maps + ChoiceCardsConfigPanel mount)
+      - src/components/student/ResponseInput.tsx (dispatch branch)
+      - src/components/student/ActivityCard.tsx (props thread-through)
+      - src/types/index.ts (ResponseType union + ActivitySection.choiceCardsConfig)
+    future_needs: "FU-CCB-AI-IMAGE-GEN (AI image gen from image_prompt). FU-CCB-MULTI-PICK (multi-select for constraints). FU-CCB-LAYOUT-FAN-STACK (Fan / Stack visual layouts beyond Grid). FU-CCB-INLINE-CARD-EDIT (edit existing cards from picker). FU-CCB-PROJECT-SPEC-WIRE (P1 — subscribe to set-archetype action when Project Spec block ships). FU-CCB-CHANGE-PICK-TOGGLE (allow students to change pick after locking)."
+    adrs: []
+    os_seam: ready
+    change_impacts: "ChoiceCardsBlockConfig shape changes touch the type module + ActivitySection + 3 components (panel, picker, block). on_pick_action contract changes ripple to action-dispatcher's ChoiceCardAction union + every subscriber. Adding a new action type means: (1) extend the union, (2) extend parseChoiceCardAction, (3) document in dispatcher header comment, (4) optionally wire a subscriber."
+
 # Summary Statistics
 meta:
-  total_systems: 97
-  complete_systems: 35
+  total_systems: 98
+  complete_systems: 36
   active_systems: 16
   planned_systems: 8
   idea_systems: 19

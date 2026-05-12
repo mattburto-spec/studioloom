@@ -11310,3 +11310,108 @@ tables:
   applied_via:
   - 20260505032750_task_system_v1_schema.sql
   spec_drift: []
+- name: choice_cards
+  source_migration: 20260512012304_choice_cards_and_selections.sql
+  status: applied
+  applied_date: '2026-05-12'
+  purpose: |
+    Choice Cards block v1 — library of reusable cards. TEXT slug primary
+    key for human-readable handles (e.g. 'g8-brief-designer-mentor').
+    Decoupled from any specific consumer via on_pick_action JSONB:
+    structured event payload subscribers register for at runtime through
+    src/lib/choice-cards/action-dispatcher.ts. ships_to_platform flags
+    the student-visible "🚀 Can ship" badge — used by the 3 G8 brief
+    cards that could become real platform assets if strong (Designer
+    Mentor System, Themes library, Scaffolds).
+  columns:
+    id: TEXT PRIMARY KEY                   # slug (a-z, 0-9, dashes), 2-80 chars
+    label: TEXT NOT NULL
+    hook_text: TEXT NOT NULL               # one-line front-of-card hook
+    detail_md: TEXT NOT NULL               # markdown shown on flip
+    image_url: TEXT                        # proxy URL; null → emoji+bg_color fallback
+    image_prompt: TEXT                     # for future AI gen (FU-CCB-AI-IMAGE-GEN)
+    emoji: TEXT                            # fallback front icon
+    bg_color: TEXT                         # hex fallback background
+    tags: TEXT[] NOT NULL DEFAULT '{}'     # GIN-indexed
+    on_pick_action: JSONB NOT NULL         # discriminated union payload
+    ships_to_platform: BOOLEAN NOT NULL DEFAULT FALSE
+    is_seeded: BOOLEAN NOT NULL DEFAULT FALSE
+    created_by: UUID REFERENCES auth.users(id)  # null for seeded cards
+    version: INTEGER NOT NULL DEFAULT 1
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  indexes:
+    - choice_cards_tags_idx USING GIN (tags)
+  rls_enabled: true
+  rls_policies:
+    - name: choice_cards_read
+      action: SELECT
+      target: authenticated
+      check: All authenticated users can read the library.
+    - name: choice_cards_insert_own
+      action: INSERT
+      target: authenticated
+      check: created_by = auth.uid() OR platform admin.
+    - name: choice_cards_update_own
+      action: UPDATE
+      target: authenticated
+      check: created_by = auth.uid() OR platform admin.
+  writers:
+    - /api/teacher/choice-cards (POST create)
+    - /api/teacher/choice-cards/[cardId] (PATCH update — creator or platform admin)
+    - 20260512015124_seed_choice_cards_g8_briefs.sql (6 seeded G8 briefs)
+  readers:
+    - /api/student/choice-cards/deck (GET — student deck-fetch via service-role)
+    - /api/student/choice-cards/[activityId]/pick (GET card by id during pick)
+    - /api/student/choice-cards/[activityId]/selection (GET label resolve)
+    - /api/teacher/choice-cards/library (GET search + filter)
+    - /api/teacher/choice-cards/[cardId] (PATCH read-then-update)
+  applied_via:
+    - 20260512012304_choice_cards_and_selections.sql
+    - 20260512015124_seed_choice_cards_g8_briefs.sql
+  spec_drift: []
+- name: choice_card_selections
+  source_migration: 20260512012304_choice_cards_and_selections.sql
+  status: applied
+  applied_date: '2026-05-12'
+  purpose: |
+    Choice Cards block v1 — a student's pick from a block instance. UUID
+    primary key so learning_events can reference via subject_id (typed
+    uuid). activity_id is the lesson ActivitySection.activityId
+    (nanoid8 string), NOT a uuid. UNIQUE(student_id, activity_id)
+    enforces one pick per block instance; NULL activity_id (ad-hoc)
+    intentionally bypasses uniqueness (PostgreSQL NULL ≠ NULL).
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    activity_id: TEXT                       # nanoid8 from ActivitySection; nullable
+    unit_id: UUID REFERENCES units(id) ON DELETE CASCADE
+    class_id: UUID REFERENCES classes(id) ON DELETE SET NULL
+    card_id: TEXT NOT NULL REFERENCES choice_cards(id)
+    action_resolved: JSONB                  # snapshot of on_pick_action that fired
+    picked_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  unique_constraints:
+    - "(student_id, activity_id)"
+  indexes:
+    - ccs_student_unit_idx ON (student_id, unit_id)
+    - ccs_class_idx ON (class_id) WHERE class_id IS NOT NULL
+    - ccs_card_idx ON (card_id)
+  rls_enabled: true
+  rls_policies:
+    - name: ccs_teacher_read
+      action: SELECT
+      target: teacher
+      check: |
+        Teacher owns a class with this unit assigned (via class_units join,
+        is_active=true). Platform admins also pass. Route through unit_id
+        means NULL class_id is handled naturally — Lesson #29 fallback NOT
+        needed here. Students access via service-role API (Lesson #4 —
+        token sessions, not auth.uid()).
+  writers:
+    - /api/student/choice-cards/[activityId]/pick (POST upsert on student_id+activity_id)
+  readers:
+    - /api/student/choice-cards/[activityId]/selection (GET own pick for hydration)
+    - /api/student/choice-cards/[activityId]/pick (GET upsert pre-existing)
+  applied_via:
+    - 20260512012304_choice_cards_and_selections.sql
+  spec_drift: []
