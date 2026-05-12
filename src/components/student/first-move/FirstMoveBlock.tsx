@@ -250,8 +250,10 @@ export default function FirstMoveBlock({
   const showPhilosophySection = config.showDesignPhilosophy;
   const showWhereLeftOffSection =
     config.showWhereLeftOff && (payload.lastJournalNext || payload.lastDoneCard);
-  const showComingUpSection =
-    config.showComingUp && payload.upcomingMilestones.length > 0;
+  // Render whenever the teacher has the toggle on — empty state is
+  // pedagogically useful (nudges the student to backward-map their
+  // timeline, reinforcing the agency-unit §4.10 frame).
+  const showComingUpSection = config.showComingUp;
 
   return (
     <div className="rounded-2xl border border-amber-200 bg-white shadow-sm">
@@ -334,40 +336,47 @@ export default function FirstMoveBlock({
             }
           >
             <div className={LabelClass}>Coming up next</div>
-            <ul className="mt-2 space-y-1.5">
-              {payload.upcomingMilestones.map((m) => {
-                const distance = formatMilestoneDistance(m.daysFromNow);
-                const dateText = formatMilestoneDate(m.targetDate);
-                const toneClass =
-                  distance.tone === "overdue"
-                    ? "text-rose-700"
-                    : distance.tone === "today"
-                      ? "text-amber-800 font-semibold"
-                      : distance.tone === "soon"
-                        ? "text-amber-700"
-                        : "text-zinc-500";
-                return (
-                  <li
-                    key={m.id}
-                    className="flex items-baseline gap-2 text-[15px] leading-snug text-zinc-800"
-                  >
-                    <span
-                      aria-hidden
-                      className="inline-block h-1.5 w-1.5 flex-shrink-0 translate-y-[5px] rounded-full bg-amber-400"
-                    />
-                    <span className="flex-1">
-                      {m.title}{" "}
-                      <span className="text-[12.5px] text-zinc-500">
-                        · {dateText}
+            {payload.upcomingMilestones.length === 0 ? (
+              <div className="mt-2.5 rounded-lg border border-dashed border-zinc-300 bg-zinc-50/60 px-3.5 py-2.5 text-[14px] text-zinc-600">
+                No milestones set yet. Open your Timeline, backward-map from
+                race day, then come back.
+              </div>
+            ) : (
+              <ul className="mt-2 space-y-1.5">
+                {payload.upcomingMilestones.map((m) => {
+                  const distance = formatMilestoneDistance(m.daysFromNow);
+                  const dateText = formatMilestoneDate(m.targetDate);
+                  const toneClass =
+                    distance.tone === "overdue"
+                      ? "text-rose-700"
+                      : distance.tone === "today"
+                        ? "text-amber-800 font-semibold"
+                        : distance.tone === "soon"
+                          ? "text-amber-700"
+                          : "text-zinc-500";
+                  return (
+                    <li
+                      key={m.id}
+                      className="flex items-baseline gap-2 text-[15px] leading-snug text-zinc-800"
+                    >
+                      <span
+                        aria-hidden
+                        className="inline-block h-1.5 w-1.5 flex-shrink-0 translate-y-[5px] rounded-full bg-amber-400"
+                      />
+                      <span className="flex-1">
+                        {m.title}{" "}
+                        <span className="text-[12.5px] text-zinc-500">
+                          · {dateText}
+                        </span>
                       </span>
-                    </span>
-                    <span className={`text-[12.5px] ${toneClass}`}>
-                      {distance.text}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
+                      <span className={`text-[12.5px] ${toneClass}`}>
+                        {distance.text}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         )}
 
