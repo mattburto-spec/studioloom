@@ -380,10 +380,12 @@ export async function loadInboxItems(
     });
   }
 
-  // 8. Sort per the brief's locked order: reply-waiting first (DESC
-  // by lastActivityAt — newest reply most urgent), then drafted
-  // (oldest submission first — clear the backlog), then no-draft
-  // (oldest first).
+  // 8. Sort: reply-waiting bucket first (most urgent), then drafted,
+  // then no-draft. WITHIN every bucket: oldest activity first so the
+  // backlog gets cleared. (Matt feedback 12 May 2026 — older student
+  // events should float to the top; previously reply_waiting was DESC
+  // by lastActivityAt, which buried week-old replies under fresh
+  // ones.)
   const stateOrder: Record<InboxItemState, number> = {
     reply_waiting: 0,
     drafted: 1,
@@ -393,11 +395,7 @@ export async function loadInboxItems(
     if (stateOrder[a.state] !== stateOrder[b.state]) {
       return stateOrder[a.state] - stateOrder[b.state];
     }
-    if (a.state === "reply_waiting") {
-      // newest replies first
-      return b.lastActivityAt.localeCompare(a.lastActivityAt);
-    }
-    // oldest first for drafted + no_draft
+    // Oldest first across all three buckets.
     return a.lastActivityAt.localeCompare(b.lastActivityAt);
   });
 
