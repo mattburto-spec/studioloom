@@ -9,7 +9,7 @@
 //   4. Today I will… commitment field + Start studio → button.
 //
 // Fetches /api/student/first-move/[unitId] on mount (single round-trip).
-// Posts /api/student/first-move/[activityId]/commit on Start →:
+// Posts /api/student/first-move/commit/[activityId] on Start →:
 //   - Moves the chosen card to "doing" (demoting any current Doing
 //     card back to this_class so WIP=1 holds).
 //   - Logs a first-move.committed learning_event.
@@ -118,7 +118,7 @@ export default function FirstMoveBlock({
     setCommitError(null);
     try {
       const res = await fetch(
-        `/api/student/first-move/${encodeURIComponent(activityId)}/commit`,
+        `/api/student/first-move/commit/${encodeURIComponent(activityId)}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
