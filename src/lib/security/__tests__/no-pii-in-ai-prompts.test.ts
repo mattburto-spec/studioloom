@@ -39,6 +39,19 @@ const REDACTION_ALLOWLIST = new Set([
   // persisting + returning. Hardened 2026-05-09 (security-plan.md P-6).
   "src/lib/grading/ai-prescore.ts",
   "src/app/api/teacher/grading/tile-grades/ai-prescore/route.ts",
+  // TFL.3 C.3 grading AI reply-follow-up — same placeholder-swap
+  // pattern as the prescore path. Helper generateAiFollowup() builds
+  // prompts with STUDENT_NAME_PLACEHOLDER for all 3 sentiment
+  // variants; route restores real name via restoreStudentName() on
+  // the response. Added 12 May 2026.
+  "src/lib/grading/ai-followup.ts",
+  "src/app/api/teacher/grading/draft-followup/route.ts",
+  // Tests that reference PII identifier tokens in NEGATIVE assertions
+  // (verifying the corresponding helper / route does NOT carry those
+  // tokens). Adding to the redaction allowlist so the grep doesn't
+  // false-positive on test-only references.
+  "src/lib/grading/__tests__/ai-followup.test.ts",
+  "src/app/api/teacher/grading/draft-followup/__tests__/route.test.ts",
   // Shared placeholder primitive — exports STUDENT_NAME_PLACEHOLDER + restoreStudentName.
   "src/lib/security/student-name-placeholder.ts",
   // The chokepoint itself + tests/types may legitimately reference PII

@@ -84,6 +84,17 @@ export default function TeacherInboxPage() {
     {},
   );
   const [approving, setApproving] = React.useState(false);
+  /** TFL.3 C.3 — AI-drafted follow-ups for reply_waiting items.
+   *  Keyed by itemKey. Lazy-fetched the FIRST time a reply_waiting
+   *  item is selected. Local React state (not persisted) — keeps the
+   *  ai_comment_draft column clean of follow-up text that could
+   *  confuse the prescore flow. */
+  const [followupDrafts, setFollowupDrafts] = React.useState<
+    Record<string, string>
+  >({});
+  const [followupFetching, setFollowupFetching] = React.useState<
+    Record<string, boolean>
+  >({});
 
   // ─── Fetch inbox ───
   const refetch = React.useCallback(async () => {
@@ -187,6 +198,57 @@ export default function TeacherInboxPage() {
     () => visibleItems.find((i) => i.itemKey === selectedKey) ?? null,
     [visibleItems, selectedKey],
   );
+
+  // ─── C.3: lazy-fetch the AI follow-up draft when a reply_waiting
+  // item is selected and we haven't drafted for it yet. ───
+  React.useEffect(() => {
+    if (!selectedItem) return;
+    if (selectedItem.state !== "reply_waiting") return;
+    if (followupDrafts[selectedItem.itemKey] !== undefined) return; // already drafted
+    if (followupFetching[selectedItem.itemKey]) return; // in flight
+
+    const key = selectedItem.itemKey;
+    const gradeId = selectedItem.gradeId;
+    setFollowupFetching((prev) => ({ ...prev, [key]: true }));
+
+    void (async () => {
+      try {
+        const res = await fetch("/api/teacher/grading/draft-followup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ grade_id: gradeId }),
+        });
+        if (!res.ok) {
+          // Surface the error inline; don't block the teacher.
+          const json = await res.json().catch(() => ({}));
+          const errMsg =
+            (json as { error?: string }).error ??
+            `Draft failed (${res.status})`;
+          setFollowupDrafts((prev) => ({
+            ...prev,
+            [key]: `(AI draft failed — ${errMsg})`,
+          }));
+        } else {
+          const json = (await res.json()) as { draftBody: string };
+          setFollowupDrafts((prev) => ({
+            ...prev,
+            [key]: json.draftBody ?? "",
+          }));
+        }
+      } catch (err) {
+        setFollowupDrafts((prev) => ({
+          ...prev,
+          [key]: `(AI draft failed — ${err instanceof Error ? err.message : "network error"})`,
+        }));
+      } finally {
+        setFollowupFetching((prev) => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+      }
+    })();
+  }, [selectedItem, followupDrafts, followupFetching]);
 
   // ─── Filter options ───
   const classOptions = React.useMemo(() => {
@@ -439,6 +501,10 @@ export default function TeacherInboxPage() {
                 approving={approving}
                 onApprove={handleApprove}
                 onSkip={handleSkip}
+                followupDraft={followupDrafts[selectedItem.itemKey]}
+                followupFetching={
+                  !!followupFetching[selectedItem.itemKey]
+                }
               />
             ) : (
               <div className="h-full flex items-center justify-center text-gray-400 text-sm">
@@ -578,6 +644,8 @@ function DetailPane({
   approving,
   onApprove,
   onSkip,
+  followupDraft,
+  followupFetching,
 }: {
   item: InboxItem;
   draftEdits: Record<string, string>;
@@ -585,18 +653,49 @@ function DetailPane({
   approving: boolean;
   onApprove: () => void;
   onSkip: () => void;
+  /** TFL.3 C.3 — the AI follow-up draft (got_it/not_sure/pushback)
+   *  for reply_waiting items. Lazy-loaded by the parent. */
+  followupDraft: string | undefined;
+  followupFetching: boolean;
 }) {
-  const draftValue =
-    draftEdits[item.itemKey] ?? item.aiCommentDraft ?? "";
+  // For reply_waiting items, the textarea reflects the follow-up
+  // draft (from C.3's draft-followup route). For drafted / no_draft
+  // items, it reflects the prescore draft (aiCommentDraft column).
+  // Teacher edits override either via draftEdits.
+  const baseDraft =
+    item.state === "reply_waiting"
+      ? followupDraft ?? ""
+      : item.aiCommentDraft ?? "";
+  const draftValue = draftEdits[item.itemKey] ?? baseDraft;
   const cleanResponse = item.studentResponse
     ? sanitizeResponseText(item.studentResponse)
     : "";
   const isLowConfidence =
     typeof item.aiConfidence === "number" &&
     item.aiConfidence < LOW_CONFIDENCE_THRESHOLD;
+  /** Hide approve when the follow-up is still fetching OR when the
+   *  AI returned the "no follow-up needed" sentinel. The sentinel
+   *  surfaces as a teacher-facing message; teacher can Skip the
+   *  thread or type their own follow-up. */
+  const NO_FOLLOWUP_SENTINEL = "(no follow-up needed)";
+  const isNoFollowupSentinel =
+    item.state === "reply_waiting" &&
+    followupDraft === NO_FOLLOWUP_SENTINEL &&
+    !draftEdits[item.itemKey];
 
-  const canApprove =
-    !!draftValue.trim() && !approving && !!item.aiCommentDraft;
+  const canApprove = (() => {
+    if (approving) return false;
+    if (!draftValue.trim()) return false;
+    // For reply_waiting: need a real draft (not the sentinel) OR a
+    // teacher edit that overrides the sentinel.
+    if (item.state === "reply_waiting") {
+      if (followupFetching) return false;
+      if (isNoFollowupSentinel) return false;
+      return true;
+    }
+    // For drafted/no_draft: need a prescore draft.
+    return !!item.aiCommentDraft;
+  })();
 
   return (
     <article
@@ -659,17 +758,20 @@ function DetailPane({
         </section>
       )}
 
-      {/* AI draft (editable inline) */}
+      {/* AI draft (editable inline). TFL.3 C.3: for reply_waiting
+          items the textarea now reflects the follow-up draft (3
+          sub-prompts: got_it/not_sure/pushback) instead of the
+          prescore draft. */}
       <section className="mb-4">
         <div className="flex items-center justify-between mb-1.5">
           <div className="text-[10px] font-bold tracking-wider uppercase text-emerald-700 inline-flex items-center gap-2">
-            AI draft
-            {item.aiScore !== null && (
+            {item.state === "reply_waiting" ? "AI follow-up draft" : "AI draft"}
+            {item.state !== "reply_waiting" && item.aiScore !== null && (
               <span className="font-mono text-emerald-600">
                 · Score {item.aiScore}
               </span>
             )}
-            {item.aiConfidence !== null && (
+            {item.state !== "reply_waiting" && item.aiConfidence !== null && (
               <span
                 className={[
                   "inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold",
@@ -683,9 +785,27 @@ function DetailPane({
                 {Math.round(item.aiConfidence * 100)}% confident
               </span>
             )}
+            {item.state === "reply_waiting" && followupFetching && (
+              <span
+                className="inline-flex items-center gap-1 text-purple-700 font-bold animate-pulse"
+                data-testid="inbox-followup-drafting"
+              >
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+                </svg>
+                drafting reply…
+              </span>
+            )}
           </div>
         </div>
-        {isLowConfidence && (
+
+        {isLowConfidence && item.state !== "reply_waiting" && (
           <div
             data-testid="inbox-low-confidence-warning"
             className="mb-2 text-[11px] text-amber-800 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2"
@@ -696,6 +816,18 @@ function DetailPane({
             + using the marking page&rsquo;s nudge button) before approving.
           </div>
         )}
+
+        {isNoFollowupSentinel && (
+          <div
+            data-testid="inbox-no-followup-needed"
+            className="mb-2 text-[11px] text-purple-800 bg-purple-50 border border-purple-300 rounded-lg px-3 py-2"
+          >
+            <strong>The AI thinks no follow-up is needed here.</strong>{" "}
+            {item.studentName}&rsquo;s &ldquo;Got it&rdquo; resolves the thread
+            cleanly. Skip to close silently, or type your own follow-up below.
+          </div>
+        )}
+
         <textarea
           data-testid="inbox-draft-textarea"
           value={draftValue}
@@ -705,13 +837,23 @@ function DetailPane({
               [item.itemKey]: e.target.value,
             }))
           }
-          placeholder={
-            item.aiCommentDraft
+          placeholder={(() => {
+            if (item.state === "reply_waiting") {
+              if (followupFetching) return "AI is drafting your follow-up…";
+              if (isNoFollowupSentinel)
+                return `Skip to close silently, or type your own follow-up to ${item.studentName}.`;
+              return "Edit the AI follow-up, or approve as-is.";
+            }
+            return item.aiCommentDraft
               ? "Edit the AI draft, or approve as-is."
-              : "AI is still drafting — give it a moment, then approve."
-          }
+              : "AI is still drafting — give it a moment, then approve.";
+          })()}
           rows={5}
-          disabled={!item.aiCommentDraft}
+          disabled={
+            item.state === "reply_waiting"
+              ? followupFetching
+              : !item.aiCommentDraft
+          }
           className="w-full px-3 py-2 text-sm border border-emerald-200 bg-emerald-50/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none disabled:bg-gray-50 disabled:text-gray-400"
         />
         {/* Tweak buttons (Shorter / Warmer / Sharper / + Ask) land in C.4. */}
