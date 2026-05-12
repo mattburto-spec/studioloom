@@ -26,7 +26,7 @@ const SLOT_COLUMNS = [
 ] as const;
 
 const COLUMNS_RETURNED =
-  "archetype_id, slot_1, slot_2, slot_3, slot_4, slot_5, slot_6, slot_7, slot_8, slot_9, completed_at, class_id";
+  "archetype_id, slot_1, slot_2, slot_3, slot_4, slot_5, slot_6, slot_7, slot_8, slot_9, completed_at, class_id, pitch_text, pitch_status, pitch_teacher_note, pitch_decided_at, pitch_decided_by";
 
 /**
  * GET /api/student/product-brief?unitId=<uuid>
@@ -184,6 +184,56 @@ export const POST = withErrorHandler(
     // the walker without resetting their slot answers.
     if (b.reopen === true) {
       patch.completed_at = null;
+    }
+
+    // Pitch-to-teacher workflow (FU-PLATFORM-CUSTOM-PROJECT-PITCH).
+    // Student-side write of pitch_text. Auto-flips status:
+    //   null   → pending   (first submission)
+    //   revise → pending   (re-submission after teacher requested revision)
+    //   pending → pending  (idempotent edit before teacher decided)
+    //   approved → rejected mutations refused (re-pitch requires teacher action)
+    if ("pitch_text" in b) {
+      if (b.pitch_text === null) {
+        patch.pitch_text = null;
+      } else if (typeof b.pitch_text === "string") {
+        // Length cap — 2000 chars is generous for a pitch but bounds storage.
+        if (b.pitch_text.length > 2000) {
+          return NextResponse.json(
+            { error: "pitch_text must be 2000 characters or fewer" },
+            { status: 400 },
+          );
+        }
+        patch.pitch_text = b.pitch_text;
+        // Read current pitch_status to decide what to do with it.
+        const db = createAdminClient();
+        const { data: row } = await db
+          .from("student_unit_product_briefs")
+          .select("pitch_status")
+          .eq("student_id", studentId)
+          .eq("unit_id", unitId)
+          .maybeSingle();
+        const currentStatus = row?.pitch_status as string | null | undefined;
+        if (currentStatus === "approved" || currentStatus === "rejected") {
+          return NextResponse.json(
+            {
+              error:
+                "Pitch already decided. Ask your teacher to reopen before editing.",
+            },
+            { status: 409 },
+          );
+        }
+        // null / pending / revise → set to pending. Clears any prior teacher
+        // note (a new submission starts a fresh review cycle).
+        patch.pitch_status = "pending";
+        patch.pitch_teacher_note = null;
+        patch.pitch_decided_at = null;
+        patch.pitch_decided_by = null;
+      } else {
+        return NextResponse.json(
+          { error: "pitch_text must be a string or null" },
+          { status: 400 },
+        );
+      }
     }
 
     const db = createAdminClient();
