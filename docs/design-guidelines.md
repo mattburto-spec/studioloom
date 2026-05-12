@@ -43,6 +43,10 @@ Teacher uploads: Pass 1 (Haiku) extracts structure, Pass 2 (Sonnet) analyses ped
 Invalid AI output defaults gracefully rather than hard-failing. Bad responseType defaults to text. Missing durations default to 10 minutes.
 **Source:** CLAUDE.md | **Status:** Documented
 
+### A11. Scaffolds Are Earnable and Fadeable
+A student's first project is where the platform earns the right to disappear. Scaffolds should lower activation energy, make one or two good moves obvious, and teach the platform's metalanguage by doing — then fade as the student proves they can run the move themselves. Over-scaffolding (every tool at every moment) robs judgment and reverts the platform to worksheets. Under-scaffolding leaves novices paralyzed. Scaffolds are earnable: graduating out of a scaffold is itself a `learning_event` that feeds the Open Studio access decision. Never propose 24 scaffolds when 3 will do; design every scaffold with a fade path from day one.
+**Source:** docs/projects/first-project-scaffolds.md | **Status:** Documented
+
 ## Student Experience
 
 ### B1. Activity-First, Not Instructions-First

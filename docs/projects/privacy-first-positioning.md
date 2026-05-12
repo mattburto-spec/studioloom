@@ -1,6 +1,6 @@
 # Project: Privacy-First Positioning
 
-**Status:** PLANNING — drafted 2026-05-09, evolved 2026-05-09 (positioning sharpened, workstreams reorganised after pushback round)
+**Status:** PLANNING — drafted 2026-05-09, evolved 2026-05-09 (positioning sharpened, workstreams reorganised after pushback round; safety roadmap added for key-custody architectures)
 **Owner:** Matt
 **Related:** [`docs/security/security-overview.md`](../security/security-overview.md), [`docs/vendors.yaml`](../vendors.yaml), [`docs/data-classification-taxonomy.md`](../data-classification-taxonomy.md)
 
@@ -55,7 +55,7 @@ In execution order. The proof-point sequencing is deliberate — Anonymous Mode 
 Public marketing-site page documenting exactly what StudioLoom collects, what it doesn't, what reaches AI providers, what students might disclose inside their work, and how the privacy control panel works. Includes a published data dictionary — every field stored about a student, classified. Foundation for every other workstream — the audit underneath the page tells you what the control panel can toggle. **~2-3 days writing + audit.**
 
 ### 2. Anonymous Mode (hidden class-creation flag, v1)  *(SPEC drafted — see [`privacy-anonymous-mode-spec.md`](privacy-anonymous-mode-spec.md))*
-The proof point that the brand pillar is real. Teacher-side `localStorage` stores the name↔handle mapping; server stores only handles. Encrypted file export/import for cross-device. Per-class flag, set at class creation. Ships *before* the full control panel — gives demo-able evidence to first IB pilot schools and screenshots for marketing. Will later be presented as the "Anonymous" preset within the control panel UI. **~1 week.**
+The proof point that the brand pillar is real. Teacher-side `localStorage` stores the name↔handle mapping; server stores only handles. Encrypted file export/import for cross-device. Per-class flag, set at class creation. Ships *before* the full control panel — gives demo-able evidence to first IB pilot schools and screenshots for marketing. Will later be presented as the "Anonymous" preset within the control panel UI. **~1 week.** See [Safety roadmap: key custody architectures](#safety-roadmap-key-custody-architectures) below for the post-v1 evolution path (WebAuthn, companion subdomain, browser extension, hardware key) — read this section before starting WS2 build so the v1 architecture leaves room for v1.5+.
 
 ### 3. Privacy Control Panel
 School-admin UI for controlling what student data StudioLoom collects. **Presets are the primary surface** (Open / Standard / Anonymous), with field-by-field granular controls behind an "Advanced" tab. Per-class overrides allowed; school-level defaults inherit down. Audit log of changes. Absorbs Anonymous Mode as the "Anonymous" preset. **~3 weeks** after WS2.
@@ -88,6 +88,34 @@ Originally workstream 6, deferred. IB coordinators and AU schools generally don'
 ## Companion: pre-filled login URL phase
 
 Already in pre-flight: `/login/[classcode]` route + "Copy class login link" teacher button (separate spec). Reinforces the same posture — credentials become *findable* (saved bookmark, WeChat favourite) rather than *memorable*, with no auth-model change. Mention in the privacy posture page §7 as evidence that minimum-friction *and* minimum-data can coexist.
+
+## Safety roadmap: key custody architectures
+
+> **Read this before starting any work on Anonymous Mode (WS2) or the Privacy Control Panel (WS3).** It's the menu of options to choose from when a customer asks for cross-device sync, stronger isolation, or a more defensible "where does the secret live" story. Don't pre-build — but design the v1 backend so any of these can slot in later without a rewrite.
+
+A general approach to *where* the unlock key for student data lives. As the brand pillar matures, this question matters as much as whether the key exists at all. The minimum-data architecture (workstreams 1-3) handles "what's collected"; this roadmap handles "for the data that *is* collected, who can read it and from where."
+
+Listed in order of friction (low → high). Higher-friction options are not strictly more secure — pick based on demand and threat model, not on chasing maximum theoretical security.
+
+**1. Plain `localStorage` (Anonymous Mode v1, ~1 week — workstream 2).** Names live in the teacher's browser on the StudioLoom origin. Encrypted file export/import for cross-device. Same origin as the app, so a hypothetical XSS bug in StudioLoom could read it. Universally compatible. The default proof-point ship.
+
+**2. WebAuthn / biometric-derived key (recommended v1.5, ~+2 weeks).** Server holds an encrypted blob; teacher unlocks with Touch ID / Face ID / Windows Hello. The passkey lives in the device's secure enclave and syncs across devices via iCloud Keychain or Google Password Manager — cross-device sync rides on infrastructure teachers already use unconsciously. Works on iPad. No passphrase to remember. Marketing line: *"Your face is the key."* Requires a security review of the crypto code; standard WebAuthn libraries handle most of the dangerous bits. **Leading candidate as the next step after v1 ships and a real customer asks for cross-device sync.**
+
+**3. Companion subdomain (alternative to or stacked with #2, ~+1.5-2 weeks).** Names live in `localStorage` on a separate origin (e.g. `vault.studioloom.com`). Main app embeds it as a hidden iframe and talks via `postMessage`. Same-origin policy means an XSS bug in the main app *cannot* read the vault — that's a real architectural guarantee, not a marketing line. Stack with WebAuthn for both origin isolation AND biometric unlock.
+
+**4. Browser extension (deferred — Companion bundle, ~3-5 weeks).** Strongest marketing claim ("the names live in software you installed yourself"), highest friction (Chrome Web Store review, IT department whitelisting, doesn't work on iPad). Best fit when bundled with other extension-native features (offline drafts, IB rubric quick-reference cards, hover-to-define for design vocabulary, teacher hotkeys) so the install gesture has multiple value props. Defer to v3+ unless explicit pull from a customer. Naming candidate: **StudioLoom Companion**.
+
+**5. Hardware key (YubiKey-class, deferred — power user, ~+1 week beyond #2).** Strongest security, $50+ hardware cost per teacher. Optional power-user mode layered on top of WebAuthn. Almost certainly never needed for the GTM but easy to add later if a school's compliance team specifically asks.
+
+**Cross-cutting principle.** Every option above is compatible with the Privacy Control Panel (WS3). The control panel UI doesn't care where the key lives — it just presents the preset selection and the name-edit interface. Swapping the underlying custody model is an internal architectural change, not a user-visible product change. **Action for WS2 build:** structure the localStorage v1 backend behind an abstraction (`KeyCustodyProvider` or similar) so #2-#5 can slot in by implementing the same interface. Don't build the abstraction speculatively rich — just keep the v1 implementation small and the seam clean.
+
+**Trigger conditions for moving up the roadmap.**
+- → #2 (WebAuthn): first pilot school's IT director asks "what about teachers using multiple devices?"
+- → #3 (companion subdomain): a credible XSS-class threat is identified in the main app, OR a customer specifically asks for "the names cannot be read by the StudioLoom origin even in principle"
+- → #4 (browser extension): a second extension-native feature reaches MVP shape, making the install gesture justifiable
+- → #5 (hardware key): a single school's compliance team specifically demands hardware-backed key storage
+
+Don't pre-build. Pre-design.
 
 ## Risks / non-goals
 
