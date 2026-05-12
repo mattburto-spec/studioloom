@@ -211,6 +211,39 @@ Both routes work but neither is a *real* pitch workflow. The student just fills 
 
 ---
 
+## FU-PLATFORM-CHOICE-CARDS-DOWNSTREAM-CASCADE — Soft warning IF re-pick mid-build bites
+**Surfaced:** 12 May 2026, while shipping "Change my mind" on Choice Cards.
+**Severity:** 🟢 LOW — Matt's instinct: keep the system loosely coupled, don't build a cascade.
+**Target phase:** ONLY if Case 3 (re-pick after slot writes) bites in real classroom use.
+
+**Architectural decision (12 May 2026, with Matt):** Do NOT build a cascade. The loose coupling between Choice Cards and downstream consumers (Product Brief / User Profile / Success Criteria) is the correct architecture — it makes adding new consumers cheap and avoids the complications Matt explicitly wanted to avoid ("i dont want to make things too dependent and start complicating the connections between things").
+
+**Actual downstream coupling today (audited 12 May 2026):**
+- **Product Brief**: pre-fills `archetype_id` as a *suggestion* in the GET handler (`src/app/api/student/product-brief/route.ts`) — in-memory only, not written to DB until student saves a slot. Pure read.
+- **User Profile**: reads `from_choice_card` for the banner display only. No state mutation.
+- **Success Criteria**: reads `from_choice_card` for the banner display only. No state mutation.
+
+**Three cases for "student re-picks":**
+1. **Re-pick BEFORE opening Product Brief**: new pick = new suggested archetype on next GET. Clean. (~95% of cases.)
+2. **Re-pick AFTER opening Product Brief but BEFORE writing a slot**: same — next GET re-evaluates from the new pick. Clean.
+3. **Re-pick AFTER writing slots in Product Brief**: slot data is saved against the *old* archetype's slot semantics. If the new archetype has different slot definitions (e.g., Toy slot 4 = materials chips vs Architecture slot 4 = scale number-pair), data is semantically off — not corrupted, just interpreted weirdly. **Rare.** Recoverable via 30-second teacher conversation.
+
+**If Case 3 ever bites in real classroom use** (and only if), ship a small soft warning on the "Change my mind" button:
+
+> "You've already started your Product Brief — changing your card might not match what you've written. Continue anyway?"
+
+One-line UX, zero coupling, no event system. **Do NOT build:**
+- A `setSelection(null)` cascade that emits events to downstream consumers
+- An auto-clear of downstream state on re-pick
+- Any subscription mechanism between Choice Cards and other blocks
+
+**Definition of done (if triggered):**
+- Add the soft warning modal/confirm before `setSelection(null)` fires
+- Only show when there's evidence of downstream work (e.g., `student_unit_product_briefs` row with any slot_N non-null)
+- No other changes
+
+---
+
 ## Resolved
 
 _None yet._

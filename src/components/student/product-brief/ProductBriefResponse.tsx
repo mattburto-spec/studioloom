@@ -35,6 +35,8 @@ import FromChoiceCardBanner from "@/components/student/choice-cards/FromChoiceCa
 // State shape
 // ────────────────────────────────────────────────────────────────────
 
+type PitchStatus = "pending" | "approved" | "revise" | "rejected" | null;
+
 interface BriefState {
   archetype_id: string | null;
   slot_1: SlotAnswer | null;
@@ -47,6 +49,9 @@ interface BriefState {
   slot_8: SlotAnswer | null;
   slot_9: SlotAnswer | null;
   completed_at: string | null;
+  pitch_text?: string | null;
+  pitch_status?: PitchStatus;
+  pitch_teacher_note?: string | null;
 }
 
 type SlotKey =
@@ -162,7 +167,13 @@ export default function ProductBriefResponse({ unitId, onChange }: Props) {
 
   // Save (partial patch → POST → reflect locally)
   const save = useCallback(
-    async (patch: Partial<BriefState> & { completed?: boolean; reopen?: boolean }) => {
+    async (
+      patch: Partial<BriefState> & {
+        completed?: boolean;
+        reopen?: boolean;
+        pitch_text?: string | null;
+      },
+    ) => {
       setSaving(true);
       setError(null);
       try {
@@ -215,6 +226,32 @@ export default function ProductBriefResponse({ unitId, onChange }: Props) {
         />
       </>
     );
+  }
+
+  // ─── Phase 1.5: Pitch gate (Other archetype only)
+  // Students who picked "Other / Pitch your own" must submit a pitch
+  // and get teacher approval before the slot walker unlocks. See
+  // FU-PLATFORM-CUSTOM-PROJECT-PITCH (MVP shipped 12 May 2026).
+  if (archetype.id === "other") {
+    const status = brief.pitch_status ?? null;
+    if (status !== "approved") {
+      return (
+        <PitchGate
+          archetype={archetype}
+          currentPitch={brief.pitch_text ?? ""}
+          status={status}
+          teacherNote={brief.pitch_teacher_note ?? null}
+          onSubmit={async (pitchText) => {
+            await save({ pitch_text: pitchText });
+          }}
+          onRedoArchetype={async () => {
+            await save({ archetype_id: null, pitch_text: null });
+            setCurrentSlotIdx(0);
+          }}
+          submitting={saving}
+        />
+      );
+    }
   }
 
   // ─── Phase 3: Brief Card (completed)
@@ -337,6 +374,152 @@ function BriefCard({
           {reopening ? "Reopening…" : "Reopen to revise"}
         </button>
       </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Pitch Gate — appears when archetype="other" and pitch_status != approved
+// ────────────────────────────────────────────────────────────────────
+
+function PitchGate({
+  archetype,
+  currentPitch,
+  status,
+  teacherNote,
+  onSubmit,
+  onRedoArchetype,
+  submitting,
+}: {
+  archetype: ProductBriefArchetype;
+  currentPitch: string;
+  status: PitchStatus;
+  teacherNote: string | null;
+  onSubmit: (pitchText: string) => Promise<void>;
+  onRedoArchetype: () => Promise<void>;
+  submitting: boolean;
+}) {
+  const [draft, setDraft] = useState(currentPitch);
+
+  // Re-sync draft when the persisted pitch changes (e.g. after teacher
+  // requests revision and the student wants to edit their existing one).
+  useEffect(() => {
+    setDraft(currentPitch);
+  }, [currentPitch]);
+
+  const isLocked = status === "pending";
+  const isApprovedWaiting = status === "approved";
+
+  // Status banner
+  const statusBanner = (() => {
+    if (status === null) return null;
+    if (status === "pending") {
+      return (
+        <div className="rounded-lg border-2 border-amber-300 bg-amber-50 p-3 mb-4 text-sm text-amber-900">
+          <strong>Submitted — waiting for your teacher.</strong> They&apos;ll
+          approve, request a revision, or redirect you to a preset
+          archetype. The brief slots will unlock once approved.
+        </div>
+      );
+    }
+    if (status === "revise") {
+      return (
+        <div className="rounded-lg border-2 border-orange-300 bg-orange-50 p-3 mb-4 text-sm text-orange-900">
+          <strong>Your teacher wants a revision.</strong>
+          {teacherNote ? (
+            <div className="mt-2 italic">&ldquo;{teacherNote}&rdquo;</div>
+          ) : null}
+          <div className="mt-1">Edit your pitch below and resubmit.</div>
+        </div>
+      );
+    }
+    if (status === "rejected") {
+      return (
+        <div className="rounded-lg border-2 border-rose-300 bg-rose-50 p-3 mb-4 text-sm text-rose-900">
+          <strong>Pitch declined.</strong>
+          {teacherNote ? (
+            <div className="mt-2 italic">&ldquo;{teacherNote}&rdquo;</div>
+          ) : null}
+          <div className="mt-1">
+            <button
+              type="button"
+              onClick={onRedoArchetype}
+              className="underline hover:text-rose-700"
+            >
+              ← Go back and pick a preset archetype
+            </button>
+          </div>
+        </div>
+      );
+    }
+    if (isApprovedWaiting) {
+      // Shouldn't render — PitchGate isn't shown when approved. Defensive.
+      return null;
+    }
+    return null;
+  })();
+
+  return (
+    <div className="rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-50 via-purple-50/40 to-white p-6">
+      <div className="flex items-baseline justify-between mb-4">
+        <span className="text-xs font-semibold uppercase tracking-wide text-purple-600">
+          {archetype.emoji} {archetype.label} · Pitch your idea
+        </span>
+        <button
+          type="button"
+          onClick={onRedoArchetype}
+          disabled={submitting || isLocked}
+          className="text-xs text-gray-500 hover:text-gray-700 hover:underline disabled:opacity-50"
+        >
+          ← Pick a preset archetype instead
+        </button>
+      </div>
+
+      {statusBanner}
+
+      <h3 className="text-xl font-semibold text-gray-900 mb-1">
+        What&apos;s your project idea?
+      </h3>
+      <p className="text-sm text-gray-600 mb-4">
+        Write a short pitch (1–3 paragraphs). Cover: what you want to make,
+        who it&apos;s for, why it matters to you, and why none of the
+        preset archetypes fit. Your teacher will read this and approve,
+        ask for revisions, or redirect you to a preset.
+      </p>
+
+      <textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="My idea is…"
+        rows={8}
+        disabled={isLocked || submitting}
+        maxLength={2000}
+        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
+      />
+      <div className="flex items-center justify-between mt-2 text-xs">
+        <span className="text-gray-500">{draft.length} / 2000 characters</span>
+        <button
+          type="button"
+          onClick={async () => {
+            const trimmed = draft.trim();
+            if (trimmed.length < 20) return;
+            await onSubmit(trimmed);
+          }}
+          disabled={submitting || isLocked || draft.trim().length < 20}
+          className="px-5 py-2 text-sm font-semibold bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {submitting
+            ? "Submitting…"
+            : status === "revise"
+              ? "Resubmit pitch"
+              : "Submit pitch for review"}
+        </button>
+      </div>
+      {draft.trim().length > 0 && draft.trim().length < 20 && (
+        <p className="text-xs text-amber-700 mt-1">
+          Write at least a sentence — your teacher needs enough to decide.
+        </p>
+      )}
     </div>
   );
 }

@@ -28,6 +28,7 @@ import {
   getArchetypeAwareContent,
   getArchetypeAwareContentByChain,
 } from "@/lib/blocks/archetype-aware";
+import { TappableText } from "@/components/student/tap-a-word";
 import { compressImage } from "@/lib/compress-image";
 // Note: checkClientImage (NSFW.js 4MB model) deliberately NOT used here.
 // Server-side moderation in /api/student/upload (Phase 5F) still gates.
@@ -329,12 +330,12 @@ export default function InspirationBoardBlock({
       <div>
         {resolved.framing && (
           <p className="mb-2 text-sm leading-relaxed text-zinc-700">
-            {resolved.framing}
+            <TappableText text={resolved.framing} />
           </p>
         )}
         {resolved.task && (
           <p className="text-sm font-semibold leading-relaxed text-zinc-900">
-            🎯 {resolved.task}
+            🎯 <TappableText text={resolved.task} />
           </p>
         )}
       </div>
@@ -499,7 +500,7 @@ export default function InspirationBoardBlock({
         </button>
         {resolved.success_signal && (
           <div className="ml-3 max-w-[60%] text-right text-[11px] italic text-zinc-600">
-            {resolved.success_signal}
+            <TappableText text={resolved.success_signal} />
           </div>
         )}
       </div>
