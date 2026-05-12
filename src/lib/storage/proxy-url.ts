@@ -14,7 +14,14 @@
  */
 
 const PROXY_PREFIX = "/api/storage";
-const ALLOWED_BUCKETS = new Set(["responses", "unit-images", "knowledge-media"]);
+const ALLOWED_BUCKETS = new Set([
+  "responses",
+  "unit-images",
+  "knowledge-media",
+  // v2 Project Spec — User Profile slot 7 photos (PR #194). Same per-
+  // student auth pattern as `responses` — see authorize.ts.
+  "user-profile-photos",
+]);
 
 /**
  * Build a proxy URL from a bucket name and storage path.

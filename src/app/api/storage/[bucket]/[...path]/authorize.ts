@@ -61,13 +61,33 @@ export async function authorizeBucketAccess(
     return authorizeKnowledgeMediaAccess(user, path);
   }
 
-  if (bucket !== "responses") {
+  // `responses` (v1) and `user-profile-photos` (v2) share the same
+  // per-student PII auth pattern: path[0] is the studentId; student must
+  // own that path, teachers must manage the student, platform admins
+  // read all. Both fall through to authorizePerStudentBucketAccess
+  // below.
+  if (bucket !== "responses" && bucket !== "user-profile-photos") {
     // Defensive — shouldn't reach here because the route handler
     // allowlist-checks before calling us.
     return { ok: false, reason: "forbidden" };
   }
 
-  // responses bucket — strict per-student authorization.
+  return authorizePerStudentBucketAccess(user, path);
+}
+
+// ─── responses + user-profile-photos buckets (per-student PII) ─────────
+//
+// Both buckets follow the same path shape: {studentId}/...
+//   - responses: {studentId}/{unitId}/{pageId}/{timestamp}.{ext}
+//   - user-profile-photos: {studentId}/{unitId}.{ext}
+//
+// Authorization is identical: student must own the path's first segment,
+// teachers must verifyTeacherCanManageStudent, platform admins pass.
+
+async function authorizePerStudentBucketAccess(
+  user: User,
+  path: string,
+): Promise<AuthorizeResult> {
   const firstSegment = path.split("/")[0];
   if (!firstSegment || !UUID_RE.test(firstSegment)) {
     return { ok: false, reason: "malformed_path" };
