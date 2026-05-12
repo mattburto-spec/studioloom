@@ -4,6 +4,55 @@
 
 ---
 
+## 2026-05-12 — TFL.3 Pass C complete (Teacher Marking Inbox end-to-end)
+
+**Context:** Closed the TFL.3 Pass C brief end-to-end across a single session. The Teacher Marking Inbox at `/teacher/inbox` is now the daily-driver approve-and-go surface for teachers; the legacy `/teacher/marking` cohort heatmap stays as the deep-dive (one click away via "Open in marking page →").
+
+**Sub-phases shipped (8 PRs):**
+- **C.1** — Inbox surface + loader + nav rewire (PRs #193 / #195)
+- **C.2** — Master-detail layout, sanitized response render, one-click approve, low-confidence warning chip (PR #198)
+- **C.3** — Reply-draft AI helper + route + inbox auto-fires on reply_waiting (PR #204)
+- **C.3.1** — Sentinel UX fix (Mark resolved button replaces Approve), relative timestamps, oldest-first sort
+- **C.3.2** — 60s auto-refresh + marking page activePageId preservation (PR #206)
+- **C.3.3** — Server-side persistent Mark resolved via migration `20260512023440_student_tile_grades_resolved_at` (resolved_at + resolved_by columns + partial index). Migration applied to prod + logged in `applied_migrations`. (PR #210)
+- **C.4** — Four tweak buttons (Shorter / Warmer / Sharper / + Ask) with new `regenerateDraft` helper + `/api/teacher/grading/regenerate-draft` route. PII round-trip (real → placeholder → real) preserves the redaction discipline. (PR #213)
+- **C.5** — TopNav Marking badge + `/api/teacher/inbox/count` endpoint. Amber tone when reply_waiting, purple-tint otherwise. 60s tab-aware polling shared with the inbox page. (PR #214)
+
+**New helpers under `src/lib/grading/`:**
+- `inbox-loader.ts` — 90-day window, 200-item HARD_CAP, state derivation (reply_waiting / drafted / no_draft), resolved_at re-surface filter
+- `ai-followup.ts` — 3 sentiment-keyed prompts (got_it / not_sure / pushback) + NO_FOLLOWUP_SENTINEL fast-path
+- `regenerate-draft.ts` — 4 directive prompts for tweak buttons
+- `relative-time.ts` — compact "now / 5m / 3h / yest. / 3d / 8 May / May '25" formatter for queue rows
+
+**New routes (all `requireTeacher` + ownership-checked):**
+- `GET /api/teacher/inbox/items` — full item list
+- `GET /api/teacher/inbox/count` — { total, replyWaiting } chip data
+- `POST /api/teacher/grading/draft-followup` — Haiku-drafted follow-up
+- `POST /api/teacher/grading/regenerate-draft` — tweak-button regeneration
+- `POST /api/teacher/grading/resolve-thread` — persistent Mark resolved (writes resolved_at + audit log)
+
+**Migration applied:** `20260512023440_student_tile_grades_resolved_at` (resolved_at TIMESTAMPTZ + resolved_by UUID FK + partial index). Logged to `public.applied_migrations`.
+
+**Tests added:** ~140 new source-static assertions across 8 test files. Broader sweep landed at 841/841 green pre-C.5, 831/831 with C.5 in (count varies as suites get added/touched). tsc strict clean on all touched files.
+
+**PII discipline:** all 4 new prompt-construction paths (`ai-followup.ts`, `regenerate-draft.ts` + their routes) added to `REDACTION_ALLOWLIST` in `no-pii-in-ai-prompts.test.ts` with dated justifications.
+
+**Decisions banked:**
+- Mark resolved → Skip semantics for got_it sentinel (purple "Mark resolved" button), distinct from Approve & send (emerald) and low-confidence Approve (amber).
+- Resolution persistence: started localStorage (PR #208, abandoned + closed), promoted to DB column when cross-device case landed in Matt's feedback within minutes of v1 ship.
+- Tweak directives stored client-side only (followupDrafts / draftEdits) — no persistence beyond session. Reload restores the AI's original draft.
+- Marking nav badge polls a thin /count endpoint, NOT the full /items endpoint — 60s × N teachers shouldn't burn the loader query that often.
+- Oldest-first sort across all 3 buckets (not newest-first for reply_waiting). Backlog floats to top so it gets cleared.
+
+**Follow-ups filed (3 new in `grading-followups.md`):**
+- `TFL3-FU-INBOX-COHORT-COMPARISON` (P3) — class-level pattern view inside the inbox
+- `TFL3-FU-ASK-TEMPLATES` (P3) — preset chips for the + Ask flow once usage data shows recurring instructions
+- `TFL3-FU-INBOX-PUSH-ESCALATION` (P3) — Resend / bell escalation when reply_waiting count or item age crosses a threshold
+
+**Systems touched:** teacher-inbox (new), grading (extended), teacher-dashboard-v2 (nav badge), security (PII allowlist additions).
+
+---
+
 ## 2026-05-11/12 — Project Spec v2 split (3 new blocks + shared library)
 
 **Context:** After v1 unified Project Spec shipped (11 May), Matt's observation that the 7 Qs were a mashup of three concerns (product / user / success criteria) drove a phase brief for splitting into three focused blocks. Built end-to-end the same evening per `docs/projects/project-spec-v2-split-brief.md`.

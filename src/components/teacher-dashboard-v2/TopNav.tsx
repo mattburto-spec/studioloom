@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { DashboardClass } from "@/types/dashboard";
 import type { Teacher } from "@/types";
 import { createClient } from "@/lib/supabase/client";
@@ -105,6 +105,61 @@ export function TopNav({
   const initials = teacher ? getInitials(teacher.name) : "··";
   const activeHref = activeNavHref(pathname);
 
+  // TFL.3 C.5 — inbox count for the Marking nav badge. Polls every
+  // 60s, tab-aware (pauses when hidden, refetches on focus). Same
+  // cadence as the inbox page itself so chip + inbox stay in sync.
+  const [inboxCount, setInboxCount] = useState<{
+    total: number;
+    replyWaiting: number;
+  } | null>(null);
+  const fetchInboxCount = useCallback(async () => {
+    if (!teacher) return;
+    try {
+      const res = await fetch("/api/teacher/inbox/count", {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const json = (await res.json()) as {
+        total: number;
+        replyWaiting: number;
+      };
+      setInboxCount(json);
+    } catch {
+      // Silent — chip just stays at previous value, no error UI.
+    }
+  }, [teacher]);
+  useEffect(() => {
+    if (!teacher) return;
+    void fetchInboxCount();
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      if (intervalId) return;
+      intervalId = setInterval(() => {
+        if (typeof document !== "undefined" && document.hidden) return;
+        void fetchInboxCount();
+      }, 60_000);
+    };
+    const stop = () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+    const onVisibility = () => {
+      if (document.hidden) stop();
+      else {
+        void fetchInboxCount();
+        start();
+      }
+    };
+    start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [teacher, fetchInboxCount]);
+
   return (
     <header className="sticky top-0 z-30 bg-[var(--bg)]/80 backdrop-blur-lg border-b border-[var(--hair)]">
       <div className="max-w-[1400px] mx-auto px-4 md:px-6 h-16 flex items-center gap-2 md:gap-4">
@@ -195,17 +250,50 @@ export function TopNav({
               );
             }
             const isActive = item.href === activeHref;
+            // TFL.3 C.5 — Marking badge. Two-tone: amber when there
+            // are reply_waiting items (urgent), gray-purple otherwise.
+            // Hidden entirely when total is 0 or count hasn't loaded.
+            const showInboxBadge =
+              item.href === "/teacher/inbox" &&
+              inboxCount !== null &&
+              inboxCount.total > 0;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`whitespace-nowrap px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition ${
+                className={`whitespace-nowrap px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition inline-flex items-center gap-1.5 ${
                   isActive
                     ? "bg-[var(--ink)] text-white"
                     : "text-[var(--ink-2)] hover:bg-white"
                 }`}
+                data-testid={
+                  item.href === "/teacher/inbox"
+                    ? "topnav-marking-link"
+                    : undefined
+                }
               >
                 {item.label}
+                {showInboxBadge && (
+                  <span
+                    data-testid="topnav-marking-badge"
+                    data-reply-waiting={inboxCount.replyWaiting > 0}
+                    title={
+                      inboxCount.replyWaiting > 0
+                        ? `${inboxCount.total} to review · ${inboxCount.replyWaiting} waiting on you`
+                        : `${inboxCount.total} to review`
+                    }
+                    className={[
+                      "inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 rounded-full text-[10px] font-extrabold tabular-nums",
+                      inboxCount.replyWaiting > 0
+                        ? "bg-amber-500 text-white"
+                        : isActive
+                          ? "bg-white/20 text-white"
+                          : "bg-purple-100 text-purple-700",
+                    ].join(" ")}
+                  >
+                    {inboxCount.total}
+                  </span>
+                )}
               </Link>
             );
           })}
