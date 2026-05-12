@@ -10,7 +10,16 @@ import {
   recomputeCounts,
   validateKanbanState,
 } from "@/lib/unit-tools/kanban/server-validators";
-import { emptyKanbanState, type KanbanState } from "@/lib/unit-tools/kanban/types";
+import {
+  emptyKanbanState,
+  type KanbanCard,
+  type KanbanState,
+} from "@/lib/unit-tools/kanban/types";
+import {
+  resolveChoiceCardPickForUnit,
+  extractSeedKanban,
+} from "@/lib/choice-cards/resolve-for-unit";
+import { randomUUID } from "crypto";
 
 /**
  * GET /api/student/kanban?unitId=<uuid>
@@ -53,14 +62,44 @@ export const GET = withErrorHandler(
       // distinguish "never created" from "explicitly empty"; both
       // treat the same (zero cards, default WIP, null lastMoveAt).
       const initial = emptyKanbanState();
+
+      // Choice Cards lazy seed — if the student has picked a card with a
+      // seedKanban payload for this unit, seed the backlog with those
+      // tasks. Ephemeral on GET (not persisted yet); the next POST that
+      // includes the cards array will write them. Skipped silently if
+      // no pick exists, no seedKanban payload, or zero valid tasks.
+      const pick = await resolveChoiceCardPickForUnit(db, studentId, unitId);
+      const seed = extractSeedKanban(pick);
+      if (seed) {
+        const now = new Date().toISOString();
+        const seedCards: KanbanCard[] = seed.map((t) => ({
+          id: randomUUID(),
+          title: t.title,
+          status: "backlog" as const,
+          dod: null,
+          estimateMinutes: null,
+          actualMinutes: null,
+          blockType: null,
+          blockedAt: null,
+          becauseClause: null,
+          lessonLink: null,
+          source: "manual" as const,
+          createdAt: now,
+          movedAt: null,
+          doneAt: null,
+        }));
+        initial.cards = seedCards;
+      }
+
       return NextResponse.json({
         kanban: initial,
         counts: {
-          backlog_count: 0,
+          backlog_count: initial.cards.length,
           this_class_count: 0,
           doing_count: 0,
           done_count: 0,
         },
+        from_choice_card: pick ? { cardId: pick.cardId, label: pick.label } : null,
       });
     }
 
