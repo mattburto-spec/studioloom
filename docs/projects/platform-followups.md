@@ -211,28 +211,36 @@ Both routes work but neither is a *real* pitch workflow. The student just fills 
 
 ---
 
-## FU-PLATFORM-CHOICE-CARDS-DOWNSTREAM-CASCADE — Cascade re-picks to downstream state
+## FU-PLATFORM-CHOICE-CARDS-DOWNSTREAM-CASCADE — Soft warning IF re-pick mid-build bites
 **Surfaced:** 12 May 2026, while shipping "Change my mind" on Choice Cards.
-**Severity:** 🟢 LOW — edge case (student changes mind AFTER starting downstream work).
-**Target phase:** Post-pilot when real cascade-cases are observed.
+**Severity:** 🟢 LOW — Matt's instinct: keep the system loosely coupled, don't build a cascade.
+**Target phase:** ONLY if Case 3 (re-pick after slot writes) bites in real classroom use.
 
-**Context:** Choice Cards now allow students to re-pick at any time (`setSelection(null)` resets the local lock; new pick upserts on `(student_id, activity_id)`). But downstream consumers that already wrote state from the previous pick are NOT auto-rolled back. Specifically:
+**Architectural decision (12 May 2026, with Matt):** Do NOT build a cascade. The loose coupling between Choice Cards and downstream consumers (Product Brief / User Profile / Success Criteria) is the correct architecture — it makes adding new consumers cheap and avoids the complications Matt explicitly wanted to avoid ("i dont want to make things too dependent and start complicating the connections between things").
 
-- **Product Brief** reads the Choice Cards pick in its GET handler (`src/app/api/student/product-brief/route.ts`) and pre-fills `archetype_id` only when `!brief.archetype_id`. If the student already saved `archetype_id` (or filled in slots), a new card pick doesn't override.
-- **Open Studio** / **future consumers** that read the resolved pick similarly snapshot at first-write.
+**Actual downstream coupling today (audited 12 May 2026):**
+- **Product Brief**: pre-fills `archetype_id` as a *suggestion* in the GET handler (`src/app/api/student/product-brief/route.ts`) — in-memory only, not written to DB until student saves a slot. Pure read.
+- **User Profile**: reads `from_choice_card` for the banner display only. No state mutation.
+- **Success Criteria**: reads `from_choice_card` for the banner display only. No state mutation.
 
-**What it adds:** A cascade mechanism for when a student re-picks AFTER triggering downstream state. Options:
+**Three cases for "student re-picks":**
+1. **Re-pick BEFORE opening Product Brief**: new pick = new suggested archetype on next GET. Clean. (~95% of cases.)
+2. **Re-pick AFTER opening Product Brief but BEFORE writing a slot**: same — next GET re-evaluates from the new pick. Clean.
+3. **Re-pick AFTER writing slots in Product Brief**: slot data is saved against the *old* archetype's slot semantics. If the new archetype has different slot definitions (e.g., Toy slot 4 = materials chips vs Architecture slot 4 = scale number-pair), data is semantically off — not corrupted, just interpreted weirdly. **Rare.** Recoverable via 30-second teacher conversation.
 
-1. **Detection only** — UI warns "Changing your card may not roll back work you've already done elsewhere. Want to continue?"
-2. **Soft cascade** — emit an `action-superseded` event when a re-pick happens; downstream consumers can subscribe and decide what to do (e.g., Product Brief could clear archetype_id IF no slot writes have happened yet).
-3. **Hard cascade** — re-picks delete downstream state. Too aggressive for student work.
+**If Case 3 ever bites in real classroom use** (and only if), ship a small soft warning on the "Change my mind" button:
 
-**Why deferred:** Matt's "change mind at the start" use case is by definition pre-downstream — students re-pick BEFORE they've written anything. The edge case (re-pick mid-build) is rare and probably better handled with a teacher conversation than an automated cascade.
+> "You've already started your Product Brief — changing your card might not match what you've written. Continue anyway?"
 
-**Definition of done:**
-- Decide between Option 1 / 2 / 3
-- If Option 2: define the event payload + subscriber contract
-- If Option 1: just the confirmation modal
+One-line UX, zero coupling, no event system. **Do NOT build:**
+- A `setSelection(null)` cascade that emits events to downstream consumers
+- An auto-clear of downstream state on re-pick
+- Any subscription mechanism between Choice Cards and other blocks
+
+**Definition of done (if triggered):**
+- Add the soft warning modal/confirm before `setSelection(null)` fires
+- Only show when there's evidence of downstream work (e.g., `student_unit_product_briefs` row with any slot_N non-null)
+- No other changes
 
 ---
 
