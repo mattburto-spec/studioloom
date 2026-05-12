@@ -11,10 +11,19 @@
  * Brief pass the full ARCHETYPE_LIST).
  */
 
-import type { ArchetypeDefinition } from "@/lib/project-spec/archetypes";
+/**
+ * Picker only uses id + label + emoji. Structural type so both v1
+ * ArchetypeDefinition (7-tuple slots) and v2 ProductBriefArchetype
+ * (9-slot array) satisfy the contract without coupling.
+ */
+interface PickableArchetype {
+  id: string;
+  label: string;
+  emoji: string;
+}
 
 interface Props {
-  archetypes: ArchetypeDefinition[];
+  archetypes: PickableArchetype[];
   onPick: (id: string) => void;
   saving: boolean;
   /** Optional override of the picker heading. */
