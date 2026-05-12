@@ -118,28 +118,23 @@
 
 ---
 
-## FU-PSV2-ARCHETYPES-3-6 — Film / App / Fashion / Event-Service archetypes
-**Surfaced:** 11 May 2026 (brief §3 — carries forward from v1's FU-PSB-ARCHETYPES-3-6).
-**Severity:** 🟢 LOW — only matters when units beyond Toy / Architecture want them.
-**Target phase:** When Matt sets up a unit needing one of these archetypes.
+## ✅ FU-PSV2-ARCHETYPES-3-6 — Film / App / Fashion / Event-Service archetypes
+**Resolved:** 12 May 2026 (Product Brief side complete; v1 legacy registry left alone).
 
-**What it adds:** Four new archetype definitions in:
-- `src/lib/project-spec/archetypes.ts` (v1 7-slot defs — for legacy compat)
-- `src/lib/project-spec/product-brief.ts` (v2 9-slot defs)
+For Matt's G8 lesson Project Spec. Product Brief now has **7 archetypes** (up from 2):
+1. Toy / Game Design 🧸 (original)
+2. Architecture / Interior 🏛️ (original)
+3. App / Digital Tool ✨ (shipped via parallel work — tuned for G8 AI-design-tool projects)
+4. Film / Video 🎬 (added 12 May)
+5. Fashion / Wearable 👗 (added 12 May)
+6. Event / Service / Performance 🎤 (added 12 May)
+7. Other / Pitch your own 💡 (added 12 May — companion to Choice Cards `_pitch-your-own` sentinel)
 
-IDs (already stable, brief §10 — defer):
-- `film-video`
-- `app-digital-tool`
-- `fashion-wearable`
-- `event-service-performance`
+The v1 `ARCHETYPES` registry in `src/lib/project-spec/archetypes.ts` (used only by the v1 hidden block) was NOT updated — only Toy + Architecture there. v1 is retiring (`FU-PSV2-V1-DEPRECATION`); not worth backfilling slot copy that will be deleted.
 
-**Why deferred:** Tomorrow's G9 lesson only uses Toy + Architecture. Other 4 are dead weight for v1 + v2.0. Slot copy exists in the original brief; takes ~30 min × 4 to type out + verify.
+Picker now reads from a new `PRODUCT_BRIEF_ARCHETYPE_LIST` export in `product-brief.ts`. `ArchetypePicker` prop type was widened to a structural `PickableArchetype` interface (id + label + emoji) so both v1 `ArchetypeDefinition` and v2 `ProductBriefArchetype` shapes satisfy it without coupling.
 
-**Definition of done:**
-- v1: 4 new ArchetypeDefinitions in `archetypes.ts`
-- v2 Product Brief: 4 new ProductBriefArchetype entries in `product-brief.ts`
-- Pickers automatically expand (no UI work)
-- Existing student rows continue to load (archetype_id values unchanged)
+Pitch-to-teacher workflow is its own meaningful build — filed separately as **FU-PLATFORM-CUSTOM-PROJECT-PITCH** (P1, post-pilot, needs a build brief). The new "Other" archetype is a stop-gap until that lands.
 
 ---
 

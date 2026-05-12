@@ -389,6 +389,349 @@ const APP_DIGITAL_TOOL_PB: ProductBriefArchetype = {
 };
 
 // ────────────────────────────────────────────────────────────────────
+// Archetype 4: Film / Video — 9 slots
+// ────────────────────────────────────────────────────────────────────
+
+const FILM_FORMAT_CHIPS = [
+  { id: "live-action", label: "Live action", emoji: "🎥" },
+  { id: "animation-2d", label: "Animation 2D", emoji: "🎨" },
+  { id: "stop-motion", label: "Stop-motion", emoji: "🧱" },
+  { id: "documentary", label: "Documentary", emoji: "📹" },
+  { id: "mixed-format", label: "Mixed format", emoji: "🎬" },
+];
+
+const FILM_VIDEO_PB: ProductBriefArchetype = {
+  id: "film-video",
+  label: "Film / Video",
+  emoji: "🎬",
+  slots: [
+    {
+      title: "What's your film called?",
+      subhead: "Working title. 1–6 words.",
+      input: { kind: "text", maxWords: 6 },
+      examples: {
+        strong: ["Last Bus Home", "How To Vanish", "The Long Walk"],
+        weak: ["My Movie", "Untitled Film"],
+      },
+    },
+    {
+      title: "One-sentence elevator pitch — what does a viewer EXPERIENCE?",
+      subhead: "What do they see, hear, feel happen? 25 words max.",
+      input: { kind: "text", maxWords: 25 },
+      examples: {
+        strong: [
+          "A teenager walks home in silence for 4 minutes while the city soundscape slowly reveals what she's running from.",
+        ],
+        weak: ["It's a cool film about life."],
+      },
+    },
+    {
+      title: "What's the ONE thing that makes this film work?",
+      subhead: "The hook, the twist, the reveal. 15 words max.",
+      input: { kind: "text", maxWords: 15 },
+      examples: {
+        strong: ["The audience doesn't realise it's a memory until the final shot."],
+        weak: ["It has lots of cool scenes."],
+      },
+    },
+    {
+      title: "Primary format — how are you shooting it?",
+      subhead: "Pick the main format. You can mix later if needed.",
+      input: { kind: "chip-picker", chips: [...FILM_FORMAT_CHIPS] },
+    },
+    {
+      title: "Secondary format (optional)",
+      subhead: "If combining two — pick the second. Skip otherwise.",
+      input: { kind: "chip-picker", chips: [...FILM_FORMAT_CHIPS] },
+    },
+    {
+      title: "How long is it?",
+      subhead: "Pick the closest length. Shorter is usually stronger for first films.",
+      input: {
+        kind: "chip-picker",
+        chips: [
+          { id: "30s", label: "30 sec (one moment)", emoji: "⚡" },
+          { id: "1min", label: "1 min (one beat)", emoji: "🎯" },
+          { id: "2-3min", label: "2–3 min (a short scene)", emoji: "📍" },
+          { id: "5plus", label: "5+ min (multi-scene)", emoji: "📚" },
+        ],
+      },
+    },
+    CONSTRAINTS_SLOT,
+    {
+      title: "Precedents — what existing film or scene inspired you?",
+      subhead:
+        "Name 1–3 examples (films, music videos, ads) and what specifically you're borrowing.",
+      input: { kind: "text", maxWords: 60 },
+      examples: {
+        strong: [
+          "Spike Jonze's 'Where the Wild Things Are' for the lonely-kid atmosphere + the slow zoom from 'There Will Be Blood' final shot.",
+        ],
+        weak: ["Cool movies", "Films I like"],
+      },
+    },
+    TECHNICAL_RISKS_SLOT,
+  ],
+};
+
+// ────────────────────────────────────────────────────────────────────
+// Archetype 5: Fashion / Wearable — 9 slots
+// ────────────────────────────────────────────────────────────────────
+
+const FASHION_MATERIAL_CHIPS = [
+  { id: "cotton-canvas", label: "Cotton / canvas", emoji: "👕" },
+  { id: "denim", label: "Denim", emoji: "👖" },
+  { id: "synthetic", label: "Synthetic / technical", emoji: "🦺" },
+  { id: "recycled", label: "Recycled / upcycled", emoji: "♻️" },
+  { id: "wool-felt", label: "Wool / felt", emoji: "🧶" },
+  { id: "mixed", label: "Mixed media", emoji: "🧩" },
+];
+
+const FASHION_WEARABLE_PB: ProductBriefArchetype = {
+  id: "fashion-wearable",
+  label: "Fashion / Wearable",
+  emoji: "👗",
+  slots: [
+    {
+      title: "What's your piece called?",
+      subhead: "1–4 words. Working title.",
+      input: { kind: "text", maxWords: 4 },
+      examples: {
+        strong: ["Storm Coat", "Bike Light Vest", "Reversible Bag"],
+        weak: ["My Outfit", "Untitled Piece"],
+      },
+    },
+    {
+      title: "One-sentence elevator pitch — what does the wearer DO with it?",
+      subhead: "Function and context. A specific moment of use. 25 words max.",
+      input: { kind: "text", maxWords: 25 },
+      examples: {
+        strong: [
+          "A cyclist wears this vest at night and is visible from 100m without looking like a construction worker.",
+        ],
+        weak: ["It looks cool and people wear it."],
+      },
+    },
+    {
+      title: "What's the ONE thing that makes it special?",
+      subhead: "The construction move, hidden feature, silhouette signature. 15 words max.",
+      input: { kind: "text", maxWords: 15 },
+      examples: {
+        strong: ["The reflective panels are hidden inside pleats until the wearer moves."],
+        weak: ["It has nice details."],
+      },
+    },
+    {
+      title: "Primary fabric / material",
+      subhead: "What it's mostly made of.",
+      input: { kind: "chip-picker", chips: [...FASHION_MATERIAL_CHIPS] },
+    },
+    {
+      title: "Secondary fabric / material (optional)",
+      subhead: "If combining — pick the second. Skip otherwise.",
+      input: { kind: "chip-picker", chips: [...FASHION_MATERIAL_CHIPS] },
+    },
+    {
+      title: "What scale are you making?",
+      subhead: "Display-scale model or actually wearable?",
+      input: {
+        kind: "chip-picker",
+        chips: [
+          { id: "doll", label: "Doll/model scale (display)", emoji: "🪆" },
+          { id: "wearable-you", label: "Wearable — your size", emoji: "🧍" },
+          { id: "wearable-user", label: "Wearable — test user's size", emoji: "🧑" },
+        ],
+      },
+    },
+    CONSTRAINTS_SLOT,
+    {
+      title: "Precedents — what existing piece or designer inspired you?",
+      subhead: "Name 1–3 references + what specifically you're borrowing.",
+      input: { kind: "text", maxWords: 60 },
+      examples: {
+        strong: [
+          "Issey Miyake's pleating (the way fabric moves) + Patagonia's hidden-utility pocket placement. Borrowing 'function disguised as form'.",
+        ],
+        weak: ["Cool fashion", "Famous designers"],
+      },
+    },
+    TECHNICAL_RISKS_SLOT,
+  ],
+};
+
+// ────────────────────────────────────────────────────────────────────
+// Archetype 6: Event / Service / Performance — 9 slots
+// ────────────────────────────────────────────────────────────────────
+
+const EVENT_FORMAT_CHIPS = [
+  { id: "one-off", label: "Single one-off event", emoji: "🎉" },
+  { id: "recurring", label: "Weekly recurring", emoji: "🔁" },
+  { id: "popup", label: "Pop-up service", emoji: "⛺" },
+  { id: "performance", label: "Performance", emoji: "🎭" },
+  { id: "installation", label: "Installation", emoji: "🖼️" },
+];
+
+const EVENT_SERVICE_PERFORMANCE_PB: ProductBriefArchetype = {
+  id: "event-service-performance",
+  label: "Event / Service / Performance",
+  emoji: "🎤",
+  slots: [
+    {
+      title: "What's your event or service called?",
+      subhead: "1–4 words. Tells someone what to expect.",
+      input: { kind: "text", maxWords: 4 },
+      examples: {
+        strong: ["Lunch Swap", "Quiet Hour Library", "Senior Citizen Game Night"],
+        weak: ["My Event", "Untitled Service"],
+      },
+    },
+    {
+      title: "One-sentence elevator pitch — what HAPPENS for the participant?",
+      subhead: "Specific action + outcome. 25 words max.",
+      input: { kind: "text", maxWords: 25 },
+      examples: {
+        strong: [
+          "Students bring one homemade dish and trade it for someone else's during a 20-minute lunchtime slot.",
+        ],
+        weak: ["People come and have a good time."],
+      },
+    },
+    {
+      title: "What's the ONE thing that makes it work?",
+      subhead: "The rule, format, or structure that makes it not just a party. 15 words max.",
+      input: { kind: "text", maxWords: 15 },
+      examples: {
+        strong: ["Every participant must explain their dish in one sentence before trading."],
+        weak: ["It has lots of activities."],
+      },
+    },
+    {
+      title: "Primary format",
+      subhead: "The main shape of the experience.",
+      input: { kind: "chip-picker", chips: [...EVENT_FORMAT_CHIPS] },
+    },
+    {
+      title: "Secondary format (optional)",
+      subhead: "If combining — pick the second. Skip otherwise.",
+      input: { kind: "chip-picker", chips: [...EVENT_FORMAT_CHIPS] },
+    },
+    {
+      title: "How long + how many people?",
+      subhead: "Duration in minutes (15–120) × number of participants (5–50).",
+      input: {
+        kind: "number-pair",
+        firstLabel: "Minutes",
+        secondLabel: "Participants",
+        firstMin: 15,
+        firstMax: 120,
+        secondMin: 5,
+        secondMax: 50,
+      },
+      examples: {
+        strong: ["20 × 15 (20 min, 15 people)"],
+        weak: [],
+      },
+    },
+    CONSTRAINTS_SLOT,
+    {
+      title: "Precedents — what existing event or service inspired you?",
+      subhead: "Name 1–3 references + what specifically you're borrowing.",
+      input: { kind: "text", maxWords: 60 },
+      examples: {
+        strong: [
+          "Speed-dating's rotating-pairs format + community pot-luck dinners. Borrowing 'forced novelty' + 'shared contribution'.",
+        ],
+        weak: ["Things I've been to", "Cool events"],
+      },
+    },
+    TECHNICAL_RISKS_SLOT,
+  ],
+};
+
+// ────────────────────────────────────────────────────────────────────
+// Archetype 7: Other / Pitch your own — 9 slots
+//
+// Generic free-form slots for projects that don't fit any preset
+// archetype. Companion to the Choice Cards `_pitch-your-own` sentinel
+// (src/lib/choice-cards/resolve-for-unit.ts) — when a student picks
+// "Pitch your own idea" in Choice Cards, they land on the archetype
+// picker and the natural choice is "Other".
+// ────────────────────────────────────────────────────────────────────
+
+const OTHER_FREEFORM_PB: ProductBriefArchetype = {
+  id: "other",
+  label: "Other / Pitch your own",
+  emoji: "💡",
+  slots: [
+    {
+      title: "What's your project called?",
+      subhead: "1–4 words. A working title makes it feel real.",
+      input: { kind: "text", maxWords: 4 },
+      examples: {
+        strong: [],
+        weak: ["My Project", "Untitled"],
+      },
+    },
+    {
+      title: "One-sentence elevator pitch — what does it DO?",
+      subhead: "Specific action + who it's for. 25 words max.",
+      input: { kind: "text", maxWords: 25 },
+      examples: {
+        strong: [],
+        weak: ["It's a thing I'm making."],
+      },
+    },
+    {
+      title: "What's the ONE thing that makes it work?",
+      subhead: "The mechanism, format, or unique move. 15 words max.",
+      input: { kind: "text", maxWords: 15 },
+      examples: {
+        strong: [],
+        weak: ["It has lots of features."],
+      },
+    },
+    {
+      title: "Primary medium",
+      subhead: "What's it built from / where does it live? Free-form — be specific.",
+      input: { kind: "text", maxWords: 12 },
+      examples: {
+        strong: [
+          "Audio recording + paper booklet",
+          "Live performance with custom-built props",
+          "Web page + printed companion zine",
+        ],
+        weak: ["Stuff", "Materials"],
+      },
+    },
+    {
+      title: "Secondary medium (optional)",
+      subhead: "If combining — describe it. Skip otherwise.",
+      input: { kind: "text", maxWords: 12 },
+    },
+    {
+      title: "Scale — describe the size or duration",
+      subhead: "How big? How long? Free-form because every project is different.",
+      input: { kind: "text", maxWords: 20 },
+      examples: {
+        strong: [
+          "A4 zine, 12 pages, ~3 minutes to read",
+          "1m × 1m installation in the school foyer for one week",
+          "Audio piece, 8 minutes, single-channel headphone listening",
+        ],
+        weak: ["Medium-sized", "A while"],
+      },
+    },
+    CONSTRAINTS_SLOT,
+    {
+      title: "Precedents — what existing thing inspired you?",
+      subhead: "Name 1–3 examples + what specifically you're borrowing.",
+      input: { kind: "text", maxWords: 60 },
+    },
+    TECHNICAL_RISKS_SLOT,
+  ],
+};
+
+// ────────────────────────────────────────────────────────────────────
 // Registry
 // ────────────────────────────────────────────────────────────────────
 
@@ -396,7 +739,26 @@ export const PRODUCT_BRIEF_ARCHETYPES: Record<string, ProductBriefArchetype> = {
   [TOY_DESIGN_PB.id]: TOY_DESIGN_PB,
   [ARCHITECTURE_INTERIOR_PB.id]: ARCHITECTURE_INTERIOR_PB,
   [APP_DIGITAL_TOOL_PB.id]: APP_DIGITAL_TOOL_PB,
+  [FILM_VIDEO_PB.id]: FILM_VIDEO_PB,
+  [FASHION_WEARABLE_PB.id]: FASHION_WEARABLE_PB,
+  [EVENT_SERVICE_PERFORMANCE_PB.id]: EVENT_SERVICE_PERFORMANCE_PB,
+  [OTHER_FREEFORM_PB.id]: OTHER_FREEFORM_PB,
 };
+
+/**
+ * Ordered list for the Product Brief archetype picker. Order = picker
+ * tile order. "Other / Pitch your own" stays last so it reads as the
+ * escape hatch, not as an equal option to the preset archetypes.
+ */
+export const PRODUCT_BRIEF_ARCHETYPE_LIST: ProductBriefArchetype[] = [
+  TOY_DESIGN_PB,
+  ARCHITECTURE_INTERIOR_PB,
+  APP_DIGITAL_TOOL_PB,
+  FILM_VIDEO_PB,
+  FASHION_WEARABLE_PB,
+  EVENT_SERVICE_PERFORMANCE_PB,
+  OTHER_FREEFORM_PB,
+];
 
 export function getProductBriefArchetype(
   id: string | null | undefined,

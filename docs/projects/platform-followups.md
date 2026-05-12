@@ -165,6 +165,52 @@ Separate briefs when their turn comes.
 
 ---
 
+## FU-PLATFORM-CUSTOM-PROJECT-PITCH — Real pitch-to-teacher workflow
+**Surfaced:** 12 May 2026, while expanding Product Brief archetypes for Matt's G8 lesson.
+**Severity:** 🔵 P1 — pedagogically meaningful, current "Other" archetype is a stop-gap.
+**Target phase:** Post-pilot, build brief required.
+
+**Context:** A student whose project doesn't fit any preset archetype currently has two paths:
+1. Pick "Other / Pitch your own" in the Product Brief archetype picker → free-form slots, teacher reviews in marking (shipped 12 May)
+2. Pick `_pitch-your-own` in a Choice Cards block (sentinel already exists in `src/lib/choice-cards/resolve-for-unit.ts`) → lands on the archetype picker, naturally chooses "Other"
+
+Both routes work but neither is a *real* pitch workflow. The student just fills in the Product Brief with no formal teacher checkpoint, no proposal-vs-acceptance moment, no record of the negotiation.
+
+**What this FU adds:** A proper proposal flow that mirrors real-world design practice (designer pitches → client/teacher approves → work begins).
+
+**Proposed flow:**
+1. Student picks "Pitch a custom project" (either in Choice Cards `_pitch-your-own` OR directly via a new button on the archetype picker)
+2. Free-text proposal form — project idea + why it matters + what skills they want to build + how it'll be assessed
+3. Submit → teacher gets a notification in their inbox (existing `/teacher/inbox` surface from tfl.3 C.1)
+4. Teacher reviews → approves / requests revision / redirects to a preset archetype
+5. On approval, student gets a tailored mini-archetype (auto-generated from the proposal) that scaffolds the Product Brief / User Profile / Success Criteria with proposal-specific copy
+6. Audit trail of the proposal + teacher response + any revisions
+
+**Why deferred:** This is its own meaningful build:
+- New table `project_pitches` (or similar) storing proposal + teacher response + status
+- New API routes for student submit + teacher review + approval
+- Teacher inbox integration
+- Auto-generated archetype scaffolding from approved proposal (could be AI-generated)
+- Notification + state machine
+
+**Sizing:** ~1–2 weeks (similar shape to the v2 Project Spec split brief). Deserves its own build brief.
+
+**Related:**
+- Open Studio v2 plan-approval pattern — closest precedent in the codebase
+- Choice Cards `_pitch-your-own` sentinel — already partially wired
+- The "Other / Pitch your own" archetype (shipped 12 May) is the v1 minimum that this FU promotes to a real workflow
+
+**Definition of done:**
+- Schema migration for `project_pitches`
+- Student-side proposal form + submit flow
+- Teacher inbox surfaces pending pitches alongside reply-drafts
+- Teacher review UI with approve / revise / redirect actions
+- Approved pitches generate a custom mini-archetype that populates Product Brief / User Profile / Success Criteria slot scaffolding (text + examples may come from a Claude call against the proposal)
+- Audit log: every status transition
+- Build brief authored before code (matches the v2 split brief pattern)
+
+---
+
 ## Resolved
 
 _None yet._
