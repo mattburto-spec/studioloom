@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireTeacherAuth, verifyTeacherOwnsClass } from "@/lib/auth/verify-teacher-unit";
-import { computePaceSignals } from "@/lib/teaching-mode/pace";
 
 /**
  * GET /api/teacher/teach/live-status?classId=X&unitId=Y&pageId=Z
@@ -127,8 +126,6 @@ export const GET = withErrorHandler("teacher/teach/live-status:GET", async (requ
     completionPct: number;
     /** Flag: student may need help (no activity for >3 min while in_progress) */
     needsHelp: boolean;
-    /** Pace z-score vs in-progress cohort on this lesson; null if cohort <5 or not in_progress */
-    paceZ: number | null;
   };
 
   const now = Date.now();
@@ -161,7 +158,6 @@ export const GET = withErrorHandler("teacher/teach/live-status:GET", async (requ
         responseCount,
         completionPct: 0, // Would need page section count to calculate
         needsHelp,
-        paceZ: null, // Filled in post-pass below
       };
     } else {
       // Unit-level mode — aggregate across all pages
@@ -194,32 +190,9 @@ export const GET = withErrorHandler("teacher/teach/live-status:GET", async (requ
         responseCount,
         completionPct: 0,
         needsHelp: false,
-        paceZ: null, // Pace only meaningful in page mode
       };
     }
   });
-
-  // Pace signals — only over students currently in_progress on this lesson.
-  // Unit mode (no pageId) skips this; paceZ stays null. Phase 1.
-  const paceInputs = pageId
-    ? studentStatuses
-        .filter((s) => s.status === "in_progress")
-        .map((s) => ({ studentId: s.id, responseCount: s.responseCount }))
-    : [];
-  const { results: paceResults, stats: paceStatsRaw } = computePaceSignals(paceInputs);
-  const paceMap = new Map(paceResults.map((r) => [r.studentId, r.paceZ]));
-  for (const s of studentStatuses) {
-    const z = paceMap.get(s.id);
-    s.paceZ = z === undefined ? null : z;
-  }
-  const cohortStats = pageId && paceInputs.length > 0
-    ? {
-        inProgressCount: paceStatsRaw.n,
-        medianResponses: paceStatsRaw.median,
-        meanResponses: paceStatsRaw.mean,
-        stddevResponses: paceStatsRaw.stddev,
-      }
-    : null;
 
   // Summary
   const total = studentStatuses.length;
@@ -242,7 +215,6 @@ export const GET = withErrorHandler("teacher/teach/live-status:GET", async (requ
       avgTimeSpent,
       needsHelpCount,
       onlineCount,
-      cohortStats,
     },
     className: classData?.name || "",
   });
