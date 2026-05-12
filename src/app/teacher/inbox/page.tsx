@@ -36,6 +36,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { sanitizeResponseText } from "@/lib/grading/sanitize-response";
+import { formatInboxRelativeTime } from "@/lib/grading/relative-time";
 
 interface InboxItem {
   itemKey: string;
@@ -614,12 +615,16 @@ function QueueRow({
         <span className="text-sm font-bold text-gray-900 truncate">
           {item.studentName}
         </span>
-        <span className="text-[10px] text-gray-400 shrink-0">
-          {item.className}
+        <span
+          className="text-[10px] text-gray-400 shrink-0 font-mono tabular-nums"
+          data-testid="inbox-queue-row-relative-time"
+          title={new Date(item.lastActivityAt).toLocaleString()}
+        >
+          {formatInboxRelativeTime(item.lastActivityAt)}
         </span>
       </div>
       <div className="text-[11px] text-gray-500 truncate">
-        {item.pageTitle} · {item.tilePrompt}
+        {item.className} · {item.pageTitle}
       </div>
       {item.state === "reply_waiting" && item.latestStudentReply && (
         <div className="mt-1 text-[10px] text-amber-700 italic truncate">
@@ -658,13 +663,29 @@ function DetailPane({
   followupDraft: string | undefined;
   followupFetching: boolean;
 }) {
+  /** Hide approve when the follow-up is still fetching OR when the
+   *  AI returned the "no follow-up needed" sentinel. The sentinel
+   *  surfaces as a teacher-facing message; teacher can Mark resolved
+   *  (Skip semantics) or type their own follow-up. */
+  const NO_FOLLOWUP_SENTINEL = "(no follow-up needed)";
+  const isNoFollowupSentinel =
+    item.state === "reply_waiting" &&
+    followupDraft === NO_FOLLOWUP_SENTINEL &&
+    !draftEdits[item.itemKey];
+
   // For reply_waiting items, the textarea reflects the follow-up
   // draft (from C.3's draft-followup route). For drafted / no_draft
   // items, it reflects the prescore draft (aiCommentDraft column).
   // Teacher edits override either via draftEdits.
+  // The sentinel is an INTERNAL marker — never surface it in the
+  // textarea; render an empty value (placeholder visible) so the
+  // teacher isn't asked to "approve & send" a literal "(no follow-up
+  // needed)" string.
   const baseDraft =
     item.state === "reply_waiting"
-      ? followupDraft ?? ""
+      ? followupDraft === NO_FOLLOWUP_SENTINEL
+        ? ""
+        : followupDraft ?? ""
       : item.aiCommentDraft ?? "";
   const draftValue = draftEdits[item.itemKey] ?? baseDraft;
   const cleanResponse = item.studentResponse
@@ -673,15 +694,6 @@ function DetailPane({
   const isLowConfidence =
     typeof item.aiConfidence === "number" &&
     item.aiConfidence < LOW_CONFIDENCE_THRESHOLD;
-  /** Hide approve when the follow-up is still fetching OR when the
-   *  AI returned the "no follow-up needed" sentinel. The sentinel
-   *  surfaces as a teacher-facing message; teacher can Skip the
-   *  thread or type their own follow-up. */
-  const NO_FOLLOWUP_SENTINEL = "(no follow-up needed)";
-  const isNoFollowupSentinel =
-    item.state === "reply_waiting" &&
-    followupDraft === NO_FOLLOWUP_SENTINEL &&
-    !draftEdits[item.itemKey];
 
   const canApprove = (() => {
     if (approving) return false;
@@ -720,6 +732,14 @@ function DetailPane({
           {item.unitTitle}
           {" · "}
           {item.pageTitle}
+          {" · "}
+          <span
+            className="text-gray-400"
+            data-testid="inbox-detail-relative-time"
+            title={new Date(item.lastActivityAt).toLocaleString()}
+          >
+            {formatInboxRelativeTime(item.lastActivityAt)}
+          </span>
         </div>
       </header>
 
@@ -862,34 +882,53 @@ function DetailPane({
         </div>
       </section>
 
-      {/* Actions */}
+      {/* Actions. When the AI returned the "no follow-up needed" sentinel
+          (got_it on a thin response) we suppress the approve button and
+          promote a single "Mark resolved" purple button — closing the
+          thread silently is the correct semantic, not "approve & send a
+          blank message". The teacher can still type into the textarea
+          above to override the sentinel; that re-shows approve. */}
       <footer className="flex items-center justify-between gap-3 pt-2 border-t border-gray-200">
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            data-testid="inbox-approve-button"
-            onClick={onApprove}
-            disabled={!canApprove}
-            className={[
-              "px-5 py-2.5 text-sm font-extrabold rounded-xl transition",
-              canApprove
-                ? isLowConfidence
-                  ? "bg-amber-500 text-white hover:bg-amber-600 shadow-sm"
-                  : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm"
-                : "bg-gray-100 text-gray-400 cursor-not-allowed",
-            ].join(" ")}
-          >
-            {approving ? "Sending…" : "✓ Approve & send"}
-          </button>
-          <button
-            type="button"
-            data-testid="inbox-skip-button"
-            onClick={onSkip}
-            disabled={approving}
-            className="px-3 py-2 text-xs font-bold text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition disabled:opacity-50"
-          >
-            Skip
-          </button>
+          {isNoFollowupSentinel ? (
+            <button
+              type="button"
+              data-testid="inbox-mark-resolved-button"
+              onClick={onSkip}
+              disabled={approving}
+              className="px-5 py-2.5 text-sm font-extrabold rounded-xl transition bg-purple-600 text-white hover:bg-purple-700 shadow-sm disabled:opacity-50"
+            >
+              ✓ Mark resolved
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                data-testid="inbox-approve-button"
+                onClick={onApprove}
+                disabled={!canApprove}
+                className={[
+                  "px-5 py-2.5 text-sm font-extrabold rounded-xl transition",
+                  canApprove
+                    ? isLowConfidence
+                      ? "bg-amber-500 text-white hover:bg-amber-600 shadow-sm"
+                      : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm"
+                    : "bg-gray-100 text-gray-400 cursor-not-allowed",
+                ].join(" ")}
+              >
+                {approving ? "Sending…" : "✓ Approve & send"}
+              </button>
+              <button
+                type="button"
+                data-testid="inbox-skip-button"
+                onClick={onSkip}
+                disabled={approving}
+                className="px-3 py-2 text-xs font-bold text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition disabled:opacity-50"
+              >
+                Skip
+              </button>
+            </>
+          )}
         </div>
         <Link
           href={`/teacher/marking?class=${item.classId}&unit=${item.unitId}`}

@@ -116,17 +116,19 @@ describe("inbox-loader — sort order (brief's locked priority)", () => {
     );
   });
 
-  it("reply_waiting sub-sort is newest-first (urgency)", () => {
-    // Within the reply_waiting bucket, b.lastActivityAt.localeCompare(a...)
-    // gives DESC order.
+  it("oldest-first across all buckets (Matt feedback 12 May 2026 — backlog should float to top)", () => {
+    // Originally reply_waiting was DESC by lastActivityAt. Matt's smoke
+    // caught that fresh replies buried old replies; flipped to ASC
+    // across all three buckets so the teacher always sees the oldest
+    // outstanding item first. C.3.1 change.
     expect(src).toMatch(
-      /a\.state\s*===\s*"reply_waiting"[\s\S]*?b\.lastActivityAt\.localeCompare\(a\.lastActivityAt\)/,
+      /\/\/ Oldest first across all three buckets\.\s*\n\s*return a\.lastActivityAt\.localeCompare\(b\.lastActivityAt\)/,
     );
   });
 
-  it("drafted + no_draft sub-sort is oldest-first (clear the backlog)", () => {
-    expect(src).toMatch(
-      /a\.lastActivityAt\.localeCompare\(b\.lastActivityAt\)/,
+  it("no per-bucket DESC branch exists (regression guard against re-introducing newest-first)", () => {
+    expect(src).not.toMatch(
+      /b\.lastActivityAt\.localeCompare\(a\.lastActivityAt\)/,
     );
   });
 });

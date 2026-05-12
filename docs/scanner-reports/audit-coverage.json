@@ -1,11 +1,11 @@
 {
   "registry": "audit-coverage",
-  "timestamp": "2026-05-11T22:32:52.610101+00:00",
+  "timestamp": "2026-05-12T01:02:48.756361+00:00",
   "version": 1,
   "stats": {
-    "total_mutation_routes": 245,
+    "total_mutation_routes": 246,
     "covered": 7,
-    "skipped": 238,
+    "skipped": 239,
     "missing": 0
   },
   "covered": [
@@ -933,6 +933,13 @@
         "POST"
       ],
       "reason": "routine teacher pedagogy ops, low audit value"
+    },
+    {
+      "file": "src/app/api/teacher/grading/draft-followup/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "AI draft generation only \u2014 no DB mutations. The draft is returned to the inbox UI for the teacher to review; the eventual approve/discard happens via PUT /api/teacher/grading/tile-grades (which carries its own audit)."
     },
     {
       "file": "src/app/api/teacher/grading/release/route.ts",
