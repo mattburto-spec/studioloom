@@ -182,6 +182,38 @@
   @page { margin: 1.5cm 2cm; }
 }
 
+/* Choice Cards deck — print-friendly. Chrome's print engine renders 3D
+   transforms inconsistently (rotateY + backface-visibility either shows
+   blank cards or both faces overlapping). Flatten the flip, hide card
+   backs, restore opacity on dimmed siblings, and force a 2-column grid
+   so each card stays on one page. */
+@media print {
+  .choice-cards-deck {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.5cm !important;
+  }
+  .choice-cards-deck,
+  .choice-cards-deck * {
+    transform: none !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+  .choice-cards-deck > * {
+    height: auto !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .choice-cards-deck [data-choice-face="back"] {
+    display: none !important;
+  }
+  .choice-cards-deck [data-choice-face="front"] {
+    position: static !important;
+    height: auto !important;
+    min-height: 6cm;
+  }
+}
+
 /* === Timeline builder — Notion-style block interactions === */
 
 /* Block hover: subtle background + reveal handle & accent */
