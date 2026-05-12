@@ -34,11 +34,14 @@ describe("/teacher/inbox C.3.1 — Mark resolved button (sentinel state)", () =>
     );
   });
 
-  it("Mark resolved wires to onSkip (closes thread silently)", () => {
-    // The student's 'got it' already closed the thread on their side;
-    // local hide via Skip is the right semantic here.
+  it("Mark resolved wires to onResolve (C.3.3 — was onSkip, now persistent)", () => {
+    // C.3.3 (12 May 2026): Matt caught that previously-resolved
+    // got-its kept returning after page reload because onSkip is
+    // in-memory only. Now wired to onResolve which persists via
+    // localStorage in the parent. See page-c3-3.test.ts for the
+    // persistence assertions.
     expect(src).toMatch(
-      /data-testid="inbox-mark-resolved-button"[\s\S]*?onClick=\{onSkip\}/,
+      /data-testid="inbox-mark-resolved-button"[\s\S]*?onClick=\{onResolve\}/,
     );
   });
 

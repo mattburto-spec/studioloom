@@ -79,6 +79,37 @@ export default function TeacherInboxPage() {
   const [lessonFilter, setLessonFilter] = React.useState<string | null>(null);
   const [selectedKey, setSelectedKey] = React.useState<string | null>(null);
   const [skipped, setSkipped] = React.useState<Set<string>>(new Set());
+  /** Persistent "Mark resolved" set: gradeId → ISO timestamp of when
+   *  the teacher resolved the thread. Survives page reload via
+   *  localStorage. An item re-surfaces if a NEW student reply lands
+   *  with sentAt > resolvedAt (pedagogically: a new "got it" or any
+   *  reply means the thread isn't truly closed). Matt feedback
+   *  12 May 2026 — "inbox keeps getting these got its which i've
+   *  marked as resolved a few times". */
+  const RESOLVED_STORAGE_KEY = "studioloom.inbox.resolved-threads.v1";
+  const [resolvedThreads, setResolvedThreads] = React.useState<
+    Record<string, string>
+  >({});
+  // Hydrate resolved-threads from localStorage on mount.
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(RESOLVED_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Record<string, string>;
+        if (parsed && typeof parsed === "object") {
+          setResolvedThreads(parsed);
+        }
+      }
+    } catch {
+      // Corrupt JSON — drop it; fresh state.
+      try {
+        window.localStorage.removeItem(RESOLVED_STORAGE_KEY);
+      } catch {
+        // ignore
+      }
+    }
+  }, []);
   /** Drafts edited inline by the teacher before approve. Keyed by
    *  itemKey. Falls back to item.aiCommentDraft if absent. */
   const [draftEdits, setDraftEdits] = React.useState<Record<string, string>>(
@@ -208,17 +239,26 @@ export default function TeacherInboxPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items === null]);
 
-  // ─── Derived: filtered + skipped items ───
+  // ─── Derived: filtered + skipped + resolved items ───
   const visibleItems = React.useMemo(() => {
     if (!items) return [];
     return items.filter((i) => {
       if (skipped.has(i.itemKey)) return false;
+      // Persistent resolution: hide unless a NEW student reply has
+      // arrived since the teacher marked the thread resolved. Use
+      // gradeId (stable across server-side itemKey changes) and
+      // compare latestStudentReply.sentAt > resolvedAt.
+      const resolvedAt = resolvedThreads[i.gradeId];
+      if (resolvedAt) {
+        const replyAt = i.latestStudentReply?.sentAt;
+        if (!replyAt || replyAt <= resolvedAt) return false;
+      }
       if (classFilter && i.classId !== classFilter) return false;
       if (lessonFilter && `${i.unitId}::${i.pageId}` !== lessonFilter)
         return false;
       return true;
     });
-  }, [items, skipped, classFilter, lessonFilter]);
+  }, [items, skipped, resolvedThreads, classFilter, lessonFilter]);
 
   // ─── Auto-select first item on load + after approvals/skips ───
   React.useEffect(() => {
@@ -383,6 +423,36 @@ export default function TeacherInboxPage() {
   const handleSkip = React.useCallback(() => {
     if (!selectedItem) return;
     setSkipped((prev) => new Set(prev).add(selectedItem.itemKey));
+  }, [selectedItem]);
+
+  /** Persistent "thread closed" intent — used by the Mark resolved
+   *  button on got_it sentinel threads. Writes gradeId → ISO timestamp
+   *  into both React state + localStorage so the resolution survives
+   *  page reload + 60s polling. A new student reply will re-surface
+   *  the thread (see visibleItems filter). */
+  const handleResolve = React.useCallback(() => {
+    if (!selectedItem) return;
+    const gradeId = selectedItem.gradeId;
+    const itemKey = selectedItem.itemKey;
+    const resolvedAt = new Date().toISOString();
+    setResolvedThreads((prev) => {
+      const next = { ...prev, [gradeId]: resolvedAt };
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(
+            RESOLVED_STORAGE_KEY,
+            JSON.stringify(next),
+          );
+        } catch {
+          // localStorage quota exceeded / private mode — fail silently,
+          // session-state still hides the item.
+        }
+      }
+      return next;
+    });
+    // Belt + braces: also drop it from the visible list this turn
+    // (in case the polling refetch hasn't run yet).
+    setSkipped((prev) => new Set(prev).add(itemKey));
   }, [selectedItem]);
 
   // ─── Render: loading + error states ───
@@ -553,6 +623,7 @@ export default function TeacherInboxPage() {
                 approving={approving}
                 onApprove={handleApprove}
                 onSkip={handleSkip}
+                onResolve={handleResolve}
                 followupDraft={followupDrafts[selectedItem.itemKey]}
                 followupFetching={
                   !!followupFetching[selectedItem.itemKey]
@@ -700,6 +771,7 @@ function DetailPane({
   approving,
   onApprove,
   onSkip,
+  onResolve,
   followupDraft,
   followupFetching,
 }: {
@@ -709,6 +781,10 @@ function DetailPane({
   approving: boolean;
   onApprove: () => void;
   onSkip: () => void;
+  /** TFL.3 C.3.3 — persistent thread-resolution intent. Used by the
+   *  Mark resolved button on got_it sentinel threads; writes through
+   *  to localStorage so the resolution survives reload + polling. */
+  onResolve: () => void;
   /** TFL.3 C.3 — the AI follow-up draft (got_it/not_sure/pushback)
    *  for reply_waiting items. Lazy-loaded by the parent. */
   followupDraft: string | undefined;
@@ -945,7 +1021,7 @@ function DetailPane({
             <button
               type="button"
               data-testid="inbox-mark-resolved-button"
-              onClick={onSkip}
+              onClick={onResolve}
               disabled={approving}
               className="px-5 py-2.5 text-sm font-extrabold rounded-xl transition bg-purple-600 text-white hover:bg-purple-700 shadow-sm disabled:opacity-50"
             >
