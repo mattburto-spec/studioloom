@@ -145,6 +145,31 @@ describe("inbox-loader — student name privacy", () => {
   });
 });
 
+describe("inbox-loader — resolved_at filter (C.3.3)", () => {
+  it("SELECTs the resolved_at column from student_tile_grades", () => {
+    // The .select(...) string ends with `, resolved_at"`.
+    expect(src).toMatch(/,\s*resolved_at"/);
+    // And the GradeRow interface declares the corresponding field.
+    expect(src).toMatch(/resolved_at:\s*string\s*\|\s*null/);
+  });
+
+  it("skips items where resolved_at is set AND no new reply since", () => {
+    // The filter sits inside the per-grade loop, after state
+    // derivation. If resolved_at exists, hide unless
+    // latestStudentReply.sentAt > resolved_at.
+    expect(src).toMatch(
+      /if\s*\(g\.resolved_at\)\s*\{[\s\S]*?const replyAt\s*=\s*latestStudentReply\?\.sentAt[\s\S]*?if\s*\(!replyAt\s*\|\|\s*replyAt\s*<=\s*g\.resolved_at\)\s*continue/,
+    );
+  });
+
+  it("re-surface check is gated on a NEW reply (not just any reply)", () => {
+    // The comparison is strict `<=` — equal-timestamp doesn't count
+    // as new, which matches the resolved_at = NOW() write semantics
+    // (resolve THEN any later reply re-opens).
+    expect(src).toMatch(/replyAt\s*<=\s*g\.resolved_at/);
+  });
+});
+
 describe("inbox-loader — no schema writes (pure read-derived)", () => {
   it("does NOT call .insert/.update/.upsert/.delete anywhere", () => {
     // C.1 is a read-only loader. Writes happen in C.2 (approve) +
