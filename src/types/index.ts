@@ -461,6 +461,34 @@ export interface ActivitySection {
 
   /** For responseType === "choice-cards": deck composition + behaviour. See ChoiceCardsBlockConfig. */
   choiceCardsConfig?: import("@/components/teacher/lesson-editor/BlockPalette.types").ChoiceCardsBlockConfig;
+
+  // ── Archetype-aware blocks (12 May 2026 — A12 in design-guidelines.md) ──
+
+  /**
+   * Per-archetype overrides for framing/task/success_signal/examples/prompts
+   * (plus block-specific passthrough fields). When set, the renderer reads
+   * via `getArchetypeAwareContent(block, studentArchetype)` and uses the
+   * archetype-specific entry when a student's resolved archetype matches a
+   * key, falling back to the base block fields otherwise. Keys are stable
+   * archetype IDs (e.g. "toy-design", "architecture-interior",
+   * "app-digital-tool") matching PRODUCT_BRIEF_ARCHETYPES, plus optional
+   * card-slug keys (e.g. "g8-brief-designer-mentor") for brief-specific
+   * variants.
+   *
+   * Universal in shape, project-aware in voice. Never used for core
+   * structure — only voice + examples + framing.
+   */
+  archetype_overrides?: {
+    [archetypeId: string]: {
+      framing?: string;
+      task?: string;
+      success_signal?: string;
+      examples?: string[];
+      prompts?: string[];
+      // Block-specific overrides allowed via passthrough:
+      [key: string]: unknown;
+    };
+  };
 }
 
 export interface Reflection {
