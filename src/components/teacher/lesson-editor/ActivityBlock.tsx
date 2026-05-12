@@ -9,6 +9,7 @@ import { looksLikeVideoUrl } from "@/lib/video-embed";
 import { SlotFieldEditor, SlotPreview } from "./SlotFieldEditor";
 import ChoiceCardsConfigPanel from "./ChoiceCardsConfigPanel";
 import InspirationBoardConfigPanel from "./InspirationBoardConfigPanel";
+import FirstMoveConfigPanel from "./FirstMoveConfigPanel";
 import { CRITERIA, type CriterionKey } from "@/lib/constants";
 import type {
   ActivitySection,
@@ -594,6 +595,11 @@ export default function ActivityBlock({
                   activity={activity}
                   onUpdate={onUpdate}
                 />
+              )}
+
+              {/* First Move config — only when responseType is first-move */}
+              {responseType === "first-move" && (
+                <FirstMoveConfigPanel activity={activity} onUpdate={onUpdate} />
               )}
 
               {/* Configure tab buttons */}
