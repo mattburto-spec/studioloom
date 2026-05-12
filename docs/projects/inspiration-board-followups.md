@@ -54,6 +54,20 @@ Canonical principle: [A12 in design-guidelines.md](../design-guidelines.md) — 
 - **Severity:** P2 — behavioural smoke covered for v1, but explicit unit coverage is overdue.
 - **Scope:** vitest + @testing-library/react. Mock fetch for the archetype endpoint + the upload endpoint.
 
+### FU-IB-UI-POLISH
+
+- **Surfaced:** 12 May 2026 (Matt's call after the functional v1 prod smoke — "could take it to another level from a UI perspective later").
+- **Target:** Spec + ship a more refined visual treatment for the board. Open-ended — pending Matt's UX spec.
+- **Severity:** P2 — functional v1 works end-to-end; polish is iteration not blocker.
+- **Possible angles** (Matt to confirm or replace):
+  - Pinterest-grade card aesthetic (rounded corners, image bleed, typography balance per card).
+  - Better empty state — illustrated zero-state instead of just text.
+  - Smoother upload feedback — replace the sky-blue status strip with per-card placeholder cards that morph into the real image once uploaded (progress shimmer pattern).
+  - Larger image previews on click (lightbox modal).
+  - Tap-to-reorder via the drag handle (couples with FU-IB-DRAG-REORDER).
+  - Subtle category/colour treatment when archetype-aware framing is active.
+- **Origin:** Phase 3b shipped a functional grid but is unstyled compared to the Choice Cards deck. Spec to be drafted before next implementation.
+
 ### FU-IB-DRAG-REORDER
 
 - **Surfaced:** 12 May 2026 (smoke caught upload failure on prod — Framer Motion `Reorder.Group` was incompatible with CSS multi-column flow, breaking the entire grid render).
