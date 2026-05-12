@@ -377,7 +377,7 @@ export const BLOCK_LIBRARY: BlockDefinition[] = [
     id: "choice-cards",
     label: "Choice Cards",
     icon: "🃏",
-    category: "collaboration",
+    category: "response",
     description: "A deck of flippable cards students browse and pick one from. Project briefs, mentor picks, theme picks, constraints, roles.",
     defaultPhase: "opening",
     create: () => ({
