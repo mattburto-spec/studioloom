@@ -545,28 +545,25 @@ export default function TeachingDashboard({
             })}
           />
 
-          {/* Phase Timer — dark glass with gradient border */}
+          {/* Phase Timer — compact mode keeps the centerpiece light */}
           {workshopPhases ? (
             <div style={{
-              borderRadius: "16px", padding: "20px",
-              background: "rgba(255, 255, 255, 0.03)", border: "1px solid #C4B5FD",
-              boxShadow: "0 0 32px rgba(139, 92, 246, 0.1), inset 0 1px 2px rgba(255, 255, 255, 0.05)",
+              borderRadius: "12px", padding: "12px 14px",
+              background: "#FFFFFF", border: "1px solid #E5E7EB",
             }}>
               <PhaseTimer
                 workshopPhases={workshopPhases}
                 onPhaseChange={(phase) => setCurrentPhase(phase)}
+                compact
               />
             </div>
           ) : (
             <div style={{
-              borderRadius: "16px", padding: "20px", textAlign: "center",
+              borderRadius: "12px", padding: "12px 14px", textAlign: "center",
               background: "#FFFFFF", border: "1px solid #E5E7EB",
             }}>
               <p style={{ fontSize: "13px", color: "#9CA3AF", margin: 0 }}>
                 No Workshop Model timing for this lesson.
-              </p>
-              <p style={{ fontSize: "14px", color: "#9CA3AF", marginTop: "8px", margin: 0 }}>
-                Regenerate this lesson to add timing phases.
               </p>
             </div>
           )}
