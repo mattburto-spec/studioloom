@@ -20,6 +20,7 @@ import { buildSummary, formatAnswer } from "@/lib/project-spec/format";
 import { SUCCESS_CRITERIA_SLOTS } from "@/lib/project-spec/success-criteria";
 import { SlotWalker } from "@/components/student/project-spec/shared/SlotWalker";
 import { useSpecBridge } from "@/components/student/project-spec/shared/useSpecBridge";
+import FromChoiceCardBanner from "@/components/student/choice-cards/FromChoiceCardBanner";
 
 interface CriteriaState {
   slot_1: SlotAnswer | null;
@@ -59,6 +60,9 @@ export default function SuccessCriteriaResponse({ unitId, onChange }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [currentSlotIdx, setCurrentSlotIdx] = useState(0);
+  const [fromChoiceCard, setFromChoiceCard] = useState<{ cardId: string; label: string } | null>(
+    null,
+  );
 
   useSpecBridge(criteria, onChange, (s) =>
     buildSummary(
@@ -85,6 +89,7 @@ export default function SuccessCriteriaResponse({ unitId, onChange }: Props) {
         const data = await res.json();
         if (cancelled) return;
         setCriteria(data.criteria ?? emptyCriteria());
+        setFromChoiceCard(data.from_choice_card ?? null);
         if (data.criteria && !data.criteria.completed_at) {
           const firstIncomplete = SLOT_KEYS.findIndex(
             (k) => !data.criteria[k],
@@ -161,30 +166,33 @@ export default function SuccessCriteriaResponse({ unitId, onChange }: Props) {
   const currentAnswer = criteria[slotKey];
 
   return (
-    <SlotWalker
-      headerLabel={`🎯 Success Criteria · Question ${currentSlotIdx + 1} of ${TOTAL_SLOTS}`}
-      totalSlots={TOTAL_SLOTS}
-      slotDef={slotDef}
-      slotIndex={currentSlotIdx}
-      currentAnswer={currentAnswer}
-      saving={saving}
-      onSave={async (answer) => {
-        await save({ [slotKey]: answer } as Partial<CriteriaState>);
-        if (currentSlotIdx < TOTAL_SLOTS - 1) {
-          setCurrentSlotIdx(currentSlotIdx + 1);
+    <>
+      {fromChoiceCard && <FromChoiceCardBanner cardLabel={fromChoiceCard.label} />}
+      <SlotWalker
+        headerLabel={`🎯 Success Criteria · Question ${currentSlotIdx + 1} of ${TOTAL_SLOTS}`}
+        totalSlots={TOTAL_SLOTS}
+        slotDef={slotDef}
+        slotIndex={currentSlotIdx}
+        currentAnswer={currentAnswer}
+        saving={saving}
+        onSave={async (answer) => {
+          await save({ [slotKey]: answer } as Partial<CriteriaState>);
+          if (currentSlotIdx < TOTAL_SLOTS - 1) {
+            setCurrentSlotIdx(currentSlotIdx + 1);
+          }
+        }}
+        onBack={
+          currentSlotIdx > 0 ? () => setCurrentSlotIdx(currentSlotIdx - 1) : null
         }
-      }}
-      onBack={
-        currentSlotIdx > 0 ? () => setCurrentSlotIdx(currentSlotIdx - 1) : null
-      }
-      onComplete={
-        currentSlotIdx === TOTAL_SLOTS - 1
-          ? async () => {
-              await save({ completed: true });
-            }
-          : null
-      }
-    />
+        onComplete={
+          currentSlotIdx === TOTAL_SLOTS - 1
+            ? async () => {
+                await save({ completed: true });
+              }
+            : null
+        }
+      />
+    </>
   );
 }
 

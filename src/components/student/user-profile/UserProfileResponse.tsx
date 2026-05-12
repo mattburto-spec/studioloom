@@ -23,6 +23,7 @@ import { buildSummary, formatAnswer } from "@/lib/project-spec/format";
 import { USER_PROFILE_SLOTS } from "@/lib/project-spec/user-profile";
 import { SlotWalker } from "@/components/student/project-spec/shared/SlotWalker";
 import { useSpecBridge } from "@/components/student/project-spec/shared/useSpecBridge";
+import FromChoiceCardBanner from "@/components/student/choice-cards/FromChoiceCardBanner";
 
 interface ProfileState {
   slot_1: SlotAnswer | null;
@@ -85,6 +86,9 @@ export default function UserProfileResponse({ unitId, onChange }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [currentSlotIdx, setCurrentSlotIdx] = useState(0);
+  const [fromChoiceCard, setFromChoiceCard] = useState<{ cardId: string; label: string } | null>(
+    null,
+  );
 
   useSpecBridge(profile, onChange, (s) =>
     buildSummary(
@@ -112,6 +116,7 @@ export default function UserProfileResponse({ unitId, onChange }: Props) {
         const data = await res.json();
         if (cancelled) return;
         setProfile(data.profile ?? emptyProfile());
+        setFromChoiceCard(data.from_choice_card ?? null);
         if (data.profile && !data.profile.completed_at) {
           const firstIncomplete = SLOT_KEYS.findIndex(
             (k) => !data.profile[k],
@@ -210,8 +215,10 @@ export default function UserProfileResponse({ unitId, onChange }: Props) {
   const currentAnswer = profile[slotKey];
 
   return (
-    <SlotWalker
-      headerLabel={`👤 User Profile · Question ${currentSlotIdx + 1} of ${TOTAL_SLOTS}`}
+    <>
+      {fromChoiceCard && <FromChoiceCardBanner cardLabel={fromChoiceCard.label} />}
+      <SlotWalker
+        headerLabel={`👤 User Profile · Question ${currentSlotIdx + 1} of ${TOTAL_SLOTS}`}
       totalSlots={TOTAL_SLOTS}
       slotDef={slotDef}
       slotIndex={currentSlotIdx}
@@ -233,8 +240,9 @@ export default function UserProfileResponse({ unitId, onChange }: Props) {
             }
           : null
       }
-      onUploadImage={handleUploadImage}
-    />
+        onUploadImage={handleUploadImage}
+      />
+    </>
   );
 }
 

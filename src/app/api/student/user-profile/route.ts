@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireStudentSession } from "@/lib/access-v2/actor-session";
+import { resolveChoiceCardPickForUnit } from "@/lib/choice-cards/resolve-for-unit";
 
 const SLOT_COLUMNS = [
   "slot_1",
@@ -57,7 +58,14 @@ export const GET = withErrorHandler(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ profile: data ?? emptyProfile() });
+    // Surface the student's most recent Choice Cards pick for this unit
+    // so the UI can render a contextual "From your card pick" banner.
+    // User Profile is universal across archetypes — no archetype to
+    // pre-fill, but the banner is still useful orientation.
+    const pick = await resolveChoiceCardPickForUnit(db, studentId, unitId);
+    const from_choice_card = pick ? { cardId: pick.cardId, label: pick.label } : null;
+
+    return NextResponse.json({ profile: data ?? emptyProfile(), from_choice_card });
   },
 );
 
