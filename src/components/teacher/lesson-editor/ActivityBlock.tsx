@@ -7,6 +7,7 @@ import { KeyCalloutEditor } from "./KeyCalloutEditor";
 import { ImageUploadButton } from "./ImageUploadButton";
 import { looksLikeVideoUrl } from "@/lib/video-embed";
 import { SlotFieldEditor, SlotPreview } from "./SlotFieldEditor";
+import ChoiceCardsConfigPanel from "./ChoiceCardsConfigPanel";
 import { CRITERIA, type CriterionKey } from "@/lib/constants";
 import type {
   ActivitySection,
@@ -570,6 +571,14 @@ export default function ActivityBlock({
                     />
                   </div>
                 </div>
+              )}
+
+              {/* Choice Cards deck config — only when responseType is choice-cards */}
+              {responseType === "choice-cards" && (
+                <ChoiceCardsConfigPanel
+                  config={activity.choiceCardsConfig}
+                  onUpdate={(next) => onUpdate({ choiceCardsConfig: next })}
+                />
               )}
 
               {/* Configure tab buttons */}
