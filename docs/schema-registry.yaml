@@ -9697,7 +9697,7 @@ tables:
     slot_9: JSONB
     completed_at: TIMESTAMPTZ
     pitch_text: TEXT
-    pitch_status: TEXT (CHECK: null | 'pending' | 'approved' | 'revise' | 'rejected')
+    pitch_status: "TEXT (CHECK: null | 'pending' | 'approved' | 'revise' | 'rejected')"
     pitch_teacher_note: TEXT
     pitch_decided_at: TIMESTAMPTZ
     pitch_decided_by: UUID REFERENCES auth.users(id)

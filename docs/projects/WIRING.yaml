@@ -3106,6 +3106,47 @@ systems:
     os_seam: ready
     change_impacts: "Profile schema changes propagate to scanner worker input shape. Rule-override JSONB structure must match worker's expected contract. System-template edits require service_role."
 
+  - id: first-move-block
+    name: "First Move Activity Block"
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: "v1 SHIPPED 12 May 2026. Studio-open orientation block — drop one at the top of any self-paced studio lesson (built for G9 CO2 Racers Lessons 2-6, 8-13). Pulls three live data sources on mount: design philosophy from any Strategy Canvas response in the unit; most recent Process Journal NEXT prompt; current `this_class` Kanban lane. Student picks ONE card + writes a one-sentence commitment, then Start moves the chosen card to Doing (demoting any existing Doing card back to this_class so WIP=1 holds). Logs `first-move.committed` learning_event."
+    depends_on: [database, student-response-input, kanban-tool, structured-prompts-block]
+    affects: [lesson-editor, student-response-input, kanban-tool]
+    docs:
+      - path: docs/projects/first-move-followups.md
+        purpose: "v1 follow-up tracker"
+      - path: docs/units/co2-racers-agency-unit.md
+        purpose: "Studio-class envelope (§4.2) — First Move replaces the manual '5 min open' ritual"
+    data_fields:
+      - table: student_progress
+        columns: [responses]
+        notes: "Read-only — parses STRATEGY_CANVAS_PROMPTS + JOURNAL_PROMPTS composed markdown via parseComposedContent helper to extract philosophy + NEXT fields."
+      - table: student_unit_kanban
+        columns: [cards, wip_limit_doing, last_move_at, backlog_count, this_class_count, doing_count, done_count]
+        notes: "Reads cards on GET; writes whole-state on commit POST with recomputeCounts + validateKanbanState defence in depth."
+      - table: learning_events
+        columns: [event_type, subject_type, subject_id, payload]
+        notes: "Writes 'first-move.committed' events. subject_id = gen_random_uuid() (activityId is nanoid8, stashed in payload)."
+    key_files:
+      - src/components/student/first-move/FirstMoveBlock.tsx
+      - src/components/teacher/lesson-editor/FirstMoveConfigPanel.tsx
+      - src/components/teacher/lesson-editor/BlockPalette.tsx
+      - src/components/teacher/lesson-editor/BlockPalette.types.ts
+      - src/components/teacher/lesson-editor/ActivityBlock.tsx
+      - src/components/student/ResponseInput.tsx
+      - src/components/student/ActivityCard.tsx
+      - src/types/index.ts
+      - src/app/api/student/first-move/[unitId]/route.ts
+      - src/app/api/student/first-move/[activityId]/commit/route.ts
+      - src/lib/first-move/payload-builder.ts
+      - src/lib/first-move/__tests__/payload-builder.test.ts
+    future_needs: "FU-FM-RACE-DAY-COUNTDOWN (no end_date on units → can't compute 'race day in N classes'). FU-FM-AUTO-ARCHETYPE-AWARE (vary placeholder + framing per archetype). FU-FM-TEACHER-DASHBOARD-WIDGET (surface who-committed-today on Attention-Rotation Panel). FU-FM-WIP-LIMIT-OVERRIDE (currently always demotes; should respect wip_limit_doing >= 2). FU-FM-NO-PAYLOAD-EMPTY-STATE."
+    adrs: []
+    os_seam: ready
+    change_impacts: "Payload shape changes break the client hydrate path. Kanban swap logic changes ripple through validateKanbanState — keep WIP=1 invariant. learning_events subject_id is synthesised UUID, activityId in payload."
+
   - id: archetype-aware-blocks
     name: "Archetype-Aware Block Infrastructure"
     category: Student Experience
@@ -3212,8 +3253,8 @@ systems:
 
 # Summary Statistics
 meta:
-  total_systems: 100
-  complete_systems: 38
+  total_systems: 101
+  complete_systems: 39
   active_systems: 16
   planned_systems: 8
   idea_systems: 19

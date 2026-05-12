@@ -1,11 +1,11 @@
 {
   "registry": "audit-coverage",
-  "timestamp": "2026-05-12T06:04:54.255771+00:00",
+  "timestamp": "2026-05-12T13:22:42.790797+00:00",
   "version": 1,
   "stats": {
-    "total_mutation_routes": 253,
+    "total_mutation_routes": 254,
     "covered": 8,
-    "skipped": 245,
+    "skipped": 246,
     "missing": 0
   },
   "covered": [
@@ -397,6 +397,13 @@
         "POST"
       ],
       "reason": "routine learner activity, low audit value"
+    },
+    {
+      "file": "src/app/api/student/first-move/[activityId]/commit/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "routine learner commitment write, self-auditing via"
     },
     {
       "file": "src/app/api/student/gallery/review/route.ts",

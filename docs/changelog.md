@@ -4910,3 +4910,47 @@ After applying, remember to `INSERT INTO public.applied_migrations` for both (Le
 **Systems affected:** 2 NEW (`archetype-aware-blocks` complete + `inspiration-board-block` complete). Tangential: `lesson-editor` + `student-response-input` gained new branches.
 
 **What's next:** Phase 8 — Matt Checkpoint smoke. Smoke as student: pick a Choice Card → open lesson with Inspiration Board block → verify task copy adapts to archetype → upload 3+ images + synthesise → verify state hydrates on reload. Then push.
+
+## 12 May 2026 (CST) — First Move Activity Block v1 SHIPPED
+
+**Context:** Studio-open orientation block for G9 CO2 Racers Lesson 3 onward (the studio-model lessons 2-6 + 8-13 per the agency unit's §4.2 envelope). Pulls together three live signals — design philosophy from Class 1 Strategy Canvas, last journal NEXT prompt, and the student's current `this_class` Kanban lane — into a single hero card. Student picks one card + writes a one-sentence commitment → Start moves the chosen card to Doing (demoting any existing Doing card back to this_class so WIP=1 is preserved) and logs a `first-move.committed` learning_event. Reusable: drop one at the top of every studio lesson, no per-lesson authoring.
+
+**Pre-flight findings:**
+- Strategy Canvas + Process Journal both store in `student_progress.responses` as composed-markdown via STRATEGY_CANVAS_PROMPTS / JOURNAL_PROMPTS presets. Use `parseComposedContent` to round-trip the answers out.
+- Kanban via existing `student_unit_kanban.cards` JSONB.
+- **No `end_date` on `units` table** → deferred race-day countdown to `FU-FM-RACE-DAY-COUNTDOWN`.
+- Tree clean ✓.
+- Baseline 5631 passing / 11 skipped / 0 failing.
+
+**8 commits across 8 phases (commits 6588dbd..140dd9a + 8b1abdb..c4619cc — full numbering below):**
+- **Phase 1 — `6588dbd`:** GET `/api/student/first-move/[unitId]` consolidated payload route. Returns designPhilosophy, lastJournalNext + updatedAt, thisClassCards, lastDoneCard.
+- **Phase 2 — `37271d5`:** POST `/api/student/first-move/[activityId]/commit`. Validates commitment (5-200 chars), demotes any current `doing` card to `this_class`, moves chosen card to `doing`, writes whole-state via existing kanban upsert with validateKanbanState + recomputeCounts, emits `first-move.committed` learning_event.
+- **Phase 3 — `5049eb4`:** Block registration. ResponseType union extension, `FirstMoveConfig` interface (minCommitmentWords, requireCardChoice, showDesignPhilosophy, showWhereLeftOff), BLOCK_LIBRARY palette entry (Response/opening, ⚡ icon, 5 min), 3 LABEL/ICON/TINT records updated. Tint #F59E0B (amber-500).
+- **Phase 4 — `5a91c19`:** Dispatch wiring + stub. ResponseInputProps gains firstMoveConfig, ActivityCard threads it.
+- **Phase 5 — `8b1abdb`:** Full ~310-line component. Hero scrim (philosophy or "not yet set" fallback) → Where you left off (last NEXT prompt + relative time + last done card) → Today's options (pill-buttons for this_class cards, single-select) → Today I will… (input + word counter against minCommitmentWords + 200-char cap) → Start studio → button (enables only when commitment + card chosen). Committed state collapses to a green ✓ strip showing the commitment + which card moved.
+- **Phase 6 — `140dd9a`:** Teacher config panel. 4 knobs + an explainer paragraph.
+- **Phase 7 — `<this round>`:** Refactored route handlers to delegate logic to `src/lib/first-move/payload-builder.ts` (pure helpers). 16 unit tests covering extractDesignPhilosophy + extractLastJournalNext + extractKanbanSummary + swapKanbanForFirstMove (including newest-non-empty-wins semantics, non-string defence, WIP-swap precedence, negative-control card-count preservation).
+- **Phase 8 — this commit:** Registry sync + WIRING +1 system + first-move-followups.md + this changelog entry + fix to origin's unquoted YAML in schema-registry.yaml line 9700.
+
+**Decisions banked:**
+- Pure helpers separated from route handlers so tests don't mock Supabase.
+- WIP swap is opinionated: any current `doing` card is auto-demoted to `this_class` when student picks a new one via First Move. Preserves WIP=1 invariant the kanban reducer assumes. Filed FU-FM-WIP-LIMIT-OVERRIDE for the wip_limit_doing >= 2 case.
+- `learning_events.subject_id` synthesised as `gen_random_uuid()` (activityId is a nanoid8 string, not UUID). activityId stashed in `payload.activityId` for searchability.
+- onChange pushes the commitment string into `student_progress.responses` (same canonical pattern as Choice Cards / Inspiration Board) — marking page sees engagement.
+
+**Tests:** Baseline 5631 → after Phase 7 +16 helper tests. Tsc baseline 266 preserved throughout.
+
+**Migrations pending prod apply:** _None._ JSONB-additive only.
+
+**Follow-ups filed** ([`first-move-followups.md`](projects/first-move-followups.md)):
+- FU-FM-RACE-DAY-COUNTDOWN (P3)
+- FU-FM-AUTO-ARCHETYPE-AWARE (P3)
+- FU-FM-TEACHER-DASHBOARD-WIDGET (P2)
+- FU-FM-WIP-LIMIT-OVERRIDE (P3)
+- FU-FM-NO-PAYLOAD-EMPTY-STATE (P3)
+
+**Systems affected:** 1 NEW (`first-move-block` complete). Tangential: `lesson-editor` + `student-response-input` + `kanban-tool` (read+write integration).
+
+**Hygiene fix:** Origin's PR #216 had an unquoted YAML value (`pitch_status: TEXT (CHECK: null | 'pending' ...)`) in schema-registry.yaml that broke the api-routes scanner. Wrapped in quotes — scanner runs clean now.
+
+**What's next:** Phase 9 — Matt Checkpoint smoke. Drop a First Move block at the top of a G9 CO2 Racers lesson page → log in as a test student with prior Class 1 Strategy Canvas + at least one journal entry + a few this_class cards → verify all three signals render → pick one card → write commitment → Start → verify Kanban move + learning_event row.

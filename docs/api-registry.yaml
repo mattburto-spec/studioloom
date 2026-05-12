@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 472
+# Total routes: 474
 
 routes:
 - path: /api/admin/ai-budget
@@ -1168,6 +1168,29 @@ routes:
   file: src/app/api/student/fabrication/upload/route.ts
   auth: student
   tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/student/first-move/[activityId]/commit
+  method: POST
+  file: src/app/api/student/first-move/[activityId]/commit/route.ts
+  auth: student
+  tables_read:
+  - student_unit_kanban
+  tables_written:
+  - learning_events
+  - student_unit_kanban
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/student/first-move/[unitId]
+  method: GET
+  file: src/app/api/student/first-move/[unitId]/route.ts
+  auth: student
+  tables_read:
+  - student_progress
+  - student_unit_kanban
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
