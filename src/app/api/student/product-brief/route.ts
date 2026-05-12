@@ -8,6 +8,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { PRODUCT_BRIEF_ARCHETYPES } from "@/lib/project-spec/product-brief";
+import {
+  resolveChoiceCardPickForUnit,
+  extractArchetypeId,
+} from "@/lib/choice-cards/resolve-for-unit";
 
 const SLOT_COLUMNS = [
   "slot_1",
@@ -58,7 +62,28 @@ export const GET = withErrorHandler(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ brief: data ?? emptyBrief() });
+    const brief = data ?? emptyBrief();
+
+    // Lazy resolve archetype_id from a Choice Cards pick if the brief
+    // hasn't yet committed to one. Suggested-not-persisted: the next
+    // POST that includes archetype_id will write it for real. Also
+    // surface `from_choice_card` so the UI can render a contextual
+    // "From your card pick" banner.
+    let from_choice_card: { cardId: string; label: string } | null = null;
+    if (!brief.archetype_id) {
+      const pick = await resolveChoiceCardPickForUnit(db, studentId, unitId);
+      const suggestedArchetypeId = extractArchetypeId(pick);
+      if (pick && suggestedArchetypeId && PRODUCT_BRIEF_ARCHETYPES[suggestedArchetypeId]) {
+        brief.archetype_id = suggestedArchetypeId;
+        from_choice_card = { cardId: pick.cardId, label: pick.label };
+      } else if (pick) {
+        // Pick exists but action isn't a set-archetype the brief recognises.
+        // Surface the banner anyway — useful context for the student.
+        from_choice_card = { cardId: pick.cardId, label: pick.label };
+      }
+    }
+
+    return NextResponse.json({ brief, from_choice_card });
   },
 );
 

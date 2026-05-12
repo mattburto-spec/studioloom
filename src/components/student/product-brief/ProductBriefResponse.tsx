@@ -31,6 +31,7 @@ import {
 import { SlotWalker } from "@/components/student/project-spec/shared/SlotWalker";
 import { ArchetypePicker } from "@/components/student/project-spec/shared/ArchetypePicker";
 import { useSpecBridge } from "@/components/student/project-spec/shared/useSpecBridge";
+import FromChoiceCardBanner from "@/components/student/choice-cards/FromChoiceCardBanner";
 
 // ────────────────────────────────────────────────────────────────────
 // State shape
@@ -107,6 +108,9 @@ export default function ProductBriefResponse({ unitId, onChange }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [currentSlotIdx, setCurrentSlotIdx] = useState(0);
+  const [fromChoiceCard, setFromChoiceCard] = useState<{ cardId: string; label: string } | null>(
+    null,
+  );
 
   useSpecBridge(brief, onChange, (s) => {
     const archetype = getProductBriefArchetype(s.archetype_id);
@@ -136,6 +140,7 @@ export default function ProductBriefResponse({ unitId, onChange }: Props) {
         const data = await res.json();
         if (cancelled) return;
         setBrief(data.brief ?? emptyBrief());
+        setFromChoiceCard(data.from_choice_card ?? null);
         if (data.brief?.archetype_id && !data.brief?.completed_at) {
           const firstIncomplete = SLOT_KEYS.findIndex(
             (k) => !data.brief[k],
@@ -201,13 +206,16 @@ export default function ProductBriefResponse({ unitId, onChange }: Props) {
   // ─── Phase 1: Archetype picker
   if (!brief.archetype_id || !archetype) {
     return (
-      <ArchetypePicker
-        archetypes={ARCHETYPE_LIST}
-        onPick={(id) => save({ archetype_id: id })}
-        saving={saving}
-        heading="Shape your product"
-        subhead="Pick the kind of thing you're going to make. You can't change this later."
-      />
+      <>
+        {fromChoiceCard && <FromChoiceCardBanner cardLabel={fromChoiceCard.label} />}
+        <ArchetypePicker
+          archetypes={ARCHETYPE_LIST}
+          onPick={(id) => save({ archetype_id: id })}
+          saving={saving}
+          heading="Shape your product"
+          subhead="Pick the kind of thing you're going to make. You can't change this later."
+        />
+      </>
     );
   }
 
@@ -232,30 +240,35 @@ export default function ProductBriefResponse({ unitId, onChange }: Props) {
   const currentAnswer = brief[slotKey];
 
   return (
-    <SlotWalker
-      headerLabel={`${archetype.emoji} ${archetype.label} · Question ${currentSlotIdx + 1} of ${TOTAL_SLOTS}`}
-      totalSlots={TOTAL_SLOTS}
-      slotDef={slotDef}
-      slotIndex={currentSlotIdx}
-      currentAnswer={currentAnswer}
-      saving={saving}
-      onSave={async (answer) => {
-        await save({ [slotKey]: answer } as Partial<BriefState>);
-        if (currentSlotIdx < TOTAL_SLOTS - 1) {
-          setCurrentSlotIdx(currentSlotIdx + 1);
+    <>
+      {fromChoiceCard && (
+        <FromChoiceCardBanner cardLabel={fromChoiceCard.label} appliedArchetype />
+      )}
+      <SlotWalker
+        headerLabel={`${archetype.emoji} ${archetype.label} · Question ${currentSlotIdx + 1} of ${TOTAL_SLOTS}`}
+        totalSlots={TOTAL_SLOTS}
+        slotDef={slotDef}
+        slotIndex={currentSlotIdx}
+        currentAnswer={currentAnswer}
+        saving={saving}
+        onSave={async (answer) => {
+          await save({ [slotKey]: answer } as Partial<BriefState>);
+          if (currentSlotIdx < TOTAL_SLOTS - 1) {
+            setCurrentSlotIdx(currentSlotIdx + 1);
+          }
+        }}
+        onBack={
+          currentSlotIdx > 0 ? () => setCurrentSlotIdx(currentSlotIdx - 1) : null
         }
-      }}
-      onBack={
-        currentSlotIdx > 0 ? () => setCurrentSlotIdx(currentSlotIdx - 1) : null
-      }
-      onComplete={
-        currentSlotIdx === TOTAL_SLOTS - 1
-          ? async () => {
-              await save({ completed: true });
-            }
-          : null
-      }
-    />
+        onComplete={
+          currentSlotIdx === TOTAL_SLOTS - 1
+            ? async () => {
+                await save({ completed: true });
+              }
+            : null
+        }
+      />
+    </>
   );
 }
 
