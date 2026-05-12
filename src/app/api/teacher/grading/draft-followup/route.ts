@@ -1,3 +1,4 @@
+// audit-skip: AI draft generation only — no DB mutations. The draft is returned to the inbox UI for the teacher to review; the eventual approve/discard happens via PUT /api/teacher/grading/tile-grades (which carries its own audit).
 /**
  * POST /api/teacher/grading/draft-followup
  *
