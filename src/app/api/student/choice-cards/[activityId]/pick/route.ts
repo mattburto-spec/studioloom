@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import { resolveStudentClassId } from "@/lib/student-support/resolve-class-id";
+import { dispatchCardAction, parseChoiceCardAction } from "@/lib/choice-cards/action-dispatcher";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -101,6 +102,21 @@ export async function POST(
       { error: error?.message ?? "Failed to write selection" },
       { status: 500 },
     );
+  }
+
+  // Phase 8 — dispatch through the action handler. Logs to
+  // learning_events + notifies any in-memory subscribers. Failures here
+  // are non-fatal (caught internally) — the pick already persisted.
+  const parsed = parseChoiceCardAction(action_resolved);
+  if (parsed) {
+    await dispatchCardAction(parsed, {
+      studentId,
+      selectionId: data.id,
+      activityId,
+      unitId,
+      classId,
+      cardId,
+    });
   }
 
   return NextResponse.json({
