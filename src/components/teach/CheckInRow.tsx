@@ -52,27 +52,18 @@ const MAX_CHIPS = 3;
 // Reason builder — first matching signal wins; priority resolved in sort
 // =========================================================================
 
-/** Cap for the stuck signal — if it's been longer than this, the student
- *  isn't actually stuck on the current page, they're on a different page
- *  in the unit (needsHelp uses unit-wide "online" but page-level lastActive,
- *  so a student working elsewhere shows up here with a huge `lastActive`
- *  delta). We don't want to render "no activity for 551m". */
-const STUCK_MAX_MINS = 30;
-
 function buildReason(
   s: CheckInStudent,
   cohortStats: CheckInCohortStats | null,
   onlineCount: number,
 ): Reason | null {
-  // Stuck — student is online in the unit AND in_progress on this page AND
-  // hasn't autosaved this page in 3-30 min. Beyond 30 min they're probably
-  // on a different page in the unit, not actually stuck here.
+  // Stuck — student is online on this page AND in_progress AND hasn't
+  // autosaved in 3+ min. The live-status route now scopes isOnline to
+  // the current page (13 May 2026), so `mins` here is bounded by the
+  // 5-min "online" window — no more 551m absurdity.
   if (s.needsHelp && s.lastActive) {
     const mins = Math.floor((Date.now() - new Date(s.lastActive).getTime()) / 60000);
-    if (mins <= STUCK_MAX_MINS) {
-      return { kind: "stuck", text: `idle ${mins}m on this page` };
-    }
-    // Fall through — they might still surface via behind / absent below.
+    return { kind: "stuck", text: `idle ${mins}m` };
   }
 
   // Falling behind — in_progress students whose pace is >1 SD below class

@@ -9,6 +9,7 @@ import PhaseTimer from "@/components/teach/PhaseTimer";
 import TeachingToolbar from "@/components/teach/TeachingToolbar";
 import { CheckInRow } from "@/components/teach/CheckInRow";
 import { getLiveStatusLabel } from "@/lib/teaching-mode/live-status-label";
+import { scaleWorkshopPhases } from "@/lib/teaching-mode/scale-phases";
 import { ObservationSnap } from "@/components/nm";
 import { AGENCY_ELEMENT_MAP } from "@/lib/nm/constants";
 import type { NMUnitConfig } from "@/lib/nm/constants";
@@ -99,6 +100,11 @@ export default function TeachingDashboard({
   const [showExtensions, setShowExtensions] = useState(false);
   const [studentSort, setStudentSort] = useState<"name" | "status" | "help">("help");
   const [snoozed, setSnoozed] = useState<Set<string>>(new Set());
+
+  // Teacher's configured period length (school setting). Scales the baked
+  // workshopPhases to fit at render time — unit may have been generated
+  // before this value was set or with a different value.
+  const [typicalPeriodMinutes, setTypicalPeriodMinutes] = useState<number | null>(null);
 
   // NM Observation state
   const [nmObsStudent, setNmObsStudent] = useState<{ id: string; name: string } | null>(null);
@@ -215,6 +221,30 @@ export default function TeachingDashboard({
   useEffect(() => {
     setSnoozed(new Set());
   }, [selectedPageId]);
+
+  // Fetch teacher's typical_period_minutes once on mount. Used to scale
+  // the baked workshopPhases at render time when the unit was generated
+  // for a different period length.
+  useEffect(() => {
+    async function loadPeriod() {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data } = await supabase
+          .from("teacher_profiles")
+          .select("typical_period_minutes")
+          .eq("teacher_id", user.id)
+          .maybeSingle();
+        if (data?.typical_period_minutes) {
+          setTypicalPeriodMinutes(data.typical_period_minutes);
+        }
+      } catch {
+        // Non-blocking — fall back to baked phases.
+      }
+    }
+    loadPeriod();
+  }, []);
 
   useEffect(() => {
     fetchLiveStatus();
@@ -545,14 +575,21 @@ export default function TeachingDashboard({
             })}
           />
 
-          {/* Phase Timer — compact mode keeps the centerpiece light */}
+          {/* Phase Timer — compact mode keeps the centerpiece light.
+              Scale baked phases to teacher's typical_period_minutes if
+              the totals don't match (e.g. unit baked for 45min but the
+              school runs 60min classes). */}
           {workshopPhases ? (
             <div style={{
               borderRadius: "12px", padding: "12px 14px",
               background: "#FFFFFF", border: "1px solid #E5E7EB",
             }}>
               <PhaseTimer
-                workshopPhases={workshopPhases}
+                workshopPhases={
+                  typicalPeriodMinutes
+                    ? scaleWorkshopPhases(workshopPhases, typicalPeriodMinutes)
+                    : workshopPhases
+                }
                 onPhaseChange={(phase) => setCurrentPhase(phase)}
                 compact
               />
