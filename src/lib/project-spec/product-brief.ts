@@ -274,12 +274,128 @@ const ARCHITECTURE_INTERIOR_PB: ProductBriefArchetype = {
 };
 
 // ────────────────────────────────────────────────────────────────────
+// Archetype 3: App / Digital Tool — 9 slots
+// ────────────────────────────────────────────────────────────────────
+// Added 12 May 2026 to ground the 3 G8 ships_to_platform Choice Cards
+// (Designer Mentor, Studio Theme, Scaffold). Designed to flex across:
+//   - designer/mentor characters (persona + question set)
+//   - studio themes (palette + prompts + mood)
+//   - student scaffolds (trigger + UX flow + AI behaviour)
+// Slot 4/5 use a `medium` chip catalogue (text, character, theme,
+// interactive, visual, code, sound, data) rather than physical
+// materials. Slot 6 uses a "scope" size-reference (single-prompt →
+// multi-screen system) — analogue to physical scale.
+
+const DIGITAL_MEDIUM_CHIPS = [
+  { id: "text-prompt", label: "Text / prompt", emoji: "📝" },
+  { id: "character", label: "Character / persona", emoji: "👤" },
+  { id: "theme-palette", label: "Theme / palette", emoji: "🎨" },
+  { id: "interactive-flow", label: "Interactive flow", emoji: "🔀" },
+  { id: "visual-image", label: "Visual / image", emoji: "🖼️" },
+  { id: "code-logic", label: "Code / logic", emoji: "⚙️" },
+  { id: "sound", label: "Sound", emoji: "🎵" },
+  { id: "data-schema", label: "Data / schema", emoji: "🗂️" },
+  { id: "mixed", label: "Mixed media", emoji: "🧩" },
+] as const;
+
+const APP_DIGITAL_TOOL_PB: ProductBriefArchetype = {
+  id: "app-digital-tool",
+  label: "App / Digital Tool",
+  emoji: "✨",
+  slots: [
+    // 1 — Project name
+    {
+      title: "What's your tool called?",
+      subhead: "1–4 words. Specific beats clever.",
+      input: { kind: "text", maxWords: 4 },
+      examples: {
+        strong: ["Ramsey", "The Quiet Forge", "Stuck-Moment Lifeline"],
+        weak: ["My Tool", "Cool Idea", "Untitled"],
+      },
+    },
+    // 2 — Elevator pitch
+    {
+      title: "One-sentence elevator pitch — who uses it and what do they actually DO?",
+      subhead: "Verbs, not adjectives. 25 words max.",
+      input: { kind: "text", maxWords: 25 },
+      examples: {
+        strong: [
+          "A G8 student stuck on ideation asks the mentor a question and gets back 3 sketch prompts in the mentor's voice.",
+          "A teacher picks a domain, gets a 5-colour palette plus 5 starter prompts students will see when they enter that theme.",
+        ],
+        weak: ["A really useful AI thing", "It helps students."],
+      },
+    },
+    // 3 — Core mechanism
+    {
+      title: "What's the ONE thing that makes it work?",
+      subhead: "The mechanism, the move, the trigger. 15 words max.",
+      input: { kind: "text", maxWords: 15 },
+      examples: {
+        strong: [
+          "Mentor asks a question back instead of giving an answer — Socratic loop.",
+          "Theme triggers on student choosing the domain and re-skins the whole studio.",
+          "Scaffold detects 5+ idle minutes and surfaces a 3-prompt 'unstick' card.",
+        ],
+        weak: ["Uses AI", "It's interactive"],
+      },
+    },
+    // 4 — Primary medium
+    {
+      title: "Primary medium — what's it mostly made of?",
+      subhead: "Pick the one that does most of the work. You can combine — pick what dominates.",
+      input: { kind: "chip-picker", chips: [...DIGITAL_MEDIUM_CHIPS] },
+    },
+    // 5 — Secondary medium (optional)
+    {
+      title: "Secondary medium (optional)",
+      subhead: "If you'll combine two mediums — pick the second. Skip if it's pure single-medium.",
+      input: { kind: "chip-picker", chips: [...DIGITAL_MEDIUM_CHIPS] },
+    },
+    // 6 — Scope (size-reference for digital)
+    {
+      title: "How big is it?",
+      subhead: "Pick the closest scope. Bigger isn't better — small and sharp wins.",
+      input: {
+        kind: "size-reference",
+        references: [
+          { id: "single-prompt", label: "Single prompt (one moment)", emoji: "💬" },
+          { id: "mini-pattern", label: "Mini pattern (3–5 prompts)", emoji: "🧩" },
+          { id: "full-flow", label: "Full flow (multi-step UX)", emoji: "🔀" },
+          { id: "system", label: "Multi-screen system", emoji: "🖼️" },
+        ],
+        allowCm: false,
+      },
+    },
+    // 7 — Constraints (shared)
+    CONSTRAINTS_SLOT,
+    // 8 — Precedents
+    {
+      title: "Precedents — what existing tool, character, or theme inspired you?",
+      subhead:
+        "Name 1–3 (real apps, characters, themes, AI mentors) and what specifically you're borrowing. Be specific.",
+      input: { kind: "text", maxWords: 60 },
+      examples: {
+        strong: [
+          "Duolingo's owl Duo (passive-aggressive nudge) + Khan Academy's hint ladder (gradual reveal). Borrowing the nudge tone for the stuck-moment trigger.",
+          "Sir Jony Ive (the obsessive material focus) + Dieter Rams (the 10 principles). I'm borrowing both lenses for the mentor character.",
+        ],
+        weak: ["AI mentors I've seen", "Cool apps"],
+      },
+    },
+    // 9 — Technical risks (shared)
+    TECHNICAL_RISKS_SLOT,
+  ],
+};
+
+// ────────────────────────────────────────────────────────────────────
 // Registry
 // ────────────────────────────────────────────────────────────────────
 
 export const PRODUCT_BRIEF_ARCHETYPES: Record<string, ProductBriefArchetype> = {
   [TOY_DESIGN_PB.id]: TOY_DESIGN_PB,
   [ARCHITECTURE_INTERIOR_PB.id]: ARCHITECTURE_INTERIOR_PB,
+  [APP_DIGITAL_TOOL_PB.id]: APP_DIGITAL_TOOL_PB,
 };
 
 export function getProductBriefArchetype(
