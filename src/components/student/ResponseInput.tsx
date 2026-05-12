@@ -21,9 +21,11 @@ import UserProfileResponse from "./user-profile/UserProfileResponse";
 import SuccessCriteriaResponse from "./success-criteria/SuccessCriteriaResponse";
 import ChoiceCardsBlock from "./choice-cards/ChoiceCardsBlock";
 import InspirationBoardBlock from "./inspiration-board/InspirationBoardBlock";
+import FirstMoveBlock from "./first-move/FirstMoveBlock";
 import type {
   ChoiceCardsBlockConfig,
   InspirationBoardConfig,
+  FirstMoveConfig,
 } from "@/components/teacher/lesson-editor/BlockPalette.types";
 import type { ActivitySection } from "@/types";
 
@@ -61,6 +63,8 @@ interface ResponseInputProps {
   choiceCardsConfig?: ChoiceCardsBlockConfig;
   /** For responseType === "inspiration-board": board behaviour from the lesson editor. */
   inspirationBoardConfig?: InspirationBoardConfig;
+  /** For responseType === "first-move": orientation block behaviour from the lesson editor. */
+  firstMoveConfig?: FirstMoveConfig;
   /**
    * Full ActivitySection — passed to archetype-aware blocks so they can
    * read `archetype_overrides` + base framing/task/success_signal via
@@ -100,6 +104,7 @@ export function ResponseInput({
   activityId,
   choiceCardsConfig,
   inspirationBoardConfig,
+  firstMoveConfig,
   section,
 }: ResponseInputProps) {
   // Filter type options based on allowed types
@@ -312,6 +317,24 @@ export function ResponseInput({
             activityId={activityId}
             section={section}
             config={inspirationBoardConfig}
+            unitId={unitId}
+            value={value}
+            onChange={onChange}
+          />
+        )}
+
+      {/* First Move — studio-open orientation block. Fetches design
+          philosophy + last journal NEXT + this_class kanban cards on
+          mount; lets student pick one + write a commitment; on Start
+          moves the chosen card to Doing (demoting any current Doing
+          card back to this_class to keep WIP=1). */}
+      {responseType === "first-move" &&
+        activityId &&
+        firstMoveConfig &&
+        unitId && (
+          <FirstMoveBlock
+            activityId={activityId}
+            config={firstMoveConfig}
             unitId={unitId}
             value={value}
             onChange={onChange}

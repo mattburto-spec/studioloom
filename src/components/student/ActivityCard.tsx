@@ -376,6 +376,7 @@ export function ActivityCard({
                 activityId={section.activityId}
                 choiceCardsConfig={section.choiceCardsConfig}
                 inspirationBoardConfig={section.inspirationBoardConfig}
+                firstMoveConfig={section.firstMoveConfig}
                 section={section}
               />
 
