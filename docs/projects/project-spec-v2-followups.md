@@ -182,6 +182,36 @@ IDs (already stable, brief §10 — defer):
 
 ---
 
+## FU-PSV2-TEACHER-RESET — Teacher-side action to clear a student's block submission
+**Surfaced:** 12 May 2026, from Matt's smoke testing the User Profile block.
+**Severity:** 🟢 LOW — Reopen affordance (shipped 12 May) covers the student-side case; this is for teacher-driven resets.
+**Target phase:** After pilot, when a teacher has had to reset student work.
+
+**Context:** Matt tried to test the User Profile block, hit the image-upload bug, then deleted the block from the lesson and re-added it expecting fresh state. The new block surfaced the OLD data because storage is keyed by `(student_id, unit_id)` — schema-intentional per the v2 brief (one User Profile per project per student). The student-side "Reopen to revise" button (shipped 12 May) addresses the common case (student wants to edit their answers). But the teacher-driven scenario — "I want to wipe this student's slate clean and start over" — needs its own surface.
+
+**What it adds:** A teacher-side action on the marking detail pane (or on the unit-class hub student drawer) — "Reset student's submission for this block." Confirmation dialog. Two flavours to decide:
+- **Soft reset** — clear `completed_at` + null all slots. Row still exists. Teacher can choose this when student misunderstood the prompt and should start fresh.
+- **Hard delete** — DELETE the row. Student starts as if they'd never opened the block.
+
+**Why deferred:** Not currently blocking. The student-side Reopen button addresses the day-to-day case. Teacher resets are rare and the workaround (use Supabase dashboard) works for the pilot. Matt's smoke surfaced this because there's no edit affordance for teachers to "redo" a submission like there is for students.
+
+**Definition of done:**
+- New API route `/api/teacher/{block-type}/reset` taking `{ studentId, unitId, mode: "soft" | "hard" }`
+- Authorisation: `verifyTeacherCanManageStudent` (Lesson #29 — covers co-teachers via Access v2)
+- UI: button in marking detail pane with two-step confirmation
+- Audit log entry: `block.teacher_reset` event_type with before/after row state
+
+---
+
 ## Resolved
 
-_v2 ship complete — all Phase A → F shipped 11-12 May 2026._
+### ✅ FU-PSV2-STUDENT-REOPEN-AFFORDANCE — "Reopen to revise" button on all 4 block completion cards
+**Resolved:** 12 May 2026 (same day surfaced + fixed).
+
+Matt: "there is no edit button which could solve this all" — once a student hit "Finish & see summary →" the block locked, no way back into the walker. They had to delete the block from the lesson editor to "re-do" it, which created the related confusion about persisted data on re-add.
+
+Fix: each completion card (v1 Project Spec + v2 Product Brief + User Profile + Success Criteria) now renders a "Reopen to revise" link beside the "✓ Saved" text. Click → API sets `completed_at = null` (slot data preserved) + component resets to walker phase 1. Student navigates Back/Next to revise any slot.
+
+Each API route (4 of them) now accepts `reopen: true` alongside the existing `completed: true` flag. Backwards-compatible — old clients see no change.
+
+Test posture: tests stable; tsc strict clean across 8 modified files.

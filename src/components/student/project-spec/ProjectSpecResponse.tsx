@@ -155,7 +155,7 @@ export default function ProjectSpecResponse({ unitId, onChange }: Props) {
 
   // Save (partial patch → POST → reflect locally)
   const save = useCallback(
-    async (patch: Partial<SpecState> & { completed?: boolean }) => {
+    async (patch: Partial<SpecState> & { completed?: boolean; reopen?: boolean }) => {
       setSaving(true);
       setError(null);
       try {
@@ -207,7 +207,17 @@ export default function ProjectSpecResponse({ unitId, onChange }: Props) {
 
   // ─── Phase 3: Project Card (completed)
   if (spec.completed_at) {
-    return <ProjectCard archetype={archetype} spec={spec} />;
+    return (
+      <ProjectCard
+        archetype={archetype}
+        spec={spec}
+        onReopen={async () => {
+          await save({ reopen: true });
+          setCurrentSlotIdx(0);
+        }}
+        reopening={saving}
+      />
+    );
   }
 
   // ─── Phase 2: Walker
@@ -250,9 +260,13 @@ export default function ProjectSpecResponse({ unitId, onChange }: Props) {
 function ProjectCard({
   archetype,
   spec,
+  onReopen,
+  reopening,
 }: {
   archetype: ArchetypeDefinition;
   spec: SpecState;
+  onReopen: () => void;
+  reopening: boolean;
 }) {
   return (
     <div className="rounded-2xl border-2 border-purple-300 bg-gradient-to-br from-purple-50 via-white to-purple-50/50 p-6 shadow-sm">
@@ -293,9 +307,19 @@ function ProjectCard({
         })}
       </div>
 
-      <p className="mt-5 text-xs text-purple-700/70 text-right">
-        ✓ Saved — your spec is locked in. Move on to the next activity.
-      </p>
+      <div className="mt-5 flex items-center justify-end gap-3 text-xs">
+        <span className="text-purple-700/70">
+          ✓ Saved — your spec is locked in. Move on to the next activity.
+        </span>
+        <button
+          type="button"
+          onClick={onReopen}
+          disabled={reopening}
+          className="text-purple-700 underline hover:text-purple-900 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {reopening ? "Reopening…" : "Reopen to revise"}
+        </button>
+      </div>
     </div>
   );
 }
