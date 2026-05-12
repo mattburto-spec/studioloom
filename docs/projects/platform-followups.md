@@ -84,6 +84,87 @@
 
 ---
 
+## FU-PLATFORM-PRIVACY-ANONYMISER — Teacher-toggleable student input anonymiser
+**Surfaced:** 12 May 2026, post-User-Profile-image-upload ship.
+**Severity:** 🔵 P1 — high value, not blocking. Concrete differentiator for school-pitch security story.
+**Target phase:** When a school asks for it OR when Matt has a focused sprint for Phase 1.
+
+**Vision:** A class-level (or unit-level) toggle a teacher can flip — "anonymise student input". Once on, all incoming student text + uploads get scanned and PII gets stripped or replaced. If the database leaks, no one finds out a student lives at X address with Y people and likes going to XYZ Plaza on Friday nights.
+
+Visual design idea (Matt): anonymised tokens render in a different colour so the student knows their content was modified, with a tooltip explaining the policy. Same for the teacher's view (with optional "show raw" requiring an audit-log entry).
+
+**Why now is the right time to start the journey:**
+- Real differentiator for the school-pitch security checklist (currently the security-overview.md doesn't have a privacy-by-design story this strong)
+- GDPR Article 25 ("data protection by design") gets a tick
+- China PIPL effectively requires data minimisation for kids — Matt is in Nanjing pitching to international schools
+- Australian Privacy Act treats this as best practice
+- The trigger event for one school will likely be a parent objection — better to have a credible story BEFORE that conversation
+
+### Phase 1 — Regex-based redaction (~2–3 days, shippable in a focused sprint)
+Catches the obvious PII surface area:
+- Phone numbers (US / CN already in `client-filter.ts`, extend with UK / AU / EU)
+- Email addresses (already)
+- Add: street addresses, postal codes, ID numbers, dates of birth, credit-card-shaped strings
+- Class-level toggle: new column `classes.privacy_mode: 'standard' | 'anonymise'`
+- Server-side scrub on write to `student_progress.responses` + the per-block tables (project_specs, product_briefs, user_profiles, success_criteria — and any future block storage)
+- Store BOTH raw + anonymised. Raw goes to a restricted column (or a separate table) with audit-log on read access
+- Student sees anonymised version with subtle italic + muted colour styling + tooltip "Anonymised by school policy"
+- Teacher sees anonymised by default; "show raw" button creates an audit-log entry
+
+Solves ~70% of the risk with ~20% of the work. Catches addresses + phones + emails which are the highest-risk leak surfaces.
+
+### Phase 2 — AI-assisted entity scrubbing (~1–2 weeks)
+Regex can't catch contextual PII. "I go to XYZ Plaza on Friday nights" is dangerous because of the *combination* of place + schedule + first-person, not any single token.
+
+- Claude pass via `callAnthropicMessages` on every save: "Scrub this text for names of real people, specific places + their schedules, identifying institutions. Return the anonymised version with [REDACTED] markers and a structured list of what was changed (for the diff highlighting)."
+- Cache by content hash so re-reads are free
+- Falls back to Phase 1 patterns if AI is unavailable / over-budget
+- Cost: ~$0.001 per save (input + output token counts modest)
+- Latency: adds ~1s to save. UI shows "Saving… anonymising…" spinner
+- New `ai-call-sites.yaml` entry under `student/privacy/anonymise`
+- Need a per-class AI budget guard (`withAIBudget`) so a runaway moderation pass can't blow through the budget
+
+### Phase 3 — Image PII (~1–2 months, real project)
+Most uploads won't have PII; the ones that do are catastrophic.
+- Face detection + blur (MediaPipe runs server-side, free; or AWS Rekognition / Google Vision for richer features)
+- OCR scan for handwritten PII (student writes address on a sketch + uploads)
+- Background scene recognition (school signs, street signs, recognizable landmarks) — much harder, lower priority
+- Toggleable per class (or sub-toggleable: faces yes, OCR yes, scenes no)
+
+### Out of scope (file as nested FUs if Phase 3 ships)
+- Re-personalisation (student sees own raw text on edit; teacher sees anonymised on read) — round-trip complexity
+- Full school-level configuration UI with governance dashboard — needs proper product design
+- Anonymising AI mentor responses too (Claude sometimes echoes student PII back at them)
+
+### Policy questions to settle BEFORE building (not just engineering)
+1. **Threat model.** Database leak only? Or also "teacher can't be fully trusted with raw text"? The latter is much more aggressive — changes the access control fundamentally.
+2. **Raw retention.** Forever (with audit log on read)? N days post-save? Auto-purge on student graduation? Never store raw at all (one-way scrub)?
+3. **Who turns it on?** Teacher per-class? School admin policy? Platform default for everyone (Matt's pilot)?
+4. **What happens to existing pre-toggle data?** Bulk-anonymise on toggle? Leave historical raw? Both with a cutover date?
+5. **Diff visibility.** Always show what was changed (transparency) or only on a "show diff" toggle (cleaner UI)?
+
+### Definition of done (Phase 1)
+- Migration: `classes.privacy_mode` column + class-settings UI to toggle
+- New `src/lib/privacy/anonymise.ts` with the regex-pass + diff tracking
+- Server-side scrub hook applied on write to `student_progress.responses` + the 4 per-block project-spec tables (project_specs / product_briefs / user_profiles / success_criteria)
+- Raw + anonymised stored separately; raw column access audited
+- Student-side rendering: anonymised tokens with subtle styling + tooltip
+- Teacher-side rendering: anonymised by default + "show raw" with audit-log entry
+- New `privacy.show_raw_response` event_type in the audit log
+- `security-overview.md` updated with the privacy-by-design story
+- New entry in `data-classification-taxonomy.md` for the raw column
+
+### Definition of done (Phase 2 + 3)
+Separate briefs when their turn comes.
+
+### Related work
+- `src/lib/content-safety/client-filter.ts` — current PII patterns (target for extension)
+- `src/lib/security/student-name-placeholder.ts` — already restricts student names from LLM prompts; this would be the broader complement
+- `docs/security/security-overview.md` — would gain a section
+- The over-eager PII regex that caused FU-PSV2-IMAGE-URL-MODERATION-FALSE-POSITIVE is a related but different issue — that one is about NOT moderating system-generated content; this one is about explicitly transforming user content
+
+---
+
 ## Resolved
 
 _None yet._
