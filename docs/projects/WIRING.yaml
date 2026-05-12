@@ -1209,7 +1209,7 @@ systems:
     status: ready
     currentVersion: 0
     summary: "Canonical unified student_learning_profile with 7 sections (identity incl. creative_voice + trajectory_snapshots, cognitive, current_state incl. motivational_state SDT, wellbeing, passive_signals, social incl. group work, custom via dimension registry) + computed pedagogy_preferences. 7 writer classes via SECURITY DEFINER (ProfilingJourneyWriter, CognitivePuzzleWriter, PassiveSignalWorker, TeacherProfileEditor, ProfileSynthesisJob, PeerInteractionWorker, CreativeVoiceWorker, TrajectorySnapshotJob). profile_dimensions registry enables new journey blocks without migrations. 1024-d aesthetic_embedding unblocks Designer Mentor matching. Also houses teachers.style_profile + classes.climate_profile."
-    depends_on: [discovery-engine, student-data, toolkit-persistence, work-capture-pipeline, class-gallery, peer-review, teach-mode, embedding-search]
+    depends_on: [discovery-engine, student-data, toolkit-persistence, work-capture-pipeline, class-gallery, peer-review, teaching-mode, embedding-search]
     affects: [ai-mentor, generation-pipeline, lesson-pulse, gamification, designer-mentor-system, open-studio]
     docs:
       - path: docs/specs/student-learning-profile-schema.md
@@ -1503,35 +1503,24 @@ systems:
     category: Teacher Experience
     status: complete
     currentVersion: 1
-    summary: Live student progress grid with phase timer, KPI tiles, per-student status cards, projector view, classroom tools (timer, picker, groups, noise). Phase 1 CheckInRow (12 May 2026) surfaces ≤3 students who need teacher attention — stuck (existing needsHelp flag), falling behind (paceZ < -1.0 vs in-progress cohort), or absent-ish (not_started + offline). Snoozable per-lesson. Polled every 30s via /api/teacher/teach/live-status which now returns paceZ + cohortStats.
-    depends_on: [lesson-view, scheduling, student-data, class-units]
+    summary: Live student progress grid with individual student cards, real-time check-ins, quick-edit slide-out panel for lesson modifications, projector view window, classroom tools (timer, picker, groups, noise).
+    depends_on: [lesson-view, scheduling]
     affects: [lesson-view, student-dashboard, testing-sandbox]
     docs:
       - path: docs/roadmap.md
         purpose: Teaching Mode roadmap
-      - path: docs/projects/teaching-mode-checkin-row-phase-1-brief.md
-        purpose: Phase 1 check-in row build brief (12 May 2026)
     data_fields:
       - table: class_meetings
         columns: [class_id, date, period, lesson_number]
         notes: Class timetable lookup
-      - table: student_progress
-        columns: [student_id, unit_id, page_id, status, responses, time_spent, updated_at]
-        notes: Read-only — drives the live student grid, online inference (updated_at within 5min), needsHelp signal (idle > 3min), and Phase 1 pace_z computation
-      - table: class_students
-        columns: [student_id, class_id, is_active]
-        notes: Class roster lookup (junction table + legacy students.class_id fallback)
     key_files:
       - src/app/teacher/teach/[unitId]/page.tsx
-      - src/app/api/teacher/teach/live-status/route.ts
-      - src/components/teach/CheckInRow.tsx
-      - src/components/teach/PhaseTimer.tsx
-      - src/components/teach/QuickEdit.tsx
-      - src/lib/teaching-mode/pace.ts
-    future_needs: Per-activity timing (new activity_events table) unlocks "stuck on inspiration-board for 18m" specificity. AI-suggested check-in questions per surfaced student. Response quality / length tie-breaker for thoughtful-slow vs disengaged-slow. Voice commands, adaptive pacing adjustments mid-lesson.
+      - src/components/teacher/teach-mode/LiveStudentGrid.tsx
+      - src/components/teacher/teach-mode/QuickEditPanel.tsx
+    future_needs: Voice commands, gesture recognition, adaptive pacing adjustments mid-lesson.
     adrs: ["006"]
     os_seam: ready
-    change_impacts: Changes to student_progress schema affect live data fetch. Changes to live-status route response shape affect the page's StudentLiveStatus + LiveSummary types and CheckInRow signals. Changes to lesson-view affect projector display.
+    change_impacts: Changes to student_progress schema affect live data fetch. Changes to lesson-view affect projector display.
 
   - id: unit-editor
     name: Unit Editor (Phase 0.5 Lesson Editor)
