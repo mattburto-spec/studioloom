@@ -1,3 +1,6 @@
+// audit-skip: library content edits — `updated_at` + creator-or-admin
+// authorization gate already constrains writes. Not security-sensitive.
+//
 // Choice Cards — update an existing library card (teacher unit-builder).
 //
 // PATCH /api/teacher/choice-cards/[cardId]

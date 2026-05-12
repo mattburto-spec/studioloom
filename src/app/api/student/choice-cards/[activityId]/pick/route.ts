@@ -1,3 +1,8 @@
+// audit-skip: pick is self-auditing — choice_card_selections row IS the
+// audit trail (student_id, activity_id, card_id, picked_at). Plus
+// learning_events emission via dispatchCardAction. No separate audit
+// log needed for a routine student-side preference choice.
+//
 // Choice Cards block — student pick endpoint.
 //
 // POST /api/student/choice-cards/[activityId]/pick

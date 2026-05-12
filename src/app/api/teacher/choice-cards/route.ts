@@ -1,3 +1,8 @@
+// audit-skip: library content authoring — `choice_cards` rows carry
+// `created_by` + `created_at` so authorship is intrinsically recorded.
+// Not security-sensitive (no auth/role/key changes). Mirrors the
+// audit-skip pattern on machine-profiles / unit-image upload routes.
+//
 // Choice Cards — create a new library card (teacher unit-builder).
 //
 // POST /api/teacher/choice-cards

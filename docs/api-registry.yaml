@@ -1014,8 +1014,7 @@ routes:
   - choice_card_selections
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'choice_card_selections' — not in schema-registry; Reference to unknown table 'choice_cards'
-    — not in schema-registry
+  notes: null
 - path: /api/student/choice-cards/[activityId]/selection
   method: GET
   file: src/app/api/student/choice-cards/[activityId]/selection/route.ts
@@ -1026,8 +1025,7 @@ routes:
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'choice_card_selections' — not in schema-registry; Reference to unknown table 'choice_cards'
-    — not in schema-registry
+  notes: null
 - path: /api/student/choice-cards/deck
   method: GET
   file: src/app/api/student/choice-cards/deck/route.ts
@@ -1037,7 +1035,7 @@ routes:
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'choice_cards' — not in schema-registry
+  notes: null
 - path: /api/student/design-assistant
   method: GET
   file: src/app/api/student/design-assistant/route.ts
@@ -2585,7 +2583,7 @@ routes:
   - choice_cards
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'choice_cards' — not in schema-registry
+  notes: null
 - path: /api/teacher/choice-cards/[cardId]
   method: PATCH
   file: src/app/api/teacher/choice-cards/[cardId]/route.ts
@@ -2597,7 +2595,7 @@ routes:
   - choice_cards
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'choice_cards' — not in schema-registry
+  notes: null
 - path: /api/teacher/choice-cards/library
   method: GET
   file: src/app/api/teacher/choice-cards/library/route.ts
@@ -2607,7 +2605,7 @@ routes:
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'choice_cards' — not in schema-registry
+  notes: null
 - path: /api/teacher/class-profiles
   method: GET
   file: src/app/api/teacher/class-profiles/route.ts
