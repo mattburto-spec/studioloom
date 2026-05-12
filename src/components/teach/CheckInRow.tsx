@@ -52,26 +52,40 @@ const MAX_CHIPS = 3;
 // Reason builder — first matching signal wins; priority resolved in sort
 // =========================================================================
 
+/** Cap for the stuck signal — if it's been longer than this, the student
+ *  isn't actually stuck on the current page, they're on a different page
+ *  in the unit (needsHelp uses unit-wide "online" but page-level lastActive,
+ *  so a student working elsewhere shows up here with a huge `lastActive`
+ *  delta). We don't want to render "no activity for 551m". */
+const STUCK_MAX_MINS = 30;
+
 function buildReason(
   s: CheckInStudent,
   cohortStats: CheckInCohortStats | null,
   onlineCount: number,
 ): Reason | null {
-  // Stuck — reuses the existing needsHelp flag from the route
+  // Stuck — student is online in the unit AND in_progress on this page AND
+  // hasn't autosaved this page in 3-30 min. Beyond 30 min they're probably
+  // on a different page in the unit, not actually stuck here.
   if (s.needsHelp && s.lastActive) {
     const mins = Math.floor((Date.now() - new Date(s.lastActive).getTime()) / 60000);
-    return { kind: "stuck", text: `no activity for ${mins}m` };
+    if (mins <= STUCK_MAX_MINS) {
+      return { kind: "stuck", text: `idle ${mins}m on this page` };
+    }
+    // Fall through — they might still surface via behind / absent below.
   }
 
-  // Falling behind — in_progress students whose pace is >1 SD below class median
+  // Falling behind — in_progress students whose pace is >1 SD below class
+  // median. Don't expose the raw response-field count — it counts response
+  // *fields* (one per activity slot, sometimes more for multi-question
+  // blocks), so "7 of 8" is misleading. Just say slower than peers.
   if (
     s.status === "in_progress" &&
     s.paceZ !== null &&
     s.paceZ < PACE_Z_THRESHOLD &&
     cohortStats
   ) {
-    const median = Math.round(cohortStats.medianResponses);
-    return { kind: "behind", text: `${s.responseCount} responses, class is at ${median}` };
+    return { kind: "behind", text: "slower than peers" };
   }
 
   // Absent-ish — not started and offline, but only if other students ARE online
