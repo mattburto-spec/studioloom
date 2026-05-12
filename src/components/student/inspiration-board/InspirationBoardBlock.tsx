@@ -29,10 +29,10 @@ import {
   getArchetypeAwareContentByChain,
 } from "@/lib/blocks/archetype-aware";
 import { compressImage } from "@/lib/compress-image";
-import {
-  checkClientImage,
-  IMAGE_MODERATION_MESSAGES,
-} from "@/lib/content-safety/client-image-filter";
+// Note: checkClientImage (NSFW.js 4MB model) deliberately NOT used here.
+// Server-side moderation in /api/student/upload (Phase 5F) still gates.
+// FU-IB-CLIENT-IMAGE-CHECK to add back with proper error handling +
+// timeout once we confirm the rest of the upload pipeline works.
 
 interface BoardItem {
   id: string;
@@ -177,44 +177,81 @@ export default function InspirationBoardBlock({
   const canMarkComplete =
     !isUnderMin && (config.showSynthesisPrompt ? synthesisFilled : true);
 
+  // Step-by-step state-visible upload. Each await is wrapped in its own
+  // try/catch with a stage label so the user (and we) see exactly where
+  // it failed. uploadError is replaced with uploadStatus that also
+  // surfaces in-progress steps.
+  const [uploadStatus, setUploadStatusState] = useState<string | null>(null);
+  const setStatus = setUploadStatusState;
+
   async function handleFiles(files: FileList | File[]) {
     const remaining = config.maxItems - state.items.length;
-    if (remaining <= 0) return;
+    if (remaining <= 0) {
+      setStatus("Max items already reached.");
+      return;
+    }
     const arr = Array.from(files).slice(0, remaining);
     setUploading(true);
     setUploadError(null);
+    setStatus(`Starting upload (${arr.length} file${arr.length === 1 ? "" : "s"})…`);
     const newItems: BoardItem[] = [];
     try {
-      for (const file of arr) {
-        // Client-side image safety check (matches UploadInput.tsx canonical
-        // pattern). Returns ok:true on model-load failure so server-side
-        // Haiku still gates.
-        if (file.type.startsWith("image/")) {
-          const imageCheck = await checkClientImage(file);
-          if (!imageCheck.ok) {
-            throw new Error(IMAGE_MODERATION_MESSAGES.en);
-          }
+      for (let i = 0; i < arr.length; i++) {
+        const file = arr[i];
+        const prefix = arr.length > 1 ? `[${i + 1}/${arr.length}] ` : "";
+
+        // 1. Compress (skipped silently for tiny files + non-images).
+        setStatus(`${prefix}Compressing ${file.name}…`);
+        let processedFile: File;
+        try {
+          processedFile = await compressImage(file);
+        } catch (e) {
+          throw new Error(
+            `Compress failed for ${file.name}: ${e instanceof Error ? e.message : String(e)}`,
+          );
         }
 
-        // Compress before upload — iPhone photos are 8–15MB raw, which
-        // hits the 10MB server cap. compressImage targets ~400KB while
-        // preserving readable detail.
-        const processedFile = await compressImage(file);
-
+        // 2. Upload.
+        setStatus(`${prefix}Uploading ${file.name}…`);
         const fd = new FormData();
         fd.append("file", processedFile);
         fd.append("unitId", unitId);
         fd.append("pageId", activityId);
-        const res = await fetch("/api/student/upload", {
-          method: "POST",
-          credentials: "same-origin",
-          body: fd,
-        });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body.error || `Upload failed (${res.status})`);
+
+        let res: Response;
+        try {
+          res = await fetch("/api/student/upload", {
+            method: "POST",
+            credentials: "same-origin",
+            body: fd,
+          });
+        } catch (e) {
+          throw new Error(
+            `Network error uploading ${file.name}: ${e instanceof Error ? e.message : String(e)}`,
+          );
         }
-        const data = (await res.json()) as { url: string };
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}) as { error?: string });
+          throw new Error(
+            `Server rejected ${file.name} (HTTP ${res.status}): ${
+              (body as { error?: string }).error ?? "no error body"
+            }`,
+          );
+        }
+
+        // 3. Parse response.
+        let data: { url: string };
+        try {
+          data = (await res.json()) as { url: string };
+        } catch (e) {
+          throw new Error(
+            `Bad JSON from upload response: ${e instanceof Error ? e.message : String(e)}`,
+          );
+        }
+        if (!data.url) {
+          throw new Error("Upload response missing `url` field.");
+        }
+
         newItems.push({
           id: cryptoRandomId(),
           url: data.url,
@@ -223,9 +260,12 @@ export default function InspirationBoardBlock({
           altText: `Inspiration image ${state.items.length + newItems.length + 1}`,
         });
       }
+
+      setStatus(`Saved ${newItems.length} image${newItems.length === 1 ? "" : "s"}.`);
       persist({ ...state, items: [...state.items, ...newItems] });
     } catch (e) {
       setUploadError(e instanceof Error ? e.message : "Upload failed");
+      setStatus(null);
     } finally {
       setUploading(false);
     }
@@ -352,7 +392,13 @@ export default function InspirationBoardBlock({
 
       {uploadError && (
         <div className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-          {uploadError}
+          ⚠ {uploadError}
+        </div>
+      )}
+
+      {uploadStatus && !uploadError && (
+        <div className="rounded border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
+          {uploadStatus}
         </div>
       )}
 
