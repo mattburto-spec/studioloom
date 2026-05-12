@@ -383,9 +383,14 @@ export default function InspirationBoardBlock({
           multiple
           style={{ display: "none" }}
           onChange={(e) => {
-            const files = e.target.files;
+            // CRITICAL: snapshot files BEFORE resetting input value.
+            // Chrome/Safari clear e.target.files when value is set to ""
+            // — so we must capture the File refs first via Array.from()
+            // (which creates a real array holding the File objects).
+            const fileList = e.target.files;
+            const files = fileList ? Array.from(fileList) : [];
             e.target.value = "";
-            if (files && files.length > 0) void handleFiles(files);
+            if (files.length > 0) void handleFiles(files);
           }}
         />
       </div>
