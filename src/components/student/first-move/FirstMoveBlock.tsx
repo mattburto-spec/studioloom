@@ -197,9 +197,10 @@ export default function FirstMoveBlock({
   }
 
   // Shared label style — consistent across all four sections so the
-  // composition reads as one card, not four boxes-in-a-box.
+  // composition reads as one card, not four boxes-in-a-box. Bumped to
+  // 11.5px after Matt's smoke — 10.5px was too tight to scan in class.
   const LabelClass =
-    "text-[10.5px] font-bold uppercase tracking-[0.08em] text-amber-700";
+    "text-[11.5px] font-bold uppercase tracking-[0.08em] text-amber-700";
 
   const showPhilosophySection = config.showDesignPhilosophy;
   const showWhereLeftOffSection =
@@ -209,27 +210,27 @@ export default function FirstMoveBlock({
     <div className="rounded-2xl border border-amber-200 bg-white shadow-sm">
       {/* Header strip — single visual anchor so the block has an
           identity without shouting. */}
-      <div className="flex items-center gap-2 border-b border-amber-100 bg-amber-50/60 px-5 py-2.5 rounded-t-2xl">
-        <span className="text-base" aria-hidden>
+      <div className="flex items-center gap-3 rounded-t-2xl border-b border-amber-100 bg-amber-50/60 px-6 py-3.5">
+        <span className="text-xl" aria-hidden>
           ⚡
         </span>
-        <div className="flex-1 leading-tight">
-          <div className="text-[13px] font-bold text-amber-900">
+        <div className="flex-1 leading-snug">
+          <div className="text-[17px] font-bold text-amber-900">
             Today&apos;s first move
           </div>
-          <div className="text-[11px] text-amber-700/80">
+          <div className="mt-0.5 text-[13.5px] text-amber-700/85">
             Five minutes before you dive in. Glance back, pick one card,
             name what you&apos;ll do.
           </div>
         </div>
       </div>
 
-      <div className="px-5 py-4 space-y-4">
+      <div className="space-y-5 px-6 py-5">
         {/* 1. Design philosophy */}
         {showPhilosophySection && (
           <div>
             <div className={LabelClass}>Your design philosophy</div>
-            <div className="mt-1 text-[14px] leading-snug text-zinc-800">
+            <div className="mt-1.5 text-[16px] leading-relaxed text-zinc-800">
               {payload.designPhilosophy ?? (
                 <span className="italic text-zinc-500">
                   Not yet set — visit your Class 1 Strategy Canvas to write
@@ -244,26 +245,26 @@ export default function FirstMoveBlock({
             hairline separator above if the previous section showed. */}
         {showWhereLeftOffSection && (
           <div
-            className={showPhilosophySection ? "border-t border-amber-100 pt-4" : ""}
+            className={showPhilosophySection ? "border-t border-amber-100 pt-5" : ""}
           >
             <div className={LabelClass}>Where you left off</div>
             {payload.lastJournalNext && (
-              <div className="mt-1 text-[14px] leading-snug text-zinc-800">
+              <div className="mt-1.5 text-[16px] leading-relaxed text-zinc-800">
                 <span className="italic">
                   &ldquo;{payload.lastJournalNext}&rdquo;
                 </span>
                 {payload.lastJournalUpdatedAt && (
-                  <span className="ml-1.5 text-[11px] text-zinc-500">
+                  <span className="ml-2 text-[12.5px] text-zinc-500">
                     last NEXT · {relativeTime(payload.lastJournalUpdatedAt)}
                   </span>
                 )}
               </div>
             )}
             {payload.lastDoneCard && (
-              <div className="mt-1.5 text-[13px] text-zinc-700">
-                <span className="inline-flex items-center gap-1.5">
+              <div className="mt-2 text-[14px] text-zinc-700">
+                <span className="inline-flex items-center gap-2">
                   <span
-                    className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500"
+                    className="inline-block h-2 w-2 rounded-full bg-emerald-500"
                     aria-hidden
                   />
                   Last completed:{" "}
@@ -280,23 +281,23 @@ export default function FirstMoveBlock({
         <div
           className={
             showPhilosophySection || showWhereLeftOffSection
-              ? "border-t border-amber-100 pt-4"
+              ? "border-t border-amber-100 pt-5"
               : ""
           }
         >
           <div className="flex items-baseline justify-between gap-2">
             <div className={LabelClass}>Today&apos;s options</div>
-            <span className="text-[11px] text-zinc-500">
+            <span className="text-[12.5px] text-zinc-500">
               {payload.thisClassCards.length} in &ldquo;This Class&rdquo;
             </span>
           </div>
           {payload.thisClassCards.length === 0 ? (
-            <div className="mt-2 rounded-lg border border-dashed border-zinc-300 bg-zinc-50/60 px-3 py-2 text-[12.5px] text-zinc-600">
+            <div className="mt-2.5 rounded-lg border border-dashed border-zinc-300 bg-zinc-50/60 px-3.5 py-2.5 text-[14px] text-zinc-600">
               Your &ldquo;This Class&rdquo; lane is empty. Open your Kanban,
               promote a card from Backlog, then come back.
             </div>
           ) : (
-            <div className="mt-2 flex flex-wrap gap-1.5">
+            <div className="mt-2.5 flex flex-wrap gap-2">
               {payload.thisClassCards.map((card) => {
                 const selected = chosenCardId === card.id;
                 return (
@@ -305,13 +306,13 @@ export default function FirstMoveBlock({
                     type="button"
                     onClick={() => setChosenCardId(selected ? null : card.id)}
                     aria-pressed={selected}
-                    className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] transition ${
+                    className={`inline-flex max-w-full items-center gap-2 rounded-full border px-4 py-2 text-[15px] transition ${
                       selected
                         ? "border-amber-600 bg-amber-600 text-white shadow-sm"
                         : "border-zinc-300 bg-white text-zinc-800 hover:border-amber-400 hover:bg-amber-50"
                     }`}
                   >
-                    <span aria-hidden className="text-[11px]">
+                    <span aria-hidden className="text-[13px]">
                       {selected ? "✓" : "○"}
                     </span>
                     <span className="truncate">{card.title}</span>
@@ -323,7 +324,7 @@ export default function FirstMoveBlock({
         </div>
 
         {/* 4. Today I will… commitment — the hero input. */}
-        <div className="border-t border-amber-100 pt-4">
+        <div className="border-t border-amber-100 pt-5">
           <label className={LabelClass} htmlFor="first-move-commitment">
             Today I will…
           </label>
@@ -334,9 +335,9 @@ export default function FirstMoveBlock({
             onChange={(e) => updateCommitment(e.target.value)}
             placeholder="One sentence. Verbs, not adjectives."
             maxLength={200}
-            className="mt-1.5 w-full rounded-lg border border-amber-300 bg-white px-3.5 py-2.5 text-[15px] text-zinc-900 placeholder:text-zinc-400 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-200"
+            className="mt-2 w-full rounded-lg border border-amber-300 bg-white px-4 py-3 text-[17px] text-zinc-900 placeholder:text-zinc-400 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-200"
           />
-          <div className="mt-1 flex items-center justify-between text-[11px] text-zinc-500">
+          <div className="mt-1.5 flex items-center justify-between text-[12.5px] text-zinc-500">
             <span>
               {wordCount(commitment)} / {config.minCommitmentWords} words min
             </span>
@@ -345,14 +346,14 @@ export default function FirstMoveBlock({
         </div>
 
         {commitError && (
-          <div className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-700">
+          <div className="rounded border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-[13px] text-rose-700">
             ⚠ {commitError}
           </div>
         )}
 
         {/* Action row */}
-        <div className="flex items-center justify-between gap-2 pt-1">
-          <div className="text-[11.5px] text-zinc-500">
+        <div className="flex items-center justify-between gap-3 pt-2">
+          <div className="text-[13px] text-zinc-500">
             {config.requireCardChoice && !chosenCardId
               ? "Pick a card above to enable Start."
               : !canStart
@@ -363,7 +364,7 @@ export default function FirstMoveBlock({
             type="button"
             onClick={handleStart}
             disabled={!canStart || committing}
-            className={`rounded-full px-5 py-2 text-sm font-bold transition ${
+            className={`rounded-full px-6 py-2.5 text-[15px] font-bold transition ${
               canStart
                 ? "bg-amber-600 text-white shadow-sm hover:bg-amber-700"
                 : "cursor-not-allowed bg-zinc-200 text-zinc-500"
