@@ -474,6 +474,44 @@ export const BLOCK_LIBRARY: BlockDefinition[] = [
       },
     }),
   },
+  {
+    // First Move block (12 May 2026) — studio-open orientation for
+    // self-paced studio classes. Pulls together design philosophy (from
+    // Class 1 Strategy Canvas), last journal NEXT prompt, and current
+    // this_class Kanban cards. Student picks ONE card + writes a
+    // one-sentence commitment, then Start moves the chosen card to
+    // Doing (demoting any current doing card back to this_class so the
+    // WIP=1 limit is preserved). Logs a 'first-move.committed'
+    // learning_event so teachers see who paused to orient before
+    // diving in.
+    //
+    // Drop at the top of every studio lesson (G9 CO2 Racers lessons
+    // 2-6, 8-13). Reusable — no per-lesson authoring needed.
+    id: "first-move",
+    label: "First Move",
+    icon: "⚡",
+    category: "response",
+    description: "Studio-open orientation: design philosophy + where you left off + pick today's first move from your This Class lane.",
+    defaultPhase: "opening",
+    create: () => ({
+      activityId: nanoid(8),
+      prompt: "Today's first move",
+      framing:
+        "Five minutes before you dive in. Glance at where you've been, pick the one card you'll work on next, name it.",
+      task:
+        "Pick one card from your 'This Class' lane. Write one sentence about what you'll do with it. Then start.",
+      success_signal:
+        "You can say what you're about to do in a single sentence before you touch a tool.",
+      responseType: "first-move" as ResponseType,
+      durationMinutes: 5,
+      firstMoveConfig: {
+        minCommitmentWords: 5,
+        requireCardChoice: true,
+        showDesignPhilosophy: true,
+        showWhereLeftOff: true,
+      },
+    }),
+  },
   // ── Content ──
   {
     id: "teacher-notes",

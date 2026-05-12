@@ -264,7 +264,7 @@ export interface EllScaffolding {
   ell3?: { extensionPrompts?: string[] };
 }
 
-export type ResponseType = "text" | "upload" | "voice" | "link" | "multi" | "canvas" | "decision-matrix" | "pmi" | "pairwise" | "trade-off-sliders" | "toolkit-tool" | "structured-prompts" | "project-spec" | "product-brief" | "user-profile" | "success-criteria" | "choice-cards" | "inspiration-board";
+export type ResponseType = "text" | "upload" | "voice" | "link" | "multi" | "canvas" | "decision-matrix" | "pmi" | "pairwise" | "trade-off-sliders" | "toolkit-tool" | "structured-prompts" | "project-spec" | "product-brief" | "user-profile" | "success-criteria" | "choice-cards" | "inspiration-board" | "first-move";
 
 export interface ActivityMedia {
   type: "image" | "video";
@@ -466,6 +466,11 @@ export interface ActivitySection {
 
   /** For responseType === "inspiration-board": board behaviour. See InspirationBoardConfig. */
   inspirationBoardConfig?: import("@/components/teacher/lesson-editor/BlockPalette.types").InspirationBoardConfig;
+
+  // ── First Move block (12 May 2026) ──
+
+  /** For responseType === "first-move": studio-open orientation block behaviour. See FirstMoveConfig. */
+  firstMoveConfig?: import("@/components/teacher/lesson-editor/BlockPalette.types").FirstMoveConfig;
 
   // ── Archetype-aware blocks (12 May 2026 — A12 in design-guidelines.md) ──
 

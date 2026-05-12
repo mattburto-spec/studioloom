@@ -88,3 +88,27 @@ export interface InspirationBoardConfig {
   /** When true, students can paste an image URL instead of uploading a file. Default true. */
   allowUrlPaste: boolean;
 }
+
+/**
+ * First Move block (12 May 2026) — studio-open orientation.
+ *
+ * Stored on `ActivitySection.firstMoveConfig`. Block fetches consolidated
+ * payload from /api/student/first-move/[unitId] on mount (design
+ * philosophy + last journal NEXT + this_class kanban cards) and renders
+ * a hero card + commitment field. POST to .../commit moves the chosen
+ * kanban card to "doing" (demoting any current doing card to
+ * "this_class" to preserve WIP=1) and logs a learning_event.
+ *
+ * Reusable across all studio classes — drop once at the top of each
+ * self-paced lesson page.
+ */
+export interface FirstMoveConfig {
+  /** Minimum words in the commitment field before "Start studio →" enables. Default 5. */
+  minCommitmentWords: number;
+  /** When true, students must tap one of their this_class cards to enable Start. Default true. */
+  requireCardChoice: boolean;
+  /** When true, the design-philosophy hero scrim shows at the top. Default true. */
+  showDesignPhilosophy: boolean;
+  /** When true, the "Where you left off" panel surfaces last journal NEXT + last done card. Default true. */
+  showWhereLeftOff: boolean;
+}
