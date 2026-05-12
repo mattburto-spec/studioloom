@@ -46,12 +46,21 @@ const REDACTION_ALLOWLIST = new Set([
   // the response. Added 12 May 2026.
   "src/lib/grading/ai-followup.ts",
   "src/app/api/teacher/grading/draft-followup/route.ts",
+  // TFL.3 C.4 grading AI tweak regeneration — same placeholder-swap
+  // pattern. The route does an extra ROUND-TRIP swap: inbound draft
+  // has real name → swap to placeholder before helper call → restore
+  // real name on the response. Helper input shape forbids a name
+  // field. Added 12 May 2026.
+  "src/lib/grading/regenerate-draft.ts",
+  "src/app/api/teacher/grading/regenerate-draft/route.ts",
   // Tests that reference PII identifier tokens in NEGATIVE assertions
   // (verifying the corresponding helper / route does NOT carry those
   // tokens). Adding to the redaction allowlist so the grep doesn't
   // false-positive on test-only references.
   "src/lib/grading/__tests__/ai-followup.test.ts",
   "src/app/api/teacher/grading/draft-followup/__tests__/route.test.ts",
+  "src/lib/grading/__tests__/regenerate-draft.test.ts",
+  "src/app/api/teacher/grading/regenerate-draft/__tests__/route.test.ts",
   // Shared placeholder primitive — exports STUDENT_NAME_PLACEHOLDER + restoreStudentName.
   "src/lib/security/student-name-placeholder.ts",
   // The chokepoint itself + tests/types may legitimately reference PII
