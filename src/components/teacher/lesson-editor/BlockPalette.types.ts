@@ -65,3 +65,26 @@ export interface ChoiceCardsBlockConfig {
   /** v1: only "grid" is functional. "fan" / "stack" are visual presets for v2 (`FU-CCB-LAYOUT-FAN-STACK`). */
   layout: "grid" | "fan" | "stack";
 }
+
+/**
+ * Inspiration Board block (12 May 2026) — board behaviour config.
+ *
+ * Stored on `ActivitySection.inspirationBoardConfig`. The block fetches
+ * the student's archetype on mount (via getStudentArchetype) and reads
+ * archetype-aware content via getArchetypeAwareContent. Students upload
+ * 3–5 images, write commentary on each, then synthesise the pattern.
+ */
+export interface InspirationBoardConfig {
+  /** Minimum images before the synthesis prompt unlocks + Mark complete enables. Default 3. */
+  minItems: number;
+  /** Max images. Upload button disables at this cap. Default 5. */
+  maxItems: number;
+  /** When true, each image requires a commentary sentence to count toward minItems. Default true. */
+  requireCommentary: boolean;
+  /** When true, the synthesis card appears below the grid once minItems reached. Default true. */
+  showSynthesisPrompt: boolean;
+  /** When true, each card surfaces an optional "What would you steal?" follow-up. Default false. */
+  showStealPrompt: boolean;
+  /** When true, students can paste an image URL instead of uploading a file. Default true. */
+  allowUrlPaste: boolean;
+}

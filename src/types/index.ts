@@ -264,7 +264,7 @@ export interface EllScaffolding {
   ell3?: { extensionPrompts?: string[] };
 }
 
-export type ResponseType = "text" | "upload" | "voice" | "link" | "multi" | "canvas" | "decision-matrix" | "pmi" | "pairwise" | "trade-off-sliders" | "toolkit-tool" | "structured-prompts" | "project-spec" | "product-brief" | "user-profile" | "success-criteria" | "choice-cards";
+export type ResponseType = "text" | "upload" | "voice" | "link" | "multi" | "canvas" | "decision-matrix" | "pmi" | "pairwise" | "trade-off-sliders" | "toolkit-tool" | "structured-prompts" | "project-spec" | "product-brief" | "user-profile" | "success-criteria" | "choice-cards" | "inspiration-board";
 
 export interface ActivityMedia {
   type: "image" | "video";
@@ -461,6 +461,11 @@ export interface ActivitySection {
 
   /** For responseType === "choice-cards": deck composition + behaviour. See ChoiceCardsBlockConfig. */
   choiceCardsConfig?: import("@/components/teacher/lesson-editor/BlockPalette.types").ChoiceCardsBlockConfig;
+
+  // ── Inspiration Board block (12 May 2026) ──
+
+  /** For responseType === "inspiration-board": board behaviour. See InspirationBoardConfig. */
+  inspirationBoardConfig?: import("@/components/teacher/lesson-editor/BlockPalette.types").InspirationBoardConfig;
 
   // ── Archetype-aware blocks (12 May 2026 — A12 in design-guidelines.md) ──
 

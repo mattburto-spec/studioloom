@@ -64,6 +64,7 @@ const RESPONSE_TYPE_LABELS: Record<ResponseType, string> = {
   "user-profile": "User Profile",
   "success-criteria": "Success Criteria",
   "choice-cards": "Choice Cards",
+  "inspiration-board": "Inspiration Board",
 };
 
 // Glyph + tint per response type — matches the warm-paper design.
@@ -85,6 +86,7 @@ const RESPONSE_ICON: Record<ResponseType, string> = {
   "user-profile": "👤",
   "success-criteria": "🎯",
   "choice-cards": "🃏",
+  "inspiration-board": "🖼️",
 };
 const RESPONSE_TINT: Record<ResponseType, string> = {
   text: "#9333EA",
@@ -104,6 +106,7 @@ const RESPONSE_TINT: Record<ResponseType, string> = {
   "user-profile": "#0891B2",
   "success-criteria": "#059669",
   "choice-cards": "#10B981",
+  "inspiration-board": "#EC4899",
 };
 
 // ── Dimensions constants ──────────────────────────────────────────

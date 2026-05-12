@@ -393,6 +393,87 @@ export const BLOCK_LIBRARY: BlockDefinition[] = [
       },
     }),
   },
+  {
+    // Inspiration Board block (12 May 2026) — first archetype-aware
+    // block. Students upload 3–5 images, write commentary on each,
+    // then synthesise the pattern across them. Pinterest-style grid.
+    // Reads via getArchetypeAwareContent(block, studentArchetype) so
+    // the task copy adapts to whatever the student picked in their
+    // Choice Card / committed to in Product Brief.
+    id: "inspiration-board",
+    label: "Inspiration Board",
+    icon: "🖼️",
+    category: "response",
+    description: "Students upload 3–5 images with commentary, then synthesise the pattern across them. Pinterest-style grid. Archetype-aware framing.",
+    defaultPhase: "opening",
+    create: () => ({
+      activityId: nanoid(8),
+      prompt: "Inspiration board",
+      framing:
+        "Designers don't start by inventing. They start by looking. Build a board of things that share DNA with what you're making — and notice what they have in common.",
+      task:
+        "Upload 3–5 images. For each, write one sentence about what caught your eye. When you have 3+, write one sentence about what they all share.",
+      success_signal:
+        "You can name one specific pattern across your 5 images — something a stranger could spot from the board alone.",
+      responseType: "inspiration-board" as ResponseType,
+      durationMinutes: 15,
+      inspirationBoardConfig: {
+        minItems: 3,
+        maxItems: 5,
+        requireCommentary: true,
+        showSynthesisPrompt: true,
+        showStealPrompt: false,
+        allowUrlPaste: true,
+      },
+      archetype_overrides: {
+        // Six universal archetypes
+        "toy-design": {
+          task:
+            "Find 3–5 toys or games that share something important with what you're designing. For each: what's the mechanic or move it borrows? When you have 3+, name what they share.",
+        },
+        "architecture-interior": {
+          task:
+            "Photograph or find 3–5 real spaces that capture the feeling you want for yours. For each: what feeling does this space create, and how? Then name what they share.",
+        },
+        "film-video": {
+          task:
+            "Find 3–5 films, clips, or moments that share tone or technique with what you're making. For each: what's the technique? Then name what they share.",
+        },
+        "app-digital-tool": {
+          task:
+            "Find 3–5 apps or tools that solve a similar job (well OR badly). For each: what's working / what's not? Then name what they share.",
+        },
+        "fashion-wearable": {
+          task:
+            "Find 3–5 garments, accessories, or looks that share DNA with yours. For each: what's the signature move? Then name what they share.",
+        },
+        "event-service-performance": {
+          task:
+            "Find 3–5 events, services, or rituals that share format or feeling with yours. For each: what makes it work? Then name what they share.",
+        },
+        // G8 brief-specific overrides for the 3 StudioLoom-design briefs
+        // (card_ids correspond to seeded choice_cards rows).
+        "g8-brief-designer-mentor": {
+          framing:
+            "You're designing a mentor — so start by studying real ones. Find designers whose work or voice shares DNA with the mentor you want to build.",
+          task:
+            "Find 3–5 designers whose work, philosophy, or voice you'd want your mentor to channel. For each: what specifically would your mentor borrow? Then name what they share.",
+        },
+        "g8-brief-studio-theme": {
+          framing:
+            "Themes are felt, not described. Gather images that capture your theme's energy before you try to name it.",
+          task:
+            "Find 3–5 visual or cultural references that capture your theme's mood. For each: what specifically gives off the feeling? Then name what they share.",
+        },
+        "g8-brief-scaffold": {
+          framing:
+            "Before designing a new tool, study how existing tools (digital or analog) help someone get unstuck. Pinterest is full of them.",
+          task:
+            "Find 3–5 existing tools or prompts that help someone get unstuck. For each: what's the move it makes? Then name what they share.",
+        },
+      },
+    }),
+  },
   // ── Content ──
   {
     id: "teacher-notes",
