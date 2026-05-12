@@ -4,6 +4,56 @@
 
 ---
 
+## 2026-05-12 — Product Brief archetype expansion + Pitch-to-teacher workflow + Choice Cards re-pick (~10 PRs)
+
+**Context:** Day-of-class polish session driven by Matt's G8 / G9 lesson needs. Started with "scale back v1 for tomorrow's class", drifted into "v1 is actually a mashup of three concerns" (already shipped previous session as the v2 split), and resolved here with: more archetypes for Product Brief (so students who aren't building toys/buildings have a home), a pitch-to-teacher workflow for the Other/Pitch-your-own archetype (so students with off-piste ideas don't get blocked), the matching Choice Cards "Pitch your own" entry-point + "Change my mind" affordance, and a clean retirement of v1 to stop confusing students.
+
+**What shipped (~10 PRs in this branch's parent):**
+
+1. **Product Brief — 4 new archetypes** added to `PRODUCT_BRIEF_ARCHETYPES`: Film/Video, Fashion/Wearable, Event/Service/Performance, Other/Pitch-your-own. Parallel-shipped a 5th: App/Digital Tool. Total 7 archetypes covering most G8 Design Mentor unit choices.
+2. **Pitch-to-teacher workflow (Other archetype)** — added 5 pitch_* columns to `student_unit_product_briefs` via migration `20260512044835_product_brief_pitch_workflow.sql`:
+   - `pitch_text` TEXT (2000-char cap)
+   - `pitch_status` TEXT (`pending` | `approved` | `revise` | `rejected`, partial CHECK)
+   - `pitch_teacher_note` TEXT (teacher feedback when revise/reject)
+   - `pitch_decided_at` TIMESTAMPTZ
+   - `pitch_decided_by` UUID FK → teachers
+   - Partial index on (`pitch_status`) WHERE status IN (`pending`, `revise`)
+3. **`PitchGate` sub-component** inside `ProductBriefResponse.tsx` — gates the 8-slot walker behind pitch approval. Status pill (Pending / Revise / Approved / Rejected). Teacher note rendered inline when revise/reject. State machine: null → pending → approved | revise | rejected. POST auto-flips null/revise → pending; refuses edit if approved/rejected (409).
+4. **`POST/GET /api/teacher/product-brief-pitch`** — teacher decides (approve / revise / reject) with optional note. Uses `verifyTeacherCanManageStudent`. GET returns pending+revise queue across all teacher's classes. `// audit-skip:` rationale added (pedagogical action in pilot).
+5. **`/teacher/pitches` page** — review queue with 3-button decision UI per card. Linked from teacher nav.
+6. **Choice Cards `_pitch-your-own` entry-point card** — front-end already special-cased the sentinel; missing FK seed row was the bug. Hot-fix migration `20260512053424_seed_pitch_your_own_choice_card.sql` INSERTs the placeholder choice card row (with rollback safety guard).
+7. **Choice Cards "Change my mind" affordance** — `ChoiceCardsBlock.tsx` now renders "← Change my mind" beside the picked confirmation. Local `setSelection(null)` only — no downstream cascade.
+8. **v1 Project Spec retirement** — old unified block hidden from the editor + student render. v2 (3-block split) is the only spec surface now.
+9. **Reopen-to-revise links** on all 4 completion summary cards (Product Brief, User Profile, Success Criteria, retired v1) — students can re-enter after "Finish & see summary" instead of being locked out until teacher deletes the row.
+10. **Image-upload PII fix (PR #211)** — `formatAnswer` for image kind now emits `[Photo: <caption>]` instead of `[Photo] <URL>`. Root cause: 12-digit segments in unit UUIDs were matching the CN-landline PII regex when summaries posted to `student_progress.responses`. Marking page was 400-rejecting submissions. Lesson banked: don't moderate system-generated content as if it were user text.
+11. **Materials chip catalogue** expanded from 6 → 12 entries (balsa, pine, 3mm ply, resin, cardboard, foamcore, 3D-print PLA, fabric, metal sheet, polymer clay, papier-mâché, mixed media).
+12. **Misc UX polish** — "Race day" → "Project end" timeline label fix, term sync, Grade→Marking tab redirect, removed orphan "Continue to Timeline" CTA, top-nav infinite-loop hotfix via `useSpecBridge` ref pattern (banked as a hook in PR #184).
+
+**Migrations applied to prod (2 this session):**
+- `20260512044835_product_brief_pitch_workflow.sql` — 5 pitch_* columns + CHECK + partial index
+- `20260512053424_seed_pitch_your_own_choice_card.sql` — FK seed for sentinel (with rollback guard)
+
+**Tests:** ~5337 → ~5631 (+294 net across the day, including parallel TFL.3 Pass C work). tsc strict clean. PII allowlist updated for new prompt paths.
+
+**Architecture decisions banked:**
+1. **Loose coupling over cascade** — Choice Cards picks DON'T propagate into Product Brief / User Profile / Success Criteria. If a student changes their mind, their existing slot answers stay. Cost: occasional mismatch (student picked Toy, answered slots, then re-picked Building). Benefit: no event web, no rollback flows, no test matrix explosion. Matt's instinct ("I don't want to make things too dependent and start complicating the connections") validated. Filed `FU-PLATFORM-CHOICE-CARDS-DOWNSTREAM-CASCADE` (P3) — DO NOT build the cascade; ship soft warning only if Case 3 (re-pick after slot writes) bites in real classroom use.
+2. **Sentinels in code need rows in tables** — `_pitch-your-own` ID was special-cased in TS but had no FK target. Postgres doesn't care about your TypeScript. Always seed the row when shipping a code-level sentinel that gets persisted.
+3. **Don't moderate system-generated content as user text** — URLs, UUIDs, IDs, timestamps all look like PII to regex moderators. Strip them from the moderation payload, or moderate the user-controlled portion only.
+
+**Follow-ups filed/updated (in `platform-followups.md`):**
+- `FU-PLATFORM-CHOICE-CARDS-DOWNSTREAM-CASCADE` (P3) — downgraded to "ship soft warning only if Case 3 bites"
+- `FU-PLATFORM-BLOCK-USAGE-HISTORY` (P3) — Matt's meta request: per-teacher usage telemetry on which blocks get picked + how often
+- `FU-PLATFORM-FULL-ANONYMISER-MODE` (P3) — teacher-toggle to strip student identifying inputs at submit time
+- `FU-PRODUCT-BRIEF-AI-PITCH-SCAFFOLD` (P2) — AI-assisted pitch drafting helper (deferred from this build to keep v1 class-usable today)
+- `FU-PRODUCT-BRIEF-PITCH-REJECT-CLEANUP` (P3) — what happens to slot answers if pitch rejected after partial fill
+- `FU-PRODUCT-BRIEF-AI-PITCH-EVAL` (P3) — auto-flag obviously-off-piste pitches for teacher review
+
+**Systems touched:** project-spec-block (extended), choice-cards (extended with re-pick), teacher-pitches (new page + route), security (audit-skip annotation + PII regex lesson).
+
+**Test posture at end of day:** ~5631 tests green. 2 migrations applied to prod. v1 Project Spec retired. v2 (3-block split) is the production spec surface.
+
+---
+
 ## 2026-05-12 — TFL.3 Pass C complete (Teacher Marking Inbox end-to-end)
 
 **Context:** Closed the TFL.3 Pass C brief end-to-end across a single session. The Teacher Marking Inbox at `/teacher/inbox` is now the daily-driver approve-and-go surface for teachers; the legacy `/teacher/marking` cohort heatmap stays as the deep-dive (one click away via "Open in marking page →").

@@ -9696,10 +9696,19 @@ tables:
     slot_8: JSONB
     slot_9: JSONB
     completed_at: TIMESTAMPTZ
+    pitch_text: TEXT
+    pitch_status: TEXT (CHECK: null | 'pending' | 'approved' | 'revise' | 'rejected')
+    pitch_teacher_note: TEXT
+    pitch_decided_at: TIMESTAMPTZ
+    pitch_decided_by: UUID REFERENCES auth.users(id)
     created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
     updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
   unique_constraints:
     - "(student_id, unit_id)"
+  check_constraints:
+    - product_briefs_pitch_status_chk
+  indexes:
+    - idx_product_briefs_pitch_status_pending (partial, WHERE pitch_status IN ('pending', 'revise')) — drives /teacher/pitches review queue
   rls_enabled: true
   rls_policies:
     - name: student_unit_product_briefs_teacher_read
@@ -9711,11 +9720,14 @@ tables:
         access via service-role API (Lesson #4 — token sessions, not
         auth.uid()) so no student policy needed.
   writers:
-    - /api/student/product-brief (POST partial-patch upsert)
+    - /api/student/product-brief (POST partial-patch upsert; pitch_text auto-flips status null/revise → pending)
+    - /api/teacher/product-brief-pitch (POST teacher pitch decision approve | revise | reject)
   readers:
-    - /api/student/product-brief (GET)
+    - /api/student/product-brief (GET, with from_choice_card lazy resolve from Choice Cards pick)
+    - /api/teacher/product-brief-pitch (GET pending+revise pitches across teacher's classes)
   applied_via:
     - 20260511142232_student_unit_product_briefs.sql
+    - 20260512044835_product_brief_pitch_workflow.sql (added pitch_text + pitch_status + pitch_teacher_note + pitch_decided_at + pitch_decided_by columns + CHECK constraint + partial index for the /teacher/pitches review queue)
 - name: student_unit_user_profiles
   source_migration: 20260511142234_student_unit_user_profiles.sql
   status: applied
@@ -11369,6 +11381,7 @@ tables:
   applied_via:
     - 20260512012304_choice_cards_and_selections.sql
     - 20260512015124_seed_choice_cards_g8_briefs.sql
+    - 20260512053424_seed_pitch_your_own_choice_card.sql (seeds the `_pitch-your-own` sentinel row to satisfy the choice_card_selections.card_id FK — Matt hit a FK violation in class when a student picked Pitch your own; the read/write paths special-case the sentinel but the FK didn't know about that, so the row must exist)
   spec_drift: []
 - name: choice_card_selections
   source_migration: 20260512012304_choice_cards_and_selections.sql

@@ -1231,3 +1231,41 @@ Three rounds of guards in the gesture layer; the bug was three function calls up
 - **The systemic fix is FU-PROD-MIGRATION-BACKLOG-AUDIT (P1)** — now upgraded in severity. Plan filed at `docs/projects/prod-migration-backlog-audit-brief.md`. End-state: create a `public.applied_migrations` tracking table, backfill it from a probe-driven audit, then wire `scripts/migrations/new-migration.sh` to require a tracker row before a migration is considered done. Saveme should diff `supabase/migrations/*.sql` against this table on every run.
 
 **Sister lessons:** Lesson #65 (old triggers don't know about new user types) and Lesson #66 (re-apply search_path lockdown on every function rewrite) are both downstream of this one. Without a tracking log, the fixes from Lessons #65+#66 silently failed to land in prod, and the bug they were authored to prevent struck anyway 10 days later.
+
+### Lesson #84 — Code-level sentinels still need a row in the foreign-key target table
+**Date:** 12 May 2026
+**Phase:** Choice Cards `_pitch-your-own` hot-fix (PR #217)
+
+**What happened:** The Choice Cards picker had a special-cased sentinel ID `_pitch-your-own` — the front-end recognised it, rendered a "Pitch your own" entry point, and routed selection into the Product Brief Other archetype + pitch flow. TypeScript side: clean. UI side: clean. Prod side: when a student tapped it, the API returned a `foreign_key_violation` because `choice_card_selections.card_id` FKs to `choice_cards.id`, and no row with `id = '_pitch-your-own'` existed in `choice_cards`. The sentinel was a code-only concept; Postgres doesn't read your TypeScript.
+
+**Fix:** Hot-fix migration `20260512053424_seed_pitch_your_own_choice_card.sql` INSERTs the placeholder row (with title "Pitch your own", a default illustration URL, and metadata flagging it as the sentinel). Rollback migration includes a safety guard that refuses to drop the row if any `choice_card_selections` reference it — would orphan student picks.
+
+**Rule:** When you introduce a code-level sentinel ID (`_pitch-your-own`, `_anonymous`, `__system__`, etc.) that gets persisted into a FK column, ALWAYS author the seed migration in the same PR as the code change. The seed row is part of the contract — not a follow-up, not an "I'll backfill it later". Front-end special-casing without a backing row is a bug, not a clever shortcut.
+
+**Sister anti-patterns:** Sentinel string in NOT NULL UUID columns (FU-GG / FU-KK pattern — `"system"` written into UUID FKs). Same family: code knows about a magic value; the database schema doesn't. The fix is always: either seed the row, or change the column type to allow the sentinel form, or split the writer into a different audit table.
+
+### Lesson #85 — Don't run user-text moderation over system-generated content
+**Date:** 12 May 2026
+**Phase:** Image-upload PII fix (PR #211)
+
+**What happened:** The Product Brief / User Profile / Success Criteria blocks bridge their state into `student_progress.responses` via `useSpecBridge`. The summary string built by `formatAnswer` for an image-kind slot was originally `[Photo] <storage-proxy-URL>`. The URL contained the unit_id UUID (e.g. `/api/storage/user-profile-photos/1ef3a733-...-784717788328/...`). The last UUID segment (`784717788328`) is 12 consecutive digits, which matched the CN-landline PII regex in the moderation pipeline. Result: students got "This content can't be submitted" when the marking page tried to render the user-profile completion summary. They couldn't progress past the block.
+
+**Fix (PR #211):** Stripped the URL from the summary. `formatAnswer` now emits `[Photo: <caption>]` — caption is user-controlled, URL stays only in the dedicated typed-payload column, not in the text summary that goes through moderation.
+
+**Rule:** Don't moderate system-generated content (URLs, UUIDs, IDs, timestamps, IPs, generated codes) as if it were user text. They look like PII to regex moderators because they contain digit/letter runs of the right length. Either (a) strip system-generated tokens from the moderation payload before scoring, or (b) moderate only the user-controlled portion. The PII regex is a tool for catching what users type, not what your own backend generates.
+
+**Sister lesson:** This is the dual of Lesson #38 (verify = assert expected values, not just non-null) — there, false negatives slip through. Here, false positives block legitimate submissions. Both stem from the same root: assertions that don't know enough about what they're asserting against.
+
+### Lesson #86 — Loose coupling is the feature; resist the cascade instinct
+**Date:** 12 May 2026
+**Phase:** Choice Cards "Change my mind" (PR #218) — architectural decision
+
+**What happened:** Added a "← Change my mind" affordance to Choice Cards so students could revise their initial archetype pick. The obvious next question: should the pick re-flow downstream? If a student picks Toy, fills out Product Brief slots, then picks Building — should the Product Brief reset? Show a warning? Trigger a re-walk? Three plausible cases: (1) re-pick before any slot writes → no cost, (2) re-pick after slot writes but compatible archetype → no cost, (3) re-pick after slot writes into incompatible archetype → mismatch persists silently.
+
+Matt's instinct: "I don't want to make things too dependent and start complicating the connections between things. If they change their mind how much does it really impact things downstream?" The right answer was: ship local state reset only. No cascade. No event web. No rollback flows. No test matrix explosion across the cross-product of (archetype A) × (archetype B) × (slot completion state).
+
+**Decision:** Local-only state reset on re-pick. The three downstream blocks (Product Brief / User Profile / Success Criteria) stay loosely coupled to Choice Cards. Cost of mismatch: occasional stale slot answers that don't match the new archetype. Mitigation: filed `FU-PLATFORM-CHOICE-CARDS-DOWNSTREAM-CASCADE` (P3) with explicit "DO NOT build the cascade; ship soft warning only if Case 3 bites in real classroom use". Wait for the bug to show up in a real lesson before paying the coupling tax.
+
+**Rule:** When you add a UI affordance that COULD cascade through downstream systems, default to local-only state. Coupling is purchased; once paid, it's permanent. Two consumers can drift independently and the cost is "occasional UX mismatch". Two consumers wired together via event cascade cost: every test now lives in the product of N states across both, every refactor has to maintain the invariant, every new consumer has to learn the cascade rules. The cascade tax compounds; the mismatch tax is occasional and bounded. Wait for the second consumer to actually need synchronisation before building it.
+
+**Sister principle:** This is the same energy as Lesson #34 (FK cascades are forever — design for soft references first, hard FKs only when proven necessary). The instinct to wire things up is strong; the instinct to leave them loosely coupled is the experienced one. Matt's call on Choice Cards is the canonical example of "the discipline of NOT building".

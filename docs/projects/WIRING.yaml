@@ -412,11 +412,27 @@ systems:
       walker / picker / dispatcher / format helpers extracted into
       src/components/student/project-spec/shared/ + src/lib/project-spec/
       format.ts during the Phase B refactor. Product Brief is
-      archetype-driven (9 slots); User Profile (8 slots, includes
-      optional photo via user-profile-photos bucket) and Success
-      Criteria (5 slots) are universal. Marking visibility for all
-      four blocks via the useSpecBridge hook (ref-captured onChange
-      pushing a summary into student_progress.responses).
+      archetype-driven (7 archetypes as of 12 May — Toy / Architecture /
+      App-Digital-Tool / Film-Video / Fashion-Wearable / Event-Service /
+      Other-Pitch-your-own); User Profile (8 slots, includes optional
+      photo via user-profile-photos bucket) and Success Criteria
+      (5 slots) are universal. Marking visibility for all four blocks
+      via the useSpecBridge hook (ref-captured onChange pushing a
+      summary into student_progress.responses).
+
+      Pitch-to-teacher workflow (FU-PLATFORM-CUSTOM-PROJECT-PITCH
+      MVP, 12 May 2026): when a student picks Other / Pitch your own
+      they write a free-form pitch first; teacher reviews on
+      /teacher/pitches and approves / requests revision / redirects;
+      slot walker gated on approval. Auto-archetype-scaffolding from
+      approved pitches deferred to Phase 2. v1 Project Spec block
+      hidden from BlockPalette 12 May (FU-PSV2-V1-DEPRECATION step 2);
+      v1 routes + table still active for already-placed activities.
+      Reopen-to-revise affordance on all 4 completion cards (clears
+      completed_at, slot data preserved). Choice Cards re-pick
+      affordance ("Change my mind") shipped 12 May — local lock
+      reset; no downstream cascade per architectural decision
+      (FU-PLATFORM-CHOICE-CARDS-DOWNSTREAM-CASCADE).
     depends_on: [lesson-editor]
     affects: [student-experience]
     docs:
@@ -435,8 +451,14 @@ systems:
           archetype_id stable kebab-case string. Frozen post-v2;
           retired via FU-PSV2-V1-DEPRECATION (P3).
       - table: student_unit_product_briefs
-        columns: [student_id, unit_id, class_id, archetype_id, slot_1, slot_2, slot_3, slot_4, slot_5, slot_6, slot_7, slot_8, slot_9, completed_at]
-        notes: v2 Product Brief, 9 slots, archetype-driven.
+        columns: [student_id, unit_id, class_id, archetype_id, slot_1..slot_9, completed_at, pitch_text, pitch_status, pitch_teacher_note, pitch_decided_at, pitch_decided_by]
+        notes: |
+          v2 Product Brief, 9 slots, 7 archetypes. Pitch columns
+          (migration 20260512044835) gate the slot walker when
+          archetype_id='other' — student writes pitch_text → status
+          flips to 'pending' → teacher decision route flips to
+          'approved' | 'revise' | 'rejected'. CHECK constraint +
+          partial index drive the /teacher/pitches review queue.
       - table: student_unit_user_profiles
         columns: [student_id, unit_id, class_id, slot_1, slot_2, slot_3, slot_4, slot_5, slot_6, slot_7, slot_8, completed_at]
         notes: |
@@ -464,16 +486,21 @@ systems:
       - src/components/teacher/lesson-editor/ActivityBlock.tsx (4× RESPONSE_TYPE_LABELS / ICON / TINT entries)
       - src/components/teacher/lesson-editor/BlockPalette.tsx (4 palette entries)
       - src/app/api/student/project-spec/route.ts (v1 GET + POST)
-      - src/app/api/student/product-brief/route.ts (v2 GET + POST)
+      - src/app/api/student/product-brief/route.ts (v2 GET + POST; pitch_text auto-flips status)
       - src/app/api/student/user-profile/route.ts (v2 GET + POST)
       - src/app/api/student/user-profile/upload-photo/route.ts (v2 image upload to user-profile-photos bucket)
       - src/app/api/student/success-criteria/route.ts (v2 GET + POST)
+      - src/app/api/teacher/product-brief-pitch/route.ts (pitch decision approve|revise|reject + GET pending queue)
+      - src/app/teacher/pitches/page.tsx (teacher review queue UI)
+      - src/components/student/product-brief/ProductBriefResponse.tsx (PitchGate sub-component renders when archetype="other" + pitch not approved)
       - src/types/index.ts (ResponseType union — added project-spec + product-brief + user-profile + success-criteria)
       - supabase/migrations/20260511083114_student_unit_project_specs.sql (v1)
       - supabase/migrations/20260511142232_student_unit_product_briefs.sql (v2 Phase A)
       - supabase/migrations/20260511142234_student_unit_user_profiles.sql (v2 Phase A)
       - supabase/migrations/20260511142235_student_unit_success_criteria.sql (v2 Phase A)
       - supabase/migrations/20260511221713_user_profile_photos_bucket.sql (v2 Phase D)
+      - supabase/migrations/20260512044835_product_brief_pitch_workflow.sql (12 May — 5 pitch columns + CHECK + partial index)
+      - supabase/migrations/20260512053424_seed_pitch_your_own_choice_card.sql (12 May — FK seed hot-fix)
     future_needs: |
       v1 retirement (FU-PSV2-V1-DEPRECATION). AI mentor pass per block
       (supersedes v1 FU-PSB-MENTOR-SHARPEN). Aggregated "My Project Plan"

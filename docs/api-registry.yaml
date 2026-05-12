@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 468
+# Total routes: 472
 
 routes:
 - path: /api/admin/ai-budget
@@ -3136,6 +3136,19 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/teacher/grading/regenerate-draft
+  method: POST
+  file: src/app/api/teacher/grading/regenerate-draft/route.ts
+  auth: teacher
+  tables_read:
+  - class_units
+  - student_progress
+  - student_tile_grades
+  - students
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/teacher/grading/release
   method: POST
   file: src/app/api/teacher/grading/release/route.ts
@@ -3809,6 +3822,36 @@ routes:
   tables_read:
   - lesson_feedback
   tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/product-brief-pitch
+  method: GET
+  file: src/app/api/teacher/product-brief-pitch/route.ts
+  auth: teacher
+  tables_read:
+  - class_students
+  - classes
+  - student_unit_product_briefs
+  - students
+  - units
+  tables_written:
+  - student_unit_product_briefs
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/product-brief-pitch
+  method: POST
+  file: src/app/api/teacher/product-brief-pitch/route.ts
+  auth: teacher
+  tables_read:
+  - class_students
+  - classes
+  - student_unit_product_briefs
+  - students
+  - units
+  tables_written:
+  - student_unit_product_briefs
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
