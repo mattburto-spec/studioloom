@@ -54,6 +54,14 @@ Canonical principle: [A12 in design-guidelines.md](../design-guidelines.md) — 
 - **Severity:** P2 — behavioural smoke covered for v1, but explicit unit coverage is overdue.
 - **Scope:** vitest + @testing-library/react. Mock fetch for the archetype endpoint + the upload endpoint.
 
+### FU-IB-DRAG-REORDER
+
+- **Surfaced:** 12 May 2026 (smoke caught upload failure on prod — Framer Motion `Reorder.Group` was incompatible with CSS multi-column flow, breaking the entire grid render).
+- **Target:** Restore drag-to-reorder for board cards. Need a Framer-Motion-friendly layout — likely a CSS grid (non-column) with row/column positioning, OR a custom drag implementation that doesn't rely on `Reorder.Group`'s transform-tracking.
+- **Severity:** P3 — nice-to-have. Students can delete + re-upload to change order in v1.
+- **Origin:** Phase 3b → patched out 12 May 2026 after the upload-doesn't-render bug Matt reported.
+- **Scope:** Either (a) drop CSS columns + use a fixed-grid layout that Reorder.Group can position, OR (b) use a different DnD library (react-dnd / dnd-kit) that's column-aware.
+
 ### FU-IB-DEDICATED-TABLE
 
 - **Surfaced:** 12 May 2026.

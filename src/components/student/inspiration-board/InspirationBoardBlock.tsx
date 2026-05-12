@@ -3,8 +3,9 @@
 // Inspiration Board — first archetype-aware block.
 //
 // Students upload 3–5 images, write commentary on each, then synthesise
-// the pattern across them. Pinterest-style masonry grid. Drag to
-// reorder via Framer Motion `Reorder`.
+// the pattern across them. Pinterest-style CSS-columns masonry grid.
+// Drag-to-reorder deferred to FU-IB-DRAG-REORDER (P3) — Framer's
+// Reorder.Group is incompatible with CSS multi-column flow.
 //
 // Archetype-awareness: on mount, fetches /api/student/archetype/[unitId]
 // → passes (cardSlug, archetypeId) chain to getArchetypeAwareContent so
@@ -20,13 +21,18 @@
 // image moderation gate + responses bucket + proxy URL).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Reorder, motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import type { ActivitySection } from "@/types";
 import type { InspirationBoardConfig } from "@/components/teacher/lesson-editor/BlockPalette.types";
 import {
   getArchetypeAwareContent,
   getArchetypeAwareContentByChain,
 } from "@/lib/blocks/archetype-aware";
+import { compressImage } from "@/lib/compress-image";
+import {
+  checkClientImage,
+  IMAGE_MODERATION_MESSAGES,
+} from "@/lib/content-safety/client-image-filter";
 
 interface BoardItem {
   id: string;
@@ -180,8 +186,23 @@ export default function InspirationBoardBlock({
     const newItems: BoardItem[] = [];
     try {
       for (const file of arr) {
+        // Client-side image safety check (matches UploadInput.tsx canonical
+        // pattern). Returns ok:true on model-load failure so server-side
+        // Haiku still gates.
+        if (file.type.startsWith("image/")) {
+          const imageCheck = await checkClientImage(file);
+          if (!imageCheck.ok) {
+            throw new Error(IMAGE_MODERATION_MESSAGES.en);
+          }
+        }
+
+        // Compress before upload — iPhone photos are 8–15MB raw, which
+        // hits the 10MB server cap. compressImage targets ~400KB while
+        // preserving readable detail.
+        const processedFile = await compressImage(file);
+
         const fd = new FormData();
-        fd.append("file", file);
+        fd.append("file", processedFile);
         fd.append("unitId", unitId);
         fd.append("pageId", activityId);
         const res = await fetch("/api/student/upload", {
@@ -243,10 +264,6 @@ export default function InspirationBoardBlock({
       items: state.items.filter((it) => it.id !== id),
       completed: false,
     });
-  }
-
-  function reorderItems(items: BoardItem[]) {
-    persist({ ...state, items });
   }
 
   function setSynthesis(synthesis: string) {
@@ -339,19 +356,12 @@ export default function InspirationBoardBlock({
         </div>
       )}
 
-      {/* Masonry grid via CSS columns. Reorder.Group provides drag. */}
+      {/* Masonry grid via CSS columns. Drag-to-reorder deferred for v1
+          (Framer Reorder.Group + CSS columns are mutually incompatible —
+          Reorder uses transform tracking that breaks multi-column flow).
+          File FU-IB-DRAG-REORDER (P3). */}
       {state.items.length > 0 && (
-        <Reorder.Group
-          axis="y"
-          values={state.items}
-          onReorder={reorderItems}
-          as="div"
-          style={{
-            columnCount: 3,
-            columnGap: "1rem",
-          }}
-          className="md:!column-count-3 [&>*]:break-inside-avoid [&>*]:mb-4 [@media(max-width:768px)]:!column-count-2 [@media(max-width:480px)]:!column-count-1"
-        >
+        <div className="inspiration-board-columns">
           {state.items.map((item) => (
             <BoardCard
               key={item.id}
@@ -362,8 +372,30 @@ export default function InspirationBoardBlock({
               onRemove={() => removeItem(item.id)}
             />
           ))}
-        </Reorder.Group>
+        </div>
       )}
+      <style jsx>{`
+        .inspiration-board-columns {
+          column-count: 3;
+          column-gap: 1rem;
+        }
+        @media (max-width: 768px) {
+          .inspiration-board-columns {
+            column-count: 2;
+          }
+        }
+        @media (max-width: 480px) {
+          .inspiration-board-columns {
+            column-count: 1;
+          }
+        }
+        .inspiration-board-columns > :global(*) {
+          break-inside: avoid;
+          margin-bottom: 1rem;
+          display: inline-block;
+          width: 100%;
+        }
+      `}</style>
 
       {/* Synthesis card — locked under minItems */}
       {config.showSynthesisPrompt && (
@@ -445,9 +477,7 @@ function BoardCard({
 }: CardProps) {
   const [showSteal, setShowSteal] = useState(item.stealNote.length > 0);
   return (
-    <Reorder.Item
-      value={item}
-      as="div"
+    <motion.div
       whileHover={
         prefersReducedMotion
           ? undefined
@@ -464,14 +494,6 @@ function BoardCard({
           className="w-full rounded-t-xl object-cover"
           loading="lazy"
         />
-        {/* Drag handle (top-left) — Reorder.Item already makes the
-            entire element draggable; the handle just signals it. */}
-        <div
-          className="absolute left-2 top-2 cursor-grab rounded-md bg-white/90 px-1.5 py-0.5 text-zinc-600 opacity-0 shadow transition group-hover:opacity-100"
-          aria-hidden
-        >
-          ⠿
-        </div>
         {/* Delete (top-right) */}
         <button
           type="button"
@@ -522,7 +544,7 @@ function BoardCard({
           </div>
         )}
       </div>
-    </Reorder.Item>
+    </motion.div>
   );
 }
 
