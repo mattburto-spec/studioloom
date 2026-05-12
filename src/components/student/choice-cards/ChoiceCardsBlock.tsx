@@ -221,7 +221,7 @@ export default function ChoiceCardsBlock({ activityId, config, unitId, onChange 
       <AnimatePresence>
         {isLocked && showContinue && (
           <motion.div
-            className="mt-6 flex justify-center"
+            className="mt-6 flex items-center justify-center gap-3"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
@@ -229,6 +229,21 @@ export default function ChoiceCardsBlock({ activityId, config, unitId, onChange 
             <div className="rounded-full bg-emerald-100 px-4 py-1.5 text-sm font-semibold text-emerald-800">
               ✓ Picked: {selection?.label}
             </div>
+            {/* "Change my mind" — unlocks the deck so the student can
+                pick a different card. Local-only state reset; the new
+                pick's upsert replaces the old on (student_id, activity_id).
+                If the student doesn't actually pick again, the previous
+                selection stays committed in the DB. Downstream effects
+                that already pre-filled from the previous pick (e.g.
+                Product Brief archetype_id) are NOT auto-rolled back —
+                tracked in FU-PLATFORM-CHOICE-CARDS-DOWNSTREAM-CASCADE. */}
+            <button
+              type="button"
+              onClick={() => setSelection(null)}
+              className="text-xs text-gray-500 hover:text-gray-800 hover:underline"
+            >
+              ← Change my mind
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
