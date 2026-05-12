@@ -281,8 +281,21 @@ export default function TeacherInboxPage() {
   const handleApprove = React.useCallback(async () => {
     if (!selectedItem) return;
     const item = selectedItem;
-    const draftText =
-      draftEdits[item.itemKey] ?? item.aiCommentDraft ?? "";
+    // For reply_waiting items the source-of-truth draft is the AI
+    // follow-up (lazy-loaded into followupDrafts), NOT the original
+    // aiCommentDraft column. Mirror DetailPane's baseDraft logic
+    // exactly so handleApprove sees what the teacher saw on screen.
+    // (12 May 2026 — Matt smoke caught the button silently no-op'ing
+    // because aiCommentDraft was empty for already-confirmed grades.)
+    const NO_FOLLOWUP_SENTINEL = "(no follow-up needed)";
+    const followupForItem = followupDrafts[item.itemKey];
+    const baseDraft =
+      item.state === "reply_waiting"
+        ? followupForItem === NO_FOLLOWUP_SENTINEL
+          ? ""
+          : followupForItem ?? ""
+        : item.aiCommentDraft ?? "";
+    const draftText = draftEdits[item.itemKey] ?? baseDraft;
     if (!draftText.trim()) return;
 
     setApproving(true);
@@ -327,7 +340,7 @@ export default function TeacherInboxPage() {
     } finally {
       setApproving(false);
     }
-  }, [selectedItem, draftEdits]);
+  }, [selectedItem, draftEdits, followupDrafts]);
 
   const handleSkip = React.useCallback(() => {
     if (!selectedItem) return;

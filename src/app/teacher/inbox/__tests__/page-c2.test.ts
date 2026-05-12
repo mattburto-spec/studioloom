@@ -96,9 +96,15 @@ describe("/teacher/inbox C.2 — detail (right pane)", () => {
   });
 
   it("textarea falls back to item.aiCommentDraft when no edit exists", () => {
+    // C.3.1 split the fallback across a state-conditional `baseDraft`
+    // so reply_waiting uses the AI follow-up and drafted/no_draft use
+    // the prescore. Both branches still feed through
+    // `draftEdits[itemKey] ?? baseDraft`. Pin both the assignment +
+    // the aiCommentDraft branch.
     expect(src).toMatch(
-      /draftEdits\[item\.itemKey\]\s*\?\?\s*item\.aiCommentDraft/,
+      /const draftValue\s*=\s*draftEdits\[item\.itemKey\]\s*\?\?\s*baseDraft/,
     );
+    expect(src).toMatch(/:\s*item\.aiCommentDraft\s*\?\?\s*""/);
   });
 });
 

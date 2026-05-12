@@ -80,6 +80,30 @@ describe("/teacher/inbox C.3.1 — relative timestamps", () => {
   });
 });
 
+describe("/teacher/inbox C.3.1 — handleApprove uses followup draft for reply_waiting", () => {
+  it("handleApprove builds baseDraft from followupDrafts for reply_waiting (NOT aiCommentDraft)", () => {
+    // The original C.2 handleApprove pulled `item.aiCommentDraft`
+    // unconditionally — silently no-op'd on reply_waiting items where
+    // the prescore draft column was empty (already-confirmed grade).
+    // Mirror the DetailPane baseDraft logic exactly so the button
+    // sends what the teacher saw.
+    expect(src).toMatch(
+      /const followupForItem\s*=\s*followupDrafts\[item\.itemKey\]/,
+    );
+    expect(src).toMatch(
+      /item\.state\s*===\s*"reply_waiting"[\s\S]*?followupForItem\s*===\s*NO_FOLLOWUP_SENTINEL[\s\S]*?:\s*followupForItem\s*\?\?\s*""/,
+    );
+  });
+
+  it("handleApprove dependency array includes followupDrafts", () => {
+    // Without this, the useCallback closes over stale followup state
+    // and the first click after a draft loads sends an empty body.
+    expect(src).toMatch(
+      /\}, \[selectedItem, draftEdits, followupDrafts\]\)/,
+    );
+  });
+});
+
 describe("/teacher/inbox C.3.1 — oldest-first sort", () => {
   // The sort flip lives in inbox-loader.ts; this just pins the
   // page-side display still treats reply_waiting as the first section.
