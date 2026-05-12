@@ -23,6 +23,7 @@ import {
   validateKanbanState,
 } from "@/lib/unit-tools/kanban/server-validators";
 import type { KanbanCard, KanbanState } from "@/lib/unit-tools/kanban/types";
+import { swapKanbanForFirstMove } from "@/lib/first-move/payload-builder";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -90,25 +91,12 @@ export async function POST(
 
     if (kanbanRow) {
       const cards = (kanbanRow.cards as KanbanCard[]) ?? [];
-      const chosen = cards.find((c) => c.id === chosenCardId);
-      if (chosen && chosen.status !== "doing") {
-        const now = new Date().toISOString();
-        const demoted: { id: string; title: string }[] = [];
-        const newCards: KanbanCard[] = cards.map((c) => {
-          if (c.id === chosen.id) {
-            return { ...c, status: "doing" as const, movedAt: now };
-          }
-          if (c.status === "doing") {
-            demoted.push({ id: c.id, title: c.title });
-            return { ...c, status: "this_class" as const, movedAt: now };
-          }
-          return c;
-        });
-
+      const swap = swapKanbanForFirstMove(cards, chosenCardId);
+      if (swap) {
         const newState: KanbanState = {
-          cards: newCards,
+          cards: swap.newCards,
           wipLimitDoing: (kanbanRow.wip_limit_doing as number) ?? 1,
-          lastMoveAt: now,
+          lastMoveAt: swap.timestamp,
         };
 
         // Defence in depth — validate before write so a malformed
@@ -140,8 +128,8 @@ export async function POST(
           );
 
         kanbanMove = {
-          movedToDoing: { id: chosen.id, title: chosen.title },
-          demotedFromDoing: demoted,
+          movedToDoing: swap.movedToDoing,
+          demotedFromDoing: swap.demotedFromDoing,
         };
       }
     }
