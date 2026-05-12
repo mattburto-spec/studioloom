@@ -16,6 +16,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { nanoid } from "nanoid";
+import { ChoiceCardImageUploadButton } from "./ChoiceCardImageUploadButton";
 
 interface ChoiceCardSummary {
   id: string;
@@ -35,6 +36,7 @@ interface NewCardForm {
   detail_md: string;
   emoji: string;
   bg_color: string;
+  imageUrl: string | null;
   tags: string;
   actionType: ActionType;
   actionPayload: string; // JSON or simple payload for set-archetype / set-theme / etc.
@@ -331,6 +333,7 @@ function CreateCardForm({ onCreated }: { onCreated: (card: ChoiceCardSummary) =>
     detail_md: "",
     emoji: "🃏",
     bg_color: "#10B981",
+    imageUrl: null,
     tags: "",
     actionType: "pitch-to-teacher",
     actionPayload: "",
@@ -376,6 +379,7 @@ function CreateCardForm({ onCreated }: { onCreated: (card: ChoiceCardSummary) =>
           label: form.label.trim(),
           hook_text: form.hook_text.trim(),
           detail_md: form.detail_md.trim(),
+          image_url: form.imageUrl,
           emoji: form.emoji.trim() || null,
           bg_color: form.bg_color.trim() || null,
           tags,
@@ -430,7 +434,7 @@ function CreateCardForm({ onCreated }: { onCreated: (card: ChoiceCardSummary) =>
           rows={3}
           className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm md:col-span-2"
         />
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <label className="text-xs text-zinc-600">Emoji</label>
           <input
             type="text"
@@ -446,6 +450,21 @@ function CreateCardForm({ onCreated }: { onCreated: (card: ChoiceCardSummary) =>
             onChange={(e) => setForm({ ...form, bg_color: e.target.value })}
             className="h-8 w-12 cursor-pointer rounded border border-zinc-300"
           />
+          <div className="flex items-center gap-1.5">
+            <ChoiceCardImageUploadButton
+              onUploaded={(url) => setForm((f) => ({ ...f, imageUrl: url }))}
+              label={form.imageUrl ? "📷 Replace" : "📷 Add image"}
+            />
+            {form.imageUrl && (
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, imageUrl: null }))}
+                className="text-[11px] font-semibold text-rose-700 hover:underline"
+              >
+                Remove image
+              </button>
+            )}
+          </div>
         </div>
         <input
           type="text"
