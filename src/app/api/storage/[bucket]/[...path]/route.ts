@@ -43,7 +43,14 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { authorizeBucketAccess } from "./authorize";
 
-const ALLOWED_BUCKETS = new Set(["responses", "unit-images", "knowledge-media"]);
+const ALLOWED_BUCKETS = new Set([
+  "responses",
+  "unit-images",
+  "knowledge-media",
+  // v2 Project Spec — User Profile slot 7 photos. Same per-student
+  // PII auth as `responses` (dispatched in ./authorize.ts).
+  "user-profile-photos",
+]);
 const SIGNED_URL_TTL_SECONDS = 300; // 5 min — caller refreshes via repeat hit
 const PROXY_CACHE_SECONDS = 240; // 4 min — refresh before TTL expires
 

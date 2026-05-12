@@ -82,14 +82,12 @@ describe("/teacher/inbox C.2 — queue (master pane)", () => {
 
 describe("/teacher/inbox C.2 — detail (right pane)", () => {
   it("DetailPane renders both Student response + AI draft section labels", () => {
-    // Visual order (response above AI draft) is enforced by the
-    // actual JSX in DetailPane; smoke is the better guard there.
-    // Substring matches on "AI draft" inside "AI drafted" make file-
-    // ordering asserts brittle, so we just verify both labels exist.
     expect(src).toMatch(/>\s*Student response\s*</);
-    // The AI draft section header — distinguishable from "AI drafted"
-    // by the trailing space-then-end (no `e`) inside a JSX text node.
-    expect(src).toMatch(/\bAI draft\b\s*\n/);
+    // The AI draft header label varies by state:
+    //   - "AI draft" for drafted / no_draft
+    //   - "AI follow-up draft" for reply_waiting (C.3)
+    // Match either form.
+    expect(src).toMatch(/AI (?:follow-up )?draft\b/);
   });
 
   it("AI draft textarea is editable inline (draftEdits state keyed by itemKey)", () => {
@@ -98,9 +96,15 @@ describe("/teacher/inbox C.2 — detail (right pane)", () => {
   });
 
   it("textarea falls back to item.aiCommentDraft when no edit exists", () => {
+    // C.3.1 split the fallback across a state-conditional `baseDraft`
+    // so reply_waiting uses the AI follow-up and drafted/no_draft use
+    // the prescore. Both branches still feed through
+    // `draftEdits[itemKey] ?? baseDraft`. Pin both the assignment +
+    // the aiCommentDraft branch.
     expect(src).toMatch(
-      /draftEdits\[item\.itemKey\]\s*\?\?\s*item\.aiCommentDraft/,
+      /const draftValue\s*=\s*draftEdits\[item\.itemKey\]\s*\?\?\s*baseDraft/,
     );
+    expect(src).toMatch(/:\s*item\.aiCommentDraft\s*\?\?\s*""/);
   });
 });
 
@@ -150,7 +154,10 @@ describe("/teacher/inbox C.2 — approve flow", () => {
   });
 
   it("approve is disabled when draft text is empty (defensive)", () => {
-    expect(src).toMatch(/canApprove\s*=\s*!!draftValue\.trim\(\)/);
+    // C.3 expanded canApprove to an IIFE handling reply_waiting vs
+    // drafted/no_draft branches. The empty-text guard still applies
+    // — pin the trim check at the top of the IIFE.
+    expect(src).toMatch(/if\s*\(!draftValue\.trim\(\)\)\s*return\s+false/);
   });
 });
 

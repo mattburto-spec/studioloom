@@ -1,11 +1,11 @@
 {
   "registry": "audit-coverage",
-  "timestamp": "2026-05-12T02:05:04.434269+00:00",
+  "timestamp": "2026-05-12T01:02:48.756361+00:00",
   "version": 1,
   "stats": {
-    "total_mutation_routes": 249,
+    "total_mutation_routes": 246,
     "covered": 7,
-    "skipped": 242,
+    "skipped": 239,
     "missing": 0
   },
   "covered": [
@@ -328,13 +328,6 @@
         "POST"
       ],
       "reason": "routine learner activity, low audit value"
-    },
-    {
-      "file": "src/app/api/student/choice-cards/[activityId]/pick/route.ts",
-      "methods": [
-        "POST"
-      ],
-      "reason": "pick is self-auditing \u2014 choice_card_selections row IS the"
     },
     {
       "file": "src/app/api/student/design-assistant/route.ts",
@@ -750,20 +743,6 @@
       "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
-      "file": "src/app/api/teacher/choice-cards/[cardId]/route.ts",
-      "methods": [
-        "PATCH"
-      ],
-      "reason": "library content edits \u2014 `updated_at` + creator-or-admin"
-    },
-    {
-      "file": "src/app/api/teacher/choice-cards/route.ts",
-      "methods": [
-        "POST"
-      ],
-      "reason": "library content authoring \u2014 `choice_cards` rows carry"
-    },
-    {
       "file": "src/app/api/teacher/class-students/route.ts",
       "methods": [
         "DELETE"
@@ -954,6 +933,13 @@
         "POST"
       ],
       "reason": "routine teacher pedagogy ops, low audit value"
+    },
+    {
+      "file": "src/app/api/teacher/grading/draft-followup/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "AI draft generation only \u2014 no DB mutations. The draft is returned to the inbox UI for the teacher to review; the eventual approve/discard happens via PUT /api/teacher/grading/tile-grades (which carries its own audit)."
     },
     {
       "file": "src/app/api/teacher/grading/release/route.ts",
@@ -1472,13 +1458,6 @@
         "POST"
       ],
       "reason": "routine teacher pedagogy ops, low audit value"
-    },
-    {
-      "file": "src/app/api/teacher/upload-choice-card-image/route.ts",
-      "methods": [
-        "POST"
-      ],
-      "reason": "low-blast-radius teacher image upload for library cards."
     },
     {
       "file": "src/app/api/teacher/upload-image/route.ts",
