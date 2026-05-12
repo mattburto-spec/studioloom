@@ -123,6 +123,44 @@ export default function TeacherInboxPage() {
     void refetch();
   }, [refetch]);
 
+  // ─── Auto-refresh every 60s so new student replies / fresh
+  // submissions surface without the teacher hitting browser refresh.
+  // Pauses when the tab is hidden to avoid burning DB queries for
+  // nothing; resumes (with an immediate refetch) on focus. Matt
+  // feedback 12 May 2026 ("inbox needs to auto update every minute
+  // or so"). ───
+  const INBOX_POLL_MS = 60_000;
+  React.useEffect(() => {
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      if (intervalId) return;
+      intervalId = setInterval(() => {
+        if (typeof document !== "undefined" && document.hidden) return;
+        void refetch();
+      }, INBOX_POLL_MS);
+    };
+    const stop = () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        stop();
+      } else {
+        void refetch();
+        start();
+      }
+    };
+    start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [refetch]);
+
   // ─── Auto-draft warm-up for no_draft items (unchanged from C.1) ───
   React.useEffect(() => {
     if (!items || items.length === 0) return;
