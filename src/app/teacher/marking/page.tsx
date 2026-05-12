@@ -525,7 +525,12 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
   );
 
   const loadAll = useCallback(async () => {
-    setLoading(true);
+    // No setLoading(true) here. The `loading` state starts true (from
+    // useState init) so the FIRST call shows "Loading marking view…"
+    // naturally; subsequent calls (after AI suggest / approve / etc.)
+    // keep the current surface visible — those flows have their own
+    // progress indicators. Matt smoke 12 May 2026 caught the full-page
+    // flash making it feel like the whole page was navigating away.
     setLoadError(null);
     try {
       const supabase = createClient();
@@ -594,7 +599,17 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
         setLoading(false);
         return;
       }
-      setActivePageId(firstWithSections.id);
+      // Preserve the teacher's current page selection if it still
+      // exists after reload (e.g. after AI suggest's `await loadAll()`
+      // refetch). Only reset to the first page on initial mount or
+      // when the previously-active page is gone. Matt smoke 12 May
+      // 2026 — clicking "AI suggest" on Lesson 4 Task 1 was kicking
+      // back to Lesson 1 Task 1 because this set fired on every
+      // loadAll call.
+      setActivePageId((prev) => {
+        if (prev && pages.some((p) => p.id === prev)) return prev;
+        return firstWithSections.id;
+      });
 
       // Students enrolled in the class (junction-first, Lesson #22).
       const { data: enrolment } = await supabase
