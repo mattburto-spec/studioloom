@@ -7,6 +7,7 @@ import { getPageList, normalizeContentData, isV3, isV4 } from "@/lib/unit-adapte
 import { computeLessonBoundaries } from "@/lib/timeline";
 import PhaseTimer from "@/components/teach/PhaseTimer";
 import TeachingToolbar from "@/components/teach/TeachingToolbar";
+import { CheckInRow } from "@/components/teach/CheckInRow";
 import { ObservationSnap } from "@/components/nm";
 import { AGENCY_ELEMENT_MAP } from "@/lib/nm/constants";
 import type { NMUnitConfig } from "@/lib/nm/constants";
@@ -33,6 +34,7 @@ interface StudentLiveStatus {
   responseCount: number;
   completionPct: number;
   needsHelp: boolean;
+  paceZ: number | null;
 }
 
 interface LiveSummary {
@@ -43,6 +45,12 @@ interface LiveSummary {
   avgTimeSpent: number;
   needsHelpCount: number;
   onlineCount: number;
+  cohortStats: {
+    inProgressCount: number;
+    medianResponses: number;
+    meanResponses: number;
+    stddevResponses: number;
+  } | null;
 }
 
 type PhaseId = "opening" | "miniLesson" | "workTime" | "debrief";
@@ -107,6 +115,7 @@ export default function TeachingDashboard({
   const [showNotes, setShowNotes] = useState(true);
   const [showExtensions, setShowExtensions] = useState(false);
   const [studentSort, setStudentSort] = useState<"name" | "status" | "help">("help");
+  const [snoozed, setSnoozed] = useState<Set<string>>(new Set());
 
   // NM Observation state
   const [nmObsStudent, setNmObsStudent] = useState<{ id: string; name: string } | null>(null);
@@ -219,6 +228,11 @@ export default function TeachingDashboard({
     }
   }, [selectedClassId, unitId, selectedPageId]);
 
+  // Clear snoozes when lesson changes — snooze is per-lesson, not global
+  useEffect(() => {
+    setSnoozed(new Set());
+  }, [selectedPageId]);
+
   useEffect(() => {
     fetchLiveStatus();
     pollRef.current = setInterval(() => {
@@ -323,8 +337,6 @@ export default function TeachingDashboard({
     }
     return a.name.localeCompare(b.name);
   });
-
-  const needsHelpStudents = students.filter((s) => s.needsHelp);
 
   // -----------------------------------------------------------------------
   // Render
@@ -537,6 +549,19 @@ export default function TeachingDashboard({
           display: "flex", flexDirection: "column", gap: "20px",
         }}>
 
+          {/* Check-in row — surfaces up to 3 students who need attention */}
+          <CheckInRow
+            students={students}
+            cohortStats={summary?.cohortStats ?? null}
+            onlineCount={summary?.onlineCount ?? 0}
+            snoozed={snoozed}
+            onSnooze={(id) => setSnoozed((prev) => {
+              const next = new Set(prev);
+              next.add(id);
+              return next;
+            })}
+          />
+
           {/* Phase Timer — dark glass with gradient border */}
           {workshopPhases ? (
             <div style={{
@@ -560,24 +585,6 @@ export default function TeachingDashboard({
               <p style={{ fontSize: "14px", color: "#9CA3AF", marginTop: "8px", margin: 0 }}>
                 Regenerate this lesson to add timing phases.
               </p>
-            </div>
-          )}
-
-          {/* Needs Help Alert — amber glow */}
-          {needsHelpStudents.length > 0 && (
-            <div style={{
-              borderRadius: "12px", padding: "14px", display: "flex", gap: "12px",
-              background: "rgba(245, 158, 11, 0.08)", border: "1px solid #FDE68A",
-            }}>
-              <span style={{ fontSize: "18px", flexShrink: 0 }}>🖐</span>
-              <div style={{ flex: 1 }}>
-                <p style={{ fontSize: "14px", fontWeight: 700, color: "#92400E", margin: 0, marginBottom: "4px" }}>
-                  {needsHelpStudents.length} student{needsHelpStudents.length > 1 ? "s" : ""} may need help
-                </p>
-                <p style={{ fontSize: "13px", color: "#D97706", margin: 0 }}>
-                  No activity for 3+ minutes: {needsHelpStudents.map((s) => s.name).join(", ")}
-                </p>
-              </div>
             </div>
           )}
 
