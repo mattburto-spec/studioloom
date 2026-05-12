@@ -134,7 +134,7 @@ export default function UserProfileResponse({ unitId, onChange }: Props) {
   }, [unitId]);
 
   const save = useCallback(
-    async (patch: Partial<ProfileState> & { completed?: boolean }) => {
+    async (patch: Partial<ProfileState> & { completed?: boolean; reopen?: boolean }) => {
       setSaving(true);
       setError(null);
       try {
@@ -192,7 +192,16 @@ export default function UserProfileResponse({ unitId, onChange }: Props) {
 
   // ─── Completed → Card
   if (profile.completed_at) {
-    return <ProfileCard profile={profile} />;
+    return (
+      <ProfileCard
+        profile={profile}
+        onReopen={async () => {
+          await save({ reopen: true });
+          setCurrentSlotIdx(0);
+        }}
+        reopening={saving}
+      />
+    );
   }
 
   // ─── Walker
@@ -233,7 +242,15 @@ export default function UserProfileResponse({ unitId, onChange }: Props) {
 // Card
 // ────────────────────────────────────────────────────────────────────
 
-function ProfileCard({ profile }: { profile: ProfileState }) {
+function ProfileCard({
+  profile,
+  onReopen,
+  reopening,
+}: {
+  profile: ProfileState;
+  onReopen: () => void;
+  reopening: boolean;
+}) {
   return (
     <div className="rounded-2xl border-2 border-purple-300 bg-gradient-to-br from-purple-50 via-white to-purple-50/50 p-6 shadow-sm">
       <div className="flex items-center gap-3 mb-5 pb-4 border-b border-purple-200">
@@ -290,9 +307,19 @@ function ProfileCard({ profile }: { profile: ProfileState }) {
         })}
       </div>
 
-      <p className="mt-5 text-xs text-purple-700/70 text-right">
-        ✓ Saved — profile locked in. Move on to the next activity.
-      </p>
+      <div className="mt-5 flex items-center justify-end gap-3 text-xs">
+        <span className="text-purple-700/70">
+          ✓ Saved — profile locked in. Move on to the next activity.
+        </span>
+        <button
+          type="button"
+          onClick={onReopen}
+          disabled={reopening}
+          className="text-purple-700 underline hover:text-purple-900 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {reopening ? "Reopening…" : "Reopen to revise"}
+        </button>
+      </div>
     </div>
   );
 }

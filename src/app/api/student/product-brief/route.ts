@@ -155,6 +155,11 @@ export const POST = withErrorHandler(
     if (b.completed === true) {
       patch.completed_at = new Date().toISOString();
     }
+    // "Reopen to revise" — clears completion so the student can re-enter
+    // the walker without resetting their slot answers.
+    if (b.reopen === true) {
+      patch.completed_at = null;
+    }
 
     const db = createAdminClient();
 

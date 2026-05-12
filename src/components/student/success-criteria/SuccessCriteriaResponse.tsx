@@ -107,7 +107,7 @@ export default function SuccessCriteriaResponse({ unitId, onChange }: Props) {
   }, [unitId]);
 
   const save = useCallback(
-    async (patch: Partial<CriteriaState> & { completed?: boolean }) => {
+    async (patch: Partial<CriteriaState> & { completed?: boolean; reopen?: boolean }) => {
       setSaving(true);
       setError(null);
       try {
@@ -144,7 +144,16 @@ export default function SuccessCriteriaResponse({ unitId, onChange }: Props) {
   }
 
   if (criteria.completed_at) {
-    return <CriteriaCard criteria={criteria} />;
+    return (
+      <CriteriaCard
+        criteria={criteria}
+        onReopen={async () => {
+          await save({ reopen: true });
+          setCurrentSlotIdx(0);
+        }}
+        reopening={saving}
+      />
+    );
   }
 
   const slotDef = SUCCESS_CRITERIA_SLOTS[currentSlotIdx];
@@ -179,7 +188,15 @@ export default function SuccessCriteriaResponse({ unitId, onChange }: Props) {
   );
 }
 
-function CriteriaCard({ criteria }: { criteria: CriteriaState }) {
+function CriteriaCard({
+  criteria,
+  onReopen,
+  reopening,
+}: {
+  criteria: CriteriaState;
+  onReopen: () => void;
+  reopening: boolean;
+}) {
   return (
     <div className="rounded-2xl border-2 border-purple-300 bg-gradient-to-br from-purple-50 via-white to-purple-50/50 p-6 shadow-sm">
       <div className="flex items-center gap-3 mb-5 pb-4 border-b border-purple-200">
@@ -219,9 +236,19 @@ function CriteriaCard({ criteria }: { criteria: CriteriaState }) {
         })}
       </div>
 
-      <p className="mt-5 text-xs text-purple-700/70 text-right">
-        ✓ Saved — criteria locked in. Now you can build with confidence.
-      </p>
+      <div className="mt-5 flex items-center justify-end gap-3 text-xs">
+        <span className="text-purple-700/70">
+          ✓ Saved — criteria locked in. Now you can build with confidence.
+        </span>
+        <button
+          type="button"
+          onClick={onReopen}
+          disabled={reopening}
+          className="text-purple-700 underline hover:text-purple-900 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {reopening ? "Reopening…" : "Reopen to revise"}
+        </button>
+      </div>
     </div>
   );
 }
