@@ -120,6 +120,11 @@ export interface FabJobRow {
    *  picked "No preference". The fab queue surfaces this prominently
    *  so the lab tech knows what filament to load. */
   preferredColor: string | null;
+  /** Quantity (13 May 2026): how many identical copies the student
+   *  needs printed/cut. Default 1. Fab queue renders a `× N` chip
+   *  next to the filename when quantity > 1 so the lab tech knows
+   *  to repeat the print before marking complete. */
+  quantity: number;
   /** Pilot Mode P4: ISO timestamp when student used the Pilot Mode
    *  "Override and proceed" path on a BLOCK-firing scan. Null on
    *  jobs that took the normal path. The fab queue surfaces an
@@ -164,6 +169,8 @@ export interface FabJobDetail {
     /** Phase 8.1d-COLORv1: requested filament color for 3D-printer
      *  jobs. Null for laser-cutter jobs / "no preference". */
     preferredColor: string | null;
+    /** Quantity (13 May 2026): number of identical copies. Default 1. */
+    quantity: number;
     /** Pilot Mode P4: see FabJobRow above. Surfaces a banner on the
      *  detail page warning the fab tech this job came in via override. */
     pilotOverrideAt: string | null;
@@ -703,6 +710,7 @@ interface RawFabQueueJob {
   file_type: string;
   original_filename: string;
   preferred_color: string | null;
+  quantity: number;
   pilot_override_at: string | null;
   pilot_override_rule_ids: string[] | null;
   teacher_review_note: string | null;
@@ -782,7 +790,7 @@ export async function listFabricatorQueue(
     .select(
       `
       id, status, current_revision, file_type, original_filename,
-      preferred_color, pilot_override_at, pilot_override_rule_ids,
+      preferred_color, quantity, pilot_override_at, pilot_override_rule_ids,
       teacher_review_note, lab_tech_picked_up_at, machine_profile_id,
       lab_id, machine_category,
       created_at, updated_at,
@@ -941,6 +949,7 @@ export async function listFabricatorQueue(
         fileSizeBytes: latestRev?.file_size_bytes ?? null,
         jobStatus: raw.status,
         preferredColor: raw.preferred_color,
+        quantity: raw.quantity ?? 1,
         pilotOverrideAt: raw.pilot_override_at ?? null,
         pilotOverrideRuleIds: raw.pilot_override_rule_ids ?? [],
         createdAt: raw.created_at,
@@ -968,6 +977,7 @@ interface RawFabDetailJob {
   file_type: string;
   original_filename: string;
   preferred_color: string | null;
+  quantity: number;
   pilot_override_at: string | null;
   pilot_override_rule_ids: string[] | null;
   created_at: string;
@@ -1031,7 +1041,7 @@ export async function getFabJobDetail(
     .select(
       `
       id, status, current_revision, file_type, original_filename, created_at,
-      preferred_color, pilot_override_at, pilot_override_rule_ids,
+      preferred_color, quantity, pilot_override_at, pilot_override_rule_ids,
       teacher_review_note, lab_tech_picked_up_at, lab_tech_picked_up_by,
       completion_status, completion_note, completed_at, notifications_sent,
       student_id, class_id, unit_id, machine_profile_id, teacher_id,
@@ -1131,6 +1141,7 @@ export async function getFabJobDetail(
       completionNote: rawJob.completion_note,
       completedAt: rawJob.completed_at,
       preferredColor: rawJob.preferred_color,
+      quantity: rawJob.quantity ?? 1,
       pilotOverrideAt: rawJob.pilot_override_at ?? null,
       pilotOverrideRuleIds: rawJob.pilot_override_rule_ids ?? [],
     },

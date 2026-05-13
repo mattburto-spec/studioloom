@@ -217,8 +217,16 @@ function QueueRowItem({
             ) : (
               <p className="text-sm text-gray-400 italic">No unit linked</p>
             )}
-            <p className="text-xs text-gray-500 font-mono truncate">
-              {row.originalFilename}
+            <p className="text-xs text-gray-500 font-mono truncate flex items-center gap-1.5">
+              <span className="truncate">{row.originalFilename}</span>
+              {row.quantity > 1 && (
+                <span
+                  className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-extrabold flex-shrink-0 bg-purple-600 text-white"
+                  title={`${row.quantity} copies requested`}
+                >
+                  × {row.quantity}
+                </span>
+              )}
             </p>
           </div>
 

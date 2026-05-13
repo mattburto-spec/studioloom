@@ -1827,10 +1827,19 @@ function IncomingCard({
               <ClassChip name={job.className} teacherInitials={job.teacherInitials} small />
             </div>
             <div
-              className={`${styles.mono} text-[10px] truncate`}
+              className={`${styles.mono} text-[10px] truncate flex items-center gap-1.5`}
               style={{ color: "var(--ink-2)" }}
             >
-              {job.originalFilename}
+              <span className="truncate">{job.originalFilename}</span>
+              {job.quantity > 1 && (
+                <span
+                  className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-extrabold flex-shrink-0"
+                  style={{ background: "#7C3AED", color: "white" }}
+                  title={`${job.quantity} copies requested`}
+                >
+                  × {job.quantity}
+                </span>
+              )}
             </div>
             <div
               className="flex items-center gap-1 mt-1.5 text-[10px]"
@@ -2209,10 +2218,19 @@ function RunningBlock({
             <ClassChip name={job.className} teacherInitials={job.teacherInitials} small />
           </div>
           <div
-            className={`${styles.mono} text-[10px] truncate`}
+            className={`${styles.mono} text-[10px] truncate flex items-center gap-1.5`}
             style={{ color: "var(--ink-3)" }}
           >
-            {job.originalFilename}
+            <span className="truncate">{job.originalFilename}</span>
+            {job.quantity > 1 && (
+              <span
+                className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-extrabold flex-shrink-0"
+                style={{ background: "#7C3AED", color: "white" }}
+                title={`${job.quantity} copies requested`}
+              >
+                × {job.quantity}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -2299,10 +2317,19 @@ function QueuedJobCard({
               <ClassChip name={job.className} teacherInitials={job.teacherInitials} small />
             </div>
             <div
-              className={`${styles.mono} text-[10px] truncate`}
+              className={`${styles.mono} text-[10px] truncate flex items-center gap-1.5`}
               style={{ color: "var(--ink-3)" }}
             >
-              {job.originalFilename}
+              <span className="truncate">{job.originalFilename}</span>
+              {job.quantity > 1 && (
+                <span
+                  className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-extrabold flex-shrink-0"
+                  style={{ background: "#7C3AED", color: "white" }}
+                  title={`${job.quantity} copies requested`}
+                >
+                  × {job.quantity}
+                </span>
+              )}
             </div>
             {/* Phase 8.1d-COLORv1: filament color chip — the student
                 told us what they want, surface it where the fab

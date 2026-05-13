@@ -94,6 +94,8 @@ export interface QueueRow {
   createdAt: string;
   updatedAt: string;
   originalFilename: string;
+  /** How many copies of this file the student wants printed/cut. Default 1. */
+  quantity: number;
   /** Pilot Mode P1: ISO timestamp when student used Override and proceed
    *  to bypass BLOCK rules. Null on jobs that took the normal path.
    *  Used by the teacher Needs Attention tab + the dev review surface. */
@@ -381,6 +383,7 @@ interface RawJobRow {
   created_at: string;
   updated_at: string;
   original_filename: string;
+  quantity: number;
   student_id: string;
   class_id: string | null;
   unit_id: string | null;
@@ -416,6 +419,7 @@ export async function getTeacherQueue(
     .select(
       `
       id, status, current_revision, created_at, updated_at, original_filename,
+      quantity,
       student_id, class_id, unit_id,
       pilot_override_at, pilot_override_rule_ids,
       students(display_name, username),
@@ -503,6 +507,7 @@ export async function getTeacherQueue(
         createdAt: raw.created_at,
         updatedAt: raw.updated_at,
         originalFilename: raw.original_filename,
+        quantity: raw.quantity ?? 1,
         pilotOverrideAt: raw.pilot_override_at ?? null,
         pilotOverrideRuleIds: raw.pilot_override_rule_ids ?? [],
       };
@@ -543,6 +548,8 @@ export interface TeacherJobDetailSuccess {
     currentRevision: number;
     fileType: string; // 'stl' | 'svg' — validated at insert time
     originalFilename: string;
+    /** Quantity (13 May 2026): number of identical copies requested. */
+    quantity: number;
     createdAt: string;
     updatedAt: string;
     teacherReviewNote: string | null;
@@ -577,6 +584,7 @@ interface RawDetailJob {
   current_revision: number;
   file_type: string;
   original_filename: string;
+  quantity: number;
   created_at: string;
   updated_at: string;
   teacher_review_note: string | null;
@@ -646,6 +654,7 @@ export async function getTeacherJobDetail(
     .select(
       `
       id, teacher_id, status, current_revision, file_type, original_filename,
+      quantity,
       created_at, updated_at, teacher_review_note, teacher_reviewed_at,
       acknowledged_warnings,
       student_id, class_id, unit_id, machine_profile_id,
@@ -753,6 +762,7 @@ export async function getTeacherJobDetail(
       currentRevision: rawJob.current_revision,
       fileType: rawJob.file_type,
       originalFilename: rawJob.original_filename,
+      quantity: rawJob.quantity ?? 1,
       createdAt: rawJob.created_at,
       updatedAt: rawJob.updated_at,
       teacherReviewNote: rawJob.teacher_review_note,
@@ -791,6 +801,8 @@ export interface HistoryJobRow {
   createdAt: string;
   updatedAt: string;
   originalFilename: string;
+  /** How many copies of this file the student wanted. Default 1. */
+  quantity: number;
   machineLabel: string;
   machineCategory: "3d_printer" | "laser_cutter" | null;
   unitTitle: string | null;
@@ -859,6 +871,7 @@ interface RawHistoryJob {
   created_at: string;
   updated_at: string;
   original_filename: string;
+  quantity: number;
   student_id: string;
   unit_id: string | null;
   students: { display_name: string | null; username: string | null } | null;
@@ -898,6 +911,7 @@ async function fetchHistoryJobs(
     .select(
       `
       id, status, completion_status, current_revision, created_at, updated_at, original_filename,
+      quantity,
       student_id, unit_id,
       students(display_name, username),
       classes(name),
@@ -961,6 +975,7 @@ async function fetchHistoryJobs(
       createdAt: raw.created_at,
       updatedAt: raw.updated_at,
       originalFilename: raw.original_filename,
+      quantity: raw.quantity ?? 1,
       machineLabel: machineName,
       machineCategory:
         (machineRow?.machine_category as HistoryJobRow["machineCategory"]) ??

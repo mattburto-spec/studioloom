@@ -1961,6 +1961,8 @@ export interface StudentJobRow {
   createdAt: string;
   updatedAt: string;
   originalFilename: string;
+  /** How many copies of this file the student wanted printed/cut. Default 1. */
+  quantity: number;
 }
 
 export interface ListStudentJobsSuccess {
@@ -1976,6 +1978,7 @@ interface RawStudentJobRow {
   created_at: string;
   updated_at: string;
   original_filename: string;
+  quantity: number;
   classes: { name: string | null } | null;
   units: { title: string | null } | null;
   machine_profiles: { name: string | null; machine_category: string | null } | null;
@@ -2008,6 +2011,7 @@ export async function listStudentJobs(
     .select(
       `
       id, status, completion_status, current_revision, created_at, updated_at, original_filename,
+      quantity,
       classes(name),
       units(title),
       machine_profiles(name, machine_category),
@@ -2075,6 +2079,7 @@ export async function listStudentJobs(
         createdAt: raw.created_at,
         updatedAt: raw.updated_at,
         originalFilename: raw.original_filename,
+        quantity: raw.quantity ?? 1,
       };
     })
   );

@@ -278,6 +278,17 @@ function ReadyView({
           )}
         </div>
 
+        {/* Quantity chip (13 May 2026): prominent when > 1 so the lab
+            tech knows to make N copies before marking complete. */}
+        {job.quantity > 1 && (
+          <div className="mt-3">
+            <span className="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold ring-1 ring-purple-400/40 bg-purple-400/10 text-purple-200">
+              <span aria-hidden="true">×</span>
+              <span>{job.quantity} copies requested — print/cut all before marking complete</span>
+            </span>
+          </div>
+        )}
+
         {/* Phase 8.1d-COLORv1: prominent color chip when the student
             requested a specific filament. Shown right under the job
             metadata so the fab sees it before clicking Start. */}

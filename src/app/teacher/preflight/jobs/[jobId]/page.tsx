@@ -225,8 +225,16 @@ function ReadyView(props: {
             {detail.machine.category && ` (${detail.machine.category.replace("_", " ")})`}
           </span>
           <span aria-hidden="true">·</span>
-          <span>
+          <span className="inline-flex items-center gap-1.5">
             <code className="text-xs">{detail.job.originalFilename}</code>
+            {detail.job.quantity > 1 && (
+              <span
+                className="inline-flex items-center rounded-full bg-purple-600 px-2 py-0.5 text-[10px] font-bold text-white"
+                title={`${detail.job.quantity} copies requested`}
+              >
+                × {detail.job.quantity}
+              </span>
+            )}
           </span>
           <span aria-hidden="true">·</span>
           <span>Revision {detail.job.currentRevision}</span>

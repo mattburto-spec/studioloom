@@ -287,6 +287,14 @@ function HistoryJobRowItem({
             {row.unitTitle && ` · ${row.unitTitle}`}
             {" · "}
             <code className="font-mono">{row.originalFilename}</code>
+            {row.quantity > 1 && (
+              <span
+                className="ml-1.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-extrabold bg-purple-600 text-white align-middle"
+                title={`${row.quantity} copies requested`}
+              >
+                × {row.quantity}
+              </span>
+            )}
           </p>
         </div>
         <div className="text-xs text-gray-500 whitespace-nowrap shrink-0">

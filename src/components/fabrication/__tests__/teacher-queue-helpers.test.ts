@@ -40,6 +40,7 @@ function row(partial: Partial<QueueRow> & { jobStatus: string }): QueueRow {
     createdAt: "2026-04-22T12:00:00Z",
     updatedAt: "2026-04-22T12:00:00Z",
     originalFilename: "file.stl",
+    quantity: 1,
     pilotOverrideAt: null,
     pilotOverrideRuleIds: [],
     ...partial,

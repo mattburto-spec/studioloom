@@ -281,8 +281,16 @@ function StudentJobListRow({
                 </span>
               )}
             </div>
-            <p className="text-sm text-gray-900 truncate mt-0.5 font-semibold">
-              {job.originalFilename}
+            <p className="text-sm text-gray-900 truncate mt-0.5 font-semibold flex items-center gap-1.5">
+              <span className="truncate">{job.originalFilename}</span>
+              {job.quantity > 1 && (
+                <span
+                  className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-extrabold flex-shrink-0 bg-purple-600 text-white"
+                  title={`${job.quantity} copies requested`}
+                >
+                  × {job.quantity}
+                </span>
+              )}
             </p>
             {job.unitTitle && (
               <p className="text-xs text-gray-500 truncate">{job.unitTitle}</p>
@@ -352,8 +360,16 @@ function StudentJobListRow({
                 </span>
               )}
             </div>
-            <p className="text-sm font-semibold text-gray-900 truncate mt-0.5">
-              {job.originalFilename}
+            <p className="text-sm font-semibold text-gray-900 truncate mt-0.5 flex items-center gap-1.5">
+              <span className="truncate">{job.originalFilename}</span>
+              {job.quantity > 1 && (
+                <span
+                  className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-extrabold flex-shrink-0 bg-purple-600 text-white"
+                  title={`${job.quantity} copies requested`}
+                >
+                  × {job.quantity}
+                </span>
+              )}
             </p>
             <p className="text-xs text-gray-500 truncate mt-0.5">
               {job.machineLabel}
