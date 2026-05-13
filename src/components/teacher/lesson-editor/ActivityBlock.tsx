@@ -10,6 +10,7 @@ import { SlotFieldEditor, SlotPreview } from "./SlotFieldEditor";
 import ChoiceCardsConfigPanel from "./ChoiceCardsConfigPanel";
 import InspirationBoardConfigPanel from "./InspirationBoardConfigPanel";
 import FirstMoveConfigPanel from "./FirstMoveConfigPanel";
+import ClassDjConfigPanel from "./ClassDjConfigPanel";
 import { CRITERIA, type CriterionKey } from "@/lib/constants";
 import type {
   ActivitySection,
@@ -46,7 +47,14 @@ const RESPONSE_TYPES: ResponseType[] = [
   "pairwise",
   "trade-off-sliders",
   "toolkit-tool",
+  "class-dj",
 ];
+// Note: This picker is missing 8 other active response types (structured-prompts,
+// choice-cards, inspiration-board, first-move, project-spec, product-brief,
+// user-profile, success-criteria) that ARE rendered conditionally below + in
+// ResponseInput.tsx but never made it into this dropdown. Pre-existing drift,
+// tracked as FU-ACTIVITY-BLOCK-RESPONSE-TYPES-PICKER-SYNC (P2). NOT Class DJ's
+// job to fix — Phase 3 only adds the Class DJ entry.
 
 const RESPONSE_TYPE_LABELS: Record<ResponseType, string> = {
   text: "Written Response",
@@ -68,6 +76,7 @@ const RESPONSE_TYPE_LABELS: Record<ResponseType, string> = {
   "choice-cards": "Choice Cards",
   "inspiration-board": "Inspiration Board",
   "first-move": "First Move",
+  "class-dj": "Class DJ",
 };
 
 // Glyph + tint per response type — matches the warm-paper design.
@@ -91,6 +100,7 @@ const RESPONSE_ICON: Record<ResponseType, string> = {
   "choice-cards": "🃏",
   "inspiration-board": "🖼️",
   "first-move": "⚡",
+  "class-dj": "🎵",
 };
 const RESPONSE_TINT: Record<ResponseType, string> = {
   text: "#9333EA",
@@ -112,6 +122,7 @@ const RESPONSE_TINT: Record<ResponseType, string> = {
   "choice-cards": "#10B981",
   "inspiration-board": "#EC4899",
   "first-move": "#F59E0B",
+  "class-dj": "#8B5CF6",
 };
 
 // ── Dimensions constants ──────────────────────────────────────────
@@ -600,6 +611,11 @@ export default function ActivityBlock({
               {/* First Move config — only when responseType is first-move */}
               {responseType === "first-move" && (
                 <FirstMoveConfigPanel activity={activity} onUpdate={onUpdate} />
+              )}
+
+              {/* Class DJ config — only when responseType is class-dj */}
+              {responseType === "class-dj" && (
+                <ClassDjConfigPanel activity={activity} onUpdate={onUpdate} />
               )}
 
               {/* Configure tab buttons */}
