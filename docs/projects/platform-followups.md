@@ -73,6 +73,25 @@ v1 of Unit Briefs is teacher-authored only — `unit_briefs.unit_id` is the PK (
 
 ---
 
+## FU-BRIEFS-AUDIT-COVERAGE — Wire logAuditEvent into the teacher unit-brief routes
+**Surfaced:** 13 May 2026, during Unit Briefs Foundation Phase B.4 audit-coverage scanner gate.
+**Severity:** 🟢 P3 — defensive logging, no security gap. Same audit-sensitivity class as `/api/teacher/product-brief-pitch` which is also currently audit-skipped.
+**Target phase:** Next audit-tightening sweep that touches teacher-content-authoring routes (alongside the product-brief-pitch retrofit).
+
+**The problem:**
+Two POST routes shipped audit-skipped in Phase B.1:
+- `POST /api/teacher/unit-brief` — partial-patch upsert of the brief + constraints
+- `POST /api/teacher/unit-brief/amendments` — append a new amendment
+
+Both are teacher-authored pedagogical content (no PII, no cross-tenant reads). Author-only writes are already gated by `verifyTeacherHasUnit.isAuthor`. The risk surface is "did the author definitely make this change?" — which Supabase row history can answer in the meantime.
+
+**What to do when this fires:**
+Replace the `// audit-skip:` headers with `logAuditEvent("unit_brief.updated", { teacherId, unitId, fields: Object.keys(patch) })` after the successful upsert, and `logAuditEvent("unit_brief_amendment.added", { teacherId, unitId, amendmentId, versionLabel })` after the successful insert. The scanner will move both routes from `missing` → `covered` automatically.
+
+**Pairs with:** `/api/teacher/product-brief-pitch` retrofit — same shape of fix, same audit-class.
+
+---
+
 ## FU-PLATFORM-BLOCK-USAGE-HISTORY — Per-teacher + per-student block usage analytics
 **Surfaced:** 12 May 2026, post-Project-Spec-v2 ship.
 **Severity:** 🟡 MEDIUM — small build, real value for teacher self-reflection + onboarding hints.
