@@ -64,11 +64,16 @@ export type UnitBriefConstraints =
  * Maps 1:1 to a public.unit_briefs row. PK = unit_id (one row per unit).
  * `created_by` is the teacher uuid; null only in legacy / service-role
  * insert paths that don't capture authorship.
+ *
+ * `diagram_url` (Phase B.5) is a relative storage-proxy URL pointing at
+ * the unit-images bucket (path: <unitId>/brief-diagram-<ts>.jpg). NULL
+ * = no diagram uploaded. One diagram per brief; re-upload replaces.
  */
 export interface UnitBrief {
   unit_id: string;
   brief_text: string | null;
   constraints: UnitBriefConstraints;
+  diagram_url: string | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;

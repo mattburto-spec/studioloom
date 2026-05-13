@@ -9,6 +9,7 @@ import type {
 } from "@/types/unit-brief";
 import { DesignConstraintsEditor } from "./DesignConstraintsEditor";
 import { AmendmentsEditor } from "./AmendmentsEditor";
+import { DiagramUploader } from "./DiagramUploader";
 
 interface UnitBriefEditorProps {
   unitId: string;
@@ -39,6 +40,7 @@ export function UnitBriefEditor({
     isDesignUnit ? { archetype: "design", data: {} } : GENERIC_CONSTRAINTS,
   );
   const [amendments, setAmendments] = useState<UnitBriefAmendment[]>([]);
+  const [diagramUrl, setDiagramUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -61,6 +63,7 @@ export function UnitBriefEditor({
         if (briefRes.brief) {
           const b: UnitBrief = briefRes.brief;
           setBriefText(b.brief_text ?? "");
+          setDiagramUrl(b.diagram_url ?? null);
           // Coerce stored constraints to the right archetype for this unit type.
           if (isDesignUnit && b.constraints.archetype === "design") {
             setConstraints(b.constraints);
@@ -211,7 +214,20 @@ export function UnitBriefEditor({
         />
       </section>
 
-      {/* Section 2 — Constraints (Design only) */}
+      {/* Section 2 — Spec diagram (upload / preview / replace / remove) */}
+      <DiagramUploader
+        unitId={unitId}
+        diagramUrl={diagramUrl}
+        onUploaded={(next) => {
+          setDiagramUrl(next);
+          setLastSavedAt(new Date());
+          setSaveError(null);
+        }}
+        onError={(msg) => setSaveError(msg)}
+        disabled={saving}
+      />
+
+      {/* Section 3 — Constraints (Design only) */}
       <section className="mb-8">
         <h2 className="mb-2 text-sm font-medium text-gray-700">
           Constraints
@@ -235,7 +251,7 @@ export function UnitBriefEditor({
         )}
       </section>
 
-      {/* Section 3 — Amendments */}
+      {/* Section 4 — Amendments */}
       <section>
         <h2 className="mb-2 text-sm font-medium text-gray-700">Amendments</h2>
         <AmendmentsEditor

@@ -1,11 +1,11 @@
 {
   "registry": "audit-coverage",
-  "timestamp": "2026-05-13T12:52:16.994506+00:00",
+  "timestamp": "2026-05-13T13:47:33.254647+00:00",
   "version": 1,
   "stats": {
-    "total_mutation_routes": 257,
+    "total_mutation_routes": 258,
     "covered": 8,
-    "skipped": 249,
+    "skipped": 250,
     "missing": 0
   },
   "covered": [
@@ -1477,6 +1477,14 @@
         "POST"
       ],
       "reason": "Unit Briefs Foundation Phase B.1 MVP. Same audit-sensitivity"
+    },
+    {
+      "file": "src/app/api/teacher/unit-brief/diagram/route.ts",
+      "methods": [
+        "DELETE",
+        "POST"
+      ],
+      "reason": "Unit Briefs Foundation Phase B.5. Teacher-author-only"
     },
     {
       "file": "src/app/api/teacher/unit-brief/route.ts",
