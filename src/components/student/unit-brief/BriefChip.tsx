@@ -1,18 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import type { UnitBrief, UnitBriefAmendment } from "@/types/unit-brief";
 import { BriefDrawer } from "./BriefDrawer";
 
 /**
- * Persistent student-side chip in the BoldTopNav. Visible on any
+ * Persistent student-side chip in the LessonSidebar. Visible on any
  * /unit/[unitId]/* route when the unit has a brief authored. Clicking
  * opens the BriefDrawer.
  *
- * Lazy fetch — runs on mount once per unitId. No drawer-state coupling
- * to URL (Phase C spec: "Drawer state: local React state. No URL
- * deeplink in v1.").
+ * Fetch lifecycle (Phase D):
+ *  - On mount / unitId change → fetch once to hydrate the chip label.
+ *  - On each drawer open → refetch so amendments the teacher added
+ *    mid-session show up after the student reopens the drawer. The
+ *    chip label updates after the refetch returns, so a student who
+ *    opens-then-closes the drawer notices "Brief v1.1 → Brief v1.2"
+ *    naturally on the next visit. No push from server (Phase D spec:
+ *    "If teacher adds amendment v2.0 while student has drawer open,
+ *    student doesn't see it until they close + reopen.").
  *
  * Chip label is "Brief v1.<amendments.length>" — so a brand-new brief
  * with no amendments reads "Brief v1.0", the first amendment yields
@@ -33,48 +39,47 @@ export function BriefChip() {
   const [brief, setBrief] = useState<UnitBrief | null>(null);
   const [amendments, setAmendments] = useState<UnitBriefAmendment[]>([]);
   const [open, setOpen] = useState(false);
-  const [loadedForUnitId, setLoadedForUnitId] = useState<string | null>(null);
 
-  useEffect(() => {
+  // Stable fetch helper. Failures hide the chip silently — the brief
+  // is a convenience surface, errors in the nav chrome are worse UX
+  // than an absent chip.
+  const refetch = useCallback(async () => {
     if (!unitId) {
       setBrief(null);
       setAmendments([]);
-      setLoadedForUnitId(null);
       return;
     }
-    if (loadedForUnitId === unitId) return;
-
-    let cancelled = false;
-    void fetch(
-      `/api/student/unit-brief?unitId=${encodeURIComponent(unitId)}`,
-    )
-      .then(async (res) => {
-        if (cancelled) return;
-        if (!res.ok) {
-          // 403 (not enrolled) / 404 / 500 — just hide the chip rather
-          // than surfacing an error in the nav chrome. The brief is a
-          // convenience surface; failing silently is the right UX.
-          setBrief(null);
-          setAmendments([]);
-          setLoadedForUnitId(unitId);
-          return;
-        }
-        const data = await res.json();
-        setBrief(data.brief ?? null);
-        setAmendments(Array.isArray(data.amendments) ? data.amendments : []);
-        setLoadedForUnitId(unitId);
-      })
-      .catch(() => {
-        if (cancelled) return;
+    try {
+      const res = await fetch(
+        `/api/student/unit-brief?unitId=${encodeURIComponent(unitId)}`,
+      );
+      if (!res.ok) {
         setBrief(null);
         setAmendments([]);
-        setLoadedForUnitId(unitId);
-      });
+        return;
+      }
+      const data = await res.json();
+      setBrief(data.brief ?? null);
+      setAmendments(Array.isArray(data.amendments) ? data.amendments : []);
+    } catch {
+      setBrief(null);
+      setAmendments([]);
+    }
+  }, [unitId]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [unitId, loadedForUnitId]);
+  // Initial hydration on mount / unit change. useEffect's dep tracking
+  // already dedupes — only fires when unitId actually changes.
+  useEffect(() => {
+    void refetch();
+  }, [refetch]);
+
+  // Refetch when the drawer opens (Phase D — catch amendments added
+  // since the last fetch). Early-return on close + when there's no
+  // unit so we don't run extra requests on close transitions.
+  useEffect(() => {
+    if (!open || !unitId) return;
+    void refetch();
+  }, [open, unitId, refetch]);
 
   if (!unitId || !brief) return null;
 

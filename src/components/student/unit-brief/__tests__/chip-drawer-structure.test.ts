@@ -41,9 +41,19 @@ describe("BriefChip — structure (Phase C)", () => {
     expect(chipSrc).toContain("setBrief(null)");
   });
 
-  it("fetches once per unitId (caches via loadedForUnitId guard)", () => {
-    expect(chipSrc).toContain("loadedForUnitId");
-    expect(chipSrc).toMatch(/if \(loadedForUnitId === unitId\) return;/);
+  it("fetches on mount/unit-change AND refetches on each drawer open (Phase D)", () => {
+    // Stable fetch helper via useCallback so both effects can call it.
+    expect(chipSrc).toMatch(/const refetch = useCallback/);
+    // Hydration effect — fires on unitId change (via refetch identity).
+    expect(chipSrc).toMatch(
+      /useEffect\(\(\)\s*=>\s*\{\s*void refetch\(\);\s*\},\s*\[refetch\]\)/,
+    );
+    // Open-refetch effect — early-return on closed drawer, otherwise refetch.
+    expect(chipSrc).toMatch(/if \(!open \|\| !unitId\) return;[\s\S]*?void refetch\(\)/);
+  });
+
+  it("doesn't keep a loadedForUnitId cache guard (removed in Phase D so refetches happen)", () => {
+    expect(chipSrc).not.toContain("loadedForUnitId");
   });
 
   it('chip label is "Brief v1.<amendments.length>" — versions from amendments count', () => {
