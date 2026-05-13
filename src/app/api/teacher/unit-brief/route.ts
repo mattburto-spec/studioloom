@@ -22,7 +22,7 @@ import type {
 } from "@/types/unit-brief";
 
 const COLUMNS_RETURNED =
-  "unit_id, brief_text, constraints, created_at, updated_at, created_by";
+  "unit_id, brief_text, constraints, diagram_url, created_at, updated_at, created_by";
 
 const GENERIC_CONSTRAINTS: UnitBriefConstraints = {
   archetype: "generic",
@@ -167,6 +167,7 @@ function rowToBrief(row: Record<string, unknown>): UnitBrief {
     unit_id: row.unit_id as string,
     brief_text: (row.brief_text as string | null) ?? null,
     constraints: coerceConstraints(row.constraints),
+    diagram_url: (row.diagram_url as string | null) ?? null,
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
     created_by: (row.created_by as string | null) ?? null,

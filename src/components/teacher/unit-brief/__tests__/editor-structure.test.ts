@@ -24,6 +24,10 @@ const amendmentsSrc = readFileSync(
   join(__dirname, "..", "AmendmentsEditor.tsx"),
   "utf-8",
 );
+const diagramSrc = readFileSync(
+  join(__dirname, "..", "DiagramUploader.tsx"),
+  "utf-8",
+);
 
 describe("UnitBriefEditor — structure", () => {
   it("renders a Brief prose textarea with id='brief_text'", () => {
@@ -180,5 +184,80 @@ describe("AmendmentsEditor — structure", () => {
     expect(amendmentsSrc).toMatch(/amendments\.map\(\(a\)/);
     expect(amendmentsSrc).not.toMatch(/\.slice\(\)\.reverse\(\)/);
     expect(amendmentsSrc).not.toMatch(/\[\.\.\.amendments\]\.reverse\(\)/);
+  });
+});
+
+describe("DiagramUploader — structure (Phase B.5)", () => {
+  it("hidden file input + visible button trigger pattern (no drag-drop polyfill)", () => {
+    expect(diagramSrc).toMatch(/data-testid="diagram-file-input"/);
+    expect(diagramSrc).toContain('type="file"');
+    expect(diagramSrc).toMatch(/className="hidden"/);
+    expect(diagramSrc).toContain("fileInputRef.current?.click()");
+  });
+
+  it("renders preview + Replace + Remove when a diagram_url is present", () => {
+    expect(diagramSrc).toMatch(/data-testid="diagram-preview"/);
+    expect(diagramSrc).toMatch(/data-testid="diagram-replace"/);
+    expect(diagramSrc).toMatch(/data-testid="diagram-remove"/);
+  });
+
+  it("renders dashed empty-state when no diagram is set", () => {
+    expect(diagramSrc).toMatch(/data-testid="diagram-empty"/);
+    expect(diagramSrc).toContain("border-dashed");
+    expect(diagramSrc).toContain("Upload a spec diagram");
+  });
+
+  it("client-side validates image MIME + 10MB cap before POSTing", () => {
+    expect(diagramSrc).toContain("Only image files are allowed.");
+    expect(diagramSrc).toContain("Image too large (max 10MB).");
+    expect(diagramSrc).toMatch(/10 \* 1024 \* 1024/);
+  });
+
+  it("POSTs multipart/form-data with file + unitId to /api/teacher/unit-brief/diagram", () => {
+    expect(diagramSrc).toContain("/api/teacher/unit-brief/diagram");
+    expect(diagramSrc).toContain('fd.append("file", file)');
+    expect(diagramSrc).toContain('fd.append("unitId", unitId)');
+  });
+
+  it("DELETE sends unitId as a URL-encoded query param (not body)", () => {
+    expect(diagramSrc).toMatch(
+      /fetch\(\s*`\/api\/teacher\/unit-brief\/diagram\?unitId=\$\{encodeURIComponent\(unitId\)\}`/,
+    );
+    expect(diagramSrc).toContain('method: "DELETE"');
+  });
+
+  it("resets file input value after a successful upload (so re-picking the same file re-fires onChange)", () => {
+    expect(diagramSrc).toMatch(/fileInputRef\.current\.value = ""/);
+  });
+
+  it("bubbles upload errors up to the parent via onError (not local-only)", () => {
+    expect(diagramSrc).toMatch(/onError\(/);
+    // The parent (UnitBriefEditor) wires onError to setSaveError so the
+    // SaveStatusPill picks it up — verify the editor uses that wire.
+    expect(editorSrc).toMatch(/onError=\{\(msg\) => setSaveError\(msg\)\}/);
+  });
+});
+
+describe("UnitBriefEditor — DiagramUploader wiring (Phase B.5)", () => {
+  it("hydrates diagram_url from the initial brief fetch", () => {
+    expect(editorSrc).toMatch(/setDiagramUrl\(b\.diagram_url \?\? null\)/);
+  });
+
+  it("upload success path updates state + advances lastSavedAt + clears errors", () => {
+    expect(editorSrc).toContain("setDiagramUrl(next)");
+    // Pill should flash green after a successful upload
+    expect(editorSrc).toMatch(
+      /onUploaded=\{\(next\) => \{[\s\S]*?setLastSavedAt\(new Date\(\)\)/,
+    );
+  });
+
+  it("DiagramUploader rendered between brief prose and constraints (above amendments)", () => {
+    // Match the JSX usage (<Foo), not the import statement (Foo).
+    const diagIdx = editorSrc.indexOf("<DiagramUploader");
+    const constraintsIdx = editorSrc.indexOf("Constraints (Design only)");
+    const amendmentsJsxIdx = editorSrc.indexOf("<AmendmentsEditor");
+    expect(diagIdx).toBeGreaterThan(0);
+    expect(constraintsIdx).toBeGreaterThan(diagIdx);
+    expect(amendmentsJsxIdx).toBeGreaterThan(constraintsIdx);
   });
 });

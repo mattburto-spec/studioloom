@@ -25,6 +25,7 @@ describe("UnitBrief — type shapes", () => {
       unit_id: "unit-abc",
       brief_text: "Design a desk-organiser for a Year 7 student.",
       constraints,
+      diagram_url: "/api/storage/unit-images/unit-abc/brief-diagram-12345.jpg",
       created_at: "2026-05-13T09:00:00.000Z",
       updated_at: "2026-05-13T09:05:00.000Z",
       created_by: "teacher-uuid-1",
@@ -33,6 +34,7 @@ describe("UnitBrief — type shapes", () => {
     expect(brief.unit_id).toBe("unit-abc");
     expect(brief.brief_text).toBe("Design a desk-organiser for a Year 7 student.");
     expect(brief.constraints.archetype).toBe("design");
+    expect(brief.diagram_url).toBe("/api/storage/unit-images/unit-abc/brief-diagram-12345.jpg");
     expect(brief.created_by).toBe("teacher-uuid-1");
     expect(brief.created_at).toBe("2026-05-13T09:00:00.000Z");
     expect(brief.updated_at).toBe("2026-05-13T09:05:00.000Z");
@@ -81,6 +83,7 @@ describe("UnitBrief — type shapes", () => {
       unit_id: "unit-service-1",
       brief_text: "Run a 6-week service project for the Year 8 cohort.",
       constraints,
+      diagram_url: null,
       created_at: "2026-05-13T09:10:00.000Z",
       updated_at: "2026-05-13T09:10:00.000Z",
       created_by: "teacher-uuid-2",
@@ -113,11 +116,12 @@ describe("UnitBrief — type shapes", () => {
     expect(amendment.created_by).toBe("teacher-uuid-1");
   });
 
-  it("allows nullable brief_text + created_by per the schema", () => {
+  it("allows nullable brief_text + created_by + diagram_url per the schema", () => {
     const brief: UnitBrief = {
       unit_id: "unit-empty",
       brief_text: null,
       constraints: { archetype: "generic", data: {} },
+      diagram_url: null,
       created_at: "2026-05-13T09:15:00.000Z",
       updated_at: "2026-05-13T09:15:00.000Z",
       created_by: null,
@@ -125,6 +129,7 @@ describe("UnitBrief — type shapes", () => {
 
     expect(brief.brief_text).toBeNull();
     expect(brief.created_by).toBeNull();
+    expect(brief.diagram_url).toBeNull();
   });
 
   it("supports partial Design constraints (all fields optional)", () => {
