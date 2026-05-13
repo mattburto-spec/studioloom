@@ -80,6 +80,9 @@ export default function FabricationNewPage() {
     PREFERRED_COLOR_NO_PREFERENCE
   );
   const [preferredColorOther, setPreferredColorOther] = React.useState<string>("");
+  // Quantity (13 May 2026): student picks how many copies they want.
+  // Defaults to 1. Bound 1..20 (matches server validation + DB CHECK).
+  const [quantity, setQuantity] = React.useState<number>(1);
   const [uploadState, dispatch] = React.useReducer(uploadReducer, initialUploadState);
   // Phase 8.1d-11: instant click feedback. The /upload POST takes
   // 100-500ms before uploadReducer transitions to "uploading", so
@@ -206,6 +209,7 @@ export default function FabricationNewPage() {
           fileType,
           originalFilename: file.name,
           fileSizeBytes: file.size,
+          quantity,
         }),
       });
       if (!res.ok) {
@@ -447,6 +451,64 @@ export default function FabricationNewPage() {
               </p>
             </div>
           )}
+
+          {/* Quantity (13 May 2026): student picks how many copies. Default 1.
+              Renders for both 3D-printer and laser-cutter — students typically
+              need 4 wheels, 2 axles, etc. The lab tech prints/cuts N copies
+              from the single file and marks the job complete once.  */}
+          <div className="space-y-2">
+            <label
+              htmlFor="quantity"
+              className="text-sm font-medium text-gray-900"
+            >
+              How many copies?
+            </label>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                disabled={isBusy || quantity <= 1}
+                className="h-10 w-10 rounded-xl border border-gray-300 bg-white text-lg font-bold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Decrease quantity"
+              >
+                −
+              </button>
+              <input
+                id="quantity"
+                type="number"
+                value={quantity}
+                onChange={(e) => {
+                  const n = Number.parseInt(e.target.value, 10);
+                  if (Number.isFinite(n)) {
+                    setQuantity(Math.max(1, Math.min(20, n)));
+                  }
+                }}
+                min={1}
+                max={20}
+                disabled={isBusy}
+                className="h-10 w-20 rounded-xl border border-gray-300 bg-white px-3 text-center text-base font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-purple/40 focus:border-brand-purple disabled:opacity-50"
+              />
+              <button
+                type="button"
+                onClick={() => setQuantity((q) => Math.min(20, q + 1))}
+                disabled={isBusy || quantity >= 20}
+                className="h-10 w-10 rounded-xl border border-gray-300 bg-white text-lg font-bold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Increase quantity"
+              >
+                +
+              </button>
+              {quantity > 1 && (
+                <span className="text-sm font-semibold text-purple-700">
+                  × {quantity} copies
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-gray-500">
+              Need a few of the same thing (e.g. 4 wheels)? Set the count here.
+              The fabricator will make all {quantity > 1 ? quantity : "the"} copies before
+              marking the job complete. Max 20 — talk to your teacher for more.
+            </p>
+          </div>
 
           <FileDropzone
             file={file}
