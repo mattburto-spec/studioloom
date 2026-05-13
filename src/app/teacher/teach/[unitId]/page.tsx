@@ -493,9 +493,20 @@ export default function TeachingDashboard({
           display: "flex", flexDirection: "column", gap: "12px",
           overflowY: "auto", maxHeight: "calc(100vh - 112px)", paddingRight: "8px", paddingBottom: "80px",
         }}>
-          <p style={{ fontSize: "14px", fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0", padding: "0 8px" }}>
-            Lessons
-          </p>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 8px" }}>
+            <p style={{ fontSize: "14px", fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.05em", margin: 0 }}>
+              Lessons
+            </p>
+            {selectedClassId && (
+              <Link
+                href={`/teacher/classes/${selectedClassId}/schedule/${unitId}`}
+                style={{ fontSize: "11px", color: "#7C3AED", fontWeight: 600, textDecoration: "none" }}
+                title="Set the date for each lesson — Teaching Mode will auto-open today's class"
+              >
+                📅 Set dates
+              </Link>
+            )}
+          </div>
           {pages.map((page, i) => {
             const isActive = page.id === selectedPageId;
             const hasPhases = !!page.content?.workshopPhases;
