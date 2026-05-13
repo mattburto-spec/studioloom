@@ -75,6 +75,10 @@ export default function TeacherStudentView({
   const [savingName, setSavingName] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  // When the DELETE call succeeds we DON'T redirect — teacher stays on the
+  // page and sees an in-place "deleted" banner with a manual back link.
+  // (Per Matt's smoke 13 May 2026: auto-bounce to dashboard felt abrupt.)
+  const [deleted, setDeleted] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -262,6 +266,10 @@ export default function TeacherStudentView({
   }
 
   // Round 20 — Hard-delete the student via DELETE /api/teacher/students/[id]
+  // 13 May 2026: removed the auto-redirect to /teacher/dashboard. Teacher
+  // now stays on the same URL; an in-place banner confirms the delete +
+  // offers a manual "Back to dashboard" link. Loaded student data stays
+  // in memory (stale but harmless) so the page doesn't go blank.
   async function deleteStudent() {
     setDeleteError(null);
     setDeleting(true);
@@ -274,8 +282,11 @@ export default function TeacherStudentView({
         setDeleteError(j.error || `Delete failed (${res.status})`);
         return;
       }
-      // Successful delete → bounce back to dashboard.
-      window.location.href = "/teacher/dashboard";
+      // Successful delete → close the dialog, flip into deleted state.
+      // Page stays at the same URL — teacher reads the banner + decides
+      // when to navigate.
+      setDeleteOpen(false);
+      setDeleted(true);
     } catch (e: any) {
       setDeleteError(e?.message || "Delete failed");
     } finally {
@@ -364,6 +375,31 @@ export default function TeacherStudentView({
 
   return (
     <main className="max-w-4xl mx-auto px-6 py-8">
+      {/* Post-delete banner — replaces the auto-redirect to dashboard.
+          Page stays mounted with stale data behind the banner so the
+          teacher reads the confirmation in context, then navigates away
+          themselves. */}
+      {deleted && (
+        <div
+          role="status"
+          className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border-2 border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 shadow-sm"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-lg">✓</span>
+            <span>
+              <strong>{student.display_name || student.username}</strong>{" "}
+              has been deleted from your roster.
+            </span>
+          </div>
+          <Link
+            href="/teacher/dashboard"
+            className="rounded-full bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-800 transition"
+          >
+            ← Back to dashboard
+          </Link>
+        </div>
+      )}
+
       {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 text-xs text-text-secondary mb-4">
         <Link href="/teacher/dashboard" className="hover:text-text-primary transition">Dashboard</Link>
