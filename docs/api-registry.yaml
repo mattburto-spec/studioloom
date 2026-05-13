@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 486
+# Total routes: 493
 
 routes:
 - path: /api/admin/ai-budget
@@ -1057,8 +1057,7 @@ routes:
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'class_dj_rounds' — not in schema-registry; Reference to unknown table 'class_dj_suggestions'
-    — not in schema-registry
+  notes: null
 - path: /api/student/class-dj/suggest
   method: POST
   file: src/app/api/student/class-dj/suggest/route.ts
@@ -1075,9 +1074,7 @@ routes:
   - class_dj_suggestions
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'class_dj_fairness_ledger' — not in schema-registry; Reference to unknown table 'class_dj_rounds'
-    — not in schema-registry; Reference to unknown table 'class_dj_suggestions' — not in schema-registry; Reference to unknown
-    table 'class_dj_veto_overrides' — not in schema-registry
+  notes: null
 - path: /api/student/class-dj/vote
   method: POST
   file: src/app/api/student/class-dj/vote/route.ts
@@ -1090,7 +1087,7 @@ routes:
   - student_tool_sessions
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'class_dj_rounds' — not in schema-registry
+  notes: null
 - path: /api/student/design-assistant
   method: GET
   file: src/app/api/student/design-assistant/route.ts
@@ -2197,6 +2194,20 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/student/unit-brief
+  method: GET
+  file: src/app/api/student/unit-brief/route.ts
+  auth: student
+  tables_read:
+  - class_students
+  - class_units
+  - students
+  - unit_brief_amendments
+  - unit_briefs
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/student/unit-pages/[pageId]/skill-refs
   method: GET
   file: src/app/api/student/unit-pages/[pageId]/skill-refs/route.ts
@@ -2695,7 +2706,7 @@ routes:
   - class_dj_rounds
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'class_dj_rounds' — not in schema-registry
+  notes: null
 - path: /api/teacher/class-dj/[roundId]/pick
   method: POST
   file: src/app/api/teacher/class-dj/[roundId]/pick/route.ts
@@ -2710,8 +2721,7 @@ routes:
   - class_dj_rounds
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'class_dj_fairness_ledger' — not in schema-registry; Reference to unknown table 'class_dj_rounds'
-    — not in schema-registry; Reference to unknown table 'class_dj_suggestions' — not in schema-registry
+  notes: null
 - path: /api/teacher/class-dj/[roundId]/regenerate-narration
   method: POST
   file: src/app/api/teacher/class-dj/[roundId]/regenerate-narration/route.ts
@@ -2723,8 +2733,7 @@ routes:
   - class_dj_suggestions
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'class_dj_rounds' — not in schema-registry; Reference to unknown table 'class_dj_suggestions'
-    — not in schema-registry
+  notes: null
 - path: /api/teacher/class-dj/constraints/[classId]
   method: GET
   file: src/app/api/teacher/class-dj/constraints/[classId]/route.ts
@@ -2738,9 +2747,7 @@ routes:
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'class_dj_fairness_ledger' — not in schema-registry; Reference to unknown table 'class_dj_ledger_resets'
-    — not in schema-registry; Reference to unknown table 'class_dj_rounds' — not in schema-registry; Reference to unknown
-    table 'class_dj_veto_overrides' — not in schema-registry
+  notes: null
 - path: /api/teacher/class-dj/constraints/[classId]/expire-veto
   method: POST
   file: src/app/api/teacher/class-dj/constraints/[classId]/expire-veto/route.ts
@@ -2750,7 +2757,7 @@ routes:
   - class_dj_veto_overrides
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'class_dj_veto_overrides' — not in schema-registry
+  notes: null
 - path: /api/teacher/class-dj/constraints/[classId]/reset-ledger
   method: POST
   file: src/app/api/teacher/class-dj/constraints/[classId]/reset-ledger/route.ts
@@ -2765,8 +2772,7 @@ routes:
   - class_dj_rounds
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'class_dj_fairness_ledger' — not in schema-registry; Reference to unknown table 'class_dj_ledger_resets'
-    — not in schema-registry; Reference to unknown table 'class_dj_rounds' — not in schema-registry
+  notes: null
 - path: /api/teacher/class-dj/launch
   method: POST
   file: src/app/api/teacher/class-dj/launch/route.ts
@@ -2777,7 +2783,7 @@ routes:
   - class_dj_rounds
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'class_dj_rounds' — not in schema-registry
+  notes: null
 - path: /api/teacher/class-profiles
   method: GET
   file: src/app/api/teacher/class-profiles/route.ts
@@ -4856,6 +4862,72 @@ routes:
   auth: teacher
   tables_read: []
   tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/unit-brief
+  method: GET
+  file: src/app/api/teacher/unit-brief/route.ts
+  auth: teacher
+  tables_read:
+  - unit_briefs
+  tables_written:
+  - unit_briefs
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/unit-brief
+  method: POST
+  file: src/app/api/teacher/unit-brief/route.ts
+  auth: teacher
+  tables_read:
+  - unit_briefs
+  tables_written:
+  - unit_briefs
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/unit-brief/amendments
+  method: GET
+  file: src/app/api/teacher/unit-brief/amendments/route.ts
+  auth: teacher
+  tables_read:
+  - unit_brief_amendments
+  tables_written:
+  - unit_brief_amendments
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/unit-brief/amendments
+  method: POST
+  file: src/app/api/teacher/unit-brief/amendments/route.ts
+  auth: teacher
+  tables_read:
+  - unit_brief_amendments
+  tables_written:
+  - unit_brief_amendments
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/unit-brief/diagram
+  method: POST
+  file: src/app/api/teacher/unit-brief/diagram/route.ts
+  auth: teacher
+  tables_read:
+  - unit_briefs
+  tables_written:
+  - unit_briefs
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/unit-brief/diagram
+  method: DELETE
+  file: src/app/api/teacher/unit-brief/diagram/route.ts
+  auth: teacher
+  tables_read:
+  - unit_briefs
+  tables_written:
+  - unit_briefs
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null

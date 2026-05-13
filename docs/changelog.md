@@ -4,6 +4,37 @@
 
 ---
 
+## 2026-05-14 — Unit Briefs Foundation shipped end-to-end (Phases A–E + smoke fix)
+
+Closes `FU-PLATFORM-BRIEF-AND-CONSTRAINTS-SURFACE` — the "students forget the brief by week 4" problem. New unit-level Brief & Constraints surface: teacher authors prose + Design constraints (H×W×D + materials whitelist with catalogue chips + custom additions + budget + audience + must-include/must-avoid) + spec diagram + amendment stack ("v2.0 add LEDs"). Students see a persistent **purple "📋 Brief v1.<N>" chip in the LessonSidebar** (between unit title and Project Board button) on every `/unit/[unitId]/*` page; clicking opens a portal-mounted slide-in drawer with the full brief, diagram, constraints card, and amendments oldest-first as the evolution story.
+
+**Phases shipped (8 PRs):**
+- **Phase A** (PR #233) — schema (2 tables + 1 type) + RLS + types + tests (Checkpoint A signed off 13/13)
+- **Hotfix** (PR #234) — `units.unit_type` prod-drift Lesson #83 trap; switched to `select("*")` per Lesson #24
+- **Phase B** (PR #233) — teacher editor + API routes + 3 UI components + audit-skip annotations
+- **Smoke polish** (PR #235) — persistent SaveStatusPill, custom-materials free-text, structured H×W×D dimensions
+- **Phase B.5** (PR #237) — spec diagram upload (1 column migration + storage proxy + DiagramUploader UI)
+- **Phase C** (PR #238) — student API + BriefChip + BriefDrawer
+- **Phase C smoke fix** (PR #240) — moved chip to LessonSidebar + portal-mounted drawer (Lesson #89 banked)
+- **Phase D** (PR #241) — refetch-on-drawer-open so amendments added mid-session show up
+- **Phase E** (this PR) — schema-registry + WIRING entries + Lesson #89 + changelog
+
+**Numbers:**
+- 3 new migrations (`unit_briefs_table` + `unit_brief_amendments_table` + `unit_briefs_diagram_url`) — all applied to prod with `applied_migrations` tracker rows logged
+- 2 new tables — schema-registry +2 (`unit_briefs`, `unit_brief_amendments`)
+- 7 new API routes — api-registry +7 (teacher: `/unit-brief` GET+POST, `/unit-brief/amendments` GET+POST, `/unit-brief/diagram` POST+DELETE; student: `/unit-brief` GET)
+- 1 new system in WIRING (`unit-briefs`) — `complete`, depends_on units + classes + class_units + class_students + students + auth-system + content-forking; affects student-unit-chrome + teacher-unit-editor + lesson-sidebar
+- 1 new lesson banked — Lesson #89 (`position: fixed` trapped by transformed ancestors → portal to `document.body`)
+- 3 follow-ups filed: `FU-BRIEFS-STUDENT-SELF-AUTHORED` (P2 Phase F), `FU-BRIEFS-SERVICE-INQUIRY-ARCHETYPES` (P3), `FU-BRIEFS-AUDIT-COVERAGE` (P3 — 3 POST routes audit-skipped for now)
+- Tests: 5709 → ~6035 passing (+326 net across the build, 0 regressions, 11 skipped)
+- 2 surgical pre-flight catches: schema-registry's `platform_admins` table didn't exist (used v2 `user_profiles.is_platform_admin` pattern instead); audit-coverage scanner caught Phase B's missing skip annotations
+
+**Spec drift / pre-flight wins:** Phase A pre-flight grep caught the brief's RLS spec referencing a non-existent `platform_admins` table; pre-flight registry cross-check found `user_profiles` listed `status: dropped` despite migrations still depending on it. Both flagged in the ASSUMPTIONS block, resolved in the migration body.
+
+**Methodology bites:** (1) Lesson #83 bit me on `units.unit_type` — I trusted schema-registry instead of probing prod first, so PR #233 shipped with a column reference that 400'd on prod (migration 051 never applied). Mea culpa — fixed in #234 with `select("*")`. (2) Phase C smoke fix surfaced Lesson #89 — the drawer mounted inside BoldTopNav's transformed-ancestor chain trapped `position: fixed`. Portal fix is now the canonical pattern for any drawer/modal in the codebase.
+
+---
+
 ## 2026-05-13 — Class DJ Activity Block built end-to-end (Phases 0–7)
 
 The first **live-timed-parallel** Activity Block in StudioLoom. 60-second classroom music vote — students drop a mood/energy/veto/seed, deterministic 5-stage algorithm (MusicFX quadratic boost + k-means split detection + Pareto+MMR selection) bracketed by LLM at the seams (Stage 3 candidate-pool + Stage 5 narration). Spotify Web API enrichment drops hallucinations + explicit hits + blocklist matches. Per-class fairness ledger with EMA on `served_score` + clamped `voice_weight` prevents any single student's preferences from always winning. Hybrid tally disclosure: face-grid for students, full mood/energy histograms for teachers (anti-strategic-voting per Zou-Meir-Parkes 2015). Persistent-veto sunset (30-day window + teacher override panel) prevents the constraint set growing into an unwinnable region by week 10.

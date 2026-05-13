@@ -1795,7 +1795,7 @@ systems:
     currentVersion: 1
     summary: "Unit-as-template architecture with copy-on-write forks. 4-dimension model: unit type, programme, curriculum, standards. Assigned Classes view with class count, class code, NM badge, archive status."
     depends_on: [content-forking, framework-adapter]
-    affects: [teacher-dashboard, unit-editor, lesson-pulse]
+    affects: [teacher-dashboard, unit-editor, lesson-pulse, unit-briefs]
     docs:
       - path: docs/specs/unit-type-framework-architecture.md
         purpose: 4-dimension model design
@@ -1813,6 +1813,67 @@ systems:
     adrs: ["010"]
     os_seam: ready
     change_impacts: Changes to unit_type affect display. Changes to forking logic affect content consistency.
+
+  - id: unit-briefs
+    name: Unit Briefs & Constraints
+    category: Teacher Experience
+    status: complete
+    currentVersion: 1
+    summary: |
+      Unit-level Brief & Constraints surface that solves the "students forget the brief by week 4" problem.
+      Teacher authors prose brief + structured Design constraints (H×W×D dimensions, materials whitelist
+      with catalogue chips + custom additions, budget, audience, must-include/must-avoid) + optional spec
+      diagram + amendment stack ("v2.0 add LEDs"). Students see a persistent purple chip in the LessonSidebar
+      (between the unit title and Project Board button) on every /unit/[unitId]/* page; click opens a
+      portal-mounted slide-in drawer showing the brief, spec diagram, constraints card, and amendments
+      stacked oldest-first as the brief's evolution story. Drawer refetches on each open so amendments
+      added mid-session appear after a close+reopen cycle (no server push by design).
+    depends_on: [units, classes, class_units, class_students, students, auth-system, content-forking]
+    affects: [student-unit-chrome, teacher-unit-editor, lesson-sidebar]
+    docs:
+      - path: docs/projects/unit-briefs-foundation-brief.md
+        purpose: Full 5-phase build plan (A schema → E saveme) with Matt Checkpoints, migration SQL, RLS pattern, stop triggers
+      - path: docs/projects/platform-followups.md
+        purpose: FU-BRIEFS-STUDENT-SELF-AUTHORED (P2 — Phase F), FU-BRIEFS-AUDIT-COVERAGE (P3), FU-PLATFORM-BRIEF-AND-CONSTRAINTS-SURFACE (parent FU, closed)
+    data_fields:
+      - table: unit_briefs
+        columns: [unit_id, brief_text, constraints, diagram_url, created_at, updated_at, created_by]
+        notes: One row per unit. constraints is archetype-discriminated JSONB ({ archetype: "design" | "generic", data }); diagram_url is a relative /api/storage/unit-images/<unitId>/brief-diagram-<ts>.jpg proxy URL.
+      - table: unit_brief_amendments
+        columns: [id, unit_id, version_label, title, body, created_at, created_by]
+        notes: Append-only iteration log. version_label TEXT NOT NULL CHECK (1-20 chars); title + body NOT NULL CHECK > 0. No updated_at — amendments are immutable.
+    key_files:
+      - supabase/migrations/20260513092021_unit_briefs_table.sql
+      - supabase/migrations/20260513092255_unit_brief_amendments_table.sql
+      - supabase/migrations/20260513133345_unit_briefs_diagram_url.sql
+      - src/types/unit-brief.ts
+      - src/app/api/teacher/unit-brief/route.ts
+      - src/app/api/teacher/unit-brief/amendments/route.ts
+      - src/app/api/teacher/unit-brief/diagram/route.ts
+      - src/app/api/student/unit-brief/route.ts
+      - src/app/teacher/units/[unitId]/brief/page.tsx
+      - src/components/teacher/unit-brief/UnitBriefEditor.tsx
+      - src/components/teacher/unit-brief/DesignConstraintsEditor.tsx
+      - src/components/teacher/unit-brief/AmendmentsEditor.tsx
+      - src/components/teacher/unit-brief/DiagramUploader.tsx
+      - src/components/student/unit-brief/BriefChip.tsx
+      - src/components/student/unit-brief/BriefDrawer.tsx
+    future_needs: |
+      FU-BRIEFS-STUDENT-SELF-AUTHORED (P2, Phase F) — fallback authoring path for self-directed contexts
+      where there's no teacher-authored brief (Open Studio, "pitch your own" etc.). FU-BRIEFS-SERVICE-INQUIRY-
+      ARCHETYPES (P3) — real structured constraints for Service / Inquiry / PP unit types beyond the v1
+      generic fallback. FU-BRIEFS-AUDIT-COVERAGE (P3) — wire logAuditEvent into the 3 audit-skipped POST
+      routes (unit-brief + amendments + diagram) on the next audit-tightening sweep.
+    adrs: []
+    os_seam: ready
+    change_impacts: |
+      Changes to the brief fetch logic must update both the teacher editor (UnitBriefEditor) and the
+      student drawer (BriefChip/BriefDrawer) because they share `/api/teacher/unit-brief` and
+      `/api/student/unit-brief` response shapes. Amendment append must keep chronological order —
+      student drawer renders ASC (oldest-first as evolution story) while teacher review uses DESC.
+      `constraints` is JSONB and the discriminated union shape changes app-side only (no migration
+      needed). The drawer is portal-mounted at document.body to escape ancestor containing blocks —
+      moving it back inside BoldTopNav or a transformed wrapper will re-trigger Phase C smoke bug.
 
   - id: teacher-integrity
     name: Teacher Integrity Dashboard
@@ -3437,14 +3498,14 @@ systems:
 
 # Summary Statistics
 meta:
-  total_systems: 106
-  complete_systems: 43
+  total_systems: 107
+  complete_systems: 44
   active_systems: 17
   planned_systems: 8
   idea_systems: 19
   future_systems: 6
   quarantined_systems: 1
-  last_updated: 2026-04-20
+  last_updated: 2026-05-14
   notes: |
     This registry maps 92 systems across 8 categories.
     CRITICAL LINKS:

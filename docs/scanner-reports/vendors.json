@@ -1,6 +1,6 @@
 {
   "registry": "vendors.yaml",
-  "timestamp": "2026-05-13T07:34:22.285362+00:00",
+  "timestamp": "2026-05-13T23:07:53.913137+00:00",
   "version": 1,
   "drift": {
     "orphaned": [],
@@ -85,9 +85,9 @@
         "@sentry/nextjs"
       ],
       "env_found": [
-        "NEXT_PUBLIC_SENTRY_ORG_SLUG",
         "NEXT_PUBLIC_SENTRY_PROJECT_SLUG",
-        "NEXT_PUBLIC_SENTRY_DSN"
+        "NEXT_PUBLIC_SENTRY_DSN",
+        "NEXT_PUBLIC_SENTRY_ORG_SLUG"
       ],
       "http_found": [],
       "has_evidence": true
@@ -104,7 +104,7 @@
     }
   },
   "stats": {
-    "registered_vendors": 9,
+    "registered_vendors": 10,
     "vendors_with_evidence": 8
   },
   "status": "ok"

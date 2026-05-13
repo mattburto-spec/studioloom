@@ -11641,3 +11641,94 @@ tables:
   applied_via:
     - 20260513122638_class_dj_block.sql
   spec_drift: []
+
+# ─────────────────────────────────────────────────────────────────────
+# Unit Briefs Foundation (13 May 2026 — Phases A through E)
+# Migrations:
+#   20260513092021_unit_briefs_table.sql
+#   20260513092255_unit_brief_amendments_table.sql
+#   20260513133345_unit_briefs_diagram_url.sql
+# Solves "students forget the brief by week 4". Unit-level Brief &
+# Constraints surface — teacher authors prose + structured constraints
+# + spec diagram + amendments stack; student sees a persistent
+# LessonSidebar chip + slide-in drawer one click away from every page.
+# ─────────────────────────────────────────────────────────────────────
+
+- name: unit_briefs
+  source_migration: 20260513092021_unit_briefs_table.sql
+  status: applied
+  applied_date: '2026-05-13'
+  purpose: |
+    Unit Briefs Foundation — one row per unit holding the teacher-
+    authored brief prose + archetype-discriminated constraints JSONB +
+    spec diagram URL. Read at render time by the student BoldTopNav-
+    adjacent LessonSidebar chip + drawer (loose-coupling per Lesson
+    #86: no copy into downstream activity blocks).
+  columns:
+    unit_id: UUID PRIMARY KEY REFERENCES units(id) ON DELETE CASCADE
+    brief_text: TEXT
+    constraints: JSONB NOT NULL DEFAULT '{}'::jsonb
+    diagram_url: TEXT
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_by: UUID REFERENCES auth.users(id)
+  rls_enabled: true
+  rls_policies:
+    - name: unit_briefs_teacher_read
+      action: SELECT
+      target: teacher
+      check: |
+        Author of the unit (units.author_teacher_id = auth.uid()) OR
+        co-teacher with the unit assigned to one of their active
+        classes (via class_units + classes join, is_active = true) OR
+        platform admin (user_profiles.is_platform_admin = true).
+        Students access via service-role API (Lesson #4 — token
+        sessions, not auth.uid()), so no student RLS policy needed.
+        All writes also via service-role (mirrors v2 product-brief-
+        pitch pattern); no RLS write policy.
+  writers:
+    - /api/teacher/unit-brief (POST partial-patch upsert — brief_text + constraints, author-only via verifyTeacherHasUnit.isAuthor)
+    - /api/teacher/unit-brief/diagram (POST FormData upload — sets diagram_url; DELETE clears + removes storage object)
+  readers:
+    - /api/teacher/unit-brief (GET, author + co-teacher access)
+    - /api/student/unit-brief (GET, service-role + token session + enrollment check)
+  applied_via:
+    - 20260513092021_unit_briefs_table.sql
+    - 20260513133345_unit_briefs_diagram_url.sql (adds nullable diagram_url column; Phase B.5)
+  spec_drift: []
+
+- name: unit_brief_amendments
+  source_migration: 20260513092255_unit_brief_amendments_table.sql
+  status: applied
+  applied_date: '2026-05-13'
+  purpose: |
+    Append-only iteration log on top of unit_briefs. Each row is a
+    teacher-issued amendment ("v2.0 add LEDs") rendered chronologically
+    in the student drawer. No edits, no deletes via app surfaces — the
+    amendment stream IS the brief's evolution story.
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    unit_id: UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE
+    version_label: TEXT NOT NULL CHECK (char_length BETWEEN 1 AND 20)
+    title: TEXT NOT NULL CHECK (char_length > 0)
+    body: TEXT NOT NULL CHECK (char_length > 0)
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_by: UUID REFERENCES auth.users(id)
+  indexes:
+    - idx_unit_brief_amendments_unit_id_created_at ON (unit_id, created_at DESC)
+  rls_enabled: true
+  rls_policies:
+    - name: unit_brief_amendments_teacher_read
+      action: SELECT
+      target: teacher
+      check: |
+        Same shape as unit_briefs_teacher_read — author OR co-teacher
+        OR platform admin. All writes via service-role.
+  writers:
+    - /api/teacher/unit-brief/amendments (POST plain INSERT — append-only; author-only via verifyTeacherHasUnit.isAuthor)
+  readers:
+    - /api/teacher/unit-brief/amendments (GET, latest-first DESC for teacher review)
+    - /api/student/unit-brief (GET, oldest-first ASC — evolution-story rendering in drawer)
+  applied_via:
+    - 20260513092255_unit_brief_amendments_table.sql
+  spec_drift: []
