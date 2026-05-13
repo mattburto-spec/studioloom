@@ -24,9 +24,16 @@ export default function UnitBriefPage({
   useEffect(() => {
     let cancelled = false;
     const supabase = createClient();
+    // Lesson #24 + #83: prod hasn't applied migration 051 (`unit_type`
+    // column) — the schema-registry lists it but `FU-PROD-MIGRATION-BACKLOG-
+    // AUDIT` (P1) flags the drift. select("*") tolerates the column being
+    // missing, then defaults to "design" (the only structurally-supported
+    // archetype in v1; non-Design fallback banner will reactivate once 051
+    // lands in prod). Don't switch to explicit column lists here without
+    // probing prod first.
     void supabase
       .from("units")
-      .select("id, title, unit_type")
+      .select("*")
       .eq("id", unitId)
       .maybeSingle()
       .then(({ data, error: queryError }) => {
