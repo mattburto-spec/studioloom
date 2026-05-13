@@ -120,6 +120,28 @@ export const GET = withErrorHandler("teacher/teach/live-status:GET", async (requ
     (recentActivity || []).map((s) => s.student_id)
   );
 
+  // Doing-card lookup — surfaces each student's current committed work
+  // (from First Move kanban WIP=1 enforcement) to Teaching Mode so the
+  // teacher can ask "how's the wheel coming?" instead of "are you
+  // working?" — useful for self-directed studio classes where most of
+  // the actual work happens in external tools (Onshape, hand tools, etc).
+  // Filters via doing_count > 0 so we only fetch boards that have one.
+  const { data: kanbanRows } = await db
+    .from("student_unit_kanban")
+    .select("student_id, cards")
+    .in("student_id", studentIds)
+    .eq("unit_id", unitId)
+    .gt("doing_count", 0);
+
+  const doingMap = new Map<string, string>();
+  for (const row of kanbanRows || []) {
+    const cards = (row.cards as Array<{ status: string; title: string }>) || [];
+    const doing = cards.find((c) => c?.status === "doing" && c?.title);
+    if (doing) {
+      doingMap.set(row.student_id, doing.title);
+    }
+  }
+
   // Build per-student status
   const progressMap = new Map<string, typeof progressRows>();
   for (const row of progressRows || []) {
@@ -145,6 +167,10 @@ export const GET = withErrorHandler("teacher/teach/live-status:GET", async (requ
     needsHelp: boolean;
     /** Pace z-score vs in-progress cohort on this lesson; null if cohort <5 or not in_progress */
     paceZ: number | null;
+    /** Title of the student's current First Move "doing" card, if any.
+     *  Lets Teaching Mode surface what each student committed to work on
+     *  even when that work is happening in an external tool. */
+    doingCardTitle: string | null;
   };
 
   const now = Date.now();
@@ -178,6 +204,7 @@ export const GET = withErrorHandler("teacher/teach/live-status:GET", async (requ
         completionPct: 0, // Would need page section count to calculate
         needsHelp,
         paceZ: null, // Filled in post-pass below
+        doingCardTitle: doingMap.get(s.id) ?? null,
       };
     } else {
       // Unit-level mode — aggregate across all pages
@@ -211,6 +238,7 @@ export const GET = withErrorHandler("teacher/teach/live-status:GET", async (requ
         completionPct: 0,
         needsHelp: false,
         paceZ: null, // Pace only meaningful in page mode
+        doingCardTitle: doingMap.get(s.id) ?? null,
       };
     }
   });
