@@ -416,6 +416,36 @@ export default function TeachingDashboard({
             </p>
           </div>
 
+          {/* Edit-this-lesson button — quick path to the class-local
+              lesson editor for the currently-selected page. Only
+              renders when both class + page are selected. */}
+          {selectedClassId && selectedPageId && (
+            <Link
+              href={`/teacher/units/${unitId}/class/${selectedClassId}/edit?pageId=${selectedPageId}`}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: "6px",
+                fontSize: "13px", fontWeight: 600, color: "#7C3AED",
+                background: "rgba(124, 58, 237, 0.08)",
+                border: "1px solid rgba(124, 58, 237, 0.2)",
+                borderRadius: "8px", padding: "7px 12px",
+                textDecoration: "none", transition: "all 0.15s",
+                whiteSpace: "nowrap",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(124, 58, 237, 0.14)";
+                e.currentTarget.style.borderColor = "rgba(124, 58, 237, 0.35)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "rgba(124, 58, 237, 0.08)";
+                e.currentTarget.style.borderColor = "rgba(124, 58, 237, 0.2)";
+              }}
+              title="Open this lesson in the editor"
+            >
+              <span aria-hidden>✏️</span>
+              Edit lesson
+            </Link>
+          )}
+
           {/* Class selector — dark glass dropdown */}
           {classes.length > 0 && (
             <select
