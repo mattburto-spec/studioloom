@@ -1269,3 +1269,69 @@ Matt's instinct: "I don't want to make things too dependent and start complicati
 **Rule:** When you add a UI affordance that COULD cascade through downstream systems, default to local-only state. Coupling is purchased; once paid, it's permanent. Two consumers can drift independently and the cost is "occasional UX mismatch". Two consumers wired together via event cascade cost: every test now lives in the product of N states across both, every refactor has to maintain the invariant, every new consumer has to learn the cascade rules. The cascade tax compounds; the mismatch tax is occasional and bounded. Wait for the second consumer to actually need synchronisation before building it.
 
 **Sister principle:** This is the same energy as Lesson #34 (FK cascades are forever — design for soft references first, hard FKs only when proven necessary). The instinct to wire things up is strong; the instinct to leave them loosely coupled is the experienced one. Matt's call on Choice Cards is the canonical example of "the discipline of NOT building".
+
+### Lesson #87 — Next.js sibling dynamic-route segments must share a slug name; mismatched siblings break ROUTING ALL ROUTES
+**Date:** 13 May 2026
+**Phase:** Prod regression after PR #221 + parallel first-move work — see PRs #222 (revert), #223 (hotfix)
+
+**What happened:** Two routes shipped direct-to-main in a parallel session created siblings with different slug names:
+
+```
+src/app/api/student/first-move/[unitId]/route.ts          (GET, Phase 1)
+src/app/api/student/first-move/[activityId]/commit/route.ts (POST, Phase 2)
+```
+
+Next.js does not allow two dynamic segments with different slug names at the same path slot — `[unitId]` next to `[activityId]` means the router can't decide which one matches `/api/student/first-move/abc123`. CI passed (TypeScript + tests don't catch this) and the deploy went out. In prod, the dynamic route table failed to rebuild consistently, dispatch got into a bad state, and **requests across the entire app started hanging for 900s (Vercel function limit)**. Symptom for the user: teacher app SSR-rendered the topnav but content below didn't hydrate and topnav buttons didn't navigate. The blast radius was global, not localised to first-move — `/api/student/open-studio/status` (frequently polled) was the canary that lit Vercel's anomaly detector first.
+
+The dev-server logs were screaming the diagnosis the whole time:
+
+```
+⚠ Failed to reload dynamic routes: [Error: You cannot use different slug names
+  for the same dynamic path ('activityId' !== 'unitId').]
+⨯ unhandledRejection: ...
+```
+
+**Fix (PR #223):** Restructured the POST route to put the literal `commit` segment BEFORE the dynamic slug:
+
+```
+src/app/api/student/first-move/commit/[activityId]/route.ts
+```
+
+`commit/` is a literal path segment, so it doesn't conflict with the sibling `[unitId]` dynamic. Updated the one client call site in `FirstMoveBlock.tsx`.
+
+**Why CI didn't catch it:**
+- TypeScript: the route files compile fine individually
+- Test suite: no test exercises the Next.js dynamic-route resolver at build/manifest-reload time
+- Build: `next build` doesn't fail — the manifest only blows up on the FIRST request that triggers a dynamic-routes reload (dev) or on production request dispatch
+
+**Rule:**
+1. **When adding a new dynamic route handler, audit sibling dynamic segments at the same path slot.** Run `find src/app -type d -name '\[*\]'` or grep for sibling brackets. If sibling slug names disagree, restructure NOW.
+2. **Reserve a literal segment for distinguishing actions on a dynamic resource.** `/api/student/first-move/[unitId]` (read) vs `/api/student/first-move/commit/[activityId]` (write) is the right shape. Putting the action segment first is canonical Next.js convention for a reason.
+3. **Dev-server logs are gold in routing bugs.** The error fired on every page load locally — would have been a 30-second diagnosis if anyone had opened `npm run dev` before merging. Direct-to-main bypassed that gate.
+4. **CI green ≠ deploy-safe for routing changes.** Type-check and unit tests can't see this class of bug. Either (a) add a CI step that runs `next build` followed by a startup smoke (boot the server, hit a route, fail if `slug names` appears in logs), or (b) require a Vercel preview-deploy smoke before merging routing changes.
+
+**Sister lesson:** Lesson #70 (push UI smoke gates to feature branch → Vercel preview → smoke → merge). This is the API-routing equivalent: anything that changes the route manifest is a smoke-required change, not a CI-only change.
+
+**Filed:** `FU-CI-NEXT-ROUTING-SMOKE` (P1) — add `next build` + log-scan to CI to catch this class of bug pre-merge.
+
+### Lesson #88 — Revert-first when uncertain is correct even when wrong
+**Date:** 13 May 2026
+**Phase:** Same prod regression — PR #221 → PR #222 (revert) → PR #223 (real fix)
+
+**What happened:** When Matt reported "nothing rendering below the topnav", I had just shipped PR #221 (CheckInRow Phase 1). The symptom appeared right after the deploy. Two competing hypotheses: (a) my PR caused it, (b) something else in the deploy window did. The deploy window included a parallel direct-to-main "first-move" session shipping Phases 1-8 in 13 minutes.
+
+I had two options:
+1. **Diagnose first, then act.** Look at the code, form a theory, test it.
+2. **Revert first to clear my changes as a suspect, then diagnose.**
+
+I picked (2). Cost: ~2 minutes to open a revert PR, ~2 minutes for it to land, ~1 minute for Vercel to redeploy. Matt confirmed shortly after that the issue PERSISTED through the revert — which meant my PR wasn't the cause and I could focus the rest of the diagnosis elsewhere. That single signal collapsed the hypothesis space in half.
+
+Had I diagnosed first while the actual bug (slug conflict) was unrelated to my code, I'd have spent 10-15 minutes staring at my own diff hunting for ghosts. The revert turned that into a 5-minute round-trip and produced a clean disproof.
+
+**Rule:** When a prod regression coincides with one of your recent deploys but the diagnosis isn't immediately obvious, **revert your change first as a debugging move, not as an admission**. The cost is low (a 5-minute round-trip), the signal is binary (issue persists / resolved = my code wasn't / was the cause), and the diagnostic value compounds — every subsequent investigation step is now on firmer ground.
+
+**Carve-out:** Don't revert if the change is load-bearing AND irreversibly altered something downstream (e.g. a migration that's already been applied to prod and would require a rollback migration to undo). For pure code revisions like Phase 1 here (no migration, no user-data changes), the revert is essentially free.
+
+**Counterpoint:** The methodology says "checkpoint your work, ship in small commits, stop and report on surprise". This is the field-emergency adaptation of that — when prod is on fire, the audit-before-touch rule inverts into revert-before-debug. The same instinct (don't keep changing things while uncertainty is high) drives both.
+
+**Filed:** Nothing — this is procedural, not a code follow-up. Goes into the saveme/postmortem flow as the canonical example.
