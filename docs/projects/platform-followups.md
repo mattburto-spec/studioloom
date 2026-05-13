@@ -8,6 +8,46 @@
 
 ---
 
+## FU-PLATFORM-BRIEF-AND-CONSTRAINTS-SURFACE — Always-visible Brief & Constraints with archetype-driven shape
+**Surfaced:** 12 May 2026, post-saveme conversation about the "buried by week 4" problem.
+**Severity:** 🟡 MEDIUM — addresses a real classroom pain (students forget the brief after week 1) but defer until post-class observation confirms the shape.
+**Target phase:** After running G8 + G9 classes through the current Project Spec v2 surface. Decide based on whether students actually re-reference or just forget.
+
+**The problem being solved:**
+Teachers write a design brief + constraints once at unit start. Students look at it in week 1, then forget. By week 4, the brief is buried in a lesson 3 weeks behind. Oral corrections ("remember the brief says no batteries") become the de facto reference. PPT / doc / activity-block-in-lesson-1 all reproduce this pattern.
+
+**Proposed shape (three layers, one source):**
+1. **Unit-level Brief & Constraints entity** (the SOURCE)
+   - New table `student_unit_briefs` OR new column on `units` — decision deferred.
+   - Archetype-driven like Product Brief: Design (dimensions, materials whitelist, budget, audience, must-include, must-avoid), Service (scope, target community, resources, timeline, ethical guardrails), Inquiry (research questions, source bar, scope, ethics).
+   - One narrative-prose field for the brief itself + structured fields for constraints.
+   - Edited once in the unit editor.
+2. **Always-visible student chip** (the RE-REFERENCE surface)
+   - Persistent "📋 Brief" button in the student unit nav header.
+   - One click → modal/drawer with brief + constraints.
+   - Available from every page in the unit (lessons, discovery, marking, gallery).
+3. **Optional "Brief Reminder" activity block** (the TEACHER nudge)
+   - Reads from the unit-level source at render time — does NOT copy data (per Lesson #86, loose coupling).
+   - Optional "Why this matters today" teacher note field.
+   - Drop into any lesson for mid-unit reinforcement.
+
+**Architecture decisions to make BEFORE building:**
+- Path 1 (new top-level entity) vs Path 2 (extend `units` with `brief_text` + `brief_constraints` JSONB). Lean Path 1 — JSONB-on-units gets messy across Design/Service/Inquiry, but Path 2 ships in a day.
+- Should the chip badge when teacher edits the brief mid-unit? Subtle "brief updated" cue, or silent?
+- Does a student opening the modal count as a tracked event (for "did they re-read it?" signal)?
+
+**What NOT to build:**
+- Don't make the activity block the primary surface.
+- Don't sync edits TO the activity block — read at render time.
+- Don't ship per-lesson constraint overrides. One brief per unit. Resist the customisation instinct — same energy as `FU-PLATFORM-CHOICE-CARDS-DOWNSTREAM-CASCADE`.
+
+**Why deferred:**
+Worth observing real classroom behaviour first. Maybe just TELLING students where the brief lives (and adding the chip without the activity-block reminder + badge logic) is enough. Maybe constraints rarely get edited mid-unit and the badge is overbuild. Real classroom signal before scope creep.
+
+**Sizing:** ~2-3 days for the minimum-viable version (Path 1, chip only, no activity block, no badge). ~4-5 days for the full three-layer version.
+
+---
+
 ## FU-PLATFORM-BLOCK-USAGE-HISTORY — Per-teacher + per-student block usage analytics
 **Surfaced:** 12 May 2026, post-Project-Spec-v2 ship.
 **Severity:** 🟡 MEDIUM — small build, real value for teacher self-reflection + onboarding hints.
