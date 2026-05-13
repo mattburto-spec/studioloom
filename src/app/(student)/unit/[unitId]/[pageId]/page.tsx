@@ -135,6 +135,17 @@ function UnitPageViewInner({
       .catch(() => {}); // silently ignore — NM is optional
   }, [pageId]);
 
+  // Always start a lesson page at the top. Students continuing a unit
+  // re-read prior blocks on their way back to where they left off — a
+  // restored scroll position from a previous visit / refresh / cross-page
+  // nav would skip them past that recap. Overrides browser scroll
+  // restoration; fires whenever pageId changes (initial load + page nav).
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.scrollTo(0, 0);
+    }
+  }, [pageId]);
+
   // Redirect to valid page if current pageId not found in content
   useEffect(() => {
     if (!loading && data && !currentPage && allPages.length > 0) {
