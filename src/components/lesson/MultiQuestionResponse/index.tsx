@@ -10,10 +10,7 @@ import {
   parseComposedContent,
   extractNextMove,
 } from "@/lib/structured-prompts/payload";
-import type {
-  StructuredPrompt,
-  StructuredPromptsConfig,
-} from "@/lib/structured-prompts/types";
+import type { StructuredPromptsConfig } from "@/lib/structured-prompts/types";
 import { compressImage } from "@/lib/compress-image";
 import {
   checkClientImage,
@@ -36,43 +33,11 @@ export type {
   MultiQuestionValues,
 } from "./types";
 
-const DEFAULT_TARGET = 80;
-const DEFAULT_MAX = 800;
-
-/**
- * Adapter — accepts either an explicit MultiQuestionField[] (storybook /
- * standalone) OR a StructuredPromptsConfig (the activity-block authoring
- * shape). Maps StructuredPrompt → MultiQuestionField, defaulting target/
- * max from softCharCap when set, and carrying through optional criterion.
- */
-function adaptFields(
-  fields: MultiQuestionField[] | StructuredPromptsConfig,
-): MultiQuestionField[] {
-  return fields.map((f) => {
-    if ("target" in f && "max" in f) {
-      // Already a MultiQuestionField (legacy storybook shape).
-      return f;
-    }
-    const sp = f as StructuredPrompt & { criterion?: Criterion };
-    const cap = sp.softCharCap ?? DEFAULT_MAX;
-    // Author can override the default 80-char target per-prompt via
-    // `targetChars` — useful for quick-reflection prompts (Journal) where
-    // a sentence is enough, vs substantive prompts (Strategy Canvas,
-    // Final Reflection) where the default still fits.
-    const target = Math.min(sp.targetChars ?? DEFAULT_TARGET, cap);
-    return {
-      id: sp.id,
-      label: sp.label,
-      helper: sp.helper,
-      placeholder: sp.placeholder,
-      target,
-      max: cap,
-      criterion: sp.criterion,
-      // Forward sentence starters to the StarterChip renderer.
-      starters: sp.sentenceStarters,
-    };
-  });
-}
+// Pure adapter logic lives in a `.ts` sibling (Lesson #71 — JSX-in-tsx
+// breaks vitest's import-analysis pass for direct unit tests). Re-export
+// here so existing imports of `adaptFields` from this file keep working.
+import { adaptFields } from "./adapter";
+export { adaptFields };
 
 type Props = {
   /** Either explicit MultiQuestionField[] (storybook / standalone) OR StructuredPromptsConfig (production via ResponseInput). The adapter normalises both. */

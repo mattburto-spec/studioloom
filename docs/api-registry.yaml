@@ -4613,6 +4613,7 @@ routes:
   - class_students
   - classes
   - student_progress
+  - student_unit_kanban
   - students
   tables_written: []
   ai_call_sites: []
