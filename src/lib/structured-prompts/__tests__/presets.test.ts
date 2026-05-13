@@ -9,8 +9,15 @@ import {
 // JOURNAL_PROMPTS is the hot-path preset — runs every studio class in
 // the CO2 Racers unit. The 80-char default target was tripping
 // non-native G9 students under time pressure at end-of-class; we lowered
-// it per-prompt + added sentence starters. These tests lock in that
-// contract so a future edit doesn't silently un-do the scaffolding.
+// it per-prompt. These tests lock in that contract so a future edit
+// doesn't silently un-do the scaffolding.
+//
+// Per-block sentenceStarters were removed 13 May 2026 (Matt's call —
+// defer to a future cross-block sentence-starter system). The
+// `sentenceStarters` field stays on StructuredPrompt for forward compat;
+// we just don't author them per-preset anymore. Tests below ASSERT
+// they're absent from JOURNAL_PROMPTS so a regression re-adding them
+// flags loudly.
 
 describe("JOURNAL_PROMPTS — quick-reflection scaffolds", () => {
   it("has 4 prompts (DO/NOTICE/DECIDE/NEXT)", () => {
@@ -31,20 +38,9 @@ describe("JOURNAL_PROMPTS — quick-reflection scaffolds", () => {
     }
   });
 
-  it("every prompt has 3-4 sentence starters", () => {
+  it("no prompt authors sentence starters (deferred to a future cross-block system 13 May 2026)", () => {
     for (const prompt of JOURNAL_PROMPTS) {
-      expect(prompt.sentenceStarters).toBeDefined();
-      expect(prompt.sentenceStarters!.length).toBeGreaterThanOrEqual(3);
-      expect(prompt.sentenceStarters!.length).toBeLessThanOrEqual(4);
-    }
-  });
-
-  it("every starter is a non-empty short phrase", () => {
-    for (const prompt of JOURNAL_PROMPTS) {
-      for (const starter of prompt.sentenceStarters ?? []) {
-        expect(starter.length).toBeGreaterThan(0);
-        expect(starter.length).toBeLessThan(40);
-      }
+      expect(prompt.sentenceStarters).toBeUndefined();
     }
   });
 
