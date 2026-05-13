@@ -4,6 +4,37 @@
 
 ---
 
+## 2026-05-13 (evening) — Teaching Mode Phase 1: CheckInRow + pace signals + doing-card surfacing + prod incident hotfix
+
+**Context:** Long single session covering the design + build + ship of Teaching Mode's "check-in row" + a prod regression that wasn't mine + the doing-card pedagogical layer. Three named lessons banked (#87, #88).
+
+**1. Phase 1 — CheckInRow + pace signals (PRs #221 → #222 revert → #224 reship).** Surfaces ≤3 students above the timer in Teaching Mode who need a teacher check-in. Three deterministic signals — *stuck* (existing `needsHelp`), *falling behind* (paceZ < −1.0 vs in-progress cohort), *absent-ish* (not_started && !isOnline). Per-chip snooze persists for the lesson, resets on lesson change. **No migration** — extends `/api/teacher/teach/live-status` to also return `paceZ` per student + `cohortStats` in summary (median/mean/stddev/n); reuses existing `responseCount`, zero new DB queries. New `src/lib/teaching-mode/pace.ts` pure module + 8 unit tests with hand-computed expected values (caught a brief arithmetic slip — Lesson #38 in action). Phase brief: `docs/projects/teaching-mode-checkin-row-phase-1-brief.md`. WIRING `teach-mode` entry refreshed + stale `key_files` paths fixed + dep-ref typo (`teaching-mode` → `teach-mode`) closed.
+
+**2. PRs #225 + #227 + #228 — three rounds of smoke polish from Matt's G8 + G9 design science prep.**
+- #225: empty state ("👀 Check-in — no students need attention right now") + relaxed visibility gate so the row appears whenever a class has touched the lesson, not just during live typing
+- #227: cap stuck signal at 30m + drop misleading "X of N responses" copy → "slower than peers" + switch Phase Timer to compact mode (≈80px vs ≈200px)
+- #228: **page-scoped online detection** (real fix for the "551m" stuck rendering — `isOnline` was unit-wide, conflated with page-level `lastActive`) + new `scaleWorkshopPhases` helper + 7 unit tests; Teaching Mode now scales baked phase durations to `teacher_profiles.typical_period_minutes` at render time (no content_data mutation). For Matt's 45-min-baked unit on a 60-min school setting: phases now render as 7/13/33/7.
+
+**3. PR #230 — Doing-card surface.** Each student's current First Move "doing" kanban card title now shows under their name in the student grid (📌 Doing: <title>) and inside the check-in chip (`"Scott — idle 4m · Wheel design"`). Lets the teacher pivot from "are you working?" to "how's the wheel going?" — informed attention vs surveillance. Cheap query via `student_unit_kanban.doing_count > 0` index. Bridges the gap between StudioLoom and the external tools where most studio work happens (Onshape, hand tools, paper).
+
+**4. Prod incident (PR #222 revert + PR #223 hotfix) — Next.js dynamic-route slug conflict.** Direct-to-main parallel "first-move" work shipped two sibling routes with mismatched slug names: `[unitId]/route.ts` (GET) + `[activityId]/commit/route.ts` (POST). Next.js can't resolve a path slot with two different dynamic names → route manifest reload fails → cross-route request hanging at Vercel's 900s function limit → teacher app SSR-rendered topnav but content below didn't hydrate. **PR #222 reverted my Phase 1** as a debugging move to clear it as a suspect; symptom persisted, confirming it wasn't mine. **PR #223** restructured the POST route to `commit/[activityId]` (literal segment before slug → no conflict). Single client call-site updated. Two lessons banked.
+
+**5. Lessons banked:**
+- **#87 — Next.js sibling dynamic-route segments must share a slug name; mismatched siblings break ROUTING ALL ROUTES.** CI green ≠ deploy-safe for routing changes. Filed `FU-CI-NEXT-ROUTING-SMOKE` (P1).
+- **#88 — Revert-first when uncertain is correct even when wrong.** The PR #221 revert took ~5 minutes round-trip and disproved my code as the cause; subsequent diagnosis was on firmer ground.
+
+**Test count:** 5631 → 5666+ (+8 pace, +7 scale-phases, +20 carried in from upstream PRs). Tests entered the session at 5631 (Phase 1 baseline) and the relevant /lib/teaching-mode subtree now stands at 24 tests across 3 files.
+
+**Migrations applied to prod this session:** none (Phase 1 was deliberately no-migration — derives everything from existing `student_progress` + `student_unit_kanban`).
+
+**Systems touched:** `teach-mode` (refreshed + key_files corrected + dep typo closed in WIRING), new file paths `src/lib/teaching-mode/{pace,scale-phases}.ts` + `src/components/teach/CheckInRow.tsx`.
+
+**Known follow-ups filed inline:** `FU-TEACH-PACE-PER-ACTIVITY` (P2, new `activity_events` table for "stuck on inspiration-board 18m" specificity), `FU-TEACH-CHECKIN-AI-COPY` (P3, Haiku-suggested check-in questions), `FU-TEACH-RESPONSE-QUALITY` (P3, length/on-topic tie-breaker), `FU-TEACH-SNOOZE-PERSIST` (P3, DB-backed snoozes if needed), `FU-TEACH-DOING-CARD-STALE` (P3, auto-clear or visual cue for yesterday's commitments).
+
+**PR sequence (7 merged to main):** #221 (Phase 1) → #222 (revert) → #223 (slug hotfix) → #224 (Phase 1 reship) → #225 (empty state) → #227 (smoke polish) → #228 (page-scoped online + period scaling) → #230 (doing card).
+
+---
+
 ## 2026-05-13 — Preflight quantity (Option A) + Tier 2 per-class lesson scheduling + onboarding skip fix + relaxed DELETE gate + Teach-Mode edit-lesson shortcut
 
 **Context:** Single long session that knocked out 5 unrelated wins driven by smoke-feedback from Matt's actual G8/G9 teaching — none of them blockers individually, all of them friction Matt hit during class.
