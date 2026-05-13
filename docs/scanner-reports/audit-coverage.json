@@ -1,11 +1,11 @@
 {
   "registry": "audit-coverage",
-  "timestamp": "2026-05-13T03:37:02.501154+00:00",
+  "timestamp": "2026-05-13T12:52:16.994506+00:00",
   "version": 1,
   "stats": {
-    "total_mutation_routes": 254,
+    "total_mutation_routes": 257,
     "covered": 8,
-    "skipped": 246,
+    "skipped": 249,
     "missing": 0
   },
   "covered": [
@@ -799,6 +799,13 @@
       "reason": "routine teacher pedagogy ops, low audit value"
     },
     {
+      "file": "src/app/api/teacher/classes/[classId]/lesson-schedule/route.ts",
+      "methods": [
+        "PUT"
+      ],
+      "reason": "routine teacher pedagogy ops \u2014 scheduling lesson dates."
+    },
+    {
       "file": "src/app/api/teacher/classes/[classId]/students/[studentId]/support-settings/route.ts",
       "methods": [
         "PATCH"
@@ -1463,6 +1470,20 @@
         "POST"
       ],
       "reason": "routine teacher pedagogy ops, low audit value"
+    },
+    {
+      "file": "src/app/api/teacher/unit-brief/amendments/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "Unit Briefs Foundation Phase B.1 MVP. Same audit-sensitivity"
+    },
+    {
+      "file": "src/app/api/teacher/unit-brief/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "Unit Briefs Foundation Phase B.1 MVP. Teacher CRUD on"
     },
     {
       "file": "src/app/api/teacher/unit-pages/[pageId]/skill-refs/route.ts",

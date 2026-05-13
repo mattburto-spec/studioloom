@@ -51,6 +51,37 @@ The first **live-timed-parallel** Activity Block in StudioLoom. 60-second classr
 
 ---
 
+## 2026-05-13 (evening) — Teaching Mode Phase 1: CheckInRow + pace signals + doing-card surfacing + prod incident hotfix
+
+**Context:** Long single session covering the design + build + ship of Teaching Mode's "check-in row" + a prod regression that wasn't mine + the doing-card pedagogical layer. Three named lessons banked (#87, #88).
+
+**1. Phase 1 — CheckInRow + pace signals (PRs #221 → #222 revert → #224 reship).** Surfaces ≤3 students above the timer in Teaching Mode who need a teacher check-in. Three deterministic signals — *stuck* (existing `needsHelp`), *falling behind* (paceZ < −1.0 vs in-progress cohort), *absent-ish* (not_started && !isOnline). Per-chip snooze persists for the lesson, resets on lesson change. **No migration** — extends `/api/teacher/teach/live-status` to also return `paceZ` per student + `cohortStats` in summary (median/mean/stddev/n); reuses existing `responseCount`, zero new DB queries. New `src/lib/teaching-mode/pace.ts` pure module + 8 unit tests with hand-computed expected values (caught a brief arithmetic slip — Lesson #38 in action). Phase brief: `docs/projects/teaching-mode-checkin-row-phase-1-brief.md`. WIRING `teach-mode` entry refreshed + stale `key_files` paths fixed + dep-ref typo (`teaching-mode` → `teach-mode`) closed.
+
+**2. PRs #225 + #227 + #228 — three rounds of smoke polish from Matt's G8 + G9 design science prep.**
+- #225: empty state ("👀 Check-in — no students need attention right now") + relaxed visibility gate so the row appears whenever a class has touched the lesson, not just during live typing
+- #227: cap stuck signal at 30m + drop misleading "X of N responses" copy → "slower than peers" + switch Phase Timer to compact mode (≈80px vs ≈200px)
+- #228: **page-scoped online detection** (real fix for the "551m" stuck rendering — `isOnline` was unit-wide, conflated with page-level `lastActive`) + new `scaleWorkshopPhases` helper + 7 unit tests; Teaching Mode now scales baked phase durations to `teacher_profiles.typical_period_minutes` at render time (no content_data mutation). For Matt's 45-min-baked unit on a 60-min school setting: phases now render as 7/13/33/7.
+
+**3. PR #230 — Doing-card surface.** Each student's current First Move "doing" kanban card title now shows under their name in the student grid (📌 Doing: <title>) and inside the check-in chip (`"Scott — idle 4m · Wheel design"`). Lets the teacher pivot from "are you working?" to "how's the wheel going?" — informed attention vs surveillance. Cheap query via `student_unit_kanban.doing_count > 0` index. Bridges the gap between StudioLoom and the external tools where most studio work happens (Onshape, hand tools, paper).
+
+**4. Prod incident (PR #222 revert + PR #223 hotfix) — Next.js dynamic-route slug conflict.** Direct-to-main parallel "first-move" work shipped two sibling routes with mismatched slug names: `[unitId]/route.ts` (GET) + `[activityId]/commit/route.ts` (POST). Next.js can't resolve a path slot with two different dynamic names → route manifest reload fails → cross-route request hanging at Vercel's 900s function limit → teacher app SSR-rendered topnav but content below didn't hydrate. **PR #222 reverted my Phase 1** as a debugging move to clear it as a suspect; symptom persisted, confirming it wasn't mine. **PR #223** restructured the POST route to `commit/[activityId]` (literal segment before slug → no conflict). Single client call-site updated. Two lessons banked.
+
+**5. Lessons banked:**
+- **#87 — Next.js sibling dynamic-route segments must share a slug name; mismatched siblings break ROUTING ALL ROUTES.** CI green ≠ deploy-safe for routing changes. Filed `FU-CI-NEXT-ROUTING-SMOKE` (P1).
+- **#88 — Revert-first when uncertain is correct even when wrong.** The PR #221 revert took ~5 minutes round-trip and disproved my code as the cause; subsequent diagnosis was on firmer ground.
+
+**Test count:** 5631 → 5666+ (+8 pace, +7 scale-phases, +20 carried in from upstream PRs). Tests entered the session at 5631 (Phase 1 baseline) and the relevant /lib/teaching-mode subtree now stands at 24 tests across 3 files.
+
+**Migrations applied to prod this session:** none (Phase 1 was deliberately no-migration — derives everything from existing `student_progress` + `student_unit_kanban`).
+
+**Systems touched:** `teach-mode` (refreshed + key_files corrected + dep typo closed in WIRING), new file paths `src/lib/teaching-mode/{pace,scale-phases}.ts` + `src/components/teach/CheckInRow.tsx`.
+
+**Known follow-ups filed inline:** `FU-TEACH-PACE-PER-ACTIVITY` (P2, new `activity_events` table for "stuck on inspiration-board 18m" specificity), `FU-TEACH-CHECKIN-AI-COPY` (P3, Haiku-suggested check-in questions), `FU-TEACH-RESPONSE-QUALITY` (P3, length/on-topic tie-breaker), `FU-TEACH-SNOOZE-PERSIST` (P3, DB-backed snoozes if needed), `FU-TEACH-DOING-CARD-STALE` (P3, auto-clear or visual cue for yesterday's commitments).
+
+**PR sequence (7 merged to main):** #221 (Phase 1) → #222 (revert) → #223 (slug hotfix) → #224 (Phase 1 reship) → #225 (empty state) → #227 (smoke polish) → #228 (page-scoped online + period scaling) → #230 (doing card).
+
+---
+
 ## 2026-05-12 — Unit Briefs Foundation phase brief drafted (planning only, no code)
 
 **Context:** End-of-day planning session after the Product Brief / Pitch / Choice Cards day saveme merged. Matt raised the "students forget the brief by week 4" problem — design briefs and constraints get buried in PPT, lesson 1 cards, or docs. After a thinking-shape conversation, banked architectural decisions and wrote a phase brief for the foundational build.
@@ -107,6 +138,24 @@ The first **live-timed-parallel** Activity Block in StudioLoom. 60-second classr
 - Relaxed DELETE gate philosophy: a teacher can hard-delete a student only when that student has zero active class enrollments anywhere. Orphan cleanup yes; cross-teacher data destruction no.
 
 **Follow-ups filed:** None new — multi-file Preflight uploads explicitly deferred ("keep like this for now").
+
+**Afternoon follow-ups (post-saveme, same day):** 4 small journal-card fixes after Matt's class-day smoke surfaced cascading issues with the journal block scaffolding:
+
+- **`1b53e48` — dropped per-block sentence starters from JOURNAL_PROMPTS.** Matt's call: defer sentence-starter scaffolding to a future cross-block system rather than authoring chips per preset. `sentenceStarters` field on `StructuredPrompt` stays for forward compat. Tests updated to ASSERT absence (regression guard).
+- **`690ad87` — Phase C: criterion-based target backfill in MultiQuestionResponse adapter.** Found that prompts are SNAPSHOTTED into the activity block JSONB at create-time (`BlockPalette.tsx:235`), so journal blocks created before `a840a85` (this morning's `targetChars` shipping) still rendered 0/80. New `CRITERION_TARGET_DEFAULTS` map (DO=40, NOTICE=40, DECIDE=50, NEXT=30) provides fallback when the criterion tag is present but `targetChars` is not. Adapter extracted to `adapter.ts` sibling per Lesson #71 (pure logic in `.tsx` files isn't unit-testable in this repo's vitest config — vite chokes on JSX during import-analysis). 7 unit tests covering full precedence ladder.
+- **`c0ac4d1` — Phase C-2: id-based target backfill.** Matt's lesson-1 example exposed an even older journal block predating LIS.D's criterion tags — neither `targetChars` nor `criterion` present. Added `ID_TARGET_DEFAULTS` keyed on prompt ids (`did`/`noticed`/`decided`/`next`) as a third-tier fallback. False-positive risk nil — those ids are journal-specific. 2 more tests; 9 total.
+- **`85c587b` — sticky-complete guard in /api/student/progress.** Pre-existing bug Matt surfaced returning to a completed Lesson 1 to add more text — sidebar green tick disappeared. Root cause: `usePageResponses.ts:202` defaults autosave to `status: "in_progress"`, silently overwriting `"complete"` on every keystroke. Fix at the API: if incoming status would write `"in_progress"` AND the existing row is already `"complete"`, drop status from the upsert payload. Sticky semantics — only explicit "Complete & continue" + future "unmark" UI (none today) + teacher override can change a `"complete"` row's status. Applied to both page_id path and page_number fallback path.
+
+**Final precedence ladder for journal target characters (lock for any future edit):**
+1. `sp.targetChars` (explicit author override)
+2. `CRITERION_TARGET_DEFAULTS[sp.criterion]` (Phase C)
+3. `ID_TARGET_DEFAULTS[sp.id]` (Phase C-2)
+4. `DEFAULT_TARGET` (80) — generic fallback
+Capped by `softCharCap` throughout.
+
+**Lesson banked:** Activity-block prompts are seeded into JSONB at create-time, NOT pulled live from the file. Any per-prompt-data change to a preset only affects FUTURE blocks. For existing blocks, the renderer needs a backfill path (criterion-key + id-key fallback maps) — design renderers to degrade gracefully when authoring fields are missing on older data.
+
+**Lesson banked:** Worktree drift caught — this worktree (`/Users/matt/CWORK/questerra`) silently moved from `main` to `class-dj-block` mid-session. The Phase C fixes were committed/pushed cleanly because each `git push origin main` was running from another worktree (`.claude/worktrees/intelligent-thompson-2d91ab` is at `1b53e48`). Need to verify branch before commits in long sessions — `git rev-parse --abbrev-ref HEAD` at the start of each commit cycle.
 
 ---
 

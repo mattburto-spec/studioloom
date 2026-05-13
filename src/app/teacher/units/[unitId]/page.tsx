@@ -570,6 +570,14 @@ export default function UnitDetailPage({
                   }
                   return null;
                 })()}
+                <Link
+                  href={`/teacher/units/${unitId}/brief`}
+                  className="px-4 py-2 rounded-xl border border-border text-text-primary font-medium text-sm hover:bg-surface-alt transition-colors flex items-center gap-2"
+                  data-testid="unit-brief-link"
+                >
+                  <span aria-hidden="true">📋</span>
+                  Brief &amp; Constraints
+                </Link>
                 {/* Unit Details toggle */}
                 <button
                   onClick={() => setShowMeta(!showMeta)}
