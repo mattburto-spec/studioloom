@@ -18,6 +18,7 @@ import type {
   ComputedLesson, WorkshopPhases, LessonExtension, PageContent,
 } from "@/types";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
+import { pickTodaysLessonId } from "@/lib/scheduling/pick-todays-lesson";
 import { composedPromptText } from "@/lib/lever-1/compose-prompt";
 
 // =========================================================================
@@ -154,14 +155,34 @@ export default function TeachingDashboard({
         setSelectedClassId(effectiveClassId);
       }
 
-      // Default to first page — use resolved content if class selected
+      // Default-page selection. Tier 2 (13 May 2026): if the teacher
+      // has set a per-class schedule, jump to the lesson scheduled
+      // closest to today. Otherwise fall back to the first page.
       if (unitRes.data) {
         const masterContent = unitRes.data.content_data as UnitContentData;
         const classContent = effectiveClassId ? cuContentMap[effectiveClassId] as UnitContentData | undefined : undefined;
         const resolvedContent = resolveClassUnitContent(masterContent, classContent);
         const pages = getPageList(resolvedContent);
         if (pages.length > 0) {
-          setSelectedPageId(pages[0].id);
+          let defaultPageId: string = pages[0].id;
+          if (effectiveClassId) {
+            try {
+              const schedRes = await fetch(
+                `/api/teacher/classes/${effectiveClassId}/lesson-schedule?unitId=${unitId}`,
+                { credentials: "same-origin", cache: "no-store" },
+              );
+              if (schedRes.ok) {
+                const body = (await schedRes.json()) as {
+                  schedule: Array<{ page_id: string; scheduled_date: string }>;
+                };
+                const picked = pickTodaysLessonId(pages, body.schedule);
+                if (picked) defaultPageId = picked;
+              }
+            } catch {
+              // Non-fatal — fall back to first page on any error.
+            }
+          }
+          setSelectedPageId(defaultPageId);
         }
       }
 
