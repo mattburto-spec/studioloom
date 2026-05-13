@@ -35,6 +35,36 @@
 
 ---
 
+## 2026-05-12 — Unit Briefs Foundation phase brief drafted (planning only, no code)
+
+**Context:** End-of-day planning session after the Product Brief / Pitch / Choice Cards day saveme merged. Matt raised the "students forget the brief by week 4" problem — design briefs and constraints get buried in PPT, lesson 1 cards, or docs. After a thinking-shape conversation, banked architectural decisions and wrote a phase brief for the foundational build.
+
+**What's in this saveme:**
+- `docs/projects/platform-followups.md` — new FU `FU-PLATFORM-BRIEF-AND-CONSTRAINTS-SURFACE` (MEDIUM) capturing the three-layer architecture (unit-level source + persistent student chip + optional activity-block reminder), three decisions Matt banked (Path 1 new tables, Design-only v1, append-only amendments), three architectural questions to answer before building, explicit "what NOT to build" list.
+- `docs/projects/unit-briefs-foundation-brief.md` — full phase brief (~600 lines) covering 5 sub-phases A–E with named Matt Checkpoints, pre-flight ritual referencing Lessons #4/#24/#38/#41/#43-46/#54/#83/#86, registry cross-check table covering all 7 registries, full migration SQL (2 tables: `unit_briefs` + `unit_brief_amendments`) with RLS policies mirroring the Project Spec v2 pattern, stop triggers + don't-stop-for lists, three open questions deferred to pre-Phase-B, expected test delta ~+46, follow-ups likely to surface.
+
+**Decisions banked (Matt, 12 May 2026):**
+1. **Path 1** (new tables `unit_briefs` + `unit_brief_amendments`), not JSONB-on-units. Constraint shapes will diverge across unit types; structured tables are cleaner long-term.
+2. **Design-only v1** — Service / Inquiry / PP get prose-only fallback. Real archetype schemas wait for actual use case.
+3. **Amendments instead of edit-badges** — iteration is part of design ("v2.0 add LEDs to your microbit robot"). Append-only stack mirrors real client RFI / change-order behaviour. Version pill on the chip (`📋 Brief v1.2`) is self-documenting; no per-student tracking needed.
+
+**Sub-phase plan (5 sub-phases, ~2-3 days):**
+- A — Schema + types (½ day, +8 tests)
+- B — Teacher editor + API (1 day, +18 tests)
+- C — Student chip + drawer (½ day, +12 tests)
+- D — Amendments lifecycle (½ day, +8 tests)
+- E — Registry hygiene + saveme (30 min)
+
+**Worktree plan:** Fresh `questerra-briefs` on branch `unit-briefs-foundation`. First commit on the new branch will cherry-pick this saveme's deliverables (FU + brief).
+
+**Registry drift swept:** scanner picked up a small api-registry change unrelated to this work — one route's `tables_read` list gained `student_unit_kanban`. Carried in the commit.
+
+**Systems touched (planning only — no code yet):** none. Brief is a planning artifact; the build phase will register `unit-briefs` as a new system in WIRING.yaml during Phase E.
+
+**No code, no tests, no migrations changed.** Test count unchanged (~5631 baseline). Build starts in a fresh worktree on Matt's next session.
+
+---
+
 ## 2026-05-13 — Preflight quantity (Option A) + Tier 2 per-class lesson scheduling + onboarding skip fix + relaxed DELETE gate + Teach-Mode edit-lesson shortcut
 
 **Context:** Single long session that knocked out 5 unrelated wins driven by smoke-feedback from Matt's actual G8/G9 teaching — none of them blockers individually, all of them friction Matt hit during class.
@@ -61,6 +91,24 @@
 - Relaxed DELETE gate philosophy: a teacher can hard-delete a student only when that student has zero active class enrollments anywhere. Orphan cleanup yes; cross-teacher data destruction no.
 
 **Follow-ups filed:** None new — multi-file Preflight uploads explicitly deferred ("keep like this for now").
+
+**Afternoon follow-ups (post-saveme, same day):** 4 small journal-card fixes after Matt's class-day smoke surfaced cascading issues with the journal block scaffolding:
+
+- **`1b53e48` — dropped per-block sentence starters from JOURNAL_PROMPTS.** Matt's call: defer sentence-starter scaffolding to a future cross-block system rather than authoring chips per preset. `sentenceStarters` field on `StructuredPrompt` stays for forward compat. Tests updated to ASSERT absence (regression guard).
+- **`690ad87` — Phase C: criterion-based target backfill in MultiQuestionResponse adapter.** Found that prompts are SNAPSHOTTED into the activity block JSONB at create-time (`BlockPalette.tsx:235`), so journal blocks created before `a840a85` (this morning's `targetChars` shipping) still rendered 0/80. New `CRITERION_TARGET_DEFAULTS` map (DO=40, NOTICE=40, DECIDE=50, NEXT=30) provides fallback when the criterion tag is present but `targetChars` is not. Adapter extracted to `adapter.ts` sibling per Lesson #71 (pure logic in `.tsx` files isn't unit-testable in this repo's vitest config — vite chokes on JSX during import-analysis). 7 unit tests covering full precedence ladder.
+- **`c0ac4d1` — Phase C-2: id-based target backfill.** Matt's lesson-1 example exposed an even older journal block predating LIS.D's criterion tags — neither `targetChars` nor `criterion` present. Added `ID_TARGET_DEFAULTS` keyed on prompt ids (`did`/`noticed`/`decided`/`next`) as a third-tier fallback. False-positive risk nil — those ids are journal-specific. 2 more tests; 9 total.
+- **`85c587b` — sticky-complete guard in /api/student/progress.** Pre-existing bug Matt surfaced returning to a completed Lesson 1 to add more text — sidebar green tick disappeared. Root cause: `usePageResponses.ts:202` defaults autosave to `status: "in_progress"`, silently overwriting `"complete"` on every keystroke. Fix at the API: if incoming status would write `"in_progress"` AND the existing row is already `"complete"`, drop status from the upsert payload. Sticky semantics — only explicit "Complete & continue" + future "unmark" UI (none today) + teacher override can change a `"complete"` row's status. Applied to both page_id path and page_number fallback path.
+
+**Final precedence ladder for journal target characters (lock for any future edit):**
+1. `sp.targetChars` (explicit author override)
+2. `CRITERION_TARGET_DEFAULTS[sp.criterion]` (Phase C)
+3. `ID_TARGET_DEFAULTS[sp.id]` (Phase C-2)
+4. `DEFAULT_TARGET` (80) — generic fallback
+Capped by `softCharCap` throughout.
+
+**Lesson banked:** Activity-block prompts are seeded into JSONB at create-time, NOT pulled live from the file. Any per-prompt-data change to a preset only affects FUTURE blocks. For existing blocks, the renderer needs a backfill path (criterion-key + id-key fallback maps) — design renderers to degrade gracefully when authoring fields are missing on older data.
+
+**Lesson banked:** Worktree drift caught — this worktree (`/Users/matt/CWORK/questerra`) silently moved from `main` to `class-dj-block` mid-session. The Phase C fixes were committed/pushed cleanly because each `git push origin main` was running from another worktree (`.claude/worktrees/intelligent-thompson-2d91ab` is at `1b53e48`). Need to verify branch before commits in long sessions — `git rev-parse --abbrev-ref HEAD` at the start of each commit cycle.
 
 ---
 

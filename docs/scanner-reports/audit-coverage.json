@@ -1,11 +1,11 @@
 {
   "registry": "audit-coverage",
-  "timestamp": "2026-05-13T03:37:02.501154+00:00",
+  "timestamp": "2026-05-13T09:17:41.725224+00:00",
   "version": 1,
   "stats": {
-    "total_mutation_routes": 254,
+    "total_mutation_routes": 255,
     "covered": 8,
-    "skipped": 246,
+    "skipped": 247,
     "missing": 0
   },
   "covered": [
@@ -797,6 +797,13 @@
         "PATCH"
       ],
       "reason": "routine teacher pedagogy ops, low audit value"
+    },
+    {
+      "file": "src/app/api/teacher/classes/[classId]/lesson-schedule/route.ts",
+      "methods": [
+        "PUT"
+      ],
+      "reason": "routine teacher pedagogy ops \u2014 scheduling lesson dates."
     },
     {
       "file": "src/app/api/teacher/classes/[classId]/students/[studentId]/support-settings/route.ts",

@@ -120,6 +120,33 @@ export const POST = withErrorHandler("student/progress:POST", async (request: Ne
     // Non-fatal — class_id is additive context, not a write gate.
   }
 
+  // Sticky-complete guard (13 May 2026) — once a page has been
+  // explicitly marked `complete` via the "Complete & continue" button,
+  // subsequent autosaves (which default to `status: "in_progress"`
+  // client-side in usePageResponses.ts) MUST NOT downgrade it. Otherwise
+  // the student returning to a finished lesson to add one more note
+  // silently un-ticks the sidebar checkmark and breaks the trust signal.
+  // Only an explicit future "unmark" action (no such UI today) or a
+  // teacher override should be able to reverse `complete`.
+  //
+  // Implementation: if the incoming status would write "in_progress",
+  // peek at the existing row and skip the column write if the existing
+  // status is already "complete". Cheap (single keyed lookup, no race
+  // window since the same student is the only writer on this row).
+  let effectiveStatus: string | undefined = status;
+  if (effectiveStatus === "in_progress") {
+    const { data: existing } = await supabase
+      .from("student_progress")
+      .select("status")
+      .eq("student_id", studentId)
+      .eq("unit_id", unitId)
+      .eq("page_id", pageId)
+      .maybeSingle();
+    if ((existing as { status?: string } | null)?.status === "complete") {
+      effectiveStatus = undefined; // preserve the existing "complete"
+    }
+  }
+
   // Build upsert payload
   // NOTE: `timeSpent` is the absolute-value path (rarely used). `timeSpentDelta`
   // is the additive path used by the autosave loop — applied AFTER the upsert
@@ -131,7 +158,7 @@ export const POST = withErrorHandler("student/progress:POST", async (request: Ne
     unit_id: unitId,
     page_id: pageId,
     ...(resolvedClassId && { class_id: resolvedClassId }),
-    ...(status && { status }),
+    ...(effectiveStatus && { status: effectiveStatus }),
     ...(responses && { responses }),
     ...(timeSpent !== undefined && { time_spent: timeSpent }),
     ...(integrityMetadata && { integrity_metadata: integrityMetadata }),
@@ -184,7 +211,8 @@ export const POST = withErrorHandler("student/progress:POST", async (request: Ne
           unit_id: unitId,
           page_number: pageNumber,
           ...(resolvedClassId && { class_id: resolvedClassId }),
-          ...(status && { status }),
+          // Same sticky-complete guard as the page_id path above.
+          ...(effectiveStatus && { status: effectiveStatus }),
           ...(responses && { responses }),
           ...(timeSpent !== undefined && { time_spent: timeSpent }),
         },

@@ -33,12 +33,10 @@ export const JOURNAL_PROMPTS: StructuredPromptsConfig = [
     // Bumped down from default 80 after Matt's smoke: 80 was too long
     // for non-native speakers under time pressure.
     targetChars: 40,
-    sentenceStarters: [
-      "I started by",
-      "I worked on",
-      "I finished",
-      "I got stuck on",
-    ],
+    // Per-block sentenceStarters removed 13 May 2026 — Matt's call: defer
+    // sentence-starter scaffolding to a future cross-block system rather
+    // than authoring them per preset. Type field stays on StructuredPrompt
+    // for forward compat; just no preset data here.
     criterion: "DO",
   },
   {
@@ -49,12 +47,6 @@ export const JOURNAL_PROMPTS: StructuredPromptsConfig = [
     required: true,
     softCharCap: 400,
     targetChars: 40,
-    sentenceStarters: [
-      "I noticed that",
-      "It surprised me that",
-      "It didn't work because",
-      "What worked was",
-    ],
     criterion: "NOTICE",
   },
   {
@@ -65,12 +57,6 @@ export const JOURNAL_PROMPTS: StructuredPromptsConfig = [
     required: true,
     softCharCap: 400,
     targetChars: 50, // Slightly higher — the "because" clause needs room.
-    sentenceStarters: [
-      "I decided to",
-      "I'm switching to",
-      "I changed my mind about",
-      "I'll keep going with",
-    ],
     criterion: "DECIDE",
   },
   {
@@ -81,12 +67,6 @@ export const JOURNAL_PROMPTS: StructuredPromptsConfig = [
     required: true,
     softCharCap: 300,
     targetChars: 30,
-    sentenceStarters: [
-      "Next class I'll",
-      "First I need to",
-      "I'll start by",
-      "Before that I need",
-    ],
     criterion: "NEXT",
   },
 ];
