@@ -121,11 +121,19 @@ describe("KeyCalloutEditor — authoring surface (LIS.D)", () => {
 });
 
 describe("JOURNAL_PROMPTS — criterion tags applied (LIS.D)", () => {
+  // Note: source-static check; the {0,N} window keeps each id tied to
+  // its criterion within the same object literal. Bumped 400 → 800 on
+  // 13 May 2026 after adding sentenceStarters + targetChars to
+  // JOURNAL_PROMPTS pushed the criterion past the original window. The
+  // BEHAVIORAL equivalent lives in src/lib/structured-prompts/__tests__/
+  // presets.test.ts ('keeps criterion tags ...') — that import-based
+  // check is the canonical version. This source-static one is kept as a
+  // belt + suspenders catch for accidental commenting-out.
   it('"did" → DO, "noticed" → NOTICE, "decided" → DECIDE, "next" → NEXT', () => {
-    expect(PRESETS_SRC).toMatch(/id:\s*"did"[\s\S]{0,400}criterion:\s*"DO"/);
-    expect(PRESETS_SRC).toMatch(/id:\s*"noticed"[\s\S]{0,400}criterion:\s*"NOTICE"/);
-    expect(PRESETS_SRC).toMatch(/id:\s*"decided"[\s\S]{0,400}criterion:\s*"DECIDE"/);
-    expect(PRESETS_SRC).toMatch(/id:\s*"next"[\s\S]{0,400}criterion:\s*"NEXT"/);
+    expect(PRESETS_SRC).toMatch(/id:\s*"did"[\s\S]{0,800}criterion:\s*"DO"/);
+    expect(PRESETS_SRC).toMatch(/id:\s*"noticed"[\s\S]{0,800}criterion:\s*"NOTICE"/);
+    expect(PRESETS_SRC).toMatch(/id:\s*"decided"[\s\S]{0,800}criterion:\s*"DECIDE"/);
+    expect(PRESETS_SRC).toMatch(/id:\s*"next"[\s\S]{0,800}criterion:\s*"NEXT"/);
   });
 });
 
