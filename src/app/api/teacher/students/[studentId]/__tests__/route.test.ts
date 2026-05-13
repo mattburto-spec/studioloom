@@ -33,6 +33,14 @@ let mockStudentRow: { id: string; user_id: string | null } | null = {
   user_id: "auth-user-1",
 };
 
+// Relaxed-gate fixtures (13 May 2026) — drive the DELETE-only fallback
+// path that allows hard-delete when the student has no active enrollments
+// anywhere AND the teacher had a historical relationship with them.
+// Tests can flip these to exercise allow/deny per scenario.
+let mockAnyActiveEnrollmentRow: { class_id: string } | null = null;
+let mockTeacherClassRows: Array<{ id: string }> = [];
+let mockHistoricEnrollmentRow: { class_id: string } | null = null;
+
 const updateStudentsSpy = vi.fn();
 const deleteClassStudentsSpy = vi.fn();
 const deleteStudentProgressSpy = vi.fn();
@@ -110,6 +118,43 @@ vi.mock("@/lib/supabase/admin", () => {
                 return { data: null, error: null };
               },
             }),
+            // Relaxed-gate paths read class_students via SELECT chains:
+            //   1. .select("class_id").eq().eq("is_active", true).limit().maybeSingle()
+            //      → "is the student actively enrolled anywhere?"
+            //   2. .select("class_id").eq().in("class_id", [...]).limit().maybeSingle()
+            //      → "did THIS teacher ever have them?"
+            // The chain branches on whether `.in()` is called (path 2) or
+            // a second `.eq()` (path 1). Both terminate at maybeSingle().
+            select: () => ({
+              eq: () => ({
+                eq: () => ({
+                  limit: () => ({
+                    maybeSingle: async () => ({
+                      data: mockAnyActiveEnrollmentRow,
+                      error: null,
+                    }),
+                  }),
+                }),
+                in: () => ({
+                  limit: () => ({
+                    maybeSingle: async () => ({
+                      data: mockHistoricEnrollmentRow,
+                      error: null,
+                    }),
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === "classes") {
+          return {
+            select: () => ({
+              eq: async () => ({
+                data: mockTeacherClassRows,
+                error: null,
+              }),
+            }),
           };
         }
         if (table === "student_progress") {
@@ -159,6 +204,11 @@ beforeEach(() => {
   mockTeacherId = "teacher-1";
   mockCanManage = true;
   mockStudentRow = { id: "student-1", user_id: "auth-user-1" };
+  // Default relaxed-gate fixtures: no active enrollments anywhere, no
+  // historical teacher relationship. Tests opt in by mutating these.
+  mockAnyActiveEnrollmentRow = null;
+  mockTeacherClassRows = [];
+  mockHistoricEnrollmentRow = null;
   updatedStudentRow = {
     id: "student-1",
     display_name: "Alice S.",
@@ -259,5 +309,52 @@ describe("DELETE /api/teacher/students/[studentId]", () => {
     expect((res as Response).status).toBe(200);
     expect(authDeleteSpy).not.toHaveBeenCalled();
     expect(deleteStudentsSpy).toHaveBeenCalledTimes(1);
+  });
+
+  // ── Relaxed gate (13 May 2026) ───────────────────────────────────
+  // DELETE allows hard-delete when EITHER the strict gate passes OR
+  // the student has no active enrollments anywhere AND this teacher
+  // had a historical class_students relationship with them. Smoke
+  // caught the strict-only gate blocking deletion of a test student
+  // whose enrollments were all marked COMPLETED.
+
+  it("relaxed gate: allows delete when strict gate fails but student has no active enrollments AND teacher had a historical relationship", async () => {
+    mockCanManage = false;
+    mockAnyActiveEnrollmentRow = null; // student is fully inactive
+    mockTeacherClassRows = [{ id: "class-a" }, { id: "class-b" }];
+    mockHistoricEnrollmentRow = { class_id: "class-a" }; // teacher had them once
+    const res = await DELETE(makeDelete(), { params });
+    expect((res as Response).status).toBe(200);
+    expect(deleteStudentsSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("relaxed gate: 403 when strict gate fails AND student has active enrollment elsewhere (even if teacher had historical)", async () => {
+    mockCanManage = false;
+    mockAnyActiveEnrollmentRow = { class_id: "some-other-class" }; // active in T2's class
+    mockTeacherClassRows = [{ id: "class-a" }];
+    mockHistoricEnrollmentRow = { class_id: "class-a" }; // teacher had them once
+    const res = await DELETE(makeDelete(), { params });
+    expect((res as Response).status).toBe(403);
+    expect(deleteStudentsSpy).not.toHaveBeenCalled();
+  });
+
+  it("relaxed gate: 403 when strict gate fails AND no historical teacher relationship (even if student is fully inactive)", async () => {
+    mockCanManage = false;
+    mockAnyActiveEnrollmentRow = null;
+    mockTeacherClassRows = [{ id: "class-a" }];
+    mockHistoricEnrollmentRow = null; // teacher never had them
+    const res = await DELETE(makeDelete(), { params });
+    expect((res as Response).status).toBe(403);
+    expect(deleteStudentsSpy).not.toHaveBeenCalled();
+  });
+
+  it("relaxed gate: 403 when strict gate fails AND teacher has no classes at all (defensive)", async () => {
+    mockCanManage = false;
+    mockAnyActiveEnrollmentRow = null;
+    mockTeacherClassRows = []; // teacher hasn't even got a class
+    mockHistoricEnrollmentRow = null;
+    const res = await DELETE(makeDelete(), { params });
+    expect((res as Response).status).toBe(403);
+    expect(deleteStudentsSpy).not.toHaveBeenCalled();
   });
 });
