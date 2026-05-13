@@ -528,6 +528,35 @@ export const BLOCK_LIBRARY: BlockDefinition[] = [
       },
     }),
   },
+  // ── Live blocks (timed + parallel + teacher-launched + class-wide
+  //    aggregated). Pattern: docs/specs/live-blocks-pattern.md.
+  //    Maps to activity_category="social-environment".
+  {
+    id: "class-dj",
+    label: "Class DJ",
+    icon: "🎵",
+    category: "live",
+    description: "60-second class music vote — students drop a mood, AI suggests 3 the room can live with.",
+    defaultPhase: "opening",
+    create: () => ({
+      activityId: nanoid(8),
+      // The Class DJ block renders its own self-contained chrome
+      // (countdown + vote form + face-grid + suggestion cards), so we
+      // ship framing/task/success_signal here for the activity-card
+      // header but the block itself takes over the body.
+      prompt: "Class DJ",
+      framing: "Music sets the room. Let's pick something together.",
+      task: "Tap your vibe before the timer runs out.",
+      success_signal: "Three suggestions on screen the room can all live with.",
+      responseType: "class-dj" as ResponseType,
+      durationMinutes: 1,
+      classDjConfig: {
+        timerSeconds: 60,
+        gateMinVotes: 3,
+        maxSuggestions: 3,
+      },
+    }),
+  },
   // ── Content ──
   {
     id: "teacher-notes",
