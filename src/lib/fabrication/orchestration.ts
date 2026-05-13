@@ -73,6 +73,11 @@ export interface CreateUploadJobRequest {
    *  student picked "No preference". Free text, ≤ 60 chars
    *  enforced via `validatePreferredColor`. */
   preferredColor?: string | null;
+  /** Number of identical copies to print/cut from this file. Defaults
+   *  to 1. Bound 1..20 (workshop-policy soft ceiling). Display value —
+   *  scanner still scans the single source file; lab tech prints N
+   *  copies and marks the single job complete. */
+  quantity?: number;
 }
 
 export interface CreateUploadJobSuccess {
@@ -232,6 +237,25 @@ export function validateUploadRequest(
   if ("error" in colorValidation) return { error: colorValidation.error };
   const preferredColor = colorValidation.value;
 
+  // Quantity (13 May 2026 — Matt request). Optional; default 1.
+  // Bound 1..20 (workshop-policy soft ceiling matching the schema
+  // CHECK constraint). Reject non-integers + out-of-range values up
+  // front so the DB constraint never fires in normal use.
+  let quantity = 1;
+  if (b.quantity !== undefined && b.quantity !== null) {
+    if (
+      typeof b.quantity !== "number" ||
+      !Number.isInteger(b.quantity) ||
+      b.quantity < 1 ||
+      b.quantity > 20
+    ) {
+      return {
+        error: { status: 400, message: "quantity must be an integer 1..20" },
+      };
+    }
+    quantity = b.quantity;
+  }
+
   // studentId is supplied by the caller (from requireStudentAuth), not the
   // request body — trust the auth layer, don't re-derive.
   return {
@@ -254,6 +278,7 @@ export function validateUploadRequest(
       originalFilename: trimmedFilename,
       fileSizeBytes: b.fileSizeBytes,
       preferredColor,
+      quantity,
     },
   };
 }
@@ -516,6 +541,7 @@ export async function createUploadJob(
       file_type: req.fileType,
       original_filename: req.originalFilename,
       preferred_color: colorToWrite,
+      quantity: req.quantity ?? 1,
       status: "uploaded",
       current_revision: 1,
     })
