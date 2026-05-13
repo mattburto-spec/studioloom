@@ -498,3 +498,34 @@ secrets:
       - src/app/api/admin/teachers/invite/route.ts    # teacher invite link host
       - src/app/api/teacher/fabricators/route.ts      # fabricator invite link host
       - src/app/api/teacher/fabricators/[id]/reset-password/route.ts  # fabricator reset-password link host
+
+  - name: SPOTIFY_CLIENT_ID
+    kind: secret
+    source: env
+    public: false
+    required: false
+    provider: Spotify Web API
+    description: |
+      Spotify Web API OAuth Client ID for Class DJ Phase 5+. Used by
+      enrichCandidatePool() in src/lib/class-dj/spotify-enrich.ts to
+      authenticate the Client Credentials flow for artist search +
+      album art + explicit-flag lookup. NOT exposed to the browser.
+      Optional: when unset, Class DJ falls back to text-only suggestion
+      cards (album art unavailable, hallucination/explicit detection
+      degrades to LLM-self-judgement + code-level blocklist).
+    rotation_notes: Rotate via Spotify Developer Dashboard. Single rotation point — both ID + SECRET rotate together. Cached access token (1hr) auto-expires.
+    consumers:
+      - src/lib/class-dj/spotify-enrich.ts            # getAccessToken() Basic auth
+
+  - name: SPOTIFY_CLIENT_SECRET
+    kind: secret
+    source: env
+    public: false
+    required: false
+    provider: Spotify Web API
+    description: |
+      Spotify Web API OAuth Client Secret. Paired with SPOTIFY_CLIENT_ID.
+      See SPOTIFY_CLIENT_ID for full context.
+    rotation_notes: Rotate via Spotify Developer Dashboard. Both ID + SECRET rotate together.
+    consumers:
+      - src/lib/class-dj/spotify-enrich.ts            # getAccessToken() Basic auth

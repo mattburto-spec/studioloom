@@ -4,6 +4,53 @@
 
 ---
 
+## 2026-05-13 — Class DJ Activity Block built end-to-end (Phases 0–7)
+
+The first **live-timed-parallel** Activity Block in StudioLoom. 60-second classroom music vote — students drop a mood/energy/veto/seed, deterministic 5-stage algorithm (MusicFX quadratic boost + k-means split detection + Pareto+MMR selection) bracketed by LLM at the seams (Stage 3 candidate-pool + Stage 5 narration). Spotify Web API enrichment drops hallucinations + explicit hits + blocklist matches. Per-class fairness ledger with EMA on `served_score` + clamped `voice_weight` prevents any single student's preferences from always winning. Hybrid tally disclosure: face-grid for students, full mood/energy histograms for teachers (anti-strategic-voting per Zou-Meir-Parkes 2015). Persistent-veto sunset (30-day window + teacher override panel) prevents the constraint set growing into an unwinnable region by week 10.
+
+**Phases shipped:**
+- Phase 0 — pre-flight close-out (LIS.D test fix + 8 forgotten migration tracker rows backfilled + 4 cross-cutting findings)
+- Phase 1 — algorithm simulator + locked constants doc + 6 canonical captured-truth scenarios (M-DJ-1A SIGNED OFF)
+- Phase 2 — schema (5 new tables) + RLS + activity_blocks library seed (applied to prod)
+- Phase 3 — lesson editor integration (RESPONSE_TYPES + ClassDjConfigPanel + ActivitySection.classDjConfig)
+- Phase 4 — vote/state API + student UI + useClassDjPolling hook + ResponseInput dispatch
+- Phase 5 — AI candidate pool + Spotify enrichment + Stage 4 ranker + Stage 5 narration + suggestion view
+- Phase 6 — teacher controls + Teaching Mode cockpit per-section dispatch + constraints panel
+- Phase 7 — live-blocks pattern doc + registry sync + changelog (this entry)
+
+**New systems registered in WIRING.yaml (5):** `class-dj-block` (new) + `lesson-editor` / `lesson-player` / `teaching-mode` / `ai-call-sites` (the 4 systems Phase 0 audit caught as missing despite brief §10 citing them as deps — Lesson #54 in action).
+
+**Numbers:**
+- 10 new API routes (4 student + 6 teacher) — api-registry 476 → 486
+- 2 new AI call sites — ai-call-sites 22 → 24 (`student/class-dj-candidates` + `student/class-dj-narrate`, both Haiku, both teacherId-attributed)
+- 5 new tables — schema-registry 123 → 128
+- 1 new vendor — Spotify (metadata-only egress, no student PII)
+- 2 new env vars — `SPOTIFY_CLIENT_ID` + `SPOTIFY_CLIENT_SECRET`
+- 16 new code files (~3000 LOC) + 5 wiring test files (~210 source-static tests)
+- Tests: 5718 → 5883 passing (+165 net, 0 regressions, 11 skipped)
+- Estimated effort 3.5–4.5 days; actual 1 day (post-research synthesis sped the algorithm + decision-locking)
+
+**Algorithm spec locked:** `docs/specs/class-dj-algorithm.md` — 13 constants (σ, MMR λ, EMA α, etc.), each cited (MusicFX 1998 / Pol.is 2021 / Stratigi 2021 / Brams-Fishburn 1983 / Maene FAccT 2025). 6 canonical scenarios with captured-truth assertions per Lesson #38.
+
+**Pattern doc shipped:** `docs/specs/live-blocks-pattern.md` — template for the next live block (live-exit-ticket, live-crit, live-do-now, live-brainstorm). Codifies: per-section dispatch site (Teaching Mode + ResponseInput), 1s/2s role-aware polling discipline, sha256(class_id||class_round_index||suggest_count) PRNG seed, LLM-brackets-deterministic algorithm pattern, 5-table schema shape, fallback-tolerant Stage 5. Next live block estimated 1.5–2 days (vs Class DJ's 3.5).
+
+**Cross-cutting follow-ups filed:**
+- `FU-CLASS-DJ-CLASSID-RESOLUTION` (P2) — lesson page sources classId from student's active enrollment (platform-level concern, blocks every future live block).
+- `FU-ACTIVITY-BLOCK-RESPONSE-TYPES-PICKER-SYNC` (P2) — lesson editor picker missing 8 active types that ARE rendered conditionally (pre-existing drift, not Class DJ-introduced).
+- `FU-DJ-TEACHER-SUGGEST` (P3) — teacher cockpit Suggest button calls /api/student/.../suggest; works via shared cookie but needs cleaner teacher-only auth path.
+- `FU-DJ-PROJECTOR-MIRROR` (P3) — projector page doesn't yet highlight the picked suggestion (polling lands but no dedicated highlight pane).
+- `FU-DJ-REALTIME`, `FU-DJ-TEACHER-DASHBOARD`, `FU-DJ-STARTER-SURVEY`, `FU-DJ-PLAYED-FEEDBACK`, `FU-DJ-FAIRNESS-TUNING`, `FU-DJ-SELFLAUNCH`, `FU-DJ-APPLE-MUSIC`, `FU-DJ-PROJECTOR-ART`, `FU-DJ-CROSS-CLASS-TRENDS`, `FU-DJ-CLASS-PROFILE` — listed in brief §14.
+
+**Lessons banked during the build:**
+- Lesson #54 ack — WIRING.yaml citing 4 deps that didn't exist; Phase 7 registry sync now fills them.
+- Lesson #83 ack — 8 forgotten applied_migrations tracker rows surfaced during Phase 0 drift check, backfilled inline.
+- Schema drift on `activity_blocks` — Phase 2 INSERT failed on prod because `content_fingerprint NOT NULL` (added migration 068) wasn't in the column list I authored from migration 060. Lesson #54 family — read EVERY ALTER TABLE since the create migration, not just the create.
+- Spotify Web API `\b` regex limitation on artists with leading special chars (e.g. `$uicideboy$`); current blocklist uses canonical names only — caught during Phase 5 truth capture.
+
+**Next:** 🛑 Matt Checkpoint M-DJ-1 — live smoke with a real class. Drop the block at the start of a lesson, launch from Teaching Mode, 3+ students vote across 2+ devices, AI suggests, deterministic re-roll demonstrates reproducibility, verdict on suggestion quality + split-room handling + fairness perception across 2–3 consecutive rounds. Sign-off → merge to main → Matt pushes.
+
+---
+
 ## 2026-05-13 (evening) — Teaching Mode Phase 1: CheckInRow + pace signals + doing-card surfacing + prod incident hotfix
 
 **Context:** Long single session covering the design + build + ship of Teaching Mode's "check-in row" + a prod regression that wasn't mine + the doing-card pedagogical layer. Three named lessons banked (#87, #88).

@@ -264,7 +264,7 @@ export interface EllScaffolding {
   ell3?: { extensionPrompts?: string[] };
 }
 
-export type ResponseType = "text" | "upload" | "voice" | "link" | "multi" | "canvas" | "decision-matrix" | "pmi" | "pairwise" | "trade-off-sliders" | "toolkit-tool" | "structured-prompts" | "project-spec" | "product-brief" | "user-profile" | "success-criteria" | "choice-cards" | "inspiration-board" | "first-move";
+export type ResponseType = "text" | "upload" | "voice" | "link" | "multi" | "canvas" | "decision-matrix" | "pmi" | "pairwise" | "trade-off-sliders" | "toolkit-tool" | "structured-prompts" | "project-spec" | "product-brief" | "user-profile" | "success-criteria" | "choice-cards" | "inspiration-board" | "first-move" | "class-dj";
 
 export interface ActivityMedia {
   type: "image" | "video";
@@ -471,6 +471,11 @@ export interface ActivitySection {
 
   /** For responseType === "first-move": studio-open orientation block behaviour. See FirstMoveConfig. */
   firstMoveConfig?: import("@/components/teacher/lesson-editor/BlockPalette.types").FirstMoveConfig;
+
+  // ── Class DJ block (13 May 2026 — Phase 3) ──
+
+  /** For responseType === "class-dj": per-instance vote round config (timer, vote gate, max syntheses). See ClassDjConfig. */
+  classDjConfig?: import("@/components/teacher/lesson-editor/BlockPalette.types").ClassDjConfig;
 
   // ── Archetype-aware blocks (12 May 2026 — A12 in design-guidelines.md) ──
 

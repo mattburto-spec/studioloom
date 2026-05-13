@@ -22,6 +22,7 @@ import SuccessCriteriaResponse from "./success-criteria/SuccessCriteriaResponse"
 import ChoiceCardsBlock from "./choice-cards/ChoiceCardsBlock";
 import InspirationBoardBlock from "./inspiration-board/InspirationBoardBlock";
 import FirstMoveBlock from "./first-move/FirstMoveBlock";
+import ClassDjBlock from "@/components/class-dj/ClassDjBlock";
 import type {
   ChoiceCardsBlockConfig,
   InspirationBoardConfig,
@@ -66,6 +67,15 @@ interface ResponseInputProps {
   /** For responseType === "first-move": orientation block behaviour from the lesson editor. */
   firstMoveConfig?: FirstMoveConfig;
   /**
+   * For responseType === "class-dj" (Phase 4): the class context for the
+   * round. Required for Class DJ — without it the block can't poll
+   * /api/student/class-dj/state. The lesson page must source this from the
+   * student's active enrollment (FU-CLASS-DJ-CLASSID-RESOLUTION tracks the
+   * plumbing — a student can belong to multiple classes that share a unit,
+   * and we need to disambiguate).
+   */
+  classId?: string;
+  /**
    * Full ActivitySection — passed to archetype-aware blocks so they can
    * read `archetype_overrides` + base framing/task/success_signal via
    * `getArchetypeAwareContent`. Only consumed by archetype-aware blocks;
@@ -105,6 +115,7 @@ export function ResponseInput({
   choiceCardsConfig,
   inspirationBoardConfig,
   firstMoveConfig,
+  classId,
   section,
 }: ResponseInputProps) {
   // Filter type options based on allowed types
@@ -340,6 +351,20 @@ export function ResponseInput({
             onChange={onChange}
           />
         )}
+
+      {/* Class DJ — live 60s music vote (Phase 4). Polls /state at 2s for
+          students; teacher cockpit dispatch lands in Phase 6. Requires
+          classId — the lesson page sources it from the student's active
+          enrollment (FU-CLASS-DJ-CLASSID-RESOLUTION). */}
+      {responseType === "class-dj" && unitId && pageId && activityId && classId && (
+        <ClassDjBlock
+          unitId={unitId}
+          pageId={pageId}
+          activityId={activityId}
+          classId={classId}
+          role="student"
+        />
+      )}
 
       {/* AG.1 — structured-prompts. LIS.C dispatch: when section opts in
           via promptsLayout="stepper", route to MultiQuestionResponse
