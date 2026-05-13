@@ -86,11 +86,25 @@ export function BriefChip() {
         type="button"
         onClick={() => setOpen(true)}
         data-testid="brief-chip"
-        title="Open brief and constraints"
-        className="hidden md:inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-3 py-1.5 text-[12.5px] font-semibold text-purple-800 hover:bg-purple-200 transition"
+        aria-label={`Open ${versionLabel} and constraints`}
+        className="mt-3 w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-50 text-purple-800 text-[12.5px] font-semibold hover:bg-purple-100 transition border border-purple-200/60"
       >
         <span aria-hidden="true">📋</span>
-        <span>{versionLabel}</span>
+        <span className="flex-1 text-left">{versionLabel}</span>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.25"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="flex-shrink-0 opacity-60"
+          aria-hidden="true"
+        >
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
       </button>
       <BriefDrawer
         open={open}
