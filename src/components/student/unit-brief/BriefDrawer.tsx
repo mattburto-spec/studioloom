@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type {
   UnitBrief,
   UnitBriefAmendment,
@@ -37,6 +38,14 @@ export function BriefDrawer({
   amendments,
   onClose,
 }: BriefDrawerProps) {
+  // SSR-safety + portal target: only mount on the client because
+  // document doesn't exist server-side. mounted ensures createPortal
+  // is only called after hydration.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Close on Escape; mount/unmount the listener lazily so it doesn't
   // run on every page load when the drawer is closed.
   useEffect(() => {
@@ -48,15 +57,20 @@ export function BriefDrawer({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
   const hasDesignConstraints =
     brief.constraints.archetype === "design" &&
     Object.keys(brief.constraints.data).length > 0;
 
-  return (
+  // Render via portal at document.body so the fixed-position layout
+  // escapes any ancestor with transform/filter/will-change that would
+  // create a containing block (Tailwind's `transform`, sticky parents,
+  // etc.). Phase C v1 mounted inside BoldTopNav and the drawer got
+  // visually trapped — portal is the clean fix.
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex justify-end"
+      className="fixed inset-0 z-[100] flex justify-end"
       role="dialog"
       aria-modal="true"
       aria-label="Brief and constraints"
@@ -174,7 +188,8 @@ export function BriefDrawer({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

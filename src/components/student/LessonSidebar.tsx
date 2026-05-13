@@ -6,6 +6,7 @@ import { useStudent } from "@/app/(student)/student-context";
 import { renderCriterionLabel, getCriterionColor } from "@/lib/frameworks/render-helpers";
 import type { FrameworkId } from "@/lib/frameworks/adapter";
 import { ProgressCircle } from "./ProgressCircle";
+import { BriefChip } from "./unit-brief/BriefChip";
 import type { UnitNavData } from "@/contexts/UnitNavContext";
 import type { UnitPage, StudentProgress } from "@/types";
 
@@ -190,6 +191,12 @@ export function LessonSidebar({ data, unitId, sidebarOpen, onClose }: LessonSide
         >
           {data.unit.title}
         </h2>
+
+        {/* Brief & Constraints chip — Phase C. Renders null when the
+            teacher hasn't authored a brief; otherwise opens a portal-
+            mounted slide-in drawer with prose + diagram + constraints +
+            amendments stack. Self-hydrates from the URL unitId. */}
+        <BriefChip />
 
         {/* Project Board button — replaces the unit progress bar 6 May 2026.
             Sized + styled to be the prominent landing CTA of the sidebar so

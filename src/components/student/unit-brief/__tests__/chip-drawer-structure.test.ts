@@ -50,9 +50,15 @@ describe("BriefChip — structure (Phase C)", () => {
     expect(chipSrc).toContain('`Brief v1.${amendments.length}`');
   });
 
-  it("uses purple-tinted pill styling (matches Preflight pill pattern)", () => {
-    expect(chipSrc).toMatch(/bg-purple-100/);
+  it("uses purple-tinted sidebar styling (smoke-fix: full-width button, not top-nav pill)", () => {
+    // After the Phase C smoke fix the chip lives in LessonSidebar between
+    // the unit title and the Project Board button, so it's styled as a
+    // full-width row button (mt-3 + w-full) — not the inline pill it
+    // briefly was in BoldTopNav.
+    expect(chipSrc).toMatch(/bg-purple-50/);
     expect(chipSrc).toMatch(/text-purple-800/);
+    expect(chipSrc).toContain("w-full");
+    expect(chipSrc).toContain("mt-3");
   });
 
   it("clickable button (not Link) since it opens an in-place drawer", () => {
@@ -69,8 +75,21 @@ describe("BriefChip — structure (Phase C)", () => {
 });
 
 describe("BriefDrawer — structure (Phase C)", () => {
-  it("renders null when open is false (drawer is dom-free when closed)", () => {
-    expect(drawerSrc).toContain("if (!open) return null;");
+  it("renders null when open is false OR pre-hydration (drawer is dom-free when closed)", () => {
+    expect(drawerSrc).toContain("if (!open || !mounted) return null;");
+  });
+
+  it("portal-mounts at document.body to escape ancestor containing blocks (smoke-fix)", () => {
+    expect(drawerSrc).toMatch(
+      /import \{ createPortal \} from "react-dom"/,
+    );
+    expect(drawerSrc).toContain("createPortal(");
+    expect(drawerSrc).toContain("document.body");
+  });
+
+  it("delays portal mount until client (SSR-safety + hydration)", () => {
+    expect(drawerSrc).toMatch(/const \[mounted, setMounted\] = useState\(false\)/);
+    expect(drawerSrc).toMatch(/setMounted\(true\)/);
   });
 
   it("closes on Escape key (a11y)", () => {
@@ -133,7 +152,40 @@ describe("BriefDrawer — structure (Phase C)", () => {
   });
 });
 
-describe("BoldTopNav — BriefChip wiring (Phase C)", () => {
+describe("LessonSidebar — BriefChip wiring (Phase C smoke-fix)", () => {
+  // Phase C v1 mounted BriefChip in BoldTopNav, which trapped the
+  // drawer behind a transformed ancestor. Smoke-fix moved it into the
+  // LessonSidebar between the unit title and the Project Board button
+  // — its visual home in the per-unit nav.
+  const sidebarSrc = readFileSync(
+    join(
+      __dirname,
+      "..",
+      "..",
+      "LessonSidebar.tsx",
+    ),
+    "utf-8",
+  );
+
+  it("imports BriefChip from the unit-brief subdir", () => {
+    expect(sidebarSrc).toMatch(
+      /import \{ BriefChip \} from "\.\/unit-brief\/BriefChip"/,
+    );
+  });
+
+  it("renders <BriefChip /> between the unit title (h2) and the Project Board button", () => {
+    const unitTitleIdx = sidebarSrc.indexOf("{data.unit.title}");
+    const briefChipIdx = sidebarSrc.indexOf("<BriefChip");
+    const projectBoardIdx = sidebarSrc.indexOf("data-testid=\"lesson-sidebar-project-board\"");
+    expect(unitTitleIdx).toBeGreaterThan(0);
+    expect(briefChipIdx).toBeGreaterThan(unitTitleIdx);
+    expect(projectBoardIdx).toBeGreaterThan(briefChipIdx);
+  });
+});
+
+describe("BoldTopNav — BriefChip NOT in top nav (Phase C smoke-fix)", () => {
+  // Guard against accidental re-introduction. The drawer's containing-
+  // block bug only surfaced when the chip mounted inside BoldTopNav.
   const navSrc = readFileSync(
     join(
       __dirname,
@@ -148,18 +200,11 @@ describe("BoldTopNav — BriefChip wiring (Phase C)", () => {
     "utf-8",
   );
 
-  it("imports BriefChip from the unit-brief subdir", () => {
-    expect(navSrc).toMatch(
-      /import \{ BriefChip \} from "\.\/unit-brief\/BriefChip"/,
-    );
+  it("does NOT import BriefChip", () => {
+    expect(navSrc).not.toMatch(/import \{ BriefChip \}/);
   });
 
-  it("renders <BriefChip /> after the pill nav and before the flex-1 spacer", () => {
-    const navCloseIdx = navSrc.indexOf("</nav>");
-    const briefChipIdx = navSrc.indexOf("<BriefChip");
-    const spacerIdx = navSrc.indexOf('<div className="flex-1" />');
-    expect(navCloseIdx).toBeGreaterThan(0);
-    expect(briefChipIdx).toBeGreaterThan(navCloseIdx);
-    expect(spacerIdx).toBeGreaterThan(briefChipIdx);
+  it("does NOT render <BriefChip />", () => {
+    expect(navSrc).not.toContain("<BriefChip");
   });
 });
