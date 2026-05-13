@@ -16,11 +16,15 @@
  * Brief: docs/projects/class-dj-block-brief.md §7 (UI surface).
  */
 
+import { useState } from "react";
 import { useClassDjPolling, type Role } from "./useClassDjPolling";
 import ClassDjArmedView from "./ClassDjArmedView";
 import ClassDjLiveStudentView from "./ClassDjLiveStudentView";
 import ClassDjLiveTeacherView from "./ClassDjLiveTeacherView";
-import type { Mood } from "@/lib/class-dj/types";
+import ClassDjSuggestionView, {
+  type SuggestionItem,
+} from "./ClassDjSuggestionView";
+import type { ConflictMode, Mood } from "@/lib/class-dj/types";
 
 interface Props {
   unitId: string;
@@ -51,12 +55,40 @@ export default function ClassDjBlock({
   classId,
   role,
 }: Props) {
-  const { state, error, stopped } = useClassDjPolling(role, {
+  const { state, error, stopped, refetch } = useClassDjPolling(role, {
     unitId,
     pageId,
     activityId,
     classId,
   });
+
+  const [requesting, setRequesting] = useState(false);
+  const [requestError, setRequestError] = useState<string | null>(null);
+
+  async function requestSuggestion(roundId: string) {
+    setRequesting(true);
+    setRequestError(null);
+    try {
+      const res = await fetch("/api/student/class-dj/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ roundId }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setRequestError(body.error ?? `HTTP ${res.status}`);
+        return;
+      }
+      // Refetch state — the suggestion row is now persisted and /state
+      // will return it on the next poll.
+      await refetch();
+    } catch (e) {
+      setRequestError(e instanceof Error ? e.message : "Network error");
+    } finally {
+      setRequesting(false);
+    }
+  }
 
   if (error && !state) {
     return (
@@ -82,30 +114,89 @@ export default function ClassDjBlock({
   const round = state.round as unknown as RoundShape;
   const myVote = state.my_vote as unknown as MyVoteShape | null;
 
+  const suggestionItems = (state.suggestion?.items as SuggestionItem[] | undefined) ?? null;
+  const conflictMode: ConflictMode = (round as unknown as { conflict_mode: ConflictMode | null }).conflict_mode ?? "consensus";
+  const gateMet = state.participation_count >= 3;
+  const maxSuggestionsReached = (state.suggestion?.vote_count !== undefined) && false; // Phase 6 reads activity config
+
   // Status === "live" — round is open.
   if (state.status === "live") {
     if (role === "teacher" && state.tally) {
       return (
-        <ClassDjLiveTeacherView
-          round={round}
-          tally={state.tally}
-          participationCount={state.participation_count}
-          classSize={state.class_size}
-        />
+        <div>
+          <ClassDjLiveTeacherView
+            round={round}
+            tally={state.tally}
+            participationCount={state.participation_count}
+            classSize={state.class_size}
+          />
+          {suggestionItems && (
+            <ClassDjSuggestionView
+              items={suggestionItems}
+              conflictMode={conflictMode}
+              voteCount={state.participation_count}
+              classSize={state.class_size}
+              canRetry={false}
+            />
+          )}
+        </div>
       );
     }
     return (
-      <ClassDjLiveStudentView
-        round={round}
-        myVote={myVote}
-        participationCount={state.participation_count}
+      <div>
+        <ClassDjLiveStudentView
+          round={round}
+          myVote={myVote}
+          participationCount={state.participation_count}
+          classSize={state.class_size}
+        />
+
+        {/* Suggest 3 — any student can punch it once gate met */}
+        {gateMet && !suggestionItems && (
+          <div className="mt-3 text-center">
+            <button
+              type="button"
+              onClick={() => requestSuggestion(round.id)}
+              disabled={requesting}
+              className="px-5 py-2.5 rounded-md bg-violet-600 text-white font-semibold text-sm hover:bg-violet-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+            >
+              {requesting ? "Asking the DJ…" : `Suggest 3 (${state.participation_count} votes in)`}
+            </button>
+            {requestError && (
+              <p className="mt-2 text-xs text-red-600">{requestError}</p>
+            )}
+          </div>
+        )}
+
+        {suggestionItems && (
+          <ClassDjSuggestionView
+            items={suggestionItems}
+            conflictMode={conflictMode}
+            voteCount={state.participation_count}
+            classSize={state.class_size}
+            canRetry={!maxSuggestionsReached}
+            onTryAgain={() => requestSuggestion(round.id)}
+            isRetrying={requesting}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // Status === "closed" — round ended. Render the SuggestionView if a
+  // suggestion was generated; otherwise show the "no suggestion" placeholder.
+  if (suggestionItems) {
+    return (
+      <ClassDjSuggestionView
+        items={suggestionItems}
+        conflictMode={conflictMode}
+        voteCount={state.participation_count}
         classSize={state.class_size}
+        canRetry={false}
       />
     );
   }
 
-  // Status === "closed" — round ended, but suggestion view ships in Phase 5.
-  // For Phase 4 we just show a placeholder that confirms closure.
   return (
     <div className="my-3 rounded-xl border border-violet-200 bg-violet-50/60 p-5 text-center">
       <div className="text-2xl mb-1">🎵</div>
@@ -113,10 +204,7 @@ export default function ClassDjBlock({
         Class DJ — round {round.class_round_index} closed
       </h3>
       <p className="text-sm text-violet-700">
-        {state.participation_count} of {state.class_size} voted.
-      </p>
-      <p className="text-[11px] text-violet-500 mt-2">
-        Suggestion view lands in Phase 5.
+        {state.participation_count} of {state.class_size} voted. No suggestion generated.
       </p>
       {stopped && (
         <p className="text-[10px] text-violet-400 mt-1">
