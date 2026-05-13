@@ -20,6 +20,7 @@ import type {
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
 import { pickTodaysLessonId } from "@/lib/scheduling/pick-todays-lesson";
 import { composedPromptText } from "@/lib/lever-1/compose-prompt";
+import ClassDjTeacherControls from "@/components/class-dj/ClassDjTeacherControls";
 
 // =========================================================================
 // Types
@@ -1080,6 +1081,26 @@ export default function TeachingDashboard({
                           </span>
                         )}
                       </div>
+
+                      {/* Per-section dispatch (Phase 6, §D scope-bump):
+                          Today this is a single conditional for Class DJ. The
+                          pattern (read section.responseType, mount the right
+                          controls component, plumb classId+activityId from
+                          page state) is the live-block-pattern.md template
+                          future live blocks (live-exit-ticket, live-crit,
+                          live-do-now) will follow. */}
+                      {section.responseType === "class-dj" &&
+                        selectedClassId &&
+                        section.activityId &&
+                        selectedPageId && (
+                          <ClassDjTeacherControls
+                            unitId={unitId}
+                            pageId={selectedPageId}
+                            activityId={section.activityId}
+                            classId={selectedClassId}
+                            config={section.classDjConfig}
+                          />
+                        )}
                     </div>
                   </div>
                 ))}
