@@ -258,6 +258,10 @@ CREATE POLICY "class_dj_veto_overrides_teacher_insert"
 -- Seed: activity_blocks library row for the Class DJ block (§3.4)
 -- ─────────────────────────────────────────────────────────────────────────
 
+-- pgcrypto is already enabled (migration 068). digest() + encode() compute
+-- the fingerprint inline using the SAME normalisation pipeline as
+-- src/lib/ingestion/fingerprint.ts: lower → collapse whitespace →
+-- trim → strip trailing punctuation [.,;:!?]+$.
 INSERT INTO public.activity_blocks (
   teacher_id,
   title,
@@ -280,7 +284,9 @@ INSERT INTO public.activity_blocks (
   is_public,
   module,
   backfill_needs_review,
-  copyright_flag
+  copyright_flag,
+  content_fingerprint,
+  moderation_status
 ) VALUES (
   NULL,                                                       -- platform-owned
   'Class DJ',
@@ -290,7 +296,7 @@ INSERT INTO public.activity_blocks (
   'Tap your vibe before the timer runs out.',                 -- task
   'Three suggestions on screen the room can all live with.',  -- success_signal
   'manual',
-  NULL,                                                       -- not applicable
+  NULL,                                                       -- bloom_level — not applicable
   'quick',
   'whole_class',
   'studio_open',
@@ -320,11 +326,30 @@ INSERT INTO public.activity_blocks (
     'state_schema', 'class_dj_vote_v1',
     'requires_challenge', false
   ),
-  false,
-  true,
-  'studioloom',
-  false,
-  'own'
+  false,                                                      -- is_assessable
+  true,                                                       -- is_public
+  'studioloom',                                               -- module
+  false,                                                      -- backfill_needs_review
+  'own',                                                      -- copyright_flag
+  -- content_fingerprint = sha256(normalised_title || "\n" || normalised_prompt || "\n" || source_type)
+  encode(
+    digest(
+      regexp_replace(
+        trim(regexp_replace(lower('Class DJ'), '\s+', ' ', 'g')),
+        '[.,;:!?]+$', '', 'g'
+      )
+      || E'\n'
+      || regexp_replace(
+        trim(regexp_replace(lower('Tap your vibe before the timer runs out.'), '\s+', ' ', 'g')),
+        '[.,;:!?]+$', '', 'g'
+      )
+      || E'\n'
+      || 'manual',
+      'sha256'
+    ),
+    'hex'
+  ),
+  'grandfathered'                                             -- moderation_status: platform-seeded library row, exempt from re-moderation
 );
 
 COMMIT;
