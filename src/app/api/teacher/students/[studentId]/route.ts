@@ -145,15 +145,68 @@ export async function DELETE(
   const { studentId } = await params;
   if (!studentId) return privateJson({ error: "Missing studentId" }, 400);
 
-  const owns = await verifyTeacherCanManageStudent(teacherId, studentId);
-  if (!owns) {
+  const supabase = createAdminClient();
+
+  // Relaxed gate for hard-delete (13 May 2026 — fix surfaced when Matt
+  // tried to delete a test student whose enrollments were all marked
+  // COMPLETED). PATCH still uses the strict active-enrollment gate via
+  // verifyTeacherCanManageStudent, but DELETE allows the case where:
+  //
+  //   (a) student is actively enrolled in one of your classes (the
+  //       strict gate), OR
+  //   (b) student has NO active enrollments ANYWHERE on the platform
+  //       AND you have a historical enrollment with them.
+  //
+  // (b) prevents T1 from nuking T2's currently-active student while
+  // still letting you tidy up students whose enrollments are all
+  // completed. The confirmation dialog + typed-name barrier on the
+  // client gives the user-experience layer of safety.
+  const ownsStudent = await verifyTeacherCanManageStudent(
+    teacherId,
+    studentId
+  );
+
+  let allowed = ownsStudent;
+  if (!allowed) {
+    // Check the historical-orphan path (b).
+    const { data: anyActive } = await supabase
+      .from("class_students")
+      .select("class_id")
+      .eq("student_id", studentId)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle();
+
+    if (!anyActive) {
+      // Student has no active enrollments anywhere. Check that THIS
+      // teacher had a historical relationship with them.
+      const { data: teacherClasses } = await supabase
+        .from("classes")
+        .select("id")
+        .eq("teacher_id", teacherId);
+      const teacherClassIds = (teacherClasses ?? [])
+        .map((r) => r.id as string)
+        .filter(Boolean);
+
+      if (teacherClassIds.length > 0) {
+        const { data: historic } = await supabase
+          .from("class_students")
+          .select("class_id")
+          .eq("student_id", studentId)
+          .in("class_id", teacherClassIds)
+          .limit(1)
+          .maybeSingle();
+        allowed = !!historic;
+      }
+    }
+  }
+
+  if (!allowed) {
     return privateJson(
       { error: "Student not found or not in your roster" },
       403
     );
   }
-
-  const supabase = createAdminClient();
 
   // Pull user_id first so we can clean up the auth.users row even if the
   // students row delete cascades it out.
