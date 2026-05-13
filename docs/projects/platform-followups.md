@@ -48,6 +48,50 @@ Worth observing real classroom behaviour first. Maybe just TELLING students wher
 
 ---
 
+## FU-BRIEFS-STUDENT-SELF-AUTHORED — Student-authored brief fallback when teacher hasn't set one
+**Surfaced:** 13 May 2026, during Unit Briefs Foundation pre-flight (sparked by David Epstein's "constraints as creative engine" framing arriving in Matt's inbox same morning).
+**Severity:** 🟡 MEDIUM — relevant for self-directed / Open Studio contexts where there's no teacher-authored brief to anchor against. Not blocking v1 — defer until real classroom signal.
+**Target phase:** Phase F follow-up to Unit Briefs Foundation, after v1 ships and we see how often students hit a unit with no teacher brief.
+
+**The problem:**
+v1 of Unit Briefs is teacher-authored only — `unit_briefs.unit_id` is the PK (one row per unit). Students with no teacher brief have no surface to author their own constraints, which matters for self-directed work (Open Studio, choice-cards "pitch your own", student-led inquiry).
+
+**Proposed shape (Option B from pre-flight discussion):**
+- New table `student_briefs (id, student_id, unit_id, brief_text, constraints JSONB, archetype, created_at, updated_at)` — per-student-per-unit, mirrors v2 `student_unit_product_briefs` shape.
+- New activity block `student_brief_editor` for the authoring surface.
+- Drawer read-precedence: teacher's `unit_briefs` row if present, else this student's `student_briefs` row, else empty state with CTA "Author your own brief" linking to the activity block.
+- Constraint schema reuses `UnitBriefConstraints` discriminated union from v1's `src/types/unit-brief.ts`.
+
+**Why NOT in v1:**
+- Bolting it into Phase A would collapse the `unit_id`-as-PK invariant or force a composite PK that complicates RLS and amendments.
+- The use case is Open-Studio-shaped — defer until v1 ships and we see whether self-directed students actually try to set constraints first or just dive in.
+- Matt's call during pre-flight: ship teacher-only v1, observe, then design student-authoring with real classroom data (Lesson #44 simplicity-first).
+
+**Sizing:** ~2 days. Schema migration + activity block + read-precedence in the BriefDrawer.
+
+**Loose coupling note (Lesson #86):** The Brief Drawer in v1 already supports the "no brief" empty state. Adding student-authored rendering is a teacher-side-untouched additive change — no cascade.
+
+---
+
+## FU-BRIEFS-AUDIT-COVERAGE — Wire logAuditEvent into the teacher unit-brief routes
+**Surfaced:** 13 May 2026, during Unit Briefs Foundation Phase B.4 audit-coverage scanner gate.
+**Severity:** 🟢 P3 — defensive logging, no security gap. Same audit-sensitivity class as `/api/teacher/product-brief-pitch` which is also currently audit-skipped.
+**Target phase:** Next audit-tightening sweep that touches teacher-content-authoring routes (alongside the product-brief-pitch retrofit).
+
+**The problem:**
+Two POST routes shipped audit-skipped in Phase B.1:
+- `POST /api/teacher/unit-brief` — partial-patch upsert of the brief + constraints
+- `POST /api/teacher/unit-brief/amendments` — append a new amendment
+
+Both are teacher-authored pedagogical content (no PII, no cross-tenant reads). Author-only writes are already gated by `verifyTeacherHasUnit.isAuthor`. The risk surface is "did the author definitely make this change?" — which Supabase row history can answer in the meantime.
+
+**What to do when this fires:**
+Replace the `// audit-skip:` headers with `logAuditEvent("unit_brief.updated", { teacherId, unitId, fields: Object.keys(patch) })` after the successful upsert, and `logAuditEvent("unit_brief_amendment.added", { teacherId, unitId, amendmentId, versionLabel })` after the successful insert. The scanner will move both routes from `missing` → `covered` automatically.
+
+**Pairs with:** `/api/teacher/product-brief-pitch` retrofit — same shape of fix, same audit-class.
+
+---
+
 ## FU-PLATFORM-BLOCK-USAGE-HISTORY — Per-teacher + per-student block usage analytics
 **Surfaced:** 12 May 2026, post-Project-Spec-v2 ship.
 **Severity:** 🟡 MEDIUM — small build, real value for teacher self-reflection + onboarding hints.

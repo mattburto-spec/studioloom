@@ -1,11 +1,11 @@
 {
   "registry": "audit-coverage",
-  "timestamp": "2026-05-13T09:17:41.725224+00:00",
+  "timestamp": "2026-05-13T12:52:16.994506+00:00",
   "version": 1,
   "stats": {
-    "total_mutation_routes": 255,
+    "total_mutation_routes": 257,
     "covered": 8,
-    "skipped": 247,
+    "skipped": 249,
     "missing": 0
   },
   "covered": [
@@ -1470,6 +1470,20 @@
         "POST"
       ],
       "reason": "routine teacher pedagogy ops, low audit value"
+    },
+    {
+      "file": "src/app/api/teacher/unit-brief/amendments/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "Unit Briefs Foundation Phase B.1 MVP. Same audit-sensitivity"
+    },
+    {
+      "file": "src/app/api/teacher/unit-brief/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "Unit Briefs Foundation Phase B.1 MVP. Teacher CRUD on"
     },
     {
       "file": "src/app/api/teacher/unit-pages/[pageId]/skill-refs/route.ts",
