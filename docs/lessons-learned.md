@@ -1335,3 +1335,34 @@ Had I diagnosed first while the actual bug (slug conflict) was unrelated to my c
 **Counterpoint:** The methodology says "checkpoint your work, ship in small commits, stop and report on surprise". This is the field-emergency adaptation of that — when prod is on fire, the audit-before-touch rule inverts into revert-before-debug. The same instinct (don't keep changing things while uncertainty is high) drives both.
 
 **Filed:** Nothing — this is procedural, not a code follow-up. Goes into the saveme/postmortem flow as the canonical example.
+
+### Lesson #89 — `position: fixed` is trapped by any transformed/filtered ancestor; portal to document.body to escape
+**Date:** 14 May 2026
+**Phase:** Unit Briefs Foundation Phase C smoke
+
+**What happened:** Phase C shipped a student-facing BriefDrawer that mounted inside BoldTopNav. The drawer used `fixed inset-0 z-50 flex justify-end` + a `max-w-[700px]` panel — the canonical Tailwind right-slide-in pattern. On Vercel it rendered as a full-width banner pinned to the top of the viewport, not a right-edge 700px slide-in. The X-close button and "Brief & Constraints" header appeared in the top ~64px of the page; the rest of the panel was visually missing.
+
+Root cause: somewhere in BoldTopNav's ancestor chain (the `.sl-v2` wrapper, the `sticky top-0 z-30` header itself, or one of the framer-motion presence wrappers in the student layout), a CSS property creates a **containing block** for fixed-positioned descendants. The set of properties that does this: `transform` (including `transform-gpu`, `translate-*`, `scale-*`, `rotate-*`), `filter`, `backdrop-filter`, `will-change: transform`, `perspective`, `contain: layout | paint | strict`. Once any ancestor has one of these, `position: fixed` resolves coordinates relative to THAT ancestor's box, not the viewport. So `inset-0` becomes "inset within the sticky 64px header" instead of "inset within the full viewport".
+
+This is a documented but easily-forgotten CSS spec behaviour. Tailwind's tendency to apply `transform` utilities widely (e.g. `transform translate-x-0` for animation primitives) makes it likely to bite. Sticky positioning + scoped style wrappers compound the surface area.
+
+**Fix:** Render the drawer via `createPortal(<jsx>, document.body)`. That mounts the DOM at body level, outside any ancestor containing block. `position: fixed` then resolves to the viewport as expected. Bumped to `z-[100]` so it always wins against any z-30/z-50 chrome. Added an SSR-safety guard (`mounted` flag set in `useEffect`) so `document.body` is only referenced post-hydration.
+
+The smoke fix also moved the chip out of BoldTopNav into LessonSidebar (the chip's correct visual home), which would have changed the ancestor chain anyway — but the portal fix is the durable lesson: anywhere a modal/drawer/popover lives, if it could ever be mounted inside a transformed/sticky/filtered subtree, **portal it.** Don't trust that `position: fixed` will see the viewport.
+
+**Rule:** Modals, drawers, popovers, tooltips, and any other UI that relies on `position: fixed` to escape its DOM context MUST be rendered via `createPortal(..., document.body)`. Even if today's parent chain is clean, future refactors that add a single `transform` or `filter` utility upstream will silently regress the behaviour with no error — just a visually broken modal. The cost of the portal is negligible (one useState + one useEffect + one createPortal call); the cost of NOT portaling is "everything looks fine in dev, breaks in prod when the parent gets a transform".
+
+**Pattern to copy** (BriefDrawer.tsx):
+```tsx
+const [mounted, setMounted] = useState(false);
+useEffect(() => { setMounted(true); }, []);
+if (!open || !mounted) return null;
+return createPortal(
+  <div className="fixed inset-0 z-[100] ...">{/* ... */}</div>,
+  document.body,
+);
+```
+
+**Sister lessons:** Lesson #1 (don't batch-modify JSX with regex — Framer Motion disaster) and Lesson #45 (surgical changes) are about how unrelated changes can have a wider blast radius than expected. This is the CSS-spec version: an ancestor's `transform` is not visually local — it changes the coordinate system for every fixed descendant. Hard to predict without knowing the containing-block rule by heart.
+
+**Filed:** Nothing — pattern is enshrined in BriefDrawer.tsx and the codifying assertion in `chip-drawer-structure.test.ts`. Reuse the pattern for any future drawer / modal / popover.

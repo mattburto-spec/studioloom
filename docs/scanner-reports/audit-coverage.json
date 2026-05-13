@@ -1,11 +1,11 @@
 {
   "registry": "audit-coverage",
-  "timestamp": "2026-05-13T13:47:33.254647+00:00",
+  "timestamp": "2026-05-13T23:10:46.618253+00:00",
   "version": 1,
   "stats": {
-    "total_mutation_routes": 258,
+    "total_mutation_routes": 266,
     "covered": 8,
-    "skipped": 250,
+    "skipped": 258,
     "missing": 0
   },
   "covered": [
@@ -341,6 +341,20 @@
         "POST"
       ],
       "reason": "pick is self-auditing \u2014 choice_card_selections row IS the"
+    },
+    {
+      "file": "src/app/api/student/class-dj/suggest/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "routine learner action (request 3 music suggestions); full pipeline + picks + drops are persisted to class_dj_suggestions row for replay/debug"
+    },
+    {
+      "file": "src/app/api/student/class-dj/vote/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "routine learner activity (music vote), low audit value; full action is replayable from student_tool_sessions row keyed by (student_id, unit_id, page_id, tool_id, version). Free-text seed/veto already go through moderateAndLog for safety logging."
     },
     {
       "file": "src/app/api/student/design-assistant/route.ts",
@@ -775,6 +789,48 @@
         "POST"
       ],
       "reason": "library content authoring \u2014 `choice_cards` rows carry"
+    },
+    {
+      "file": "src/app/api/teacher/class-dj/[roundId]/close/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "routine teacher close action (round timer override); state preserved on class_dj_rounds.closed_at"
+    },
+    {
+      "file": "src/app/api/teacher/class-dj/[roundId]/pick/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "routine teacher pick action; full state (which item, when, who) persisted on round + ledger updates rows"
+    },
+    {
+      "file": "src/app/api/teacher/class-dj/[roundId]/regenerate-narration/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "routine teacher regenerate-narration action (Stage 5 only re-run); state preserved on new class_dj_suggestions row"
+    },
+    {
+      "file": "src/app/api/teacher/class-dj/constraints/[classId]/expire-veto/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "routine teacher constraint maintenance; full record persisted to class_dj_veto_overrides"
+    },
+    {
+      "file": "src/app/api/teacher/class-dj/constraints/[classId]/reset-ledger/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "routine teacher ledger reset; full audit row written to class_dj_ledger_resets per Lesson #83 family"
+    },
+    {
+      "file": "src/app/api/teacher/class-dj/launch/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "routine in-class music-vote launch, low audit value; full action is replayable from class_dj_rounds row + class_round_index PRNG seed"
     },
     {
       "file": "src/app/api/teacher/class-students/route.ts",
