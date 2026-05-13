@@ -54,7 +54,7 @@ describe("adaptFields — target resolution precedence", () => {
     expect(out.map((f) => f.target)).toEqual([40, 40, 50, 30]);
   });
 
-  it("falls back to 80-char global default when neither targetChars nor criterion is set", () => {
+  it("falls back to 80-char global default when neither targetChars nor criterion nor matching id is set", () => {
     const prompts: StructuredPromptsConfig = [
       {
         id: "open",
@@ -64,6 +64,36 @@ describe("adaptFields — target resolution precedence", () => {
     ];
     const out = adaptFields(prompts);
     expect(out[0].target).toBe(80);
+  });
+
+  it("falls back to id-based defaults for old journal blocks WITHOUT criterion tags (LIS.D pre-cursor)", () => {
+    // This is the lesson-1 journal-block bug: a journal block created
+    // before LIS.D added `criterion` tags to JOURNAL_PROMPTS. The
+    // prompt id "did" is journal-specific — we recognise it and apply
+    // the DO scaffolding (40 chars) even without the criterion tag.
+    const prompts: StructuredPromptsConfig = [
+      { id: "did", label: "What did you DO?", softCharCap: 400 },
+      { id: "noticed", label: "What did you NOTICE?", softCharCap: 400 },
+      { id: "decided", label: "What did you DECIDE?", softCharCap: 400 },
+      { id: "next", label: "What's NEXT?", softCharCap: 300 },
+    ];
+    const out = adaptFields(prompts);
+    expect(out.map((f) => f.target)).toEqual([40, 40, 50, 30]);
+  });
+
+  it("criterion takes precedence over id when both are present (criterion is the stronger signal)", () => {
+    // Pathological — id says 'did' (DO/40) but criterion says NEXT (30).
+    // Criterion wins because it's the more deliberate authoring signal.
+    const prompts: StructuredPromptsConfig = [
+      {
+        id: "did",
+        label: "Mislabelled",
+        criterion: "NEXT",
+        softCharCap: 400,
+      },
+    ];
+    const out = adaptFields(prompts);
+    expect(out[0].target).toBe(30);
   });
 
   it("caps target at softCharCap when criterion default would exceed it", () => {

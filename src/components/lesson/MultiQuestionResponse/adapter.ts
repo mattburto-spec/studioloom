@@ -16,9 +16,12 @@
  * Target resolution precedence (highest → lowest):
  *   1. `sp.targetChars`                    — explicit author override
  *   2. `CRITERION_TARGET_DEFAULTS[sp.criterion]` — picks up journal
- *      scaffolds even on blocks created before the targetChars field
- *      existed (Phase C backfill, 13 May 2026)
- *   3. `DEFAULT_TARGET` (80)               — generic fallback
+ *      scaffolds on blocks that have criterion tags but no targetChars
+ *      (Phase C backfill, 13 May 2026)
+ *   3. `ID_TARGET_DEFAULTS[sp.id]`         — picks up even older
+ *      journal blocks created before criterion tags were added
+ *      (LIS.D pre-cursor) — keyed on the journal-specific ids
+ *   4. `DEFAULT_TARGET` (80)               — generic fallback
  * Capped by `softCharCap` so we never ask for more than the prompt
  * allows.
  */
@@ -53,6 +56,25 @@ export const CRITERION_TARGET_DEFAULTS: Record<Criterion, number> = {
   NEXT: 30,
 };
 
+/**
+ * Prompt-id backfill — same defaults as CRITERION_TARGET_DEFAULTS but
+ * keyed on the prompt's `id`. Catches journal blocks that were created
+ * BEFORE LIS.D added `criterion` tags into JOURNAL_PROMPTS (Matt's
+ * lesson-1 example, 13 May 2026). The ids `did`/`noticed`/`decided`/
+ * `next` are journal-specific — no other preset uses those exact
+ * strings — so the false-positive risk is essentially nil.
+ *
+ * Precedence sits BELOW criterion (criterion is the stronger signal
+ * because it's authored deliberately; id is a string match) but ABOVE
+ * the generic 80-char fallback.
+ */
+export const ID_TARGET_DEFAULTS: Record<string, number> = {
+  did: 40,
+  noticed: 40,
+  decided: 50,
+  next: 30,
+};
+
 export function adaptFields(
   fields: MultiQuestionField[] | StructuredPromptsConfig,
 ): MultiQuestionField[] {
@@ -66,8 +88,9 @@ export function adaptFields(
     const criterionDefault = sp.criterion
       ? CRITERION_TARGET_DEFAULTS[sp.criterion]
       : undefined;
+    const idDefault = ID_TARGET_DEFAULTS[sp.id];
     const target = Math.min(
-      sp.targetChars ?? criterionDefault ?? DEFAULT_TARGET,
+      sp.targetChars ?? criterionDefault ?? idDefault ?? DEFAULT_TARGET,
       cap,
     );
     return {
