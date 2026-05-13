@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 476
+# Total routes: 486
 
 routes:
 - path: /api/admin/ai-budget
@@ -1045,6 +1045,52 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/student/class-dj/state
+  method: GET
+  file: src/app/api/student/class-dj/state/route.ts
+  auth: teacher
+  tables_read:
+  - class_dj_rounds
+  - class_dj_suggestions
+  - class_students
+  - student_tool_sessions
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'class_dj_rounds' — not in schema-registry; Reference to unknown table 'class_dj_suggestions'
+    — not in schema-registry
+- path: /api/student/class-dj/suggest
+  method: POST
+  file: src/app/api/student/class-dj/suggest/route.ts
+  auth: student
+  tables_read:
+  - class_dj_fairness_ledger
+  - class_dj_rounds
+  - class_dj_suggestions
+  - class_dj_veto_overrides
+  - class_students
+  - student_tool_sessions
+  tables_written:
+  - class_dj_rounds
+  - class_dj_suggestions
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'class_dj_fairness_ledger' — not in schema-registry; Reference to unknown table 'class_dj_rounds'
+    — not in schema-registry; Reference to unknown table 'class_dj_suggestions' — not in schema-registry; Reference to unknown
+    table 'class_dj_veto_overrides' — not in schema-registry
+- path: /api/student/class-dj/vote
+  method: POST
+  file: src/app/api/student/class-dj/vote/route.ts
+  auth: student
+  tables_read:
+  - class_dj_rounds
+  - class_students
+  - student_tool_sessions
+  tables_written:
+  - student_tool_sessions
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'class_dj_rounds' — not in schema-registry
 - path: /api/student/design-assistant
   method: GET
   file: src/app/api/student/design-assistant/route.ts
@@ -2639,6 +2685,99 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/teacher/class-dj/[roundId]/close
+  method: POST
+  file: src/app/api/teacher/class-dj/[roundId]/close/route.ts
+  auth: teacher
+  tables_read:
+  - class_dj_rounds
+  tables_written:
+  - class_dj_rounds
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'class_dj_rounds' — not in schema-registry
+- path: /api/teacher/class-dj/[roundId]/pick
+  method: POST
+  file: src/app/api/teacher/class-dj/[roundId]/pick/route.ts
+  auth: teacher
+  tables_read:
+  - class_dj_fairness_ledger
+  - class_dj_rounds
+  - class_dj_suggestions
+  - student_tool_sessions
+  tables_written:
+  - class_dj_fairness_ledger
+  - class_dj_rounds
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'class_dj_fairness_ledger' — not in schema-registry; Reference to unknown table 'class_dj_rounds'
+    — not in schema-registry; Reference to unknown table 'class_dj_suggestions' — not in schema-registry
+- path: /api/teacher/class-dj/[roundId]/regenerate-narration
+  method: POST
+  file: src/app/api/teacher/class-dj/[roundId]/regenerate-narration/route.ts
+  auth: teacher
+  tables_read:
+  - class_dj_rounds
+  - class_dj_suggestions
+  tables_written:
+  - class_dj_suggestions
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'class_dj_rounds' — not in schema-registry; Reference to unknown table 'class_dj_suggestions'
+    — not in schema-registry
+- path: /api/teacher/class-dj/constraints/[classId]
+  method: GET
+  file: src/app/api/teacher/class-dj/constraints/[classId]/route.ts
+  auth: teacher
+  tables_read:
+  - class_dj_fairness_ledger
+  - class_dj_ledger_resets
+  - class_dj_rounds
+  - class_dj_veto_overrides
+  - student_tool_sessions
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'class_dj_fairness_ledger' — not in schema-registry; Reference to unknown table 'class_dj_ledger_resets'
+    — not in schema-registry; Reference to unknown table 'class_dj_rounds' — not in schema-registry; Reference to unknown
+    table 'class_dj_veto_overrides' — not in schema-registry
+- path: /api/teacher/class-dj/constraints/[classId]/expire-veto
+  method: POST
+  file: src/app/api/teacher/class-dj/constraints/[classId]/expire-veto/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written:
+  - class_dj_veto_overrides
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'class_dj_veto_overrides' — not in schema-registry
+- path: /api/teacher/class-dj/constraints/[classId]/reset-ledger
+  method: POST
+  file: src/app/api/teacher/class-dj/constraints/[classId]/reset-ledger/route.ts
+  auth: teacher
+  tables_read:
+  - class_dj_fairness_ledger
+  - class_dj_ledger_resets
+  - class_dj_rounds
+  tables_written:
+  - class_dj_fairness_ledger
+  - class_dj_ledger_resets
+  - class_dj_rounds
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'class_dj_fairness_ledger' — not in schema-registry; Reference to unknown table 'class_dj_ledger_resets'
+    — not in schema-registry; Reference to unknown table 'class_dj_rounds' — not in schema-registry
+- path: /api/teacher/class-dj/launch
+  method: POST
+  file: src/app/api/teacher/class-dj/launch/route.ts
+  auth: teacher
+  tables_read:
+  - class_dj_rounds
+  tables_written:
+  - class_dj_rounds
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'class_dj_rounds' — not in schema-registry
 - path: /api/teacher/class-profiles
   method: GET
   file: src/app/api/teacher/class-profiles/route.ts

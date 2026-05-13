@@ -3262,11 +3262,184 @@ systems:
     os_seam: ready
     change_impacts: "ChoiceCardsBlockConfig shape changes touch the type module + ActivitySection + 3 components (panel, picker, block). on_pick_action contract changes ripple to action-dispatcher's ChoiceCardAction union + every subscriber. Adding a new action type means: (1) extend the union, (2) extend parseChoiceCardAction, (3) document in dispatcher header comment, (4) optionally wire a subscriber."
 
+  - id: class-dj-block
+    name: Class DJ Activity Block
+    category: Student Experience
+    status: active
+    currentVersion: 1
+    summary: |
+      60-second classroom music vote — the FIRST live-timed-parallel
+      Activity Block in StudioLoom. Phases 1-7 shipped 13 May 2026.
+      Algorithm: deterministic 5-stage pipeline (sanitise → aggregate
+      via MusicFX quadratic boost → k-means split detection → LLM
+      candidate pool via Stage 3 + Spotify enrichment → Pareto+MMR
+      selection → LLM narration via Stage 5). Per-class fairness ledger
+      with EMA on servedScore + clamped voice_weight. Hybrid tally
+      disclosure: face-grid for students, full mood/energy histograms
+      for teachers (anti-strategic-voting). 5 new tables, 10 routes,
+      2 ai-call-sites, 1 vendor (Spotify metadata-only). Locked algo
+      constants in docs/specs/class-dj-algorithm.md. Pattern for future
+      live blocks codified in docs/specs/live-blocks-pattern.md.
+    depends_on: [auth-system, ai-call-sites, activity-blocks, lesson-editor, lesson-player, teaching-mode, content-safety]
+    affects: [lesson-editor, teaching-mode]
+    docs:
+      - path: docs/projects/class-dj-block-brief.md
+        purpose: Full phase brief (15 sections, 7 phases, 10 failure modes, 16 decisions)
+      - path: docs/specs/class-dj-algorithm.md
+        purpose: Locked algorithm constants + canonical scenario truth
+      - path: docs/specs/live-blocks-pattern.md
+        purpose: Template for the next live block (live-exit-ticket / live-crit / live-do-now)
+      - path: research/class-dj-research.md
+        purpose: Research synthesis driving the algorithm choice
+    data_fields:
+      - class_dj_rounds (id, unit_id, page_id, activity_id, class_id, class_round_index, started_by, duration_seconds, ends_at, closed_at, suggest_count, version, conflict_mode)
+      - class_dj_suggestions (id, round_id, items JSONB, candidate_pool_size, spotify_drops, prng_seed_hash)
+      - class_dj_fairness_ledger (class_id, student_id, served_score, voice_weight, seed_pickup_count, rounds_participated)
+      - class_dj_ledger_resets (id, class_id, reset_at, reset_by, rounds_since_last_reset, rows_cleared)
+      - class_dj_veto_overrides (class_id, veto_text, expired_by, expired_at)
+    future_needs: |
+      FU-DJ-REALTIME (drop polling for Supabase Realtime when concurrent class count exceeds polling-friendly scale).
+      FU-DJ-TEACHER-DASHBOARD (trolling counter visibility + per-seat voice-weight history).
+      FU-DJ-STARTER-SURVEY (optional 30-second class music survey before round 1).
+      FU-DJ-SELFLAUNCH (student self-launch path).
+      FU-DJ-PLAYED-FEEDBACK (track teacher's actual pick + post-lesson "did this work?" prompt).
+      FU-DJ-FAIRNESS-TUNING (constant tuning from rollout telemetry).
+      FU-DJ-APPLE-MUSIC (if a school requests Apple Music parity).
+      FU-DJ-PROJECTOR-MIRROR (projector page highlight on picked suggestion).
+      FU-DJ-TEACHER-SUGGEST (teacher-only auth path for /suggest — today works through shared cookie).
+    adrs: []
+    os_seam: live-block-pattern
+    change_impacts: |
+      First live block. Pattern doc at docs/specs/live-blocks-pattern.md
+      codifies: per-section dispatch, 1s/2s role-aware polling, paused
+      on tab-hide + 5-min cap, sha256(class_id||class_round_index||
+      suggest_count) PRNG seed, LLM-brackets-deterministic algorithm
+      pattern, 5-table schema shape, fallback-tolerant Stage 5. Future
+      live blocks (live-exit-ticket, live-crit, live-do-now) clone this
+      pattern.
+
+  - id: lesson-editor
+    name: Phase 0.5 Lesson Editor (Drag-and-Drop)
+    category: Teacher Experience
+    status: complete
+    currentVersion: 1
+    summary: |
+      Per-lesson content editor at /teacher/units/[unitId]/edit/...
+      and /teacher/classes/[classId]/.../edit. Drag-and-drop section
+      ordering, per-response-type config panels (ChoiceCardsConfigPanel,
+      InspirationBoardConfigPanel, FirstMoveConfigPanel,
+      ClassDjConfigPanel, KeyCalloutEditor, SlotFieldEditor),
+      auto-save against units.content_data JSONB. RESPONSE_TYPES
+      registry in ActivityBlock.tsx — picker drift tracked at
+      FU-ACTIVITY-BLOCK-RESPONSE-TYPES-PICKER-SYNC. Per-archetype
+      overrides (archetype-aware-blocks system).
+    depends_on: [activity-blocks, auth-system]
+    affects: [class-dj-block, choice-cards-block, inspiration-board-block, first-move-block, lesson-player, teaching-mode]
+    docs: []
+    data_fields:
+      - units.content_data (JSONB — ActivitySection[] per page, with per-block config sub-objects)
+    future_needs: |
+      FU-ACTIVITY-BLOCK-RESPONSE-TYPES-PICKER-SYNC (P2) — picker missing
+      8 active types that are rendered conditionally. Pre-existing
+      drift, not Class DJ's job. Filed 13 May 2026.
+    adrs: []
+    os_seam: ready
+    change_impacts: "Adding a new responseType requires: (1) extend ResponseType union in src/types/index.ts; (2) add to RESPONSE_TYPES array + RESPONSE_TYPE_LABELS + RESPONSE_ICON + RESPONSE_TINT in ActivityBlock.tsx; (3) write a ConfigPanel component following FirstMoveConfigPanel pattern; (4) wire conditional render block; (5) add the typed config field to ActivitySection in src/types/index.ts."
+
+  - id: lesson-player
+    name: Student Lesson Player + Response Dispatch
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: |
+      Student lesson page at /(student)/unit/[unitId]/[pageId]/page.tsx
+      and the canonical ResponseInput dispatch at
+      src/components/student/ResponseInput.tsx. Conditional-render
+      pattern (NOT switch) per responseType — 12+ supported types
+      including class-dj. Lesson-page sources unitId + pageId from URL;
+      classId plumbing pending (FU-CLASS-DJ-CLASSID-RESOLUTION).
+      MonitoredTextarea integrity pipeline + SaveImmediate flow.
+    depends_on: [activity-blocks, auth-system, content-safety]
+    affects: [class-dj-block, choice-cards-block, inspiration-board-block, first-move-block]
+    docs: []
+    data_fields:
+      - student_progress (per (student, unit, page) JSONB responses)
+      - student_tool_sessions (per (student, unit, page, tool_id, version) — class-dj and toolkit tools)
+    future_needs: |
+      FU-CLASS-DJ-CLASSID-RESOLUTION (P2) — lesson page needs to source
+      classId from student's active enrollment (a student may belong
+      to multiple classes sharing a unit; needs disambiguation).
+      Filed 13 May 2026 — this is a PLATFORM concern, not Class DJ specific.
+    adrs: []
+    os_seam: live-block-dispatch
+    change_impacts: "Adding a new responseType dispatch requires: (1) extend ResponseType union; (2) add conditional render block in ResponseInput.tsx with required-props guard; (3) optionally extend the props interface. Pattern is conditional-render (not switch) so unknown types no-op gracefully."
+
+  - id: teaching-mode
+    name: Teaching Mode (Live Lesson Cockpit + Projector)
+    category: Teacher Experience
+    status: complete
+    currentVersion: 1
+    summary: |
+      Teacher cockpit at /teacher/teach/[unitId]/page.tsx + projector
+      mirror at .../projector/page.tsx. Live lesson delivery surface —
+      phase timer, scaled workshop phases, live-status indicators, NM
+      observation snap, sections list with per-section dispatch (Phase
+      6 §D scope-bump 13 May 2026 added per-section dispatch as a
+      platform primitive). First live-block consumer:
+      ClassDjTeacherControls mounted inline in the sections list.
+    depends_on: [auth-system, timing-engine, framework-adapter]
+    affects: [class-dj-block]
+    docs:
+      - path: docs/specs/live-blocks-pattern.md
+        purpose: Per-section dispatch template for future live blocks
+    data_fields:
+      - class_meetings (live-status + presence)
+      - units.content_data (sections list)
+    future_needs: |
+      Generic <PerSectionTeacherDispatch /> component when 3+ live
+      blocks exist (today single conditional for Class DJ — extracting
+      now is speculative generalisation per ADR-001).
+    adrs: []
+    os_seam: live-block-dispatch
+    change_impacts: "Mounting a new live block in Teaching Mode: add one conditional in the sections.map() block right after the existing chips, gated on (responseType === '<block>' && selectedClassId && section.activityId && selectedPageId). Pattern in docs/specs/live-blocks-pattern.md."
+
+  - id: ai-call-sites
+    name: AI Call Sites Registry + Chokepoint
+    category: AI & Intelligence
+    status: complete
+    currentVersion: 1
+    summary: |
+      Phase A complete (8 May 2026): every Anthropic Messages API call
+      in production routes through src/lib/ai/call.ts →
+      callAnthropicMessages(). Centralised Lesson #39 stop_reason
+      handling, ai_usage_log attribution, withAIBudget integration for
+      studentId-attributed calls. Registry yaml at
+      docs/ai-call-sites.yaml (24 entries as of 13 May 2026). Auto-sync
+      via scripts/registry/scan-ai-calls.py — only catches raw SDK
+      calls; chokepoint-routed wrappers like callStage3Candidates
+      need hand-maintained entries.
+    depends_on: [auth-system]
+    affects: [class-dj-block]
+    docs:
+      - path: docs/projects/ai-provider-abstraction-phase-a-brief.md
+        purpose: Helper API + design rationale + migration patterns
+    data_fields:
+      - ai_usage_log (endpoint + provider + model + tokens + cost attribution)
+      - ai_budgets / ai_budget_state (per-student cap enforcement via withAIBudget)
+    future_needs: |
+      Teach scan-ai-calls.py to recognise the chokepoint helper +
+      auto-detect endpoint strings from callAnthropicMessages() calls,
+      so wrapper modules like stage3-candidates.ts don't need
+      hand-maintained yaml entries (FU-SCANNER-CHOKEPOINT-DETECTION).
+    adrs: []
+    os_seam: ready
+    change_impacts: "Any new Anthropic API call MUST use callAnthropicMessages() per CLAUDE.md hard rule. New endpoint strings: path-shaped (e.g. 'student/class-dj-candidates'); registered in docs/ai-call-sites.yaml; cost categorised; attribution by studentId (per-student) or teacherId (class-wide / BYOK)."
+
 # Summary Statistics
 meta:
-  total_systems: 101
-  complete_systems: 39
-  active_systems: 16
+  total_systems: 106
+  complete_systems: 43
+  active_systems: 17
   planned_systems: 8
   idea_systems: 19
   future_systems: 6

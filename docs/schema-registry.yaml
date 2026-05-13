@@ -11428,3 +11428,216 @@ tables:
   applied_via:
     - 20260512012304_choice_cards_and_selections.sql
   spec_drift: []
+
+- name: class_dj_rounds
+  source_migration: 20260513122638_class_dj_block.sql
+  status: applied
+  applied_date: '2026-05-13'
+  purpose: |
+    Class DJ Phase 2 (13 May 2026). One row per launched Class DJ round.
+    Brief: docs/projects/class-dj-block-brief.md §3.1.
+    Algorithm spec: docs/specs/class-dj-algorithm.md.
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    unit_id: UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE
+    page_id: TEXT NOT NULL
+    activity_id: TEXT NOT NULL                          # stable ActivitySection.activityId
+    class_id: UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE
+    class_round_index: INT NOT NULL                     # monotonic per class_id; PRNG seed input
+    started_by: TEXT NOT NULL                           # 'teacher:<id>' (v1)
+    started_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    duration_seconds: SMALLINT NOT NULL CHECK (BETWEEN 30 AND 180)
+    ends_at: TIMESTAMPTZ NOT NULL
+    closed_at: TIMESTAMPTZ NULL                          # NULL = still open
+    suggest_count: SMALLINT NOT NULL DEFAULT 0           # cap 3 via CHECK
+    version: SMALLINT NOT NULL DEFAULT 1                 # matches student_tool_sessions.version
+    conflict_mode: TEXT NULL CHECK IN ('consensus','split','small_group')
+  unique_constraints:
+    - "(class_id, class_round_index)"
+  indexes:
+    - class_dj_rounds_one_open PARTIAL UNIQUE ON (class_id, unit_id, page_id, activity_id) WHERE closed_at IS NULL
+    - class_dj_rounds_class_open_idx ON (class_id) WHERE closed_at IS NULL
+    - class_dj_rounds_unit_page_idx ON (unit_id, page_id)
+  rls_enabled: true
+  rls_policies:
+    - name: class_dj_rounds_teacher_read
+      action: SELECT
+      target: teacher
+      check: has_class_role(class_id)
+    - name: class_dj_rounds_student_read
+      action: SELECT
+      target: student
+      check: class_id IN (class_students join students by user_id = auth.uid())
+    - name: class_dj_rounds_teacher_insert
+      action: INSERT
+      target: teacher
+      check: has_class_role(class_id)
+    - name: class_dj_rounds_teacher_update
+      action: UPDATE
+      target: teacher
+      check: has_class_role(class_id) — used for closed_at flip on /close + /pick
+  writers:
+    - /api/teacher/class-dj/launch (POST mint row with class_round_index COALESCE(MAX,0)+1)
+    - /api/teacher/class-dj/[roundId]/close (POST set closed_at)
+    - /api/teacher/class-dj/[roundId]/pick (POST set closed_at on pick)
+    - /api/student/class-dj/suggest (POST increment suggest_count via lt+RETURNING; update conflict_mode)
+  readers:
+    - /api/student/class-dj/state (GET — both roles)
+    - /api/student/class-dj/vote (GET — validate open + verify class)
+    - /api/teacher/class-dj/* (lookup-then-act pattern)
+  applied_via:
+    - 20260513122638_class_dj_block.sql
+  spec_drift: []
+
+- name: class_dj_suggestions
+  source_migration: 20260513122638_class_dj_block.sql
+  status: applied
+  applied_date: '2026-05-13'
+  purpose: |
+    Class DJ Phase 2. One row per Stage 3+4+5 synthesis (up to 3 per round).
+    items[] holds 3 picks with Spotify-enriched metadata. prng_seed_hash
+    makes re-rolls replayable (same seed = same picks).
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    round_id: UUID NOT NULL REFERENCES class_dj_rounds(id) ON DELETE CASCADE
+    generated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    requested_by: TEXT NOT NULL                              # 'student:<id>' or 'teacher:<id>'
+    vote_count: SMALLINT NOT NULL                            # snapshot at generation
+    items: JSONB NOT NULL                                    # [{name, kind, why, image_url, spotify_url, explicit, mood_tags, ...}]
+    prompt_hash: TEXT NULL                                   # for "Try another 3" variety bias
+    candidate_pool_size: SMALLINT NOT NULL                   # Stage 3 LLM pool BEFORE Spotify drops
+    spotify_drops: SMALLINT NOT NULL DEFAULT 0
+    prng_seed_hash: TEXT NOT NULL                            # sha256 prefix for replay
+  indexes:
+    - class_dj_suggestions_round_idx ON (round_id)
+    - class_dj_suggestions_generated_at_idx ON (generated_at DESC)
+  rls_enabled: true
+  rls_policies:
+    - name: class_dj_suggestions_teacher_read
+      action: SELECT
+      target: teacher
+      check: round_id IN (rounds WHERE has_class_role(class_id))
+    - name: class_dj_suggestions_student_read
+      action: SELECT
+      target: student
+      check: round.class_id IN enrolled classes
+  writers:
+    - /api/student/class-dj/suggest (POST insert + update items on regenerate)
+    - /api/teacher/class-dj/[roundId]/regenerate-narration (UPDATE items in place)
+  readers:
+    - /api/student/class-dj/state (GET latest suggestion for the round)
+    - /api/teacher/class-dj/[roundId]/pick (GET latest for the pick index)
+  applied_via:
+    - 20260513122638_class_dj_block.sql
+  spec_drift: []
+
+- name: class_dj_fairness_ledger
+  source_migration: 20260513122638_class_dj_block.sql
+  status: applied
+  applied_date: '2026-05-13'
+  purpose: |
+    Class DJ Phase 2. Per-(class, student) longitudinal state per brief §3.6.
+    EMA-based servedScore (α=0.3) drives clamped voice_weight (0.5..2.0) which
+    weights Stage 1 mood/energy aggregation. Updated by updateFairnessLedger()
+    on teacher pick. Reset via teacher button OR auto every 30 rounds.
+  columns:
+    class_id: UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    served_score: REAL NOT NULL DEFAULT 0.5 CHECK BETWEEN 0 AND 1
+    seed_pickup_count: INT NOT NULL DEFAULT 0
+    voice_weight: REAL NOT NULL DEFAULT 1.0 CHECK BETWEEN 0.5 AND 2.0
+    rounds_participated: INT NOT NULL DEFAULT 0
+    last_updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  unique_constraints:
+    - "PRIMARY KEY (class_id, student_id)"
+  indexes:
+    - class_dj_fairness_ledger_class_idx ON (class_id)
+    - class_dj_fairness_ledger_student_idx ON (student_id)
+  rls_enabled: true
+  rls_policies:
+    - name: class_dj_fairness_ledger_teacher_read
+      action: SELECT
+      target: teacher
+      check: has_class_role(class_id)
+    - name: class_dj_fairness_ledger_student_read_own
+      action: SELECT
+      target: student
+      check: student_id IN (students WHERE user_id = auth.uid())
+  writers:
+    - /api/teacher/class-dj/[roundId]/pick (UPSERT on conflict (class_id, student_id))
+    - /api/teacher/class-dj/constraints/[classId]/reset-ledger (DELETE all rows for class)
+  readers:
+    - /api/student/class-dj/suggest (Stage 1 voice_weight + Stage 4 fairness credit)
+    - /api/teacher/class-dj/constraints/[classId] (summary stats)
+  applied_via:
+    - 20260513122638_class_dj_block.sql
+  spec_drift: []
+
+- name: class_dj_ledger_resets
+  source_migration: 20260513122638_class_dj_block.sql
+  status: applied
+  applied_date: '2026-05-13'
+  purpose: |
+    Class DJ Phase 2. Audit log of fairness ledger resets. Triggered by
+    teacher button (reset_by='teacher:<id>') or 30-round auto safety net
+    (reset_by='auto:30-round-safety-net').
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    class_id: UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE
+    reset_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    reset_by: TEXT NOT NULL
+    rounds_since_last_reset: INT NOT NULL
+    rows_cleared: INT NOT NULL
+  indexes:
+    - class_dj_ledger_resets_class_idx ON (class_id, reset_at DESC)
+  rls_enabled: true
+  rls_policies:
+    - name: class_dj_ledger_resets_teacher_read
+      action: SELECT
+      target: teacher
+      check: has_class_role(class_id)
+  writers:
+    - /api/teacher/class-dj/constraints/[classId]/reset-ledger (INSERT one row per reset event)
+  readers:
+    - /api/teacher/class-dj/constraints/[classId] (most recent reset for the audit timeline)
+  applied_via:
+    - 20260513122638_class_dj_block.sql
+  spec_drift: []
+
+- name: class_dj_veto_overrides
+  source_migration: 20260513122638_class_dj_block.sql
+  status: applied
+  applied_date: '2026-05-13'
+  purpose: |
+    Class DJ Phase 2. Teacher-expired persistent vetoes. The §3.3
+    persistent-veto query joins against this table and filters out
+    overridden vetoes; lets the teacher un-block a genre that has
+    accumulated as standing policy.
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    class_id: UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE
+    veto_text: TEXT NOT NULL                          # normalised lower-trim
+    expired_by: TEXT NOT NULL                         # 'teacher:<id>'
+    expired_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  unique_constraints:
+    - "(class_id, veto_text)"
+  indexes:
+    - class_dj_veto_overrides_class_idx ON (class_id)
+  rls_enabled: true
+  rls_policies:
+    - name: class_dj_veto_overrides_teacher_read
+      action: SELECT
+      target: teacher
+      check: has_class_role(class_id)
+    - name: class_dj_veto_overrides_teacher_insert
+      action: INSERT
+      target: teacher
+      check: has_class_role(class_id)
+  writers:
+    - /api/teacher/class-dj/constraints/[classId]/expire-veto (INSERT; idempotent on 23505)
+  readers:
+    - /api/student/class-dj/suggest (filter persistent_vetoes via overrideSet)
+    - /api/teacher/class-dj/constraints/[classId] (filter the listing same way)
+  applied_via:
+    - 20260513122638_class_dj_block.sql
+  spec_drift: []

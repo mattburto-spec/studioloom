@@ -257,3 +257,26 @@ vendors:
     certifications: []
     contract_type: standard
     notes: "TTS route sends teacher-authored content only; no student-authored text reaches ElevenLabs"
+
+  spotify:
+    name: Spotify (Web API)
+    role: Music metadata enrichment for Class DJ — artist search + album art + explicit flag + canonical artist URL
+    status: integrated
+    region: us
+    data_sent:
+      - category: domain_strings
+        fields: [artist names from Stage 3 LLM candidate pool + student seed inputs (after Stage 0 sanitisation)]
+        basis: legitimate_interest
+    dpa_signed: null
+    subprocessors: []
+    student_data_eligible: false
+    certifications: []
+    contract_type: standard
+    notes: |
+      Class DJ Phase 5 (13 May 2026). Egress is metadata-only — artist
+      name strings, no student PII. Client Credentials OAuth flow (no
+      per-student OAuth); token cached ~1hr. Used by
+      enrichCandidatePool() in src/lib/class-dj/spotify-enrich.ts to
+      drop hallucinations / explicit hits / blocklist matches BEFORE
+      they reach the deterministic Stage 4 ranker. Required env vars:
+      SPOTIFY_CLIENT_ID + SPOTIFY_CLIENT_SECRET.
