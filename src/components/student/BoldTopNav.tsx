@@ -23,6 +23,7 @@ import type { Student } from "@/types";
 import { useSidebarSlot } from "./SidebarSlotContext";
 import { useBellCount, type NotificationItem } from "./BellCountContext";
 import { CommandPalette } from "@/components/search/CommandPalette";
+import { BriefChip } from "./unit-brief/BriefChip";
 
 // ================= SESSION STUDENT =================
 
@@ -458,6 +459,10 @@ export function BoldTopNav({
             );
           })}
         </nav>
+        {/* Phase C — persistent Brief & Constraints chip on /unit/[unitId]/*
+            routes. Self-hydrates from URL params; renders null when there's
+            no brief or we're outside a unit context. */}
+        <BriefChip />
         <div className="flex-1" />
         <button
           onClick={() => setPaletteOpen(true)}
