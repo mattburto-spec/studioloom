@@ -651,8 +651,27 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
           )}
 
           {CONVO_STEPS[convoStep] === "learning_diffs" && (
-            <ConvoCard title="Anything I should know about how you learn?" hint="100% optional — helps me support you better">
+            <ConvoCard
+              title="Anything I should know about how you learn?"
+              hint="100% optional — most students skip this and that's totally fine."
+            >
+              {/* "Nothing to share" tile — sits at the front of the grid
+                  so the "skip" path is visually equivalent to the other
+                  pills, not hidden in a footnote. 13 May 2026 — Matt
+                  smoke: a student felt they had to pick something even
+                  though they had nothing to share. The faint
+                  bottom-left link wasn't carrying enough signal. */}
               <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => advanceConvo()}
+                  className={`px-4 py-3 rounded-xl text-sm font-semibold transition-all border-2 col-span-2 ${
+                    learningDiffs.length === 0
+                      ? "bg-white/10 border-white/30 text-white hover:bg-white/15"
+                      : "bg-transparent border-white/10 text-white/40 hover:text-white/60 hover:border-white/20"
+                  }`}
+                >
+                  ✓ Nothing to share — skip this
+                </button>
                 {LEARNING_DIFFERENCES.map((diff) => (
                   <PillButton
                     key={diff.id}
@@ -667,13 +686,7 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
                   />
                 ))}
               </div>
-              <div className="flex items-center justify-between mt-4">
-                <button
-                  onClick={() => advanceConvo()}
-                  className="text-xs text-white/40 hover:text-white/60 transition-colors"
-                >
-                  Skip — nothing to share
-                </button>
+              <div className="flex items-center justify-end mt-4">
                 <button
                   onClick={() => {
                     if (learningDiffs.length > 0 && mentor) {
@@ -683,7 +696,10 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
                       advanceConvo();
                     }
                   }}
-                  className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all"
+                  disabled={learningDiffs.length === 0}
+                  className={`px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all ${
+                    learningDiffs.length === 0 ? "opacity-30 cursor-not-allowed" : ""
+                  }`}
                   style={{ background: mentor.accent }}
                 >
                   Done
