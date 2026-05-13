@@ -42,6 +42,7 @@ export function UnitBriefEditor({
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
   // Initial fetch — brief + amendments in parallel
   useEffect(() => {
@@ -103,6 +104,7 @@ export function UnitBriefEditor({
           setSaveError(data.error ?? `Save failed (${res.status})`);
           return false;
         }
+        setLastSavedAt(new Date());
         return true;
       } catch (err) {
         setSaveError(err instanceof Error ? err.message : "Save failed");
@@ -143,6 +145,7 @@ export function UnitBriefEditor({
         }
         const data = await res.json();
         setAmendments((prev) => [data.amendment, ...prev]);
+        setLastSavedAt(new Date());
         return true;
       } catch (err) {
         setSaveError(err instanceof Error ? err.message : "Failed to add amendment");
@@ -171,29 +174,23 @@ export function UnitBriefEditor({
         >
           ← Back to {unitTitle ?? "unit"}
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold text-gray-900">
-          Brief &amp; Constraints
-        </h1>
+        <div className="mt-2 flex items-center gap-3">
+          <h1 className="text-2xl font-semibold text-gray-900">
+            Brief &amp; Constraints
+          </h1>
+          <SaveStatusPill
+            saving={saving}
+            saveError={saveError}
+            lastSavedAt={lastSavedAt}
+          />
+        </div>
         <p className="mt-1 text-sm text-gray-600">
           The scenario your students reference all unit. Edit the brief once,
           then append amendments (&quot;v2.0 — add LEDs&quot;) instead of
-          rewriting in place.
+          rewriting in place. Changes save automatically when you leave a field
+          or toggle a chip.
         </p>
       </div>
-
-      {saveError && (
-        <div
-          role="alert"
-          className="mb-4 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800"
-        >
-          {saveError}
-        </div>
-      )}
-      {saving && (
-        <div className="mb-4 text-xs text-gray-500" aria-live="polite">
-          Saving…
-        </div>
-      )}
 
       {/* Section 1 — Brief prose */}
       <section className="mb-8">
@@ -212,9 +209,6 @@ export function UnitBriefEditor({
           rows={8}
           className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         />
-        <p className="mt-1 text-xs text-gray-500">
-          Saved when you leave the field.
-        </p>
       </section>
 
       {/* Section 2 — Constraints (Design only) */}
@@ -252,4 +246,52 @@ export function UnitBriefEditor({
       </section>
     </div>
   );
+}
+
+interface SaveStatusPillProps {
+  saving: boolean;
+  saveError: string | null;
+  lastSavedAt: Date | null;
+}
+
+/**
+ * Persistent save-status indicator next to the page heading. Three states
+ * visible from a glance: saving / saved / error. Idle (no save yet) is
+ * hidden so a fresh editor session doesn't shout a misleading "Saved ✓".
+ */
+function SaveStatusPill({ saving, saveError, lastSavedAt }: SaveStatusPillProps) {
+  if (saveError) {
+    return (
+      <span
+        role="alert"
+        data-testid="save-status-error"
+        className="inline-flex items-center gap-1 rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-800 ring-1 ring-inset ring-red-300"
+      >
+        <span aria-hidden="true">✗</span> {saveError}
+      </span>
+    );
+  }
+  if (saving) {
+    return (
+      <span
+        aria-live="polite"
+        data-testid="save-status-saving"
+        className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-800 ring-1 ring-inset ring-indigo-200"
+      >
+        <span aria-hidden="true" className="animate-pulse">●</span> Saving…
+      </span>
+    );
+  }
+  if (lastSavedAt) {
+    return (
+      <span
+        aria-live="polite"
+        data-testid="save-status-saved"
+        className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800 ring-1 ring-inset ring-emerald-200"
+      >
+        <span aria-hidden="true">✓</span> Saved
+      </span>
+    );
+  }
+  return null;
 }

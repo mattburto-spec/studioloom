@@ -86,10 +86,51 @@ function validateConstraints(
         return { ok: false, error: `Unknown constraints.data key: ${key}` };
       }
     }
-    for (const stringKey of ["dimensions", "budget", "audience"] as const) {
+    for (const stringKey of ["budget", "audience"] as const) {
       if (stringKey in data && data[stringKey] !== undefined) {
         if (typeof data[stringKey] !== "string") {
           return { ok: false, error: `constraints.data.${stringKey} must be a string` };
+        }
+      }
+    }
+    // dimensions is a structured H×W×D object after Phase B smoke polish
+    // (was free-text before — Matt's smoke feedback asked for HxWxD manual
+    // edit). All three axes optional, unit ∈ {mm, cm, in}, h/w/d numeric.
+    if ("dimensions" in data && data.dimensions !== undefined) {
+      const dim = data.dimensions;
+      if (!dim || typeof dim !== "object" || Array.isArray(dim)) {
+        return {
+          ok: false,
+          error: "constraints.data.dimensions must be an object",
+        };
+      }
+      const d = dim as Record<string, unknown>;
+      const allowedDimKeys = new Set(["h", "w", "d", "unit"]);
+      for (const key of Object.keys(d)) {
+        if (!allowedDimKeys.has(key)) {
+          return {
+            ok: false,
+            error: `Unknown constraints.data.dimensions key: ${key}`,
+          };
+        }
+      }
+      for (const axis of ["h", "w", "d"] as const) {
+        if (axis in d && d[axis] !== undefined && d[axis] !== null) {
+          const v = d[axis];
+          if (typeof v !== "number" || !Number.isFinite(v) || v < 0) {
+            return {
+              ok: false,
+              error: `constraints.data.dimensions.${axis} must be a non-negative number`,
+            };
+          }
+        }
+      }
+      if ("unit" in d && d.unit !== undefined && d.unit !== null) {
+        if (d.unit !== "mm" && d.unit !== "cm" && d.unit !== "in") {
+          return {
+            ok: false,
+            error: "constraints.data.dimensions.unit must be 'mm' | 'cm' | 'in'",
+          };
         }
       }
     }

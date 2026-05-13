@@ -12,8 +12,8 @@ describe("UnitBrief — type shapes", () => {
     const constraints: UnitBriefConstraints = {
       archetype: "design",
       data: {
-        dimensions: "max 200mm any axis",
-        materials_whitelist: ["pla", "plywood-3mm"],
+        dimensions: { h: 200, w: 150, d: 80, unit: "mm" },
+        materials_whitelist: ["pla", "plywood-3mm", "CNC MDF 12mm"],
         budget: "≤ AUD $20",
         audience: "Year 7 students at NIS",
         must_include: ["a moving part", "a brand mark"],
@@ -40,12 +40,32 @@ describe("UnitBrief — type shapes", () => {
     // Narrow on archetype to access design-only fields
     if (brief.constraints.archetype === "design") {
       const data: DesignConstraints = brief.constraints.data;
-      expect(data.dimensions).toBe("max 200mm any axis");
-      expect(data.materials_whitelist).toEqual(["pla", "plywood-3mm"]);
+      expect(data.dimensions).toEqual({ h: 200, w: 150, d: 80, unit: "mm" });
+      expect(data.dimensions?.h).toBe(200);
+      expect(data.dimensions?.unit).toBe("mm");
+      // Catalogue chips + free-text custom entries coexist in the same array.
+      expect(data.materials_whitelist).toEqual(["pla", "plywood-3mm", "CNC MDF 12mm"]);
       expect(data.budget).toBe("≤ AUD $20");
       expect(data.audience).toBe("Year 7 students at NIS");
       expect(data.must_include).toEqual(["a moving part", "a brand mark"]);
       expect(data.must_avoid).toEqual(["batteries", "exposed sharp edges"]);
+    } else {
+      throw new Error("Discriminated union should have narrowed to design");
+    }
+  });
+
+  it("allows a partial DesignDimensions object (axes are independent)", () => {
+    const constraints: UnitBriefConstraints = {
+      archetype: "design",
+      data: {
+        // Only height capped, width + depth unconstrained.
+        dimensions: { h: 250, unit: "mm" },
+      },
+    };
+    if (constraints.archetype === "design") {
+      expect(constraints.data.dimensions).toEqual({ h: 250, unit: "mm" });
+      expect(constraints.data.dimensions?.w).toBeUndefined();
+      expect(constraints.data.dimensions?.d).toBeUndefined();
     } else {
       throw new Error("Discriminated union should have narrowed to design");
     }
@@ -126,6 +146,19 @@ describe("UnitBrief — type shapes", () => {
       expect(constraints.data.must_avoid).toBeUndefined();
     } else {
       throw new Error("Discriminated union should have narrowed to design");
+    }
+  });
+
+  it("DimensionUnit narrows to mm | cm | in", () => {
+    const cases: Array<UnitBriefConstraints> = [
+      { archetype: "design", data: { dimensions: { h: 1, unit: "mm" } } },
+      { archetype: "design", data: { dimensions: { h: 1, unit: "cm" } } },
+      { archetype: "design", data: { dimensions: { h: 1, unit: "in" } } },
+    ];
+    for (const c of cases) {
+      if (c.archetype === "design") {
+        expect(["mm", "cm", "in"]).toContain(c.data.dimensions?.unit);
+      }
     }
   });
 });

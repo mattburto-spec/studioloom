@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import { MATERIALS_CHIPS } from "@/lib/project-spec/archetypes";
-import type { DesignConstraints } from "@/types/unit-brief";
+import type {
+  DesignConstraints,
+  DesignDimensions,
+  DimensionUnit,
+} from "@/types/unit-brief";
 
 interface DesignConstraintsEditorProps {
   value: DesignConstraints;
@@ -47,47 +51,19 @@ export function DesignConstraintsEditor({
 
   return (
     <div className="space-y-4 rounded border border-gray-200 p-4">
-      {/* Dimensions */}
-      <FieldText
-        id="cstr_dimensions"
-        label="Dimensions"
-        placeholder='e.g. "max 200mm any axis"'
-        value={value.dimensions ?? ""}
-        onCommit={(v) => setField("dimensions", v)}
+      {/* Dimensions — structured H × W × D + unit */}
+      <DimensionsField
+        value={value.dimensions}
+        onCommit={(next) => setField("dimensions", next)}
       />
 
-      {/* Materials whitelist */}
-      <div>
-        <div className="mb-2 text-sm font-medium text-gray-700">
-          Materials whitelist
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {MATERIALS_CHIPS.map((chip) => {
-            const selected = (value.materials_whitelist ?? []).includes(chip.id);
-            return (
-              <button
-                key={chip.id}
-                type="button"
-                onClick={() => toggleMaterial(chip.id)}
-                aria-pressed={selected}
-                data-testid={`material-chip-${chip.id}`}
-                className={`rounded-full border px-3 py-1 text-xs ${
-                  selected
-                    ? "border-indigo-500 bg-indigo-50 text-indigo-900"
-                    : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                <span className="mr-1">{chip.emoji}</span>
-                {chip.label}
-              </button>
-            );
-          })}
-        </div>
-        <p className="mt-1 text-xs text-gray-500">
-          Pick the materials students are allowed to use. Leave empty for no
-          restriction.
-        </p>
-      </div>
+      {/* Materials whitelist — chips from the catalogue + custom entries */}
+      <MaterialsField
+        value={value.materials_whitelist ?? []}
+        onChange={(next) => setField("materials_whitelist", next)}
+        onToggleChip={toggleMaterial}
+      />
+
 
       {/* Budget */}
       <FieldText
@@ -237,5 +213,260 @@ function Repeater({
         </button>
       </div>
     </div>
+  );
+}
+
+// ─── MaterialsField ──────────────────────────────────────────────────
+// Catalogue chips (from MATERIALS_CHIPS) + free-text custom entries.
+// Both kinds live in the same `materials_whitelist: string[]` — entries
+// whose value matches a catalogue id render as catalogue chips; the
+// rest render as gray "custom" chips.
+
+// MATERIALS_CHIPS is `as const`, so naive Set inference produces a
+// literal-string union and `.has(arbitrary)` fails to typecheck. Widen
+// to Set<string> here because we're checking against user-typed customs.
+const CATALOGUE_IDS: Set<string> = new Set(MATERIALS_CHIPS.map((chip) => chip.id));
+
+interface MaterialsFieldProps {
+  value: string[];
+  onChange: (next: string[]) => void;
+  onToggleChip: (chipId: string) => void;
+}
+
+function MaterialsField({ value, onChange, onToggleChip }: MaterialsFieldProps) {
+  const [customDraft, setCustomDraft] = useState("");
+
+  const customEntries = value.filter((v) => !CATALOGUE_IDS.has(v));
+
+  const addCustom = () => {
+    const trimmed = customDraft.trim();
+    if (trimmed.length === 0) return;
+    // Don't dedupe against catalogue ids — teacher might type "Cardboard"
+    // (display label) which differs from "cardboard" (id). Dedupe only
+    // among existing custom entries.
+    if (customEntries.includes(trimmed)) {
+      setCustomDraft("");
+      return;
+    }
+    onChange([...value, trimmed]);
+    setCustomDraft("");
+  };
+
+  const removeCustom = (entry: string) => {
+    onChange(value.filter((v) => v !== entry));
+  };
+
+  return (
+    <div>
+      <div className="mb-2 text-sm font-medium text-gray-700">
+        Materials whitelist
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {MATERIALS_CHIPS.map((chip) => {
+          const selected = value.includes(chip.id);
+          return (
+            <button
+              key={chip.id}
+              type="button"
+              onClick={() => onToggleChip(chip.id)}
+              aria-pressed={selected}
+              data-testid={`material-chip-${chip.id}`}
+              className={`rounded-full border px-3 py-1 text-xs ${
+                selected
+                  ? "border-indigo-500 bg-indigo-50 text-indigo-900"
+                  : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              <span className="mr-1">{chip.emoji}</span>
+              {chip.label}
+            </button>
+          );
+        })}
+        {customEntries.map((entry) => (
+          <span
+            key={`custom-${entry}`}
+            data-testid={`material-custom-${entry}`}
+            className="inline-flex items-center gap-1 rounded-full border border-gray-400 bg-gray-100 px-3 py-1 text-xs text-gray-800"
+          >
+            <span aria-hidden="true">✎</span>
+            <span>{entry}</span>
+            <button
+              type="button"
+              onClick={() => removeCustom(entry)}
+              aria-label={`Remove ${entry}`}
+              className="ml-1 text-gray-500 hover:text-red-600"
+            >
+              ✕
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="mt-2 flex gap-2">
+        <input
+          type="text"
+          value={customDraft}
+          placeholder='Add a custom material, e.g. "CNC MDF 12mm"'
+          onChange={(e) => setCustomDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addCustom();
+            }
+          }}
+          data-testid="material-custom-input"
+          className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        />
+        <button
+          type="button"
+          onClick={addCustom}
+          disabled={customDraft.trim().length === 0}
+          data-testid="material-custom-add"
+          className="rounded bg-indigo-600 px-3 py-1 text-sm text-white hover:bg-indigo-700 disabled:bg-gray-300"
+        >
+          Add
+        </button>
+      </div>
+      <p className="mt-1 text-xs text-gray-500">
+        Pick from the catalogue or add your own. Leave empty for no
+        restriction.
+      </p>
+    </div>
+  );
+}
+
+// ─── DimensionsField ─────────────────────────────────────────────────
+// Three numeric inputs (H × W × D) plus a unit dropdown (mm / cm / in).
+// All axes optional — when the teacher clears all three, the parent
+// receives `undefined` and the dimensions key is removed from the
+// stored constraints object (mirrors the array-empty cleanup pattern).
+// Save-on-blur per axis; unit changes save immediately.
+
+const DIMENSION_UNITS: DimensionUnit[] = ["mm", "cm", "in"];
+
+interface DimensionsFieldProps {
+  value: DesignDimensions | undefined;
+  onCommit: (next: DesignDimensions | undefined) => void;
+}
+
+function DimensionsField({ value, onCommit }: DimensionsFieldProps) {
+  // Mirror parent-shaped local state so blur-commit logic is straightforward.
+  const [h, setH] = useState<string>(value?.h?.toString() ?? "");
+  const [w, setW] = useState<string>(value?.w?.toString() ?? "");
+  const [d, setD] = useState<string>(value?.d?.toString() ?? "");
+  const [unit, setUnit] = useState<DimensionUnit>(value?.unit ?? "mm");
+
+  const buildNext = (
+    overrides: Partial<{ h: string; w: string; d: string; unit: DimensionUnit }>,
+  ): DesignDimensions | undefined => {
+    const next: DesignDimensions = {};
+    const hVal = overrides.h ?? h;
+    const wVal = overrides.w ?? w;
+    const dVal = overrides.d ?? d;
+    const uVal = overrides.unit ?? unit;
+    const parsed = (s: string): number | undefined => {
+      const trimmed = s.trim();
+      if (trimmed.length === 0) return undefined;
+      const n = Number(trimmed);
+      return Number.isFinite(n) && n >= 0 ? n : undefined;
+    };
+    const hN = parsed(hVal);
+    const wN = parsed(wVal);
+    const dN = parsed(dVal);
+    if (hN !== undefined) next.h = hN;
+    if (wN !== undefined) next.w = wN;
+    if (dN !== undefined) next.d = dN;
+    if (next.h !== undefined || next.w !== undefined || next.d !== undefined) {
+      next.unit = uVal;
+      return next;
+    }
+    // All axes empty → clear the dimensions key entirely.
+    return undefined;
+  };
+
+  const commit = (
+    overrides: Partial<{ h: string; w: string; d: string; unit: DimensionUnit }> = {},
+  ) => {
+    onCommit(buildNext(overrides));
+  };
+
+  return (
+    <div>
+      <div className="mb-1 text-sm font-medium text-gray-700">Dimensions</div>
+      <div className="flex flex-wrap items-center gap-2">
+        <AxisInput
+          id="cstr_dim_h"
+          label="H"
+          value={h}
+          onChange={setH}
+          onBlur={() => commit()}
+        />
+        <span aria-hidden="true" className="text-gray-400">×</span>
+        <AxisInput
+          id="cstr_dim_w"
+          label="W"
+          value={w}
+          onChange={setW}
+          onBlur={() => commit()}
+        />
+        <span aria-hidden="true" className="text-gray-400">×</span>
+        <AxisInput
+          id="cstr_dim_d"
+          label="D"
+          value={d}
+          onChange={setD}
+          onBlur={() => commit()}
+        />
+        <select
+          aria-label="Dimension unit"
+          data-testid="cstr_dim_unit"
+          value={unit}
+          onChange={(e) => {
+            const next = e.target.value as DimensionUnit;
+            setUnit(next);
+            commit({ unit: next });
+          }}
+          className="rounded border border-gray-300 px-2 py-1 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        >
+          {DIMENSION_UNITS.map((u) => (
+            <option key={u} value={u}>
+              {u}
+            </option>
+          ))}
+        </select>
+      </div>
+      <p className="mt-1 text-xs text-gray-500">
+        Leave any axis blank for "no constraint". Saved when you leave the
+        field.
+      </p>
+    </div>
+  );
+}
+
+interface AxisInputProps {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+  onBlur: () => void;
+}
+
+function AxisInput({ id, label, value, onChange, onBlur }: AxisInputProps) {
+  return (
+    <label htmlFor={id} className="flex items-center gap-1 text-sm text-gray-700">
+      <span className="text-xs font-medium uppercase text-gray-500">
+        {label}
+      </span>
+      <input
+        id={id}
+        type="number"
+        min={0}
+        inputMode="numeric"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        data-testid={id}
+        className="w-20 rounded border border-gray-300 px-2 py-1 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+      />
+    </label>
   );
 }
