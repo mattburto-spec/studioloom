@@ -17,13 +17,33 @@
 export type UnitBriefConstraintArchetype = "design" | "generic";
 
 /**
+ * Unit of measure for dimensions. Free-text would be cleaner UX in
+ * some cases (e.g. "fits in a shoebox") but Matt asked for explicit
+ * H×W×D numeric inputs after Phase B smoke. Free-text is recoverable
+ * via must_include if a teacher needs that shape.
+ */
+export type DimensionUnit = "mm" | "cm" | "in";
+
+/**
+ * Structured H×W×D dimensions. All three axes optional so a teacher
+ * can constrain just one (e.g. "max 200mm tall, no width/depth cap")
+ * without forcing zeros. Unit defaults to mm at render time.
+ */
+export interface DesignDimensions {
+  h?: number;
+  w?: number;
+  d?: number;
+  unit?: DimensionUnit;
+}
+
+/**
  * v1 Design-archetype constraint shape. All fields optional — teacher
  * fills in what's relevant for the unit. Arrays are stored as JSONB
- * arrays of strings (chip ids for materials_whitelist; free-text for
- * must_include / must_avoid).
+ * arrays of strings (chip ids for catalogue materials + free-text for
+ * teacher-added custom materials; free-text for must_include / must_avoid).
  */
 export interface DesignConstraints {
-  dimensions?: string;
+  dimensions?: DesignDimensions;
   materials_whitelist?: string[];
   budget?: string;
   audience?: string;

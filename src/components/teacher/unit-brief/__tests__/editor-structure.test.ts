@@ -68,6 +68,17 @@ describe("UnitBriefEditor — structure", () => {
   it("surfaces save errors via role='alert' for screen reader pickup", () => {
     expect(editorSrc).toMatch(/role="alert"/);
   });
+
+  it("renders a persistent SaveStatusPill with three states (Phase B smoke polish)", () => {
+    // Idle (no save yet) → null; saving → indigo; saved → green; error → red.
+    // Test the three data-testids that drive the smoke-visible feedback.
+    expect(editorSrc).toMatch(/data-testid="save-status-error"/);
+    expect(editorSrc).toMatch(/data-testid="save-status-saving"/);
+    expect(editorSrc).toMatch(/data-testid="save-status-saved"/);
+    // Saved state needs a lastSavedAt timestamp to render — driven by
+    // both savePatch + handleAddAmendment success paths.
+    expect(editorSrc).toMatch(/setLastSavedAt\(new Date\(\)\)/);
+  });
 });
 
 describe("DesignConstraintsEditor — structure", () => {
@@ -78,15 +89,44 @@ describe("DesignConstraintsEditor — structure", () => {
   });
 
   it("renders all 6 Design constraint fields", () => {
-    // dimensions / budget / audience are text fields
-    expect(designSrc).toMatch(/id="cstr_dimensions"/);
+    // dimensions is now a structured H×W×D + unit (Phase B smoke polish);
+    // budget + audience remain free-text. AxisInput passes its id prop
+    // through to data-testid={id} so we assert the literal id strings
+    // appear in source (the JSX uses interpolation, not a literal attr).
+    expect(designSrc).toContain('id="cstr_dim_h"');
+    expect(designSrc).toContain('id="cstr_dim_w"');
+    expect(designSrc).toContain('id="cstr_dim_d"');
+    expect(designSrc).toContain('data-testid="cstr_dim_unit"');
     expect(designSrc).toMatch(/id="cstr_budget"/);
     expect(designSrc).toMatch(/id="cstr_audience"/);
-    // materials are chip-pickers
+    // materials are chip-pickers + custom free-text adds (Phase B smoke polish)
     expect(designSrc).toContain("materials_whitelist");
+    expect(designSrc).toMatch(/data-testid="material-custom-input"/);
+    expect(designSrc).toMatch(/data-testid="material-custom-add"/);
     // must_include / must_avoid are repeaters
     expect(designSrc).toMatch(/testIdPrefix="must-include"/);
     expect(designSrc).toMatch(/testIdPrefix="must-avoid"/);
+  });
+
+  it("DimensionsField clears stored dimensions when all three axes are empty", () => {
+    // The buildNext helper returns undefined when h/w/d all parse empty,
+    // and parent setField deletes the key on undefined. This invariant
+    // keeps stored JSONB tight (no `dimensions: { unit: "mm" }` noise).
+    expect(designSrc).toMatch(
+      /next\.h !== undefined \|\| next\.w !== undefined \|\| next\.d !== undefined/,
+    );
+    expect(designSrc).toContain("// All axes empty → clear the dimensions key entirely.");
+  });
+
+  it("MaterialsField separates catalogue chips from custom free-text entries", () => {
+    // CATALOGUE_IDS Set drives "is this item a catalogue chip vs custom?"
+    expect(designSrc).toMatch(
+      /const CATALOGUE_IDS(?::\s*Set<string>)?\s*=\s*new Set\(MATERIALS_CHIPS\.map/,
+    );
+    // Custom entries render with their own data-testid prefix
+    expect(designSrc).toMatch(/data-testid=\{`material-custom-\$\{entry\}`\}/);
+    // Enter key adds custom entry (same UX as the repeater pattern below)
+    expect(designSrc).toMatch(/e\.key === "Enter"/);
   });
 
   it("removes empty values from constraints.data (cleanup-on-commit)", () => {
