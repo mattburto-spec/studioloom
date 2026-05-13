@@ -1,50 +1,49 @@
 # Handoff — main
 
-**Last session ended:** 2026-05-12T03:30Z
-**Worktree:** `/Users/matt/CWORK/questerra-grading` (parallel session — main worktree at `/Users/matt/CWORK/questerra`)
-**HEAD on main after merges:** `e2a0caf` "feat(tfl.3 C.4): tweak buttons (Shorter / Warmer / Sharper / + Ask) (#213)" → C.5 PR #214 merging at session close
+**Last session ended:** 2026-05-13T06:30Z
+**Worktree:** `/Users/matt/CWORK/questerra` (main worktree)
+**HEAD:** `01e5d87` "test(preflight): Phase 5 — quantity validation coverage on validateUploadRequest"
 
-> Supersedes the prior `main.md` (11 May 2026 PM Summative Lessons B′ scoping). Summative Lessons remains deferred per `docs/projects/summative-lessons.md`.
+> Supersedes the 12 May 2026 handoff. tfl.3 C.5 (TopNav Marking badge) shipped; this session pivoted to Preflight quantity + Tier 2 scheduling + 3 quick fixes driven by mid-class friction reports.
 
-## What just happened (12 May 2026 session)
+## What just happened (13 May 2026 session)
 
-Closed the **TFL.3 Pass C** brief end-to-end in a single long session — 8 PRs (#193, #195, #198, #204, #205, #206, #210, #213, #214) covering the entire C.1 → C.5 build plus three smoke-driven polish iterations. The Teacher Marking Inbox at `/teacher/inbox` is now the daily-driver approve-and-go surface. Legacy `/teacher/marking` cohort heatmap stays as the deep-dive (one click away).
+Single long session knocked out 5 unrelated wins, all driven by friction Matt hit during his actual G8/G9 teaching:
 
-**Highlights:**
-- **C.3.3** prod migration `20260512023440_student_tile_grades_resolved_at` applied + logged in `applied_migrations`. Cross-device "Mark resolved" via new `resolved_at` + `resolved_by` columns + partial index.
-- **C.4** new `regenerateDraft` helper + `/api/teacher/grading/regenerate-draft` route — 4 tweak directives (shorter / warmer / sharper / ask) with PII round-trip (real → placeholder → real).
-- **C.5** TopNav Marking badge + `/api/teacher/inbox/count` endpoint — amber when reply_waiting, purple-tint otherwise, 60s tab-aware polling.
-- Three smoke-driven hotfixes mid-session: handleApprove silently no-op'd because it read the wrong draft slot (#205); marking page kicked back to Lesson 1 after AI suggest (#206); inbox didn't auto-refresh (#206).
-- One approach pivot mid-session: PR #208 (localStorage for Mark resolved) was closed in favour of server-side persistence (PR #210) when Matt flagged the school-laptop ↔ home-laptop case. Migration discipline followed — paused for prod apply before merge.
+1. **Preflight quantity (Option A) end-to-end** — migration `20260513051223_fabrication_jobs_quantity` applied to prod. `quantity INT NOT NULL DEFAULT 1 CHECK (1..20)` on `fabrication_jobs`, threaded through validation → upload UI stepper → every render layer (purple × N chip on student/teacher/fab queues + prominent banner on fab job detail). 6 phases (claim → schema → API → UI → render → tests). +6 quantity validation tests + 1 amended insert-payload assertion. Multi-file uploads explicitly deferred ("keep it like this for now" per Matt). Commit chain `2c04345 → 01e5d87`.
+2. **Tier 2 per-class lesson scheduling** — migration `20260513034648_class_unit_lesson_schedule` applied to prod. New `class_unit_lesson_schedule` table (per-cohort lesson dates, separate from planning_tasks because same unit may be taught to multiple cohorts at different paces). New `pickTodaysLessonId` pure helper. New `/teacher/classes/[classId]/schedule/[unitId]` schedule editor. Teaching Mode auto-jumps to today's lesson on entry. 5 commits `746d24c → 7897ec9`. RLS coverage 130 → 131 tables.
+3. **Edit-lesson shortcut** in Teaching Mode header (`3ddb191`) — 1-click deep-link instead of 3-click round-trip when a mid-class typo surfaces.
+4. **Relaxed DELETE gate** for orphaned students (`8ea8ff0` + `3d9badb` + `cc0f9b8`) — `verifyTeacherCanManageStudent` was nuking T2's active student when T1 (former teacher) hard-deleted from their own surface; now checks `class_students` for active enrollments and allows delete only when zero active anywhere. CI break + new mock harness with 4 new test paths.
+5. **Onboarding "nothing to share" fix** (`8aac95b`) — Learning Differences page skip pill now visually equal-weight, students without a learning difference can move on without feeling forced into a false-positive.
 
-See `docs/changelog.md` 2026-05-12 entry for the full breakdown.
+Then saveme: registry scanners ran clean (api/ai-call-sites yaml diffs empty), questerra changelog appended, ALL-PROJECTS.md compacted (8-May entry archived in HTML comment, tight 13-May summary at top), questerra CLAUDE.md Preflight status line bumped to 13-May, master CLAUDE.md + master changelog updated.
 
 ## State of working tree
 
-- **Branch:** `feat/inbox-c5-dashboard-chip` (PR #214, CI green, awaiting merge at session end)
-- **Pending push:** 1 commit (saveme docs — this handoff + changelog + 3 new FUs + registry sync). Will be bundled into #214.
-- **Tests:** 831/831 in last broader sweep (grading + teacher + api + components + PII grep)
-- **tsc:** strict clean on all touched files (pre-existing pipeline `framing/task/success_signal` errors in stage2/4/6 tests are unchanged and unrelated)
-- **Migrations applied to prod this session:** 1 (`20260512023440_student_tile_grades_resolved_at`)
-- **Migration tracker:** logged via `applied_migrations` INSERT
-- **Worktrees:** main worktree at `/Users/matt/CWORK/questerra` is reserved as the cutover baseline; this session ran in `/Users/matt/CWORK/questerra-grading`
+- Working tree: clean post-saveme commit (will commit + push as part of saveme close-out)
+- 0 commits ahead of `origin/main` for code work — all 6 quantity-feature commits already pushed at `01e5d87`. Saveme docs commit + push will follow.
+- Test count: ~4874 passing (Preflight quantity validation tests +6)
+- tsc baseline: 266 errors (preserved — none introduced this session)
+- RLS coverage: 131/131 tables enabled, 126/131 with policies, 5 intentional deny-all (clean)
 
 ## Next steps
 
-- [ ] **Matt smokes Pass C end-to-end** on live (`studioloom.org/teacher/inbox`):
-  - Tweak buttons: click each of Shorter / Warmer / Sharper / + Ask on a drafted item + on a reply_waiting item. Verify the text rewrites + no "Student" leaks back into output (real-name restore should always swap back).
-  - Marking badge: open any teacher page → amber pill on "Marking" when reply_waiting exists; purple-tint pill when only drafts; hidden when zero. Hover for tooltip.
-  - 60s polling: leave inbox open, have a student submit something fresh; verify it shows up within ~60s without refresh.
-  - Cross-device Mark resolved: mark a got-it resolved on laptop A → reload on laptop B (or incognito) → stays gone. Have student send another reply → re-surfaces.
-- [ ] **Pick the next inflection point.** Three filed FUs sit at P3 (cohort comparison in inbox, ask-templates, push escalation). All gated on real pilot usage data. Worth waiting for ≥2 weeks of teacher use before picking.
-- [ ] **Watch for Pass C regressions** in the first week of real use. The four sub-phases interact tightly (the C.3.1 sentinel UX, C.3.3 resolved_at re-surface, C.4 tweak-state, C.5 count endpoint all share state derivation in inbox-loader.ts).
+- [ ] **Log both 13-May migrations to `applied_migrations` in prod** (Lesson #83). One paste:
+  ```sql
+  INSERT INTO public.applied_migrations (name, applied_at, applied_by, source, notes) VALUES
+    ('20260513034648_class_unit_lesson_schedule', now(), 'matt', 'manual',
+     'Tier 2 per-class lesson scheduling — separate table from planning_tasks per cohort-pace requirement'),
+    ('20260513051223_fabrication_jobs_quantity', now(), 'matt', 'manual',
+     'Preflight Option A — quantity 1..20 on fabrication_jobs');
+  ```
+- [ ] **Smoke Preflight quantity on prod** once Vercel rebuilds — upload with qty=3, check × N chip on student `/fabrication`, teacher queue + detail, fab queue + banner.
+- [ ] **Smoke Tier 2 scheduling** — set lesson dates for a class, walk away, return tomorrow, confirm Teaching Mode opens to today's lesson.
+- [ ] **Multi-file Preflight uploads** — explicitly deferred ("keep it like this for now"). Revisit only on real demand signal (i.e. a student asks for it, not Matt assuming they will).
+- [ ] **Refresh `open-followups-index.md`** if it's still stale (saveme master CLAUDE.md asks for this; nothing was filed this session so counts unchanged).
+- [ ] Long-tail: `FU-PROD-MIGRATION-BACKLOG-AUDIT` P1 still open — separate effort, not blocking.
 
 ## Open questions / blockers
 
-_None active._ Pass C is structurally complete. The 3 new follow-ups in `docs/projects/grading-followups.md` are explicitly post-pilot work — they wait on usage data, not on architectural decisions.
+_None for this branch._ All work shipped + pushed. User confirmed migrations applied to prod; just needs the `applied_migrations` tracker INSERT above.
 
-## Trigger phrases
-
-- `continue tfl3` / `inbox` → resume on the Pass D backlog (currently the 3 P3 FUs above)
-- `continue marking` → resume on the legacy /teacher/marking page (still alive for cohort heatmap; not currently scheduled)
-- `summative` → resume the deferred Summative Lessons B′ work (semester boundary)
+**Meta-pattern reminder for next session:** Matt built 5 features today, sold 0 things. CompliMate has GACC Decree 280 deadline ~10 days out (1 June 2026) and 0 customer conversations. If next session starts with "what's next?" — gently surface the validation gap before listing more StudioLoom builds. See master CLAUDE.md "The Pattern to Watch For".

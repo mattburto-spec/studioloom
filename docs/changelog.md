@@ -4,6 +4,35 @@
 
 ---
 
+## 2026-05-13 — Preflight quantity (Option A) + Tier 2 per-class lesson scheduling + onboarding skip fix + relaxed DELETE gate + Teach-Mode edit-lesson shortcut
+
+**Context:** Single long session that knocked out 5 unrelated wins driven by smoke-feedback from Matt's actual G8/G9 teaching — none of them blockers individually, all of them friction Matt hit during class.
+
+**1. Preflight quantity (Option A) end-to-end — 6 commits + migration `20260513051223_fabrication_jobs_quantity` applied to prod.** Bug report: "students often want N copies of the same file (4 wheels, 2 axles) but the upload form is one-file-one-job — they submit 4 identical jobs and the teacher approves them 4 times." Added `quantity INT NOT NULL DEFAULT 1 CHECK (1..20)` to `fabrication_jobs`. Threaded the field through `validateUploadRequest` (Phase 2, +6 unit tests in `orchestration.test.ts`), the student upload form (Phase 3, −/[N]/+ stepper between preferred-color and the file dropzone with a purple "× N copies" chip when N > 1), and every render layer downstream (Phase 4): `FabJobRow` + `FabJobDetail` + `QueueRow` + `HistoryJobRow` + `StudentJobRow` raw shapes, selects, mappers, and a purple × N chip on `/fab/queue` (3 spots) + `/fab/jobs/[jobId]` (prominent banner "× N copies requested — print/cut all before marking complete") + `/teacher/preflight` queue + `/teacher/preflight/jobs/[jobId]` + `/teacher/students/[studentId]` Fabrication tab + `/fabrication` student overview. Tests +6 (orchestration validation), test fixture amended for `quantity: 1` default. All 409 fabrication lib tests green, tsc baseline 266 preserved. Multi-file uploads deliberately deferred ("keep it like this for now" — bigger architecture change, no demand signal yet). Commit chain `2c04345 → 01e5d87`.
+
+**2. Tier 2 per-class lesson scheduling — `class_unit_lesson_schedule` table + editor page + Teaching Mode auto-jump.** Bug report: "I've written dates into lesson titles but Teaching Mode always opens to lesson 1." Migration `20260513034648_class_unit_lesson_schedule` adds per-class lesson dates (separate from `class_unit_planning_tasks` because the same unit may be taught to multiple cohorts at different paces). New `pickTodaysLessonId` helper (pure function, full unit tests) picks the lesson scheduled for today, or the closest past/future if today is empty. New `/teacher/classes/[classId]/schedule/[unitId]` schedule editor page. Teaching Mode now resolves the lesson to open via this helper. 5 commits `746d24c → 7897ec9`.
+
+**3. Edit-lesson shortcut in Teaching Mode header** (`3ddb191`) — single icon button in the Teaching Mode header that deep-links to the class-local lesson editor for the currently-displayed lesson. Removes the 3-click round-trip Matt was doing every time a typo surfaced mid-class.
+
+**4. Relaxed DELETE gate for orphaned students** — `verifyTeacherCanManageStudent` was nuking T2's active student if T1 (a former teacher) tried to hard-delete via their own /teacher/students surface. Relaxed gate (commits `8ea8ff0`, `3d9badb`, `cc0f9b8`) checks `class_students` for active enrollments — allows hard-delete only when the student has zero active classes anywhere. Mock harness extended with 4 new chains; 4 new tests for the relaxed-gate paths. CI break from the new mock shape resolved in `cc0f9b8`.
+
+**5. Onboarding "nothing to share" skip fix** (`8aac95b`) — Learning Differences page in Studio Setup had a "skip" button that wasn't visually weighted equal to the option buttons, so students felt they had to pick one. Restyled to equal-weight pill so students who don't have a learning difference can move on without false-positives.
+
+**Test count:** ~4868 → ~4874 (+6 from Preflight quantity validation + scheduling helper tests).
+
+**Migrations applied to prod:** `20260513034648_class_unit_lesson_schedule`, `20260513051223_fabrication_jobs_quantity`. Both need `applied_migrations` tracker rows logged.
+
+**RLS coverage:** 130 → 131 tables (added `class_unit_lesson_schedule` with full policies, 126/131 with-policies).
+
+**Decisions banked:**
+- Quantity is a display value, not a filter axis — no RLS or index changes. Scanner still scans the single source file; lab tech prints N copies and marks the single job complete.
+- Per-class lesson scheduling is the right shape (not title-parsing) — same unit may be taught to multiple cohorts at different paces.
+- Relaxed DELETE gate philosophy: a teacher can hard-delete a student only when that student has zero active class enrollments anywhere. Orphan cleanup yes; cross-teacher data destruction no.
+
+**Follow-ups filed:** None new — multi-file Preflight uploads explicitly deferred ("keep like this for now").
+
+---
+
 ## 2026-05-12 — Product Brief archetype expansion + Pitch-to-teacher workflow + Choice Cards re-pick (~10 PRs)
 
 **Context:** Day-of-class polish session driven by Matt's G8 / G9 lesson needs. Started with "scale back v1 for tomorrow's class", drifted into "v1 is actually a mashup of three concerns" (already shipped previous session as the v2 split), and resolved here with: more archetypes for Product Brief (so students who aren't building toys/buildings have a home), a pitch-to-teacher workflow for the Other/Pitch-your-own archetype (so students with off-piste ideas don't get blocked), the matching Choice Cards "Pitch your own" entry-point + "Change my mind" affordance, and a clean retirement of v1 to stop confusing students.
