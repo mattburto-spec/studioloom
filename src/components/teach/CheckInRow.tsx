@@ -16,6 +16,10 @@ export interface CheckInStudent {
   responseCount: number;
   needsHelp: boolean;
   paceZ: number | null;
+  /** Title of the student's current First Move "doing" card, if any.
+   *  Surfaced in the chip so the teacher can ask "how's X going?"
+   *  even when the actual work is happening off-platform (CAD, etc). */
+  doingCardTitle: string | null;
 }
 
 export interface CheckInCohortStats {
@@ -52,6 +56,14 @@ const MAX_CHIPS = 3;
 // Reason builder — first matching signal wins; priority resolved in sort
 // =========================================================================
 
+/** Append the student's current "doing" card to a reason so the teacher
+ *  walks over with a specific question ("how's the wheel going?") rather
+ *  than a surveillance question ("are you working?"). No-op when no card. */
+function withDoingCard(text: string, card: string | null): string {
+  if (!card) return text;
+  return `${text} · ${card}`;
+}
+
 function buildReason(
   s: CheckInStudent,
   cohortStats: CheckInCohortStats | null,
@@ -63,24 +75,33 @@ function buildReason(
   // 5-min "online" window — no more 551m absurdity.
   if (s.needsHelp && s.lastActive) {
     const mins = Math.floor((Date.now() - new Date(s.lastActive).getTime()) / 60000);
-    return { kind: "stuck", text: `idle ${mins}m` };
+    return {
+      kind: "stuck",
+      text: withDoingCard(`idle ${mins}m`, s.doingCardTitle),
+    };
   }
 
   // Falling behind — in_progress students whose pace is >1 SD below class
   // median. Don't expose the raw response-field count — it counts response
   // *fields* (one per activity slot, sometimes more for multi-question
-  // blocks), so "7 of 8" is misleading. Just say slower than peers.
+  // blocks), so "7 of 8" is misleading. Just say slower than peers, plus
+  // their current doing card if they've committed to one.
   if (
     s.status === "in_progress" &&
     s.paceZ !== null &&
     s.paceZ < PACE_Z_THRESHOLD &&
     cohortStats
   ) {
-    return { kind: "behind", text: "slower than peers" };
+    return {
+      kind: "behind",
+      text: withDoingCard("slower than peers", s.doingCardTitle),
+    };
   }
 
   // Absent-ish — not started and offline, but only if other students ARE online
-  // (i.e. a live lesson is in progress, so absence is meaningful, not just "no one's here yet")
+  // (i.e. a live lesson is in progress, so absence is meaningful, not just
+  // "no one's here yet"). Don't append the doing card here — if they haven't
+  // even started the lesson, any prior doing card is stale.
   if (s.status === "not_started" && !s.isOnline && onlineCount > 0) {
     return { kind: "absent", text: "hasn't started this lesson" };
   }

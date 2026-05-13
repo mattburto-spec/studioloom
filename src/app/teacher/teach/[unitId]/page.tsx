@@ -38,6 +38,8 @@ interface StudentLiveStatus {
   completionPct: number;
   needsHelp: boolean;
   paceZ: number | null;
+  /** Student's current First Move "doing" card title (if any). */
+  doingCardTitle: string | null;
 }
 
 interface LiveSummary {
@@ -793,34 +795,48 @@ export default function TeachingDashboard({
                         )}
                       </div>
 
-                      {/* Name + meta (single line) */}
-                      <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                        <span style={{ fontSize: "13px", fontWeight: 600, color: "#111827", whiteSpace: "nowrap" }}>
-                          {s.name}
-                        </span>
-                        {s.needsHelp && (
-                          <span style={{
-                            padding: "1px 6px", borderRadius: "4px",
-                            fontSize: "9px", fontWeight: 700, color: "#92400E",
-                            background: "#FFFBEB", border: "1px solid #FDE68A",
-                            lineHeight: 1.4,
-                          }}>
-                            HELP?
+                      {/* Name + meta. Doing card (if any) sits on a second
+                          line so the teacher can scan "what is this student
+                          actually working on?" without breaking the chips' rhythm. */}
+                      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "2px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                          <span style={{ fontSize: "13px", fontWeight: 600, color: "#111827", whiteSpace: "nowrap" }}>
+                            {s.name}
                           </span>
-                        )}
-                        {s.ellLevel && s.ellLevel !== "none" && (
-                          <span style={{
-                            padding: "1px 6px", borderRadius: "4px",
-                            fontSize: "9px", fontWeight: 700, color: "#1E40AF",
-                            background: "#EFF6FF", border: "1px solid #BFDBFE",
-                            lineHeight: 1.4,
-                          }}>
-                            ELL{String(s.ellLevel).replace(/ell/i, "")}
+                          {s.needsHelp && (
+                            <span style={{
+                              padding: "1px 6px", borderRadius: "4px",
+                              fontSize: "9px", fontWeight: 700, color: "#92400E",
+                              background: "#FFFBEB", border: "1px solid #FDE68A",
+                              lineHeight: 1.4,
+                            }}>
+                              HELP?
+                            </span>
+                          )}
+                          {s.ellLevel && s.ellLevel !== "none" && (
+                            <span style={{
+                              padding: "1px 6px", borderRadius: "4px",
+                              fontSize: "9px", fontWeight: 700, color: "#1E40AF",
+                              background: "#EFF6FF", border: "1px solid #BFDBFE",
+                              lineHeight: 1.4,
+                            }}>
+                              ELL{String(s.ellLevel).replace(/ell/i, "")}
+                            </span>
+                          )}
+                          <span style={{ fontSize: "12px", color: "#9CA3AF", whiteSpace: "nowrap" }}>
+                            {s.responseCount > 0 ? `${s.responseCount} responses` : "No responses yet"}
                           </span>
+                        </div>
+                        {s.doingCardTitle && (
+                          <div style={{
+                            fontSize: "11.5px", color: "#6B7280", lineHeight: 1.3,
+                            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                          }}>
+                            <span style={{ marginRight: "4px" }}>📌</span>
+                            <span style={{ fontWeight: 600, color: "#374151" }}>Doing:</span>{" "}
+                            <span>{s.doingCardTitle}</span>
+                          </div>
                         )}
-                        <span style={{ fontSize: "12px", color: "#9CA3AF", whiteSpace: "nowrap" }}>
-                          {s.responseCount > 0 ? `${s.responseCount} responses` : "No responses yet"}
-                        </span>
                       </div>
 
                       {/* Status badge (live-aware) */}
