@@ -135,6 +135,44 @@ describe("validateUploadRequest", () => {
     expect((r as { error: { status: number; message: string } }).error.status).toBe(400);
     expect((r as { error: { message: string } }).error.message).toMatch(/preferredColor/);
   });
+
+  // ---- quantity (Phase 4 — multi-copy requests) ----
+
+  it("defaults quantity to 1 when omitted", () => {
+    const r = validateUploadRequest(valid);
+    if (!("ok" in r && r.ok)) throw new Error("expected ok result");
+    expect(r.data.quantity).toBe(1);
+  });
+
+  it("accepts an explicit quantity in 1..20", () => {
+    const r = validateUploadRequest({ ...valid, quantity: 7 });
+    if (!("ok" in r && r.ok)) throw new Error("expected ok result");
+    expect(r.data.quantity).toBe(7);
+  });
+
+  it("rejects quantity below 1 with 400", () => {
+    const r = validateUploadRequest({ ...valid, quantity: 0 });
+    expect((r as { error: { status: number; message: string } }).error.status).toBe(400);
+    expect((r as { error: { message: string } }).error.message).toMatch(/quantity.*1\.\.20/);
+  });
+
+  it("rejects quantity above 20 with 400", () => {
+    const r = validateUploadRequest({ ...valid, quantity: 21 });
+    expect((r as { error: { status: number; message: string } }).error.status).toBe(400);
+    expect((r as { error: { message: string } }).error.message).toMatch(/quantity.*1\.\.20/);
+  });
+
+  it("rejects non-integer quantity with 400", () => {
+    const r = validateUploadRequest({ ...valid, quantity: 3.5 });
+    expect((r as { error: { status: number; message: string } }).error.status).toBe(400);
+    expect((r as { error: { message: string } }).error.message).toMatch(/quantity.*integer/);
+  });
+
+  it("rejects non-numeric quantity with 400", () => {
+    const r = validateUploadRequest({ ...valid, quantity: "3" });
+    expect((r as { error: { status: number; message: string } }).error.status).toBe(400);
+    expect((r as { error: { message: string } }).error.message).toMatch(/quantity/);
+  });
 });
 
 // ---------- buildStoragePath ----------
@@ -369,6 +407,7 @@ describe("createUploadJob — happy path", () => {
       status: "uploaded",
       current_revision: 1,
       preferred_color: null,
+      quantity: 1,
     });
 
     // fabrication_job_revisions INSERT includes storage_path + scan_status.
