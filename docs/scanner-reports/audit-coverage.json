@@ -1,6 +1,6 @@
 {
   "registry": "audit-coverage",
-  "timestamp": "2026-05-12T13:22:42.790797+00:00",
+  "timestamp": "2026-05-13T03:37:02.501154+00:00",
   "version": 1,
   "stats": {
     "total_mutation_routes": 254,
@@ -399,7 +399,7 @@
       "reason": "routine learner activity, low audit value"
     },
     {
-      "file": "src/app/api/student/first-move/[activityId]/commit/route.ts",
+      "file": "src/app/api/student/first-move/commit/[activityId]/route.ts",
       "methods": [
         "POST"
       ],

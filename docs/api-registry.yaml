@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 474
+# Total routes: 476
 
 routes:
 - path: /api/admin/ai-budget
@@ -1172,26 +1172,27 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
-- path: /api/student/first-move/[activityId]/commit
+- path: /api/student/first-move/[unitId]
+  method: GET
+  file: src/app/api/student/first-move/[unitId]/route.ts
+  auth: student
+  tables_read:
+  - planning_tasks
+  - student_progress
+  - student_unit_kanban
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/student/first-move/commit/[activityId]
   method: POST
-  file: src/app/api/student/first-move/[activityId]/commit/route.ts
+  file: src/app/api/student/first-move/commit/[activityId]/route.ts
   auth: student
   tables_read:
   - student_unit_kanban
   tables_written:
   - learning_events
   - student_unit_kanban
-  ai_call_sites: []
-  cost_ceiling_usd: null
-  notes: null
-- path: /api/student/first-move/[unitId]
-  method: GET
-  file: src/app/api/student/first-move/[unitId]/route.ts
-  auth: student
-  tables_read:
-  - student_progress
-  - student_unit_kanban
-  tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
@@ -2725,6 +2726,30 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/teacher/classes/[classId]/lesson-schedule
+  method: GET
+  file: src/app/api/teacher/classes/[classId]/lesson-schedule/route.ts
+  auth: teacher
+  tables_read:
+  - class_unit_lesson_schedule
+  - classes
+  tables_written:
+  - class_unit_lesson_schedule
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'class_unit_lesson_schedule' — not in schema-registry
+- path: /api/teacher/classes/[classId]/lesson-schedule
+  method: PUT
+  file: src/app/api/teacher/classes/[classId]/lesson-schedule/route.ts
+  auth: teacher
+  tables_read:
+  - class_unit_lesson_schedule
+  - classes
+  tables_written:
+  - class_unit_lesson_schedule
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'class_unit_lesson_schedule' — not in schema-registry
 - path: /api/teacher/classes/[classId]/students/[studentId]/support-settings
   method: PATCH
   file: src/app/api/teacher/classes/[classId]/students/[studentId]/support-settings/route.ts
@@ -4467,6 +4492,8 @@ routes:
   file: src/app/api/teacher/students/[studentId]/route.ts
   auth: teacher
   tables_read:
+  - class_students
+  - classes
   - students
   tables_written:
   - class_students
@@ -4480,6 +4507,8 @@ routes:
   file: src/app/api/teacher/students/[studentId]/route.ts
   auth: teacher
   tables_read:
+  - class_students
+  - classes
   - students
   tables_written:
   - class_students
