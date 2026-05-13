@@ -38,6 +38,11 @@ export type BlockCategory =
   | "response"
   | "content"
   | "toolkit"
+  /** Live blocks — timed + parallel + teacher-launched + class-wide aggregated.
+   *  Class DJ is the canonical example. See docs/specs/live-blocks-pattern.md
+   *  for the template. Activity blocks with activity_category="social-environment"
+   *  map here. */
+  | "live"
   | "assessment"
   | "collaboration"
   | "custom"

@@ -51,6 +51,18 @@ const CATEGORIES: Record<BlockCategory, CategoryMeta> = {
     bgColor: "bg-purple-50",
     borderColor: "border-purple-200",
   },
+  // Live — timed + parallel + teacher-launched + class-wide aggregated.
+  // Pattern: docs/specs/live-blocks-pattern.md. Maps from
+  // activity_category="social-environment". Class DJ is the canonical example;
+  // future entries (live exit-ticket, live crit, live do-now, live brainstorm)
+  // all land here.
+  live: {
+    label: "Live",
+    dotColor: "bg-violet-500",
+    color: "text-violet-600",
+    bgColor: "bg-violet-50",
+    borderColor: "border-violet-200",
+  },
   assessment: {
     label: "Assessment",
     dotColor: "bg-amber-500",
@@ -98,6 +110,9 @@ function mapActivityCategory(cat: string | null): BlockCategory {
     case "assessment": return "assessment";
     case "making": case "planning": case "journey": return "response";
     case "discussion": case "critique": return "collaboration";
+    // Live blocks (timed + parallel + teacher-launched + class-wide aggregated).
+    // Class DJ is the first; pattern in docs/specs/live-blocks-pattern.md.
+    case "social-environment": return "live";
     default: return "custom";
   }
 }
