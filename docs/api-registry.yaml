@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 493
+# Total routes: 494
 
 routes:
 - path: /api/admin/ai-budget
@@ -1085,6 +1085,16 @@ routes:
   - student_tool_sessions
   tables_written:
   - student_tool_sessions
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/student/class-for-unit/[unitId]
+  method: GET
+  file: src/app/api/student/class-for-unit/[unitId]/route.ts
+  auth: student
+  tables_read:
+  - class_students
+  tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
@@ -4756,10 +4766,12 @@ routes:
   auth: teacher
   tables_read:
   - class_students
+  - class_units
   - classes
   - student_progress
   - student_unit_kanban
   - students
+  - units
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null

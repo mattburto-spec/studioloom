@@ -1503,8 +1503,8 @@ systems:
     category: Teacher Experience
     status: complete
     currentVersion: 1
-    summary: Live student progress grid with phase timer, KPI tiles, per-student status cards, projector view, classroom tools (timer, picker, groups, noise). Phase 1 CheckInRow (12 May 2026) surfaces ≤3 students who need teacher attention — stuck (existing needsHelp flag), falling behind (paceZ < -1.0 vs in-progress cohort), or absent-ish (not_started + offline). Snoozable per-lesson. Polled every 30s via /api/teacher/teach/live-status which now returns paceZ + cohortStats.
-    depends_on: [lesson-view, scheduling, student-data, class-units]
+    summary: Live student progress grid with phase timer, KPI tiles, per-student status cards, projector view, classroom tools (timer, picker, groups, noise). Phase 1 CheckInRow (12 May 2026) surfaces ≤3 students who need teacher attention — stuck (existing needsHelp flag), falling behind (paceZ < -1.0 vs per-current-lesson cohort), or absent-ish (not_started + offline). Snoozable per-lesson. Polled every 30s via /api/teacher/teach/live-status. **14 May 2026 — whole-class view:** the student list always shows every student's ACTUAL current lesson via a small badge (purple when matching the teacher's selected lesson, grey otherwise), not whichever lesson is filtered. Lesson dropdown still drives mini-lesson / projector / phase timer context, but no longer filters students. Pace cohort is per-current-lesson (each student vs peers on the same lesson — more accurate when the cohort is spread across lessons after a partial-completion class).
+    depends_on: [lesson-view, scheduling, student-data, class-units, units]
     affects: [lesson-view, student-dashboard, testing-sandbox]
     docs:
       - path: docs/roadmap.md
@@ -1521,6 +1521,12 @@ systems:
       - table: class_students
         columns: [student_id, class_id, is_active]
         notes: Class roster lookup (junction table + legacy students.class_id fallback)
+      - table: units
+        columns: [id, content_data]
+        notes: Page list (page_id → lesson index + title mapping) for the whole-class location badges
+      - table: class_units
+        columns: [class_id, unit_id, content_data, is_active]
+        notes: Class-local fork takes precedence over master units.content_data when present
     key_files:
       - src/app/teacher/teach/[unitId]/page.tsx
       - src/app/api/teacher/teach/live-status/route.ts
