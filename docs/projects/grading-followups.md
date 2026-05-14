@@ -159,10 +159,10 @@
 
 **Why deferred:** v1 of the inbox + Marking badge is enough surface area. Teachers need to internalize the daily-driver flow before adding escalation layers — otherwise it just becomes noise. Re-evaluate after 2 weeks of pilot use.
 
-### TFL3-FU-STUDENT-IB-IMAGES-MISSING — Inspiration Board images not displaying in student lesson view
+### ~~TFL3-FU-STUDENT-IB-IMAGES-MISSING — Inspiration Board images not displaying in student lesson view~~ ✅ RESOLVED 14 May 2026
 **Surfaced:** TFL.3 C.7.2 smoke (13 May 2026 — Matt's test student)
 **Priority:** P1 — broken UX for students viewing their own work
-**Target phase:** Next session, with DevTools data captured
+**Resolved by:** `InspirationBoardBlock.tsx` hydration fix — `useState` lazy init only ran on mount; added `useEffect([value])` with `useRef`-guarded short-circuit for user-edit loops. Not a storage proxy / auth issue; just a React state-management bug that's been there since the IB block first shipped.
 
 **Symptom:** A student uploads images to an Inspiration Board block on a lesson page. Teacher sees them fine in `/teacher/marking` (focus panel + row expansion both render the thumbnails). The same student, viewing their own lesson page, does NOT see the thumbnails — they're either broken or absent.
 
