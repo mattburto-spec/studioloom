@@ -41,6 +41,16 @@ const RICH_TEXTAREA_SRC = readFileSync(
   "utf-8",
 );
 
+const VIDEO_SUGGEST_MODAL_SRC = readFileSync(
+  join(__dirname, "..", "VideoSuggestionsModal.tsx"),
+  "utf-8",
+);
+
+const LESSON_EDITOR_SRC = readFileSync(
+  join(__dirname, "..", "LessonEditor.tsx"),
+  "utf-8",
+);
+
 const PRESETS_SRC = readFileSync(
   join(
     __dirname,
@@ -334,6 +344,94 @@ describe("KeyCalloutEditor — RichTextarea on intro + bullet bodies", () => {
     );
     expect(KEY_CALLOUT_SRC).toMatch(
       /<input[\s\S]{0,300}value=\{b\.hint \?\? ""\}/,
+    );
+  });
+});
+
+describe("VideoSuggestionsModal — AI video suggestions UI (sub-phase 2)", () => {
+  it("POSTs to /api/teacher/suggest-videos with the block's slot fields", () => {
+    // Endpoint must match the backend route shipped in #281.
+    expect(VIDEO_SUGGEST_MODAL_SRC).toContain('"/api/teacher/suggest-videos"');
+    // Body shape — at least one of framing/task/success_signal/unitTitle.
+    expect(VIDEO_SUGGEST_MODAL_SRC).toMatch(/JSON\.stringify\(\{[\s\S]{0,300}framing,/);
+    expect(VIDEO_SUGGEST_MODAL_SRC).toMatch(/task,/);
+    expect(VIDEO_SUGGEST_MODAL_SRC).toMatch(/success_signal,/);
+    expect(VIDEO_SUGGEST_MODAL_SRC).toMatch(/unitTitle,/);
+  });
+
+  it("maps HTTP statuses to teacher-friendly messages (503 / 429 / 400)", () => {
+    // 503 — YOUTUBE_API_KEY unset; 429 — over_cap; 400 — no signal in body.
+    // The route distinguishes these; the UI must too, so teachers see
+    // the right copy and don't think the feature is broken.
+    expect(VIDEO_SUGGEST_MODAL_SRC).toMatch(/res\.status === 503/);
+    expect(VIDEO_SUGGEST_MODAL_SRC).toMatch(/res\.status === 429/);
+    expect(VIDEO_SUGGEST_MODAL_SRC).toMatch(/res\.status === 400/);
+  });
+
+  it("Attach button writes { type: 'video', url } via onAttach + closes the modal", () => {
+    expect(VIDEO_SUGGEST_MODAL_SRC).toMatch(
+      /onAttach\(\{\s*type:\s*"video",\s*url:\s*candidate\.url\s*\}\)/,
+    );
+    expect(VIDEO_SUGGEST_MODAL_SRC).toContain("onClose()");
+  });
+
+  it("\"Suggest again\" excludes already-shown video IDs", () => {
+    // The route accepts excludeVideoIds so the second click never
+    // returns the same trio. The UI accumulates them so successive
+    // clicks keep fanning out.
+    expect(VIDEO_SUGGEST_MODAL_SRC).toContain("excludedIds");
+    expect(VIDEO_SUGGEST_MODAL_SRC).toMatch(/excludeVideoIds/);
+  });
+
+  it("renders an embedded preview via toEmbedUrl for each candidate", () => {
+    // Embeds are the contained-UX path. toEmbedUrl converts a watch
+    // URL to a player URL — same helper used by the existing media
+    // render path.
+    expect(VIDEO_SUGGEST_MODAL_SRC).toMatch(
+      /import\s*\{\s*toEmbedUrl\s*\}\s*from\s*["']@\/lib\/video-embed["']/,
+    );
+    expect(VIDEO_SUGGEST_MODAL_SRC).toMatch(/<iframe[\s\S]{0,200}src=\{embedUrl\}/);
+  });
+});
+
+describe("ActivityBlock — Suggest videos wiring on Media tab", () => {
+  it("imports VideoSuggestionsModal from the sibling module", () => {
+    expect(ACTIVITY_BLOCK_SRC).toMatch(
+      /import\s*\{\s*VideoSuggestionsModal\s*\}\s*from\s*["']\.\/VideoSuggestionsModal["']/,
+    );
+  });
+
+  it("accepts an optional unitTitle prop and passes it through to the modal", () => {
+    // The route doesn't require unitTitle (it parses the body
+    // defensively), but supplying it sharpens the AI query.
+    expect(ACTIVITY_BLOCK_SRC).toMatch(/unitTitle\?:\s*string;/);
+    expect(ACTIVITY_BLOCK_SRC).toMatch(
+      /<VideoSuggestionsModal[\s\S]{0,500}unitTitle=\{unitTitle\}/,
+    );
+  });
+
+  it("opens the modal from a button inside the Media tab body", () => {
+    // Owns its own open state — the button is the only entry point,
+    // close goes through onClose. Lives in the same block as the URL
+    // input + ImageUploadButton.
+    expect(ACTIVITY_BLOCK_SRC).toContain("setVideoSuggestOpen");
+    expect(ACTIVITY_BLOCK_SRC).toContain("Suggest videos with AI");
+  });
+
+  it("attach handler patches activity.media via onUpdate", () => {
+    expect(ACTIVITY_BLOCK_SRC).toMatch(
+      /onAttach=\{\(media\)\s*=>\s*onUpdate\(\{\s*media\s*\}\)\}/,
+    );
+  });
+});
+
+describe("LessonEditor — threads unitTitle to ActivityBlock", () => {
+  it("passes unitTitle prop to each ActivityBlock (coerced null → undefined)", () => {
+    // useLessonEditor() returns unitTitle as string | null; the prop
+    // is string | undefined so we coerce at the boundary rather than
+    // widen the prop signature.
+    expect(LESSON_EDITOR_SRC).toMatch(
+      /<ActivityBlock[\s\S]{0,500}unitTitle=\{unitTitle \?\? undefined\}/,
     );
   });
 });
