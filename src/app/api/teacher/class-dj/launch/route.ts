@@ -76,8 +76,35 @@ export async function POST(request: NextRequest) {
 
   const db = createAdminClient();
 
-  // Check for an existing open round on this (class, unit, page, activity).
-  // The partial unique index guarantees at most one open round per tuple.
+  // Auto-close any timer-expired-but-still-marked-open round for this
+  // (class, unit, page, activity). Without this, "Run again" after a
+  // natural timer expiry hits the same row via the closed_at-IS-NULL
+  // check below + returns reused:true → UI gets stuck on the old round.
+  // Setting closed_at = ends_at preserves the timeline (the round
+  // technically closed AT its scheduled end), and lets the partial
+  // unique index permit the new INSERT below.
+  const nowIso = new Date().toISOString();
+  const { error: sweepErr } = await db
+    .from("class_dj_rounds")
+    .update({ closed_at: nowIso })
+    .eq("class_id", classId)
+    .eq("unit_id", unitId)
+    .eq("page_id", pageId)
+    .eq("activity_id", activityId)
+    .is("closed_at", null)
+    .lt("ends_at", nowIso);
+  if (sweepErr) {
+    console.error("[class-dj/launch] auto-close sweep failed", sweepErr);
+    // Non-fatal — continue. If the sweep failed but the row stays open,
+    // the existing-round check below will return it (reused:true), which
+    // is the previous behaviour. Better to surface the existing round
+    // than 500 the request.
+  }
+
+  // Check for an existing GENUINELY open round (closed_at IS NULL AND
+  // ends_at > now()). The partial unique index guarantees at most one
+  // open row per tuple AT THE DB LEVEL; the sweep above keeps that DB
+  // invariant aligned with the UI's notion of "open" (still ticking).
   const { data: existing, error: existingErr } = await db
     .from("class_dj_rounds")
     .select("*")
@@ -86,6 +113,7 @@ export async function POST(request: NextRequest) {
     .eq("page_id", pageId)
     .eq("activity_id", activityId)
     .is("closed_at", null)
+    .gt("ends_at", nowIso)
     .maybeSingle();
 
   if (existingErr) {
