@@ -100,7 +100,23 @@ export default function InspirationBoardBlock({
   const prefersReducedMotion = useReducedMotion();
 
   // Hydrate from `value` on mount + when value changes externally.
+  // Matt smoke 14 May 2026 caught this: lessons load with `value=""`
+  // on first paint, server response arrives ~200ms later, parent
+  // updates value to the saved JSON — but the lazy useState
+  // initializer only runs ONCE, so the block stayed empty ("0 / 5
+  // uploaded") despite the saved IB being in the DB. The useEffect
+  // below re-parses `value` on every change; the `lastSerializedRef`
+  // guard prevents a clobber loop on user edits (user types → persist
+  // → onChange → parent value updates → useEffect would fire — but
+  // ref short-circuits because we already know that's the value we
+  // just emitted).
   const [state, setState] = useState<BoardState>(() => parseValue(value));
+  const lastSerializedRef = useRef<string>(value);
+  useEffect(() => {
+    if (value === lastSerializedRef.current) return;
+    lastSerializedRef.current = value;
+    setState(parseValue(value));
+  }, [value]);
 
   // Archetype-aware copy.
   const [archetypeId, setArchetypeId] = useState<string | null>(null);
@@ -148,11 +164,17 @@ export default function InspirationBoardBlock({
   }, [unitId]);
 
   // Persist state via onChange. Debounce isn't needed here — the parent
-  // ActivityCard already debounces the autosave write.
+  // ActivityCard already debounces the autosave write. Recording the
+  // serialized value in lastSerializedRef short-circuits the hydration
+  // effect above when the parent echoes back the same JSON; otherwise
+  // every keystroke would round-trip parent → useEffect → setState
+  // (still safe, just one extra render).
   const persist = useCallback(
     (next: BoardState) => {
+      const serialized = JSON.stringify(next);
+      lastSerializedRef.current = serialized;
       setState(next);
-      onChange(JSON.stringify(next));
+      onChange(serialized);
     },
     [onChange],
   );
