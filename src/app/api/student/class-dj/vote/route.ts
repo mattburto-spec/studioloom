@@ -167,10 +167,15 @@ export async function POST(request: NextRequest) {
     voted_at: new Date().toISOString(),
   };
 
-  // UPSERT on (student_id, unit_id, page_id, tool_id, version) —
-  // matches the `unique_embedded_version` constraint in
-  // supabase/migrations/026_student_tool_sessions.sql.
-  const upsertRow = {
+  // Manual upsert pattern (SELECT → UPDATE-or-INSERT). Can't use
+  // db.upsert() because the `unique_embedded_version` constraint in
+  // 026_student_tool_sessions.sql is `DEFERRABLE INITIALLY DEFERRED`,
+  // and Postgres refuses to use deferrable unique constraints as
+  // ON CONFLICT arbiters (error 55000). FU-STUDENT-TOOL-SESSIONS-
+  // NONDEFERRABLE-INDEX captures the proper fix (add a non-deferrable
+  // unique index alongside the deferred constraint) — out of scope
+  // for the M-DJ-1 smoke.
+  const baseInsertRow = {
     student_id: studentId,
     tool_id: "class-dj",
     challenge: "", // not used for class-dj; required NOT NULL on the table
@@ -181,28 +186,71 @@ export async function POST(request: NextRequest) {
     state,
     version: round.version,
     status: "completed",
-    started_at: new Date().toISOString(),
-    completed_at: new Date().toISOString(),
   };
 
-  const { data: vote, error: upsertErr } = await db
+  const { data: existingSession, error: existingErr } = await db
     .from("student_tool_sessions")
-    .upsert(upsertRow, { onConflict: "student_id,unit_id,page_id,tool_id,version" })
-    .select("id, state, status")
-    .single();
+    .select("id")
+    .eq("student_id", studentId)
+    .eq("unit_id", round.unit_id)
+    .eq("page_id", round.page_id)
+    .eq("tool_id", "class-dj")
+    .eq("version", round.version)
+    .maybeSingle();
 
-  if (upsertErr) {
-    console.error("[class-dj/vote] upsert failed", upsertErr);
-    // Surface the DB error detail to the client so DevTools shows the
-    // actual cause (constraint name, FK violation, etc.) — the upsertRow
-    // contains no PII so this is safe to return. Lesson banked from the
-    // first vote-smoke failure: generic "Failed to record vote" hid the
-    // actual cause behind a Vercel-logs-only message.
+  if (existingErr) {
+    console.error("[class-dj/vote] existing-session lookup failed", existingErr);
     return NextResponse.json(
       {
         error: "Failed to record vote",
-        detail: (upsertErr as { message?: string }).message ?? String(upsertErr),
-        code: (upsertErr as { code?: string }).code,
+        detail: (existingErr as { message?: string }).message ?? String(existingErr),
+        code: (existingErr as { code?: string }).code,
+      },
+      { status: 500 },
+    );
+  }
+
+  let vote: { id: string; state: unknown; status: string } | null = null;
+  let writeErr: { message?: string; code?: string } | null = null;
+
+  if (existingSession) {
+    // Update — preserves started_at on re-vote, refreshes completed_at + state.
+    const { data, error } = await db
+      .from("student_tool_sessions")
+      .update({
+        state,
+        status: "completed",
+        completed_at: new Date().toISOString(),
+      })
+      .eq("id", existingSession.id)
+      .select("id, state, status")
+      .single();
+    vote = data;
+    writeErr = error;
+  } else {
+    // Insert. Rare race (two parallel votes from same student in <100ms)
+    // would surface a 23505; for now we accept that and let the client
+    // retry — students don't double-tap that fast in practice.
+    const { data, error } = await db
+      .from("student_tool_sessions")
+      .insert({
+        ...baseInsertRow,
+        started_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+      })
+      .select("id, state, status")
+      .single();
+    vote = data;
+    writeErr = error;
+  }
+
+  if (writeErr) {
+    console.error("[class-dj/vote] write failed", writeErr);
+    return NextResponse.json(
+      {
+        error: "Failed to record vote",
+        detail: writeErr.message ?? String(writeErr),
+        code: writeErr.code,
       },
       { status: 500 },
     );
