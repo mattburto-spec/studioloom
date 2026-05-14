@@ -23,6 +23,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import type { FirstMoveConfig } from "@/components/teacher/lesson-editor/BlockPalette.types";
 import type { KanbanCard } from "@/lib/unit-tools/kanban/types";
+import { TappableText } from "@/components/student/tap-a-word/TappableText";
 
 interface UpcomingMilestone {
   id: string;
@@ -268,8 +269,7 @@ export default function FirstMoveBlock({
             Today&apos;s first move
           </div>
           <div className="mt-0.5 text-[13.5px] text-amber-700/85">
-            Five minutes before you dive in. Glance back, pick one card,
-            name what you&apos;ll do.
+            <TappableText text="Five minutes before you dive in. Glance back, pick one card, name what you'll do." />
           </div>
         </div>
       </div>
@@ -282,8 +282,7 @@ export default function FirstMoveBlock({
             <div className="mt-1.5 text-[16px] leading-relaxed text-zinc-800">
               {payload.designPhilosophy ?? (
                 <span className="italic text-zinc-500">
-                  Not yet set — visit your Class 1 Strategy Canvas to write
-                  one. You can still pick today&apos;s move below.
+                  <TappableText text="Not yet set — visit your Class 1 Strategy Canvas to write one. You can still pick today's move below." />
                 </span>
               )}
             </div>
@@ -338,8 +337,7 @@ export default function FirstMoveBlock({
             <div className={LabelClass}>Coming up next</div>
             {payload.upcomingMilestones.length === 0 ? (
               <div className="mt-2.5 rounded-lg border border-dashed border-zinc-300 bg-zinc-50/60 px-3.5 py-2.5 text-[14px] text-zinc-600">
-                No milestones set yet. Open your Timeline, backward-map from
-                race day, then come back.
+                <TappableText text="No milestones set yet. Open your Timeline, backward-map from race day, then come back." />
               </div>
             ) : (
               <ul className="mt-2 space-y-1.5">
@@ -396,8 +394,7 @@ export default function FirstMoveBlock({
           </div>
           {payload.thisClassCards.length === 0 ? (
             <div className="mt-2.5 rounded-lg border border-dashed border-zinc-300 bg-zinc-50/60 px-3.5 py-2.5 text-[14px] text-zinc-600">
-              Your &ldquo;This Class&rdquo; lane is empty. Open your Kanban,
-              promote a card from Backlog, then come back.
+              <TappableText text='Your "This Class" lane is empty. Open your Kanban, promote a card from Backlog, then come back.' />
             </div>
           ) : (
             <div className="mt-2.5 flex flex-wrap gap-2">

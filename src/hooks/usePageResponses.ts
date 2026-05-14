@@ -56,6 +56,12 @@ export function usePageResponses(
   const responsesRef = useRef(responses);
   responsesRef.current = responses;
 
+  // Snapshot of the most recently persisted responses. Used by the
+  // pagehide flush to detect unsaved drift. Updated to the exact map
+  // that was POSTed after each successful save (not responsesRef.current,
+  // which may have advanced during the network round-trip).
+  const lastSavedResponsesRef = useRef<Record<string, string>>({});
+
   // Track which pageId we've already loaded responses for,
   // so we don't overwrite user typing when data ref changes
   const loadedPageRef = useRef<string | null>(null);
@@ -253,6 +259,12 @@ export function usePageResponses(
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
+        if (res.ok) {
+          // Update the "last saved" snapshot so pagehide flush can
+          // detect future unsaved drift. Set on every successful save
+          // (silent or not) — the toast is purely cosmetic.
+          lastSavedResponsesRef.current = { ...currentResponses };
+        }
         if (res.ok && !silent) {
           setShowSaveToast(true);
           setTimeout(() => setShowSaveToast(false), 1500);
@@ -282,6 +294,68 @@ export function usePageResponses(
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [responses, data]);
+
+  // Pagehide flush — fixes data loss when a student types and refreshes
+  // (or closes the tab) before the 2s debounce fires. Compares current
+  // responses to the lastSavedResponsesRef snapshot; if they differ,
+  // sends a beacon to /api/student/progress so the POST completes even
+  // as the page unloads. Uses both pagehide (fires on tab close/refresh,
+  // mobile-safe) and visibilitychange→hidden (covers backgrounded
+  // mobile tabs that may not get a clean pagehide). sendBeacon is
+  // idempotent server-side (upsert by student+page), so duplicate
+  // fires from both listeners are harmless.
+  useEffect(() => {
+    if (!currentPage) return;
+    const flush = () => {
+      const current = responsesRef.current;
+      if (Object.keys(current).length === 0) return;
+      // Cheap dirty check — bail if nothing changed since last save.
+      // JSON.stringify is fine here: responses are flat string maps and
+      // this only runs once on unload.
+      if (
+        JSON.stringify(current) === JSON.stringify(lastSavedResponsesRef.current)
+      ) {
+        return;
+      }
+      const payload: Record<string, unknown> = {
+        unitId,
+        pageId: currentPage.id,
+        status: "in_progress",
+        responses: current,
+      };
+      if (
+        integrityMetadataRef?.current &&
+        Object.keys(integrityMetadataRef.current).length > 0
+      ) {
+        payload.integrityMetadata = integrityMetadataRef.current;
+      }
+      if (pendingDeltaRef.current > 0) {
+        payload.timeSpentDelta = pendingDeltaRef.current;
+        pendingDeltaRef.current = 0;
+      }
+      try {
+        const blob = new Blob([JSON.stringify(payload)], {
+          type: "application/json",
+        });
+        navigator.sendBeacon("/api/student/progress", blob);
+        // Treat as saved so a follow-up visibilitychange doesn't re-send.
+        lastSavedResponsesRef.current = { ...current };
+      } catch {
+        // sendBeacon throws on payload-too-large; nothing we can do at
+        // unload time. Better than crashing the unload path.
+      }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unitId, currentPage]);
 
   // Mark page as in_progress on first visit
   useEffect(() => {

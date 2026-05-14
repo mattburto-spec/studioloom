@@ -32,10 +32,15 @@
  * See ./authorize.ts for the full rule table.
  *
  * Cache-Control:
- *   - The proxy redirect is `private, max-age=240` (4min) — slightly under
- *     the 5min signed-URL TTL so the browser refreshes before the URL
- *     expires. Tradeoff: bursty image grids re-mint at most once per 4min,
- *     not per render.
+ *   - The proxy redirect is `private, max-age=3540` (59min) — slightly under
+ *     the 1-hour signed-URL TTL so the browser refreshes before the URL
+ *     expires. Bumped from 4min on 14 May 2026 after G8 students reported
+ *     inspiration-board images flashing on/off: with multiple images and a
+ *     flaky connection, the 4-min revalidation interval caused visible
+ *     tear-down/rebuild flickers. Tradeoff: signed URLs live longer (1h
+ *     instead of 5min); acceptable because the proxy still gates every
+ *     mint via per-user authorize.ts — short TTLs were defence-in-depth,
+ *     not the primary control.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -51,8 +56,8 @@ const ALLOWED_BUCKETS = new Set([
   // PII auth as `responses` (dispatched in ./authorize.ts).
   "user-profile-photos",
 ]);
-const SIGNED_URL_TTL_SECONDS = 300; // 5 min — caller refreshes via repeat hit
-const PROXY_CACHE_SECONDS = 240; // 4 min — refresh before TTL expires
+const SIGNED_URL_TTL_SECONDS = 3600; // 1 hour — caller refreshes via repeat hit
+const PROXY_CACHE_SECONDS = 3540; // 59 min — refresh before TTL expires
 
 type RouteContext = { params: Promise<{ bucket: string; path: string[] }> };
 
