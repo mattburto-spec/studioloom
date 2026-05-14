@@ -92,8 +92,8 @@ describe("GET /api/student/class-dj/state — role-aware tally disclosure", () =
     expect(STATE_ROUTE_SRC).toMatch(/from\("class_students"\)/);
   });
 
-  it("verifies teacher role via has_class_role rpc", () => {
-    expect(STATE_ROUTE_SRC).toMatch(/has_class_role/);
+  it("verifies teacher role via verifyTeacherInClass", () => {
+    expect(STATE_ROUTE_SRC).toMatch(/verifyTeacherInClass/);
   });
 });
 

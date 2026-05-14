@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacher } from "@/lib/auth/require-teacher";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { verifyTeacherInClass } from "@/lib/class-dj/auth-helpers";
 import { callStage5Narrate, fallbackWhyLines } from "@/lib/class-dj/stage5-narrate";
 import type { Candidate, ConflictMode, Mood } from "@/lib/class-dj/types";
 
@@ -41,6 +42,7 @@ export async function POST(
 ) {
   const auth = await requireTeacher(request);
   if (auth.error) return auth.error;
+  const { teacherId: actorId } = auth;
 
   const { roundId } = await ctx.params;
   const db = createAdminClient();
@@ -52,7 +54,7 @@ export async function POST(
     .maybeSingle();
   if (!round) return NextResponse.json({ error: "Round not found" }, { status: 404 });
 
-  const { data: isTeacher } = await db.rpc("has_class_role", { _class_id: round.class_id });
+  const isTeacher = await verifyTeacherInClass(db, round.class_id, actorId);
   if (!isTeacher) {
     return NextResponse.json({ error: "Forbidden — not a teacher of this class" }, { status: 403 });
   }
