@@ -27,7 +27,7 @@ import { callAnthropicMessages } from "@/lib/ai/call";
 import { MODELS } from "@/lib/ai/models";
 import { STUDENT_NAME_PLACEHOLDER } from "@/lib/security/student-name-placeholder";
 
-export const PROMPT_VERSION = "grading.aiprescore.v2.1.0";
+export const PROMPT_VERSION = "grading.aiprescore.v2.2.0"; // 13 May 2026 — shorter default (2 sentences, ~30-55 words; positive→suggestion)
 // Bumped 600 → 900 to fit the new ~80-word feedback_draft alongside the
 // existing score + quote + reasoning. Roughly: 200 prior + 200 feedback
 // + tool overhead = ~500 actual; 900 gives headroom against truncation.
@@ -103,15 +103,22 @@ const PRESCORE_TOOL = {
         type: "string",
         description:
           "A draft comment written DIRECTLY TO THE STUDENT in second person. " +
-          "Length: 60–100 words, 2–4 sentences. Structure: 1) one sentence naming what " +
-          "specifically landed (anchored to the evidence quote when possible), 2) one " +
-          "sentence on the gap or what's still missing, 3) one sentence with a concrete " +
-          "next step they can take. " +
-          "Style: warm but specific, no generic praise ('great job'), no jargon, no scoring " +
-          "language ('Level 5', 'Criterion B'). Address them by first name once, naturally. " +
-          "If you cannot find anything specific to comment on (empty submission, off-topic " +
-          "answer), return a single sentence asking them to revisit the prompt — DO NOT " +
-          "fabricate a comment.",
+          "Length: 30–55 words, 2 sentences MAX. Students don't read long comments — " +
+          "short-and-sweet beats thorough-and-ignored. Matt feedback 13 May 2026. " +
+          "Structure (BOTH sentences required, in this order): " +
+          "(1) ONE specific positive — name what landed, anchored to a verbatim phrase " +
+          "from their response. Not generic praise. Examples: 'You named cardboard + foam " +
+          "and a 20cm scale — that's enough to start prototyping' / 'Calling the " +
+          "biggest risk \"warping\" shows you've thought about what could go wrong'. " +
+          "(2) ONE concrete suggestion — the single most-impactful next step, as a " +
+          "directive or question. Not a list. Examples: 'Add one detail about HOW " +
+          "the clouds will be made from cardboard.' / 'Try sketching the joinery " +
+          "where the foam meets the base — that's the part that'll snap first.' " +
+          "Style: warm but precise, no 'awesome'/'great job'/'amazing', no jargon, no " +
+          "scoring language ('Level 5', 'Criterion B'). Address them by first name " +
+          "ONCE if natural (often the suggestion sentence sounds better without it). " +
+          "If the response is empty or off-topic, return a single sentence asking them " +
+          "to revisit the prompt — DO NOT fabricate a positive comment.",
       },
     },
     required: ["score", "evidence_quote", "confidence", "reasoning", "feedback_draft"],
@@ -136,12 +143,13 @@ function buildSystemPrompt(input: AiPrescoreInput): string {
     "- Never invent evidence. If you cannot find an 8-word quote, return an empty evidence_quote and confidence < 0.4.",
     "",
     "FEEDBACK principles (this is the comment the student will read — get it right):",
-    "- Specific over generic. 'You picked PLA because it's biodegradable' beats 'Good material choice'.",
-    "- Anchor at least one sentence in the response itself. Reference what they actually wrote.",
-    "- One thing landed, one thing's missing, one concrete next step. In that order.",
+    "- TWO sentences, ~30–55 words total. Short-and-sweet beats thorough-and-ignored. Students don't read long comments.",
+    "- Sentence 1 = ONE specific positive, anchored to a verbatim phrase from their response. Not 'good job'.",
+    "- Sentence 2 = ONE concrete next step. Directive or question. Not a list.",
+    "- Anchor at least one sentence to what they actually wrote — not a generic platitude.",
     `- Address the student warmly but not preciously. Use the placeholder "${studentRef}" exactly as written when addressing them — the platform substitutes their real name post-response. No 'awesome', 'amazing', 'great job'.`,
     "- Don't reveal the score or use scoring language. The teacher decides whether to mention numbers.",
-    "- Don't paper over weakness. If their reasoning is thin, name it specifically.",
+    "- Don't paper over weakness. If their reasoning is thin, name it specifically — but still pair with a positive.",
     "- If you have nothing specific to say (blank/off-topic submission), say only: " +
       `"${studentRef}, I can't see a response to this question yet — try the prompt again and aim for X." Replace X with the genre of answer the prompt asks for.`,
     "",

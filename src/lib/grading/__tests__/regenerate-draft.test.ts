@@ -52,8 +52,15 @@ describe("regenerate-draft — directive switch (4 variants)", () => {
     expect(src).toMatch(/\(input\.askText\s*\?\?\s*""\)\.trim\(\)/);
   });
 
-  it("shorter directive instructs compression to 1-2 sentences", () => {
-    expect(src).toMatch(/compress this to 1-2 sentences/i);
+  it("shorter directive compresses to 2 sentences but PRESERVES positive+suggestion structure", () => {
+    // C.7 rewrite (13 May 2026 — Matt smoke): the original "Shorter"
+    // collapsed to a single bland next-step sentence and lost the
+    // positive. Now both halves must survive compression.
+    expect(src).toMatch(/compress this to TWO short sentences/i);
+    expect(src).toMatch(/MUST keep BOTH/i);
+    expect(src).toMatch(/ONE specific positive/i);
+    expect(src).toMatch(/ONE concrete next step/i);
+    expect(src).toMatch(/DO NOT drop the positive sentence/i);
   });
 
   it("warmer directive forbids empty praise (no 'great' / 'awesome')", () => {
