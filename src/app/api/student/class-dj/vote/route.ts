@@ -125,22 +125,35 @@ export async function POST(request: NextRequest) {
   let vetoFlagged = false;
   let seedFlagged = false;
 
+  // moderateAndLog calls Anthropic — if it throws (timeout, rate limit,
+  // missing key), don't 500 the vote. Default to *_flagged:false and
+  // let the round proceed; safety-team can audit student_content_
+  // moderation_log later. Vote-record reliability > realtime
+  // moderation perfection.
   if (sanitised.veto) {
-    const { result } = await moderateAndLog(sanitised.veto, {
-      studentId,
-      classId: round.class_id,
-      source: "tool_session",
-    });
-    vetoFlagged = result.moderation.status !== "clean";
+    try {
+      const { result } = await moderateAndLog(sanitised.veto, {
+        studentId,
+        classId: round.class_id,
+        source: "tool_session",
+      });
+      vetoFlagged = result.moderation.status !== "clean";
+    } catch (e) {
+      console.error("[class-dj/vote] moderateAndLog(veto) failed — defaulting to vetoFlagged=false", e);
+    }
   }
 
   if (sanitised.seed) {
-    const { result } = await moderateAndLog(sanitised.seed, {
-      studentId,
-      classId: round.class_id,
-      source: "tool_session",
-    });
-    seedFlagged = result.moderation.status !== "clean";
+    try {
+      const { result } = await moderateAndLog(sanitised.seed, {
+        studentId,
+        classId: round.class_id,
+        source: "tool_session",
+      });
+      seedFlagged = result.moderation.status !== "clean";
+    } catch (e) {
+      console.error("[class-dj/vote] moderateAndLog(seed) failed — defaulting to seedFlagged=false", e);
+    }
   }
 
   const state = {
@@ -180,7 +193,19 @@ export async function POST(request: NextRequest) {
 
   if (upsertErr) {
     console.error("[class-dj/vote] upsert failed", upsertErr);
-    return NextResponse.json({ error: "Failed to record vote" }, { status: 500 });
+    // Surface the DB error detail to the client so DevTools shows the
+    // actual cause (constraint name, FK violation, etc.) — the upsertRow
+    // contains no PII so this is safe to return. Lesson banked from the
+    // first vote-smoke failure: generic "Failed to record vote" hid the
+    // actual cause behind a Vercel-logs-only message.
+    return NextResponse.json(
+      {
+        error: "Failed to record vote",
+        detail: (upsertErr as { message?: string }).message ?? String(upsertErr),
+        code: (upsertErr as { code?: string }).code,
+      },
+      { status: 500 },
+    );
   }
 
   // Get current vote count for this round (for the face-grid).
