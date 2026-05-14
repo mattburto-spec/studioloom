@@ -363,6 +363,7 @@ export function ResponseInput({
           activityId={activityId}
           classId={classId}
           role="student"
+          config={section?.classDjConfig}
         />
       )}
 

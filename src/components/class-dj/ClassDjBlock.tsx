@@ -25,6 +25,7 @@ import ClassDjSuggestionView, {
   type SuggestionItem,
 } from "./ClassDjSuggestionView";
 import type { ConflictMode, Mood } from "@/lib/class-dj/types";
+import type { ClassDjConfig } from "@/components/teacher/lesson-editor/BlockPalette.types";
 
 interface Props {
   unitId: string;
@@ -32,6 +33,9 @@ interface Props {
   activityId: string;
   classId: string;
   role: Role;
+  /** Per-instance teacher-configured gate / max-suggestions / timer.
+   *  Sourced from ActivitySection.classDjConfig (Phase 3 lesson editor). */
+  config?: ClassDjConfig;
 }
 
 interface RoundShape {
@@ -54,6 +58,7 @@ export default function ClassDjBlock({
   activityId,
   classId,
   role,
+  config,
 }: Props) {
   const { state, error, stopped, refetch } = useClassDjPolling(role, {
     unitId,
@@ -73,7 +78,11 @@ export default function ClassDjBlock({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({ roundId }),
+        body: JSON.stringify({
+          roundId,
+          gateMinVotes: config?.gateMinVotes,
+          maxSuggestions: config?.maxSuggestions,
+        }),
       });
       const body = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
@@ -116,7 +125,8 @@ export default function ClassDjBlock({
 
   const suggestionItems = (state.suggestion?.items as SuggestionItem[] | undefined) ?? null;
   const conflictMode: ConflictMode = (round as unknown as { conflict_mode: ConflictMode | null }).conflict_mode ?? "consensus";
-  const gateMet = state.participation_count >= 3;
+  const gateThreshold = config?.gateMinVotes ?? 3;
+  const gateMet = state.participation_count >= gateThreshold;
   const maxSuggestionsReached = (state.suggestion?.vote_count !== undefined) && false; // Phase 6 reads activity config
 
   // Status === "live" — round is open.
