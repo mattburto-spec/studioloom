@@ -52,7 +52,7 @@ export default function ClassDjTeacherControls({
   classId,
   config,
 }: Props) {
-  const { state, refetch } = useClassDjPolling("teacher", {
+  const { state, error: pollError, refetch } = useClassDjPolling("teacher", {
     unitId,
     pageId,
     activityId,
@@ -121,6 +121,17 @@ export default function ClassDjTeacherControls({
   }
 
   if (!state) {
+    // Surface poll errors so a 4xx (e.g. wrong class, missing
+    // enrollment, server bug) doesn't render as a forever-loading
+    // placeholder. Lesson banked from the post-Phase-6 has_class_role
+    // RPC bug — the loading state was hiding a 403.
+    if (pollError) {
+      return (
+        <div className="my-3 rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+          Couldn&apos;t load Class DJ state: {pollError}
+        </div>
+      );
+    }
     return (
       <div className="my-3 rounded-md border border-violet-200 bg-violet-50 p-3 text-xs text-violet-700">
         Loading Class DJ controls…

@@ -16,6 +16,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacher } from "@/lib/auth/require-teacher";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { verifyTeacherInClass } from "@/lib/class-dj/auth-helpers";
 import { sanitiseInput, updateFairnessLedger } from "@/lib/class-dj/algorithm";
 import type {
   Candidate,
@@ -62,6 +63,7 @@ export async function POST(
 ) {
   const auth = await requireTeacher(request);
   if (auth.error) return auth.error;
+  const { teacherId } = auth;
 
   const { roundId } = await ctx.params;
   let body: PickBody;
@@ -88,7 +90,7 @@ export async function POST(
   }
   if (!round) return NextResponse.json({ error: "Round not found" }, { status: 404 });
 
-  const { data: isTeacher } = await db.rpc("has_class_role", { _class_id: round.class_id });
+  const isTeacher = await verifyTeacherInClass(db, round.class_id, teacherId);
   if (!isTeacher) {
     return NextResponse.json({ error: "Forbidden — not a teacher of this class" }, { status: 403 });
   }

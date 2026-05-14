@@ -40,6 +40,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStudentSession } from "@/lib/access-v2/actor-session";
 import { requireTeacher } from "@/lib/auth/require-teacher";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { verifyTeacherInClass } from "@/lib/class-dj/auth-helpers";
 import type { Mood } from "@/lib/class-dj/types";
 
 const MOODS: Mood[] = ["focus", "build", "vibe", "crit", "fun"];
@@ -78,6 +79,7 @@ export async function GET(request: NextRequest) {
   const studentSession = await getStudentSession(request);
   let role: "student" | "teacher" | null = null;
   let studentId: string | null = null;
+  let teacherId: string | null = null;
   if (studentSession) {
     role = "student";
     studentId = studentSession.studentId;
@@ -85,6 +87,7 @@ export async function GET(request: NextRequest) {
     const teacherAuth = await requireTeacher(request);
     if (!teacherAuth.error) {
       role = "teacher";
+      teacherId = teacherAuth.teacherId;
     }
   }
 
@@ -111,12 +114,12 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // For teachers, verify they teach this class.
-  if (role === "teacher") {
-    const { data: membership } = await db.rpc("has_class_role", {
-      _class_id: classId,
-    });
-    if (!membership) {
+  // For teachers, verify they teach this class. The admin client bypasses
+  // RLS so we authorise here explicitly with the teacher id from the
+  // session (NOT auth.uid() — that's NULL on the service-role client).
+  if (role === "teacher" && teacherId) {
+    const isTeacher = await verifyTeacherInClass(db, classId, teacherId);
+    if (!isTeacher) {
       return NextResponse.json(
         { error: "Forbidden — not a teacher of this class" },
         { status: 403 },

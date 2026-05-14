@@ -36,6 +36,13 @@ interface ActivityCardProps {
   enableIntegrityMonitoring?: boolean;
   /** Callback when integrity metadata is updated */
   onIntegrityUpdate?: (sectionIndex: number, metadata: IntegrityMetadata) => void;
+  /**
+   * Class context for live blocks (Class DJ + future live-exit-ticket /
+   * live-crit / live-do-now). Resolved by the lesson page via
+   * /api/student/class-for-unit/[unitId]. Live block conditional renders
+   * no-op gracefully when undefined.
+   */
+  classId?: string;
 }
 
 /**
@@ -156,6 +163,7 @@ export function ActivityCard({
   pageColor = "#6B7280",
   enableIntegrityMonitoring = false,
   onIntegrityUpdate,
+  classId,
 }: ActivityCardProps) {
   const ellKey = `ell${ellLevel}` as "ell1" | "ell2" | "ell3";
   const scaffolding = section.scaffolding?.[ellKey];
@@ -382,6 +390,7 @@ export function ActivityCard({
                 choiceCardsConfig={section.choiceCardsConfig}
                 inspirationBoardConfig={section.inspirationBoardConfig}
                 firstMoveConfig={section.firstMoveConfig}
+                classId={classId}
                 section={section}
               />
 

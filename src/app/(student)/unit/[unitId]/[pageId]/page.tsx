@@ -68,6 +68,32 @@ function UnitPageViewInner({
 
   const { data, loading, allPages, currentPage, enabledPages, nextPage, currentSettings, pageColor } =
     usePageData(unitId, pageId);
+
+  // Resolve the student's active class for this unit so live blocks
+  // (Class DJ + future live-exit-ticket etc.) can scope their state
+  // per-class. Falls back to null if the unit isn't in any of the
+  // student's active enrollments — Class DJ then no-ops its
+  // conditional render gracefully.
+  // FU-CLASS-DJ-CLASSID-MULTI-CLASS — if multiple classes share the
+  // unit, the lookup returns the first; a picker UI defers to a
+  // future polish phase.
+  const [classId, setClassId] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/student/class-for-unit/${unitId}`, { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : { classId: null }))
+      .then((body) => {
+        if (cancelled) return;
+        setClassId(body?.classId ?? null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setClassId(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [unitId]);
   const integrityMetadataRef = useRef<Record<string, unknown> | null>(null);
 
   // Per-activity engagement tracking (Dimensions Phase 3)
@@ -364,6 +390,7 @@ function UnitPageViewInner({
                   allowedTypes={[...new Set(pageContent.sections.map(s => s.responseType).filter(Boolean))] as ("text" | "upload" | "voice" | "link")[]}
                   unitId={unitId}
                   pageId={pageId}
+                  classId={classId ?? undefined}
                   pageColor={pageColor}
                   enableIntegrityMonitoring={true}
                   onIntegrityUpdate={(sectionIndex, metadata) => {

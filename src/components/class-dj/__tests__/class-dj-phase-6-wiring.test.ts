@@ -108,8 +108,8 @@ describe("POST /api/teacher/class-dj/[roundId]/pick — Phase 6", () => {
     expect(PICK_ROUTE_SRC).toMatch(/\[0, 1, 2\]\.includes\(body\.suggestionIndex\)/);
   });
 
-  it("verifies teacher role via has_class_role rpc", () => {
-    expect(PICK_ROUTE_SRC).toMatch(/has_class_role/);
+  it("verifies teacher role via verifyTeacherInClass", () => {
+    expect(PICK_ROUTE_SRC).toMatch(/verifyTeacherInClass/);
   });
 
   it("calls updateFairnessLedger from algorithm.ts (§3.6 EMA)", () => {
@@ -127,9 +127,9 @@ describe("POST /api/teacher/class-dj/[roundId]/pick — Phase 6", () => {
 });
 
 describe("POST /api/teacher/class-dj/[roundId]/close — idempotent", () => {
-  it("uses requireTeacher + has_class_role", () => {
+  it("uses requireTeacher + verifyTeacherInClass", () => {
     expect(CLOSE_ROUTE_SRC).toMatch(/requireTeacher\(request\)/);
-    expect(CLOSE_ROUTE_SRC).toMatch(/has_class_role/);
+    expect(CLOSE_ROUTE_SRC).toMatch(/verifyTeacherInClass/);
   });
 
   it("returns {already_closed:true} if round already closed (idempotent)", () => {
@@ -138,9 +138,9 @@ describe("POST /api/teacher/class-dj/[roundId]/close — idempotent", () => {
 });
 
 describe("POST /api/teacher/class-dj/[roundId]/regenerate-narration", () => {
-  it("uses requireTeacher + has_class_role", () => {
+  it("uses requireTeacher + verifyTeacherInClass", () => {
     expect(REGEN_ROUTE_SRC).toMatch(/requireTeacher\(request\)/);
-    expect(REGEN_ROUTE_SRC).toMatch(/has_class_role/);
+    expect(REGEN_ROUTE_SRC).toMatch(/verifyTeacherInClass/);
   });
 
   it("calls Stage 5 only (picks unchanged)", () => {
@@ -159,9 +159,9 @@ describe("POST /api/teacher/class-dj/[roundId]/regenerate-narration", () => {
 });
 
 describe("GET /api/teacher/class-dj/constraints/[classId]", () => {
-  it("uses requireTeacher + has_class_role", () => {
+  it("uses requireTeacher + verifyTeacherInClass", () => {
     expect(CONSTRAINTS_GET_SRC).toMatch(/requireTeacher\(request\)/);
-    expect(CONSTRAINTS_GET_SRC).toMatch(/has_class_role/);
+    expect(CONSTRAINTS_GET_SRC).toMatch(/verifyTeacherInClass/);
   });
 
   it("filters by 30-day window", () => {
@@ -183,9 +183,9 @@ describe("GET /api/teacher/class-dj/constraints/[classId]", () => {
 });
 
 describe("POST /api/teacher/class-dj/constraints/[classId]/expire-veto", () => {
-  it("uses requireTeacher + has_class_role", () => {
+  it("uses requireTeacher + verifyTeacherInClass", () => {
     expect(EXPIRE_VETO_SRC).toMatch(/requireTeacher\(request\)/);
-    expect(EXPIRE_VETO_SRC).toMatch(/has_class_role/);
+    expect(EXPIRE_VETO_SRC).toMatch(/verifyTeacherInClass/);
   });
 
   it("normalises veto_text (lower-trim, 80 char cap)", () => {
@@ -202,9 +202,9 @@ describe("POST /api/teacher/class-dj/constraints/[classId]/expire-veto", () => {
 });
 
 describe("POST /api/teacher/class-dj/constraints/[classId]/reset-ledger", () => {
-  it("uses requireTeacher + has_class_role", () => {
+  it("uses requireTeacher + verifyTeacherInClass", () => {
     expect(RESET_LEDGER_SRC).toMatch(/requireTeacher\(request\)/);
-    expect(RESET_LEDGER_SRC).toMatch(/has_class_role/);
+    expect(RESET_LEDGER_SRC).toMatch(/verifyTeacherInClass/);
   });
 
   it("logs reset to class_dj_ledger_resets audit table", () => {

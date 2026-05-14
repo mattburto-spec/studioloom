@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacher } from "@/lib/auth/require-teacher";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { verifyTeacherInClass } from "@/lib/class-dj/auth-helpers";
 
 export async function POST(
   request: NextRequest,
@@ -26,7 +27,7 @@ export async function POST(
   const { classId } = await ctx.params;
   const db = createAdminClient();
 
-  const { data: isTeacher } = await db.rpc("has_class_role", { _class_id: classId });
+  const isTeacher = await verifyTeacherInClass(db, classId, teacherId);
   if (!isTeacher) {
     return NextResponse.json({ error: "Forbidden — not a teacher of this class" }, { status: 403 });
   }
