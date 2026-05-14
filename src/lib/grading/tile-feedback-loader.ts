@@ -79,6 +79,14 @@ export async function loadTileFeedbackThreads(
   studentId: string,
   unitId: string,
   pageId: string,
+  /** Optional whitelist of tile IDs that currently exist on the
+   *  rendered page. Used to drop ORPHAN grades for tiles a teacher
+   *  has since deleted from the page. If omitted, all grades are
+   *  returned (legacy behaviour — kept for callers that haven't
+   *  resolved page content yet). Matt smoke 14 May 2026 — the
+   *  student banner was reading "feedback on 3 tiles" on a page that
+   *  no longer had any tiles. */
+  validTileIds?: Set<string> | null,
 ): Promise<TileFeedbackResult> {
   // Two-step query:
   //   1. Find grade_ids for this student × unit × page.
@@ -101,13 +109,25 @@ export async function loadTileFeedbackThreads(
     return { threadsByTileId: {}, gradeIdByTileId: {} };
   }
 
-  const gradeIds = (grades as { id: string; tile_id: string }[]).map((g) => g.id);
+  // Drop orphan grades whose tile_id is no longer in the rendered
+  // page content (caller-supplied whitelist; if not supplied we keep
+  // all grades for backwards compatibility). This prevents the
+  // student-side banner from reading "feedback on N tiles" when those
+  // tiles were deleted by the teacher.
+  const filteredGrades = (grades as { id: string; tile_id: string }[]).filter(
+    (g) => !validTileIds || validTileIds.has(g.tile_id),
+  );
+  if (filteredGrades.length === 0) {
+    return { threadsByTileId: {}, gradeIdByTileId: {} };
+  }
+
+  const gradeIds = filteredGrades.map((g) => g.id);
   const tileByGradeId = new Map<string, string>();
   // Build the inverse map (tile → grade) at the same time. Both maps
   // are derived from the same source query so they're guaranteed
   // consistent with each other.
   const gradeIdByTileId: GradeIdByTileId = {};
-  for (const g of grades as { id: string; tile_id: string }[]) {
+  for (const g of filteredGrades) {
     tileByGradeId.set(g.id, g.tile_id);
     gradeIdByTileId[g.tile_id] = g.id;
   }
