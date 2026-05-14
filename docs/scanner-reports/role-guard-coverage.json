@@ -1,15 +1,15 @@
 {
   "registry": "role-guard-coverage",
-  "timestamp": "2026-05-10T09:50:23.202034+00:00",
+  "timestamp": "2026-05-14T22:47:19.425876+00:00",
   "version": 1,
   "stats": {
-    "total_routes": 206,
-    "covered": 198,
+    "total_routes": 229,
+    "covered": 221,
     "missing": 0,
     "allowlisted": 8
   },
   "covered_helpers_used": {
-    "requireTeacher": 92,
+    "requireTeacher": 115,
     "verifyTeacherCanManageStudent": 2,
     "requireTeacherAuth": 59,
     "requireAdmin": 29,

@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 494
+# Total routes: 495
 
 routes:
 - path: /api/admin/ai-budget
@@ -4696,6 +4696,15 @@ routes:
   - students
   tables_written:
   - students
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/suggest-videos
+  method: POST
+  file: src/app/api/teacher/suggest-videos/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null

@@ -2568,6 +2568,15 @@ docs:
     max_age_days: 90
     last_scanned: "2026-05-08"
 
+  - path: docs/projects/ai-video-suggestions-brief.md
+    title: "AI Video Suggestions — Design Brief (v1)"
+    purpose: "Design doc + open-questions tracker for the AI-suggested videos feature. Recommendation YouTube Data API v3 + Claude query-builder (Haiku) + Claude re-ranker (Sonnet, tool-use). Suggest 3 with previews, teacher picks, URL drops into activity.media. Telemetry via callAnthropicMessages endpoint strings teacher/suggest-videos:query + :rerank. Matt's resolved decisions baked into the v1 code: platform-paid, embeddable-only, grade from unit.grade_level, type tags off. Open: channel allowlist seed (Matt to provide 5-10 trusted channels). Backend shipped in PR #281, UI in PR #282 (15 May 2026)."
+    category: projects
+    last_verified: "2026-05-15"
+    referenced_from: ["CLAUDE.md AI calls — single chokepoint", "feature-flags.yaml YOUTUBE_API_KEY"]
+    max_age_days: 90
+    last_scanned: "2026-05-15"
+
   # --- PREFLIGHT (fabrication submission pipeline) ---
   - path: docs/projects/fabrication-pipeline.md
     title: "Preflight — Fabrication Submission Pipeline (master spec)"
