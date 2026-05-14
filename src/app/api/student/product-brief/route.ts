@@ -245,6 +245,32 @@ export const POST = withErrorHandler(
       .eq("unit_id", unitId)
       .maybeSingle();
 
+    // Symmetric with GET's lazy-resolve: if the student hasn't committed
+    // an archetype yet AND the client isn't sending one in this patch,
+    // try to inherit it from their Choice Cards pick for this unit and
+    // commit it as part of the same upsert.
+    //
+    // Without this, the "suggested-not-persisted" pattern breaks on the
+    // first slot save: GET returns archetype_id from the choice card,
+    // the UI renders the matching slot walker, the student answers
+    // slot_1, and the POST writes only slot_1 — the merged row's
+    // archetype_id stays null. The response is then echoed back to the
+    // client which calls setBrief(data.brief), wiping the suggested
+    // archetype out of state. Next render: ArchetypePicker reappears
+    // mid-walker and the student picks a different tile (G8 audit:
+    // 4 of 26 students = ~15% drifted off their card-picked archetype
+    // via this path).
+    //
+    // Surfaced 14 May 2026. See scripts/dev/audit-card-vs-brief.mjs
+    // for the diagnostic that found it.
+    if (!("archetype_id" in patch) && !existing?.archetype_id) {
+      const pick = await resolveChoiceCardPickForUnit(db, studentId, unitId);
+      const suggested = extractArchetypeId(pick);
+      if (suggested && PRODUCT_BRIEF_ARCHETYPES[suggested]) {
+        patch.archetype_id = suggested;
+      }
+    }
+
     const merged = {
       student_id: studentId,
       unit_id: unitId,
