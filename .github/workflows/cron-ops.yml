@@ -1,17 +1,18 @@
 name: Cron Ops
 
-# Wires up the two compliance-load-bearing scripts in scripts/ops/.
-# Resolves FU-AV2-CRON-SCHEDULER-WIRE (P2) for retention + hard-delete.
-# Other ops scripts (cost-alert, stale-watchdog, pipeline-health,
-# quality-drift, edit-tracker, usage-analytics) can be added here later.
+# Schedules the runtime ops scripts in scripts/ops/.
+# Resolves FU-AV2-CRON-SCHEDULER-WIRE (P2).
+#
+# Schedules:
+#   Daily   16:00 UTC (midnight Nanjing) — hard-delete + 4 daily observability
+#   Weekly  17:00 UTC Sunday             — quality-drift + stale-watchdog
+#   Monthly 17:00 UTC on the 1st         — retention-enforcement
 
 on:
   schedule:
-    # Daily — midnight Nanjing (UTC+8) = 16:00 UTC. Two hours before nightly.yml
-    # so the scheduled hard-delete pass finishes before code gates run.
-    - cron: "0 16 * * *"
-    # Monthly — 1st of month at 1am Nanjing = 17:00 UTC on the 1st.
-    - cron: "0 17 1 * *"
+    - cron: "0 16 * * *"   # Daily
+    - cron: "0 17 * * 0"   # Weekly (Sunday)
+    - cron: "0 17 1 * *"   # Monthly (1st)
   workflow_dispatch:
     inputs:
       job:
@@ -22,24 +23,25 @@ on:
         options:
           - hard-delete
           - retention-enforcement
+          - cost-alert
+          - pipeline-health
+          - usage-analytics
+          - edit-tracker
+          - quality-drift
+          - stale-watchdog
 
 jobs:
   hard-delete:
-    # Runs daily AND on manual dispatch when job=hard-delete
     if: github.event.schedule == '0 16 * * *' || github.event.inputs.job == 'hard-delete'
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
     steps:
       - uses: actions/checkout@v5
-
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: "npm"
-
       - run: npm ci
-
       - name: Scheduled hard-delete cron
         run: npx tsx scripts/ops/run-scheduled-hard-delete.ts
         env:
@@ -47,23 +49,120 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
   retention-enforcement:
-    # Runs monthly AND on manual dispatch when job=retention-enforcement
     if: github.event.schedule == '0 17 1 * *' || github.event.inputs.job == 'retention-enforcement'
     runs-on: ubuntu-latest
     timeout-minutes: 15
-
     steps:
       - uses: actions/checkout@v5
-
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: "npm"
-
       - run: npm ci
-
       - name: Retention enforcement
         run: npx tsx scripts/ops/run-retention-enforcement.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+  cost-alert:
+    if: github.event.schedule == '0 16 * * *' || github.event.inputs.job == 'cost-alert'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - name: Cost alert
+        run: npx tsx scripts/ops/run-cost-alert.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+  pipeline-health:
+    if: github.event.schedule == '0 16 * * *' || github.event.inputs.job == 'pipeline-health'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - name: Pipeline health monitor
+        run: npx tsx scripts/ops/run-pipeline-health.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+  usage-analytics:
+    if: github.event.schedule == '0 16 * * *' || github.event.inputs.job == 'usage-analytics'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - name: Usage analytics rollup
+        run: npx tsx scripts/ops/run-usage-analytics.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+  edit-tracker:
+    if: github.event.schedule == '0 16 * * *' || github.event.inputs.job == 'edit-tracker'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - name: Teacher edit tracker
+        run: npx tsx scripts/ops/run-edit-tracker.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+  quality-drift:
+    if: github.event.schedule == '0 17 * * 0' || github.event.inputs.job == 'quality-drift'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - name: Quality drift detector
+        run: npx tsx scripts/ops/run-quality-drift.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+  stale-watchdog:
+    if: github.event.schedule == '0 17 * * 0' || github.event.inputs.job == 'stale-watchdog'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - name: Stale data watchdog
+        run: npx tsx scripts/ops/run-stale-watchdog.ts
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
