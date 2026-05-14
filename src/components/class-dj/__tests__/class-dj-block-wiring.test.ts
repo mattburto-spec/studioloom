@@ -127,10 +127,24 @@ describe("POST /api/student/class-dj/vote", () => {
     expect(VOTE_ROUTE_SRC).toMatch(/ends_at[\s\S]{0,400}409/);
   });
 
-  it("upserts student_tool_sessions on (student_id, unit_id, page_id, tool_id, version)", () => {
+  it("does manual upsert (SELECT existing → UPDATE-or-INSERT) on (student_id, unit_id, page_id, tool_id, version)", () => {
+    // db.upsert() with onConflict can't be used here: the
+    // unique_embedded_version constraint is DEFERRABLE INITIALLY
+    // DEFERRED, and Postgres refuses to use deferrable constraints
+    // as ON CONFLICT arbiters (error 55000).
+    // Strip line + block comments before checking — the route's
+    // explanatory comment legitimately mentions "db.upsert()" to
+    // explain why we don't use it.
+    const codeOnly = VOTE_ROUTE_SRC
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/.*$/gm, "");
+    expect(codeOnly).not.toMatch(/\.upsert\(/);
     expect(VOTE_ROUTE_SRC).toMatch(
-      /onConflict:\s*"student_id,unit_id,page_id,tool_id,version"/,
+      /existingSession[\s\S]{0,800}\.eq\("student_id", studentId\)[\s\S]{0,200}\.eq\("unit_id", round\.unit_id\)/,
     );
+    // Both branches present: UPDATE and INSERT.
+    expect(VOTE_ROUTE_SRC).toMatch(/if \(existingSession\)[\s\S]{0,600}\.update\(/);
+    expect(VOTE_ROUTE_SRC).toMatch(/} else \{[\s\S]{0,600}\.insert\(/);
   });
 
   it("verifies enrollment via class_students lookup", () => {
