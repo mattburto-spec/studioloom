@@ -53,11 +53,17 @@ describe("GET /api/student/class-for-unit/[unitId]", () => {
     expect(ROUTE_SRC).toMatch(/requireStudentSession/);
   });
 
-  it("joins class_students with class_units filtered by unit_id + is_active", () => {
-    expect(ROUTE_SRC).toMatch(/from\("class_students"\)/);
-    expect(ROUTE_SRC).toMatch(/class_units!inner/);
-    expect(ROUTE_SRC).toMatch(/\.eq\("class_units\.unit_id", unitId\)/);
-    expect(ROUTE_SRC).toMatch(/\.eq\("class_units\.is_active", true\)/);
+  it("does two-step resolution: class_students for enrollments, then class_units for unit/is_active match", () => {
+    // Step 1: enrollments
+    expect(ROUTE_SRC).toMatch(/from\("class_students"\)[\s\S]{0,200}\.eq\("student_id", studentId\)/);
+    // Step 2: class_units filtered by unit_id + is_active + IN(classIds)
+    expect(ROUTE_SRC).toMatch(/from\("class_units"\)[\s\S]{0,400}\.eq\("unit_id", unitId\)/);
+    expect(ROUTE_SRC).toMatch(/from\("class_units"\)[\s\S]{0,400}\.eq\("is_active", true\)/);
+    expect(ROUTE_SRC).toMatch(/from\("class_units"\)[\s\S]{0,400}\.in\("class_id", classIds\)/);
+  });
+
+  it("does NOT use PostgREST `!inner` embed across class_students and class_units (no direct FK between them)", () => {
+    expect(ROUTE_SRC).not.toMatch(/class_units!inner/);
   });
 
   it("returns classId: null with a reason field (not 4xx) when no match", () => {
