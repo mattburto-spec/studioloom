@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-05-14 (PM) — Student feedback banner orphan-grade fix (PR #267)
+
+**Context:** Matt smoke landed on the Class 4 — Studio (15 May) lesson page as the student. The green "Your teacher left feedback on 3 tiles on this lesson" banner was visible despite the page having **no activity tiles** (he'd deleted test blocks earlier).
+
+**Root cause:** when a teacher deletes activity blocks from a lesson, the associated `student_tile_grades` rows stay behind. Schema doesn't cascade on tile deletion because tiles live inside `content_data` JSONB, not a separate FK-able table. The student banner counted ANY grade matching `(student_id, unit_id, page_id)` regardless of whether the `tile_id` still existed in the resolved page.
+
+**Fix (server-side so all consumers benefit):**
+- `loadTileFeedbackThreads()` accepts an optional `validTileIds: Set<string> | null` whitelist. Drops grades whose `tile_id` isn't in the set BEFORE querying turns. Backwards-compatible (null = legacy "return all" behaviour).
+- `/api/student/tile-feedback` resolves the rendered page content (class_students → class_units → `resolveClassUnitContent` → `extractTilesFromPage`) and passes the live tile-ID set.
+- Resolution wrapped in try/catch with `validTileIds = null` fallback — any resolution failure falls through to the legacy behaviour (worst case: pre-fix orphan banner; never blocks the lesson load).
+
+**Tests:** 31/31 green across loader + route tests. Added 4 source-static guards each.
+
+**Not fixed (deferred):** the orphan rows themselves stay in the DB. Benign post-fix (loader silently filters), but accumulate over time. Future migration could `DELETE` grades whose `tile_id` is no longer in current content. Not urgent — storage cost trivial, no UX impact post-fix.
+
+**Systems touched:** student-feedback-loader (`src/lib/grading/tile-feedback-loader.ts`), `/api/student/tile-feedback` route.
+
+---
+
 ## 2026-05-13 / 14 — TFL.3 marking-page polish loop (C.6 + C.7 + 4 hotfixes)
 
 **Context:** Pass C inbox shipped on 12 May (changelog entry below). 13 May Matt drove ~10 hours of smoke through the marking surfaces and surfaced a sequence of UX gaps + bugs. Each landed as a small focused PR (no batching). Same source-static-test discipline as the inbox build.
