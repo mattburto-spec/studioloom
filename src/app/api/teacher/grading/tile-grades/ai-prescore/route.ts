@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { saveTileGrade } from "@/lib/grading/save-tile-grade";
 import { generateAiPrescore } from "@/lib/grading/ai-prescore";
+import { summariseInspirationBoardForAI } from "@/lib/integrity/parse-inspiration-board";
 import { restoreStudentName } from "@/lib/security/student-name-placeholder";
 import { extractTilesFromPage } from "@/lib/grading/lesson-tiles";
 import { getPageList } from "@/lib/unit-adapter";
@@ -205,7 +206,14 @@ export async function POST(request: NextRequest) {
   const results: PerStudentResult[] = [];
   for (const studentId of student_ids) {
     try {
-      const studentResponse = responseByStudent[studentId] ?? "";
+      const rawResponse = responseByStudent[studentId] ?? "";
+      // Rich-shape detection (Inspiration Board etc.) — the AI helper
+      // takes plain string. Passing raw JSON makes it grade the JSON,
+      // not the student's thinking. Flatten to a readable summary if
+      // we recognise the shape; else use the raw string. Matt smoke
+      // 13 May 2026.
+      const inspirationSummary = summariseInspirationBoardForAI(rawResponse);
+      const studentResponse = inspirationSummary ?? rawResponse;
       const ai = await generateAiPrescore({
         tilePrompt: tile.title,
         criterionLabel: tile.criterionLabel,

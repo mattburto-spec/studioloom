@@ -3024,19 +3024,43 @@ function MarkingFocusPanel({
 
       {/* Two-column body */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {/* Student response */}
+        {/* Student response. Mirrors the row-level expand logic: rich
+            response shapes (Inspiration Board today, more later) parse
+            first; plain text falls through sanitizeResponseText. Matt
+            smoke 13 May 2026 caught raw JSON dumping into this panel
+            for Inspiration Board responses while the row expansion
+            below rendered it correctly. */}
         <section>
           <div className="text-[10px] font-bold tracking-wider uppercase text-gray-500 mb-1">
             {firstName}&rsquo;s response
           </div>
-          <div
-            data-testid="focus-student-response"
-            className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 leading-relaxed whitespace-pre-wrap min-h-[100px] max-h-[280px] overflow-y-auto"
-          >
-            {studentResponse.trim() || (
-              <span className="italic text-gray-400">No submission yet.</span>
-            )}
-          </div>
+          {(() => {
+            const inspirationBoardData =
+              parseInspirationBoardResponse(studentResponse);
+            if (inspirationBoardData) {
+              return (
+                <div
+                  data-testid="focus-student-response"
+                  data-response-type="inspiration-board"
+                  className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 max-h-[280px] overflow-y-auto"
+                >
+                  <InspirationBoardPreview data={inspirationBoardData} />
+                </div>
+              );
+            }
+            const sanitized = sanitizeResponseText(studentResponse);
+            return (
+              <div
+                data-testid="focus-student-response"
+                data-response-type="text"
+                className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 leading-relaxed whitespace-pre-wrap min-h-[100px] max-h-[280px] overflow-y-auto"
+              >
+                {sanitized.trim() || (
+                  <span className="italic text-gray-400">No submission yet.</span>
+                )}
+              </div>
+            );
+          })()}
         </section>
 
         {/* AI draft (editable) */}
