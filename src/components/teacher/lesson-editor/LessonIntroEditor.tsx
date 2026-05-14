@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import type { PageContent, ActivityMedia } from "@/types";
 import { looksLikeVideoUrl } from "@/lib/video-embed";
 import { ImageUploadButton } from "./ImageUploadButton";
+import { RichTextarea } from "./RichTextarea";
 
 interface LessonIntroEditorProps {
   pageContent: PageContent;
@@ -115,12 +116,12 @@ export default function LessonIntroEditor({
                 — short paragraph (1–3 sentences) that frames the day
               </span>
             </label>
-            <textarea
+            <RichTextarea
               value={introText}
-              onChange={(e) => updateIntroText(e.target.value)}
+              onChange={updateIntroText}
               placeholder="Today we close the loop — wheels and weight distribution are the final pieces of the puzzle…"
-              rows={3}
-              className="w-full px-3 py-2 text-[12.5px] leading-relaxed bg-[var(--le-bg)] border border-[var(--le-hair)] rounded-md text-[var(--le-ink-2)] focus:outline-none focus:border-[var(--le-ink-2)]"
+              rows={5}
+              className="w-full px-3 py-2 text-[12.5px] leading-relaxed bg-[var(--le-bg)] border border-[var(--le-hair)] rounded-md text-[var(--le-ink-2)] focus:outline-none focus:border-[var(--le-ink-2)] resize-y min-h-[5em]"
             />
           </div>
 
@@ -164,8 +165,8 @@ export default function LessonIntroEditor({
               value={successCriteriaText}
               onChange={(e) => updateSuccessCriteria(e.target.value)}
               placeholder={"I can explain how centre of mass affects stability\nI can explain how wheel mass affects performance\nMy design brief references at least three research findings"}
-              rows={4}
-              className="w-full px-3 py-2 text-[12.5px] leading-relaxed bg-[var(--le-bg)] border border-[var(--le-hair)] rounded-md text-[var(--le-ink-2)] focus:outline-none focus:border-[var(--le-ink-2)]"
+              rows={5}
+              className="w-full px-3 py-2 text-[12.5px] leading-relaxed bg-[var(--le-bg)] border border-[var(--le-hair)] rounded-md text-[var(--le-ink-2)] focus:outline-none focus:border-[var(--le-ink-2)] resize-y"
             />
           </div>
 
