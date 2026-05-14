@@ -4,6 +4,33 @@
 
 ---
 
+## 2026-05-14 — Class DJ smoke polish (4 PRs to main)
+
+Live smoke caught four gaps in the freshly-shipped Class DJ block. All four fixed and merged to main in the same session.
+
+**Setup recap:** Class DJ Phase 7 closed yesterday — full pipeline from teacher launch → student mood/energy/veto vote → algorithmic Suggest 3 (mood-aggregation + k-means split detection + Pareto+MMR selection bracketed by LLM candidate-pool + narration) → teacher Pick → fairness-ledger update. First-time live smoke surfaced the work captured here.
+
+**PR [#259](https://github.com/mattburto-spec/studioloom/pull/259)** (`acf067f`) — wire per-instance `ClassDjConfig` through to `/api/student/class-dj/suggest`. The route was hardcoded to `gateMinVotes = 3`, ignoring the teacher's `ClassDjConfigPanel` setting in the lesson editor. Solo-student smoke couldn't reach Suggest because the UI showed gate-met state at the configured threshold but the server rejected with 412 ("Need at least 3 votes, currently 1"). Server now accepts `{ gateMinVotes, maxSuggestions }` in body (clamped [1,10] / [1,3]); `ClassDjBlock` + `ClassDjTeacherControls` + `ResponseInput` plumb `section.classDjConfig` through.
+
+**PR [#261](https://github.com/mattburto-spec/studioloom/pull/261)** (`ece7469`) — lower editor `GATE_MIN` 2→1. The lesson-editor `ClassDjConfigPanel` enforced brief §7's original `2–10` range and rejected `1`, so even after #259 wired config through, the field wouldn't accept the solo-student threshold. Now matches server clamp.
+
+**PR [#263](https://github.com/mattburto-spec/studioloom/pull/263)** (`95c677a`) — `ClassDjSuggestionView` polish based on smoke feedback. Dropped the green "Open on Spotify ↗" button (schools don't want students leaving the lesson player; clashed visually with violet palette anyway — `spotify_url` still persists server-side for teacher use). Added a **participation dot-grid** (one violet dot per enrolled student, filled = voted; degrades to numeric badge above 50) replacing the "1 of 26 voted" text. Added **per-card mood pills** (`mood_tags.slice(0, 3)`) + **5-segment energy meter**. All three changes anti-strategic-voting safe per brief §11 Q9 — they describe the algorithm's classification of the *suggestion*, not the room's vote distribution.
+
+**PR [#264](https://github.com/mattburto-spec/studioloom/pull/264)** (`8ec7487`) — compact teacher controls rewrite. Teaching Mode right-aside is 320px wide → ~250-260px effective render after parent + card padding. Previous controls stuffed two 3-col grids (suggestion cards + Pick buttons) + 5-col histograms into that space and got cut off. New `ClassDjTeacherControls` restructures around a sidebar-native compact panel: always-visible status strip (round badge + live timer + participation count), state-aware primary handle (▶ Start / 🎯 Suggest / ▶ Run again), secondary handle (End round early, always visible during LIVE), vertical suggestion pick list (40×40 thumb + name + tiny Pick → per row, replaces 3-col grid), collapsible "Show class mood" wrapping the existing `ClassDjLiveTeacherView` histograms (default closed). Students unaffected — main lesson player keeps the rich `ClassDjSuggestionView` 3-col grid.
+
+**Verified:** Matt confirmed live mid-session — solo-student vote → Suggest fires → 3 picks render with dot-grid + mood/energy infographics + no Spotify button.
+
+**Architecture clarification (Q from Matt, captured in session):** Class DJ scoping has three reset layers — (1) **per-round** (votes + suggestions wiped each Run again, keyed by `(class_id, unit_id, page_id, activity_id, class_round_index)`); (2) **per-block-instance** (new Class DJ block in any lesson = new `activity_id` = fresh "armed" state, no history visible); (3) **per-class persistent** (`class_dj_fairness_ledger` keyed `(class_id, student_id)` survives forever — served_score / voice_weight / seed_pickup_count carry across rounds + blocks + lessons until teacher resets; `class_dj_veto_overrides` keyed `(class_id, veto_text)` same scope).
+
+**Tests:** 87/87 passing on the three class-dj component suites (no new tests filed; existing source-static wiring assertions still match the new structure). tsc clean for all touched files.
+
+**No new migrations, no new AI call sites, no new vendors, no new feature flags. Registry drift caught by saveme:** api-registry picked up `class_units` as a table read on `/api/student/class-for-unit/[unitId]` (correct — 2-step query lookup).
+
+**Open FUs filed during session (not yet in trackers):**
+- `FU-CLASS-DJ-CONFIG-SERVER-RESOLVE` (P2) — server should resolve config from `unit.content_data` instead of trusting client body (current pattern lets a tampering student pass `gateMinVotes=1`; fine for Phase 6 since teacher owns the UI, tighten before pilot scale).
+
+---
+
 ## 2026-05-13 / 14 — TFL.3 marking-page polish loop (C.6 + C.7 + 4 hotfixes)
 
 **Context:** Pass C inbox shipped on 12 May (changelog entry below). 13 May Matt drove ~10 hours of smoke through the marking surfaces and surfaced a sequence of UX gaps + bugs. Each landed as a small focused PR (no batching). Same source-static-test discipline as the inbox build.
@@ -33,6 +60,29 @@
 **Tests:** ~115/115 marking + 65/65 grading + 28/28 integrity + 22/22 marking-focus-panel green. tsc strict clean on all touched files.
 
 **Systems touched:** teacher-marking-page (focus panel + filters), teacher-inbox (loader filter), grading-ai-prescore (parallel + prompts), grading-ai-followup (IB flatten), grading-regenerate-draft (IB flatten + prompts), student-inspiration-board (hydration), inspiration-board-preview (link cards).
+
+Live smoke caught four gaps in the freshly-shipped Class DJ block. All four fixed and merged to main in the same session.
+
+**Setup recap:** Class DJ Phase 7 closed yesterday — full pipeline from teacher launch → student mood/energy/veto vote → algorithmic Suggest 3 (mood-aggregation + k-means split detection + Pareto+MMR selection bracketed by LLM candidate-pool + narration) → teacher Pick → fairness-ledger update. First-time live smoke surfaced the work captured here.
+
+**PR [#259](https://github.com/mattburto-spec/studioloom/pull/259)** (`acf067f`) — wire per-instance `ClassDjConfig` through to `/api/student/class-dj/suggest`. The route was hardcoded to `gateMinVotes = 3`, ignoring the teacher's `ClassDjConfigPanel` setting in the lesson editor. Solo-student smoke couldn't reach Suggest because the UI showed gate-met state at the configured threshold but the server rejected with 412 ("Need at least 3 votes, currently 1"). Server now accepts `{ gateMinVotes, maxSuggestions }` in body (clamped [1,10] / [1,3]); `ClassDjBlock` + `ClassDjTeacherControls` + `ResponseInput` plumb `section.classDjConfig` through.
+
+**PR [#261](https://github.com/mattburto-spec/studioloom/pull/261)** (`ece7469`) — lower editor `GATE_MIN` 2→1. The lesson-editor `ClassDjConfigPanel` enforced brief §7's original `2–10` range and rejected `1`, so even after #259 wired config through, the field wouldn't accept the solo-student threshold. Now matches server clamp.
+
+**PR [#263](https://github.com/mattburto-spec/studioloom/pull/263)** (`95c677a`) — `ClassDjSuggestionView` polish based on smoke feedback. Dropped the green "Open on Spotify ↗" button (schools don't want students leaving the lesson player; clashed visually with violet palette anyway — `spotify_url` still persists server-side for teacher use). Added a **participation dot-grid** (one violet dot per enrolled student, filled = voted; degrades to numeric badge above 50) replacing the "1 of 26 voted" text. Added **per-card mood pills** (`mood_tags.slice(0, 3)`) + **5-segment energy meter**. All three changes anti-strategic-voting safe per brief §11 Q9 — they describe the algorithm's classification of the *suggestion*, not the room's vote distribution.
+
+**PR [#264](https://github.com/mattburto-spec/studioloom/pull/264)** (`8ec7487`) — compact teacher controls rewrite. Teaching Mode right-aside is 320px wide → ~250-260px effective render after parent + card padding. Previous controls stuffed two 3-col grids (suggestion cards + Pick buttons) + 5-col histograms into that space and got cut off. New `ClassDjTeacherControls` restructures around a sidebar-native compact panel: always-visible status strip (round badge + live timer + participation count), state-aware primary handle (▶ Start / 🎯 Suggest / ▶ Run again), secondary handle (End round early, always visible during LIVE), vertical suggestion pick list (40×40 thumb + name + tiny Pick → per row, replaces 3-col grid), collapsible "Show class mood" wrapping the existing `ClassDjLiveTeacherView` histograms (default closed). Students unaffected — main lesson player keeps the rich `ClassDjSuggestionView` 3-col grid.
+
+**Verified:** Matt confirmed live mid-session — solo-student vote → Suggest fires → 3 picks render with dot-grid + mood/energy infographics + no Spotify button.
+
+**Architecture clarification (Q from Matt, captured in session):** Class DJ scoping has three reset layers — (1) **per-round** (votes + suggestions wiped each Run again, keyed by `(class_id, unit_id, page_id, activity_id, class_round_index)`); (2) **per-block-instance** (new Class DJ block in any lesson = new `activity_id` = fresh "armed" state, no history visible); (3) **per-class persistent** (`class_dj_fairness_ledger` keyed `(class_id, student_id)` survives forever — served_score / voice_weight / seed_pickup_count carry across rounds + blocks + lessons until teacher resets; `class_dj_veto_overrides` keyed `(class_id, veto_text)` same scope).
+
+**Tests:** 87/87 passing on the three class-dj component suites (no new tests filed; existing source-static wiring assertions still match the new structure). tsc clean for all touched files.
+
+**No new migrations, no new AI call sites, no new vendors, no new feature flags. Registry drift caught by saveme:** api-registry picked up `class_units` as a table read on `/api/student/class-for-unit/[unitId]` (correct — 2-step query lookup).
+
+**Open FUs filed during session (not yet in trackers):**
+- `FU-CLASS-DJ-CONFIG-SERVER-RESOLVE` (P2) — server should resolve config from `unit.content_data` instead of trusting client body (current pattern lets a tampering student pass `gateMinVotes=1`; fine for Phase 6 since teacher owns the UI, tighten before pilot scale).
 
 ---
 
