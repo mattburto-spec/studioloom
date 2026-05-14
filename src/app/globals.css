@@ -182,6 +182,33 @@
   @page { margin: 1.5cm 2cm; }
 }
 
+/* Student lesson page — print cleanup. Without these rules, Chrome
+   prints .lesson-bold's cream var(--sl-bg) background as a grey wash
+   over the whole page (G8 14 May 2026 feedback: "everything has a
+   shade of grey over it"). The BoldTopNav <header> also paints a
+   translucent cream backdrop that compounds the effect. Reported by
+   students that the bug-squash button printed fine (it's opaque and
+   fixed) — kept untouched, only the underlying greys neutralized. */
+@media print {
+  .lesson-bold {
+    background: white !important;
+  }
+  /* BoldTopNav <header> sits above the lesson and uses
+     bg-[var(--sl-bg)]/80 — neutralize the cream tint so the print
+     output doesn't show a grey bar across the top. */
+  .sl-v2 > header {
+    background: white !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  /* Hide full-page fixed overlays (settings modal, feedback pulse,
+     mobile sidebar backdrop) that would otherwise paint a translucent
+     scrim across the print output. */
+  .fixed.inset-0 {
+    display: none !important;
+  }
+}
+
 /* Choice Cards deck — print-friendly. Chrome's print engine renders 3D
    transforms inconsistently (rotateY + backface-visibility either shows
    blank cards or both faces overlapping). Flatten the flip, hide card
