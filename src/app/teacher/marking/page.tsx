@@ -13,6 +13,8 @@ import { extractTilesFromPage, tileProgress, type LessonTile } from "@/lib/gradi
 import { computeStudentRollup, type CriterionRollup } from "@/lib/grading/rollup";
 import { computeCriterionCoverage, coverageStatus } from "@/lib/grading/criterion-coverage";
 import { sanitizeResponseText } from "@/lib/grading/sanitize-response";
+import { parseInspirationBoardResponse } from "@/lib/integrity/parse-inspiration-board";
+import { InspirationBoardPreview } from "@/components/teacher/InspirationBoardPreview";
 import { classifyCommentReadState, commentChipTooltip } from "@/lib/grading/comment-status";
 import { ScorePill } from "@/components/grading/ScorePill";
 import { ScoreSelector } from "@/components/grading/ScoreSelector";
@@ -1582,9 +1584,12 @@ function CalibrateInner({
             const isNa = grade?.score_na === true;
             const isSaving = savingKey === key;
             const isExpanded = expandedStudentId === s.id;
-            const responseText = sanitizeResponseText(
-              responses[s.id]?.[activeTile.tileId] ?? "",
-            );
+            // Raw response BEFORE HTML sanitisation — needed so we can
+            // detect rich JSON shapes (Inspiration Board today; more to
+            // come) before they get sanitised into plain text.
+            const rawResponse = responses[s.id]?.[activeTile.tileId] ?? "";
+            const inspirationBoardData = parseInspirationBoardResponse(rawResponse);
+            const responseText = sanitizeResponseText(rawResponse);
             const noteDraft = overrideNoteDraft[key] ?? "";
             const persistedNote =
               ((grade as TileGradeRow & { override_note?: string | null })
@@ -1643,9 +1648,15 @@ function CalibrateInner({
                       </p>
                     ) : (
                       <p className="text-[11px] text-gray-400 italic line-clamp-1">
-                        {responseText
-                          ? `"${responseText.slice(0, 90)}${responseText.length > 90 ? "…" : ""}"`
-                          : "No submission yet"}
+                        {inspirationBoardData
+                          ? `${inspirationBoardData.items.length} image${inspirationBoardData.items.length === 1 ? "" : "s"}${
+                              inspirationBoardData.synthesis.trim()
+                                ? ` · "${inspirationBoardData.synthesis.slice(0, 60)}${inspirationBoardData.synthesis.length > 60 ? "…" : ""}"`
+                                : ""
+                            }`
+                          : responseText
+                            ? `"${responseText.slice(0, 90)}${responseText.length > 90 ? "…" : ""}"`
+                            : "No submission yet"}
                       </p>
                     )}
                   </div>
@@ -1919,7 +1930,9 @@ function CalibrateInner({
                         <div className="text-[10px] font-bold tracking-wider uppercase text-gray-400 mb-2">
                           Student response
                         </div>
-                        {responseText ? (
+                        {inspirationBoardData ? (
+                          <InspirationBoardPreview data={inspirationBoardData} />
+                        ) : responseText ? (
                           <div className="text-sm leading-relaxed text-gray-800 whitespace-pre-wrap bg-white border border-gray-200 rounded-xl p-4 max-h-[420px] overflow-y-auto">
                             {responseText}
                           </div>
