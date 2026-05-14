@@ -116,3 +116,26 @@ describe("/api/student/tile-feedback — response shape", () => {
     expect(src).toMatch(/Failed to load tile feedback threads/);
   });
 });
+
+describe("/api/student/tile-feedback — orphan-grade filter (14 May 2026)", () => {
+  it("resolves the rendered page content + passes validTileIds to the loader", () => {
+    expect(src).toMatch(
+      /loadTileFeedbackThreads\(\s*\n?\s*db,\s*\n?\s*session\.studentId,\s*\n?\s*unitId,\s*\n?\s*pageId,\s*\n?\s*validTileIds,/,
+    );
+  });
+
+  it("computes validTileIds via class_students → class_units → extractTilesFromPage", () => {
+    expect(src).toMatch(/from\("class_students"\)/);
+    expect(src).toMatch(/from\("class_units"\)/);
+    expect(src).toMatch(/resolveClassUnitContent/);
+    expect(src).toMatch(/extractTilesFromPage\(page,\s*\{\}\)/);
+  });
+
+  it("falls back to validTileIds=null on any resolution failure (no-op filter, backwards-compatible)", () => {
+    expect(src).toMatch(/validTileIds\s*=\s*null/);
+  });
+
+  it("filters to ACTIVE class enrollments (is_active=true) when resolving the class", () => {
+    expect(src).toMatch(/\.eq\("is_active",\s*true\)/);
+  });
+});
