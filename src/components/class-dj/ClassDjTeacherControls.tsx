@@ -26,9 +26,8 @@
  * integration) + §5 (API table) + §3.6 (ledger updates on pick).
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useClassDjPolling } from "./useClassDjPolling";
-import ClassDjLiveTeacherView from "./ClassDjLiveTeacherView";
 import type { SuggestionItem } from "./ClassDjSuggestionView";
 import type { ConflictMode } from "@/lib/class-dj/types";
 
@@ -69,7 +68,21 @@ export default function ClassDjTeacherControls({
 
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [showMood, setShowMood] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // When state transitions to a stage the teacher needs to act on (round
+  // opens, suggestion lands, round closes), scroll the controls into the
+  // visible viewport. Otherwise in a tall lesson the bottom buttons (End
+  // round / Pick / Run again) sit below the fold and the teacher has to
+  // hunt for them via sidebar scroll. block: "nearest" prevents jolt
+  // when controls are already visible.
+  const status = state?.status;
+  const suggestionLanded = Boolean(state?.suggestion?.items);
+  useEffect(() => {
+    if (status === "live" || status === "closed") {
+      rootRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [status, suggestionLanded]);
 
   async function post(path: string, body?: Record<string, unknown>): Promise<unknown | null> {
     setBusy(path);
@@ -157,7 +170,7 @@ export default function ClassDjTeacherControls({
   // ─────────────────────────────────────────────────────────────────
   if (state.status === "armed" || !state.round) {
     return (
-      <div className="my-2 rounded-lg border border-violet-200 bg-white p-2.5 shadow-sm">
+      <div ref={rootRef} className="my-2 rounded-lg border border-violet-200 bg-white p-2.5 shadow-sm">
         <div className="flex items-center justify-between gap-2 mb-2">
           <span className="text-[12px] font-bold text-violet-900 flex items-center gap-1">
             <span>🎵</span> Class DJ
@@ -194,7 +207,7 @@ export default function ClassDjTeacherControls({
   // ─────────────────────────────────────────────────────────────────
   if (state.status === "live") {
     return (
-      <div className="my-2 rounded-lg border-2 border-violet-300 bg-white p-2.5 shadow-sm space-y-2">
+      <div ref={rootRef} className="my-2 rounded-lg border-2 border-violet-300 bg-white p-2.5 shadow-sm space-y-2">
         <StatusStrip
           roundIndex={round.class_round_index}
           endsAt={round.ends_at}
@@ -259,28 +272,15 @@ export default function ClassDjTeacherControls({
           {busy?.includes("close") ? "Ending…" : "End round early"}
         </button>
 
-        {/* Collapsible mood histograms — keeps full ClassDjLiveTeacherView
-            accessible without hogging vertical space by default. */}
-        {state.tally && (
-          <details
-            open={showMood}
-            onToggle={(e) => setShowMood((e.target as HTMLDetailsElement).open)}
-            className="border-t border-gray-100 pt-1"
-          >
-            <summary className="text-[10.5px] text-violet-700 cursor-pointer hover:text-violet-900 list-none flex items-center gap-1">
-              <span className="text-[9px]">{showMood ? "▾" : "▸"}</span>
-              <span>{showMood ? "Hide" : "Show"} class mood</span>
-            </summary>
-            <div className="pt-2 -mx-1">
-              <ClassDjLiveTeacherView
-                round={round}
-                tally={state.tally}
-                participationCount={state.participation_count}
-                classSize={state.class_size}
-              />
-            </div>
-          </details>
-        )}
+        {/* Mood histograms intentionally NOT rendered inline here — even
+            collapsed, the <details> disclosure was adding height that pushed
+            the bottom action buttons below the visible viewport in shorter
+            laptops. Full mood/energy view will live in a future modal/
+            drawer (FU-CLASS-DJ-TEACHER-MOOD-MODAL). For now teachers
+            read the room via the participation count + suggestion's
+            narration ("Just you voting, so here's The Lumineers — folk
+            vibes, steady energy, pure focus") which already encodes the
+            algorithm's read of the room. */}
 
         {actionError && (
           <p className="text-[11px] text-red-600">{actionError}</p>
@@ -293,7 +293,7 @@ export default function ClassDjTeacherControls({
   // CLOSED — picks (if any) + Run again handle.
   // ─────────────────────────────────────────────────────────────────
   return (
-    <div className="my-2 rounded-lg border border-violet-200 bg-white p-2.5 shadow-sm space-y-2">
+    <div ref={rootRef} className="my-2 rounded-lg border border-violet-200 bg-white p-2.5 shadow-sm space-y-2">
       <StatusStrip
         roundIndex={round.class_round_index}
         endsAt={round.ends_at}
