@@ -26,10 +26,12 @@ import type {
   UnitBrief,
   UnitBriefAmendment,
   UnitBriefConstraints,
+  UnitBriefLocks,
 } from "@/types/unit-brief";
+import { LOCKABLE_FIELDS } from "@/types/unit-brief";
 
 const BRIEF_COLUMNS =
-  "unit_id, brief_text, constraints, diagram_url, created_at, updated_at, created_by";
+  "unit_id, brief_text, constraints, diagram_url, locks, created_at, updated_at, created_by";
 const AMENDMENT_COLUMNS =
   "id, unit_id, version_label, title, body, created_at, created_by";
 
@@ -49,12 +51,23 @@ function coerceConstraints(raw: unknown): UnitBriefConstraints {
   return GENERIC_CONSTRAINTS;
 }
 
+function coerceLocks(raw: unknown): UnitBriefLocks {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const r = raw as Record<string, unknown>;
+  const out: UnitBriefLocks = {};
+  for (const field of LOCKABLE_FIELDS) {
+    if (r[field] === true) out[field] = true;
+  }
+  return out;
+}
+
 function rowToBrief(row: Record<string, unknown>): UnitBrief {
   return {
     unit_id: row.unit_id as string,
     brief_text: (row.brief_text as string | null) ?? null,
     constraints: coerceConstraints(row.constraints),
     diagram_url: (row.diagram_url as string | null) ?? null,
+    locks: coerceLocks(row.locks),
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
     created_by: (row.created_by as string | null) ?? null,

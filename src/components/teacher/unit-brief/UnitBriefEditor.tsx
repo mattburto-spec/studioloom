@@ -3,13 +3,16 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type {
+  LockableField,
   UnitBrief,
   UnitBriefAmendment,
   UnitBriefConstraints,
+  UnitBriefLocks,
 } from "@/types/unit-brief";
 import { DesignConstraintsEditor } from "./DesignConstraintsEditor";
 import { AmendmentsEditor } from "./AmendmentsEditor";
 import { DiagramUploader } from "./DiagramUploader";
+import { LockToggle } from "./LockToggle";
 
 interface UnitBriefEditorProps {
   unitId: string;
@@ -41,6 +44,7 @@ export function UnitBriefEditor({
   );
   const [amendments, setAmendments] = useState<UnitBriefAmendment[]>([]);
   const [diagramUrl, setDiagramUrl] = useState<string | null>(null);
+  const [locks, setLocks] = useState<UnitBriefLocks>({});
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -64,6 +68,7 @@ export function UnitBriefEditor({
           const b: UnitBrief = briefRes.brief;
           setBriefText(b.brief_text ?? "");
           setDiagramUrl(b.diagram_url ?? null);
+          setLocks(b.locks ?? {});
           // Coerce stored constraints to the right archetype for this unit type.
           if (isDesignUnit && b.constraints.archetype === "design") {
             setConstraints(b.constraints);
@@ -93,7 +98,11 @@ export function UnitBriefEditor({
   // Partial-patch save. Patch is a subset of the brief shape; server
   // merges with existing row.
   const savePatch = useCallback(
-    async (patch: { brief_text?: string | null; constraints?: UnitBriefConstraints }) => {
+    async (patch: {
+      brief_text?: string | null;
+      constraints?: UnitBriefConstraints;
+      locks?: UnitBriefLocks;
+    }) => {
       setSaving(true);
       setSaveError(null);
       try {
@@ -127,6 +136,25 @@ export function UnitBriefEditor({
     (next: UnitBriefConstraints) => {
       setConstraints(next);
       void savePatch({ constraints: next });
+    },
+    [savePatch],
+  );
+
+  // Per-field lock toggle (Phase F.B). Flips `locks[field]` and saves
+  // the whole locks map (server canonicalises — false / absent both
+  // mean unlocked, so it's safe to keep `false` keys in flight here).
+  const handleToggleLock = useCallback(
+    (field: LockableField, next: boolean) => {
+      setLocks((prev) => {
+        const nextLocks: UnitBriefLocks = { ...prev };
+        if (next) {
+          nextLocks[field] = true;
+        } else {
+          delete nextLocks[field];
+        }
+        void savePatch({ locks: nextLocks });
+        return nextLocks;
+      });
     },
     [savePatch],
   );
@@ -195,14 +223,27 @@ export function UnitBriefEditor({
         </p>
       </div>
 
+      {/* Phase F.B explainer banner — explain the locks model + Open default. */}
+      <div className="mb-6 rounded border border-purple-200 bg-purple-50 px-3 py-2 text-xs text-purple-900">
+        <strong>🔒 Locks:</strong> Every field is <em>Open</em> by default — students
+        can fill or override. Click 🔓 on any field to lock it: students see your
+        value, can't edit. Locked fields are the non-negotiables; open fields are
+        the spaces students get to author.
+      </div>
+
       {/* Section 1 — Brief prose */}
       <section className="mb-8">
-        <label
-          htmlFor="brief_text"
-          className="mb-2 block text-sm font-medium text-gray-700"
-        >
-          Brief
-        </label>
+        <div className="mb-2 flex items-center gap-2">
+          <label htmlFor="brief_text" className="text-sm font-medium text-gray-700">
+            Brief
+          </label>
+          <LockToggle
+            field="brief_text"
+            locked={locks["brief_text"] === true}
+            onToggle={handleToggleLock}
+            disabled={saving}
+          />
+        </div>
         <textarea
           id="brief_text"
           value={briefText}
@@ -225,6 +266,14 @@ export function UnitBriefEditor({
         }}
         onError={(msg) => setSaveError(msg)}
         disabled={saving}
+        lockToggle={
+          <LockToggle
+            field="diagram_url"
+            locked={locks["diagram_url"] === true}
+            onToggle={handleToggleLock}
+            disabled={saving}
+          />
+        }
       />
 
       {/* Section 3 — Constraints (Design only) */}
@@ -238,6 +287,9 @@ export function UnitBriefEditor({
             onChange={(nextData) =>
               handleConstraintsChange({ archetype: "design", data: nextData })
             }
+            locks={locks}
+            onToggleLock={handleToggleLock}
+            disabled={saving}
           />
         ) : (
           <p

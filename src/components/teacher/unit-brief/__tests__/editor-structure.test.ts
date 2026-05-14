@@ -261,3 +261,107 @@ describe("UnitBriefEditor — DiagramUploader wiring (Phase B.5)", () => {
     expect(amendmentsJsxIdx).toBeGreaterThan(constraintsIdx);
   });
 });
+
+describe("UnitBriefEditor — Phase F.B locks wiring", () => {
+  it("imports LockToggle + UnitBriefLocks + LockableField types", () => {
+    expect(editorSrc).toMatch(
+      /import \{ LockToggle \} from "\.\/LockToggle"/,
+    );
+    expect(editorSrc).toMatch(/UnitBriefLocks/);
+    expect(editorSrc).toMatch(/LockableField/);
+  });
+
+  it("hydrates locks state from the initial brief fetch", () => {
+    expect(editorSrc).toMatch(/const \[locks, setLocks\] = useState<UnitBriefLocks>\(\{\}\)/);
+    expect(editorSrc).toMatch(/setLocks\(b\.locks \?\? \{\}\)/);
+  });
+
+  it("toggle handler saves a partial-patch with the updated locks map", () => {
+    expect(editorSrc).toMatch(/handleToggleLock/);
+    expect(editorSrc).toMatch(/savePatch\(\{ locks: nextLocks \}\)/);
+    // Sets `true` or DELETES the key (canonical: only `true` stored).
+    expect(editorSrc).toMatch(/nextLocks\[field\] = true/);
+    expect(editorSrc).toMatch(/delete nextLocks\[field\]/);
+  });
+
+  it("renders a LockToggle next to the brief textarea", () => {
+    // The toggle for brief_text appears right after the "Brief" label
+    // (visual: label + 🔒 toggle on the right).
+    expect(editorSrc).toMatch(
+      /<LockToggle[\s\S]*?field="brief_text"[\s\S]*?locked=\{locks\["brief_text"\] === true\}/,
+    );
+  });
+
+  it("renders a LockToggle for the diagram (passed via lockToggle prop)", () => {
+    expect(editorSrc).toMatch(/lockToggle=\{[\s\S]*?field="diagram_url"/);
+  });
+
+  it("passes locks + onToggleLock down to DesignConstraintsEditor", () => {
+    expect(editorSrc).toMatch(/<DesignConstraintsEditor[\s\S]*?locks=\{locks\}[\s\S]*?onToggleLock=\{handleToggleLock\}/);
+  });
+
+  it("explains the locks model in a banner above the fields (smoke-friendly hint)", () => {
+    expect(editorSrc).toMatch(/🔒 Locks:/);
+    expect(editorSrc).toContain("non-negotiables");
+  });
+});
+
+describe("DesignConstraintsEditor — Phase F.B per-field locks", () => {
+  it("imports LockToggle + the locks types", () => {
+    expect(designSrc).toMatch(/import \{ LockToggle \} from "\.\/LockToggle"/);
+    expect(designSrc).toMatch(/UnitBriefLocks/);
+    expect(designSrc).toMatch(/LockableField/);
+  });
+
+  it("accepts optional `locks` + `onToggleLock` props (callers without locks still work)", () => {
+    expect(designSrc).toMatch(/locks\?: UnitBriefLocks/);
+    expect(designSrc).toMatch(
+      /onToggleLock\?: \(field: LockableField, next: boolean\) => void/,
+    );
+  });
+
+  it("renders a LockToggle for each of the 6 design constraint fields", () => {
+    // renderLockToggle is called with the canonical LockableField path
+    // for each section — dimensions / materials / budget / audience /
+    // must_include / must_avoid.
+    expect(designSrc).toMatch(/renderLockToggle\("constraints\.dimensions"\)/);
+    expect(designSrc).toMatch(/renderLockToggle\("constraints\.materials_whitelist"\)/);
+    expect(designSrc).toMatch(/renderLockToggle\("constraints\.budget"\)/);
+    expect(designSrc).toMatch(/renderLockToggle\("constraints\.audience"\)/);
+    expect(designSrc).toMatch(/renderLockToggle\("constraints\.must_include"\)/);
+    expect(designSrc).toMatch(/renderLockToggle\("constraints\.must_avoid"\)/);
+  });
+
+  it("returns null from renderLockToggle when parent omits locks prop (backward compat)", () => {
+    expect(designSrc).toMatch(/if \(!locks \|\| !onToggleLock\) return null;/);
+  });
+});
+
+describe("LockToggle — structure", () => {
+  const lockToggleSrc = readFileSync(
+    join(__dirname, "..", "LockToggle.tsx"),
+    "utf-8",
+  );
+
+  it("renders 🔒 when locked and 🔓 when open", () => {
+    expect(lockToggleSrc).toContain("locked ? \"🔒\" : \"🔓\"");
+  });
+
+  it("aria-pressed reflects locked state (a11y toggle button pattern)", () => {
+    expect(lockToggleSrc).toMatch(/aria-pressed=\{locked\}/);
+  });
+
+  it("compact + full variants supported (compact default)", () => {
+    expect(lockToggleSrc).toMatch(/variant\?: "compact" \| "full"/);
+    expect(lockToggleSrc).toMatch(/variant = "compact"/);
+  });
+
+  it("data-testid keyed by field path so editors can target individual toggles", () => {
+    expect(lockToggleSrc).toMatch(/data-testid=\{`lock-toggle-\$\{field\}`\}/);
+  });
+
+  it("title attribute explains the toggle to teachers on hover", () => {
+    expect(lockToggleSrc).toContain("student sees your value, can't edit");
+    expect(lockToggleSrc).toContain("starter");
+  });
+});

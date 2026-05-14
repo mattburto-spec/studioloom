@@ -1,16 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { MATERIALS_CHIPS } from "@/lib/project-spec/archetypes";
 import type {
   DesignConstraints,
   DesignDimensions,
   DimensionUnit,
+  LockableField,
+  UnitBriefLocks,
 } from "@/types/unit-brief";
+import { LockToggle } from "./LockToggle";
 
 interface DesignConstraintsEditorProps {
   value: DesignConstraints;
   onChange: (next: DesignConstraints) => void;
+  // Phase F.B — per-field lock toggles. Optional so the component
+  // still works in contexts that don't render locks (none today, but
+  // tests + storybook may want the simpler shape).
+  locks?: UnitBriefLocks;
+  onToggleLock?: (field: LockableField, next: boolean) => void;
+  disabled?: boolean;
 }
 
 /**
@@ -23,7 +32,24 @@ interface DesignConstraintsEditorProps {
 export function DesignConstraintsEditor({
   value,
   onChange,
+  locks,
+  onToggleLock,
+  disabled,
 }: DesignConstraintsEditorProps) {
+  // Helper: render the lock toggle for a given field path, or null when
+  // the parent didn't pass locks props (legacy callers / future re-use).
+  const renderLockToggle = (field: LockableField) => {
+    if (!locks || !onToggleLock) return null;
+    return (
+      <LockToggle
+        field={field}
+        locked={locks[field] === true}
+        onToggle={onToggleLock}
+        disabled={disabled}
+      />
+    );
+  };
+
   const setField = <K extends keyof DesignConstraints>(
     key: K,
     next: DesignConstraints[K],
@@ -55,6 +81,7 @@ export function DesignConstraintsEditor({
       <DimensionsField
         value={value.dimensions}
         onCommit={(next) => setField("dimensions", next)}
+        lockToggle={renderLockToggle("constraints.dimensions")}
       />
 
       {/* Materials whitelist — chips from the catalogue + custom entries */}
@@ -62,6 +89,7 @@ export function DesignConstraintsEditor({
         value={value.materials_whitelist ?? []}
         onChange={(next) => setField("materials_whitelist", next)}
         onToggleChip={toggleMaterial}
+        lockToggle={renderLockToggle("constraints.materials_whitelist")}
       />
 
 
@@ -72,6 +100,7 @@ export function DesignConstraintsEditor({
         placeholder='e.g. "≤ AUD $20"'
         value={value.budget ?? ""}
         onCommit={(v) => setField("budget", v)}
+        lockToggle={renderLockToggle("constraints.budget")}
       />
 
       {/* Audience */}
@@ -81,6 +110,7 @@ export function DesignConstraintsEditor({
         placeholder='e.g. "Year 7 students"'
         value={value.audience ?? ""}
         onCommit={(v) => setField("audience", v)}
+        lockToggle={renderLockToggle("constraints.audience")}
       />
 
       {/* Must include */}
@@ -90,6 +120,7 @@ export function DesignConstraintsEditor({
         items={value.must_include ?? []}
         onChange={(next) => setField("must_include", next)}
         testIdPrefix="must-include"
+        lockToggle={renderLockToggle("constraints.must_include")}
       />
 
       {/* Must avoid */}
@@ -99,6 +130,7 @@ export function DesignConstraintsEditor({
         items={value.must_avoid ?? []}
         onChange={(next) => setField("must_avoid", next)}
         testIdPrefix="must-avoid"
+        lockToggle={renderLockToggle("constraints.must_avoid")}
       />
     </div>
   );
@@ -112,17 +144,21 @@ interface FieldTextProps {
   placeholder?: string;
   value: string;
   onCommit: (next: string) => void;
+  lockToggle?: ReactNode;
 }
 
-function FieldText({ id, label, placeholder, value, onCommit }: FieldTextProps) {
+function FieldText({ id, label, placeholder, value, onCommit, lockToggle }: FieldTextProps) {
   // Editor parent gates rendering on loading=false, so this mounts with
   // the fetched value already in place — no external-sync hook needed.
   const [local, setLocal] = useState(value);
   return (
     <div>
-      <label htmlFor={id} className="mb-1 block text-sm font-medium text-gray-700">
-        {label}
-      </label>
+      <div className="mb-1 flex items-center gap-2">
+        <label htmlFor={id} className="text-sm font-medium text-gray-700">
+          {label}
+        </label>
+        {lockToggle}
+      </div>
       <input
         id={id}
         type="text"
@@ -144,6 +180,7 @@ interface RepeaterProps {
   items: string[];
   onChange: (next: string[]) => void;
   testIdPrefix: string;
+  lockToggle?: ReactNode;
 }
 
 function Repeater({
@@ -152,6 +189,7 @@ function Repeater({
   items,
   onChange,
   testIdPrefix,
+  lockToggle,
 }: RepeaterProps) {
   const [draft, setDraft] = useState("");
   const add = () => {
@@ -165,7 +203,10 @@ function Repeater({
   };
   return (
     <div>
-      <div className="mb-1 text-sm font-medium text-gray-700">{label}</div>
+      <div className="mb-1 flex items-center gap-2">
+        <div className="text-sm font-medium text-gray-700">{label}</div>
+        {lockToggle}
+      </div>
       {items.length > 0 && (
         <ul className="mb-2 space-y-1" data-testid={`${testIdPrefix}-list`}>
           {items.map((item, idx) => (
@@ -231,9 +272,10 @@ interface MaterialsFieldProps {
   value: string[];
   onChange: (next: string[]) => void;
   onToggleChip: (chipId: string) => void;
+  lockToggle?: ReactNode;
 }
 
-function MaterialsField({ value, onChange, onToggleChip }: MaterialsFieldProps) {
+function MaterialsField({ value, onChange, onToggleChip, lockToggle }: MaterialsFieldProps) {
   const [customDraft, setCustomDraft] = useState("");
 
   const customEntries = value.filter((v) => !CATALOGUE_IDS.has(v));
@@ -258,8 +300,11 @@ function MaterialsField({ value, onChange, onToggleChip }: MaterialsFieldProps) 
 
   return (
     <div>
-      <div className="mb-2 text-sm font-medium text-gray-700">
-        Materials whitelist
+      <div className="mb-2 flex items-center gap-2">
+        <div className="text-sm font-medium text-gray-700">
+          Materials whitelist
+        </div>
+        {lockToggle}
       </div>
       <div className="flex flex-wrap gap-2">
         {MATERIALS_CHIPS.map((chip) => {
@@ -346,9 +391,10 @@ const DIMENSION_UNITS: DimensionUnit[] = ["mm", "cm", "in"];
 interface DimensionsFieldProps {
   value: DesignDimensions | undefined;
   onCommit: (next: DesignDimensions | undefined) => void;
+  lockToggle?: ReactNode;
 }
 
-function DimensionsField({ value, onCommit }: DimensionsFieldProps) {
+function DimensionsField({ value, onCommit, lockToggle }: DimensionsFieldProps) {
   // Mirror parent-shaped local state so blur-commit logic is straightforward.
   const [h, setH] = useState<string>(value?.h?.toString() ?? "");
   const [w, setW] = useState<string>(value?.w?.toString() ?? "");
@@ -391,7 +437,10 @@ function DimensionsField({ value, onCommit }: DimensionsFieldProps) {
 
   return (
     <div>
-      <div className="mb-1 text-sm font-medium text-gray-700">Dimensions</div>
+      <div className="mb-1 flex items-center gap-2">
+        <div className="text-sm font-medium text-gray-700">Dimensions</div>
+        {lockToggle}
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <AxisInput
           id="cstr_dim_h"

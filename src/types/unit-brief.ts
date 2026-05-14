@@ -68,15 +68,96 @@ export type UnitBriefConstraints =
  * `diagram_url` (Phase B.5) is a relative storage-proxy URL pointing at
  * the unit-images bucket (path: <unitId>/brief-diagram-<ts>.jpg). NULL
  * = no diagram uploaded. One diagram per brief; re-upload replaces.
+ *
+ * `locks` (Phase F.A) is a flat path-keyed lock map. Locked fields
+ * show the teacher's value read-only to students; unlocked fields are
+ * student-editable (with teacher value as a starter). Default {} =
+ * nothing locked. See LOCKABLE_FIELDS for the canonical key list.
  */
 export interface UnitBrief {
   unit_id: string;
   brief_text: string | null;
   constraints: UnitBriefConstraints;
   diagram_url: string | null;
+  locks: UnitBriefLocks;
   created_at: string;
   updated_at: string;
   created_by: string | null;
+}
+
+// ─── Phase F.A — lock map + student briefs ────────────────────────────
+
+/**
+ * Canonical lockable field paths. Flat dotted-path keys — simpler
+ * queries + TS types than a nested map. Editors that render a 🔒
+ * toggle iterate this constant so adding a new field to the brief
+ * shape requires one edit here.
+ */
+export const LOCKABLE_FIELDS = [
+  "brief_text",
+  "diagram_url",
+  "constraints.dimensions",
+  "constraints.materials_whitelist",
+  "constraints.budget",
+  "constraints.audience",
+  "constraints.must_include",
+  "constraints.must_avoid",
+] as const;
+
+export type LockableField = (typeof LOCKABLE_FIELDS)[number];
+
+/**
+ * Lock map stored as a flat JSONB on unit_briefs.locks (and the
+ * brief_locks columns on choice_cards). Absent key OR explicit false =
+ * unlocked. Only `true` means locked. The renderer + editor narrow on
+ * `locks[field] === true` everywhere so unknown keys are silently
+ * ignored (defensive against schema drift).
+ */
+export type UnitBriefLocks = Partial<Record<LockableField, boolean>>;
+
+/**
+ * Maps 1:1 to a public.student_briefs row. Per-student-per-unit; one
+ * row per student per unit, created lazily on first override save.
+ *
+ * Holds the student's overrides for unlocked brief fields. NULL /
+ * empty values fall through to the template (choice-card brief
+ * template if the student has picked one for the unit AND the card
+ * has a template; otherwise unit_briefs).
+ *
+ * `diagram_url` reserved for future student diagram uploads — not
+ * wired in Phase F (teacher-only diagram in v1; column present so a
+ * later phase can add upload without a migration).
+ */
+export interface StudentBrief {
+  id: string;
+  student_id: string;
+  unit_id: string;
+  brief_text: string | null;
+  constraints: UnitBriefConstraints;
+  diagram_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Resolved brief shown to students AND used by the teacher review tab.
+ * Merge result of (choice-card template if picked → unit_brief
+ * fallback) overlaid with student_brief overrides on unlocked fields.
+ *
+ * Each field carries a `source` so the renderer can show a 🔒 icon on
+ * locked fields and a faint "from your teacher" / "your override"
+ * affordance on starter / overridden fields respectively.
+ */
+export type EffectiveBriefFieldSource =
+  | "teacher" // teacher-authored at unit level (unit_briefs)
+  | "card" // choice-card template (choice_cards.brief_*)
+  | "student" // student override (student_briefs)
+  | "empty"; // no value at all yet
+
+export interface EffectiveBriefField<T> {
+  value: T | null;
+  locked: boolean;
+  source: EffectiveBriefFieldSource;
 }
 
 /**

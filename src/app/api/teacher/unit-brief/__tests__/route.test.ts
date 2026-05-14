@@ -124,9 +124,14 @@ describe("/api/teacher/unit-brief — POST", () => {
     expect(body).toContain("validateConstraints");
   });
 
-  it("rejects an empty patch (must include brief_text or constraints)", () => {
+  it("validates locks via validateLocks (Phase F.B)", () => {
+    expect(body).toContain("validateLocks");
+    expect(body).toMatch(/"locks" in b/);
+  });
+
+  it("rejects an empty patch (must include brief_text, constraints, or locks)", () => {
     expect(body).toContain(
-      "body must include at least one of: brief_text, constraints",
+      "body must include at least one of: brief_text, constraints, locks",
     );
   });
 
@@ -158,5 +163,31 @@ describe("validateConstraints — module-level invariants (read via source)", ()
 
   it("validates array fields are arrays of strings", () => {
     expect(src).toMatch(/must be an array of strings/);
+  });
+});
+
+describe("validateLocks — module-level invariants (Phase F.B)", () => {
+  it("declares a validateLocks helper alongside validateConstraints", () => {
+    expect(src).toMatch(/function validateLocks/);
+  });
+
+  it("rejects non-object payloads", () => {
+    expect(src).toContain("locks must be an object");
+  });
+
+  it("rejects unknown lock keys (Lesson #38 specificity — fail on typos)", () => {
+    expect(src).toContain("Unknown locks key:");
+    // The allowed set is built from the canonical LOCKABLE_FIELDS export
+    expect(src).toMatch(/new Set<string>\(LOCKABLE_FIELDS\)/);
+  });
+
+  it("rejects non-boolean values per key", () => {
+    expect(src).toMatch(/locks\.\$\{key\} must be a boolean/);
+  });
+
+  it("canonicalises — only `true` values are stored (false / absent both = unlocked)", () => {
+    // Storing absent keys instead of explicit `false` keeps the JSONB
+    // tight + makes "is this locked?" === true everywhere.
+    expect(src).toMatch(/if \(r\[key\] === true\)/);
   });
 });
