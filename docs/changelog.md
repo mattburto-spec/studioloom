@@ -4,6 +4,49 @@
 
 ---
 
+## 2026-05-15 — Lesson editor authoring polish + AI video suggestions v1 (5 PRs to main)
+
+**Context:** Matt's three-item ask at the top of the session: (1) process journal questions weren't editable in the unit editor, (2) couldn't bold/bullet text in the unit editor, (3) wanted AI-suggested videos based on activity content. All three shipped in this session — five PRs landed on main, plus one open design brief.
+
+### 1. Editable process journal questions ([PR #271](https://github.com/mattburto-spec/studioloom/pull/271))
+Teachers can now edit the **label / placeholder / helper / required** flag on each prompt of a structured-prompts block (Process Journal, Strategy Canvas, Self-Reread, Final Reflection). Edits affect only the block being edited; preset arrays remain the defaults at block-creation time. Add/remove prompts deferred — presets are pedagogically tuned and rarely need structural change. New `updatePromptAt(index, patch)` helper performs immutable patches. Source-static test asserts the editor wiring + immutability invariants. Tests: 12 → 17 in `lis-d-editor-wiring.test.ts`.
+
+### 2. Markdown toolbar — slot fields ([PR #274](https://github.com/mattburto-spec/studioloom/pull/274))
+**Key finding pre-build:** the renderer (`MarkdownPrompt` via `react-markdown@10.1.0`) already supports `<strong>`, `<em>`, `<ul>`, `<ol>`, `<a>` end-to-end via allow-list (`p`/`strong`/`em`/`ul`/`ol`/`li`/`a` + `unwrapDisallowed`). The gap was purely the authoring UX — teachers had no way to discover the syntax. So this PR is a small toolbar (B / I / • / 1. / 🔗) above each of the three activity-prompt textareas, wrapping the selection with markdown syntax. Zero new deps. Pure helpers in `markdown-toolbar-helpers.ts` (`applyInlineWrap`, `applyLinePrefix`, `applyLink`) split out so unit tests are `.test.ts` not `.test.tsx` — vite import-analyser chokes on JSX from a TS test. 19 new pure-helper tests + 5 source-static wiring assertions.
+
+### 3. Markdown toolbar — wider surfaces + Lesson Intro polish ([PR #275](https://github.com/mattburto-spec/studioloom/pull/275))
+Extended the toolbar pattern to **LessonIntroEditor "Why this matters"** + **KeyCalloutEditor intro paragraph + each bullet body**. Skipped intentionally: lesson-intro Success criteria (list-per-line, no prose formatting expected), KeyCalloutEditor title (uses draft-on-blur for the magazine layout), bullet term/hint (single-line labels). New `RichTextarea` primitive wraps toolbar + textarea + own ref so future surfaces become a one-liner. **Lesson intro authoring room:** Matt's screenshot showed "Why this matters" clipping content below the visible area — bumped rows 3 → 5 + `resize-y` + `min-h-[5em]` on both textareas. Avoided shipping autogrow JS. Tests: 254 → 265 (+11 source-static).
+
+### 4. AI video suggestions backend ([PR #281](https://github.com/mattburto-spec/studioloom/pull/281))
+New route `POST /api/teacher/suggest-videos` — teachers click "Suggest videos" → backend returns up to 3 short embeddable video candidates. Pipeline: **Haiku 4.5** query builder (compresses block context → 6-10 word YouTube query) → **YouTube Data API v3** `search.list` + `videos.list` (safeSearch=strict, videoEmbeddable=true, videoDuration=medium, duration ≤ 20min) → **Sonnet 4.6** re-ranker (tool-use for structured JSON, hallucination guard matches picks back to input set). Both AI calls go through `callAnthropicMessages` with distinct endpoint strings (`teacher/suggest-videos:query` + `:rerank`) so the `/admin/ai-budget` breakdown view can attribute cost per phase. teacherId attribution triggers BYOK chain via `resolveCredentials`. Failure modes mapped to conventional HTTP statuses (400 / 401 / 403 / 429 / 502 / 503). Heuristic fallback when Haiku unavailable so route degrades gracefully. 24 new unit tests covering ISO 8601 duration parsing, thumbnail fallbacks, merge/filter logic, query sanitisation, prompt composition, hallucination guard. New env var `YOUTUBE_API_KEY` (registered in `feature-flags.yaml`, optional — route returns 503 when unset).
+
+### 5. AI video suggestions UI ([PR #282](https://github.com/mattburto-spec/studioloom/pull/282))
+**✨ Suggest videos with AI** button on every Activity Block Media tab → modal with 3 cards (embedded YouTube iframe via `toEmbedUrl`, title, channel, duration, AI-written caption) → Attach button writes `{ type: "video", url }` into `activity.media` (existing field, no schema change). Auto-runs on open. HTTP-status-scoped error states (503 / 429 / 400 / generic). "↻ Suggest different videos" accumulates `excludeVideoIds` so successive clicks fan out instead of repeating. `LessonEditor` threads `unitTitle` (coerced `null → undefined` at the boundary) to ActivityBlock so the AI gets unit context. Tests: 265 → 275 (+10 source-static wiring assertions).
+
+### Design brief (open) — [PR #276](https://github.com/mattburto-spec/studioloom/pull/276)
+`docs/projects/ai-video-suggestions-brief.md` — the decision doc that drove the v1 build. Matt's resolved decisions baked into the code: platform-paid, embeddable-only, grade from `unit.grade_level`, type tags off in v1. **Still pending:** Matt to provide a 5-10 channel allowlist seed for the re-ranker boost (not blocking — feature works without it). PR #276 itself is now historical reference — its "open questions" are answered.
+
+### Systems touched
+- New: `src/lib/video-suggestions/` (types, build-query, fetch-youtube, rerank), `src/lib/ai/markdown-toolbar-helpers.ts`, `src/components/teacher/lesson-editor/MarkdownToolbar.tsx`, `RichTextarea.tsx`, `VideoSuggestionsModal.tsx`, `src/app/api/teacher/suggest-videos/route.ts`, `docs/projects/ai-video-suggestions-brief.md`
+- Modified: `ActivityBlock.tsx` (per-prompt editor + toolbar wiring + Suggest videos button + `unitTitle` prop), `SlotFieldEditor.tsx` (toolbar above each slot, extracted `SlotField` sub-component with own ref), `LessonIntroEditor.tsx` (RichTextarea + larger textareas), `KeyCalloutEditor.tsx` (RichTextarea on intro + bullet bodies), `LessonEditor.tsx` (thread `unitTitle`), `docs/feature-flags.yaml` (+`YOUTUBE_API_KEY` entry)
+- AI call sites added: 2 (both via `callAnthropicMessages`, no new direct callers — chokepoint discipline maintained)
+- New API route: 1 (`POST /api/teacher/suggest-videos`, gated by `requireTeacher`)
+
+### Open items
+- **Channel allowlist seed** — Matt to provide 5-10 trusted channels (Crash Course, Veritasium, etc.) for the re-ranker boost. Wire into `src/lib/video-suggestions/rerank.ts` system prompt as a soft preference once received.
+- **Smoke test** — Matt to provision `YOUTUBE_API_KEY` in Vercel env vars + `.env.local`, then exercise the full flow on Vercel preview (open unit → Media tab → Suggest → preview cards → Attach → verify URL persists into `activity.media`). The route returns 503 with a friendly "ask Matt to configure" message until the key is in env. Per the new "Don't offer Vercel preview verification" memory: Matt tests this himself, no Claude verification.
+- **PR #276 close-out** — either close as superseded or merge as historical record. Matt's call.
+
+### Tests
+- `src/components/teacher/lesson-editor`: 235 → 275 (+40)
+- `src/lib/video-suggestions`: 0 → 24 (+24)
+- tsc clean for all touched files across all 5 PRs
+
+### Memory updated
+- New feedback memory: **"Don't offer Vercel preview verification"** — after pushing a PR don't say "ping me to check the URL" or "I'll verify on preview"; Matt tests himself. Sharpens the existing "Don't gate on Matt's manual testing" memory.
+
+---
+
 ## 2026-05-14 (PM) — Student feedback banner orphan-grade fix (PR #267)
 
 **Context:** Matt smoke landed on the Class 4 — Studio (15 May) lesson page as the student. The green "Your teacher left feedback on 3 tiles on this lesson" banner was visible despite the page having **no activity tiles** (he'd deleted test blocks earlier).
