@@ -45,21 +45,29 @@ describe("marking page — AI gating to submitters only (PR-B)", () => {
     expect(body).toMatch(/\.trim\(\)\.length\s*>\s*0/);
   });
 
-  it("runAiPrescoreBatch filters student_ids to submitters only", () => {
-    // Pin the gating: empty submissions don't reach Haiku at all,
-    // server-side null-handling is just a safety net.
+  it("runAiPrescoreBatch filters student_ids to UNGRADED submitters only (14 May 2026)", () => {
+    // Updated 14 May 2026: was `submitterIdsForActiveTile.has(id)`.
+    // Now uses `ungradedSubmitterIdsForActiveTile` so a re-run on a
+    // fully-graded tile is a no-op (per-row Shorter/Warmer/Sharper
+    // is the right surface for explicit regeneration of one student).
     expect(src).toMatch(
-      /students[\s\S]*?\.filter\(\(id\)\s*=>\s*submitterIdsForActiveTile\.has\(id\)\)/,
+      /students[\s\S]*?\.filter\(\(id\)\s*=>\s*ungradedSubmitterIdsForActiveTile\.has\(id\)\)/,
     );
     expect(src).toMatch(/student_ids:\s*targetIds/);
-    // Also: short-circuit when 0 submitters.
+    // Also: short-circuit when 0 ungraded.
     expect(src).toMatch(/if\s*\(targetIds\.length\s*===\s*0\)\s*return/);
   });
 
-  it("AI suggest button label shows submitters / cohort and disables on 0 submitters", () => {
-    expect(src).toMatch(/AI suggest \(\$\{submitterIdsForActiveTile\.size\}\/\$\{students\.length\} submitted\)/);
+  it("AI suggest button label surfaces the 3-way breakdown (ungraded · sent) on 14 May 2026", () => {
+    // The label now expresses what's about to run vs what's being
+    // skipped. Three branches:
+    //   - all submitters ungraded   → "AI suggest (N/M submitted)" (legacy)
+    //   - mixed                     → "AI suggest (N ungraded · K sent)"
+    //   - all already sent          → "AI suggest — all K sent"
+    expect(src).toMatch(/AI suggest \(\$\{ungraded\} ungraded · \$\{alreadySent\} sent\)/);
+    expect(src).toMatch(/AI suggest — all \$\{alreadySent\} sent/);
     expect(src).toMatch(
-      /disabled=\{aiBatchRunning\s*\|\|\s*submitterIdsForActiveTile\.size\s*===\s*0\}/,
+      /disabled=\{aiBatchRunning\s*\|\|\s*ungradedSubmitterIdsForActiveTile\.size\s*===\s*0\}/,
     );
   });
 });

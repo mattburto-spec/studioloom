@@ -339,11 +339,22 @@ export async function loadInboxItems(
       state = "reply_waiting";
     } else if (g.ai_comment_draft && !g.confirmed) {
       // Either no thread yet OR latest is teacher AND draft hasn't been
-      // sent. Promote to drafted-state only if the draft is meaningfully
-      // different from what's already sent.
+      // sent. Promote to drafted-state only when:
+      //   (a) draft is non-empty AND
+      //   (b) NO prior comment was sent (cleanSent === "")
+      //
+      // Matt smoke 14 May 2026: re-running AI suggest on an
+      // already-graded tile resets `confirmed=false` and overwrites
+      // ai_comment_draft. Without rule (b), every previously-sent
+      // student ends up back in the inbox as "drafted" because the
+      // new draft differs from the old sent comment. Pedagogically:
+      // the teacher already gave feedback; a fresh AI take isn't a
+      // new work item for the inbox. Per-row "Shorter / Warmer /
+      // Sharper" on the marking page is the right surface for
+      // regenerating after a send.
       const cleanDraft = g.ai_comment_draft.trim();
       const cleanSent = (g.student_facing_comment ?? "").trim();
-      if (cleanDraft && cleanDraft !== cleanSent) {
+      if (cleanDraft && !cleanSent) {
         state = "drafted";
       }
     } else if (!g.ai_comment_draft && !g.confirmed && studentResponse) {

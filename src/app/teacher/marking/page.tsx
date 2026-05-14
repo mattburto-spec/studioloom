@@ -875,6 +875,27 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
     return submitters;
   }, [activeTile, activePageId, responsesByPage]);
 
+  // Matt smoke 14 May 2026: re-running AI suggest on an already-graded
+  // tile overwrote student_facing_comment refs into the inbox + felt
+  // like blind regeneration. Now: AI suggest defaults to SUBMITTERS
+  // WHO HAVEN'T YET BEEN SENT FEEDBACK. The "Already sent" count is
+  // surfaced in the button so the teacher knows the rest are skipped.
+  // To regenerate for a specific already-sent student, the per-row
+  // Shorter / Warmer / Sharper tweak is the right surface (explicit
+  // per-student opt-in).
+  const ungradedSubmitterIdsForActiveTile = useMemo<Set<string>>(() => {
+    if (!activeTile || !activePageId) return new Set();
+    const ungraded = new Set<string>();
+    for (const studentId of submitterIdsForActiveTile) {
+      const key = gradeKey(studentId, activeTile.tileId, activePageId);
+      const g = grades[key];
+      const sent = (g?.student_facing_comment ?? "").trim();
+      if (!sent) ungraded.add(studentId);
+    }
+    return ungraded;
+  }, [submitterIdsForActiveTile, activeTile, activePageId, grades]);
+
+
   const scale = useMemo(
     () => getGradingScale(klass?.framework ?? "IB_MYP"),
     [klass?.framework],
@@ -1065,14 +1086,18 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
 
   async function runAiPrescoreBatch() {
     if (!klass || !unit || !activePageId || !activeTile) return;
-    // PR-B: only send students who have a submission on the active tile.
-    // Empty submissions return null fields server-side anyway, but
-    // skipping them client-side saves Haiku tokens + makes the batch
-    // counter ("AI suggest (N submitted)") match the actual number of
-    // suggestions written.
+    // PR-B: skip non-submitters (empty responses) — server returns null
+    // fields for them anyway.
+    // Matt 14 May 2026: ALSO skip students who already have a sent
+    // comment (student_facing_comment is non-empty). Re-running AI
+    // suggest on a fully-graded tile used to silently overwrite drafts
+    // for everyone and put them all back in the inbox; now it's a
+    // no-op when everyone's been sent. To regenerate for a single
+    // already-sent student, use the per-row Shorter / Warmer / Sharper
+    // tweak (explicit per-student opt-in).
     const targetIds = students
       .map((s) => s.id)
-      .filter((id) => submitterIdsForActiveTile.has(id));
+      .filter((id) => ungradedSubmitterIdsForActiveTile.has(id));
     if (targetIds.length === 0) return;
     setAiBatchRunning(true);
     setAiBatchSummary(null);
@@ -1283,6 +1308,7 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
           aiBatchSummary={aiBatchSummary}
           runAiPrescoreBatch={runAiPrescoreBatch}
           submitterIdsForActiveTile={submitterIdsForActiveTile}
+          ungradedSubmitterIdsForActiveTile={ungradedSubmitterIdsForActiveTile}
           naAllRunning={naAllRunning}
           naAllForActiveTile={naAllForActiveTile}
           unitContentData={unit?.contentData ?? null}
@@ -1339,6 +1365,11 @@ interface CalibrateInnerProps {
    *  (saves Haiku tokens) and gated INTO the "Where's your submission?"
    *  nudge button (only renders for non-submitters). */
   submitterIdsForActiveTile: Set<string>;
+  /** Subset of submitterIdsForActiveTile whose student_facing_comment
+   *  is still EMPTY. AI suggest skips already-sent students so
+   *  re-running on a fully-graded tile is a no-op. Matt smoke
+   *  14 May 2026. */
+  ungradedSubmitterIdsForActiveTile: Set<string>;
   /** PR-C — bulk "NA all" action wiring. naAllForActiveTile loops over
    *  the cohort and stamps score_na=true + confirmed=true for every
    *  student. naAllRunning gates the button + shows progress copy. */
@@ -1395,6 +1426,7 @@ function CalibrateInner({
   aiBatchSummary,
   runAiPrescoreBatch,
   submitterIdsForActiveTile,
+  ungradedSubmitterIdsForActiveTile,
   naAllRunning,
   naAllForActiveTile,
   unitContentData,
@@ -1558,36 +1590,58 @@ function CalibrateInner({
               </div>
               <p className="text-sm text-gray-800 mt-1 leading-relaxed">{activeTile.title}</p>
             </div>
-            {/* PR-B: AI batch button counts only students with submissions
-                on the active tile. Disabled when 0 submitters — no point
-                running Haiku on a cohort that hasn't written anything,
-                and the count visibly tells the teacher "0 / N have
-                submitted." */}
+            {/* AI batch button — Matt smoke 14 May 2026: button now
+                filters to UNGRADED submitters only (those without a
+                sent comment). The button label surfaces a 3-way
+                breakdown so the teacher knows what's about to run vs
+                what's being skipped:
+                  "AI suggest (3 ungraded · 21 sent · 1 missing)"
+                  - ungraded = will run
+                  - sent     = already has student_facing_comment, skip
+                  - missing  = no submission yet, skip
+                Disabled when ungraded === 0 (everyone's been done
+                or nobody submitted) — to regenerate for a sent
+                student, use per-row Shorter / Warmer / Sharper. */}
             <button
               type="button"
               onClick={() => void runAiPrescoreBatch()}
-              disabled={aiBatchRunning || submitterIdsForActiveTile.size === 0}
+              disabled={aiBatchRunning || ungradedSubmitterIdsForActiveTile.size === 0}
+              data-testid="marking-ai-suggest-button"
               className={[
                 "flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border transition",
                 aiBatchRunning
                   ? "bg-purple-50 text-purple-400 border-purple-200 cursor-wait"
                   : "bg-gradient-to-br from-purple-600 to-violet-600 text-white border-purple-700 hover:from-purple-700 hover:to-violet-700 shadow-sm",
-                submitterIdsForActiveTile.size === 0
+                ungradedSubmitterIdsForActiveTile.size === 0
                   ? "opacity-50 cursor-not-allowed"
                   : "",
               ].join(" ")}
-              title={
-                submitterIdsForActiveTile.size === 0
-                  ? "No students have submitted on this tile yet — nothing for the AI to score. Use the per-row 'Where's your submission?' nudge instead."
-                  : "Run Haiku 4.5 across students with submissions. Suggestions are unconfirmed until you Confirm each row."
-              }
+              title={(() => {
+                const ungraded = ungradedSubmitterIdsForActiveTile.size;
+                const submitted = submitterIdsForActiveTile.size;
+                const alreadySent = submitted - ungraded;
+                if (submitted === 0)
+                  return "No students have submitted on this tile yet — nothing for the AI to score.";
+                if (ungraded === 0)
+                  return `All ${alreadySent} submitting student(s) already have sent feedback. To regenerate for one student, click their Shorter / Warmer / Sharper buttons in the focus panel.`;
+                return `Run Haiku 4.5 for ${ungraded} ungraded student(s). ${alreadySent} already-sent students skipped; ${students.length - submitted} non-submitters skipped. Each suggestion is unconfirmed until you Send.`;
+              })()}
             >
               <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
               </svg>
-              {aiBatchRunning
-                ? "Suggesting…"
-                : `AI suggest (${submitterIdsForActiveTile.size}/${students.length} submitted)`}
+              {(() => {
+                if (aiBatchRunning) return "Suggesting…";
+                const ungraded = ungradedSubmitterIdsForActiveTile.size;
+                const submitted = submitterIdsForActiveTile.size;
+                const alreadySent = submitted - ungraded;
+                if (submitted === 0) return "AI suggest (0 submitted)";
+                if (ungraded === 0)
+                  return `AI suggest — all ${alreadySent} sent`;
+                if (alreadySent > 0)
+                  return `AI suggest (${ungraded} ungraded · ${alreadySent} sent)`;
+                return `AI suggest (${ungraded}/${students.length} submitted)`;
+              })()}
             </button>
           </div>
           <div className="mt-3 flex items-center justify-between gap-3">
