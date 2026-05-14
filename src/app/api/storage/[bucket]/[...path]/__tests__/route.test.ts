@@ -115,19 +115,19 @@ describe("GET /api/storage/[bucket]/[...path]", () => {
     const res = await call(makeRequest(), "unit-images", ["abc", "x.jpg"]);
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("https://signed.example.com/x");
-    expect(createSignedUrl).toHaveBeenCalledWith("abc/x.jpg", 300);
+    expect(createSignedUrl).toHaveBeenCalledWith("abc/x.jpg", 3600);
   });
 
   it("decodes path segments before signing", async () => {
     await call(makeRequest(), "unit-images", ["abc", "foo%20bar", "x.jpg"]);
-    expect(createSignedUrl).toHaveBeenCalledWith("abc/foo bar/x.jpg", 300);
+    expect(createSignedUrl).toHaveBeenCalledWith("abc/foo bar/x.jpg", 3600);
   });
 
   it("sets a private Cache-Control header", async () => {
     const res = await call(makeRequest(), "unit-images", ["abc", "x.jpg"]);
     const cacheControl = res.headers.get("cache-control") || "";
     expect(cacheControl).toContain("private");
-    expect(cacheControl).toContain("max-age=240");
+    expect(cacheControl).toContain("max-age=3540");
   });
 
   it("404s when the storage backend returns an error", async () => {
