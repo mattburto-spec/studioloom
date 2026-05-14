@@ -33,7 +33,7 @@ import { callAnthropicMessages } from "@/lib/ai/call";
 import { MODELS } from "@/lib/ai/models";
 import { STUDENT_NAME_PLACEHOLDER } from "@/lib/security/student-name-placeholder";
 
-export const PROMPT_VERSION = "grading.regeneratedraft.v1.0.0";
+export const PROMPT_VERSION = "grading.regeneratedraft.v1.1.0"; // 13 May 2026 — Shorter directive preserves positive+suggestion structure
 const MAX_OUTPUT_TOKENS = 400;
 
 export type RegenerateDirective = "shorter" | "warmer" | "sharper" | "ask";
@@ -82,7 +82,20 @@ const REGENERATE_TOOL = {
 function directiveInstruction(input: RegenerateDraftInput): string {
   switch (input.directive) {
     case "shorter":
-      return "ADJUSTMENT: compress this to 1-2 sentences. Keep the single most important point. Drop preamble + softening phrases.";
+      // Matt smoke 13 May 2026: the original "Shorter" was too
+      // aggressive — collapsed to a single bland next-step sentence
+      // and lost the positive. Now: explicitly preserve BOTH halves
+      // of the positive-then-suggestion structure under compression.
+      // Only preamble + softening + redundancy gets dropped.
+      return [
+        "ADJUSTMENT: compress this to TWO short sentences (~30-50 words total).",
+        "MUST keep BOTH:",
+        "  (1) ONE specific positive anchored to what the student wrote,",
+        "  (2) ONE concrete next step (directive or question).",
+        "DROP: preamble, softening phrases ('that's a good start', 'I appreciate'),",
+        "redundant restatement of the student's response, generic praise, lists.",
+        "DO NOT drop the positive sentence — short feedback without warmth reads as cold.",
+      ].join(" ");
     case "warmer":
       return "ADJUSTMENT: soften the tone — more encouraging, more human, less clinical. Acknowledge effort where genuine. Do NOT add empty praise ('great', 'awesome'). Keep the substance.";
     case "sharper":
