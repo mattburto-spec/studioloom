@@ -22,7 +22,11 @@ const DEFAULT_CONFIG: ClassDjConfig = {
 
 const TIMER_MIN = 30;
 const TIMER_MAX = 180;
-const GATE_MIN = 2;
+// GATE_MIN lowered from brief-spec 2 to 1 on 14 May 2026 to unblock
+// solo-student smoke testing. The server clamp (/api/student/class-dj/suggest)
+// already accepts [1,10]; this just relaxes the editor UI to match.
+// Production teachers can still pick 3 (default) — this only widens the dial.
+const GATE_MIN = 1;
 const GATE_MAX = 10;
 const SUGGEST_MIN = 1;
 const SUGGEST_MAX = 3;
