@@ -85,15 +85,17 @@ describe("inbox-loader — state derivation", () => {
     expect(src).toMatch(/state\s*=\s*"reply_waiting"/);
   });
 
-  it("drafted when ai_comment_draft exists AND not yet confirmed AND draft differs from sent", () => {
-    // The diff check prevents re-surfacing rows where the teacher
-    // already approved (sent === draft) but the draft column still
-    // holds the matching string.
+  it("drafted when ai_comment_draft exists AND not yet confirmed AND no prior sent comment", () => {
+    // Updated 14 May 2026 — was previously `cleanDraft !== cleanSent`.
+    // Re-running AI suggest on already-graded rows broke that rule
+    // (new draft differed from old sent → re-surfaced). Now: drafted
+    // requires no prior send at all. See "no prior sent comment"
+    // describe block below for the new shape.
     expect(src).toMatch(/g\.ai_comment_draft\s*&&\s*!g\.confirmed/);
     expect(src).toMatch(
       /const cleanDraft\s*=\s*g\.ai_comment_draft\.trim\(\)/,
     );
-    expect(src).toMatch(/cleanDraft\s*!==\s*cleanSent/);
+    expect(src).toMatch(/cleanDraft\s*&&\s*!cleanSent/);
     expect(src).toMatch(/state\s*=\s*"drafted"/);
   });
 
@@ -141,6 +143,33 @@ describe("inbox-loader — student name privacy", () => {
     // prompt; that contract holds at the AI call sites (C.3).
     expect(src).toMatch(
       /student\?\.display_name\?\.split\(" "\)\[0\]\s*\|\|\s*student\?\.username\s*\|\|\s*"Student"/,
+    );
+  });
+});
+
+describe("inbox-loader — drafted state requires no prior sent comment (14 May 2026)", () => {
+  it("treats a row as 'drafted' only when student_facing_comment is empty", () => {
+    // Matt smoke 14 May: re-running AI suggest on already-graded tile
+    // wrote new ai_comment_draft + reset confirmed=false. Without this
+    // guard, every previously-sent student popped back into the inbox
+    // as "drafted" (cleanDraft !== cleanSent). Now: only first-draft
+    // states qualify.
+    expect(src).toMatch(
+      /if\s*\(cleanDraft\s*&&\s*!cleanSent\)\s*\{\s*\n\s*state\s*=\s*"drafted"/,
+    );
+  });
+
+  it("comment explains the regeneration-after-send case (so the rule doesn't get reverted)", () => {
+    expect(src).toMatch(
+      /Matt smoke 14 May 2026[\s\S]*?re-running AI suggest[\s\S]*?inbox as "drafted"/i,
+    );
+  });
+
+  it("regression guard: NO branch still uses cleanDraft !== cleanSent as the drafted gate", () => {
+    // The original logic was `cleanDraft && cleanDraft !== cleanSent`.
+    // If that comes back, the bug returns.
+    expect(src).not.toMatch(
+      /state\s*=\s*"drafted"[\s\S]{0,200}cleanDraft\s*!==\s*cleanSent/,
     );
   });
 });

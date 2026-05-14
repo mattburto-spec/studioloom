@@ -159,6 +159,30 @@
 
 **Why deferred:** v1 of the inbox + Marking badge is enough surface area. Teachers need to internalize the daily-driver flow before adding escalation layers — otherwise it just becomes noise. Re-evaluate after 2 weeks of pilot use.
 
+### TFL3-FU-INBOX-BULK-ACTIONS — Inbox bulk-select for skip / mark resolved / approve
+**Surfaced:** TFL.3 smoke 14 May 2026 (Matt — after C.7.x stack)
+**Priority:** P2 — meaningful UX for clearing a stale inbox; not pilot-blocking
+**Target phase:** Post-pilot when usage data shows the inbox routinely exceeds ~20 items
+
+**Symptom:** When the inbox accumulates a lot of items (e.g. teacher re-ran AI suggest on multiple tiles, or returns to the platform after a week away), the one-at-a-time flow is slow. Matt:
+> *"might be nice to have a check box on the feedback inbox to select all, or some, and skip or do other commands to quickly clear that inbox if it ever gets really full"*
+
+**What we know:**
+- Inbox-loader already returns `itemKey` per row — safe selection key.
+- `skipped` + `resolvedThreads` are existing client/server state we'd extend.
+- Adding bulk actions to the inbox requires: per-row checkbox column, header bulk-action bar (Skip selected, Mark resolved selected), select-all toggle, count chip ("3 selected").
+- DESTRUCTIVE actions need confirm: "Skip 12 items? They'll come back next refresh unless you also mark resolved." / "Mark 12 resolved? This will hide them from your inbox + every device until a new student reply arrives."
+- Approve-bulk is NOT in this FU — too dangerous (would send 12 AI drafts with no per-student review).
+
+**v1 scope (when picked up):**
+1. Checkbox column at the left of every row + a select-all checkbox in the queue header.
+2. Floating bottom bar appears when ≥1 selected: "12 selected · [Skip] [Mark resolved] [Cancel]"
+3. Skip → adds all to in-memory skipped set, same as the current per-row skip.
+4. Mark resolved → loops through with a small concurrency (CHUNK=4) POSTing to /api/teacher/grading/resolve-thread. Optimistically hide via skipped set first; rollback on failure.
+5. Keyboard: Shift+click for range select; Cmd/Ctrl+A for select-all in queue.
+
+**Why deferred:** v1 of the inbox has been live for ~2 days. Real usage will show whether 1-at-a-time is the bottleneck or whether it's actually fine. Pilot first, then commit.
+
 ### ~~TFL3-FU-STUDENT-IB-IMAGES-MISSING — Inspiration Board images not displaying in student lesson view~~ ✅ RESOLVED 14 May 2026
 **Surfaced:** TFL.3 C.7.2 smoke (13 May 2026 — Matt's test student)
 **Priority:** P1 — broken UX for students viewing their own work
