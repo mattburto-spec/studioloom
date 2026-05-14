@@ -33,23 +33,46 @@ export async function GET(
   const { unitId } = await ctx.params;
   const db = createAdminClient();
 
-  // Find classes the student is in that have this unit assigned (active).
-  // class_students gives the enrollments; class_units gives the unit
-  // assignments. JOIN gives us the intersection.
-  const { data: rows, error } = await db
-    .from("class_students")
-    .select("class_id, class_units!inner(unit_id, is_active)")
-    .eq("student_id", studentId)
-    .eq("class_units.unit_id", unitId)
-    .eq("class_units.is_active", true)
-    .limit(5);
+  // Two-step resolution. class_students and class_units share class_id
+  // as a column but DO NOT have a direct FK between each other (both FK
+  // independently to classes.id), so a PostgREST `!inner` embed doesn't
+  // work — it silently returns no rows. Doing it explicitly:
+  //
+  //   1. enrollments = classes this student is in
+  //   2. active class_units matching (any-of enrollments, this unit, active)
 
-  if (error) {
-    console.error("[class-for-unit] lookup failed", error);
+  const { data: enrollments, error: enrollErr } = await db
+    .from("class_students")
+    .select("class_id")
+    .eq("student_id", studentId);
+
+  if (enrollErr) {
+    console.error("[class-for-unit] enrollments lookup failed", enrollErr);
     return NextResponse.json({ classId: null, reason: "lookup_error" }, { status: 500 });
   }
 
-  const firstMatch = (rows ?? [])[0];
+  const classIds = (enrollments ?? []).map((e) => e.class_id as string);
+  if (classIds.length === 0) {
+    return NextResponse.json(
+      { classId: null, reason: "no_enrollment" },
+      { status: 200 },
+    );
+  }
+
+  const { data: matches, error: matchErr } = await db
+    .from("class_units")
+    .select("class_id")
+    .eq("unit_id", unitId)
+    .eq("is_active", true)
+    .in("class_id", classIds)
+    .limit(1);
+
+  if (matchErr) {
+    console.error("[class-for-unit] class_units lookup failed", matchErr);
+    return NextResponse.json({ classId: null, reason: "lookup_error" }, { status: 500 });
+  }
+
+  const firstMatch = (matches ?? [])[0];
   if (!firstMatch) {
     return NextResponse.json(
       { classId: null, reason: "unit_not_in_any_class" },
