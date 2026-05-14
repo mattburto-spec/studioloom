@@ -7,14 +7,23 @@
 //
 // POST /api/teacher/choice-cards
 // Body: { id, label, hook_text, detail_md, image_url?, emoji?, bg_color?,
-//         tags[], on_pick_action, ships_to_platform? }
+//         tags[], on_pick_action, ships_to_platform?,
+//         brief_text?, brief_constraints?, brief_locks? }
 //
 // `id` is a kebab-case slug (e.g. "g8-brief-designer-mentor"). created_by
 // is set server-side from the authenticated teacher's user id.
+//
+// Phase F.C — `brief_text`, `brief_constraints`, `brief_locks` are
+// optional brief-template fields. When a student picks this card,
+// these populate their student_briefs row (Phase F.D).
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireTeacher } from "@/lib/auth/require-teacher";
+import {
+  validateConstraints,
+  validateLocks,
+} from "@/lib/unit-brief/validators";
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,79}$/;
 
@@ -75,23 +84,61 @@ export const POST = withErrorHandler(
       .filter((t): t is string => typeof t === "string" && t.length > 0)
       .slice(0, 20);
 
+    // Phase F.C — optional brief template fields. Reuse the same
+    // validators as /api/teacher/unit-brief so the shape stays
+    // identical (one unified renderer downstream).
+    const insertRow: Record<string, unknown> = {
+      id,
+      label,
+      hook_text,
+      detail_md,
+      image_url,
+      emoji,
+      bg_color,
+      tags,
+      on_pick_action,
+      ships_to_platform,
+      is_seeded: false,
+      created_by: teacherId,
+    };
+
+    if ("brief_text" in b) {
+      if (b.brief_text === null) {
+        insertRow.brief_text = null;
+      } else if (typeof b.brief_text === "string") {
+        insertRow.brief_text = b.brief_text;
+      } else {
+        return NextResponse.json(
+          { error: "brief_text must be a string or null" },
+          { status: 400 },
+        );
+      }
+    }
+    if ("brief_constraints" in b) {
+      const validated = validateConstraints(b.brief_constraints);
+      if (!validated.ok) {
+        return NextResponse.json(
+          { error: `brief_constraints: ${validated.error}` },
+          { status: 400 },
+        );
+      }
+      insertRow.brief_constraints = validated.value;
+    }
+    if ("brief_locks" in b) {
+      const validated = validateLocks(b.brief_locks);
+      if (!validated.ok) {
+        return NextResponse.json(
+          { error: `brief_locks: ${validated.error}` },
+          { status: 400 },
+        );
+      }
+      insertRow.brief_locks = validated.value;
+    }
+
     const db = createAdminClient();
     const { data, error } = await db
       .from("choice_cards")
-      .insert({
-        id,
-        label,
-        hook_text,
-        detail_md,
-        image_url,
-        emoji,
-        bg_color,
-        tags,
-        on_pick_action,
-        ships_to_platform,
-        is_seeded: false,
-        created_by: teacherId,
-      })
+      .insert(insertRow)
       .select()
       .single();
 

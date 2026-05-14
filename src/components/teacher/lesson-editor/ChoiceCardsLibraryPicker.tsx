@@ -17,6 +17,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { nanoid } from "nanoid";
 import { ChoiceCardImageUploadButton } from "./ChoiceCardImageUploadButton";
+import ChoiceCardBriefTemplateEditor from "./ChoiceCardBriefTemplateEditor";
 
 interface ChoiceCardSummary {
   id: string;
@@ -69,6 +70,14 @@ export default function ChoiceCardsLibraryPicker({ open, selectedIds, onClose, o
   const [activeTags, setActiveTags] = useState<Set<string>>(new Set());
   const [picked, setPicked] = useState<Set<string>>(new Set(selectedIds));
   const [showCreate, setShowCreate] = useState(false);
+
+  // Phase F.C — brief template editor modal opens for one card at a time.
+  // Tracks the active card by id+label so the modal can show the card
+  // name in its header.
+  const [briefEditorFor, setBriefEditorFor] = useState<{
+    cardId: string;
+    cardLabel: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -218,6 +227,9 @@ export default function ChoiceCardsLibraryPicker({ open, selectedIds, onClose, o
                   card={c}
                   selected={picked.has(c.id)}
                   onToggle={() => togglePick(c.id)}
+                  onEditBriefTemplate={() =>
+                    setBriefEditorFor({ cardId: c.id, cardLabel: c.label })
+                  }
                 />
               ))}
             </div>
@@ -241,6 +253,18 @@ export default function ChoiceCardsLibraryPicker({ open, selectedIds, onClose, o
           </button>
         </div>
       </div>
+      {/* Phase F.C — per-card brief template editor. Sibling of the
+          picker modal; renders only when a card is targeted. Portal-
+          mounts at document.body to escape this picker's z-index
+          + transform chain (Lesson #89). */}
+      {briefEditorFor && (
+        <ChoiceCardBriefTemplateEditor
+          open={true}
+          cardId={briefEditorFor.cardId}
+          cardLabel={briefEditorFor.cardLabel}
+          onClose={() => setBriefEditorFor(null)}
+        />
+      )}
     </div>
   );
 }
@@ -253,18 +277,21 @@ function CardPreview({
   card,
   selected,
   onToggle,
+  onEditBriefTemplate,
 }: {
   card: ChoiceCardSummary;
   selected: boolean;
   onToggle: () => void;
+  onEditBriefTemplate: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className={`relative flex h-40 flex-col overflow-hidden rounded-xl border-2 text-left transition ${
-        selected ? "border-emerald-500 shadow-md" : "border-transparent hover:border-zinc-300"
-      }`}
+    <div className="relative">
+      <button
+        type="button"
+        onClick={onToggle}
+        className={`relative flex h-40 w-full flex-col overflow-hidden rounded-xl border-2 text-left transition ${
+          selected ? "border-emerald-500 shadow-md" : "border-transparent hover:border-zinc-300"
+        }`}
       style={{
         background: card.image_url ? undefined : card.bg_color || "#10B981",
         backgroundImage: card.image_url ? `url(${card.image_url})` : undefined,
@@ -297,7 +324,21 @@ function CardPreview({
         <div className="text-xs font-bold leading-tight">{card.label}</div>
         <div className="mt-0.5 line-clamp-2 text-[10px] leading-snug opacity-80">{card.hook_text}</div>
       </div>
-    </button>
+      </button>
+      {/* Brief-template editor trigger — Phase F.C. Stacked below the
+          card thumbnail so it can be its own <button> (nested buttons
+          aren't valid HTML). Subtle styling because most teachers won't
+          author brief templates per card on most days. */}
+      <button
+        type="button"
+        onClick={onEditBriefTemplate}
+        data-testid={`card-edit-brief-${card.id}`}
+        title="Edit this card's brief template"
+        className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-[10px] font-semibold text-zinc-700 transition hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-700"
+      >
+        📋 Edit brief template
+      </button>
+    </div>
   );
 }
 
