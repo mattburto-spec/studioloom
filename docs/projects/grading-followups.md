@@ -158,3 +158,34 @@
 - The count endpoint /api/teacher/inbox/count already returns the data; a daily cron + email template + opt-in toggle finishes it.
 
 **Why deferred:** v1 of the inbox + Marking badge is enough surface area. Teachers need to internalize the daily-driver flow before adding escalation layers — otherwise it just becomes noise. Re-evaluate after 2 weeks of pilot use.
+
+### TFL3-FU-STUDENT-IB-IMAGES-MISSING — Inspiration Board images not displaying in student lesson view
+**Surfaced:** TFL.3 C.7.2 smoke (13 May 2026 — Matt's test student)
+**Priority:** P1 — broken UX for students viewing their own work
+**Target phase:** Next session, with DevTools data captured
+
+**Symptom:** A student uploads images to an Inspiration Board block on a lesson page. Teacher sees them fine in `/teacher/marking` (focus panel + row expansion both render the thumbnails). The same student, viewing their own lesson page, does NOT see the thumbnails — they're either broken or absent.
+
+**What we know:**
+- Upload route (`/api/student/upload`) returns a relative proxy URL (`/api/storage/responses/{studentId}/{unitId}/{pageId}/{timestamp}.{ext}`) via `buildStorageProxyUrl()`.
+- Student IB block (`src/components/student/inspiration-board/InspirationBoardBlock.tsx:543`) renders `<img src={item.url}>` directly — same shape as `InspirationBoardPreview.tsx` on the teacher side.
+- Storage proxy (`/api/storage/[bucket]/[...path]/route.ts`) gates via `supabaseSsr.auth.getUser()`. Authorize logic in `authorize.ts` for `responses` bucket: student must have `students.user_id === auth.uid` AND `students.id === path[0]`.
+- Teacher cookie auth works (we can see the thumbnails in marking). Student cookie auth fails (or 403s on authorize).
+
+**Investigation steps (do NEXT session with Matt):**
+1. Open student lesson view as the test student, with DevTools Network tab open.
+2. Filter for `/api/storage/responses/...` requests.
+3. Capture the status code (401? 403? 404? CORS?). Capture the response body.
+4. If 401 → Supabase Auth cookie isn't being sent (or doesn't resolve). Check if the student is lazy-provisioned in `auth.users` (`SELECT user_id FROM students WHERE id = '...'`).
+5. If 403 → cookie resolves but authorize.ts rejects. Likely paths:
+   - `app_metadata.user_type !== "student"` on the test student
+   - `students.user_id !== auth.uid` (lazy-provision row mismatch)
+   - The path's first segment doesn't match the student's `students.id`
+6. If the test student was created BEFORE the Access Model v2 lazy-provision migration (~9 May 2026), they may need a backfill row in `auth.users`. Check `scripts/access-v2/backfill-student-auth-users.ts`.
+
+**Why this matters:** students need to see their own uploaded work or the lesson UX is broken from the moment they upload. Pilot-blocker if it affects all students. If it's just Matt's specific test account (pre-Access-v2), it's a one-off backfill, not a code fix.
+
+**Likely fixes (pending diagnosis):**
+- Backfill missing `auth.users` row for the test student.
+- OR: fix authorize.ts if there's a real bug in the per-student path check.
+- OR: if the student's cookie isn't being sent on the storage request, check sameSite/secure flags on the student session cookie.
