@@ -81,16 +81,20 @@ function buildReason(
     };
   }
 
-  // Falling behind — in_progress students whose pace is >1 SD below class
-  // median. Don't expose the raw response-field count — it counts response
-  // *fields* (one per activity slot, sometimes more for multi-question
-  // blocks), so "7 of 8" is misleading. Just say slower than peers, plus
-  // their current doing card if they've committed to one.
+  // Falling behind — in_progress students whose pace is >1 SD below
+  // their per-current-lesson cohort median. Don't expose the raw
+  // response-field count — it counts response *fields* (one per activity
+  // slot, sometimes more for multi-question blocks), so "7 of 8" is
+  // misleading. Just say slower than peers, plus their current doing
+  // card if they've committed to one.
+  //
+  // paceZ is computed server-side per the student's current lesson and
+  // is null when that cohort has <5 students — so paceZ !== null already
+  // implies a valid cohort. No separate cohortStats gate needed.
   if (
     s.status === "in_progress" &&
     s.paceZ !== null &&
-    s.paceZ < PACE_Z_THRESHOLD &&
-    cohortStats
+    s.paceZ < PACE_Z_THRESHOLD
   ) {
     return {
       kind: "behind",

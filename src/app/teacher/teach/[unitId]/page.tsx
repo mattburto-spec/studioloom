@@ -41,6 +41,14 @@ interface StudentLiveStatus {
   paceZ: number | null;
   /** Student's current First Move "doing" card title (if any). */
   doingCardTitle: string | null;
+  /** Page id of the student's most-recent progress row — their ACTUAL
+   *  current lesson, not whichever lesson the teacher is viewing.
+   *  Null if they haven't touched the unit yet. */
+  currentLessonId: string | null;
+  /** 0-based index in the unit's page list. Null if not started. */
+  currentLessonIndex: number | null;
+  /** Lesson title at currentLessonIndex. */
+  currentLessonTitle: string | null;
 }
 
 interface LiveSummary {
@@ -102,7 +110,12 @@ export default function TeachingDashboard({
   // UI state
   const [showNotes, setShowNotes] = useState(true);
   const [showExtensions, setShowExtensions] = useState(false);
-  const [studentSort, setStudentSort] = useState<"name" | "status" | "help">("help");
+  // Default sort: by actual lesson location so the teacher sees the
+  // class clustered by where they really are — L1 stragglers at top,
+  // L2 in the middle, ahead-of-class at the bottom. Replaces the old
+  // "help" default; needs-help is still surfaced via row highlight + a
+  // dedicated sort option.
+  const [studentSort, setStudentSort] = useState<"location" | "help" | "name">("location");
   const [snoozed, setSnoozed] = useState<Set<string>>(new Set());
 
   // Teacher's configured period length (school setting). Scales the baked
@@ -227,9 +240,10 @@ export default function TeachingDashboard({
   const fetchLiveStatus = useCallback(async () => {
     if (!selectedClassId) return;
     try {
-      const url = `/api/teacher/teach/live-status?classId=${selectedClassId}&unitId=${unitId}${
-        selectedPageId ? `&pageId=${selectedPageId}` : ""
-      }`;
+      // No pageId — student list always shows the whole class with each
+      // student's real current location. The lesson dropdown still drives
+      // mini-lesson / projector / phase timer context.
+      const url = `/api/teacher/teach/live-status?classId=${selectedClassId}&unitId=${unitId}`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -239,7 +253,7 @@ export default function TeachingDashboard({
     } catch {
       // Silently fail — will retry next poll
     }
-  }, [selectedClassId, unitId, selectedPageId]);
+  }, [selectedClassId, unitId]);
 
   // Clear snoozes when lesson changes — snooze is per-lesson, not global
   useEffect(() => {
@@ -360,16 +374,23 @@ export default function TeachingDashboard({
     }
   }
 
-  // Sort students
+  // Sort students. Default "location" groups the class by their actual
+  // current lesson (lowest index first), ties broken by name. Students
+  // with no progress yet (currentLessonIndex === null) sort last.
   const sortedStudents = [...students].sort((a, b) => {
+    if (studentSort === "location") {
+      const ai = a.currentLessonIndex;
+      const bi = b.currentLessonIndex;
+      if (ai === null && bi === null) return a.name.localeCompare(b.name);
+      if (ai === null) return 1;
+      if (bi === null) return -1;
+      if (ai !== bi) return ai - bi;
+      return a.name.localeCompare(b.name);
+    }
     if (studentSort === "help") {
       if (a.needsHelp && !b.needsHelp) return -1;
       if (!a.needsHelp && b.needsHelp) return 1;
       const statusOrder = { not_started: 0, in_progress: 1, complete: 2 };
-      return statusOrder[a.status] - statusOrder[b.status];
-    }
-    if (studentSort === "status") {
-      const statusOrder = { complete: 0, in_progress: 1, not_started: 2 };
       return statusOrder[a.status] - statusOrder[b.status];
     }
     return a.name.localeCompare(b.name);
@@ -717,7 +738,7 @@ export default function TeachingDashboard({
                 Students ({students.length})
               </p>
               <div style={{ display: "flex", gap: "6px" }}>
-                {(["help", "status", "name"] as const).map((sort) => (
+                {(["location", "help", "name"] as const).map((sort) => (
                   <button
                     key={sort}
                     onClick={() => setStudentSort(sort)}
@@ -733,7 +754,7 @@ export default function TeachingDashboard({
                       if (studentSort !== sort) e.currentTarget.style.color = "#6B7280";
                     }}
                   >
-                    {sort === "help" ? "Needs Help" : sort === "status" ? "Status" : "Name"}
+                    {sort === "location" ? "Lesson" : sort === "help" ? "Needs Help" : "Name"}
                   </button>
                 ))}
               </div>
@@ -796,14 +817,44 @@ export default function TeachingDashboard({
                         )}
                       </div>
 
-                      {/* Name + meta. Doing card (if any) sits on a second
-                          line so the teacher can scan "what is this student
-                          actually working on?" without breaking the chips' rhythm. */}
+                      {/* Name + meta. Doing card (if any) and current
+                          lesson sit on a second line so the teacher can
+                          scan "where is this student actually?" at a
+                          glance without breaking the chips' rhythm. */}
                       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "2px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                           <span style={{ fontSize: "13px", fontWeight: 600, color: "#111827", whiteSpace: "nowrap" }}>
                             {s.name}
                           </span>
+                          {/* Current-lesson badge. Coloured purple when the
+                              student is on the lesson the teacher is
+                              currently viewing, neutral grey otherwise —
+                              lets the teacher spot at a glance who is
+                              "with the class" vs ahead/behind. Hidden
+                              when the student hasn't started anything. */}
+                          {s.currentLessonIndex !== null && (() => {
+                            const onSelected = s.currentLessonId === selectedPageId;
+                            return (
+                              <span
+                                title={s.currentLessonTitle ?? undefined}
+                                style={{
+                                  padding: "1px 6px", borderRadius: "4px",
+                                  fontSize: "9px", fontWeight: 700,
+                                  color: onSelected ? "#5B21B6" : "#374151",
+                                  background: onSelected ? "#F0ECFF" : "#F3F4F6",
+                                  border: `1px solid ${onSelected ? "#C4B5FD" : "#E5E7EB"}`,
+                                  lineHeight: 1.4,
+                                  maxWidth: "180px",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                L{s.currentLessonIndex + 1}
+                                {s.currentLessonTitle ? ` · ${s.currentLessonTitle}` : ""}
+                              </span>
+                            );
+                          })()}
                           {s.needsHelp && (
                             <span style={{
                               padding: "1px 6px", borderRadius: "4px",
