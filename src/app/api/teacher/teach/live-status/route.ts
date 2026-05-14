@@ -3,16 +3,22 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireTeacherAuth, verifyTeacherOwnsClass } from "@/lib/auth/verify-teacher-unit";
 import { computePaceSignals } from "@/lib/teaching-mode/pace";
+import { getPageList } from "@/lib/unit-adapter";
+import type { UnitContentData } from "@/types";
 
 /**
- * GET /api/teacher/teach/live-status?classId=X&unitId=Y&pageId=Z
+ * GET /api/teacher/teach/live-status?classId=X&unitId=Y[&pageId=Z]
  *
- * Returns real-time student progress for a specific lesson/page.
- * Designed to be polled every 5-10 seconds during live teaching.
+ * Returns real-time student progress for a unit. Each student row reports
+ * their ACTUAL current location (the lesson their most-recent progress row
+ * touches), not the lesson the teacher happens to be viewing. This lets
+ * Teaching Mode show one whole-class view even when the cohort is spread
+ * across lessons after a partial-completion class.
  *
- * Returns:
- * - students: array of { id, name, avatar, status, timeSpent, lastActive, responseCount }
- * - summary: { total, notStarted, inProgress, complete, avgTimeSpent }
+ * `pageId` is accepted for backwards compatibility but no longer filters
+ * the student list. Pace cohort stats are computed per-current-lesson —
+ * each student is compared against peers on the same lesson, not the
+ * whole class.
  */
 export const GET = withErrorHandler("teacher/teach/live-status:GET", async (request: NextRequest) => {
   const auth = await requireTeacherAuth(request);
@@ -22,7 +28,10 @@ export const GET = withErrorHandler("teacher/teach/live-status:GET", async (requ
   const { searchParams } = new URL(request.url);
   const classId = searchParams.get("classId");
   const unitId = searchParams.get("unitId");
-  const pageId = searchParams.get("pageId"); // optional — if null, returns unit-level progress
+  // pageId is accepted for backwards compat but no longer filters the
+  // student list. See header comment.
+  const _pageId = searchParams.get("pageId");
+  void _pageId;
 
   if (!classId || !unitId) {
     return NextResponse.json({ error: "classId and unitId required" }, { status: 400 });
@@ -36,12 +45,27 @@ export const GET = withErrorHandler("teacher/teach/live-status:GET", async (requ
 
   const db = createAdminClient();
 
-  // Get class name
-  const { data: classData } = await db
-    .from("classes")
-    .select("id, name")
-    .eq("id", classId)
-    .single();
+  // Get class name + unit content_data (used to map page_id → lesson title + index)
+  const [{ data: classData }, { data: unitRow }] = await Promise.all([
+    db.from("classes").select("id, name").eq("id", classId).single(),
+    db.from("units").select("content_data").eq("id", unitId).maybeSingle(),
+  ]);
+
+  // Class-local fork takes precedence over master content if present.
+  const { data: classUnitRow } = await db
+    .from("class_units")
+    .select("content_data")
+    .eq("class_id", classId)
+    .eq("unit_id", unitId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  const masterContent = (unitRow?.content_data as UnitContentData | null) ?? null;
+  const classContent = (classUnitRow?.content_data as UnitContentData | null) ?? null;
+  const resolvedContent: UnitContentData | null = classContent ?? masterContent;
+  const pages = resolvedContent ? getPageList(resolvedContent) : [];
+  const pageMeta = new Map<string, { index: number; title: string }>();
+  pages.forEach((p, idx) => pageMeta.set(p.id, { index: idx, title: p.title || `Lesson ${idx + 1}` }));
 
   // Get students in class — junction table + legacy class_id, merged & deduplicated
   const { data: junctionRows } = await db
@@ -75,46 +99,28 @@ export const GET = withErrorHandler("teacher/teach/live-status:GET", async (requ
 
   const studentIds = students.map((s) => s.id);
 
-  // Get progress — either for one page or all pages in unit
-  let progressQuery = db
+  // Always fetch all unit progress rows. Whole-class Teaching Mode view
+  // means we need per-student real location across every lesson, not the
+  // selected one. pageId is accepted upstream but intentionally ignored
+  // here — the lesson dropdown drives mini-lesson / projector / phase
+  // context, but the student list shows actual location.
+  const { data: progressRows } = await db
     .from("student_progress")
     .select("student_id, page_id, status, time_spent, responses, updated_at")
     .eq("unit_id", unitId)
     .in("student_id", studentIds);
 
-  if (pageId) {
-    progressQuery = progressQuery.eq("page_id", pageId);
-  }
-
-  const { data: progressRows } = await progressQuery;
-
-  // Phase 6.1 (4 May 2026) — derive "online" from student_progress activity
-  // rather than student_sessions (table dropped in 6.1).
-  //
-  // 13 May 2026: scoped to this unit AND (when applicable) this page. The
-  // original unscoped version flagged a student as "online" if they had
-  // touched any progress row anywhere in the last 5 min — so a student
-  // working on a different page in this unit (or even a different unit)
-  // counted as "online here". That made the needsHelp signal fire with
-  // lastActive deltas of hours (Scott showed "no activity for 551m" — he
-  // was elsewhere, not stuck on this page).
-  //
-  // Page mode (Teaching Mode): isOnline means "active on this exact page
-  // in the last 5 min". Unit mode (overview): means "active anywhere in
-  // this unit in the last 5 min".
+  // Online = active anywhere in this unit in the last 5 min. Whole-unit
+  // scope (not per-page) — Teaching Mode now shows everyone regardless of
+  // which lesson they're on, so a student working on L1 should still
+  // count as online when the teacher is viewing L2.
   const FIVE_MIN_AGO = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-  let recentActivityQuery = db
+  const { data: recentActivity } = await db
     .from("student_progress")
     .select("student_id")
     .in("student_id", studentIds)
     .eq("unit_id", unitId)
     .gte("updated_at", FIVE_MIN_AGO);
-
-  if (pageId) {
-    recentActivityQuery = recentActivityQuery.eq("page_id", pageId);
-  }
-
-  const { data: recentActivity } = await recentActivityQuery;
 
   const activeSessionSet = new Set(
     (recentActivity || []).map((s) => s.student_id)
@@ -142,7 +148,10 @@ export const GET = withErrorHandler("teacher/teach/live-status:GET", async (requ
     }
   }
 
-  // Build per-student status
+  // Build per-student status. Each student's "current location" is the
+  // page their most-recent updated_at row touches. Status/responseCount/
+  // lastActive reflect THAT page, not whichever lesson the teacher is
+  // viewing — so a row tells the teacher where the student actually is.
   const progressMap = new Map<string, typeof progressRows>();
   for (const row of progressRows || []) {
     if (!progressMap.has(row.student_id)) {
@@ -158,112 +167,92 @@ export const GET = withErrorHandler("teacher/teach/live-status:GET", async (requ
     ellLevel: string;
     isOnline: boolean;
     status: "not_started" | "in_progress" | "complete";
-    timeSpent: number; // seconds
+    timeSpent: number; // seconds — aggregate across the unit
     lastActive: string | null;
-    responseCount: number;
-    /** For page-level: how many response fields filled */
+    responseCount: number; // responses on the student's CURRENT lesson
     completionPct: number;
-    /** Flag: student may need help (no activity for >3 min while in_progress) */
     needsHelp: boolean;
-    /** Pace z-score vs in-progress cohort on this lesson; null if cohort <5 or not in_progress */
     paceZ: number | null;
-    /** Title of the student's current First Move "doing" card, if any.
-     *  Lets Teaching Mode surface what each student committed to work on
-     *  even when that work is happening in an external tool. */
     doingCardTitle: string | null;
+    /** Page id of the student's most-recent progress row (their actual
+     *  current lesson). Null if they've never touched the unit. */
+    currentLessonId: string | null;
+    /** 0-based index in the unit's page list. Null if the page can't be
+     *  resolved (e.g. content_data drift) or no rows yet. */
+    currentLessonIndex: number | null;
+    /** Lesson title at currentLessonIndex. */
+    currentLessonTitle: string | null;
   };
 
   const now = Date.now();
   const studentStatuses: StudentStatus[] = students.map((s) => {
     const rows = progressMap.get(s.id) || [];
     const isOnline = activeSessionSet.has(s.id);
+    const totalTime = rows.reduce((sum, r) => sum + (r.time_spent || 0), 0);
 
-    if (pageId) {
-      // Single page mode
-      const row = rows.find((r) => r.page_id === pageId);
-      const responses = row?.responses as Record<string, unknown> | null;
-      const responseCount = responses ? Object.keys(responses).filter((k) => {
-        const v = responses[k];
-        return v !== null && v !== undefined && v !== "";
-      }).length : 0;
+    // Most-recent row = current location.
+    const currentRow = rows.length > 0
+      ? rows.reduce((latest, r) => (r.updated_at > latest.updated_at ? r : latest))
+      : null;
+    const currentLessonId = currentRow?.page_id ?? null;
+    const meta = currentLessonId ? pageMeta.get(currentLessonId) : undefined;
+    const currentLessonIndex = meta ? meta.index : null;
+    const currentLessonTitle = meta ? meta.title : null;
 
-      const lastActive = row?.updated_at || null;
-      const timeSinceUpdate = lastActive ? (now - new Date(lastActive).getTime()) / 1000 : Infinity;
-      const needsHelp = isOnline && row?.status === "in_progress" && timeSinceUpdate > 180;
+    const responses = currentRow?.responses as Record<string, unknown> | null;
+    const responseCount = responses ? Object.keys(responses).filter((k) => {
+      const v = responses[k];
+      return v !== null && v !== undefined && v !== "";
+    }).length : 0;
 
-      return {
-        id: s.id,
-        name: s.display_name || s.username,
-        avatar: s.avatar_url,
-        ellLevel: s.ell_level || "none",
-        isOnline,
-        status: (row?.status as StudentStatus["status"]) || "not_started",
-        timeSpent: row?.time_spent || 0,
-        lastActive,
-        responseCount,
-        completionPct: 0, // Would need page section count to calculate
-        needsHelp,
-        paceZ: null, // Filled in post-pass below
-        doingCardTitle: doingMap.get(s.id) ?? null,
-      };
-    } else {
-      // Unit-level mode — aggregate across all pages
-      const totalTime = rows.reduce((sum, r) => sum + (r.time_spent || 0), 0);
-      const completeCount = rows.filter((r) => r.status === "complete").length;
-      const inProgressCount = rows.filter((r) => r.status === "in_progress").length;
-      const responseCount = rows.reduce((sum, r) => {
-        const resp = r.responses as Record<string, unknown> | null;
-        return sum + (resp ? Object.keys(resp).filter((k) => resp[k] !== null && resp[k] !== "").length : 0);
-      }, 0);
+    const lastActive = currentRow?.updated_at || null;
+    const timeSinceUpdate = lastActive ? (now - new Date(lastActive).getTime()) / 1000 : Infinity;
+    const needsHelp = isOnline && currentRow?.status === "in_progress" && timeSinceUpdate > 180;
 
-      const latestUpdate = rows.reduce((latest, r) => {
-        return r.updated_at > latest ? r.updated_at : latest;
-      }, "");
-
-      const overallStatus: StudentStatus["status"] =
-        completeCount > 0 && inProgressCount === 0 ? "complete" :
-        completeCount > 0 || inProgressCount > 0 ? "in_progress" :
-        "not_started";
-
-      return {
-        id: s.id,
-        name: s.display_name || s.username,
-        avatar: s.avatar_url,
-        ellLevel: s.ell_level || "none",
-        isOnline,
-        status: overallStatus,
-        timeSpent: totalTime,
-        lastActive: latestUpdate || null,
-        responseCount,
-        completionPct: 0,
-        needsHelp: false,
-        paceZ: null, // Pace only meaningful in page mode
-        doingCardTitle: doingMap.get(s.id) ?? null,
-      };
-    }
+    return {
+      id: s.id,
+      name: s.display_name || s.username,
+      avatar: s.avatar_url,
+      ellLevel: s.ell_level || "none",
+      isOnline,
+      status: (currentRow?.status as StudentStatus["status"]) || "not_started",
+      timeSpent: totalTime,
+      lastActive,
+      responseCount,
+      completionPct: 0,
+      needsHelp,
+      paceZ: null, // Filled in post-pass below.
+      doingCardTitle: doingMap.get(s.id) ?? null,
+      currentLessonId,
+      currentLessonIndex,
+      currentLessonTitle,
+    };
   });
 
-  // Pace signals — only over students currently in_progress on this lesson.
-  // Unit mode (no pageId) skips this; paceZ stays null. Phase 1.
-  const paceInputs = pageId
-    ? studentStatuses
-        .filter((s) => s.status === "in_progress")
-        .map((s) => ({ studentId: s.id, responseCount: s.responseCount }))
-    : [];
-  const { results: paceResults, stats: paceStatsRaw } = computePaceSignals(paceInputs);
-  const paceMap = new Map(paceResults.map((r) => [r.studentId, r.paceZ]));
+  // Pace signals — per-current-lesson cohort. Each student is compared
+  // against peers on the SAME lesson, not the whole class. Cohorts <5 stay
+  // unscored. This is strictly more accurate than the old global cohort
+  // when the class is spread across lessons.
+  const cohortsByLesson = new Map<string, StudentStatus[]>();
+  for (const s of studentStatuses) {
+    if (s.status !== "in_progress" || !s.currentLessonId) continue;
+    if (!cohortsByLesson.has(s.currentLessonId)) cohortsByLesson.set(s.currentLessonId, []);
+    cohortsByLesson.get(s.currentLessonId)!.push(s);
+  }
+  const paceMap = new Map<string, number | null>();
+  for (const cohort of cohortsByLesson.values()) {
+    const { results } = computePaceSignals(
+      cohort.map((s) => ({ studentId: s.id, responseCount: s.responseCount })),
+    );
+    for (const r of results) paceMap.set(r.studentId, r.paceZ);
+  }
   for (const s of studentStatuses) {
     const z = paceMap.get(s.id);
     s.paceZ = z === undefined ? null : z;
   }
-  const cohortStats = pageId && paceInputs.length > 0
-    ? {
-        inProgressCount: paceStatsRaw.n,
-        medianResponses: paceStatsRaw.median,
-        meanResponses: paceStatsRaw.mean,
-        stddevResponses: paceStatsRaw.stddev,
-      }
-    : null;
+  // cohortStats kept null in whole-class mode — there is no single
+  // dominant cohort to summarise. UI no longer surfaces this anyway.
+  const cohortStats = null;
 
   // Summary
   const total = studentStatuses.length;
