@@ -3,8 +3,14 @@ import { logAuditEvent } from "@/lib/access-v2/audit-log";
 
 /**
  * Job 2: Cost Alert
- * Sum costs from generation_runs for today, this week, this month.
+ * Sum estimated_cost_usd from ai_usage_log for today, this week, this month.
  * Compare against thresholds and debounce alerts.
+ *
+ * Source of truth: ai_usage_log. Post-Phase-A (8 May 2026) every Anthropic
+ * call routes through callAnthropicMessages() → logUsage(), so this table
+ * captures the full bill — generation pipeline, student mentoring, toolkit
+ * tools, free tools, Report Writer, etc. generation_runs.total_cost was the
+ * old single-source view; it's now a subset that double-counts with the log.
  */
 export async function run(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -19,40 +25,37 @@ export async function run(
   const weeklyThreshold = parseFloat(process.env.COST_ALERT_WEEKLY_USD || "50");
   const monthlyThreshold = parseFloat(process.env.COST_ALERT_MONTHLY_USD || "200");
 
-  // Fetch costs for each period
-  const [dailyRuns, weeklyRuns, monthlyRuns] = await Promise.all([
+  // Fetch costs for each period from ai_usage_log
+  const [dailyRows, weeklyRows, monthlyRows] = await Promise.all([
     supabase
-      .from("generation_runs")
-      .select("total_cost")
+      .from("ai_usage_log")
+      .select("estimated_cost_usd")
       .gte("created_at", todayStart),
     supabase
-      .from("generation_runs")
-      .select("total_cost")
+      .from("ai_usage_log")
+      .select("estimated_cost_usd")
       .gte("created_at", weekStart),
     supabase
-      .from("generation_runs")
-      .select("total_cost")
+      .from("ai_usage_log")
+      .select("estimated_cost_usd")
       .gte("created_at", monthStart),
   ]);
 
-  // Helper to sum costs from runs
-  function sumCosts(runs: unknown[]): number {
+  // Helper to sum estimated_cost_usd from rows
+  function sumCosts(rows: unknown[]): number {
     let total = 0;
-    for (const run of runs) {
-      const cost = (run as { total_cost?: unknown })?.total_cost;
-      if (cost && typeof cost === "object") {
-        const costObj = cost as Record<string, unknown>;
-        if (typeof costObj.total === "number") {
-          total += costObj.total;
-        }
-      }
+    for (const row of rows) {
+      const cost = (row as { estimated_cost_usd?: unknown })?.estimated_cost_usd;
+      // numeric(10,6) comes back as a string from PostgREST
+      const n = typeof cost === "string" ? parseFloat(cost) : typeof cost === "number" ? cost : 0;
+      if (Number.isFinite(n)) total += n;
     }
     return total;
   }
 
-  const dailyCost = sumCosts(dailyRuns.data ?? []);
-  const weeklyCost = sumCosts(weeklyRuns.data ?? []);
-  const monthlyCost = sumCosts(monthlyRuns.data ?? []);
+  const dailyCost = sumCosts(dailyRows.data ?? []);
+  const weeklyCost = sumCosts(weeklyRows.data ?? []);
+  const monthlyCost = sumCosts(monthlyRows.data ?? []);
 
   // Check thresholds
   const thresholdsExceeded = [];
