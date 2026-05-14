@@ -11,6 +11,8 @@
  * Brief pass the full ARCHETYPE_LIST).
  */
 
+import { TappableText } from "@/components/student/tap-a-word/TappableText";
+
 /**
  * Picker only uses id + label + emoji. Structural type so both v1
  * ArchetypeDefinition (7-tuple slots) and v2 ProductBriefArchetype
@@ -41,8 +43,12 @@ export function ArchetypePicker({
 }: Props) {
   return (
     <div className="rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-50 via-purple-50/50 to-white p-6">
-      <h3 className="text-lg font-semibold text-purple-900 mb-1">{heading}</h3>
-      <p className="text-sm text-purple-700/80 mb-5">{subhead}</p>
+      <h3 className="text-lg font-semibold text-purple-900 mb-1">
+        <TappableText text={heading} />
+      </h3>
+      <p className="text-sm text-purple-700/80 mb-5">
+        <TappableText text={subhead} contextSentence={subhead} />
+      </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {archetypes.map((a) => (
           <button

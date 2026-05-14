@@ -22,6 +22,7 @@ import type {
   SlotValue,
 } from "@/lib/project-spec/archetypes";
 import { SlotInput, type ImageUploadFn } from "./SlotInput";
+import { TappableText } from "@/components/student/tap-a-word/TappableText";
 
 interface SlotWalkerProps {
   /**
@@ -105,9 +106,11 @@ export function SlotWalker({
       </div>
 
       <h3 className="text-xl font-semibold text-gray-900 mb-1">
-        {slotDef.title}
+        <TappableText text={slotDef.title} />
       </h3>
-      <p className="text-sm text-gray-600 mb-4">{slotDef.subhead}</p>
+      <p className="text-sm text-gray-600 mb-4">
+        <TappableText text={slotDef.subhead} contextSentence={slotDef.subhead} />
+      </p>
 
       {/* Examples drawer */}
       {showExamples && slotDef.examples && (
@@ -119,7 +122,9 @@ export function SlotWalker({
               </p>
               <ul className="mb-3 space-y-0.5 text-gray-700 list-disc list-inside">
                 {slotDef.examples.strong.map((s, i) => (
-                  <li key={i}>{s}</li>
+                  <li key={i}>
+                    <TappableText text={s} contextSentence={s} />
+                  </li>
                 ))}
               </ul>
             </>
@@ -131,7 +136,9 @@ export function SlotWalker({
               </p>
               <ul className="space-y-0.5 text-gray-700 list-disc list-inside">
                 {slotDef.examples.weak.map((s, i) => (
-                  <li key={i}>{s}</li>
+                  <li key={i}>
+                    <TappableText text={s} contextSentence={s} />
+                  </li>
                 ))}
               </ul>
             </>
