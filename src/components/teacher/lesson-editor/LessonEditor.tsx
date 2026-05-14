@@ -614,6 +614,7 @@ export default function LessonEditor({
                       framework={framework}
                       udlEnabled={udlEnabled}
                       unitId={unitId}
+                      unitTitle={unitTitle ?? undefined}
                       onUpdate={(partial) =>
                         section.activityId &&
                         handleUpdateActivity(section.activityId, partial)

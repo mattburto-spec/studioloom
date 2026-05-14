@@ -24,6 +24,7 @@ import {
   tools as allToolkitTools,
   INTERACTIVE_SLUGS,
 } from "@/app/toolkit/tools-data";
+import { VideoSuggestionsModal } from "./VideoSuggestionsModal";
 
 interface ActivityBlockProps {
   activity: ActivitySection;
@@ -32,6 +33,8 @@ interface ActivityBlockProps {
   udlEnabled?: boolean;
   /** Required by ImageUploadButton — scopes the storage path so a unit's images stay grouped under unit-images/{unitId}/blocks/. */
   unitId: string;
+  /** Unit title — passed through to the AI video suggestions modal for context. Optional; the route works without it. */
+  unitTitle?: string;
   onUpdate: (partial: Partial<ActivitySection>) => void;
   onDelete: () => void;
   onDuplicate?: () => void;
@@ -227,6 +230,7 @@ export default function ActivityBlock({
   index,
   udlEnabled = false,
   unitId,
+  unitTitle,
   onUpdate,
   onDelete,
   onDuplicate,
@@ -237,6 +241,7 @@ export default function ActivityBlock({
   const [activeTab, setActiveTab] = useState<TabId>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [promptMode, setPromptMode] = useState<"edit" | "preview">("edit");
+  const [videoSuggestOpen, setVideoSuggestOpen] = useState(false);
 
   const toggleTab = useCallback((tab: TabId) => {
     setActiveTab((prev) => (prev === tab ? null : tab));
@@ -1286,6 +1291,30 @@ export default function ActivityBlock({
                               }
                             />
                           </div>
+                          {/* AI video suggestions — opens a modal that
+                              calls /api/teacher/suggest-videos with the
+                              block's slot fields, surfaces 3 candidates,
+                              and writes the picked URL into activity.media. */}
+                          <button
+                            type="button"
+                            onClick={() => setVideoSuggestOpen(true)}
+                            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[12px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 rounded hover:bg-violet-100 transition-colors"
+                          >
+                            <span>✨</span>
+                            Suggest videos with AI
+                          </button>
+                          <p className="text-[10.5px] text-[var(--le-ink-3)] italic">
+                            Uses this block&apos;s framing, task and success signal to find 3 short embeddable videos. Teachers pick one to attach.
+                          </p>
+                          <VideoSuggestionsModal
+                            open={videoSuggestOpen}
+                            onClose={() => setVideoSuggestOpen(false)}
+                            onAttach={(media) => onUpdate({ media })}
+                            framing={activity.framing}
+                            task={activity.task}
+                            success_signal={activity.success_signal}
+                            unitTitle={unitTitle}
+                          />
                         </div>
                       )}
                     </div>
