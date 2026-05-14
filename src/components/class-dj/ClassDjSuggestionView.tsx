@@ -4,13 +4,24 @@
  * Class DJ — suggestion view (Phase 5).
  *
  * Renders the 3 cards landed from the /suggest pipeline: album art (from
- * Spotify enrichment), name, why-line, kind chip, conflict-mode banner,
- * and a Spotify deep-link.
+ * Spotify enrichment), name, kind chip, mood pills, energy meter, and a
+ * conflict-mode banner with participation dot-grid.
  *
  * Brief: docs/projects/class-dj-block-brief.md §7 (suggestion view —
  * CLOSED state) + §3.5 Stage 4 (display-order is already
  * deterministically shuffled by the server's prng_seed; the
  * frontend just renders in order).
+ *
+ * Spotify deep-link button intentionally REMOVED (14 May 2026) — schools
+ * don't want students leaving the lesson player. The spotify_url field is
+ * still persisted server-side (round ledger + pick endpoint) for teacher
+ * use, but never rendered as a CTA. If/when teachers need a preview
+ * link in the cockpit, surface it there — not here.
+ *
+ * Anti-strategic-voting (brief §11 Q9): per-card mood_tags + energy_estimate
+ * are the ALGORITHM'S classification of the suggestion, NOT the room's vote
+ * distribution. Participation dot grid shows count-only (filled/unfilled
+ * dots), never which way people voted.
  *
  * Teacher "Pick this one →" controls land in Phase 6 alongside the
  * Teaching Mode cockpit. For Phase 5 this view is read-only.
@@ -70,18 +81,17 @@ export default function ClassDjSuggestionView({
 
   return (
     <div className="my-3 rounded-xl border border-violet-200 bg-white p-5 space-y-4 shadow-sm">
-      {/* Header + conflict-mode banner */}
+      {/* Header + conflict-mode banner with participation dot-grid */}
       <div>
-        <h3 className="text-base font-bold text-violet-900 flex items-center gap-2 mb-1">
+        <h3 className="text-base font-bold text-violet-900 flex items-center gap-2 mb-2">
           <span>🎵</span> Class DJ — 3 for the room
         </h3>
-        <div className="rounded-md bg-violet-50 border border-violet-100 px-3 py-1.5 text-xs text-violet-800 inline-flex items-center gap-1.5">
-          <span>{banner.emoji}</span>
-          <span>{banner.text}</span>
-          <span className="text-violet-400 ml-1">·</span>
-          <span className="text-violet-500">
-            {voteCount} of {classSize} voted
-          </span>
+        <div className="rounded-md bg-violet-50 border border-violet-100 px-3 py-2 text-xs text-violet-800 space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <span>{banner.emoji}</span>
+            <span className="font-medium">{banner.text}</span>
+          </div>
+          <ParticipationDots voted={voteCount} total={classSize} />
         </div>
       </div>
 
@@ -120,22 +130,22 @@ export default function ClassDjSuggestionView({
                 {it.kind}
               </span>
             </div>
-            <p className="text-xs text-gray-700 leading-snug flex-1">{it.why}</p>
-            {it.spotify_url ? (
-              <a
-                href={it.spotify_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-              >
-                <span>Open on Spotify</span>
-                <span aria-hidden>↗</span>
-              </a>
-            ) : (
-              <span className="mt-1 inline-block px-3 py-1.5 text-xs text-gray-400 italic">
-                (no Spotify link)
-              </span>
+            {/* Algorithm classification: mood pills + energy meter.
+                These describe the SUGGESTION, not the room's votes. */}
+            {it.mood_tags && it.mood_tags.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {it.mood_tags.slice(0, 3).map((tag) => (
+                  <span
+                    key={tag}
+                    className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-700 font-medium"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
             )}
+            <EnergyMeter value={it.energy_estimate} />
+            <p className="text-xs text-gray-700 leading-snug flex-1">{it.why}</p>
           </article>
         ))}
       </div>
@@ -154,6 +164,83 @@ export default function ClassDjSuggestionView({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Participation dot-grid — visceral "how full is the room?" indicator.
+ *
+ * Renders one dot per enrolled student (capped at 50 for layout sanity).
+ * Filled violet = voted; light violet = didn't vote. Anti-strategic-voting
+ * safe: shows count only, never which way each dot voted.
+ *
+ * For classes larger than 50 we degrade to a numeric badge ("32/64 voted")
+ * — packing 64+ dots into the chip becomes noise.
+ */
+function ParticipationDots({ voted, total }: { voted: number; total: number }) {
+  const safeTotal = Math.max(0, total);
+  const safeVoted = Math.max(0, Math.min(voted, safeTotal));
+
+  if (safeTotal > 50) {
+    return (
+      <div className="text-[11px] text-violet-700 font-medium">
+        {safeVoted} of {safeTotal} voted
+      </div>
+    );
+  }
+
+  // Smaller dots when the row gets crowded.
+  const dotSize = safeTotal > 30 ? "w-1.5 h-1.5" : "w-2 h-2";
+
+  return (
+    <div
+      className="flex flex-wrap items-center gap-1"
+      role="img"
+      aria-label={`${safeVoted} of ${safeTotal} students voted`}
+    >
+      {Array.from({ length: safeTotal }, (_, i) => (
+        <span
+          key={i}
+          className={`${dotSize} rounded-full ${
+            i < safeVoted ? "bg-violet-600" : "bg-violet-200"
+          }`}
+          aria-hidden
+        />
+      ))}
+      <span className="text-[10.5px] text-violet-600 ml-1 tabular-nums">
+        {safeVoted}/{safeTotal}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * 5-segment energy meter for the suggested track.
+ *
+ * value is the algorithm's energy_estimate (0..1 expected — clamped
+ * defensively). Filled cells = roughly how energetic this pick is, lo→hi.
+ * Qualitative not numeric — students don't need the raw float.
+ */
+function EnergyMeter({ value }: { value: number }) {
+  const v = Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+  const filled = Math.max(1, Math.round(v * 5)); // at least 1 cell so empty doesn't look broken
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-[9.5px] uppercase tracking-wider text-gray-500 font-medium">
+        Energy
+      </span>
+      <div className="flex gap-0.5" aria-label={`Energy level ${filled} of 5`}>
+        {Array.from({ length: 5 }, (_, i) => (
+          <span
+            key={i}
+            className={`w-2 h-2 rounded-sm ${
+              i < filled ? "bg-violet-500" : "bg-gray-200"
+            }`}
+            aria-hidden
+          />
+        ))}
+      </div>
     </div>
   );
 }
