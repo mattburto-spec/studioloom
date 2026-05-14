@@ -27,6 +27,7 @@
 
 import { useEffect, useState } from "react";
 import type { ActivitySection, CalloutBullet } from "@/types";
+import { RichTextarea } from "./RichTextarea";
 
 interface Props {
   activity: ActivitySection;
@@ -135,13 +136,11 @@ export function KeyCalloutEditor({ activity, onUpdate }: Props) {
         <label className="text-[10px] le-cap text-amber-800 block mb-1">
           Intro paragraph (optional)
         </label>
-        <textarea
+        <RichTextarea
           value={activity.bulletsIntro ?? ""}
-          onChange={(e) =>
-            onUpdate({ bulletsIntro: e.target.value || undefined })
-          }
+          onChange={(v) => onUpdate({ bulletsIntro: v || undefined })}
           placeholder="Every survey, every journal entry, and every check-in comes back to these three."
-          rows={2}
+          rows={3}
           className="w-full px-2 py-1.5 text-[12px] border border-amber-200 rounded bg-white placeholder-amber-300 resize-y"
         />
       </div>
@@ -198,9 +197,9 @@ export function KeyCalloutEditor({ activity, onUpdate }: Props) {
                 placeholder="Hint label (e.g. autonomy) — optional"
                 className="w-full px-2 py-1 text-[11.5px] border border-amber-200 rounded bg-white placeholder-amber-300"
               />
-              <textarea
+              <RichTextarea
                 value={b.body}
-                onChange={(e) => updateBullet(i, { body: e.target.value })}
+                onChange={(v) => updateBullet(i, { body: v })}
                 placeholder="Body paragraph — what this card explains."
                 rows={3}
                 className="w-full px-2 py-1.5 text-[12px] border border-amber-200 rounded bg-white placeholder-amber-300 resize-y"

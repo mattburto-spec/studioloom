@@ -26,6 +26,21 @@ const BLOCK_PALETTE_SRC = readFileSync(
   "utf-8",
 );
 
+const LESSON_INTRO_SRC = readFileSync(
+  join(__dirname, "..", "LessonIntroEditor.tsx"),
+  "utf-8",
+);
+
+const KEY_CALLOUT_SRC = readFileSync(
+  join(__dirname, "..", "KeyCalloutEditor.tsx"),
+  "utf-8",
+);
+
+const RICH_TEXTAREA_SRC = readFileSync(
+  join(__dirname, "..", "RichTextarea.tsx"),
+  "utf-8",
+);
+
 const PRESETS_SRC = readFileSync(
   join(
     __dirname,
@@ -216,6 +231,109 @@ describe("ActivityBlock — per-prompt editor for structured-prompts", () => {
     // it in the editor lets the teacher see which slot is which.
     expect(ACTIVITY_BLOCK_SRC).toMatch(
       /\{prompt\.criterion && \(/,
+    );
+  });
+});
+
+describe("RichTextarea — convenience wrapper for toolbar + textarea", () => {
+  it("renders MarkdownToolbar above a controlled textarea sharing one ref", () => {
+    // The wrapper owns the ref so callers don't have to. Same render
+    // order as the manual SlotFieldEditor wiring: toolbar above, then
+    // textarea. The toolbar uses the textareaRef to scope its
+    // selection operations to the textarea below it.
+    expect(RICH_TEXTAREA_SRC).toMatch(
+      /import\s*\{\s*MarkdownToolbar\s*\}\s*from\s*["']\.\/MarkdownToolbar["']/,
+    );
+    expect(RICH_TEXTAREA_SRC).toMatch(
+      /useRef<HTMLTextAreaElement \| null>\(null\)/,
+    );
+    expect(RICH_TEXTAREA_SRC).toMatch(
+      /<MarkdownToolbar[\s\S]{0,200}textareaRef=\{ref\}/,
+    );
+  });
+
+  it("forwards textarea props (placeholder / rows / className) via spread", () => {
+    // PassthroughTextareaProps omits value / onChange / ref but keeps
+    // everything else — callers can drop the wrapper in where a plain
+    // <textarea> sat without changing styling props.
+    expect(RICH_TEXTAREA_SRC).toMatch(/\{\.\.\.textareaProps\}/);
+  });
+
+  it("supports hiding the toolbar via showToolbar={false}", () => {
+    // Escape hatch — useful when a parent surface already shows
+    // formatting cues elsewhere, or when the textarea holds raw data
+    // that should not be markdown-wrapped.
+    expect(RICH_TEXTAREA_SRC).toContain("showToolbar = true");
+    expect(RICH_TEXTAREA_SRC).toMatch(/\{showToolbar && \(/);
+  });
+});
+
+describe("LessonIntroEditor — RichTextarea on Why this matters", () => {
+  it("imports RichTextarea from the sibling module", () => {
+    expect(LESSON_INTRO_SRC).toMatch(
+      /import\s*\{\s*RichTextarea\s*\}\s*from\s*["']\.\/RichTextarea["']/,
+    );
+  });
+
+  it("Why this matters textarea is now a RichTextarea wired to updateIntroText", () => {
+    // The introText field is the highest-traffic prose in the lesson
+    // intro — same markdown pipeline as activity prompts (react-
+    // markdown allow-list), so it gets the same toolbar.
+    expect(LESSON_INTRO_SRC).toMatch(
+      /<RichTextarea[\s\S]{0,200}value=\{introText\}[\s\S]{0,200}onChange=\{updateIntroText\}/,
+    );
+  });
+
+  it("Why this matters textarea is now ≥ 5 rows and user-resizable", () => {
+    // Bumped from rows=3 after Matt's screenshot showed content
+    // clipping below the visible area. resize-y lets the teacher drag
+    // for more space without us having to ship autogrow JS.
+    expect(LESSON_INTRO_SRC).toMatch(
+      /<RichTextarea[\s\S]{0,400}rows=\{5\}[\s\S]{0,300}resize-y/,
+    );
+  });
+
+  it("Success criteria textarea is also resizable (but no toolbar — list per line)", () => {
+    // Success criteria are stored as string[] split on \n — each line
+    // is a discrete I-can statement. Markdown formatting per line
+    // would be semantically odd, so toolbar stays off. resize-y still
+    // applies so teachers can author longer lists.
+    expect(LESSON_INTRO_SRC).toMatch(
+      /value=\{successCriteriaText\}[\s\S]{0,400}rows=\{5\}[\s\S]{0,300}resize-y/,
+    );
+  });
+});
+
+describe("KeyCalloutEditor — RichTextarea on intro + bullet bodies", () => {
+  it("imports RichTextarea from the sibling module", () => {
+    expect(KEY_CALLOUT_SRC).toMatch(
+      /import\s*\{\s*RichTextarea\s*\}\s*from\s*["']\.\/RichTextarea["']/,
+    );
+  });
+
+  it("bulletsIntro textarea is now a RichTextarea writing through onUpdate", () => {
+    expect(KEY_CALLOUT_SRC).toMatch(
+      /<RichTextarea[\s\S]{0,400}value=\{activity\.bulletsIntro \?\? ""\}[\s\S]{0,400}onChange=\{\(v\)\s*=>\s*onUpdate\(\{\s*bulletsIntro:\s*v \|\| undefined\s*\}\)\}/,
+    );
+  });
+
+  it("each bullet body textarea is now a RichTextarea writing through updateBullet", () => {
+    // Each bullet card already has its own array index — RichTextarea
+    // creates its own ref internally so we don't need a per-bullet
+    // sub-component just to scope refs.
+    expect(KEY_CALLOUT_SRC).toMatch(
+      /<RichTextarea[\s\S]{0,400}value=\{b\.body\}[\s\S]{0,400}onChange=\{\(v\)\s*=>\s*updateBullet\(i,\s*\{\s*body:\s*v\s*\}\)\}/,
+    );
+  });
+
+  it("bullet term + hint stay as plain inputs (short labels, not prose)", () => {
+    // Defensive: these are single-line labels, markdown formatting
+    // would be over-engineered. Keep them as <input>.
+    expect(KEY_CALLOUT_SRC).toMatch(
+      /<input[\s\S]{0,300}value=\{b\.term\}/,
+    );
+    expect(KEY_CALLOUT_SRC).toMatch(
+      /<input[\s\S]{0,300}value=\{b\.hint \?\? ""\}/,
     );
   });
 });
