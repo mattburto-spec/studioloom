@@ -19,8 +19,10 @@
  *   success_signal  200 (hard — server rejects)
  */
 
+import { useRef } from "react";
 import { ComposedPrompt } from "@/components/student/ComposedPrompt";
 import { composedPromptText } from "@/lib/lever-1/compose-prompt";
+import { MarkdownToolbar } from "./MarkdownToolbar";
 import type { ActivitySection } from "@/types";
 
 interface SlotFieldEditorProps {
@@ -82,52 +84,82 @@ export function SlotFieldEditor({ activity, onUpdate }: SlotFieldEditorProps) {
     <div className="space-y-3">
       {SLOTS.map((slot) => {
         const value = (activity[slot.key] || "") as string;
-        const len = value.length;
-        const overCap = len > slot.cap;
-        const capPctClass =
-          len === 0
-            ? "text-[var(--le-ink-3)]"
-            : !overCap
-            ? "text-[var(--le-ink-3)]"
-            : slot.capKind === "hard"
-            ? "text-rose-600 font-semibold"
-            : "text-amber-600 font-semibold";
         return (
-          <div key={slot.key}>
-            <div className="flex items-baseline justify-between mb-0.5">
-              <label
-                htmlFor={`slot-${slot.key}`}
-                className="text-[10px] le-cap text-[var(--le-ink-3)]"
-              >
-                {slot.label}
-              </label>
-              <span className={`text-[10px] tabular-nums ${capPctClass}`}>
-                {len} / {slot.cap}
-                {overCap && (
-                  <span className="ml-1">
-                    {slot.capKind === "hard" ? "· too long" : "· over soft cap"}
-                  </span>
-                )}
-              </span>
-            </div>
-            <p className="text-[10.5px] text-[var(--le-ink-3)] mb-1 italic">
-              {slot.hint}
-            </p>
-            <textarea
-              id={`slot-${slot.key}`}
-              value={value}
-              onChange={(e) => updateSlot(slot.key, e.target.value)}
-              placeholder={slot.placeholder}
-              rows={slot.rows}
-              className={`w-full px-3 py-2 text-[12.5px] leading-relaxed bg-[var(--le-bg)] border rounded-md text-[var(--le-ink-2)] focus:outline-none focus:border-[var(--le-ink-2)] ${
-                overCap && slot.capKind === "hard"
-                  ? "border-rose-300"
-                  : "border-[var(--le-hair)]"
-              }`}
-            />
-          </div>
+          <SlotField
+            key={slot.key}
+            slot={slot}
+            value={value}
+            onChange={(v) => updateSlot(slot.key, v)}
+          />
         );
       })}
+    </div>
+  );
+}
+
+interface SlotFieldProps {
+  slot: SlotConfig;
+  value: string;
+  onChange: (next: string) => void;
+}
+
+/**
+ * Single slot row — own textarea ref so the markdown toolbar can
+ * operate on the textarea's current selection. Pulled out as its own
+ * component because hooks can't live inside the SLOTS.map callback.
+ */
+function SlotField({ slot, value, onChange }: SlotFieldProps) {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const len = value.length;
+  const overCap = len > slot.cap;
+  const capPctClass =
+    len === 0
+      ? "text-[var(--le-ink-3)]"
+      : !overCap
+      ? "text-[var(--le-ink-3)]"
+      : slot.capKind === "hard"
+      ? "text-rose-600 font-semibold"
+      : "text-amber-600 font-semibold";
+
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-0.5">
+        <label
+          htmlFor={`slot-${slot.key}`}
+          className="text-[10px] le-cap text-[var(--le-ink-3)]"
+        >
+          {slot.label}
+        </label>
+        <span className={`text-[10px] tabular-nums ${capPctClass}`}>
+          {len} / {slot.cap}
+          {overCap && (
+            <span className="ml-1">
+              {slot.capKind === "hard" ? "· too long" : "· over soft cap"}
+            </span>
+          )}
+        </span>
+      </div>
+      <p className="text-[10.5px] text-[var(--le-ink-3)] mb-1 italic">
+        {slot.hint}
+      </p>
+      <MarkdownToolbar
+        textareaRef={textareaRef}
+        value={value}
+        onChange={onChange}
+      />
+      <textarea
+        ref={textareaRef}
+        id={`slot-${slot.key}`}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={slot.placeholder}
+        rows={slot.rows}
+        className={`w-full px-3 py-2 text-[12.5px] leading-relaxed bg-[var(--le-bg)] border rounded-md text-[var(--le-ink-2)] focus:outline-none focus:border-[var(--le-ink-2)] ${
+          overCap && slot.capKind === "hard"
+            ? "border-rose-300"
+            : "border-[var(--le-hair)]"
+        }`}
+      />
     </div>
   );
 }
