@@ -166,3 +166,56 @@ describe("BlockPalette — Magazine Callout palette entry (LIS.D)", () => {
     expect(slice).toContain('term: "Change"');
   });
 });
+
+describe("ActivityBlock — per-prompt editor for structured-prompts", () => {
+  // Lets teachers customise label / placeholder / helper / required
+  // on each prompt of a Process Journal (or any structured-prompts)
+  // block. Edits affect only that section; presets remain the
+  // authored defaults at block-creation time.
+  it("imports StructuredPrompt from the local types module", () => {
+    expect(ACTIVITY_BLOCK_SRC).toMatch(
+      /import\s+type\s*\{\s*StructuredPrompt\s*\}\s*from\s*["']@\/lib\/structured-prompts\/types["']/,
+    );
+  });
+
+  it("exposes an updatePromptAt helper that immutably patches activity.prompts[index]", () => {
+    expect(ACTIVITY_BLOCK_SRC).toContain("updatePromptAt");
+    // Immutability check: maps over current array, replaces only the
+    // target index. Catches accidental in-place mutation.
+    expect(ACTIVITY_BLOCK_SRC).toMatch(
+      /current\.map\(\(p,\s*i\)\s*=>\s*\(i === index\s*\?\s*\{\s*\.\.\.p,\s*\.\.\.patch\s*\}\s*:\s*p\)\)/,
+    );
+    expect(ACTIVITY_BLOCK_SRC).toContain("onUpdate({ prompts: next })");
+  });
+
+  it("renders the editor only when responseType === 'structured-prompts' AND prompts has length", () => {
+    // Both clauses gate the block — the .length > 0 check prevents
+    // rendering an empty section on legacy blocks without prompts[].
+    expect(ACTIVITY_BLOCK_SRC).toMatch(
+      /responseType === "structured-prompts" &&\s*\n\s*activity\.prompts &&\s*\n\s*activity\.prompts\.length > 0/,
+    );
+  });
+
+  it("renders an input for each prompt's label, placeholder, helper, and required flag", () => {
+    // label → text input, placeholder → textarea, helper → text input,
+    // required → checkbox. All routed through updatePromptAt(i, patch).
+    expect(ACTIVITY_BLOCK_SRC).toContain("updatePromptAt(i, { label: e.target.value })");
+    expect(ACTIVITY_BLOCK_SRC).toContain(
+      "updatePromptAt(i, {\n                                placeholder: e.target.value || undefined,",
+    );
+    expect(ACTIVITY_BLOCK_SRC).toContain(
+      "updatePromptAt(i, {\n                                helper: e.target.value || undefined,",
+    );
+    expect(ACTIVITY_BLOCK_SRC).toContain(
+      "updatePromptAt(i, { required: e.target.checked })",
+    );
+  });
+
+  it("displays the prompt's criterion tag (DO/NOTICE/DECIDE/NEXT) when present", () => {
+    // Stepper mode reads criterion to drive accent colour — surfacing
+    // it in the editor lets the teacher see which slot is which.
+    expect(ACTIVITY_BLOCK_SRC).toMatch(
+      /\{prompt\.criterion && \(/,
+    );
+  });
+});
