@@ -344,6 +344,24 @@ secrets:
     consumers:
       - src/app/api/bug-reports/route.ts
 
+  - name: YOUTUBE_API_KEY
+    kind: secret
+    source: env
+    public: false
+    required: false  # Feature gracefully degrades to 503 when unset — the AI video suggestions panel is hidden.
+    provider: Google (YouTube Data API v3)
+    description: |
+      YouTube Data API v3 key. Used by /api/teacher/suggest-videos to
+      run `search.list` (safeSearch=strict, videoEmbeddable=true,
+      videoDuration=medium) + `videos.list` (contentDetails+status)
+      for the AI video suggestions feature. Free tier covers ~100
+      searches/day before quota — each suggestion click costs ~101
+      units (search=100 + details=1).
+    rotation_notes: Provision in Google Cloud Console under the StudioLoom project, restrict to YouTube Data API v3, paste into Vercel env vars + .env.local. No DB state to update on rotation.
+    consumers:
+      - src/lib/video-suggestions/fetch-youtube.ts
+      - src/app/api/teacher/suggest-videos/route.ts
+
   - name: CRON_SECRET
     kind: secret
     source: env
