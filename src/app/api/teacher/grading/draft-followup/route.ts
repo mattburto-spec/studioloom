@@ -35,6 +35,7 @@ import {
   NO_FOLLOWUP_SENTINEL,
 } from "@/lib/grading/ai-followup";
 import { restoreStudentName } from "@/lib/security/student-name-placeholder";
+import { summariseInspirationBoardForAI } from "@/lib/integrity/parse-inspiration-board";
 import { extractTilesFromPage } from "@/lib/grading/lesson-tiles";
 import { getPageList } from "@/lib/unit-adapter";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
@@ -153,12 +154,16 @@ export async function POST(request: NextRequest) {
   const responses =
     (progressRow as { responses: Record<string, unknown> | null } | null)
       ?.responses ?? null;
-  const studentResponse =
+  const rawResponse =
     responses && typeof responses === "object"
       ? typeof responses[grade.tile_id] === "string"
         ? (responses[grade.tile_id] as string)
         : ""
       : "";
+  // Rich-shape normalisation — Inspiration Board JSON → readable text
+  // for the AI. Same fix as the prescore route. Matt smoke 13 May 2026.
+  const inspirationSummary = summariseInspirationBoardForAI(rawResponse);
+  const studentResponse = inspirationSummary ?? rawResponse;
 
   // 4. Load student display name for post-LLM restoreStudentName.
   // The display name is NEVER passed to Haiku — see helper file

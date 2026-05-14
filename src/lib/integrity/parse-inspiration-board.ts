@@ -80,3 +80,57 @@ export function parseInspirationBoardResponse(
     completed: parsed.completed === true,
   };
 }
+
+/**
+ * Flatten an Inspiration Board response into a plain-text summary
+ * suitable for AI consumption. The grading helpers (ai-prescore,
+ * ai-followup, regenerate-draft) take a plain-string `studentResponse`
+ * — passing them the raw JSON makes them comment on the JSON shape
+ * rather than the student's actual thinking.
+ *
+ * Output shape:
+ *   Inspiration Board (3 images selected):
+ *   1. "Special design and multiple functions"
+ *   2. "I can imagine how comfortable it would be to live here..."
+ *   3. "This designer simply built the wooden house on the lawn..."
+ *
+ *   Synthesis: "I want to combine modular furniture with..."
+ *
+ * URLs + IDs are intentionally dropped — they're not signal for the
+ * AI. altText is dropped because it's auto-generated. stealNote is
+ * included if present (it's a student-curated "what I'd steal from
+ * this" annotation). Empty boards return a short stub the AI can use
+ * to signal "no submission".
+ *
+ * If the input doesn't parse as an Inspiration Board, returns null so
+ * callers can fall through to the raw string.
+ */
+export function summariseInspirationBoardForAI(
+  value: unknown,
+): string | null {
+  const parsed = parseInspirationBoardResponse(value);
+  if (!parsed) return null;
+  if (parsed.items.length === 0) {
+    return "Inspiration Board: empty (student hasn't pinned any images yet).";
+  }
+  const lines: string[] = [];
+  lines.push(`Inspiration Board (${parsed.items.length} images selected):`);
+  parsed.items.forEach((it, i) => {
+    const commentary = it.commentary.trim();
+    const stealNote = it.stealNote.trim();
+    if (commentary) {
+      lines.push(`${i + 1}. "${commentary}"`);
+    } else {
+      lines.push(`${i + 1}. (no commentary)`);
+    }
+    if (stealNote) {
+      lines.push(`   What I'd steal: "${stealNote}"`);
+    }
+  });
+  const synthesis = parsed.synthesis.trim();
+  if (synthesis) {
+    lines.push("");
+    lines.push(`Synthesis: "${synthesis}"`);
+  }
+  return lines.join("\n");
+}

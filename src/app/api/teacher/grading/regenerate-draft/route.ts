@@ -40,6 +40,7 @@ import {
   STUDENT_NAME_PLACEHOLDER,
   restoreStudentName,
 } from "@/lib/security/student-name-placeholder";
+import { summariseInspirationBoardForAI } from "@/lib/integrity/parse-inspiration-board";
 import { extractTilesFromPage } from "@/lib/grading/lesson-tiles";
 import { getPageList } from "@/lib/unit-adapter";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
@@ -152,12 +153,16 @@ export async function POST(request: NextRequest) {
   const responses =
     (progressRow as { responses: Record<string, unknown> | null } | null)
       ?.responses ?? null;
-  const studentResponse =
+  const rawResponse =
     responses && typeof responses === "object"
       ? typeof responses[grade.tile_id] === "string"
         ? (responses[grade.tile_id] as string)
         : ""
       : "";
+  // Rich-shape normalisation — Inspiration Board JSON → readable text
+  // for the AI. Same fix as the prescore route. Matt smoke 13 May 2026.
+  const inspirationSummary = summariseInspirationBoardForAI(rawResponse);
+  const studentResponse = inspirationSummary ?? rawResponse;
 
   // 3. Load student display name — used ONLY for the real→placeholder
   // swap before calling Haiku + the placeholder→real restore after.
