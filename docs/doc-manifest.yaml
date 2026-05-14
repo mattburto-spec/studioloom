@@ -24,9 +24,9 @@ docs:
     title: "Session Changelog"
     purpose: "Rolling log of changes across sessions for cross-session context"
     category: root
-    last_verified: "2026-05-08"
+    last_verified: "2026-05-14"
     max_age_days: 90
-    last_scanned: "2026-05-08"
+    last_scanned: "2026-05-14"
 
   - path: docs/decisions-log.md
     title: "Key Decisions Log"
@@ -546,10 +546,10 @@ docs:
     title: "WIRING — Machine-Readable System Registry"
     purpose: "82+ systems with dependencies, affects relationships, data fields, docs, change impacts. CRITICAL: check before making changes."
     category: projects
-    last_verified: "2026-05-08"
+    last_verified: "2026-05-14"
     referenced_from: ["CLAUDE.md impact analysis section"]
     max_age_days: 30
-    last_scanned: "2026-05-08"
+    last_scanned: "2026-05-14"
 
   - path: docs/schema-registry.yaml
     title: "Schema Registry — Table-Level Truth"
@@ -562,12 +562,12 @@ docs:
 
   - path: docs/api-registry.yaml
     title: "API Registry — Route-Level Truth"
-    purpose: "443 (path, method) entries from src/app/api/**/route.ts. Auth type, tables read/written, AI call sites per endpoint. Sync: scripts/registry/scan-api-routes.py"
+    purpose: "494 (path, method) entries from src/app/api/**/route.ts. Auth type, tables read/written, AI call sites per endpoint. Sync: scripts/registry/scan-api-routes.py"
     category: root
-    last_verified: "2026-05-08"
+    last_verified: "2026-05-14"
     referenced_from: ["CLAUDE.md registries section"]
     max_age_days: 30
-    last_scanned: null
+    last_scanned: "2026-05-14"
 
   - path: docs/ai-call-sites.yaml
     title: "AI Call Sites Registry — LLM Call-Level Truth"

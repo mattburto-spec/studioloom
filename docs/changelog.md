@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-05-14 — Teaching Mode whole-class view (real lesson location per student)
+
+Closes a busy-teacher gap that surfaced live: after a partial-completion class, students return spread across L1/L2/L3. Teaching Mode used to scope its student list to the selected lesson — so opening today's L2 hid the L1 stragglers behind a "not_started" pill. The teacher had to switch between Unit Overview and per-lesson view to see what was actually happening.
+
+**Change:** the student list always shows the whole class. Each row now reports the student's *actual* current lesson via a small badge (e.g. `L1 · User Profile`) — purple when matching the teacher's selected lesson, neutral grey otherwise. Default sort is "Lesson" (by current location, ascending), so L1 stragglers cluster at the top of the panel. The lesson dropdown still drives mini-lesson / projector / phase timer context — it just no longer filters the student list.
+
+**Pace cohort upgrade (bonus):** pace z-score is now computed per-current-lesson. Each student is compared against peers on the SAME lesson rather than the global class — strictly more accurate when the cohort is split across lessons. Cohorts <5 stay unscored (existing minCohortSize guarantee).
+
+**Shipped:** PR [#247](https://github.com/mattburto-spec/studioloom/pull/247) merged at `ba2429c`. 3 files changed (+198 / −154):
+- `src/app/api/teacher/teach/live-status/route.ts` — always fetches all unit progress rows; per-student `currentLessonId / currentLessonIndex / currentLessonTitle` from most-recent `updated_at` row; pace bucketed by current lesson.
+- `src/app/teacher/teach/[unitId]/page.tsx` — fetch URL drops `pageId`; `StudentLiveStatus` type extended; new "Lesson" sort (default); lesson badge rendered on each row.
+- `src/components/teach/CheckInRow.tsx` — drop redundant `&& cohortStats` gate (paceZ presence already implies a valid ≥5 cohort).
+
+**Verified:** Matt confirmed live in G8 session post-merge — badges render, sort clusters by lesson, dropdown no longer hides students.
+
+**Registry drift caught by saveme:** api-registry picked up two changes — a previously-missing student route `/api/student/class-for-unit/[unitId]` (from PR #244, not registered) + the live-status route's new table reads (`class_units`, `units`).
+
+**No migrations, no new flags, no new vendors. Tests touched: 0 regressions.**
+
+---
+
 ## 2026-05-14 — Unit Briefs Foundation shipped end-to-end (Phases A–E + smoke fix)
 
 Closes `FU-PLATFORM-BRIEF-AND-CONSTRAINTS-SURFACE` — the "students forget the brief by week 4" problem. New unit-level Brief & Constraints surface: teacher authors prose + Design constraints (H×W×D + materials whitelist with catalogue chips + custom additions + budget + audience + must-include/must-avoid) + spec diagram + amendment stack ("v2.0 add LEDs"). Students see a persistent **purple "📋 Brief v1.<N>" chip in the LessonSidebar** (between unit title and Project Board button) on every `/unit/[unitId]/*` page; clicking opens a portal-mounted slide-in drawer with the full brief, diagram, constraints card, and amendments oldest-first as the evolution story.
