@@ -118,10 +118,13 @@ describe("ClassDjConfigPanel — source-static checks", () => {
     expect(CONFIG_PANEL_SRC).toMatch(/maxSuggestions:\s*3/);
   });
 
-  it("declares constants matching brief §7 ranges (30–180 / 2–10 / 1–3)", () => {
+  it("declares constants matching ranges (30–180 / 1–10 / 1–3)", () => {
+    // Brief §7 originally specified gate 2-10. Lowered to 1-10 on
+    // 14 May 2026 to unblock solo-student smoke testing — see
+    // ClassDjConfigPanel.tsx for rationale. Server clamp matches.
     expect(CONFIG_PANEL_SRC).toMatch(/TIMER_MIN\s*=\s*30/);
     expect(CONFIG_PANEL_SRC).toMatch(/TIMER_MAX\s*=\s*180/);
-    expect(CONFIG_PANEL_SRC).toMatch(/GATE_MIN\s*=\s*2/);
+    expect(CONFIG_PANEL_SRC).toMatch(/GATE_MIN\s*=\s*1/);
     expect(CONFIG_PANEL_SRC).toMatch(/GATE_MAX\s*=\s*10/);
     expect(CONFIG_PANEL_SRC).toMatch(/SUGGEST_MIN\s*=\s*1/);
     expect(CONFIG_PANEL_SRC).toMatch(/SUGGEST_MAX\s*=\s*3/);

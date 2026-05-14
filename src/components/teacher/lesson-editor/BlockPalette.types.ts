@@ -135,7 +135,7 @@ export interface FirstMoveConfig {
 export interface ClassDjConfig {
   /** Round duration in seconds. Slider 30–180; default 60. */
   timerSeconds: number;
-  /** Minimum vote count before the "Suggest 3" button unlocks. Default 3, range 2–10. */
+  /** Minimum vote count before the "Suggest 3" button unlocks. Default 3, range 1–10. */
   gateMinVotes: number;
   /** Max number of synthesis attempts per round ("Try another 3" reroll cap). Default 3, range 1–3. */
   maxSuggestions: number;
