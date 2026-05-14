@@ -12,6 +12,7 @@ import InspirationBoardConfigPanel from "./InspirationBoardConfigPanel";
 import FirstMoveConfigPanel from "./FirstMoveConfigPanel";
 import ClassDjConfigPanel from "./ClassDjConfigPanel";
 import { CRITERIA, type CriterionKey } from "@/lib/constants";
+import type { StructuredPrompt } from "@/lib/structured-prompts/types";
 import type {
   ActivitySection,
   ResponseType,
@@ -248,6 +249,16 @@ export default function ActivityBlock({
       : [...current, criterion];
     onUpdate({ criterionTags: updated });
   };
+
+  const updatePromptAt = useCallback(
+    (index: number, patch: Partial<StructuredPrompt>) => {
+      const current = activity.prompts || [];
+      if (index < 0 || index >= current.length) return;
+      const next = current.map((p, i) => (i === index ? { ...p, ...patch } : p));
+      onUpdate({ prompts: next });
+    },
+    [activity.prompts, onUpdate],
+  );
 
   const responseType: ResponseType = activity.responseType || "text";
   const tint = RESPONSE_TINT[responseType];
@@ -537,6 +548,91 @@ export default function ActivityBlock({
                   </p>
                 </div>
               )}
+
+              {/* Per-prompt editor — lets teachers customise label /
+                  placeholder / helper / required for each prompt in a
+                  structured-prompts block (Process Journal, Strategy
+                  Canvas, Self-Reread, Final Reflection, etc.). Edits
+                  affect only this section; presets remain the
+                  authored defaults at block-creation time. Add/remove
+                  prompts deferred — the presets are pedagogically
+                  tuned. */}
+              {responseType === "structured-prompts" &&
+                activity.prompts &&
+                activity.prompts.length > 0 && (
+                  <div className="mt-3 p-3 bg-purple-50/60 border border-purple-200 rounded-lg space-y-2">
+                    <div className="flex items-center gap-1.5">
+                      <span>📝</span>
+                      <label className="text-[12px] font-bold text-purple-900">
+                        Questions ({activity.prompts.length})
+                      </label>
+                    </div>
+                    <p className="text-[11px] text-purple-700/80">
+                      Customise each prompt students see. Changes only affect this block.
+                    </p>
+                    <div className="space-y-2">
+                      {activity.prompts.map((prompt, i) => (
+                        <div
+                          key={prompt.id}
+                          className="p-2 bg-white border border-purple-200 rounded space-y-1.5"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold le-tnum text-purple-700 w-4">
+                              {i + 1}.
+                            </span>
+                            {prompt.criterion && (
+                              <span className="text-[9px] font-extrabold tracking-wider px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 border border-purple-200">
+                                {prompt.criterion}
+                              </span>
+                            )}
+                            <label className="ml-auto flex items-center gap-1 text-[11px] text-purple-900 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={prompt.required ?? true}
+                                onChange={(e) =>
+                                  updatePromptAt(i, { required: e.target.checked })
+                                }
+                                className="w-3 h-3 rounded border-purple-300 text-purple-600 focus:ring-purple-500"
+                              />
+                              Required
+                            </label>
+                          </div>
+                          <input
+                            type="text"
+                            value={prompt.label}
+                            onChange={(e) =>
+                              updatePromptAt(i, { label: e.target.value })
+                            }
+                            placeholder="Question students see (e.g. What did you DO?)"
+                            className="w-full px-2 py-1 text-[12.5px] font-semibold border border-purple-200 rounded bg-white text-[var(--le-ink)] focus:outline-none focus:border-purple-400"
+                          />
+                          <textarea
+                            value={prompt.placeholder || ""}
+                            onChange={(e) =>
+                              updatePromptAt(i, {
+                                placeholder: e.target.value || undefined,
+                              })
+                            }
+                            placeholder="Placeholder hint inside the textarea (optional)"
+                            className="w-full px-2 py-1 text-[12px] border border-purple-200 rounded bg-white text-[var(--le-ink-2)] focus:outline-none focus:border-purple-400"
+                            rows={2}
+                          />
+                          <input
+                            type="text"
+                            value={prompt.helper || ""}
+                            onChange={(e) =>
+                              updatePromptAt(i, {
+                                helper: e.target.value || undefined,
+                              })
+                            }
+                            placeholder="Helper text below the field (optional)"
+                            className="w-full px-2 py-1 text-[11px] italic border border-purple-200 rounded bg-white text-[var(--le-ink-3)] focus:outline-none focus:border-purple-400"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
               {/* Toolkit picker — only when responseType is toolkit-tool */}
               {responseType === "toolkit-tool" && (
