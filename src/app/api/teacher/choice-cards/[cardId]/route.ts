@@ -5,13 +5,61 @@
 //
 // PATCH /api/teacher/choice-cards/[cardId]
 // Body: partial { label?, hook_text?, detail_md?, image_url?, emoji?,
-//                bg_color?, tags?, on_pick_action?, ships_to_platform? }
+//                bg_color?, tags?, on_pick_action?, ships_to_platform?,
+//                brief_text?, brief_constraints?, brief_locks? }
 //
 // Only the card's creator (or platform admin) can update. Seeded cards
 // (created_by = null) require platform admin.
+//
+// Phase F.C — `brief_text`, `brief_constraints`, `brief_locks` let a
+// teacher retrofit a brief template onto an existing card (e.g. the
+// 6 G8 seeded cards). When a student picks this card, the template
+// populates their student_briefs row at render time (Phase F.D).
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTeacher } from "@/lib/auth/require-teacher";
+import {
+  validateConstraints,
+  validateLocks,
+} from "@/lib/unit-brief/validators";
+
+const FULL_COLUMNS =
+  "id, label, hook_text, detail_md, image_url, emoji, bg_color, tags, on_pick_action, ships_to_platform, is_seeded, created_by, brief_text, brief_constraints, brief_locks, created_at, updated_at";
+
+/**
+ * GET /api/teacher/choice-cards/[cardId]
+ *
+ * Returns the full card row including the Phase F.C brief template
+ * fields. Used by the brief-template editor modal when it opens.
+ * Any authenticated teacher can read — cards are global library
+ * content (write requires creator-or-admin per PATCH below).
+ */
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ cardId: string }> },
+) {
+  const auth = await requireTeacher(request);
+  if (auth.error) return auth.error;
+
+  const { cardId } = await params;
+  if (!cardId) {
+    return NextResponse.json({ error: "cardId required" }, { status: 400 });
+  }
+
+  const db = createAdminClient();
+  const { data, error } = await db
+    .from("choice_cards")
+    .select(FULL_COLUMNS)
+    .eq("id", cardId)
+    .maybeSingle();
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  if (!data) {
+    return NextResponse.json({ error: "Card not found" }, { status: 404 });
+  }
+  return NextResponse.json({ card: data });
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -82,6 +130,40 @@ export async function PATCH(
     patch.on_pick_action = b.on_pick_action;
   }
   if (typeof b.ships_to_platform === "boolean") patch.ships_to_platform = b.ships_to_platform;
+
+  // Phase F.C — brief template fields (optional, partial-patch shape).
+  if ("brief_text" in b) {
+    if (b.brief_text === null) {
+      patch.brief_text = null;
+    } else if (typeof b.brief_text === "string") {
+      patch.brief_text = b.brief_text;
+    } else {
+      return NextResponse.json(
+        { error: "brief_text must be a string or null" },
+        { status: 400 },
+      );
+    }
+  }
+  if ("brief_constraints" in b) {
+    const validated = validateConstraints(b.brief_constraints);
+    if (!validated.ok) {
+      return NextResponse.json(
+        { error: `brief_constraints: ${validated.error}` },
+        { status: 400 },
+      );
+    }
+    patch.brief_constraints = validated.value;
+  }
+  if ("brief_locks" in b) {
+    const validated = validateLocks(b.brief_locks);
+    if (!validated.ok) {
+      return NextResponse.json(
+        { error: `brief_locks: ${validated.error}` },
+        { status: 400 },
+      );
+    }
+    patch.brief_locks = validated.value;
+  }
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "no updatable fields in body" }, { status: 400 });

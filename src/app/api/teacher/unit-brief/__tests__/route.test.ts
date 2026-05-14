@@ -14,6 +14,12 @@ import { readFileSync } from "fs";
 import { join } from "path";
 
 const src = readFileSync(join(__dirname, "..", "route.ts"), "utf-8");
+// Phase F.C — validators moved to a shared module; module-level
+// invariant tests read this file instead.
+const validatorsSrc = readFileSync(
+  join(__dirname, "..", "..", "..", "..", "..", "lib", "unit-brief", "validators.ts"),
+  "utf-8",
+);
 
 function sliceMethodBody(method: "GET" | "POST"): string {
   const start = src.indexOf(`export const ${method} = withErrorHandler`);
@@ -58,8 +64,9 @@ describe("/api/teacher/unit-brief — module-level guards", () => {
   });
 
   it("treats stored {} constraints as the generic-archetype fallback", () => {
+    // The fallback now lives in the shared validators module post-F.C.
     expect(src).toContain("coerceConstraints");
-    expect(src).toMatch(/archetype:\s*"generic"/);
+    expect(validatorsSrc).toMatch(/archetype:\s*"generic"/);
   });
 });
 
@@ -146,48 +153,60 @@ describe("/api/teacher/unit-brief — POST", () => {
   });
 });
 
-describe("validateConstraints — module-level invariants (read via source)", () => {
+describe("validateConstraints — module-level invariants (now in shared validators lib)", () => {
+  it("the route imports validateConstraints from the shared validators module", () => {
+    expect(src).toMatch(
+      /import \{[\s\S]*?validateConstraints[\s\S]*?\} from "@\/lib\/unit-brief\/validators"/,
+    );
+  });
+
   it("rejects unknown archetype values to fail loudly on drift", () => {
-    expect(src).toContain(
+    expect(validatorsSrc).toContain(
       "constraints.archetype must be 'design' or 'generic'",
     );
   });
 
   it("rejects unknown keys inside constraints.data (Lesson #38 specificity)", () => {
-    expect(src).toMatch(/Unknown constraints\.data key/);
+    expect(validatorsSrc).toMatch(/Unknown constraints\.data key/);
   });
 
   it("validates string fields are strings", () => {
-    expect(src).toMatch(/must be a string/);
+    expect(validatorsSrc).toMatch(/must be a string/);
   });
 
   it("validates array fields are arrays of strings", () => {
-    expect(src).toMatch(/must be an array of strings/);
+    expect(validatorsSrc).toMatch(/must be an array of strings/);
   });
 });
 
-describe("validateLocks — module-level invariants (Phase F.B)", () => {
-  it("declares a validateLocks helper alongside validateConstraints", () => {
-    expect(src).toMatch(/function validateLocks/);
+describe("validateLocks — module-level invariants (Phase F.B; shared lib post-F.C)", () => {
+  it("the route imports validateLocks from the shared validators module", () => {
+    expect(src).toMatch(
+      /import \{[\s\S]*?validateLocks[\s\S]*?\} from "@\/lib\/unit-brief\/validators"/,
+    );
+  });
+
+  it("declares a validateLocks helper in the shared module", () => {
+    expect(validatorsSrc).toMatch(/export function validateLocks/);
   });
 
   it("rejects non-object payloads", () => {
-    expect(src).toContain("locks must be an object");
+    expect(validatorsSrc).toContain("locks must be an object");
   });
 
   it("rejects unknown lock keys (Lesson #38 specificity — fail on typos)", () => {
-    expect(src).toContain("Unknown locks key:");
+    expect(validatorsSrc).toContain("Unknown locks key:");
     // The allowed set is built from the canonical LOCKABLE_FIELDS export
-    expect(src).toMatch(/new Set<string>\(LOCKABLE_FIELDS\)/);
+    expect(validatorsSrc).toMatch(/new Set<string>\(LOCKABLE_FIELDS\)/);
   });
 
   it("rejects non-boolean values per key", () => {
-    expect(src).toMatch(/locks\.\$\{key\} must be a boolean/);
+    expect(validatorsSrc).toMatch(/locks\.\$\{key\} must be a boolean/);
   });
 
   it("canonicalises — only `true` values are stored (false / absent both = unlocked)", () => {
     // Storing absent keys instead of explicit `false` keeps the JSONB
     // tight + makes "is this locked?" === true everywhere.
-    expect(src).toMatch(/if \(r\[key\] === true\)/);
+    expect(validatorsSrc).toMatch(/if \(r\[key\] === true\)/);
   });
 });
