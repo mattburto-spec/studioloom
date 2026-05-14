@@ -136,10 +136,21 @@ describe("/teacher/marking C.6.2 — eligibility + ordering", () => {
     expect(src).toMatch(/\.filter\(\(x\)\s*=>\s*x\.studentResponse\.trim\(\)\.length\s*>\s*0\)/);
   });
 
-  it("orders ai_draft + unsent FIRST, then no_draft, then done (sent/edited)", () => {
-    expect(src).toMatch(
-      /rank:\s*Record<Bucket,\s*number>\s*=\s*\{\s*draft_unsent:\s*0[\s\S]*?no_draft:\s*1[\s\S]*?done:\s*2/,
-    );
+  it("preserves the parent students[] order — no bucket re-sort (14 May 2026)", () => {
+    // Matt smoke 14 May 2026: the previous bucket-rank sort moved
+    // done students to the bottom, which broke the counter (always
+    // "1 of 24" because the next-pending sat at index 0 after every
+    // send). Now: no sort. `students` from the parent is stable, and
+    // counter ticks 1/24 → 2/24 → ... in stable order. Bucket info
+    // still tagged per-row so advanceToNext can auto-skip done.
+    expect(src).not.toMatch(/rank\[a\.bucket\]\s*-\s*rank\[b\.bucket\]/);
+    expect(src).not.toMatch(/rank:\s*Record<Bucket,\s*number>/);
+    expect(src).toMatch(/No re-sort\./);
+  });
+
+  it("still tags each entry with bucket (draft_unsent / no_draft / done) for downstream UI", () => {
+    expect(src).toMatch(/type Bucket\s*=\s*"draft_unsent"\s*\|\s*"no_draft"\s*\|\s*"done"/);
+    expect(src).toMatch(/let bucket:\s*Bucket/);
   });
 });
 

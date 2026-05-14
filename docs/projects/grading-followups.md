@@ -159,6 +159,38 @@
 
 **Why deferred:** v1 of the inbox + Marking badge is enough surface area. Teachers need to internalize the daily-driver flow before adding escalation layers — otherwise it just becomes noise. Re-evaluate after 2 weeks of pilot use.
 
+### TFL3-FU-STUDENTS-FALLING-BEHIND — Surface students who haven't started / completed work
+**Surfaced:** TFL.3 smoke 14 May 2026
+**Priority:** P1 — daily teaching workflow gap
+**Target phase:** Next or after pilot week 1 — Matt explicitly asked
+
+**Symptom:** Matt:
+> *"how do i catch the students falling behind? some students haven't done some of the work. whats the best way to raise that to my attention when im not in teaching mode?"*
+
+The current platform has progress data scattered across:
+- `student_progress.status` (in_progress / complete) per page
+- `student_progress.responses` (what they've submitted per tile)
+- `student_tile_grades` (whether the teacher has graded)
+- Teaching Mode's live cockpit (real-time during a class)
+- Marking page's per-tile coverage chips ("Developing 0/24")
+
+What's MISSING: a single "out of teaching mode, what should I worry about today?" surface.
+
+**v1 scope (when picked up):**
+1. **Teacher dashboard "Needs attention" panel** — sits next to today's lesson rail:
+   - Top section: "K students behind" — pulls from student_progress where status != complete on pages older than X days OR where responses are missing on a tile that's >Y days old. Click → list of those students with last-active timestamp.
+   - Sub-tier: "K students with thin responses" — submissions where word count is < some threshold for the criterion. Surfaces low-effort submissions for follow-up.
+2. **Per-class "Behind" badge** on each class card. Number + click → filtered student list.
+3. **Pulse threshold:** items appear after 48h of inactivity (Hattie-style — quick enough to course-correct, slow enough not to nag).
+4. **One-click actions** from the list: "Nudge" (send pre-written prompt), "Open student's last work" (deep-link to /teacher/students/[id]).
+
+**Why deferred to a separate PR:** scope is bigger than this iteration. Needs (a) cross-table query design, (b) Hattie-grounded threshold defaults, (c) cross-cutting UI placement (dashboard rail vs class card vs marking page). Worth a focused brief.
+
+**Quick wins in the meantime:**
+- The marking page already shows coverage chips ("Developing 0/24") per criterion at the top — these surface where the cohort is weak.
+- Teaching Mode's live cockpit shows who's working / not started / complete per page during class.
+- Per-class `/teacher/classes/[id]` page shows enrolment + activity summaries.
+
 ### TFL3-FU-INBOX-BULK-ACTIONS — Inbox bulk-select for skip / mark resolved / approve
 **Surfaced:** TFL.3 smoke 14 May 2026 (Matt — after C.7.x stack)
 **Priority:** P2 — meaningful UX for clearing a stale inbox; not pilot-blocking

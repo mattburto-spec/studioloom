@@ -2866,16 +2866,16 @@ function MarkingFocusPanel({
   savingKey: string | null;
 }) {
   // Eligible students = those who submitted a response on the active
-  // tile. Ordered: ai_draft + unsent first (urgent), then no_draft,
-  // then sent/edited (review-only).
+  // tile. Matt smoke 14 May 2026: previously sorted with done at the
+  // bottom; after each Send the just-sent student moved to position
+  // N-1 + advanceToNext landed on the next-pending who was always at
+  // position 0 → counter always read "1 of 24". Now: STABLE
+  // alphabetical order so the counter ticks 1 → 2 → 3. Bucket info
+  // is still tagged on each entry; advanceToNext uses it to auto-skip
+  // already-done students (looking forward from currentIdx).
   const pageResponses = responses;
   const eligible = useMemo(() => {
     type Bucket = "draft_unsent" | "no_draft" | "done";
-    const rank: Record<Bucket, number> = {
-      draft_unsent: 0,
-      no_draft: 1,
-      done: 2,
-    };
     return students
       .map((s) => {
         const studentResponse = pageResponses[s.id]?.[activeTile.tileId] ?? "";
@@ -2892,8 +2892,12 @@ function MarkingFocusPanel({
         }
         return { student: s, studentResponse, grade, bucket };
       })
-      .filter((x) => x.studentResponse.trim().length > 0)
-      .sort((a, b) => rank[a.bucket] - rank[b.bucket]);
+      .filter((x) => x.studentResponse.trim().length > 0);
+    // No re-sort. `students` already comes from the parent in a
+    // stable order (whatever the enrolment query produced). Counter
+    // tracks position in THAT stable order — ticks 1/24 → 2/24 → ...
+    // as the teacher works through; bucket label still surfaces
+    // "Already sent" per row, but doesn't reorder the list.
   }, [students, pageResponses, activeTile.tileId, activePageId, grades, gradeKey]);
 
   // Auto-pick the first eligible student when focus is unset.
