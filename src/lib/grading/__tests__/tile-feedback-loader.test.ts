@@ -143,3 +143,29 @@ describe("loadTileFeedbackThreads — Turn discriminator mapping", () => {
     expect(src).toMatch(/if\s*\(!tileId\)\s*continue/);
   });
 });
+
+describe("loadTileFeedbackThreads — validTileIds filter (orphan grades, 14 May 2026)", () => {
+  it("accepts an optional validTileIds: Set<string> | null parameter", () => {
+    expect(src).toMatch(/validTileIds\?\:\s*Set<string>\s*\|\s*null/);
+  });
+
+  it("filters grades through the whitelist when supplied", () => {
+    // The filter is a no-op when validTileIds is null/undefined
+    // (backwards compat); otherwise drops grades whose tile_id
+    // isn't in the set.
+    expect(src).toMatch(
+      /filteredGrades\s*=\s*\(grades[\s\S]*?\)\.filter\(\s*\(g\)\s*=>\s*!validTileIds\s*\|\|\s*validTileIds\.has\(g\.tile_id\)/,
+    );
+  });
+
+  it("uses filteredGrades to build the gradeIds + map (not the raw grades array)", () => {
+    expect(src).toMatch(/const gradeIds\s*=\s*filteredGrades\.map/);
+    expect(src).toMatch(/for\s*\(const g of filteredGrades\)/);
+  });
+
+  it("returns empty result when filter drops everything (don't query turns unnecessarily)", () => {
+    expect(src).toMatch(
+      /if\s*\(filteredGrades\.length\s*===\s*0\)\s*\{[\s\S]*?return\s*\{\s*threadsByTileId:\s*\{\},\s*gradeIdByTileId:\s*\{\}\s*\}/,
+    );
+  });
+});
