@@ -1094,6 +1094,7 @@ routes:
   auth: student
   tables_read:
   - class_students
+  - class_units
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null

@@ -4,6 +4,38 @@
 
 ---
 
+## 2026-05-13 / 14 — TFL.3 marking-page polish loop (C.6 + C.7 + 4 hotfixes)
+
+**Context:** Pass C inbox shipped on 12 May (changelog entry below). 13 May Matt drove ~10 hours of smoke through the marking surfaces and surfaced a sequence of UX gaps + bugs. Each landed as a small focused PR (no batching). Same source-static-test discipline as the inbox build.
+
+**What shipped (12 PRs across the marking surface):**
+- **C.6.1 row-level Send (#245, 58d5643)** — one-click ✓ Send button on each row chip when state=ai_draft. **Reverted within hours** because it was "blind send" — teacher couldn't see student response before clicking. Regression guard added against the data-testid returning.
+- **C.6.2 focus panel (#246, 50b0d92)** — master-detail panel at top of /teacher/marking. Prev/next traverses cohort one student at a time. Response left, AI draft right (editable, tweak buttons under it), Send & next + Skip below. Mirrors inbox C.2 layout but scoped to one class×tile. Row chip click loads student into the focus panel.
+- **C.7 prompt tightening (#249, 97ec259)** — AI default 60-100w → 30-55w, 2 sentences MAX, locked positive-then-suggestion structure. "Shorter" directive rewritten to preserve BOTH halves (was collapsing to a single bland sentence). PROMPT_VERSION bumps v2.1.0→v2.2.0 + v1.0.0→v1.1.0.
+- **C.7.1 Inspiration Board rendering + AI normalisation (#252, 9193ee7)** — IB JSON wasn't rendering in the focus panel + the AI was receiving raw JSON instead of student commentary. New `summariseInspirationBoardForAI()` flattens IB → readable text. Wired into all 3 AI routes (prescore, draft-followup, regenerate-draft).
+- **C.7.2 IB link-card fallback (#255, 827a304)** — non-image URLs (student-pinned articles like d2ziran.com/article-...htm) rendered as broken `<img>` + 403'd CORS-error in DevTools. New `isLikelyImageUrl()` heuristic + onError fallback → renders a purple link card with hostname instead. Zero broken-image icons.
+- **ai-prescore batch parallelisation (#256, b54e5f5)** — serial for-await loop → chunked Promise.all (CHUNK_SIZE=6). 24-student batch: ~60s → ~12-15s. Per-student error isolation preserved.
+- **Student IB hydration fix (#258, fb9156f)** — student lesson view showed "0/5 uploaded" despite saved IB in DB. Root cause: `useState(() => parseValue(value))` lazy init only ran on mount; async server response → never re-hydrated. Fix: useEffect([value]) with useRef-guarded short-circuit to avoid clobber loops on user edits.
+- **AI suggest skip-already-sent + inbox-loader sent-comment guard (#260, eec9f0a)** — re-running AI suggest on already-graded tile silently wiped confirmed=true + put all 47 sent students back into inbox as "AI drafted". Two fixes: (a) marking page filters to ungraded submitters by default; button label shows 3-way breakdown ("3 ungraded · 21 sent"); (b) inbox-loader requires no prior sent comment for the "drafted" bucket.
+- **Focus panel counter fix (#265, 1aeab85)** — counter stuck at "1 of 24" no matter how far through. Root cause: bucket-rank sort moved done students to bottom → advanceToNext always landed at index 0 in re-sorted list. Fix: drop the sort; stable parent order; counter ticks 1/24 → 2/24 → 3/24.
+
+**Telemetry/data:**
+- New PROMPT_VERSION strings ready for /admin/ai-budget breakdown if Matt wants to compare cost/length before/after.
+- All 4 AI helper paths (ai-prescore, ai-followup, regenerate-draft) now route Inspiration Board responses through the flattening helper — substantially better AI quality on IB tiles (the AI was previously grading JSON structure).
+
+**Follow-ups filed today (3 new, 1 resolved):**
+- ✅ `TFL3-FU-STUDENT-IB-IMAGES-MISSING` (P1) — resolved by the hydration fix above
+- `TFL3-FU-STUDENTS-FALLING-BEHIND` (P1, new) — Matt asked: *"how do i catch the students falling behind?"* Cross-cutting; deserves its own focused brief. v1 scope captured: dashboard "Needs attention" panel + per-class badge + 48h threshold + nudge action. **Trigger phrase: "falling behind" / "students behind"**
+- `TFL3-FU-INBOX-BULK-ACTIONS` (P2, new) — bulk-select on inbox for skip / mark resolved. v1 scope captured; deferred until real usage shows the pain.
+
+**No new migrations this session.** Pure app work + prompt-string edits. Prompts can be reverted at any time without DB impact.
+
+**Tests:** ~115/115 marking + 65/65 grading + 28/28 integrity + 22/22 marking-focus-panel green. tsc strict clean on all touched files.
+
+**Systems touched:** teacher-marking-page (focus panel + filters), teacher-inbox (loader filter), grading-ai-prescore (parallel + prompts), grading-ai-followup (IB flatten), grading-regenerate-draft (IB flatten + prompts), student-inspiration-board (hydration), inspiration-board-preview (link cards).
+
+---
+
 ## 2026-05-14 — Teaching Mode whole-class view (real lesson location per student)
 
 Closes a busy-teacher gap that surfaced live: after a partial-completion class, students return spread across L1/L2/L3. Teaching Mode used to scope its student list to the selected lesson — so opening today's L2 hid the L1 stragglers behind a "not_started" pill. The teacher had to switch between Unit Overview and per-lesson view to see what was actually happening.
