@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 
 interface DiagramUploaderProps {
   unitId: string;
@@ -8,6 +8,12 @@ interface DiagramUploaderProps {
   onUploaded: (newUrl: string | null) => void;
   onError: (message: string) => void;
   disabled?: boolean;
+  /**
+   * Optional lock toggle rendered next to the section header.
+   * Phase F.B — teacher can lock the diagram so students see it
+   * read-only with no Upload/Replace/Remove affordances.
+   */
+  lockToggle?: ReactNode;
 }
 
 const ACCEPT = "image/jpeg,image/png,image/webp,image/gif";
@@ -29,6 +35,7 @@ export function DiagramUploader({
   onUploaded,
   onError,
   disabled,
+  lockToggle,
 }: DiagramUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
@@ -96,7 +103,10 @@ export function DiagramUploader({
 
   return (
     <section className="mb-8">
-      <h2 className="mb-2 text-sm font-medium text-gray-700">Spec diagram</h2>
+      <div className="mb-2 flex items-center gap-2">
+        <h2 className="text-sm font-medium text-gray-700">Spec diagram</h2>
+        {lockToggle}
+      </div>
       <input
         ref={fileInputRef}
         type="file"

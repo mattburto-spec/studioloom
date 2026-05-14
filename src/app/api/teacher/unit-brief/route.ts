@@ -165,6 +165,37 @@ function validateConstraints(
 }
 
 /**
+ * Validate a `locks` payload from the teacher editor. Accepts a flat
+ * map where every key is in LOCKABLE_FIELDS and every value is a
+ * strict boolean. Unknown keys are rejected (Lesson #38 specificity —
+ * fail loud on typos). Returns the canonicalised map (false / absent
+ * keys collapsed to absent; only `true` stored).
+ */
+function validateLocks(
+  raw: unknown,
+): { ok: true; value: UnitBriefLocks } | { ok: false; error: string } {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { ok: false, error: "locks must be an object" };
+  }
+  const r = raw as Record<string, unknown>;
+  const out: UnitBriefLocks = {};
+  const allowed = new Set<string>(LOCKABLE_FIELDS);
+  for (const key of Object.keys(r)) {
+    if (!allowed.has(key)) {
+      return { ok: false, error: `Unknown locks key: ${key}` };
+    }
+    if (typeof r[key] !== "boolean") {
+      return { ok: false, error: `locks.${key} must be a boolean` };
+    }
+    if (r[key] === true) {
+      // Canonical: only store `true`. False / absent both mean unlocked.
+      out[key as (typeof LOCKABLE_FIELDS)[number]] = true;
+    }
+  }
+  return { ok: true, value: out };
+}
+
+/**
  * Coerce a stored locks JSONB into the typed UnitBriefLocks shape.
  * Defensive against drift: keys not in LOCKABLE_FIELDS are silently
  * dropped so a future column rename can't ship stale lock keys to the
@@ -307,9 +338,17 @@ export const POST = withErrorHandler(
       patch.constraints = validated.value;
     }
 
+    if ("locks" in b) {
+      const validated = validateLocks(b.locks);
+      if (!validated.ok) {
+        return NextResponse.json({ error: validated.error }, { status: 400 });
+      }
+      patch.locks = validated.value;
+    }
+
     if (Object.keys(patch).length === 0) {
       return NextResponse.json(
-        { error: "body must include at least one of: brief_text, constraints" },
+        { error: "body must include at least one of: brief_text, constraints, locks" },
         { status: 400 },
       );
     }
