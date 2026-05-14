@@ -15,9 +15,14 @@ import { VisualPicksScreen } from "./VisualPicksScreen";
 //
 // 2 screens (live):
 //   1. Mentor Conversation (Learning Profile questions, skippable)
-//      → 5 sub-steps: languages / confidence / working / feedback /
-//        learning_diffs
+//      → 4 sub-steps: languages / confidence / working / feedback
 //   2. Welcome Reveal (quick dashboard preview)
+//
+// The learning-differences (ADHD/dyslexia/etc.) sub-step was removed
+// 15 May 2026 — Matt didn't need that info for the pilot, and surfacing
+// it on first contact felt heavier than warranted. Schema-side
+// `learning_differences: string[]` is preserved (always empty) so any
+// downstream readers still type-check.
 //
 // Default mentor = "kit" (warm + hands-on, the most agnostic of the three).
 // Default theme = "warm" (auto-derived from kit via themeForMentor).
@@ -62,15 +67,6 @@ const COMMON_LANGUAGES = [
   "Dutch", "Thai", "Vietnamese", "Indonesian", "Italian",
 ];
 
-const LEARNING_DIFFERENCES = [
-  { id: "adhd", label: "ADHD", desc: "Focus can be tricky" },
-  { id: "dyslexia", label: "Dyslexia", desc: "Reading/writing" },
-  { id: "anxiety", label: "Anxiety", desc: "Worry about school" },
-  { id: "autism", label: "Autism / ASD", desc: "Process differently" },
-  { id: "dyscalculia", label: "Dyscalculia", desc: "Numbers" },
-  { id: "other", label: "Something else", desc: "" },
-];
-
 const CONFIDENCE_LEVELS = [
   { value: 1, emoji: "😰", label: "Pretty nervous" },
   { value: 2, emoji: "😬", label: "A bit unsure" },
@@ -106,8 +102,8 @@ interface LearningProfileData {
 type Screen = "visualPicks" | "mentor" | "conversation" | "welcome";
 
 // Conversation sub-steps
-type ConvoStep = "languages" | "confidence" | "working" | "feedback" | "learning_diffs";
-const CONVO_STEPS: ConvoStep[] = ["languages", "confidence", "working", "feedback", "learning_diffs"];
+type ConvoStep = "languages" | "confidence" | "working" | "feedback";
+const CONVO_STEPS: ConvoStep[] = ["languages", "confidence", "working", "feedback"];
 
 // ============================================================================
 // Component
@@ -142,7 +138,6 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
   const [designConfidence, setDesignConfidence] = useState<number>(0);
   const [workingStyle, setWorkingStyle] = useState<"solo" | "partner" | "small_group" | null>(null);
   const [feedbackPref, setFeedbackPref] = useState<"private" | "public" | null>(null);
-  const [learningDiffs, setLearningDiffs] = useState<string[]>([]);
 
   // --- Saving state ---
   const [saving, setSaving] = useState(false);
@@ -257,7 +252,7 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
           design_confidence: (designConfidence || 3) as 1 | 2 | 3 | 4 | 5,
           working_style: workingStyle || "solo",
           feedback_preference: feedbackPref || "private",
-          learning_differences: learningDiffs,
+          learning_differences: [],
         }
       : null;
 
@@ -267,7 +262,7 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
       learningProfile: profile,
       onboardingPicks: pickedImageIds,
     });
-  }, [selectedMentor, selectedTheme, pickedImageIds, languages, designConfidence, workingStyle, feedbackPref, learningDiffs, onComplete]);
+  }, [selectedMentor, selectedTheme, pickedImageIds, languages, designConfidence, workingStyle, feedbackPref, onComplete]);
 
   // --- Auto-advance after reaction shown for single-choice questions ---
   useEffect(() => {
@@ -650,63 +645,10 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
             </ConvoCard>
           )}
 
-          {CONVO_STEPS[convoStep] === "learning_diffs" && (
-            <ConvoCard
-              title="Anything I should know about how you learn?"
-              hint="100% optional — most students skip this and that's totally fine."
-            >
-              {/* "Nothing to share" tile — sits at the front of the grid
-                  so the "skip" path is visually equivalent to the other
-                  pills, not hidden in a footnote. 13 May 2026 — Matt
-                  smoke: a student felt they had to pick something even
-                  though they had nothing to share. The faint
-                  bottom-left link wasn't carrying enough signal. */}
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => advanceConvo()}
-                  className={`px-4 py-3 rounded-xl text-sm font-semibold transition-all border-2 col-span-2 ${
-                    learningDiffs.length === 0
-                      ? "bg-white/10 border-white/30 text-white hover:bg-white/15"
-                      : "bg-transparent border-white/10 text-white/40 hover:text-white/60 hover:border-white/20"
-                  }`}
-                >
-                  ✓ Nothing to share — skip this
-                </button>
-                {LEARNING_DIFFERENCES.map((diff) => (
-                  <PillButton
-                    key={diff.id}
-                    label={diff.label}
-                    selected={learningDiffs.includes(diff.id)}
-                    accent={mentor.accent}
-                    onClick={() => {
-                      setLearningDiffs((prev) =>
-                        prev.includes(diff.id) ? prev.filter((d) => d !== diff.id) : [...prev, diff.id]
-                      );
-                    }}
-                  />
-                ))}
-              </div>
-              <div className="flex items-center justify-end mt-4">
-                <button
-                  onClick={() => {
-                    if (learningDiffs.length > 0 && mentor) {
-                      showMentorReaction(mentor.reactions.learningDiffs(learningDiffs));
-                      setTimeout(advanceConvo, 2000);
-                    } else {
-                      advanceConvo();
-                    }
-                  }}
-                  disabled={learningDiffs.length === 0}
-                  className={`px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all ${
-                    learningDiffs.length === 0 ? "opacity-30 cursor-not-allowed" : ""
-                  }`}
-                  style={{ background: mentor.accent }}
-                >
-                  Done
-                </button>
-              </div>
-            </ConvoCard>
-          )}
+          {/* learning_diffs sub-step removed 15 May 2026 — Matt didn't
+              need ADHD/dyslexia/etc. info for the pilot. The final
+              "feedback" step now auto-advances straight to welcome via
+              the existing useEffect timer. */}
         </div>
       )}
 

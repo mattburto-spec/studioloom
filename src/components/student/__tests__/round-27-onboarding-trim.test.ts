@@ -67,10 +67,14 @@ describe("StudioSetup — round 27 trim", () => {
     );
   });
 
-  it("conversation sub-steps are unchanged (5 questions kept)", () => {
+  it("conversation sub-steps trimmed to 4 (learning_diffs removed 15 May 2026)", () => {
+    // Round 28 trim: Matt didn't need ADHD/dyslexia/etc. info for the pilot.
+    // The learning_differences field on LearningProfileData is preserved as
+    // an empty array so downstream readers still type-check.
     expect(SRC).toMatch(
-      /CONVO_STEPS:\s*ConvoStep\[\]\s*=\s*\[\s*"languages",\s*"confidence",\s*"working",\s*"feedback",\s*"learning_diffs"\s*\]/
+      /CONVO_STEPS:\s*ConvoStep\[\]\s*=\s*\[\s*"languages",\s*"confidence",\s*"working",\s*"feedback"\s*\]/
     );
+    expect(SRC).not.toMatch(/"learning_diffs"/);
   });
 
   it("learning profile shape unchanged (downstream consumers still get the same data)", () => {
