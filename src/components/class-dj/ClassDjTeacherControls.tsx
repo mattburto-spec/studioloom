@@ -1,27 +1,35 @@
 "use client";
 
 /**
- * Class DJ — Teacher controls (Phase 6).
+ * Class DJ — Teacher controls (Phase 6, compact sidebar redesign 14 May 2026).
  *
- * Mounted in Teaching Mode cockpit when the active section is class-dj.
- * Orchestrates the full teacher action set:
- *   - ARMED   → "Start round" button (POST /launch)
- *   - LIVE    → "Suggest now" (POST /suggest) + "End round" (POST /close)
- *   - CLOSED  → "Pick this one →" per card (POST /pick) + "Run again"
- *               (POST /launch) + "Regenerate narration" (POST /regenerate)
+ * Mounted in Teaching Mode cockpit when the active section is class-dj. The
+ * cockpit right-aside is 320px wide → ~250-260px effective render area
+ * after parent/card padding. Earlier versions stuffed the full
+ * ClassDjLiveTeacherView (5-col histograms) + ClassDjSuggestionView
+ * (3-col card grid) + 3-col Pick button grid into that space and got cut
+ * off / wrapped badly.
  *
- * Uses the existing useClassDjPolling hook (1s teacher cadence). The
- * student-facing UI (vote form etc.) does NOT mount here — only the
- * teacher view.
+ * This rewrite restructures around a sidebar-native compact panel:
+ *
+ *   - Always-visible status strip (round badge + timer + participation dots)
+ *   - State-aware primary handle (full-width): Start / Suggest / Run again
+ *   - Secondary handle (smaller): End round / Regenerate
+ *   - Vertical suggestion list (48px thumb + name + Pick button per row)
+ *   - Collapsible "Show class mood" section keeps the full histograms
+ *     accessible without hogging vertical space by default.
+ *
+ * Students (main lesson player surface, not sidebar-constrained) keep
+ * the rich ClassDjSuggestionView 3-col grid via ClassDjBlock.
  *
  * Brief: docs/projects/class-dj-block-brief.md §7 (Teaching Mode cockpit
  * integration) + §5 (API table) + §3.6 (ledger updates on pick).
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useClassDjPolling } from "./useClassDjPolling";
 import ClassDjLiveTeacherView from "./ClassDjLiveTeacherView";
-import ClassDjSuggestionView, { type SuggestionItem } from "./ClassDjSuggestionView";
+import type { SuggestionItem } from "./ClassDjSuggestionView";
 import type { ConflictMode } from "@/lib/class-dj/types";
 
 interface Props {
@@ -61,6 +69,7 @@ export default function ClassDjTeacherControls({
 
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [showMood, setShowMood] = useState(false);
 
   async function post(path: string, body?: Record<string, unknown>): Promise<unknown | null> {
     setBusy(path);
@@ -131,29 +140,31 @@ export default function ClassDjTeacherControls({
     // RPC bug — the loading state was hiding a 403.
     if (pollError) {
       return (
-        <div className="my-3 rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-700">
-          Couldn&apos;t load Class DJ state: {pollError}
+        <div className="my-2 rounded-md border border-red-200 bg-red-50 p-2 text-[11px] text-red-700">
+          Couldn&apos;t load Class DJ: {pollError}
         </div>
       );
     }
     return (
-      <div className="my-3 rounded-md border border-violet-200 bg-violet-50 p-3 text-xs text-violet-700">
-        Loading Class DJ controls…
+      <div className="my-2 rounded-md border border-violet-200 bg-violet-50 p-2 text-[11px] text-violet-700">
+        Loading Class DJ…
       </div>
     );
   }
 
-  // ARMED — no round yet.
+  // ─────────────────────────────────────────────────────────────────
+  // ARMED — no round yet. Single big "Start" handle, config summary.
+  // ─────────────────────────────────────────────────────────────────
   if (state.status === "armed" || !state.round) {
     return (
-      <div className="my-3 rounded-xl border border-violet-200 bg-white p-4 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold text-violet-900 flex items-center gap-2">
-            <span>🎵</span> Class DJ — ready to launch
-          </h3>
+      <div className="my-2 rounded-lg border border-violet-200 bg-white p-2.5 shadow-sm">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <span className="text-[12px] font-bold text-violet-900 flex items-center gap-1">
+            <span>🎵</span> Class DJ
+          </span>
           {config && (
-            <span className="text-[11px] text-violet-600">
-              {config.timerSeconds ?? 60}s · gate {config.gateMinVotes ?? 3} · max {config.maxSuggestions ?? 3}
+            <span className="text-[9.5px] text-violet-600 tabular-nums whitespace-nowrap">
+              {config.timerSeconds ?? 60}s · gate {config.gateMinVotes ?? 3}
             </span>
           )}
         </div>
@@ -161,12 +172,12 @@ export default function ClassDjTeacherControls({
           type="button"
           onClick={handleLaunch}
           disabled={busy !== null}
-          className="w-full px-4 py-3 rounded-md bg-violet-600 text-white font-semibold text-sm hover:bg-violet-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+          className="w-full px-3 py-2.5 rounded-md bg-violet-600 text-white font-semibold text-[12.5px] hover:bg-violet-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
         >
-          {busy === "/api/teacher/class-dj/launch" ? "Starting…" : "Start round"}
+          {busy === "/api/teacher/class-dj/launch" ? "Starting…" : "▶ Start round"}
         </button>
         {actionError && (
-          <p className="mt-2 text-xs text-red-600">{actionError}</p>
+          <p className="mt-1.5 text-[11px] text-red-600">{actionError}</p>
         )}
       </div>
     );
@@ -175,165 +186,291 @@ export default function ClassDjTeacherControls({
   const round = state.round as unknown as RoundShape;
   const suggestionItems = (state.suggestion?.items as SuggestionItem[] | undefined) ?? null;
   const conflictMode: ConflictMode = round.conflict_mode ?? "consensus";
-  const gateMet = state.participation_count >= (config?.gateMinVotes ?? 3);
+  const gateThreshold = config?.gateMinVotes ?? 3;
+  const gateMet = state.participation_count >= gateThreshold;
 
-  // LIVE — round is open.
+  // ─────────────────────────────────────────────────────────────────
+  // LIVE — round open. Compact status + state-aware primary handle.
+  // ─────────────────────────────────────────────────────────────────
   if (state.status === "live") {
     return (
-      <div>
-        {state.tally && (
-          <ClassDjLiveTeacherView
-            round={round}
-            tally={state.tally}
-            participationCount={state.participation_count}
-            classSize={state.class_size}
-          />
-        )}
+      <div className="my-2 rounded-lg border-2 border-violet-300 bg-white p-2.5 shadow-sm space-y-2">
+        <StatusStrip
+          roundIndex={round.class_round_index}
+          endsAt={round.ends_at}
+          voted={state.participation_count}
+          total={state.class_size}
+          isLive
+        />
 
-        {!suggestionItems && (
-          <div className="my-3 flex gap-2">
-            <button
-              type="button"
-              onClick={() => handleSuggest(round.id)}
-              disabled={!gateMet || busy !== null}
-              className="flex-1 px-4 py-2.5 rounded-md bg-violet-600 text-white font-semibold text-sm hover:bg-violet-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-            >
-              {busy?.includes("suggest")
-                ? "Asking the DJ…"
-                : gateMet
-                ? `Suggest 3 (${state.participation_count} votes in)`
-                : `Suggest 3 — need ${(config?.gateMinVotes ?? 3) - state.participation_count} more vote(s)`}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleClose(round.id)}
-              disabled={busy !== null}
-              className="px-4 py-2.5 rounded-md border border-gray-300 text-gray-700 text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              End round
-            </button>
-          </div>
-        )}
-
+        {/* Suggestion landed → compact picks + retry/regenerate */}
         {suggestionItems && (
-          <SuggestionViewWithPicks
-            items={suggestionItems}
-            conflictMode={conflictMode}
-            voteCount={state.participation_count}
-            classSize={state.class_size}
-            roundId={round.id}
-            onPick={(idx) => handlePick(round.id, idx)}
-            onTryAgain={() => handleSuggest(round.id)}
-            onRegenerate={() => handleRegenerate(round.id)}
-            busy={busy}
-          />
+          <>
+            <SuggestionPickList
+              items={suggestionItems}
+              roundId={round.id}
+              onPick={(idx) => handlePick(round.id, idx)}
+              busy={busy}
+            />
+            <div className="flex items-center justify-between text-[10.5px] text-violet-700">
+              <button
+                type="button"
+                onClick={() => handleRegenerate(round.id)}
+                disabled={busy !== null}
+                className="underline hover:text-violet-900 disabled:opacity-50"
+              >
+                {busy?.includes("regenerate") ? "…" : "Regenerate why-lines"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSuggest(round.id)}
+                disabled={busy !== null}
+                className="underline hover:text-violet-900 disabled:opacity-50"
+              >
+                {busy?.includes("suggest") ? "…" : "Try another 3"}
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* No suggestion yet → state-aware primary handle */}
+        {!suggestionItems && (
+          <button
+            type="button"
+            onClick={() => handleSuggest(round.id)}
+            disabled={!gateMet || busy !== null}
+            className="w-full px-3 py-2.5 rounded-md bg-violet-600 text-white font-semibold text-[12.5px] hover:bg-violet-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+          >
+            {busy?.includes("suggest")
+              ? "Asking the DJ…"
+              : gateMet
+              ? `🎯 Suggest 3 (${state.participation_count} in)`
+              : `Need ${gateThreshold - state.participation_count} more`}
+          </button>
+        )}
+
+        {/* End round early — always visible as a handle during LIVE */}
+        <button
+          type="button"
+          onClick={() => handleClose(round.id)}
+          disabled={busy !== null}
+          className="w-full px-3 py-1.5 rounded-md border border-gray-300 text-gray-700 text-[11.5px] hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {busy?.includes("close") ? "Ending…" : "End round early"}
+        </button>
+
+        {/* Collapsible mood histograms — keeps full ClassDjLiveTeacherView
+            accessible without hogging vertical space by default. */}
+        {state.tally && (
+          <details
+            open={showMood}
+            onToggle={(e) => setShowMood((e.target as HTMLDetailsElement).open)}
+            className="border-t border-gray-100 pt-1"
+          >
+            <summary className="text-[10.5px] text-violet-700 cursor-pointer hover:text-violet-900 list-none flex items-center gap-1">
+              <span className="text-[9px]">{showMood ? "▾" : "▸"}</span>
+              <span>{showMood ? "Hide" : "Show"} class mood</span>
+            </summary>
+            <div className="pt-2 -mx-1">
+              <ClassDjLiveTeacherView
+                round={round}
+                tally={state.tally}
+                participationCount={state.participation_count}
+                classSize={state.class_size}
+              />
+            </div>
+          </details>
         )}
 
         {actionError && (
-          <p className="mt-2 text-xs text-red-600">{actionError}</p>
+          <p className="text-[11px] text-red-600">{actionError}</p>
         )}
       </div>
     );
   }
 
-  // CLOSED.
+  // ─────────────────────────────────────────────────────────────────
+  // CLOSED — picks (if any) + Run again handle.
+  // ─────────────────────────────────────────────────────────────────
   return (
-    <div>
+    <div className="my-2 rounded-lg border border-violet-200 bg-white p-2.5 shadow-sm space-y-2">
+      <StatusStrip
+        roundIndex={round.class_round_index}
+        endsAt={round.ends_at}
+        voted={state.participation_count}
+        total={state.class_size}
+        isLive={false}
+      />
+
       {suggestionItems ? (
-        <SuggestionViewWithPicks
-          items={suggestionItems}
-          conflictMode={conflictMode}
-          voteCount={state.participation_count}
-          classSize={state.class_size}
-          roundId={round.id}
-          onPick={(idx) => handlePick(round.id, idx)}
-          onTryAgain={undefined}
-          onRegenerate={() => handleRegenerate(round.id)}
-          busy={busy}
-        />
+        <>
+          <SuggestionPickList
+            items={suggestionItems}
+            roundId={round.id}
+            onPick={(idx) => handlePick(round.id, idx)}
+            busy={busy}
+          />
+          <button
+            type="button"
+            onClick={() => handleRegenerate(round.id)}
+            disabled={busy !== null}
+            className="block text-[10.5px] text-violet-700 underline hover:text-violet-900 disabled:opacity-50"
+          >
+            {busy?.includes("regenerate") ? "Regenerating…" : "Regenerate why-lines"}
+          </button>
+          {/* Conflict mode chip for context — purely informational */}
+          <ConflictModeChip mode={conflictMode} />
+        </>
       ) : (
-        <div className="my-3 rounded-xl border border-violet-200 bg-violet-50/60 p-4 text-center">
-          <p className="text-sm text-violet-700">
-            Round {round.class_round_index} closed without a suggestion.
-          </p>
-        </div>
+        <p className="text-[11.5px] text-violet-700 text-center py-1">
+          Round closed — no suggestion generated.
+        </p>
       )}
-      <div className="mt-2">
-        <button
-          type="button"
-          onClick={handleLaunch}
-          disabled={busy !== null}
-          className="w-full px-4 py-2.5 rounded-md bg-violet-600 text-white font-semibold text-sm hover:bg-violet-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-        >
-          {busy?.includes("launch") ? "Starting…" : "Run again"}
-        </button>
-      </div>
+
+      <button
+        type="button"
+        onClick={handleLaunch}
+        disabled={busy !== null}
+        className="w-full px-3 py-2.5 rounded-md bg-violet-600 text-white font-semibold text-[12.5px] hover:bg-violet-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+      >
+        {busy?.includes("launch") ? "Starting…" : "▶ Run again"}
+      </button>
       {actionError && (
-        <p className="mt-2 text-xs text-red-600">{actionError}</p>
+        <p className="text-[11px] text-red-600">{actionError}</p>
       )}
     </div>
   );
 }
 
 /**
- * Teacher-side suggestion view with Pick CTAs per card and a
- * Regenerate-narration button. Wraps the read-only SuggestionView from
- * Phase 5 and adds the interactive overlay.
+ * Compact status strip — round badge + live timer + participation dots.
+ * One row, sidebar-width-friendly. Used in LIVE and CLOSED branches.
  */
-function SuggestionViewWithPicks({
+function StatusStrip({
+  roundIndex,
+  endsAt,
+  voted,
+  total,
+  isLive,
+}: {
+  roundIndex: number;
+  endsAt: string;
+  voted: number;
+  total: number;
+  isLive: boolean;
+}) {
+  const [secondsLeft, setSecondsLeft] = useState(() =>
+    Math.max(0, Math.ceil((new Date(endsAt).getTime() - Date.now()) / 1000)),
+  );
+
+  useEffect(() => {
+    if (!isLive) return;
+    const interval = setInterval(() => {
+      setSecondsLeft(
+        Math.max(0, Math.ceil((new Date(endsAt).getTime() - Date.now()) / 1000)),
+      );
+    }, 500);
+    return () => clearInterval(interval);
+  }, [endsAt, isLive]);
+
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span className="text-[12px] font-bold text-violet-900 flex items-center gap-1 whitespace-nowrap">
+          <span>🎵</span> Round {roundIndex}
+        </span>
+        {!isLive && (
+          <span className="text-[9px] uppercase tracking-wider font-semibold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+            closed
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {isLive && (
+          <span
+            className="text-[14px] font-bold tabular-nums text-violet-700"
+            aria-label={`${secondsLeft} seconds remaining`}
+          >
+            {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")}
+          </span>
+        )}
+        <span className="text-[10.5px] text-violet-600 tabular-nums whitespace-nowrap">
+          {voted}/{total}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Vertical suggestion list — one row per pick with 48px thumbnail +
+ * name + small Pick button. Replaces the 3-col grid that didn't fit
+ * in the 260px sidebar.
+ */
+function SuggestionPickList({
   items,
-  conflictMode,
-  voteCount,
-  classSize,
   onPick,
-  onTryAgain,
-  onRegenerate,
   busy,
 }: {
   items: SuggestionItem[];
-  conflictMode: ConflictMode;
-  voteCount: number;
-  classSize: number;
   roundId: string;
   onPick: (index: 0 | 1 | 2) => void;
-  onTryAgain?: () => void;
-  onRegenerate: () => void;
   busy: string | null;
 }) {
   return (
-    <div>
-      <ClassDjSuggestionView
-        items={items}
-        conflictMode={conflictMode}
-        voteCount={voteCount}
-        classSize={classSize}
-        canRetry={!!onTryAgain}
-        onTryAgain={onTryAgain}
-        isRetrying={busy?.includes("suggest") ?? false}
-      />
-      <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2">
-        {items.map((it, i) => (
+    <div className="space-y-1.5">
+      {items.map((it, i) => (
+        <div
+          key={`pick-${i}`}
+          className={`flex items-center gap-2 rounded-md p-1.5 ${
+            it.is_bridge ? "bg-amber-50 border border-amber-200" : "bg-violet-50/50 border border-violet-100"
+          }`}
+        >
+          {it.image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={it.image_url}
+              alt=""
+              className="w-10 h-10 rounded object-cover flex-shrink-0 bg-gray-100"
+              loading="lazy"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded bg-gradient-to-br from-violet-200 to-violet-300 flex items-center justify-center text-base flex-shrink-0">
+              🎵
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-[11.5px] font-bold text-gray-900 leading-tight truncate" title={it.name}>
+              {it.name}
+            </p>
+            <p className="text-[9.5px] uppercase tracking-wider text-gray-500 truncate">
+              {it.kind}
+              {it.is_bridge && <span className="ml-1 text-amber-700 font-semibold">· BRIDGE</span>}
+            </p>
+          </div>
           <button
-            key={`pick-${i}`}
             type="button"
             onClick={() => onPick(i as 0 | 1 | 2)}
             disabled={busy !== null}
-            className="px-3 py-2 rounded-md bg-violet-600 text-white text-xs font-semibold hover:bg-violet-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+            className="px-2 py-1 rounded bg-violet-600 text-white text-[10.5px] font-semibold hover:bg-violet-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex-shrink-0"
           >
-            {busy?.includes("/pick") ? "Picking…" : `Pick ${it.name} →`}
+            {busy?.includes("/pick") ? "…" : "Pick →"}
           </button>
-        ))}
-      </div>
-      <div className="mt-2 flex justify-end">
-        <button
-          type="button"
-          onClick={onRegenerate}
-          disabled={busy !== null}
-          className="text-xs underline text-violet-600 hover:text-violet-800 disabled:opacity-50"
-        >
-          {busy?.includes("regenerate") ? "Regenerating narration…" : "Regenerate why-lines"}
-        </button>
-      </div>
+        </div>
+      ))}
     </div>
+  );
+}
+
+function ConflictModeChip({ mode }: { mode: ConflictMode }) {
+  const config = {
+    consensus: { emoji: "🎯", label: "Consensus", color: "text-violet-600" },
+    split: { emoji: "↔️", label: "Split — bridge pick added", color: "text-amber-700" },
+    small_group: { emoji: "🤝", label: "Small class", color: "text-violet-600" },
+  }[mode];
+  return (
+    <p className={`text-[10px] ${config.color} flex items-center gap-1`}>
+      <span>{config.emoji}</span> {config.label}
+    </p>
   );
 }
