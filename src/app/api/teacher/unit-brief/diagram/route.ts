@@ -22,12 +22,17 @@ import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireTeacher } from "@/lib/auth/require-teacher";
 import { verifyTeacherHasUnit } from "@/lib/auth/verify-teacher-unit";
 import { buildStorageProxyUrl } from "@/lib/storage/proxy-url";
-import type { UnitBrief, UnitBriefConstraints } from "@/types/unit-brief";
+import type {
+  UnitBrief,
+  UnitBriefConstraints,
+  UnitBriefLocks,
+} from "@/types/unit-brief";
+import { LOCKABLE_FIELDS } from "@/types/unit-brief";
 
 const BUCKET = "unit-images";
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB raw
 const COLUMNS_RETURNED =
-  "unit_id, brief_text, constraints, diagram_url, created_at, updated_at, created_by";
+  "unit_id, brief_text, constraints, diagram_url, locks, created_at, updated_at, created_by";
 
 const GENERIC_CONSTRAINTS: UnitBriefConstraints = {
   archetype: "generic",
@@ -45,12 +50,23 @@ function coerceConstraints(raw: unknown): UnitBriefConstraints {
   return GENERIC_CONSTRAINTS;
 }
 
+function coerceLocks(raw: unknown): UnitBriefLocks {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const r = raw as Record<string, unknown>;
+  const out: UnitBriefLocks = {};
+  for (const field of LOCKABLE_FIELDS) {
+    if (r[field] === true) out[field] = true;
+  }
+  return out;
+}
+
 function rowToBrief(row: Record<string, unknown>): UnitBrief {
   return {
     unit_id: row.unit_id as string,
     brief_text: (row.brief_text as string | null) ?? null,
     constraints: coerceConstraints(row.constraints),
     diagram_url: (row.diagram_url as string | null) ?? null,
+    locks: coerceLocks(row.locks),
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
     created_by: (row.created_by as string | null) ?? null,

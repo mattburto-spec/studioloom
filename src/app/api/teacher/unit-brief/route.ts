@@ -19,10 +19,12 @@ import { verifyTeacherHasUnit } from "@/lib/auth/verify-teacher-unit";
 import type {
   UnitBrief,
   UnitBriefConstraints,
+  UnitBriefLocks,
 } from "@/types/unit-brief";
+import { LOCKABLE_FIELDS } from "@/types/unit-brief";
 
 const COLUMNS_RETURNED =
-  "unit_id, brief_text, constraints, diagram_url, created_at, updated_at, created_by";
+  "unit_id, brief_text, constraints, diagram_url, locks, created_at, updated_at, created_by";
 
 const GENERIC_CONSTRAINTS: UnitBriefConstraints = {
   archetype: "generic",
@@ -162,12 +164,29 @@ function validateConstraints(
   return { ok: false, error: "constraints.archetype must be 'design' or 'generic'" };
 }
 
+/**
+ * Coerce a stored locks JSONB into the typed UnitBriefLocks shape.
+ * Defensive against drift: keys not in LOCKABLE_FIELDS are silently
+ * dropped so a future column rename can't ship stale lock keys to the
+ * editor or drawer. Values are narrowed to strict booleans.
+ */
+function coerceLocks(raw: unknown): UnitBriefLocks {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const r = raw as Record<string, unknown>;
+  const out: UnitBriefLocks = {};
+  for (const field of LOCKABLE_FIELDS) {
+    if (r[field] === true) out[field] = true;
+  }
+  return out;
+}
+
 function rowToBrief(row: Record<string, unknown>): UnitBrief {
   return {
     unit_id: row.unit_id as string,
     brief_text: (row.brief_text as string | null) ?? null,
     constraints: coerceConstraints(row.constraints),
     diagram_url: (row.diagram_url as string | null) ?? null,
+    locks: coerceLocks(row.locks),
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
     created_by: (row.created_by as string | null) ?? null,

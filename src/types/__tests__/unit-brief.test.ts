@@ -2,10 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import type {
   DesignConstraints,
+  EffectiveBriefField,
+  LockableField,
+  StudentBrief,
   UnitBrief,
   UnitBriefAmendment,
   UnitBriefConstraints,
+  UnitBriefLocks,
 } from "../unit-brief";
+import { LOCKABLE_FIELDS } from "../unit-brief";
 
 describe("UnitBrief — type shapes", () => {
   it("constructs a Design-archetype UnitBrief with all fields and asserts exact values", () => {
@@ -26,6 +31,7 @@ describe("UnitBrief — type shapes", () => {
       brief_text: "Design a desk-organiser for a Year 7 student.",
       constraints,
       diagram_url: "/api/storage/unit-images/unit-abc/brief-diagram-12345.jpg",
+      locks: { "brief_text": true, "constraints.budget": true },
       created_at: "2026-05-13T09:00:00.000Z",
       updated_at: "2026-05-13T09:05:00.000Z",
       created_by: "teacher-uuid-1",
@@ -84,6 +90,7 @@ describe("UnitBrief — type shapes", () => {
       brief_text: "Run a 6-week service project for the Year 8 cohort.",
       constraints,
       diagram_url: null,
+      locks: {},
       created_at: "2026-05-13T09:10:00.000Z",
       updated_at: "2026-05-13T09:10:00.000Z",
       created_by: "teacher-uuid-2",
@@ -122,6 +129,7 @@ describe("UnitBrief — type shapes", () => {
       brief_text: null,
       constraints: { archetype: "generic", data: {} },
       diagram_url: null,
+      locks: {},
       created_at: "2026-05-13T09:15:00.000Z",
       updated_at: "2026-05-13T09:15:00.000Z",
       created_by: null,
@@ -130,6 +138,7 @@ describe("UnitBrief — type shapes", () => {
     expect(brief.brief_text).toBeNull();
     expect(brief.created_by).toBeNull();
     expect(brief.diagram_url).toBeNull();
+    expect(brief.locks).toEqual({});
   });
 
   it("supports partial Design constraints (all fields optional)", () => {
@@ -165,5 +174,172 @@ describe("UnitBrief — type shapes", () => {
         expect(["mm", "cm", "in"]).toContain(c.data.dimensions?.unit);
       }
     }
+  });
+});
+
+// ─── Phase F.A — locks + StudentBrief + EffectiveBriefField ──────────
+
+describe("LOCKABLE_FIELDS (Phase F.A)", () => {
+  it("enumerates all 8 lockable field paths the renderer will iterate", () => {
+    // Snapshot the canonical set so adding/removing a field is an
+    // explicit type-test change. Editors / renderers loop this constant
+    // to render lock toggles + interpret stored lock maps.
+    expect([...LOCKABLE_FIELDS]).toEqual([
+      "brief_text",
+      "diagram_url",
+      "constraints.dimensions",
+      "constraints.materials_whitelist",
+      "constraints.budget",
+      "constraints.audience",
+      "constraints.must_include",
+      "constraints.must_avoid",
+    ]);
+  });
+
+  it("LockableField type narrows to the literal union (compile-time check)", () => {
+    // Round-trip through a value to confirm LockableField is the union
+    // of LOCKABLE_FIELDS members, not a wider `string`.
+    const f: LockableField = "constraints.budget";
+    expect(LOCKABLE_FIELDS).toContain(f);
+  });
+});
+
+describe("UnitBriefLocks (Phase F.A)", () => {
+  it("is a Partial<Record<LockableField, boolean>> — absent OR false = unlocked", () => {
+    // Three representative shapes the editor / coercer / renderer all
+    // need to handle correctly:
+    const empty: UnitBriefLocks = {};
+    const someLocked: UnitBriefLocks = {
+      "brief_text": true,
+      "constraints.budget": true,
+    };
+    // Explicit-false: pretend the editor toggled off a field that was
+    // previously locked. Renderer treats === true; false is no-op.
+    const explicitFalse: UnitBriefLocks = {
+      "brief_text": false,
+      "constraints.materials_whitelist": true,
+    };
+
+    expect(empty["brief_text"]).toBeUndefined();
+    expect(someLocked["brief_text"]).toBe(true);
+    expect(someLocked["constraints.audience"]).toBeUndefined();
+    expect(explicitFalse["brief_text"]).toBe(false);
+    expect(explicitFalse["constraints.materials_whitelist"]).toBe(true);
+  });
+});
+
+describe("StudentBrief (Phase F.A)", () => {
+  it("constructs a per-student override row with all fields and asserts exact values", () => {
+    const constraints: UnitBriefConstraints = {
+      archetype: "design",
+      data: {
+        // Student override: only the audience field (rest fall through
+        // to teacher / card template at render time).
+        audience: "Year 7 students at NIS who love LEGO",
+      },
+    };
+
+    const studentBrief: StudentBrief = {
+      id: "sb-uuid-1",
+      student_id: "student-uuid-1",
+      unit_id: "unit-abc",
+      brief_text: null, // not overridden; renderer shows teacher value
+      constraints,
+      diagram_url: null, // reserved column; no upload UI in Phase F
+      created_at: "2026-05-14T22:30:00.000Z",
+      updated_at: "2026-05-14T22:30:00.000Z",
+    };
+
+    expect(studentBrief.id).toBe("sb-uuid-1");
+    expect(studentBrief.student_id).toBe("student-uuid-1");
+    expect(studentBrief.unit_id).toBe("unit-abc");
+    expect(studentBrief.brief_text).toBeNull();
+    expect(studentBrief.diagram_url).toBeNull();
+    if (studentBrief.constraints.archetype === "design") {
+      expect(studentBrief.constraints.data.audience).toBe(
+        "Year 7 students at NIS who love LEGO",
+      );
+      expect(studentBrief.constraints.data.budget).toBeUndefined();
+    } else {
+      throw new Error("Constraint archetype should narrow to design");
+    }
+  });
+
+  it("allows brief_text override (the most common student-authoring case)", () => {
+    const studentBrief: StudentBrief = {
+      id: "sb-uuid-2",
+      student_id: "student-uuid-2",
+      unit_id: "unit-xyz",
+      brief_text: "I'm designing for my grandma — she has arthritis.",
+      constraints: { archetype: "generic", data: {} },
+      diagram_url: null,
+      created_at: "2026-05-14T22:35:00.000Z",
+      updated_at: "2026-05-14T22:35:00.000Z",
+    };
+    expect(studentBrief.brief_text).toBe(
+      "I'm designing for my grandma — she has arthritis.",
+    );
+  });
+});
+
+describe("EffectiveBriefField (Phase F.A)", () => {
+  it("carries value + lock state + source so the renderer can show 🔒 / starter / override affordances", () => {
+    // Four canonical source states the drawer renders:
+    const fromTeacher: EffectiveBriefField<string> = {
+      value: "max 200mm any axis",
+      locked: true,
+      source: "teacher",
+    };
+    const fromCard: EffectiveBriefField<string> = {
+      value: "Choose any timber from the shed",
+      locked: true,
+      source: "card",
+    };
+    const fromStudent: EffectiveBriefField<string> = {
+      value: "Year 7 LEGO fans",
+      locked: false,
+      source: "student",
+    };
+    const empty: EffectiveBriefField<string> = {
+      value: null,
+      locked: false,
+      source: "empty",
+    };
+
+    expect(fromTeacher.source).toBe("teacher");
+    expect(fromCard.source).toBe("card");
+    expect(fromStudent.source).toBe("student");
+    expect(empty.value).toBeNull();
+  });
+});
+
+describe("UnitBrief — locks field (Phase F.A)", () => {
+  it("UnitBrief.locks is required (was added in Phase F.A); empty {} = nothing locked", () => {
+    const brief: UnitBrief = {
+      unit_id: "u-1",
+      brief_text: null,
+      constraints: { archetype: "generic", data: {} },
+      diagram_url: null,
+      locks: {},
+      created_at: "2026-05-14T22:00:00.000Z",
+      updated_at: "2026-05-14T22:00:00.000Z",
+      created_by: null,
+    };
+    expect(brief.locks).toEqual({});
+  });
+
+  it("UnitBrief.locks carries only LockableField keys (TS narrowing)", () => {
+    const brief: UnitBrief = {
+      unit_id: "u-1",
+      brief_text: null,
+      constraints: { archetype: "generic", data: {} },
+      diagram_url: null,
+      // @ts-expect-error — "constraints.nonsense" is not a LockableField
+      locks: { "constraints.nonsense": true },
+      created_at: "2026-05-14T22:00:00.000Z",
+      updated_at: "2026-05-14T22:00:00.000Z",
+      created_by: null,
+    };
+    expect(brief).toBeDefined();
   });
 });
