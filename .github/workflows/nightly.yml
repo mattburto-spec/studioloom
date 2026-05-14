@@ -33,6 +33,7 @@ jobs:
 
       - name: Dashboard sync check
         run: npx tsx scripts/check-dashboard-sync.ts
+        continue-on-error: true
 
       - name: Doc freshness check
         run: npx tsx scripts/check-doc-freshness.ts

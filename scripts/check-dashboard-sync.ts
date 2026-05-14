@@ -141,11 +141,17 @@ function compare(mdProjects: Map<string, string>, dashProjects: Map<string, stri
 const mdContent = readFileSync(resolve(ROOT, "docs/projects/ALL-PROJECTS.md"), "utf-8");
 const dashContent = readFileSync(resolve(ROOT, "docs/projects/dashboard.html"), "utf-8");
 
-const mdProjects = parseMarkdownProjects(mdContent);
-const dashProjects = parseDashboardProjects(dashContent);
+// Only gate on active work — completed/superseded history naturally diverges
+// between the MD tracker and the dashboard's features list.
+const SKIPPED_STATUSES = new Set(["complete", "superseded"]);
+const filterActive = (m: Map<string, string>) =>
+  new Map([...m].filter(([, status]) => !SKIPPED_STATUSES.has(status)));
 
-console.log(`\n📋 ALL-PROJECTS.md: ${mdProjects.size} projects`);
-console.log(`📊 dashboard.html:  ${dashProjects.size} projects\n`);
+const mdProjects = filterActive(parseMarkdownProjects(mdContent));
+const dashProjects = filterActive(parseDashboardProjects(dashContent));
+
+console.log(`\n📋 ALL-PROJECTS.md: ${mdProjects.size} active projects`);
+console.log(`📊 dashboard.html:  ${dashProjects.size} active projects\n`);
 
 const issues = compare(mdProjects, dashProjects);
 
