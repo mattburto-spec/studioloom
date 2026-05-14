@@ -2108,7 +2108,9 @@ routes:
   method: GET
   file: src/app/api/student/tile-feedback/route.ts
   auth: student
-  tables_read: []
+  tables_read:
+  - class_students
+  - class_units
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
