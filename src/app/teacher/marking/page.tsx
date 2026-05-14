@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -456,6 +457,17 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
   const [activeTileIdx, setActiveTileIdx] = useState(0);
   const [activePageId, setActivePageId] = useState<string | null>(null);
   const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
+  // TFL.3 C.6.2 — focus panel (top-of-page master/detail). One student
+  // at a time; prev/next traverses the cohort. Default-picked to the
+  // first student with an AI draft ready to review when the tile loads.
+  const [focusStudentId, setFocusStudentId] = useState<string | null>(null);
+  // Per-tweak in-flight tracker for the focus panel's regenerate
+  // buttons. Keyed by student.id. Mirrors the inbox's `tweaking` shape.
+  const [focusTweaking, setFocusTweaking] = useState<
+    Record<string, "shorter" | "warmer" | "sharper" | "ask" | null>
+  >({});
+  const [focusAskOpen, setFocusAskOpen] = useState<Record<string, boolean>>({});
+  const [focusAskText, setFocusAskText] = useState<Record<string, string>>({});
   const [overrideNoteDraft, setOverrideNoteDraft] = useState<Record<string, string>>({});
   const [studentCommentDraft, setStudentCommentDraft] = useState<Record<string, string>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -742,7 +754,17 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
   useEffect(() => {
     if (!activePageId) return;
     setActiveTileIdx(0);
+    // TFL.3 C.6.2 — clear focus when navigating to a different page;
+    // the auto-pick effect below will choose a fresh first student.
+    setFocusStudentId(null);
   }, [activePageId]);
+
+  // TFL.3 C.6.2 — when activeTile changes (or grades arrive), reset
+  // focusStudentId. The focus-panel auto-pick effect below then chooses
+  // the first eligible student.
+  useEffect(() => {
+    setFocusStudentId(null);
+  }, [activeTileIdx]);
 
   const activePage = useMemo(() => {
     if (!unit?.contentData || !activePageId) return undefined;
@@ -1270,6 +1292,14 @@ function CalibrateView({ classId, unitId }: { classId: string; unitId: string })
           setStudentCommentDraft={setStudentCommentDraft}
           latestStudentReplyByGradeId={latestStudentReplyByGradeId}
           latestTurnRoleByGradeId={latestTurnRoleByGradeId}
+          focusStudentId={focusStudentId}
+          setFocusStudentId={setFocusStudentId}
+          focusTweaking={focusTweaking}
+          setFocusTweaking={setFocusTweaking}
+          focusAskOpen={focusAskOpen}
+          setFocusAskOpen={setFocusAskOpen}
+          focusAskText={focusAskText}
+          setFocusAskText={setFocusAskText}
         />
       )}
     </div>
@@ -1326,6 +1356,21 @@ interface CalibrateInnerProps {
    *  composer label between "Edit feedback" (teacher latest) and
    *  "Send follow-up" (student latest). */
   latestTurnRoleByGradeId: Record<string, LatestTurnRole>;
+  /** TFL.3 C.6.2 — focus panel state (top-of-page master/detail). */
+  focusStudentId: string | null;
+  setFocusStudentId: React.Dispatch<React.SetStateAction<string | null>>;
+  focusTweaking: Record<string, FocusTweakDirective | null>;
+  setFocusTweaking: React.Dispatch<
+    React.SetStateAction<Record<string, FocusTweakDirective | null>>
+  >;
+  focusAskOpen: Record<string, boolean>;
+  setFocusAskOpen: React.Dispatch<
+    React.SetStateAction<Record<string, boolean>>
+  >;
+  focusAskText: Record<string, string>;
+  setFocusAskText: React.Dispatch<
+    React.SetStateAction<Record<string, string>>
+  >;
 }
 
 function CalibrateInner({
@@ -1359,6 +1404,14 @@ function CalibrateInner({
   setStudentCommentDraft,
   latestStudentReplyByGradeId,
   latestTurnRoleByGradeId,
+  focusStudentId,
+  setFocusStudentId,
+  focusTweaking,
+  setFocusTweaking,
+  focusAskOpen,
+  setFocusAskOpen,
+  focusAskText,
+  setFocusAskText,
 }: CalibrateInnerProps) {
   // G2.2 — criterion coverage heatmap (unit-level, across all pages).
   const coverage = useMemo(
@@ -1567,6 +1620,38 @@ function CalibrateInner({
         </div>
       )}
 
+      {/* TFL.3 C.6.2 — Focus panel. Master-detail surface above the
+          cohort table. One student at a time: response left, AI draft
+          right (editable + tweakable), prev/next to traverse. Mirrors
+          the inbox C.2 layout but scoped to THIS class+tile. Matt smoke
+          13 May 2026: "have a section at top of page which has left
+          right buttons, students comment on left, ai suggestion on
+          right, and then the feedback improvement buttons and send so
+          you can just sit at the top of the page and go send and the
+          next student comes up". */}
+      {activeTile && activePageId && students.length > 0 && (
+        <MarkingFocusPanel
+          students={students}
+          activeTile={activeTile}
+          activePageId={activePageId}
+          responses={responses}
+          grades={grades}
+          gradeKey={gradeKey}
+          studentCommentDraft={studentCommentDraft}
+          setStudentCommentDraft={setStudentCommentDraft}
+          focusStudentId={focusStudentId}
+          setFocusStudentId={setFocusStudentId}
+          focusTweaking={focusTweaking}
+          setFocusTweaking={setFocusTweaking}
+          focusAskOpen={focusAskOpen}
+          setFocusAskOpen={setFocusAskOpen}
+          focusAskText={focusAskText}
+          setFocusAskText={setFocusAskText}
+          saveTile={saveTile}
+          savingKey={savingKey}
+        />
+      )}
+
       {/* Per-student rows */}
       <div className="space-y-2">
         {students.length === 0 ? (
@@ -1769,104 +1854,30 @@ function CalibrateInner({
                         )
                       : null;
 
-                    // TFL.3 C.6 (13 May 2026) — when state === "ai_draft",
-                    // the chip's primary action becomes "send" rather than
-                    // "expand". Matt smoke: "i need to expand on each
-                    // student to see the ai feedback and then click send.
-                    // there needs to be an easier way". This shaves the
-                    // common-case approve flow from 3 clicks (expand →
-                    // textarea → send) to 1 (click chip).
-                    //
-                    // The chip becomes a green "✓ Send AI draft" button.
-                    // Click sends the existing ai_comment_draft as
-                    // student_facing_comment + confirms the score (using
-                    // current score, falling back to ai_pre_score). A
-                    // tiny chevron beside it still expands the row for
-                    // teachers who want to review/edit before sending.
-                    // After save the chip flips to the "sent" state
-                    // automatically via the parent state update.
-                    if (state === "ai_draft") {
-                      const sendScore =
-                        typeof score === "number"
-                          ? score
-                          : typeof grade?.ai_pre_score === "number"
-                            ? grade.ai_pre_score
-                            : null;
-                      const canSend = !isSaving && grade?.ai_comment_draft;
-                      return (
-                        <span className="inline-flex items-center gap-0.5">
-                          <button
-                            type="button"
-                            data-testid="row-send-ai-draft"
-                            onClick={() => {
-                              if (!canSend || !grade?.ai_comment_draft) return;
-                              void saveTile(s.id, sendScore, true, {
-                                student_facing_comment: grade.ai_comment_draft,
-                              });
-                            }}
-                            disabled={!canSend}
-                            className={[
-                              "inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold rounded-l-md border transition",
-                              canSend
-                                ? "border-emerald-400 text-white bg-emerald-600 hover:bg-emerald-700"
-                                : "border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed",
-                            ].join(" ")}
-                            aria-label="Send AI draft to student (1-click)"
-                            title="Send the AI draft as-is. Click the chevron to review/edit first."
-                          >
-                            <svg
-                              width="9"
-                              height="9"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="3"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              aria-hidden="true"
-                            >
-                              <polyline points="4 12 9 17 20 6" />
-                            </svg>
-                            {isSaving ? "…" : "Send"}
-                          </button>
-                          <button
-                            type="button"
-                            data-testid="row-expand-ai-draft"
-                            onClick={() => setExpandedStudentId(isExpanded ? null : s.id)}
-                            className="inline-flex items-center px-1.5 py-1 text-[11px] font-bold rounded-r-md border border-l-0 transition border-emerald-400 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
-                            aria-label={
-                              isExpanded
-                                ? "Collapse — hide AI draft preview"
-                                : "Review the AI draft before sending"
-                            }
-                            title="Review/edit the AI draft before sending"
-                          >
-                            <svg
-                              width="10"
-                              height="10"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2.5"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              aria-hidden="true"
-                              style={{
-                                transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
-                                transition: "transform 0.15s",
-                              }}
-                            >
-                              <polyline points="6 9 12 15 18 9" />
-                            </svg>
-                          </button>
-                        </span>
-                      );
-                    }
-
+                    // TFL.3 C.6.2 (13 May 2026) — REVERTED the C.6.1
+                    // chip-becomes-Send-button approach. Matt smoke
+                    // showed it was "blind send": "i dont want to hit
+                    // send if i cant see the comment or what the
+                    // student wrote". The Send affordance now lives in
+                    // the MarkingFocusPanel at the top of the page,
+                    // where teachers can see the student response + AI
+                    // draft side-by-side before approving. Clicking the
+                    // chip here loads that student into the focus
+                    // panel (and ALSO expands the row inline for the
+                    // power-user case). The chip itself is back to a
+                    // single-button shape.
                     return (
                       <button
                         type="button"
-                        onClick={() => setExpandedStudentId(isExpanded ? null : s.id)}
+                        data-testid={state === "ai_draft" ? "row-chip-ai-draft" : undefined}
+                        onClick={() => {
+                          // Load into focus panel + expand inline. The
+                          // focus panel listens for changes to
+                          // focusStudentId; the row toggles its own
+                          // expand state.
+                          setFocusStudentId(s.id);
+                          setExpandedStudentId(isExpanded ? null : s.id);
+                        }}
                         className={[
                           "inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold rounded-md border transition",
                           className,
@@ -1876,15 +1887,19 @@ function CalibrateInner({
                             ? "Feedback sent to student"
                             : state === "edited"
                               ? "Feedback sent (edited from AI draft)"
-                              : "No feedback yet"
+                              : state === "ai_draft"
+                                ? "AI draft ready — load into focus panel + review"
+                                : "No feedback yet"
                         }
                         title={
                           receiptTooltip ??
-                          (state === "sent"
-                            ? "Student can see this comment"
-                            : state === "edited"
-                              ? "Student can see your edited version"
-                              : "Open to write feedback or run AI suggest")
+                          (state === "ai_draft"
+                            ? "Load into focus panel + review/edit the AI draft"
+                            : state === "sent"
+                              ? "Student can see this comment"
+                              : state === "edited"
+                                ? "Student can see your edited version"
+                                : "Open to write feedback or run AI suggest")
                         }
                       >
                         {dotClass && (
@@ -1894,6 +1909,11 @@ function CalibrateInner({
                             data-testid="read-receipt-dot"
                             data-state={readState}
                           />
+                        )}
+                        {state === "ai_draft" && (
+                          <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+                          </svg>
                         )}
                         {state === "sent" && (
                           <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -2717,6 +2737,490 @@ function SynthesizeView({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// MarkingFocusPanel — TFL.3 C.6.2 master-detail review surface.
+//
+// Sits above the cohort table. Shows ONE student at a time: response
+// on the left, AI draft (editable) on the right, tweak buttons under
+// the draft, Send + Skip + prev/next navigation. Teacher works through
+// the tile cohort one click at a time without expanding individual
+// rows. Mirrors the inbox C.2 layout but constrained to a single
+// class × tile.
+// ════════════════════════════════════════════════════════════════════════════
+
+type FocusTweakDirective = "shorter" | "warmer" | "sharper" | "ask";
+
+function MarkingFocusPanel({
+  students,
+  activeTile,
+  activePageId,
+  responses,
+  grades,
+  gradeKey,
+  studentCommentDraft,
+  setStudentCommentDraft,
+  focusStudentId,
+  setFocusStudentId,
+  focusTweaking,
+  setFocusTweaking,
+  focusAskOpen,
+  setFocusAskOpen,
+  focusAskText,
+  setFocusAskText,
+  saveTile,
+  savingKey,
+}: {
+  students: StudentRow[];
+  activeTile: LessonTile;
+  activePageId: string;
+  /** Active page's response slice: { [studentId]: { [tileId]: text } } */
+  responses: Record<string, Record<string, string>>;
+  grades: Record<string, TileGradeRow>;
+  gradeKey: (sid: string, tid: string, pid: string) => string;
+  studentCommentDraft: Record<string, string>;
+  setStudentCommentDraft: React.Dispatch<
+    React.SetStateAction<Record<string, string>>
+  >;
+  focusStudentId: string | null;
+  setFocusStudentId: React.Dispatch<React.SetStateAction<string | null>>;
+  focusTweaking: Record<string, FocusTweakDirective | null>;
+  setFocusTweaking: React.Dispatch<
+    React.SetStateAction<Record<string, FocusTweakDirective | null>>
+  >;
+  focusAskOpen: Record<string, boolean>;
+  setFocusAskOpen: React.Dispatch<
+    React.SetStateAction<Record<string, boolean>>
+  >;
+  focusAskText: Record<string, string>;
+  setFocusAskText: React.Dispatch<
+    React.SetStateAction<Record<string, string>>
+  >;
+  saveTile: (
+    sid: string,
+    score: number | null,
+    confirmed: boolean,
+    extras?: {
+      override_note?: string | null;
+      student_facing_comment?: string | null;
+      score_na?: boolean;
+    },
+  ) => Promise<void>;
+  savingKey: string | null;
+}) {
+  // Eligible students = those who submitted a response on the active
+  // tile. Ordered: ai_draft + unsent first (urgent), then no_draft,
+  // then sent/edited (review-only).
+  const pageResponses = responses;
+  const eligible = useMemo(() => {
+    type Bucket = "draft_unsent" | "no_draft" | "done";
+    const rank: Record<Bucket, number> = {
+      draft_unsent: 0,
+      no_draft: 1,
+      done: 2,
+    };
+    return students
+      .map((s) => {
+        const studentResponse = pageResponses[s.id]?.[activeTile.tileId] ?? "";
+        const grade = grades[gradeKey(s.id, activeTile.tileId, activePageId)];
+        const sent = grade?.student_facing_comment ?? "";
+        const draft = grade?.ai_comment_draft ?? "";
+        let bucket: Bucket;
+        if (sent.trim().length > 0) {
+          bucket = "done";
+        } else if (draft.trim().length > 0) {
+          bucket = "draft_unsent";
+        } else {
+          bucket = "no_draft";
+        }
+        return { student: s, studentResponse, grade, bucket };
+      })
+      .filter((x) => x.studentResponse.trim().length > 0)
+      .sort((a, b) => rank[a.bucket] - rank[b.bucket]);
+  }, [students, pageResponses, activeTile.tileId, activePageId, grades, gradeKey]);
+
+  // Auto-pick the first eligible student when focus is unset.
+  useEffect(() => {
+    if (focusStudentId) return;
+    if (eligible.length === 0) return;
+    setFocusStudentId(eligible[0].student.id);
+  }, [focusStudentId, eligible, setFocusStudentId]);
+
+  if (eligible.length === 0) {
+    return (
+      <div
+        data-testid="marking-focus-panel-empty"
+        className="mb-4 p-4 bg-white border border-gray-200 rounded-2xl text-sm text-gray-500"
+      >
+        No submissions on this tile yet — once students submit, their work
+        appears here for review.
+      </div>
+    );
+  }
+
+  const currentIdx = Math.max(
+    0,
+    eligible.findIndex((e) => e.student.id === focusStudentId),
+  );
+  const current = eligible[currentIdx] ?? eligible[0];
+  const { student, studentResponse, grade } = current;
+  const key = gradeKey(student.id, activeTile.tileId, activePageId);
+  const studentComment = studentCommentDraft[key] ?? "";
+  const aiDraft = grade?.ai_comment_draft ?? "";
+  // Show the working draft if the teacher edited; else fall back to
+  // the AI draft (or empty).
+  const draftValue = studentComment || aiDraft;
+  const isSaving = savingKey === key;
+  const tweaking = focusTweaking[student.id] ?? null;
+  const askOpen = !!focusAskOpen[student.id];
+  const askText = focusAskText[student.id] ?? "";
+
+  // Score we'll send with: prefer the current saved score, else the
+  // AI prescore. Matches the row-level send convention.
+  const sendScore =
+    typeof grade?.score === "number"
+      ? grade.score
+      : typeof grade?.ai_pre_score === "number"
+        ? grade.ai_pre_score
+        : null;
+
+  const displayName = student.display_name || student.username || "Student";
+  const firstName = displayName.split(/\s+/)[0] || displayName;
+  const isDone = current.bucket === "done";
+
+  const advance = (offset: number) => {
+    const next = eligible[currentIdx + offset];
+    if (next) setFocusStudentId(next.student.id);
+  };
+
+  const advanceToNext = () => {
+    // Prefer the next still-pending student.
+    for (let i = currentIdx + 1; i < eligible.length; i++) {
+      if (eligible[i].bucket !== "done") {
+        setFocusStudentId(eligible[i].student.id);
+        return;
+      }
+    }
+    // None left — wrap to the next eligible (could be done) or stay.
+    if (currentIdx + 1 < eligible.length) {
+      setFocusStudentId(eligible[currentIdx + 1].student.id);
+    }
+  };
+
+  const handleSend = async () => {
+    if (!draftValue.trim()) return;
+    await saveTile(student.id, sendScore, true, {
+      student_facing_comment: draftValue,
+    });
+    // Save succeeds → advance to next pending. saveTile updates
+    // grades[] which re-derives `current.bucket` to "done".
+    advanceToNext();
+  };
+
+  const handleTweak = async (
+    directive: FocusTweakDirective,
+    askValue?: string,
+  ) => {
+    if (!grade?.id) return;
+    if (!draftValue.trim()) return;
+    setFocusTweaking((prev) => ({ ...prev, [student.id]: directive }));
+    try {
+      const res = await fetch("/api/teacher/grading/regenerate-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          grade_id: grade.id,
+          current_draft: draftValue,
+          directive,
+          ...(directive === "ask" ? { ask_text: askValue ?? "" } : {}),
+        }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(
+          (json as { error?: string }).error ??
+            `Regenerate failed (${res.status})`,
+        );
+      }
+      const json = (await res.json()) as { draftBody: string };
+      setStudentCommentDraft((prev) => ({
+        ...prev,
+        [key]: json.draftBody ?? "",
+      }));
+      if (directive === "ask") {
+        setFocusAskOpen((prev) => ({ ...prev, [student.id]: false }));
+        setFocusAskText((prev) => {
+          const next = { ...prev };
+          delete next[student.id];
+          return next;
+        });
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Regenerate failed");
+    } finally {
+      setFocusTweaking((prev) => {
+        const next = { ...prev };
+        delete next[student.id];
+        return next;
+      });
+    }
+  };
+
+  return (
+    <div
+      data-testid="marking-focus-panel"
+      data-student-id={student.id}
+      className="mb-4 p-4 bg-white border-2 border-purple-200 rounded-2xl"
+    >
+      {/* Header: prev / counter+name / next */}
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <button
+          type="button"
+          data-testid="focus-prev"
+          onClick={() => advance(-1)}
+          disabled={currentIdx === 0}
+          className="px-2 py-1 text-xs font-bold rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
+          aria-label="Previous student"
+        >
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+          Prev
+        </button>
+        <div className="text-center min-w-0">
+          <div className="text-[10px] font-bold tracking-wider uppercase text-purple-700">
+            Reviewing {currentIdx + 1} of {eligible.length}
+            {isDone && (
+              <span className="ml-1.5 inline-flex items-center gap-0.5 text-emerald-700">
+                ·
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polyline points="4 12 9 17 20 6" />
+                </svg>
+                already sent
+              </span>
+            )}
+          </div>
+          <div className="text-base font-extrabold text-gray-900 truncate">
+            {displayName}
+          </div>
+        </div>
+        <button
+          type="button"
+          data-testid="focus-next"
+          onClick={() => advance(1)}
+          disabled={currentIdx === eligible.length - 1}
+          className="px-2 py-1 text-xs font-bold rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
+          aria-label="Next student"
+        >
+          Next
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Two-column body */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* Student response */}
+        <section>
+          <div className="text-[10px] font-bold tracking-wider uppercase text-gray-500 mb-1">
+            {firstName}&rsquo;s response
+          </div>
+          <div
+            data-testid="focus-student-response"
+            className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 leading-relaxed whitespace-pre-wrap min-h-[100px] max-h-[280px] overflow-y-auto"
+          >
+            {studentResponse.trim() || (
+              <span className="italic text-gray-400">No submission yet.</span>
+            )}
+          </div>
+        </section>
+
+        {/* AI draft (editable) */}
+        <section>
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <div className="text-[10px] font-bold tracking-wider uppercase text-emerald-700 inline-flex items-center gap-1.5">
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+              </svg>
+              AI draft
+              {typeof grade?.ai_pre_score === "number" && (
+                <span className="font-mono text-emerald-600">
+                  · Score {grade.ai_pre_score}
+                </span>
+              )}
+            </div>
+            {aiDraft && draftValue !== aiDraft && (
+              <button
+                type="button"
+                onClick={() =>
+                  setStudentCommentDraft((prev) => ({ ...prev, [key]: aiDraft }))
+                }
+                className="text-[10px] font-semibold text-purple-700 hover:underline"
+                title="Restore the original AI draft"
+              >
+                Restore AI draft
+              </button>
+            )}
+          </div>
+          <textarea
+            data-testid="focus-draft-textarea"
+            value={draftValue}
+            onChange={(e) =>
+              setStudentCommentDraft((prev) => ({
+                ...prev,
+                [key]: e.target.value,
+              }))
+            }
+            placeholder={
+              aiDraft
+                ? "Edit the AI draft, or send as-is."
+                : "AI is still drafting — give it a moment, or type your own."
+            }
+            disabled={tweaking !== null || isSaving}
+            rows={6}
+            className="w-full px-3 py-2 text-sm border border-emerald-200 bg-emerald-50/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none disabled:bg-gray-50"
+          />
+          {/* Tweak buttons */}
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {(["shorter", "warmer", "sharper"] as const).map((d) => (
+              <button
+                key={d}
+                type="button"
+                data-testid={`focus-tweak-${d}`}
+                disabled={
+                  !draftValue.trim() || tweaking !== null || isSaving
+                }
+                onClick={() => void handleTweak(d)}
+                className={[
+                  "px-2.5 py-1 text-[11px] font-bold rounded-md border transition disabled:cursor-not-allowed",
+                  !draftValue.trim() || tweaking !== null || isSaving
+                    ? "border-gray-200 bg-gray-50 text-gray-400"
+                    : "border-purple-200 bg-white text-purple-700 hover:bg-purple-50",
+                  tweaking === d ? "ring-2 ring-purple-400" : "",
+                ].join(" ")}
+              >
+                {tweaking === d
+                  ? "…"
+                  : d.charAt(0).toUpperCase() + d.slice(1)}
+              </button>
+            ))}
+            <button
+              type="button"
+              data-testid="focus-tweak-ask"
+              onClick={() => setFocusAskOpen((prev) => ({ ...prev, [student.id]: !askOpen }))}
+              disabled={(!draftValue.trim() && !askOpen) || isSaving}
+              className={[
+                "px-2.5 py-1 text-[11px] font-bold rounded-md border transition",
+                askOpen
+                  ? "ring-2 ring-purple-400 border-purple-200 bg-white text-purple-700"
+                  : "border-purple-200 bg-white text-purple-700 hover:bg-purple-50",
+              ].join(" ")}
+            >
+              {askOpen ? "× Cancel" : "+ Ask"}
+            </button>
+            {tweaking && (
+              <span className="text-[10px] text-purple-700 italic animate-pulse ml-1">
+                regenerating ({tweaking})…
+              </span>
+            )}
+          </div>
+          {askOpen && (
+            <div
+              data-testid="focus-tweak-ask-panel"
+              className="mt-2 p-2 rounded-md border border-purple-200 bg-purple-50/30 flex flex-col gap-1.5"
+            >
+              <input
+                type="text"
+                data-testid="focus-tweak-ask-input"
+                value={askText}
+                onChange={(e) =>
+                  setFocusAskText((prev) => ({
+                    ...prev,
+                    [student.id]: e.target.value,
+                  }))
+                }
+                placeholder='e.g. "mention the design cycle stages"'
+                disabled={tweaking !== null}
+                className="px-2 py-1 text-xs border border-purple-200 bg-white rounded focus:outline-none focus:ring-2 focus:ring-purple-400 disabled:bg-gray-50"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && askText.trim() && !tweaking) {
+                    e.preventDefault();
+                    void handleTweak("ask", askText);
+                  }
+                }}
+              />
+              <button
+                type="button"
+                data-testid="focus-tweak-ask-apply"
+                disabled={!askText.trim() || tweaking !== null}
+                onClick={() => void handleTweak("ask", askText)}
+                className={[
+                  "self-start px-2.5 py-1 text-[11px] font-bold rounded-md transition",
+                  askText.trim() && !tweaking
+                    ? "bg-purple-600 text-white hover:bg-purple-700"
+                    : "bg-gray-100 text-gray-400 cursor-not-allowed",
+                ].join(" ")}
+              >
+                {tweaking === "ask" ? "Applying…" : "Apply"}
+              </button>
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* Footer: Skip / Send */}
+      <div className="mt-3 pt-3 border-t border-gray-200 flex items-center justify-between gap-3">
+        <button
+          type="button"
+          data-testid="focus-skip"
+          onClick={advanceToNext}
+          disabled={isSaving || currentIdx === eligible.length - 1}
+          className="px-3 py-1.5 text-xs font-bold text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition disabled:opacity-50"
+          title="Skip this student and go to the next one. Doesn't send anything."
+        >
+          Skip →
+        </button>
+        <div className="flex items-center gap-2">
+          {isDone && (
+            <span className="text-[11px] text-emerald-700 font-bold inline-flex items-center gap-1">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="4 12 9 17 20 6" />
+              </svg>
+              Already sent
+            </span>
+          )}
+          <button
+            type="button"
+            data-testid="focus-send-button"
+            onClick={() => void handleSend()}
+            disabled={
+              isSaving ||
+              tweaking !== null ||
+              !draftValue.trim() ||
+              isDone
+            }
+            className={[
+              "px-4 py-2 text-sm font-extrabold rounded-xl transition shadow-sm",
+              isSaving ||
+              tweaking !== null ||
+              !draftValue.trim() ||
+              isDone
+                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                : "bg-emerald-600 text-white hover:bg-emerald-700",
+            ].join(" ")}
+          >
+            {isSaving
+              ? "Sending…"
+              : isDone
+                ? "✓ Sent — go next"
+                : "✓ Send & next →"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
