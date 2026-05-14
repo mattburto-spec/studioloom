@@ -56,6 +56,12 @@ const RETRY_THRESHOLD = 8; // re-run Stage 3 if enrich-survivors < this
 
 interface SuggestBody {
   roundId: string;
+  /** Per-instance teacher-configured gate. Falls back to 3 if missing.
+   *  Clamped server-side to [1, 10] per ClassDjConfigPanel range. */
+  gateMinVotes?: number;
+  /** Per-instance teacher-configured suggestion cap. Falls back to 3.
+   *  Clamped server-side to [1, 3]. */
+  maxSuggestions?: number;
 }
 
 interface RoundRow {
@@ -146,20 +152,29 @@ export async function POST(request: NextRequest) {
   const storedVotes = voteRows ?? [];
   const voteCount = storedVotes.length;
 
-  // Read gate_min_votes from the activity's classDjConfig if available;
-  // otherwise the brief's default (3).
-  // For Phase 5 we use the default; per-activity config is wired in
-  // Phase 6 alongside the teacher cockpit.
-  const gateMinVotes = 3;
+  // Per-instance gate from the body, clamped to the brief's range.
+  // Defaults to 3 (brief default) if not provided. Client (ClassDjBlock
+  // + ClassDjTeacherControls) reads it from activity.classDjConfig and
+  // passes through. Clamp prevents a malicious client from bypassing
+  // with gateMinVotes:0 — the floor of 1 means at least one vote must
+  // be in even if the teacher set it lower.
+  const gateMinVotes = Math.max(
+    1,
+    Math.min(10, Number.isFinite(body.gateMinVotes) ? Number(body.gateMinVotes) : 3),
+  );
   if (voteCount < gateMinVotes) {
     return NextResponse.json(
-      { error: `Need at least ${gateMinVotes} votes (currently ${voteCount})` },
+      { error: `Need at least ${gateMinVotes} vote(s) (currently ${voteCount})` },
       { status: 412 },
     );
   }
 
-  // 4. Race-safe suggest_count increment.
-  const maxSuggestions = 3;
+  // 4. Race-safe suggest_count increment. maxSuggestions also per-instance
+  //    from the body, clamped to [1, 3] per ClassDjConfigPanel range.
+  const maxSuggestions = Math.max(
+    1,
+    Math.min(3, Number.isFinite(body.maxSuggestions) ? Number(body.maxSuggestions) : 3),
+  );
   const { data: updatedRound, error: incrErr } = await db
     .from("class_dj_rounds")
     .update({ suggest_count: round.suggest_count + 1 })

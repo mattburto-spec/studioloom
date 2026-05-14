@@ -105,7 +105,11 @@ export default function ClassDjTeacherControls({
     // /api/student/class-dj/suggest as a session-cookie holder. If the
     // cockpit hits this and the session is teacher-only without student
     // cookie, this returns 401 — fileable as FU-DJ-TEACHER-SUGGEST.)
-    return post("/api/student/class-dj/suggest", { roundId });
+    return post("/api/student/class-dj/suggest", {
+      roundId,
+      gateMinVotes: config?.gateMinVotes,
+      maxSuggestions: config?.maxSuggestions,
+    });
   }
 
   function handleClose(roundId: string) {
