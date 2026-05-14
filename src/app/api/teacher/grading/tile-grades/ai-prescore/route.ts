@@ -202,16 +202,21 @@ export async function POST(request: NextRequest) {
     return Array.from(out);
   })();
 
-  // Run pre-score per student. Catch errors per-row so the batch survives.
-  const results: PerStudentResult[] = [];
-  for (const studentId of student_ids) {
+  // Run pre-score per student. Parallelised in chunks of 6 — Matt
+  // smoke 13 May 2026 caught 24-student batches taking ~60s on the
+  // old serial loop (Haiku ~2-3s × 24 = ~60s). Chunking to 6
+  // concurrent puts 24 through in ~4 chunks × ~3s ≈ 12-15s. Catch
+  // errors per-row so a single failure doesn't poison the batch;
+  // result order is preserved by the index map. The CHUNK_SIZE
+  // matches the inbox warm-up loop's concurrency for consistency.
+  const CHUNK_SIZE = 6;
+  const processOne = async (studentId: string): Promise<PerStudentResult> => {
     try {
       const rawResponse = responseByStudent[studentId] ?? "";
       // Rich-shape detection (Inspiration Board etc.) — the AI helper
       // takes plain string. Passing raw JSON makes it grade the JSON,
       // not the student's thinking. Flatten to a readable summary if
-      // we recognise the shape; else use the raw string. Matt smoke
-      // 13 May 2026.
+      // we recognise the shape; else use the raw string.
       const inspirationSummary = summariseInspirationBoardForAI(rawResponse);
       const studentResponse = inspirationSummary ?? rawResponse;
       const ai = await generateAiPrescore({
@@ -251,21 +256,29 @@ export async function POST(request: NextRequest) {
         prompt_version: ai.promptVersion,
       });
 
-      results.push({
+      return {
         student_id: studentId,
         ok: true,
         ai_score: ai.score,
         ai_quote: ai.evidenceQuote,
         ai_confidence: ai.confidence,
         ai_comment_draft: feedbackDraftRestored,
-      });
+      };
     } catch (err) {
-      results.push({
+      return {
         student_id: studentId,
         ok: false,
         error: err instanceof Error ? err.message : "Unknown error",
-      });
+      };
     }
+  };
+
+  const results: PerStudentResult[] = [];
+  for (let i = 0; i < student_ids.length; i += CHUNK_SIZE) {
+    const slice = student_ids.slice(i, i + CHUNK_SIZE);
+    // eslint-disable-next-line no-await-in-loop
+    const sliceResults = await Promise.all(slice.map(processOne));
+    results.push(...sliceResults);
   }
 
   return NextResponse.json({ results });
