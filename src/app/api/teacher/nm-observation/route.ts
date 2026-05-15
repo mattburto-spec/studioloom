@@ -104,17 +104,21 @@ export async function POST(request: NextRequest) {
   const { teacherId } = auth;
 
   const body = await request.json();
-  const { studentId, unitId, classId, pageId, assessments } = body as {
+  const { studentId, unitId, classId, pageId, eventType, assessments } = body as {
     studentId: string;
     unitId: string;
     classId?: string;
     pageId?: string;
+    eventType?: "observation" | "calibration";
     assessments: Array<{ element: string; rating: number; comment?: string }>;
   };
 
   if (!studentId || !unitId || !Array.isArray(assessments) || assessments.length === 0) {
     return NextResponse.json({ error: "studentId, unitId, and assessments are required" }, { status: 400 });
   }
+
+  const resolvedEventType: "observation" | "calibration" =
+    eventType === "calibration" ? "calibration" : "observation";
 
   for (const a of assessments) {
     if (typeof a.rating !== "number" || a.rating < 1 || a.rating > 4) {
@@ -176,6 +180,7 @@ export async function POST(request: NextRequest) {
     competency,
     element: a.element,
     source: "teacher_observation" as const,
+    event_type: resolvedEventType,
     rating: a.rating,
     comment: a.comment || null,
     context: {},
