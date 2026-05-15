@@ -245,7 +245,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // ── 5. Look up student via 3-level chain (mirrors legacy route) ─────────
+  // ── 5. Look up student via 2-level enrollment chain ─────────────────────
+  // Level 1: class_students junction (preferred, post-mig 041)
+  // Level 2: legacy students.class_id direct lookup (transitional, pre-junction)
+  //
+  // Both levels REQUIRE enrollment in classData.id. There is no orphan/teacher-
+  // scoped fallback: the previous Level 3 (`username + author_teacher_id`) let
+  // a student log into ANY class their owning teacher ran, since "same teacher"
+  // is not the same as "enrolled in this class". Removed 2026-05-15. Orphans
+  // (students created via UI without enrollment) must be enrolled by their
+  // teacher before they can log in — there is no auto-enroll on first login.
   type StudentLite = {
     id: string;
     username: string;
@@ -297,28 +306,6 @@ export async function POST(request: NextRequest) {
     if (legacy) student = legacy as StudentLite;
   }
 
-  // Level 3: orphan student (matches legacy fallback exactly)
-  if (!student && classData.teacher_id) {
-    const { data: orphan } = await supabaseAdmin
-      .from("students")
-      .select("id, username, display_name, ell_level, user_id, school_id")
-      .eq("username", normalizedUsername)
-      // access-check-skip: not an ownership predicate — joins by class
-      // teacher to disambiguate orphan student lookup; classData is already
-      // resolved from a verified classCode, so this is a scope filter, not
-      // an actor permission gate.
-      .eq("author_teacher_id", classData.teacher_id)
-      .maybeSingle();
-    if (orphan) {
-      student = orphan as StudentLite;
-      // Re-link for future logins (mirror legacy)
-      await supabaseAdmin
-        .from("students")
-        .update({ class_id: classData.id })
-        .eq("id", orphan.id);
-    }
-  }
-
   if (!student) {
     await logLoginEvent(supabaseAdmin, {
       actor_id: null,
@@ -345,8 +332,9 @@ export async function POST(request: NextRequest) {
   // Phase 1.1d wires server-side INSERT routes to provision immediately. The
   // 4 client-side UI INSERT sites (FU-AV2-UI-STUDENT-INSERT-REFACTOR) leave
   // user_id NULL until first login. This block closes that window. We only
-  // call this AFTER classCode + username has verified the student exists, so
-  // it can never create users from unverified input.
+  // call this AFTER the student has been verified as ENROLLED in classData.id
+  // (Level 1 or Level 2 above), so it can never create users from unverified
+  // input or for students who merely share a teacher with the target class.
   let authUserId: string | null = student.user_id;
   if (!authUserId) {
     try {
