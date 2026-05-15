@@ -14,6 +14,7 @@ import { DesignConstraintsEditor } from "./DesignConstraintsEditor";
 import { AmendmentsEditor } from "./AmendmentsEditor";
 import { DiagramUploader } from "./DiagramUploader";
 import { LockToggle } from "./LockToggle";
+import { AIBriefAssistModal } from "./AIBriefAssistModal";
 
 interface UnitBriefEditorProps {
   unitId: string;
@@ -184,6 +185,25 @@ export function UnitBriefEditor({
   const allLocked = lockedCount === totalLockable;
   const noneLocked = lockedCount === 0;
 
+  // AI brief-assist modal (post-F.E polish).
+  const [aiOpen, setAiOpen] = useState(false);
+
+  // Apply a proposal from the AI assist. Replaces the editor's state
+  // optimistically + saves via the existing partial-patch route. The
+  // server-side validator does the final shape check.
+  const handleAIApply = useCallback(
+    async (patch: { brief_text?: string; constraints?: UnitBriefConstraints }) => {
+      if (patch.brief_text !== undefined) {
+        setBriefText(patch.brief_text);
+      }
+      if (patch.constraints) {
+        setConstraints(patch.constraints);
+      }
+      await savePatch(patch);
+    },
+    [savePatch],
+  );
+
   const handleAddAmendment = useCallback(
     async (input: { version_label: string; title: string; body: string }) => {
       setSaving(true);
@@ -230,7 +250,7 @@ export function UnitBriefEditor({
         >
           ← Back to {unitTitle ?? "unit"}
         </Link>
-        <div className="mt-2 flex items-center gap-3">
+        <div className="mt-2 flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold text-gray-900">
             Brief &amp; Constraints
           </h1>
@@ -239,6 +259,15 @@ export function UnitBriefEditor({
             saveError={saveError}
             lastSavedAt={lastSavedAt}
           />
+          <button
+            type="button"
+            onClick={() => setAiOpen(true)}
+            disabled={saving}
+            data-testid="ai-brief-assist-open"
+            className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-white hover:bg-indigo-700 disabled:opacity-50"
+          >
+            <span aria-hidden="true">✨</span> AI assist
+          </button>
         </div>
         <p className="mt-1 text-sm text-gray-600">
           The scenario your students reference all unit. Edit the brief once,
@@ -367,6 +396,14 @@ export function UnitBriefEditor({
           disabled={saving}
         />
       </section>
+
+      {/* AI brief assist modal — portal-mounted, only renders when open. */}
+      <AIBriefAssistModal
+        open={aiOpen}
+        unitId={unitId}
+        onApply={handleAIApply}
+        onClose={() => setAiOpen(false)}
+      />
     </div>
   );
 }

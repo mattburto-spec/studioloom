@@ -1,11 +1,11 @@
 {
   "registry": "audit-coverage",
-  "timestamp": "2026-05-15T03:38:08.178007+00:00",
+  "timestamp": "2026-05-15T06:31:24.497256+00:00",
   "version": 1,
   "stats": {
-    "total_mutation_routes": 268,
+    "total_mutation_routes": 269,
     "covered": 8,
-    "skipped": 260,
+    "skipped": 261,
     "missing": 0
   },
   "covered": [
@@ -1555,6 +1555,13 @@
         "POST"
       ],
       "reason": "Unit Briefs Foundation Phase B.5. Teacher-author-only"
+    },
+    {
+      "file": "src/app/api/teacher/unit-brief/generate/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "AI brief-assist for the teacher unit-brief editor. Same"
     },
     {
       "file": "src/app/api/teacher/unit-brief/route.ts",
