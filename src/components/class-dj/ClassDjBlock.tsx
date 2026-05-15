@@ -16,7 +16,7 @@
  * Brief: docs/projects/class-dj-block-brief.md §7 (UI surface).
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useClassDjPolling, type Role } from "./useClassDjPolling";
 import ClassDjArmedView from "./ClassDjArmedView";
 import ClassDjLiveStudentView from "./ClassDjLiveStudentView";
@@ -69,6 +69,9 @@ export default function ClassDjBlock({
 
   const [requesting, setRequesting] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
+  // Per-round ref-guard so the auto-fire useEffect below only fires
+  // once per round id, never loops, and survives re-renders.
+  const autoFiredRoundRef = useRef<string | null>(null);
 
   async function requestSuggestion(roundId: string) {
     setRequesting(true);
@@ -98,6 +101,44 @@ export default function ClassDjBlock({
       setRequesting(false);
     }
   }
+
+  // Auto-fire Suggest when the round closes with the gate met and no
+  // suggestion was generated. Closes the most-common Class DJ failure
+  // mode: students vote, gate is met, but nobody clicks Suggest before
+  // the timer expires → round closes with "No suggestion generated."
+  //
+  // Race-safe by design:
+  //   - /api/student/class-dj/suggest does an atomic suggest_count
+  //     increment (UPDATE ... WHERE suggest_count < max_suggestions
+  //     RETURNING). Only ONE concurrent caller wins; others get 429.
+  //   - The winning client's refetch updates their own state; useClassDjPolling
+  //     keeps polling for a 15s grace window after close so all other clients
+  //     catch the new suggestion on their next poll.
+  //
+  // Ref-guard prevents a 429 loop by binding the fire to the specific
+  // round id — a new round mints a new id, resetting the guard.
+  useEffect(() => {
+    if (!state?.round) return;
+    if (state.status !== "closed") return;
+    if (state.suggestion?.items) return; // already have a suggestion
+    if (state.participation_count < (config?.gateMinVotes ?? 3)) return;
+    if (requesting) return;
+
+    const currentRoundId = (state.round as unknown as RoundShape).id;
+    if (autoFiredRoundRef.current === currentRoundId) return;
+    autoFiredRoundRef.current = currentRoundId;
+
+    requestSuggestion(currentRoundId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps — requestSuggestion
+    // is stable enough; we only want to react to the state-shape signals.
+  }, [
+    state?.status,
+    state?.participation_count,
+    state?.suggestion?.items,
+    state?.round,
+    config?.gateMinVotes,
+    requesting,
+  ]);
 
   if (error && !state) {
     return (
