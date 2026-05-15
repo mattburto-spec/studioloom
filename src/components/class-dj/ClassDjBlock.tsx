@@ -102,6 +102,18 @@ export default function ClassDjBlock({
     }
   }
 
+  // Clear stale requestError when the round changes. Without this, a
+  // failed /suggest from a previous round (e.g. 429 "max_suggestions
+  // reached") would still display below the live vote form after the
+  // teacher hit Run again — confusing because the new round has fresh
+  // suggest_count. Caught 14 May 2026 from Matt's classroom smoke.
+  const currentRoundId = state?.round
+    ? (state.round as unknown as RoundShape).id
+    : null;
+  useEffect(() => {
+    setRequestError(null);
+  }, [currentRoundId]);
+
   // Auto-fire Suggest when the round closes with the gate met and no
   // suggestion was generated. Closes the most-common Class DJ failure
   // mode: students vote, gate is met, but nobody clicks Suggest before
