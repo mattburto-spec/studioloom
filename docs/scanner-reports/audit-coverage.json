@@ -1,11 +1,11 @@
 {
   "registry": "audit-coverage",
-  "timestamp": "2026-05-13T23:10:46.618253+00:00",
+  "timestamp": "2026-05-15T03:38:08.178007+00:00",
   "version": 1,
   "stats": {
-    "total_mutation_routes": 266,
+    "total_mutation_routes": 268,
     "covered": 8,
-    "skipped": 258,
+    "skipped": 260,
     "missing": 0
   },
   "covered": [
@@ -636,6 +636,13 @@
         "POST"
       ],
       "reason": "routine learner activity, low audit value"
+    },
+    {
+      "file": "src/app/api/student/unit-brief/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "Unit Briefs Foundation Phase F.D \u2014 student authoring of"
     },
     {
       "file": "src/app/api/student/upload/route.ts",
@@ -1471,6 +1478,13 @@
     },
     {
       "file": "src/app/api/teacher/students/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "reason": "routine teacher pedagogy ops, low audit value"
+    },
+    {
+      "file": "src/app/api/teacher/suggest-videos/route.ts",
       "methods": [
         "POST"
       ],

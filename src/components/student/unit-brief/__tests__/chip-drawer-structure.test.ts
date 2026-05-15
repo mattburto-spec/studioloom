@@ -31,14 +31,23 @@ describe("BriefChip — structure (Phase C)", () => {
     expect(chipSrc).toMatch(/Array\.isArray\(unitIdParam\)/);
   });
 
-  it("renders null when not on a /unit/[unitId]/* route (no unitId)", () => {
-    expect(chipSrc).toContain("if (!unitId || !brief) return null;");
+  it("renders null when not on a /unit/[unitId]/* route", () => {
+    expect(chipSrc).toContain("if (!unitId) return null;");
+  });
+
+  it("renders null when there's no brief content from any source (Phase F.D)", () => {
+    // After F.D, the chip needs to consider all 3 sources: unit_brief,
+    // card template, student override. If all are null, hide.
+    expect(chipSrc).toMatch(/const hasAnyContent =\s*unitBrief !== null \|\| cardTemplate !== null \|\| studentBrief !== null/);
+    expect(chipSrc).toContain("if (!hasAnyContent) return null;");
   });
 
   it("hides the chip on 4xx/5xx fetches (convenience surface — fail silently)", () => {
     // Don't surface fetch errors in the nav chrome.
     expect(chipSrc).toMatch(/if \(!res\.ok\)/);
-    expect(chipSrc).toContain("setBrief(null)");
+    expect(chipSrc).toContain("setUnitBrief(null)");
+    expect(chipSrc).toContain("setCardTemplate(null)");
+    expect(chipSrc).toContain("setStudentBrief(null)");
   });
 
   it("fetches on mount/unit-change AND refetches on each drawer open (Phase D)", () => {
@@ -133,11 +142,37 @@ describe("BriefDrawer — structure (Phase C)", () => {
     expect(amendmentsIdx).toBeGreaterThan(constraintsIdx);
   });
 
-  it("design-constraints view appears only when archetype === 'design' AND data is non-empty", () => {
-    expect(drawerSrc).toContain('brief.constraints.archetype === "design"');
-    expect(drawerSrc).toMatch(
-      /Object\.keys\(brief\.constraints\.data\)\.length\s*>\s*0/,
-    );
+  it("Phase F.D — drawer takes the 3 merge sources separately (not a pre-merged brief)", () => {
+    // The drawer computes the effective brief internally; parent just
+    // passes the inputs.
+    expect(drawerSrc).toMatch(/unitBrief: UnitBrief \| null/);
+    expect(drawerSrc).toMatch(/cardTemplate: CardTemplate \| null/);
+    expect(drawerSrc).toMatch(/studentBrief: StudentBrief \| null/);
+    expect(drawerSrc).toMatch(/onSaveOverride:/);
+    expect(drawerSrc).toContain("computeEffectiveBrief({ unitBrief, cardTemplate, studentBrief })");
+  });
+
+  it("Phase F.D — locked fields render read-only; unlocked fields render editable inputs", () => {
+    // The conditional renderer pattern: each field's `locked` drives
+    // ReadOnlyTextBlock vs an editable input (EditableTextarea /
+    // TextInputCommit / DimensionsEditor / MaterialsEditor /
+    // RepeaterEditor).
+    expect(drawerSrc).toMatch(/effective\.brief_text\.locked \?/);
+    expect(drawerSrc).toMatch(/<ReadOnlyTextBlock/);
+    expect(drawerSrc).toMatch(/<EditableTextarea/);
+    expect(drawerSrc).toMatch(/<DimensionsEditor/);
+    expect(drawerSrc).toMatch(/<MaterialsEditor/);
+    expect(drawerSrc).toMatch(/<RepeaterEditor/);
+  });
+
+  it("Phase F.D — when card has a template, shows a banner with the project label", () => {
+    expect(drawerSrc).toMatch(/Your project:/);
+    expect(drawerSrc).toContain("cardTemplate.cardLabel");
+  });
+
+  it("Phase F.D — save status pill + error pill in the sticky header", () => {
+    expect(drawerSrc).toMatch(/data-testid="brief-drawer-saving"/);
+    expect(drawerSrc).toMatch(/data-testid="brief-drawer-save-error"/);
   });
 
   it("amendments render top-to-bottom in caller order (oldest-first; no reverse)", () => {
@@ -156,8 +191,8 @@ describe("BriefDrawer — structure (Phase C)", () => {
     expect(drawerSrc).toMatch(/MATERIAL_LABEL_BY_ID\.get\(m\)\s*\?\?\s*m/);
   });
 
-  it("empty brief_text renders a friendly placeholder, not an empty <p>", () => {
-    expect(drawerSrc).toMatch(/data-testid="brief-drawer-prose-empty"/);
+  it("empty (locked) brief_text renders a friendly placeholder", () => {
+    // Phase F.D — empty-state lives inside ReadOnlyTextBlock now.
     expect(drawerSrc).toContain("Your teacher hasn");
   });
 });

@@ -23,11 +23,15 @@ describe("/api/student/unit-brief — module-level guards", () => {
     );
   });
 
-  it("only exports GET (read-only — no mutation routes here)", () => {
+  it("exports GET + POST (Phase F.D adds student authoring of unlocked fields)", () => {
     expect(src).toMatch(/export async function GET/);
-    expect(src).not.toMatch(/export async function POST/);
+    expect(src).toMatch(/export async function POST/);
     expect(src).not.toMatch(/export async function DELETE/);
     expect(src).not.toMatch(/export async function PATCH/);
+  });
+
+  it("audit-skip annotation present (Phase F.D POST)", () => {
+    expect(src.slice(0, 300)).toContain("audit-skip:");
   });
 
   it("returns 400 when unitId query param is missing", () => {
@@ -79,9 +83,69 @@ describe("/api/student/unit-brief — module-level guards", () => {
     expect(src).toContain("Promise.all([");
   });
 
-  it("coerceConstraints handles missing / malformed / generic / design archetypes", () => {
-    expect(src).toContain("function coerceConstraints");
-    expect(src).toContain('archetype === "design"');
-    expect(src).toContain("GENERIC_CONSTRAINTS");
+  it("coerceConstraints + coerceLocks imported from the shared validators module", () => {
+    // Phase F.C moved these to src/lib/unit-brief/validators.ts. The
+    // student route imports them now instead of duplicating.
+    expect(src).toMatch(
+      /import \{[\s\S]*?coerceConstraints[\s\S]*?coerceLocks[\s\S]*?\} from "@\/lib\/unit-brief\/validators"/,
+    );
+  });
+
+  it("Phase F.D — resolves choice card pick + fetches card's brief template", () => {
+    expect(src).toMatch(
+      /import \{ resolveChoiceCardPickForUnit \} from "@\/lib\/choice-cards\/resolve-for-unit"/,
+    );
+    expect(src).toContain("resolveChoiceCardPickForUnit(db, studentId, unitId)");
+    // _pitch-your-own carries no template — explicitly filtered out
+    expect(src).toContain('pick.cardId !== "_pitch-your-own"');
+    expect(src).toMatch(/\.from\("choice_cards"\)/);
+  });
+
+  it("Phase F.D — fetches the student's per-unit override row (student_briefs)", () => {
+    expect(src).toMatch(/\.from\("student_briefs"\)/);
+    expect(src).toMatch(/\.eq\("student_id", studentId\)/);
+    expect(src).toMatch(/\.eq\("unit_id", unitId\)/);
+  });
+
+  it("Phase F.D — GET response includes cardTemplate + studentBrief alongside brief + amendments", () => {
+    expect(src).toMatch(/cardTemplate[,:]/);
+    expect(src).toMatch(/studentBrief[,:]/);
+  });
+});
+
+describe("POST /api/student/unit-brief — Phase F.D", () => {
+  it("requires the same enrollment chain as GET (DRY via helper)", () => {
+    // verifyEnrollment helper is called from both GET + POST.
+    expect(src).toMatch(/async function verifyEnrollment/);
+    expect(src.match(/verifyEnrollment\(db, studentId, unitId\)/g)?.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("validates brief_text is string or null", () => {
+    expect(src).toContain("brief_text must be a string or null");
+  });
+
+  it("validates constraints via shared validateConstraints", () => {
+    expect(src).toMatch(
+      /import \{[\s\S]*?validateConstraints[\s\S]*?\} from "@\/lib\/unit-brief\/validators"/,
+    );
+    expect(src).toMatch(/validateConstraints\(b\.constraints\)/);
+  });
+
+  it("rejects empty patches (must include brief_text or constraints)", () => {
+    expect(src).toContain(
+      "body must include at least one of: brief_text, constraints",
+    );
+  });
+
+  it("upserts student_briefs onConflict student_id,unit_id (UNIQUE pair)", () => {
+    expect(src).toMatch(/onConflict:\s*"student_id,unit_id"/);
+  });
+
+  it("partial-patch merges with existing row (server-side {...existing, ...patch})", () => {
+    expect(src).toMatch(/\.\.\.existing,\s*\.\.\.patch/);
+  });
+
+  it("returns studentBrief (NOT brief) — distinguishes from teacher endpoint", () => {
+    expect(src).toMatch(/studentBrief:\s*rowToStudentBrief/);
   });
 });
