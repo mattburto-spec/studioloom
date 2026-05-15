@@ -325,7 +325,7 @@ export default function FirstMoveBlock({
           </div>
         )}
 
-        {/* 3. Coming up next — forward look from planning_tasks */}
+        {/* 3. Coming up next — forward look from student_unit_timeline */}
         {showComingUpSection && (
           <div
             className={

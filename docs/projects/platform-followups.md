@@ -48,6 +48,35 @@ Worth observing real classroom behaviour first. Maybe just TELLING students wher
 
 ---
 
+## FU-BRIEFS-STUDENT-POST-LOCK-ENFORCEMENT — Enforce field locks server-side on student brief write
+**Surfaced:** 15 May 2026, during Phase F.F verification sweep (sections 5 + 7 of the saveme audit checklist).
+**Severity:** 🟡 MEDIUM — defence-in-depth gap, not an active exploit path in v1 (pilot students are trusted; the UI gates correctly).
+**Target phase:** Quiet afternoon, or next time the briefs surface is opened. Pairs naturally with FU-BRIEFS-AUDIT-COVERAGE.
+
+**The problem:**
+`POST /api/student/unit-brief` validates the `constraints` payload via `validateConstraints` but does NOT check whether each field the student is overriding is actually unlocked. The UI (`BriefDrawer`) only renders editable inputs for unlocked fields, so well-behaved clients never POST a locked field — but a crafted request bypasses the UI entirely.
+
+Concretely: if `unit_briefs.locks` (or the picked `choice_cards.brief_locks`) has `"constraints.budget": true`, the server accepts a student POST with `constraints.data.budget = "free"` and persists it to `student_briefs`. The teacher's lock is then meaningless for any student who reads the route docs and sends a POST directly.
+
+**Why it's defence-in-depth and not a P1 leak:**
+- No PII exposure. The student is overriding their OWN brief override row.
+- No cross-tenant leak. The override sits in `student_briefs.brief_text/constraints` for that one student-unit pair.
+- The teacher review tab (`/api/teacher/unit-brief/student-briefs`) reads back the overridden values, so a teacher who actually looks at the tab will see the bypass. That's the social check in v1.
+- The render layer (BriefDrawer 3-source merge) still honours the teacher's locks, so other students see the teacher's value, not the bypass.
+
+**The fix when this lands:**
+1. In `POST` handler: fetch the unit's `locks` + (if student has a card pick) the card's `brief_locks` before merging.
+2. Compute the effective locks via the same precedence as `computeEffectiveBrief` (card wins entirely if card has template, else unit locks).
+3. For each path-key in `LOCKABLE_FIELDS`: if locked AND patch attempts to set that path, return 403 with `error: "field X is locked by teacher"`.
+4. Add source-static test asserting the lock-check exists in the route.
+5. Add integration test: POST a locked field → expect 403.
+
+Estimated work: ~1 hour. The 3-source merge helper already exists in `src/lib/unit-brief/effective.ts` — most of the lift is teaching it to take "which patch keys are being written" and answering "are any of them locked?"
+
+**Pairs with:** FU-BRIEFS-AUDIT-COVERAGE — both gaps live in the same student POST route. Land them in one PR.
+
+---
+
 ## FU-BRIEFS-AUDIT-COVERAGE — Wire logAuditEvent into the teacher unit-brief routes
 **Surfaced:** 13 May 2026, during Unit Briefs Foundation Phase B.4 audit-coverage scanner gate.
 **Severity:** 🟢 P3 — defensive logging, no security gap. Same audit-sensitivity class as `/api/teacher/product-brief-pitch` which is also currently audit-skipped.
