@@ -42,7 +42,7 @@ import UnitAttentionPanel from "@/components/teacher/UnitAttentionPanel";
 // URL: /teacher/units/[unitId]/class/[classId]
 // ---------------------------------------------------------------------------
 
-type HubTab = "progress" | "grade" | "students" | "gallery" | "studio" | "metrics" | "badges" | "attention" | "settings";
+type HubTab = "progress" | "grade" | "students" | "gallery" | "studio" | "metrics" | "badges" | "settings";
 
 const TABS: { id: HubTab; label: string; icon: string }[] = [
   { id: "progress", label: "Progress", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
@@ -56,7 +56,6 @@ const TABS: { id: HubTab; label: string; icon: string }[] = [
   { id: "studio", label: "Open Studio", icon: "M3 11h18M3 11v8a2 2 0 002 2h14a2 2 0 002-2v-8M7 11V7a5 5 0 0110 0v4" },
   { id: "metrics", label: "New Metrics", icon: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" },
   { id: "badges", label: "Badges", icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" },
-  { id: "attention", label: "Attention", icon: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" },
   { id: "settings", label: "Settings", icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" },
 ];
 
@@ -238,9 +237,10 @@ export default function ClassHubPage({
     if (typeof window !== "undefined") {
       const sp = new URLSearchParams(window.location.search);
       const tab = sp.get("tab");
-      if (tab === "progress" || tab === "grade" || tab === "students" || tab === "gallery" || tab === "studio" || tab === "metrics" || tab === "badges" || tab === "attention" || tab === "settings") return tab;
+      if (tab === "progress" || tab === "grade" || tab === "students" || tab === "gallery" || tab === "studio" || tab === "metrics" || tab === "badges" || tab === "settings") return tab;
       if (tab === "safety") return "badges"; // backward compat
       if (tab === "open-studio") return "studio"; // backward compat
+      if (tab === "attention") return "metrics"; // backward compat — Attention folded into New Metrics (15 May 2026)
     }
     return "progress";
   });
@@ -1533,22 +1533,34 @@ export default function ClassHubPage({
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* NEW METRICS TAB — Round 8 restoration (6 May 2026):                */}
-      {/* Mat: "the teacher part needs to come back". The 3-step             */}
-      {/* NMConfigPanel was removed on 4 May Lever-MM declutter, but that    */}
-      {/* left teachers with no way to choose WHICH elements get tracked.    */}
-      {/* New slim NMElementsPanel handles competency + element selection;   */}
-      {/* per-lesson checkpoints still live in the lesson editor's NM block  */}
-      {/* category (so the two surfaces don't fight over the same data).    */}
+      {/* NEW METRICS TAB — 15 May 2026 consolidation:                       */}
+      {/* Attention tab folded in here so teachers have one surface for      */}
+      {/* "who needs me this lesson + what are they being assessed on".      */}
+      {/* Order: NM element picker (collapsed once configured) →             */}
+      {/* UnitAttentionPanel (the daily-driver rotation list) →              */}
+      {/* NMResultsPanel (drill-down) → checkpoints helper.                  */}
+      {/* The Attention panel itself works without NM enabled — it surfaces  */}
+      {/* Journal/Kanban/Calibration signals — so it renders outside the    */}
+      {/* globalNmEnabled gate.                                              */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {activeTab === "metrics" && (
         <div>
-          {globalNmEnabled ? (
-            <>
-              {/* Setup panel: pick competency + elements. Persists via
-                  /api/teacher/nm-config. checkpoints field is preserved
-                  from the existing config (lesson editor owns it). */}
-              <div className="mb-6">
+          {globalNmEnabled && (
+            // Setup panel: pick competency + elements. Persists via
+            // /api/teacher/nm-config. checkpoints field is preserved
+            // from the existing config (lesson editor owns it). Collapsed
+            // once at least one element is configured.
+            <details className="mb-6 group" open={!(nmConfig?.elements?.length)}>
+              <summary className="cursor-pointer select-none px-4 py-3 rounded-xl border border-border bg-surface-alt hover:bg-gray-50 flex items-center justify-between gap-3">
+                <span className="text-sm font-semibold text-text-primary">
+                  {nmConfig?.elements?.length
+                    ? `NM settings — tracking ${nmConfig.elements.length} of 12 elements (click to edit)`
+                    : "NM settings — pick which elements to track"}
+                </span>
+                <span className="text-xs text-text-secondary group-open:hidden">expand</span>
+                <span className="text-xs text-text-secondary hidden group-open:inline">collapse</span>
+              </summary>
+              <div className="mt-3">
                 <NMElementsPanel
                   currentConfig={nmConfig}
                   onSave={async (next) => {
@@ -1569,8 +1581,26 @@ export default function ClassHubPage({
                   }}
                 />
               </div>
+            </details>
+          )}
+
+          {/* Attention-Rotation panel (was its own tab until 15 May 2026).
+              Renders regardless of NM enabled — Journal/Kanban/Calibration
+              signals don't depend on the NM competency picker. */}
+          <div className="mb-6">
+            <UnitAttentionPanel unitId={unitId} classId={classId} />
+          </div>
+
+          {globalNmEnabled ? (
+            <>
+              {/* Results panel — unchanged. Renders whether or not nm_config.enabled
+                  is true, so teachers see "no results yet" state on a fresh class. */}
+              <div className="mb-6">
+                <NMResultsPanel unitId={unitId} classId={classId} />
+              </div>
               {/* Where-do-I-configure-checkpoints helper — points teachers
-                  at the lesson editor for per-lesson timing. */}
+                  at the lesson editor for per-lesson timing. Low-prominence
+                  reminder, kept at the bottom. */}
               <div className="mb-6 px-4 py-3 rounded-xl border border-violet-200 bg-violet-50/60 flex items-start gap-3">
                 <span className="text-violet-700 text-lg flex-shrink-0">🎯</span>
                 <div className="flex-1 min-w-0">
@@ -1578,14 +1608,9 @@ export default function ClassHubPage({
                     Per-lesson checkpoints live in the lesson editor
                   </h3>
                   <p className="text-xs text-text-secondary leading-relaxed">
-                    The panel above controls WHICH elements you track. To choose WHEN students rate themselves, open any lesson, expand the <strong>New Metrics</strong> block category in the Blocks pane, and click an element to register a checkpoint on that lesson.
+                    The NM settings above control WHICH elements you track. To choose WHEN students rate themselves, open any lesson, expand the <strong>New Metrics</strong> block category in the Blocks pane, and click an element to register a checkpoint on that lesson.
                   </p>
                 </div>
-              </div>
-              {/* Results panel — unchanged. Renders whether or not nm_config.enabled
-                  is true, so teachers see "no results yet" state on a fresh class. */}
-              <div className="mb-6">
-                <NMResultsPanel unitId={unitId} classId={classId} />
               </div>
             </>
           ) : (
@@ -1657,13 +1682,6 @@ export default function ClassHubPage({
           classId={classId}
           students={students.map((s) => ({ id: s.id, display_name: s.display_name, username: s.username }))}
         />
-      )}
-
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* ATTENTION TAB (AG.4.2) — Teacher Attention-Rotation Panel         */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {activeTab === "attention" && (
-        <UnitAttentionPanel unitId={unitId} classId={classId} />
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════ */}

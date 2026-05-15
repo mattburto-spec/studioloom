@@ -91,8 +91,11 @@ describe("Class Hub Metrics tab — NMElementsPanel mount (round 8)", () => {
   });
 
   it('mounts <NMElementsPanel> inside the metrics tab', () => {
+    // Distance bumped to 1500 (15 May 2026) — panel now lives inside a
+    // collapsible <details> with a summary header, which adds markup
+    // between activeTab === "metrics" and the panel itself.
     expect(CLASS_HUB_SRC).toMatch(
-      /activeTab === "metrics"[\s\S]{0,800}<NMElementsPanel[\s\S]{0,200}currentConfig=\{nmConfig\}/
+      /activeTab === "metrics"[\s\S]{0,1500}<NMElementsPanel[\s\S]{0,200}currentConfig=\{nmConfig\}/
     );
   });
 
