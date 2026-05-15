@@ -123,29 +123,26 @@ describe("DontRescueBanner (AG.4.3)", () => {
   });
 });
 
-describe("Class Hub wiring", () => {
-  it('"attention" added to HubTab union', () => {
+describe("Class Hub wiring (15 May 2026 — Attention folded into New Metrics tab)", () => {
+  it('Attention tab REMOVED from HubTab union', () => {
+    // The "attention" tab no longer exists; folded into the metrics tab.
+    expect(HUB_SRC).not.toMatch(/type HubTab[\s\S]{0,400}"attention"/);
+  });
+
+  it("Attention entry REMOVED from TABS list", () => {
+    expect(HUB_SRC).not.toContain('id: "attention"');
+  });
+
+  it("UnitAttentionPanel mounts inside the metrics tab with unitId + classId", () => {
+    // After the consolidation the panel renders inside the activeTab === "metrics"
+    // block, between the NM elements picker and the NM results panel.
     expect(HUB_SRC).toMatch(
-      /type HubTab[\s\S]{0,200}"attention"/
+      /activeTab === "metrics"[\s\S]*?<UnitAttentionPanel unitId=\{unitId\} classId=\{classId\}/
     );
   });
 
-  it('"attention" tab in TABS list (after badges, before settings)', () => {
-    const badgesIdx = HUB_SRC.indexOf('id: "badges"');
-    const attentionIdx = HUB_SRC.indexOf('id: "attention"');
-    const settingsIdx = HUB_SRC.indexOf('id: "settings"');
-    expect(attentionIdx).toBeGreaterThan(badgesIdx);
-    expect(settingsIdx).toBeGreaterThan(attentionIdx);
-  });
-
-  it("attention tab passes unitId + classId to panel", () => {
-    expect(HUB_SRC).toMatch(
-      /activeTab === "attention"[\s\S]{0,200}<UnitAttentionPanel unitId=\{unitId\} classId=\{classId\}/
-    );
-  });
-
-  it("URL tab parser whitelists 'attention'", () => {
-    expect(HUB_SRC).toMatch(/tab === "attention"/);
+  it("URL tab parser redirects ?tab=attention → metrics for backward compat", () => {
+    expect(HUB_SRC).toMatch(/tab === "attention".*return "metrics"/);
   });
 });
 
