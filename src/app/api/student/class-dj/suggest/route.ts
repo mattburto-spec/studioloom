@@ -30,8 +30,9 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireStudentSession } from "@/lib/access-v2/actor-session";
+import { getActorSession } from "@/lib/access-v2/actor-session";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { verifyTeacherInClass } from "@/lib/class-dj/auth-helpers";
 import {
   aggregate,
   analyseConsensusSeeds,
@@ -101,9 +102,21 @@ function parseTeacherId(startedBy: string): string | null {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await requireStudentSession(request);
-  if (session instanceof NextResponse) return session;
-  const { studentId } = session;
+  // Accept EITHER a student OR a teacher session. The endpoint started
+  // student-only in Phase 5; relaxed 14 May 2026 so the teacher cockpit's
+  // auto-fire on round close also works when no students are still on
+  // the page (Matt's classroom smoke caught this — round closed with 8
+  // votes but no suggestion because all 12 students had moved on and
+  // only the teacher was still polling, and teacher polling couldn't
+  // fire /suggest). Per-role authorisation:
+  //   - student → must be enrolled in round.class_id
+  //   - teacher → must have a class_members row for round.class_id
+  const actor = await getActorSession(request);
+  if (!actor) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const requesterId =
+    actor.type === "student" ? actor.studentId : actor.teacherId;
 
   let body: SuggestBody;
   try {
@@ -129,15 +142,30 @@ export async function POST(request: NextRequest) {
   }
   if (!round) return NextResponse.json({ error: "Round not found" }, { status: 404 });
 
-  // 2. Enrollment check.
-  const { data: enrollment } = await db
-    .from("class_students")
-    .select("student_id")
-    .eq("class_id", round.class_id)
-    .eq("student_id", studentId)
-    .maybeSingle();
-  if (!enrollment) {
-    return NextResponse.json({ error: "Forbidden — not enrolled" }, { status: 403 });
+  // 2. Authorisation — role-aware. Students need enrollment; teachers need
+  // class_members. Both gate on round.class_id (server-side, not trustable
+  // from the body).
+  if (actor.type === "student") {
+    const { data: enrollment } = await db
+      .from("class_students")
+      .select("student_id")
+      .eq("class_id", round.class_id)
+      .eq("student_id", requesterId)
+      .maybeSingle();
+    if (!enrollment) {
+      return NextResponse.json(
+        { error: "Forbidden — not enrolled in this class" },
+        { status: 403 },
+      );
+    }
+  } else {
+    const ok = await verifyTeacherInClass(db, round.class_id, requesterId);
+    if (!ok) {
+      return NextResponse.json(
+        { error: "Forbidden — not a member of this class" },
+        { status: 403 },
+      );
+    }
   }
 
   // 3. Load votes + check gate.
@@ -456,7 +484,7 @@ export async function POST(request: NextRequest) {
     .from("class_dj_suggestions")
     .insert({
       round_id: round.id,
-      requested_by: `student:${studentId}`,
+      requested_by: `${actor.type}:${requesterId}`,
       vote_count: voteCount,
       items,
       candidate_pool_size: candidatePoolSize,

@@ -69,6 +69,11 @@ export default function ClassDjTeacherControls({
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  // Per-round ref-guard so the auto-fire useEffect below only fires
+  // once per round id, never loops, and survives re-renders. Bound to
+  // the round id specifically (not just a boolean) so a new round
+  // resets the guard automatically.
+  const autoFiredRoundRef = useRef<string | null>(null);
 
   // When state transitions to a stage the teacher needs to act on (round
   // opens, suggestion lands, round closes), scroll the controls into the
@@ -145,6 +150,48 @@ export default function ClassDjTeacherControls({
   function handleRegenerate(roundId: string) {
     return post(`/api/teacher/class-dj/${roundId}/regenerate-narration`);
   }
+
+  // Auto-fire Suggest when round closes with gate met and no suggestion.
+  //
+  // Closes the most-common Class DJ failure mode caught in Matt's
+  // classroom smoke: round timer expired with 8/12 votes (gate met) but
+  // no suggestion was generated because nobody clicked Suggest before
+  // close — students had moved on, teacher's stale vote count showed
+  // "Need 1 more" when server already had enough.
+  //
+  // We auto-fire from BOTH the teacher cockpit (here) and the student
+  // ClassDjBlock. Belt-and-braces: works whether teacher OR students are
+  // still on the page when the round closes. Server-side /suggest is
+  // race-safe via atomic suggest_count increment — concurrent fires get
+  // a single winner; others get 429 (max reached).
+  //
+  // /suggest auth was relaxed 14 May 2026 to accept teacher OR student
+  // sessions so the cockpit's fire works.
+  //
+  // Ref-guard bound to the round id prevents 429 loops AND auto-resets
+  // when a new round mints a new id.
+  useEffect(() => {
+    if (!state?.round) return;
+    if (state.status !== "closed") return;
+    if (state.suggestion?.items) return;
+    if (state.participation_count < (config?.gateMinVotes ?? 3)) return;
+    if (busy) return;
+
+    const round = state.round as unknown as RoundShape;
+    if (autoFiredRoundRef.current === round.id) return;
+    autoFiredRoundRef.current = round.id;
+
+    handleSuggest(round.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps — handleSuggest is
+    // stable for our purposes; we only react to state-shape signals.
+  }, [
+    state?.status,
+    state?.suggestion?.items,
+    state?.participation_count,
+    state?.round,
+    config?.gateMinVotes,
+    busy,
+  ]);
 
   if (!state) {
     // Surface poll errors so a 4xx (e.g. wrong class, missing
