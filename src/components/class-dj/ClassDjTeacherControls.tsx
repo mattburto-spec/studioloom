@@ -28,6 +28,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useClassDjPolling } from "./useClassDjPolling";
+import ClassDjThinkingPhrase from "./ClassDjThinkingPhrase";
 import type { SuggestionItem } from "./ClassDjSuggestionView";
 import type { ConflictMode } from "@/lib/class-dj/types";
 
@@ -439,12 +440,12 @@ export default function ClassDjTeacherControls({
       ) : gateMet && !actionError ? (
         // Thinking state — gate was met, auto-fire kicked off /suggest,
         // we're waiting on the ~5-15s pipeline (Stage 3 LLM + Deezer
-        // + Stage 5 narration). Without this, teacher sees "no
-        // suggestion generated" and assumes it's broken.
+        // + Stage 5 narration). Rotating phrases match the student-side
+        // ClassDjBlock view so teacher + students see the same beats.
         <div className="rounded-md bg-violet-50 border border-violet-200 p-2 text-center space-y-0.5">
           <div className="text-xl animate-pulse">🎧</div>
           <p className="text-[11.5px] font-semibold text-violet-900">
-            DJ is reading the room…
+            <ClassDjThinkingPhrase className="text-[11.5px] font-semibold text-violet-900" />
           </p>
           <p className="text-[10px] text-violet-600 italic">
             usually 5-15 seconds

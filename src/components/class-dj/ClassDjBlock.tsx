@@ -16,9 +16,10 @@
  * Brief: docs/projects/class-dj-block-brief.md §7 (UI surface).
  */
 
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useClassDjPolling, type Role } from "./useClassDjPolling";
 import ClassDjArmedView from "./ClassDjArmedView";
+import ClassDjThinkingPhrase from "./ClassDjThinkingPhrase";
 import ClassDjLiveStudentView from "./ClassDjLiveStudentView";
 import ClassDjLiveTeacherView from "./ClassDjLiveTeacherView";
 import ClassDjSuggestionView, {
@@ -277,7 +278,7 @@ export default function ClassDjBlock({
           The DJ is reading the room…
         </h3>
         <p className="text-sm text-violet-700">
-          <ThinkingPhrase />
+          <ClassDjThinkingPhrase />
         </p>
         <p className="text-[11px] text-violet-500 mt-2 italic">
           (this usually takes 5-15 seconds)
@@ -305,28 +306,3 @@ export default function ClassDjBlock({
   );
 }
 
-/**
- * Rotating playful copy shown while the DJ algorithm is running. Cycles
- * every ~2.5s so the wait feels alive instead of stuck. School-appropriate
- * — no jokes that could read awkward to a 13-year-old or their parent.
- */
-function ThinkingPhrase() {
-  const phrases = React.useMemo(
-    () => [
-      "Digging through the crates…",
-      "Negotiating with the algorithm…",
-      "Spinning the wheels of fate…",
-      "Asking three Yes-or-No questions…",
-      "Mixing your vibes into 3 tracks…",
-      "Consulting the room's BPM…",
-      "Auditioning artists in the back room…",
-    ],
-    [],
-  );
-  const [idx, setIdx] = React.useState(0);
-  React.useEffect(() => {
-    const id = setInterval(() => setIdx((i) => (i + 1) % phrases.length), 2500);
-    return () => clearInterval(id);
-  }, [phrases.length]);
-  return <span>{phrases[idx]}</span>;
-}
