@@ -69,6 +69,16 @@ export default function ClassDjTeacherControls({
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+
+  // Per-button disable helper — only disables the SPECIFIC button being
+  // clicked, not every button on the panel. Previously `disabled={busy !== null}`
+  // blocked Run again whenever the auto-fire suggest was in flight, locking the
+  // teacher out for 5-30s. Now Run again can interrupt a stuck auto-fire by
+  // launching a fresh round (server-side suggest call completes harmlessly on
+  // the now-closed round; new round mints fresh state).
+  function isBusy(endpointFragment: string): boolean {
+    return busy !== null && busy.includes(endpointFragment);
+  }
   // Per-round ref-guard so the auto-fire useEffect below only fires
   // once per round id, never loops, and survives re-renders. Bound to
   // the round id specifically (not just a boolean) so a new round
@@ -241,7 +251,7 @@ export default function ClassDjTeacherControls({
         <button
           type="button"
           onClick={handleLaunch}
-          disabled={busy !== null}
+          disabled={isBusy("launch")}
           className="w-full px-3 py-2.5 rounded-md bg-violet-600 text-white font-semibold text-[12.5px] hover:bg-violet-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
         >
           {busy === "/api/teacher/class-dj/launch" ? "Starting…" : "▶ Start round"}
@@ -286,7 +296,7 @@ export default function ClassDjTeacherControls({
               <button
                 type="button"
                 onClick={() => handleRegenerate(round.id)}
-                disabled={busy !== null}
+                disabled={isBusy("regenerate")}
                 className="underline hover:text-violet-900 disabled:opacity-50"
               >
                 {busy?.includes("regenerate") ? "…" : "Regenerate why-lines"}
@@ -294,7 +304,7 @@ export default function ClassDjTeacherControls({
               <button
                 type="button"
                 onClick={() => handleSuggest(round.id)}
-                disabled={busy !== null}
+                disabled={isBusy("suggest")}
                 className="underline hover:text-violet-900 disabled:opacity-50"
               >
                 {busy?.includes("suggest") ? "…" : "Try another 3"}
@@ -308,7 +318,7 @@ export default function ClassDjTeacherControls({
           <button
             type="button"
             onClick={() => handleSuggest(round.id)}
-            disabled={!gateMet || busy !== null}
+            disabled={!gateMet || isBusy("suggest")}
             className="w-full px-3 py-2.5 rounded-md bg-violet-600 text-white font-semibold text-[12.5px] hover:bg-violet-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
           >
             {busy?.includes("suggest")
@@ -323,7 +333,7 @@ export default function ClassDjTeacherControls({
         <button
           type="button"
           onClick={() => handleClose(round.id)}
-          disabled={busy !== null}
+          disabled={isBusy("close")}
           className="w-full px-3 py-1.5 rounded-md border border-gray-300 text-gray-700 text-[11.5px] hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {busy?.includes("close") ? "Ending…" : "End round early"}
@@ -370,7 +380,7 @@ export default function ClassDjTeacherControls({
           <button
             type="button"
             onClick={() => handleRegenerate(round.id)}
-            disabled={busy !== null}
+            disabled={isBusy("regenerate")}
             className="block text-[10.5px] text-violet-700 underline hover:text-violet-900 disabled:opacity-50"
           >
             {busy?.includes("regenerate") ? "Regenerating…" : "Regenerate why-lines"}
@@ -387,7 +397,7 @@ export default function ClassDjTeacherControls({
       <button
         type="button"
         onClick={handleLaunch}
-        disabled={busy !== null}
+        disabled={isBusy("launch")}
         className="w-full px-3 py-2.5 rounded-md bg-violet-600 text-white font-semibold text-[12.5px] hover:bg-violet-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
       >
         {busy?.includes("launch") ? "Starting…" : "▶ Run again"}
@@ -508,7 +518,7 @@ function SuggestionPickList({
           <button
             type="button"
             onClick={() => onPick(i as 0 | 1 | 2)}
-            disabled={busy !== null}
+            disabled={busy?.includes("/pick") ?? false}
             className="px-2 py-1 rounded bg-violet-600 text-white text-[10.5px] font-semibold hover:bg-violet-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex-shrink-0"
           >
             {busy?.includes("/pick") ? "…" : "Pick →"}
