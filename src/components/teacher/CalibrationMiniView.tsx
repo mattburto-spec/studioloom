@@ -485,7 +485,11 @@ function ElementRow({
         data-testid={`calibration-comment-${element.element.id}`}
       />
 
-      {/* Round 9: Past observations history (collapsed by default) */}
+      {/* Round 9: Past observations history (read-only, collapsed by default).
+       *  Each entry is a card showing the rating chip, the date, an optional
+       *  CALIBRATION badge if the row was written via this mini-view, and the
+       *  per-element comment underneath. Matches NM Results' chip-per-row
+       *  visual language so the two surfaces feel consistent. */}
       {element.teacherHistory.length > 0 && (
         <details
           className="text-[11px]"
@@ -494,33 +498,39 @@ function ElementRow({
           <summary className="cursor-pointer text-gray-600 hover:text-violet-700 font-semibold py-1">
             Past observations ({element.teacherHistory.length})
           </summary>
-          <ul className="mt-1.5 space-y-1.5 pl-3 border-l-2 border-gray-100">
+          <ul className="mt-2 space-y-2 pl-1">
             {element.teacherHistory.map((entry, i) => {
               const scaleEntry = TEACHER_RATING_SCALE.find(
                 (r) => r.value === entry.rating
               );
+              const chip = TEACHER_RATING_CHIP[entry.rating] ?? TEACHER_RATING_CHIP_FALLBACK;
+              const isCalibration = entry.eventType === "calibration";
               return (
                 <li
                   key={`${entry.createdAt}-${i}`}
-                  className="text-[10.5px] text-gray-700 leading-snug"
+                  className="rounded-md border border-violet-100 bg-violet-50/40 px-2.5 py-2"
                 >
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 font-semibold tabular-nums">
-                      {entry.rating}
-                      <span className="font-normal text-gray-500">
-                        {scaleEntry ? `· ${scaleEntry.label}` : ""}
-                      </span>
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold tracking-wide ${chip}`}
+                    >
+                      {entry.rating}{scaleEntry ? ` · ${scaleEntry.label}` : ""}
                     </span>
                     <span
-                      className="text-gray-500"
+                      className="text-[10.5px] text-gray-500"
                       title={new Date(entry.createdAt).toLocaleString()}
                     >
                       {formatRelative(entry.createdAt)}
                     </span>
+                    {isCalibration && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-violet-600 text-white text-[9px] font-extrabold tracking-wider uppercase">
+                        Calibration
+                      </span>
+                    )}
                   </div>
                   {entry.comment && (
-                    <div className="text-gray-600 italic mt-0.5 ml-1 whitespace-pre-wrap">
-                      &ldquo;{entry.comment}&rdquo;
+                    <div className="text-[11px] text-gray-700 mt-1 whitespace-pre-wrap">
+                      {entry.comment}
                     </div>
                   )}
                 </li>
@@ -532,6 +542,17 @@ function ElementRow({
     </div>
   );
 }
+
+/** Tailwind class strings for each teacher rating, mirroring the
+ *  TEACHER_DOT palette in NMResultsPanel so the two surfaces stay
+ *  visually consistent.  */
+const TEACHER_RATING_CHIP: Record<number, string> = {
+  1: "bg-amber-200 text-amber-900 border border-amber-300",
+  2: "bg-sky-200 text-sky-900 border border-sky-300",
+  3: "bg-emerald-200 text-emerald-900 border border-emerald-300",
+  4: "bg-violet-300 text-violet-900 border border-violet-400",
+};
+const TEACHER_RATING_CHIP_FALLBACK = "bg-gray-100 text-gray-700 border border-gray-300";
 
 /**
  * Format an ISO timestamp as a short "X mins ago" / "today" / "Mar 5"

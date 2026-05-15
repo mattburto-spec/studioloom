@@ -15,6 +15,8 @@ interface Assessment {
   rating: number;
   comment: string | null;
   created_at: string;
+  /** 'calibration' for rows written by the calibration mini-view, 'observation' otherwise. */
+  event_type?: "observation" | "calibration";
 }
 
 interface NMResultsPanelProps {
@@ -130,6 +132,8 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
   type TeacherObservation = {
     createdAt: string;
     entries: TeacherObservationEntry[];
+    /** 'calibration' if any row in this batch was written by the calibration mini-view. */
+    eventType: "observation" | "calibration";
   };
   type CellData = {
     selfAvg: number | null;
@@ -151,22 +155,27 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
     observations: TeacherObservation[];
     latestDate: string;
   } {
-    const events = new Map<string, TeacherObservationEntry[]>();
+    const events = new Map<string, { entries: TeacherObservationEntry[]; eventType: "observation" | "calibration" }>();
     for (const a of rows) {
-      if (!events.has(a.created_at)) events.set(a.created_at, []);
-      events.get(a.created_at)!.push({
+      let evt = events.get(a.created_at);
+      if (!evt) {
+        evt = { entries: [], eventType: "observation" };
+        events.set(a.created_at, evt);
+      }
+      evt.entries.push({
         element: a.element,
         rating: a.rating,
         comment: a.comment?.trim() ? a.comment : null,
       });
+      if (a.event_type === "calibration") evt.eventType = "calibration";
     }
     const sorted = Array.from(events.entries()).sort(([a], [b]) => a.localeCompare(b));
     const ratings: Record<string, number> = {};
-    for (const [, entries] of sorted) {
-      for (const e of entries) ratings[e.element] = e.rating;
+    for (const [, evt] of sorted) {
+      for (const e of evt.entries) ratings[e.element] = e.rating;
     }
     const observations = sorted
-      .map(([createdAt, entries]) => ({ createdAt, entries }))
+      .map(([createdAt, evt]) => ({ createdAt, entries: evt.entries, eventType: evt.eventType }))
       .reverse();
     const latestDate = sorted.length > 0 ? sorted[sorted.length - 1][0] : "";
     return { ratings, observations, latestDate };
@@ -527,6 +536,17 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
                                             <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
                                               <span style={{ fontWeight: 700, color: POP.hotPink, fontSize: "11px" }}>Teacher</span>
                                               <span style={{ color: "#888", fontSize: "11px" }}>{formatDate(obs.createdAt)}</span>
+                                              {obs.eventType === "calibration" && (
+                                                <span style={{
+                                                  padding: "1px 6px", borderRadius: "4px",
+                                                  background: POP.purple, color: POP.white,
+                                                  fontSize: "9px", fontWeight: 800,
+                                                  fontFamily: "'Arial Black', sans-serif",
+                                                  letterSpacing: "0.4px",
+                                                }}>
+                                                  CALIBRATION
+                                                </span>
+                                              )}
                                             </div>
                                             <div style={{ display: "grid", gap: "4px" }}>
                                               {sortedEntries.map((entry) => {

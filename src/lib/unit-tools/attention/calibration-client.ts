@@ -22,6 +22,12 @@ export interface CalibrationHistoryEntry {
   rating: number;
   comment: string | null;
   createdAt: string;
+  /**
+   * 'observation' for ad-hoc teacher ratings (Teaching Mode, NM Results
+   * inline), 'calibration' for rows written by the calibration mini-view
+   * itself. Missing on rows written before the event_type migration.
+   */
+  eventType?: "observation" | "calibration";
 }
 
 /** One element's pre-loaded ratings — drives the mini-view per-element row. */
@@ -76,6 +82,7 @@ interface NmObservationStudentResult {
     comment: string | null;
     created_at: string;
     competency: string;
+    event_type?: "observation" | "calibration";
   }>;
 }
 
@@ -185,6 +192,7 @@ export function groupHistoryByElementAndSource(
       rating: row.rating,
       comment: row.comment,
       createdAt: row.created_at,
+      eventType: row.event_type,
     });
   }
   // Sort each group descending by createdAt (newest first)
@@ -246,6 +254,7 @@ export async function saveCalibration(args: {
       unitId: args.unitId,
       classId: args.classId,
       pageId: args.pageId,
+      eventType: "calibration",
       assessments: args.assessments,
     }),
   });
