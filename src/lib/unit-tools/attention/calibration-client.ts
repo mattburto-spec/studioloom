@@ -84,6 +84,13 @@ interface NmObservationStudentResult {
 
 interface NmObservationGetResponse {
   data: NmObservationStudentResult[];
+  /** Class+unit NM settings — drives which elements the teacher has
+   *  opted to track this semester. When present, calibration filters its
+   *  element list to this subset. */
+  nmConfig?: {
+    competencies?: string[];
+    elements?: string[];
+  } | null;
 }
 
 /**
@@ -135,13 +142,25 @@ export async function loadCalibrationForStudent(args: {
   // the active rating).
   const history = groupHistoryByElementAndSource(studentEntry.assessments);
 
-  // Derive the active competency from any rated assessment, OR fall
-  // back to agency_in_learning (the v1 default).
+  // Derive the active competency: prefer nm_config (teacher's explicit
+  // setting), fall back to a rated row, then default to agency_in_learning.
   const firstRow = studentEntry.assessments[0];
-  const competencyId = firstRow?.competency || "agency_in_learning";
+  const competencyId =
+    payload.nmConfig?.competencies?.[0] ||
+    firstRow?.competency ||
+    "agency_in_learning";
   const lookupElements = getElementsForCompetency(competencyId);
-  const elements: NMElement[] =
+  const baseElements: NMElement[] =
     lookupElements && lookupElements.length > 0 ? lookupElements : AGENCY_ELEMENTS;
+  // Filter to the subset the teacher opted to track on the NM settings
+  // panel for this class+unit. Empty / missing nmConfig.elements ⇒ show
+  // them all (preserves legacy behaviour for units pre-dating per-unit
+  // element selection).
+  const trackedSet = new Set(payload.nmConfig?.elements ?? []);
+  const elements: NMElement[] =
+    trackedSet.size > 0
+      ? baseElements.filter((el) => trackedSet.has(el.id))
+      : baseElements;
 
   return {
     studentId,

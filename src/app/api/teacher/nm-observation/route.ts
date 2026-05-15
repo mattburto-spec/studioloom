@@ -60,8 +60,13 @@ export async function GET(request: NextRequest) {
     students = data || [];
   }
 
+  // NM config (class-specific with unit fallback) tells the client which
+  // elements this class+unit is actively tracking. Calibration uses it to
+  // hide elements the teacher deselected from the NM settings panel.
+  const nmConfig = await getNmConfigForClassUnit(classId, unitId);
+
   if (!students || students.length === 0) {
-    return NextResponse.json({ data: [] });
+    return NextResponse.json({ data: [], nmConfig });
   }
 
   const { data: assessments } = await db
@@ -95,7 +100,7 @@ export async function GET(request: NextRequest) {
     return { student, assessments: studentAssessments, sourceCount, latestPerElement };
   });
 
-  return NextResponse.json({ data: result });
+  return NextResponse.json({ data: result, nmConfig });
 }
 
 export async function POST(request: NextRequest) {
