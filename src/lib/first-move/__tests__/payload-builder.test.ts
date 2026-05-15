@@ -5,7 +5,7 @@ import {
   extractKanbanSummary,
   extractUpcomingMilestones,
   swapKanbanForFirstMove,
-  type PlanningTaskLike,
+  type TimelineMilestoneLike,
   type ProgressRowLike,
 } from "../payload-builder";
 import type { KanbanCard } from "@/lib/unit-tools/kanban/types";
@@ -227,105 +227,115 @@ describe("extractKanbanSummary", () => {
 });
 
 describe("extractUpcomingMilestones", () => {
-  function task(partial: Partial<PlanningTaskLike>): PlanningTaskLike {
+  function milestone(
+    partial: Partial<TimelineMilestoneLike>,
+  ): TimelineMilestoneLike {
     return {
-      id: partial.id ?? "t1",
-      title: partial.title ?? "Untitled task",
-      status: partial.status ?? "todo",
-      target_date: partial.target_date ?? null,
+      id: partial.id ?? "m1",
+      label: partial.label ?? "Untitled milestone",
+      status: partial.status ?? "pending",
+      targetDate: partial.targetDate ?? null,
       ...partial,
     };
   }
 
   const NOW = "2026-05-13T10:00:00Z";
 
-  it("returns empty array when no tasks are present", () => {
+  it("returns empty array when no milestones are present", () => {
     expect(extractUpcomingMilestones([], NOW)).toEqual([]);
   });
 
-  it("skips done tasks", () => {
-    const tasks = [
-      task({ id: "a", title: "A", status: "done", target_date: "2026-05-15" }),
-      task({ id: "b", title: "B", status: "todo", target_date: "2026-05-16" }),
+  it("skips done milestones", () => {
+    const milestones = [
+      milestone({ id: "a", label: "A", status: "done", targetDate: "2026-05-15" }),
+      milestone({ id: "b", label: "B", status: "pending", targetDate: "2026-05-16" }),
     ];
-    const result = extractUpcomingMilestones(tasks, NOW);
+    const result = extractUpcomingMilestones(milestones, NOW);
     expect(result.map((m) => m.id)).toEqual(["b"]);
   });
 
-  it("skips tasks with no target_date", () => {
-    const tasks = [
-      task({ id: "a", title: "A", status: "todo", target_date: null }),
-      task({ id: "b", title: "B", status: "todo", target_date: "2026-05-16" }),
+  it("skips milestones with no target date", () => {
+    const milestones = [
+      milestone({ id: "a", label: "A", status: "pending", targetDate: null }),
+      milestone({ id: "b", label: "B", status: "pending", targetDate: "2026-05-16" }),
     ];
-    const result = extractUpcomingMilestones(tasks, NOW);
+    const result = extractUpcomingMilestones(milestones, NOW);
     expect(result.map((m) => m.id)).toEqual(["b"]);
   });
 
-  it("sorts by target_date ascending and caps to 3 by default", () => {
-    const tasks = [
-      task({ id: "later", title: "Later", target_date: "2026-06-01" }),
-      task({ id: "soon", title: "Soon", target_date: "2026-05-15" }),
-      task({ id: "next", title: "Next", target_date: "2026-05-20" }),
-      task({ id: "future", title: "Future", target_date: "2026-07-01" }),
-      task({ id: "imminent", title: "Imminent", target_date: "2026-05-14" }),
+  it("maps milestone.label → upcoming.title for FirstMoveBlock rendering", () => {
+    const milestones = [
+      milestone({ id: "a", label: "Working drawing complete", targetDate: "2026-05-15" }),
     ];
-    const result = extractUpcomingMilestones(tasks, NOW);
+    const result = extractUpcomingMilestones(milestones, NOW);
+    expect(result[0].title).toBe("Working drawing complete");
+  });
+
+  it("sorts by target date ascending and caps to 3 by default", () => {
+    const milestones = [
+      milestone({ id: "later", label: "Later", targetDate: "2026-06-01" }),
+      milestone({ id: "soon", label: "Soon", targetDate: "2026-05-15" }),
+      milestone({ id: "next", label: "Next", targetDate: "2026-05-20" }),
+      milestone({ id: "future", label: "Future", targetDate: "2026-07-01" }),
+      milestone({ id: "imminent", label: "Imminent", targetDate: "2026-05-14" }),
+    ];
+    const result = extractUpcomingMilestones(milestones, NOW);
     expect(result.map((m) => m.id)).toEqual(["imminent", "soon", "next"]);
     expect(result).toHaveLength(3);
   });
 
   it("respects the limit parameter", () => {
-    const tasks = [
-      task({ id: "a", target_date: "2026-05-15" }),
-      task({ id: "b", target_date: "2026-05-16" }),
-      task({ id: "c", target_date: "2026-05-17" }),
+    const milestones = [
+      milestone({ id: "a", targetDate: "2026-05-15" }),
+      milestone({ id: "b", targetDate: "2026-05-16" }),
+      milestone({ id: "c", targetDate: "2026-05-17" }),
     ];
-    expect(extractUpcomingMilestones(tasks, NOW, 2)).toHaveLength(2);
-    expect(extractUpcomingMilestones(tasks, NOW, 5)).toHaveLength(3);
+    expect(extractUpcomingMilestones(milestones, NOW, 2)).toHaveLength(2);
+    expect(extractUpcomingMilestones(milestones, NOW, 5)).toHaveLength(3);
   });
 
   it("computes daysFromNow correctly (positive, zero, negative)", () => {
-    const tasks = [
-      task({ id: "overdue", target_date: "2026-05-11" }), // -2 from 2026-05-13
-      task({ id: "today", target_date: "2026-05-13" }), // 0
-      task({ id: "soon", target_date: "2026-05-18" }), // +5
+    const milestones = [
+      milestone({ id: "overdue", targetDate: "2026-05-11" }), // -2 from 2026-05-13
+      milestone({ id: "today", targetDate: "2026-05-13" }), // 0
+      milestone({ id: "soon", targetDate: "2026-05-18" }), // +5
     ];
-    const result = extractUpcomingMilestones(tasks, NOW);
+    const result = extractUpcomingMilestones(milestones, NOW);
     const byId = new Map(result.map((m) => [m.id, m]));
     expect(byId.get("overdue")?.daysFromNow).toBe(-2);
     expect(byId.get("today")?.daysFromNow).toBe(0);
     expect(byId.get("soon")?.daysFromNow).toBe(5);
   });
 
-  it("includes overdue tasks (they don't disappear silently)", () => {
-    const tasks = [
-      task({ id: "overdue", title: "Overdue task", target_date: "2026-05-10" }),
-      task({ id: "future", title: "Future", target_date: "2026-05-20" }),
+  it("includes overdue milestones (they don't disappear silently)", () => {
+    const milestones = [
+      milestone({ id: "overdue", label: "Overdue milestone", targetDate: "2026-05-10" }),
+      milestone({ id: "future", label: "Future", targetDate: "2026-05-20" }),
     ];
-    const result = extractUpcomingMilestones(tasks, NOW);
+    const result = extractUpcomingMilestones(milestones, NOW);
     expect(result).toHaveLength(2);
     expect(result[0].id).toBe("overdue");
     expect(result[0].daysFromNow).toBeLessThan(0);
   });
 
-  it("ignores tasks with unparseable target_date", () => {
-    const tasks = [
-      task({ id: "garbage", target_date: "not-a-date" as string }),
-      task({ id: "good", target_date: "2026-05-15" }),
+  it("ignores milestones with unparseable target date", () => {
+    const milestones = [
+      milestone({ id: "garbage", targetDate: "not-a-date" as string }),
+      milestone({ id: "good", targetDate: "2026-05-15" }),
     ];
-    const result = extractUpcomingMilestones(tasks, NOW);
+    const result = extractUpcomingMilestones(milestones, NOW);
     expect(result.map((m) => m.id)).toEqual(["good"]);
   });
 
-  // [Negative control] — if the helper accidentally INCLUDED done tasks,
+  // [Negative control] — if the helper accidentally INCLUDED done milestones,
   // result.length would be 3 not 2. Locks in the filter precedence.
-  it("[negative control] done tasks never appear even when they sort earliest", () => {
-    const tasks = [
-      task({ id: "done", status: "done", target_date: "2026-05-13" }),
-      task({ id: "todo1", status: "todo", target_date: "2026-05-15" }),
-      task({ id: "todo2", status: "todo", target_date: "2026-05-16" }),
+  it("[negative control] done milestones never appear even when they sort earliest", () => {
+    const milestones = [
+      milestone({ id: "done", status: "done", targetDate: "2026-05-13" }),
+      milestone({ id: "p1", status: "pending", targetDate: "2026-05-15" }),
+      milestone({ id: "p2", status: "pending", targetDate: "2026-05-16" }),
     ];
-    const result = extractUpcomingMilestones(tasks, NOW);
+    const result = extractUpcomingMilestones(milestones, NOW);
     expect(result.find((m) => m.id === "done")).toBeUndefined();
     expect(result).toHaveLength(2);
   });

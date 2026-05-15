@@ -99,14 +99,20 @@ export function extractKanbanSummary(cards: KanbanCard[]): {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// Upcoming milestones — forward-look from planning_tasks
+// Upcoming milestones — forward-look from student_unit_timeline
 // ─────────────────────────────────────────────────────────────────────
 
-export interface PlanningTaskLike {
+/**
+ * Subset of the Timeline milestone shape we need for First Move. Matches
+ * `TimelineMilestone` from src/lib/unit-tools/timeline/types.ts. Kept
+ * local so the helper stays pure and decoupled from the SQL layer.
+ */
+export interface TimelineMilestoneLike {
   id: string;
-  title: string;
-  status: "todo" | "in_progress" | "done";
-  target_date: string | null; // ISO YYYY-MM-DD
+  label: string;
+  /** ISO YYYY-MM-DD or null when unset. */
+  targetDate: string | null;
+  status: "pending" | "done";
 }
 
 export interface UpcomingMilestone {
@@ -120,22 +126,21 @@ export interface UpcomingMilestone {
 }
 
 /**
- * Filter + sort planning_tasks into the next N incomplete milestones
- * for the First Move "Coming up next" section. Excludes done tasks and
- * tasks with no target_date set. Sorted by target_date ascending so
- * imminent deadlines surface first; overdue tasks (daysFromNow < 0)
- * still appear (with negative `daysFromNow`) so students see what they
- * missed.
+ * Filter + sort Timeline milestones into the next N pending milestones
+ * for the First Move "Coming up next" section. Excludes done milestones
+ * and milestones with no target date. Sorted by target date ascending
+ * so imminent deadlines surface first; overdue milestones
+ * (daysFromNow < 0) still appear so students see what they missed.
  *
  * `nowIso` is injected for testability (defaults to current time).
  */
 export function extractUpcomingMilestones(
-  tasks: PlanningTaskLike[],
+  milestones: TimelineMilestoneLike[],
   nowIso?: string,
   limit = 3,
 ): UpcomingMilestone[] {
   const now = nowIso ? new Date(nowIso) : new Date();
-  // Normalise `now` to midnight UTC for day-math stability so a task
+  // Normalise `now` to midnight UTC for day-math stability so a milestone
   // dated "today" never returns -1.
   const nowMidnight = Date.UTC(
     now.getUTCFullYear(),
@@ -145,18 +150,20 @@ export function extractUpcomingMilestones(
   const dayMs = 86_400_000;
 
   const filtered: UpcomingMilestone[] = [];
-  for (const task of tasks) {
-    if (task.status === "done") continue;
-    if (!task.target_date) continue;
-    const target = Date.parse(task.target_date);
+  for (const m of milestones) {
+    if (m.status === "done") continue;
+    if (!m.targetDate) continue;
+    const target = Date.parse(m.targetDate);
     if (!Number.isFinite(target)) continue;
     const daysFromNow = Math.round((target - nowMidnight) / dayMs);
     filtered.push({
-      id: task.id,
-      title: task.title,
-      targetDate: task.target_date,
+      id: m.id,
+      title: m.label,
+      targetDate: m.targetDate,
       daysFromNow,
-      status: task.status,
+      // Timeline only tracks pending/done; map pending → todo so the
+      // FirstMoveBlock UnionType stays { todo | in_progress }.
+      status: "todo",
     });
   }
 
