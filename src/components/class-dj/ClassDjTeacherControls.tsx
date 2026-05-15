@@ -69,6 +69,14 @@ export default function ClassDjTeacherControls({
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  // Which suggestion the teacher just picked. Surfaced visually on the
+  // card + as a "Now play" banner with YouTube/Spotify search links so
+  // the teacher can actually play the music (we can't auto-play because
+  // Spotify Web Playback is Premium-gated for the user). Reset when
+  // round.id changes (new round = no pick yet). Doesn't persist across
+  // page refresh — would need a `picked_index` column on class_dj_rounds
+  // (filed as FU-CLASS-DJ-PICKED-INDEX-COLUMN).
+  const [pickedIndex, setPickedIndex] = useState<0 | 1 | 2 | null>(null);
 
   // Per-button disable helper — only disables the SPECIFIC button being
   // clicked, not every button on the panel. Previously `disabled={busy !== null}`
@@ -107,6 +115,7 @@ export default function ClassDjTeacherControls({
     : null;
   useEffect(() => {
     setActionError(null);
+    setPickedIndex(null);
   }, [currentRoundId]);
 
   async function post(path: string, body?: Record<string, unknown>): Promise<unknown | null> {
@@ -163,8 +172,17 @@ export default function ClassDjTeacherControls({
     return post(`/api/teacher/class-dj/${roundId}/close`);
   }
 
-  function handlePick(roundId: string, index: 0 | 1 | 2) {
-    return post(`/api/teacher/class-dj/${roundId}/pick`, { suggestionIndex: index });
+  async function handlePick(roundId: string, index: 0 | 1 | 2) {
+    const result = await post(`/api/teacher/class-dj/${roundId}/pick`, {
+      suggestionIndex: index,
+    });
+    // Server returns { ok: true, picked: {...} } on success. Surface the
+    // pick visually only if the call actually succeeded; on failure
+    // (network / 5xx / etc.) post() sets actionError and returns null,
+    // and we don't want to mark the card as picked.
+    if (result && (result as { ok?: boolean }).ok) {
+      setPickedIndex(index);
+    }
   }
 
   function handleRegenerate(roundId: string) {
@@ -291,7 +309,11 @@ export default function ClassDjTeacherControls({
               roundId={round.id}
               onPick={(idx) => handlePick(round.id, idx)}
               busy={busy}
+              pickedIndex={pickedIndex}
             />
+            {pickedIndex !== null && (
+              <NowPlayingBanner item={suggestionItems[pickedIndex]} />
+            )}
             <div className="flex items-center justify-between text-[10.5px] text-violet-700">
               <button
                 type="button"
@@ -376,7 +398,11 @@ export default function ClassDjTeacherControls({
             roundId={round.id}
             onPick={(idx) => handlePick(round.id, idx)}
             busy={busy}
+            pickedIndex={pickedIndex}
           />
+          {pickedIndex !== null && (
+            <NowPlayingBanner item={suggestionItems[pickedIndex]} />
+          )}
           <button
             type="button"
             onClick={() => handleRegenerate(round.id)}
@@ -478,53 +504,82 @@ function SuggestionPickList({
   items,
   onPick,
   busy,
+  pickedIndex,
 }: {
   items: SuggestionItem[];
   roundId: string;
   onPick: (index: 0 | 1 | 2) => void;
   busy: string | null;
+  pickedIndex: 0 | 1 | 2 | null;
 }) {
+  const hasPicked = pickedIndex !== null;
   return (
     <div className="space-y-1.5">
-      {items.map((it, i) => (
-        <div
-          key={`pick-${i}`}
-          className={`flex items-center gap-2 rounded-md p-1.5 ${
-            it.is_bridge ? "bg-amber-50 border border-amber-200" : "bg-violet-50/50 border border-violet-100"
-          }`}
-        >
-          {it.image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={it.image_url}
-              alt=""
-              className="w-10 h-10 rounded object-cover flex-shrink-0 bg-gray-100"
-              loading="lazy"
-            />
-          ) : (
-            <div className="w-10 h-10 rounded bg-gradient-to-br from-violet-200 to-violet-300 flex items-center justify-center text-base flex-shrink-0">
-              🎵
-            </div>
-          )}
-          <div className="flex-1 min-w-0">
-            <p className="text-[11.5px] font-bold text-gray-900 leading-tight truncate" title={it.name}>
-              {it.name}
-            </p>
-            <p className="text-[9.5px] uppercase tracking-wider text-gray-500 truncate">
-              {it.kind}
-              {it.is_bridge && <span className="ml-1 text-amber-700 font-semibold">· BRIDGE</span>}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => onPick(i as 0 | 1 | 2)}
-            disabled={busy?.includes("/pick") ?? false}
-            className="px-2 py-1 rounded bg-violet-600 text-white text-[10.5px] font-semibold hover:bg-violet-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+      {items.map((it, i) => {
+        const isPicked = pickedIndex === i;
+        const isFaded = hasPicked && !isPicked;
+        // Card background: PICKED gets a strong violet ring + stronger
+        // bg; bridge picks still get amber tint when not faded; faded
+        // unpicked cards drop to 50% opacity.
+        const cardClass = isPicked
+          ? "bg-violet-100 border-2 border-violet-500 ring-2 ring-violet-300"
+          : it.is_bridge
+          ? "bg-amber-50 border border-amber-200"
+          : "bg-violet-50/50 border border-violet-100";
+        return (
+          <div
+            key={`pick-${i}`}
+            className={`flex items-center gap-2 rounded-md p-1.5 transition-opacity ${cardClass} ${
+              isFaded ? "opacity-50" : ""
+            }`}
           >
-            {busy?.includes("/pick") ? "…" : "Pick →"}
-          </button>
-        </div>
-      ))}
+            {it.image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={it.image_url}
+                alt=""
+                className="w-10 h-10 rounded object-cover flex-shrink-0 bg-gray-100"
+                loading="lazy"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded bg-gradient-to-br from-violet-200 to-violet-300 flex items-center justify-center text-base flex-shrink-0">
+                🎵
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-[11.5px] font-bold text-gray-900 leading-tight truncate" title={it.name}>
+                {it.name}
+              </p>
+              <p className="text-[9.5px] uppercase tracking-wider text-gray-500 truncate">
+                {it.kind}
+                {it.is_bridge && !isPicked && (
+                  <span className="ml-1 text-amber-700 font-semibold">· BRIDGE</span>
+                )}
+                {isPicked && (
+                  <span className="ml-1 text-violet-700 font-bold">· ✓ PICKED</span>
+                )}
+              </p>
+            </div>
+            {isPicked ? (
+              // After pick: badge replaces the button so accidental
+              // double-picks (which would log a second ledger update for
+              // the same round) are physically impossible.
+              <span className="px-2 py-1 rounded bg-violet-600 text-white text-[10.5px] font-bold flex-shrink-0">
+                ✓ Picked
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onPick(i as 0 | 1 | 2)}
+                disabled={hasPicked || (busy?.includes("/pick") ?? false)}
+                className="px-2 py-1 rounded bg-violet-600 text-white text-[10.5px] font-semibold hover:bg-violet-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+              >
+                {busy?.includes("/pick") ? "…" : "Pick →"}
+              </button>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -539,5 +594,48 @@ function ConflictModeChip({ mode }: { mode: ConflictMode }) {
     <p className={`text-[10px] ${config.color} flex items-center gap-1`}>
       <span>{config.emoji}</span> {config.label}
     </p>
+  );
+}
+
+/**
+ * Shown after the teacher clicks Pick. Highlights the chosen track and
+ * gives the teacher external-search shortcuts so they can actually play
+ * the music (we can't in-app: Spotify Web Playback is Premium-gated for
+ * the listener; YouTube embed would require its own scope of work).
+ *
+ * Universal answer for now: open YouTube / Spotify Search in new tabs.
+ * Teacher plays whichever they prefer. Students can use the same links
+ * from their devices if they want.
+ */
+function NowPlayingBanner({ item }: { item: SuggestionItem }) {
+  const q = encodeURIComponent(item.name);
+  const youtubeUrl = `https://www.youtube.com/results?search_query=${q}`;
+  const spotifyUrl =
+    item.spotify_url || `https://open.spotify.com/search/${q}`;
+  return (
+    <div className="rounded-md border border-violet-300 bg-violet-50 p-2.5 space-y-2">
+      <div className="text-[11px] text-violet-900">
+        <span className="font-bold">🎵 Now play:</span>{" "}
+        <span className="font-semibold">{item.name}</span>
+      </div>
+      <div className="flex gap-1.5">
+        <a
+          href={youtubeUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-1 text-center px-2 py-1.5 rounded bg-red-600 text-white text-[10.5px] font-semibold hover:bg-red-700 transition-colors"
+        >
+          ▶ YouTube
+        </a>
+        <a
+          href={spotifyUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-1 text-center px-2 py-1.5 rounded bg-green-600 text-white text-[10.5px] font-semibold hover:bg-green-700 transition-colors"
+        >
+          🔍 Spotify
+        </a>
+      </div>
+    </div>
   );
 }
