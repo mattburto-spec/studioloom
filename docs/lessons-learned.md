@@ -1395,3 +1395,35 @@ Audit on prod found 6 students with corrupted `students.class_id` from past Leve
 **Filed:** No code follow-up — bug closed, prod repaired, regression test in place. The 50+ remaining readers of `students.class_id` continue to work (they have `class_students` as primary), but the long-term hygiene step (deprecate `students.class_id` entirely once Access Model v2 cutover stabilises) is already tracked elsewhere.
 
 **Filed:** Nothing — pattern is enshrined in BriefDrawer.tsx and the codifying assertion in `chip-drawer-structure.test.ts`. Reuse the pattern for any future drawer / modal / popover.
+
+### Lesson #91 — App-side JSONB shape changes need defensive coerce-on-read AND validate-on-write, not just one or the other
+**Date:** 14–15 May 2026
+**Phase:** Unit Briefs Foundation — Phase F (locks + per-student authoring + choice-card templates)
+
+**What happened:** In Phase B of the briefs build, the `dimensions` field inside `unit_briefs.constraints.data` was changed from a free-text string ("approx 30cm × 20cm × 10cm") to a structured object (`{ h, w, d, unit }`) — entirely app-side, no migration to backfill existing rows. The codebase was still small enough that no production unit had a stale string yet, so the swap looked clean.
+
+Two months later, Matt opened CO2 Dragsters (a unit authored before the swap), added a single constraint chip to its brief, and clicked Save. The API returned `"constraints.data.dimensions must be an object"` and the change was lost. The page reload showed the old data — so it looked like the editor was simply broken.
+
+Root cause: a 3-step poisoning loop the validator alone couldn't catch.
+1. Editor fetched the unit_brief — `constraints.data.dimensions` came back as the old free-text string from 2026-03 (legacy shape, never touched since).
+2. Editor's "add a chip" action did `{ ...currentConstraints.data, materials_whitelist: [...prev, "ply-3mm"] }` — the spread merge faithfully round-tripped the stale string back to the server.
+3. Server's `validateConstraints` (newly added in Phase F.C) rejected the payload because `dimensions: "approx 30cm…"` is not the new object shape — and the rejection blocked the *unrelated* materials_whitelist write.
+
+The validator was correct. The editor was correct. The legacy data on disk was the problem, but neither layer was responsible for it.
+
+**Rules:**
+- **Any time you change the app-side shape of a JSONB column without a migration to backfill, you need TWO defensive layers: (1) `coerceOnRead(any garbage) → known good shape` that drops/sanitises wrong-shape fields silently on the way in, and (2) `validateOnWrite(known good shape) → ok | error` that gates writes.** One without the other is insufficient. Validate-only fails legitimate edits on legacy rows. Coerce-only lets bad shapes write back to disk. The combination guarantees the editor's spread-merge can never poison itself: `validateConstraints(coerceConstraints(any garbage))` provably always succeeds.
+- **The fix lives in ONE module — typically `src/lib/<feature>/validators.ts` — exporting both `validateX` and `coerceX` side by side.** Every read path (GET handlers, drawer fetch, editor load, teacher review tab) goes through `coerceX`. Every write path goes through `validateX`. They share the same canonical type. New code that touches the JSONB column gets one of two doors; there's no third option.
+- **"It's only stale data on a few rows" is a tell, not a defence.** Once the editor's UX includes any spread-merge over the fetched value (`{ ...prev, newField: value }`), every stale row becomes an active payload for every future write. The blast radius isn't the number of stale rows — it's the number of teachers who will edit them.
+- **Migrations remain preferable for shape changes that affect indexed/queried columns.** Coerce-on-read is for JSONB where you can't enumerate every legacy variant cheaply. If the column is queried via `->>` paths in SQL (e.g. RLS policies, reports), do the migration. If it's only read into app types and serialised back, coerce-on-read is faster and lower-risk.
+
+**Concrete pattern in this codebase:**
+- `src/lib/unit-brief/validators.ts` exports `validateConstraints`, `coerceConstraints` (with private `sanitiseDesignData` helper), `validateLocks`, `coerceLocks`. Every brief read goes through coerce; every write goes through validate.
+- The AI assist route (`/api/teacher/unit-brief/generate`) does this end-to-end on tool-use output: defensive narrow (typeof checks per Lesson #39) → `validateConstraints(proposal)` → if invalid, fall back to `coerceConstraints(proposal)`. The suggestion is therefore always renderable, even if the model hallucinates a wrong-shape field.
+
+**Sister lessons:**
+- Lesson #38 — Verify expected shape, don't just check for non-null. coerce/validate enforce this at the boundary.
+- Lesson #39 — Defensive narrowing of model tool-use output. Validators are the structured-data sibling.
+- Lesson #42 — Tool input schemas are training-time hints, not runtime guarantees. Same principle: don't trust the shape, check it.
+
+**Filed:** Pattern enshrined in `src/lib/unit-brief/validators.ts` (`sanitiseDesignData` helper added in PR #291 hotfix) + consumed by 4 read paths and 3 write paths across the briefs system. Reuse for any JSONB column whose app-side shape may evolve without a migration.
