@@ -178,10 +178,20 @@ const adminMock = {
     if (table === "students") {
       return {
         select: () => ({
-          eq: () => ({
+          // Track which column the FIRST .eq() filters on so we can route
+          // mock data per query shape:
+          //   Level 2 (legacy): .eq("class_id", ...).eq("username", ...)
+          //   Level 3 (REMOVED 2026-05-15): .eq("username", ...).eq("author_teacher_id", ...)
+          // Routing orphanStudent only to the Level-3 shape lets regression
+          // tests assert "Level 3 stays dead": if the route ever re-queries
+          // students by username-first, the orphan match would resurface.
+          eq: (firstCol: string) => ({
             eq: () => ({
               maybeSingle: async () => ({
-                data: state.legacyStudent ?? state.orphanStudent ?? null,
+                data:
+                  firstCol === "username"
+                    ? (state.orphanStudent ?? null)
+                    : (state.legacyStudent ?? null),
                 error: null,
               }),
             }),
@@ -279,6 +289,33 @@ describe("POST /api/auth/student-classcode-login", () => {
     state.orphanStudent = null;
     const POST = await importHandler();
     const res = await POST(makeRequest({ classCode: "ABC", username: "ghost" }));
+    expect(res.status).toBe(401);
+    expect(state.auditInserts.at(-1)).toMatchObject({
+      action: "student.login.classcode.failed",
+      payload_jsonb: expect.objectContaining({ failureReason: "student_not_in_class" }),
+    });
+  });
+
+  it("returns 401 even when an orphan-shaped student exists for the same teacher (Level 3 fallback removed 2026-05-15)", async () => {
+    // Regression for the SW3NLD bypass: pre-fix, a student record matching
+    // (username, author_teacher_id) but NOT enrolled in classData.id would
+    // authenticate via Level 3 and have their students.class_id rewritten
+    // to the spoofed class. This test wires orphanStudent to the Level-3
+    // query shape (mock routes by first .eq column); if the route ever
+    // re-introduces the username-only fallback, the orphan match resurfaces
+    // and this test flips to 200.
+    state.enrollmentRows = [];   // Level 1: no junction enrollment
+    state.legacyStudent = null;  // Level 2: no legacy class_id match
+    state.orphanStudent = {
+      id: "stu-orphan",
+      username: "sy",
+      display_name: "Sy",
+      ell_level: 3,
+      user_id: "auth-orphan",
+      school_id: "school-1",
+    };
+    const POST = await importHandler();
+    const res = await POST(makeRequest({ classCode: "SW3NLD", username: "sy" }));
     expect(res.status).toBe(401);
     expect(state.auditInserts.at(-1)).toMatchObject({
       action: "student.login.classcode.failed",
