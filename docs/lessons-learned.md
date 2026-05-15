@@ -1365,4 +1365,33 @@ return createPortal(
 
 **Sister lessons:** Lesson #1 (don't batch-modify JSX with regex — Framer Motion disaster) and Lesson #45 (surgical changes) are about how unrelated changes can have a wider blast radius than expected. This is the CSS-spec version: an ancestor's `transform` is not visually local — it changes the coordinate system for every fixed descendant. Hard to predict without knowing the containing-block rule by heart.
 
+### Lesson #90 — Auth fallbacks must verify membership in the SPECIFIC target, not shared ownership
+**Date:** 15 May 2026
+**Phase:** Auth security — student-classcode-login Level 3 removal ([studioloom#308](https://github.com/mattburto-spec/studioloom/pull/308))
+
+**What happened:** Matt reported students could log into a class they weren't enrolled in by entering its classcode + their own initials. Reproduction: G8 student "ER" entered the G9 classcode `SW3NLD` and the login succeeded; the dashboard then derived their actual class from `class_students` and showed "G8 Design" — proving the session was internally inconsistent (auth said G9, junction said G8).
+
+Root cause: the `/api/auth/student-classcode-login` route had a 3-level student lookup chain. Levels 1 + 2 correctly required enrollment in the target class (via `class_students` junction or legacy `students.class_id`). Level 3 was a fallback for "orphan students" (UI-created but never enrolled) that matched only on `(username, author_teacher_id)` — i.e. *"do I share a teacher with this class?"* — and on success **rewrote `students.class_id` to the spoofed class**, corrupting the legacy column for any of the ~50 downstream readers.
+
+A code comment on Level 3 explicitly argued the filter was safe: *"this is a scope filter, not an actor permission gate."* The reasoning held only if a teacher had exactly one class. The moment a teacher has 2+ classes (the only interesting case), `author_teacher_id` is no longer scope — it's a wide-open door for cross-class movement within that teacher's tenant.
+
+Audit on prod found 6 students with corrupted `students.class_id` from past Level 3 firings (one as recent as the day before Matt reported it). All required repair via a targeted UPDATE to re-sync the legacy column to the canonical `class_students` enrollment.
+
+**Why the bug survived to prod:**
+- The only existing 401 test for "student not in class" set `orphanStudent = null` — it tested the *absence* of any matching student, not the harder case of *an orphan that exists but isn't enrolled here*.
+- The misleading comment ("scope filter, not actor permission") read as a thought-through justification, not a yellow flag.
+- The relink at line 315-318 had the comment "Re-link for future logins (mirror legacy)" — phrased as a benign migration aid, not "we silently corrupt the canonical column on every Level 3 hit."
+
+**Rules:**
+- **Any auth fallback that scopes by "shared ownership" (same teacher / same school / same org) is a cross-tenant bypass within that tenant.** Tenants have internal boundaries (classes within a school, students within a teacher, projects within an org). An auth path that grants access based on the outer tenant alone collapses all internal boundaries. The verification must always be against the **specific target** the user is trying to access — `class_students` for class-level, `school_responsibilities` for school-level, etc.
+- **"Lazy auto-link on first auth" is a security anti-pattern.** Pre-junction-table eras inherited this shape ("if we recognise the user, attach them to whatever target they showed up at"). Post-junction-table, the auto-link bypasses the only authoritative source of truth for membership. Either delete the fallback or require explicit invite tokens that prove pre-arranged membership.
+- **Auth-route tests must exercise the harder negative case — "matching record exists, but not enrolled HERE" — not just "matching record absent."** The mock in this route returned the same data regardless of which `.eq()` chain was used, so the orphan-exists-but-shouldn't-match scenario was inexpressible. Fix: route mocks by the first `.eq()` column so each lookup shape gets its own test slot. Then add an explicit regression test that wires a match-shaped record and asserts it does NOT authenticate.
+- **Comments arguing why a permissive predicate is safe should be a yellow flag during review, not a green light.** The Level 3 comment was thoughtful, well-written, and wrong. When a comment justifies bypassing an obvious check ("this isn't really a permission gate"), audit the assumption against multi-tenant edge cases (multi-class teacher, multi-teacher class, multi-school district).
+
+**Operational corollary:** When fixing this class of bug, the code fix is necessary but not sufficient — past firings have already corrupted data. Always pair the code fix with (a) a SQL audit query to find existing victims, (b) a repair query to fix the corruption, (c) a verify query that returns 0 rows after repair. Otherwise the legacy-column readers continue serving wrong data even after the bypass is closed.
+
+**Sister lessons:** Lesson #22 ("Always use junction-first + legacy-fallback for student lookups in teacher APIs") establishes the read pattern; this lesson establishes the write/auth pattern. Lesson #64 (SECURITY DEFINER for cross-table RLS chains) is the RLS-layer version of the same instinct: don't trust shape-correct queries to enforce permission boundaries; the boundary check must be at the specific target every time.
+
+**Filed:** No code follow-up — bug closed, prod repaired, regression test in place. The 50+ remaining readers of `students.class_id` continue to work (they have `class_students` as primary), but the long-term hygiene step (deprecate `students.class_id` entirely once Access Model v2 cutover stabilises) is already tracked elsewhere.
+
 **Filed:** Nothing — pattern is enshrined in BriefDrawer.tsx and the codifying assertion in `chip-drawer-structure.test.ts`. Reuse the pattern for any future drawer / modal / popover.
