@@ -30,6 +30,29 @@ export interface SuggestionContext {
    * to avoid re-showing the same candidates.
    */
   excludeVideoIds?: string[];
+  /**
+   * YouTube duration bucket. Default "medium" (4–20 min). "any"
+   * skips the duration filter entirely.
+   */
+  duration?: "short" | "medium" | "long" | "any";
+  /**
+   * Extra free-text keywords to append to the AI-built query
+   * (e.g. "Australian", "animation", "primary school"). Appended
+   * verbatim; YouTube treats them as positive terms.
+   */
+  extraKeywords?: string;
+  /**
+   * Free-text exclude keywords. Each whitespace/comma-separated term
+   * is prefixed with `-` and appended to the query so YouTube filters
+   * them out (e.g. "music shorts" → `-music -shorts`).
+   */
+  excludeKeywords?: string;
+  /**
+   * Number of suggestions to surface. Default 3; allowed 3 | 5 | 10.
+   * Larger counts increase both the YouTube candidate pool and the
+   * re-ranker prompt size (cost scales roughly linearly).
+   */
+  count?: 3 | 5 | 10;
 }
 
 /**

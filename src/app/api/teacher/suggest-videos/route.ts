@@ -13,8 +13,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { requireTeacher } from "@/lib/auth/require-teacher";
-import { buildSearchQuery } from "@/lib/video-suggestions/build-query";
-import { fetchYouTubeVideos } from "@/lib/video-suggestions/fetch-youtube";
+import {
+  buildSearchQuery,
+  composeFinalQuery,
+} from "@/lib/video-suggestions/build-query";
+import {
+  fetchYouTubeVideos,
+  type DurationBucket,
+} from "@/lib/video-suggestions/fetch-youtube";
 import { rerankWithClaude } from "@/lib/video-suggestions/rerank";
 import type {
   SuggestVideosResponse,
@@ -38,10 +44,29 @@ function createSupabaseServer(request: NextRequest) {
   );
 }
 
+const VALID_DURATIONS: ReadonlyArray<DurationBucket> = [
+  "short",
+  "medium",
+  "long",
+  "any",
+];
+const VALID_COUNTS = new Set([3, 5, 10]);
+
 /** Light input parser — keeps the route resilient against extra fields. */
 function parseContext(body: unknown): SuggestionContext | null {
   if (!body || typeof body !== "object") return null;
   const b = body as Record<string, unknown>;
+
+  const duration =
+    typeof b.duration === "string" &&
+    (VALID_DURATIONS as ReadonlyArray<string>).includes(b.duration)
+      ? (b.duration as DurationBucket)
+      : undefined;
+  const count =
+    typeof b.count === "number" && VALID_COUNTS.has(b.count)
+      ? (b.count as 3 | 5 | 10)
+      : undefined;
+
   const ctx: SuggestionContext = {
     framing: typeof b.framing === "string" ? b.framing : undefined,
     task: typeof b.task === "string" ? b.task : undefined,
@@ -53,6 +78,12 @@ function parseContext(body: unknown): SuggestionContext | null {
     excludeVideoIds: Array.isArray(b.excludeVideoIds)
       ? b.excludeVideoIds.filter((v): v is string => typeof v === "string")
       : undefined,
+    duration,
+    extraKeywords:
+      typeof b.extraKeywords === "string" ? b.extraKeywords : undefined,
+    excludeKeywords:
+      typeof b.excludeKeywords === "string" ? b.excludeKeywords : undefined,
+    count,
   };
   // Require at least one signal field so we have something to search on.
   if (!ctx.framing && !ctx.task && !ctx.success_signal && !ctx.unitTitle) {
@@ -95,22 +126,37 @@ export async function POST(request: NextRequest) {
 
   try {
     // Phase 1 — query builder.
-    const { query, source: querySource } = await buildSearchQuery(ctx, {
-      supabase,
-      teacherId,
-    });
-    console.log(
-      `[suggest-videos] query=${JSON.stringify(query)} source=${querySource}`,
+    const { query: aiQuery, source: querySource } = await buildSearchQuery(
+      ctx,
+      { supabase, teacherId },
     );
+    // Compose with teacher's optional extra / exclude keywords. Keeps
+    // the AI prompt stable while honouring overrides at the YouTube
+    // query layer.
+    const finalQuery = composeFinalQuery(
+      aiQuery,
+      ctx.extraKeywords,
+      ctx.excludeKeywords,
+    );
+    console.log(
+      `[suggest-videos] query=${JSON.stringify(finalQuery)} source=${querySource}`,
+    );
+
+    const count = ctx.count ?? 3;
+    // Need a candidate pool ~3x the requested count so the re-ranker
+    // has room to reject clickbait / off-topic. Floor at 10 so the
+    // 3-pick default behaves like before.
+    const searchLimit = Math.max(10, count * 3);
 
     // Phase 2 — YouTube fetch with a 10s hard cap.
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), 10_000);
     let rawItems;
     try {
-      rawItems = await fetchYouTubeVideos(query, {
+      rawItems = await fetchYouTubeVideos(finalQuery, {
         apiKey: youtubeKey,
-        searchLimit: 10,
+        searchLimit,
+        duration: ctx.duration,
         excludeVideoIds: ctx.excludeVideoIds,
         signal: ac.signal,
       });
@@ -127,10 +173,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(response);
     }
 
-    // Phase 3 — re-rank into final 3.
+    // Phase 3 — re-rank into final {count}.
     const { candidates, note } = await rerankWithClaude(ctx, rawItems, {
       supabase,
       teacherId,
+      count,
     });
     console.log(`[suggest-videos] surfaced ${candidates.length} candidates`);
 

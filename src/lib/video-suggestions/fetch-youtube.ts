@@ -93,6 +93,8 @@ export function mergeIntoRawItems(
   return out;
 }
 
+export type DurationBucket = "short" | "medium" | "long" | "any";
+
 export interface FetchVideosOptions {
   apiKey: string;
   /** How many search hits to ask YouTube for (we filter down). */
@@ -101,6 +103,13 @@ export interface FetchVideosOptions {
   maxDurationSeconds?: number;
   /** Video IDs to exclude (Suggest again flow). */
   excludeVideoIds?: string[];
+  /**
+   * YouTube duration bucket. Default "medium" (4–20 min). "any" skips
+   * the duration filter entirely (so the post-fetch
+   * maxDurationSeconds gate becomes the only ceiling — bump that too
+   * if you want long videos through).
+   */
+  duration?: DurationBucket;
   /** Optional AbortSignal so the route can time-cap the upstream fetch. */
   signal?: AbortSignal;
 }
@@ -117,6 +126,7 @@ export async function fetchYouTubeVideos(
 ): Promise<YouTubeRawItem[]> {
   const searchLimit = opts.searchLimit ?? 10;
   const maxDurationSeconds = opts.maxDurationSeconds ?? 20 * 60;
+  const duration: DurationBucket = opts.duration ?? "medium";
 
   const searchParams = new URLSearchParams({
     key: opts.apiKey,
@@ -126,9 +136,14 @@ export async function fetchYouTubeVideos(
     maxResults: String(searchLimit),
     safeSearch: "strict",
     videoEmbeddable: "true",
-    videoDuration: "medium",
     relevanceLanguage: "en",
   });
+  // "any" skips the videoDuration filter — broadens the candidate pool
+  // (and only the post-fetch maxDurationSeconds gate trims). Short / medium
+  // / long pass through to YouTube directly.
+  if (duration !== "any") {
+    searchParams.set("videoDuration", duration);
+  }
 
   const searchRes = await fetch(`${YT_SEARCH_URL}?${searchParams}`, {
     signal: opts.signal,

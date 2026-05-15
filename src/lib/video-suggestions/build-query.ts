@@ -69,6 +69,38 @@ export function heuristicQuery(ctx: SuggestionContext): string {
  * collapse whitespace, hard-cap at 120 chars (YouTube ignores past
  * that anyway).
  */
+/**
+ * Compose the final YouTube search query from the AI-built base + the
+ * teacher's optional extra / exclude keyword overrides.
+ *
+ * - `extraKeywords` is appended verbatim (positive terms).
+ * - `excludeKeywords` is split on whitespace / comma and each term is
+ *   prefixed with `-` (negation in YouTube's q syntax). Terms already
+ *   starting with `-` are left as-is so power users can pass raw.
+ *
+ * Capped at 200 chars — YouTube's q parameter starts ignoring tokens
+ * past that point anyway.
+ */
+export function composeFinalQuery(
+  baseQuery: string,
+  extraKeywords?: string,
+  excludeKeywords?: string,
+): string {
+  const parts: string[] = [baseQuery.trim()];
+  if (extraKeywords?.trim()) {
+    parts.push(extraKeywords.trim());
+  }
+  if (excludeKeywords?.trim()) {
+    const negated = excludeKeywords
+      .split(/[,\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((term) => (term.startsWith("-") ? term : `-${term}`));
+    if (negated.length > 0) parts.push(negated.join(" "));
+  }
+  return parts.join(" ").replace(/\s+/g, " ").trim().slice(0, 200);
+}
+
 export function sanitiseQuery(raw: string): string {
   return raw
     .replace(/[\r\n]+/g, " ")
