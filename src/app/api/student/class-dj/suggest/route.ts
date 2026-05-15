@@ -43,7 +43,7 @@ import {
 } from "@/lib/class-dj/algorithm";
 import { callStage3Candidates } from "@/lib/class-dj/stage3-candidates";
 import { callStage5Narrate, fallbackWhyLines } from "@/lib/class-dj/stage5-narrate";
-import { enrichCandidatePool } from "@/lib/class-dj/spotify-enrich";
+import { enrichCandidatePool } from "@/lib/class-dj/art-enrich";
 import type {
   Candidate,
   ConflictMode,
