@@ -18,12 +18,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireStudentSession } from "@/lib/access-v2/actor-session";
 import type { KanbanCard, KanbanState } from "@/lib/unit-tools/kanban/types";
+import type { TimelineMilestone } from "@/lib/unit-tools/timeline/types";
 import {
   extractDesignPhilosophy,
   extractLastJournalNext,
   extractKanbanSummary,
   extractUpcomingMilestones,
   type ProgressRowLike,
+  type TimelineMilestoneLike,
   type UpcomingMilestone,
 } from "@/lib/first-move/payload-builder";
 
@@ -83,28 +85,29 @@ export async function GET(
   const cards: KanbanCard[] = (kanbanRow?.cards as KanbanState["cards"]) ?? [];
   const { thisClassCards, lastDoneCard } = extractKanbanSummary(cards);
 
-  // Planning tasks — query the next ~5 candidates (incomplete with a
-  // target_date) and let the helper trim + compute daysFromNow.
-  // Overdue tasks are still returned (negative daysFromNow) so students
+  // Timeline milestones — student_unit_timeline.milestones is the
+  // canonical AG.3 store (set via the Timeline tool's backward-mapping
+  // UI). One row per (student, unit); the helper trims to the next N
+  // pending milestones with a target date and computes daysFromNow.
+  // Overdue milestones still appear (negative daysFromNow) so students
   // see what they missed.
-  const { data: planningRows } = await db
-    .from("planning_tasks")
-    .select("id, title, status, target_date")
+  const { data: timelineRow } = await db
+    .from("student_unit_timeline")
+    .select("milestones")
     .eq("student_id", studentId)
     .eq("unit_id", unitId)
-    .neq("status", "done")
-    .not("target_date", "is", null)
-    .order("target_date", { ascending: true })
-    .limit(5);
+    .maybeSingle();
 
-  const upcomingMilestones = extractUpcomingMilestones(
-    (planningRows ?? []) as Array<{
-      id: string;
-      title: string;
-      status: "todo" | "in_progress" | "done";
-      target_date: string | null;
-    }>,
-  );
+  const timelineMilestones: TimelineMilestoneLike[] = (
+    (timelineRow?.milestones as TimelineMilestone[] | null) ?? []
+  ).map((m) => ({
+    id: m.id,
+    label: m.label,
+    targetDate: m.targetDate,
+    status: m.status,
+  }));
+
+  const upcomingMilestones = extractUpcomingMilestones(timelineMilestones);
 
   const payload: FirstMovePayload = {
     designPhilosophy: philosophy.value,
