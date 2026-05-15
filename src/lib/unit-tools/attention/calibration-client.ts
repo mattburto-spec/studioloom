@@ -33,23 +33,19 @@ export interface CalibrationHistoryEntry {
 /** One element's pre-loaded ratings — drives the mini-view per-element row. */
 export interface ElementCalibrationState {
   element: NMElement;
-  /** Student's latest self-rating for this element (1..3) or null. */
+  /** Student's latest self-rating for this element (1..3) or null. Shown as
+   *  context above the editable area; full history surfaces below. */
   studentRating: number | null;
   studentComment: string | null;
   studentRatedAt: string | null;
-  /** Teacher's latest observation rating for this element (1..4) or null. */
-  teacherRating: number | null;
-  teacherComment: string | null;
-  teacherRatedAt: string | null;
   /**
-   * Round 9 (6 May 2026) — full history of teacher observations on this
-   * element (newest first). Drives the collapsible "Past observations"
-   * panel in the mini-view so a teacher can see prior ratings + comments
-   * + dates from earlier 1:1s with the same student. Excludes the
-   * current/latest entry which is shown above as the active rating.
+   * 15 May 2026 — full history of teacher observations on this element,
+   * newest first. Includes the most recent entry. The calibration form
+   * itself starts fresh every open (no pre-fill from past observations);
+   * any prior teacher input is read-only context in the history below.
    */
   teacherHistory: CalibrationHistoryEntry[];
-  /** Same for student self-ratings. */
+  /** Full history of student self-ratings on this element, newest first. */
   studentHistory: CalibrationHistoryEntry[];
 }
 
@@ -155,22 +151,16 @@ export async function loadCalibrationForStudent(args: {
     competencyId,
     elements: elements.map((el) => {
       const self = latest.get(`${el.id}::student_self`);
-      const teacher = latest.get(`${el.id}::teacher_observation`);
-      const teacherHistoryAll =
-        history.get(`${el.id}::teacher_observation`) ?? [];
-      const studentHistoryAll = history.get(`${el.id}::student_self`) ?? [];
       return {
         element: el,
         studentRating: self?.rating ?? null,
         studentComment: self?.comment ?? null,
         studentRatedAt: self?.created_at ?? null,
-        teacherRating: teacher?.rating ?? null,
-        teacherComment: teacher?.comment ?? null,
-        teacherRatedAt: teacher?.created_at ?? null,
-        // Drop the latest entry — it's already shown above. Newest-first
-        // so the most recent past observation surfaces first.
-        teacherHistory: teacherHistoryAll.slice(1),
-        studentHistory: studentHistoryAll.slice(1),
+        // Full histories, newest-first. Includes the most recent entry —
+        // the form starts fresh on every open, so past entries (teacher
+        // + student) are read-only context shown below the editable area.
+        teacherHistory: history.get(`${el.id}::teacher_observation`) ?? [],
+        studentHistory: history.get(`${el.id}::student_self`) ?? [],
       };
     }),
   };

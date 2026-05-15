@@ -38,12 +38,14 @@ describe("CalibrationMiniView", () => {
     expect(MINIVIEW_SRC).toContain('data-testid="calibration-close"');
   });
 
-  it("seeds pending state from existing teacher observations on load", () => {
-    // Loop body sets pending[element.id] = { rating: e.teacherRating, comment: e.teacherComment ?? '' }
+  it("seeds pending state fresh on load (no pre-fill from prior teacher obs)", () => {
+    // Calibration is a NEW entry every time — past teacher rows are shown
+    // read-only in the history section, not as pre-selected form values.
     expect(MINIVIEW_SRC).toMatch(
-      /seeded\[e\.element\.id\]\s*=\s*\{[\s\S]{0,200}rating:\s*e\.teacherRating/
+      /seeded\[e\.element\.id\]\s*=\s*\{\s*rating:\s*null,\s*comment:\s*""\s*\}/
     );
-    expect(MINIVIEW_SRC).toMatch(/comment:\s*e\.teacherComment\s*\?\?\s*""/);
+    // Sanity: the old pre-fill pattern is gone.
+    expect(MINIVIEW_SRC).not.toMatch(/rating:\s*e\.teacherRating/);
   });
 
   it("rating button toggles off when re-clicked (idempotent)", () => {
@@ -53,12 +55,9 @@ describe("CalibrationMiniView", () => {
     );
   });
 
-  it("buildAssessments skips rows that are unchanged from existing teacher obs", () => {
-    expect(MINIVIEW_SRC).toContain("ratingUnchanged");
-    expect(MINIVIEW_SRC).toContain("commentUnchanged");
-    expect(MINIVIEW_SRC).toMatch(
-      /if\s*\(ratingUnchanged\s*&&\s*commentUnchanged\)\s*continue/
-    );
+  it("buildAssessments has no unchanged-skip logic (form starts fresh)", () => {
+    expect(MINIVIEW_SRC).not.toContain("ratingUnchanged");
+    expect(MINIVIEW_SRC).not.toContain("commentUnchanged");
   });
 
   it("buildAssessments skips rows with no rating (rating === null)", () => {
@@ -115,30 +114,25 @@ describe("CalibrationMiniView", () => {
     expect(MINIVIEW_SRC).toMatch(/formatRelative\(element\.studentRatedAt\)/);
   });
 
-  it("teacher 'current' label shows relative date alongside the rating", () => {
-    expect(MINIVIEW_SRC).toContain('data-testid="calibration-teacher-current-date"');
-    expect(MINIVIEW_SRC).toMatch(/formatRelative\(element\.teacherRatedAt\)/);
+  it("no 'current' label sits next to the rating buttons (the form is fresh)", () => {
+    expect(MINIVIEW_SRC).not.toContain('data-testid="calibration-teacher-current-date"');
+    expect(MINIVIEW_SRC).not.toMatch(/formatRelative\(element\.teacherRatedAt\)/);
   });
 
-  it("renders a 'Past observations' details section when history exists", () => {
+  it("renders a combined 'History' details section when teacher or student entries exist", () => {
     expect(MINIVIEW_SRC).toMatch(
       /data-testid=\{`calibration-history-\$\{element\.element\.id\}`\}/
     );
-    expect(MINIVIEW_SRC).toContain("Past observations");
-    // Gated on history.length > 0
-    expect(MINIVIEW_SRC).toMatch(
-      /element\.teacherHistory\.length\s*>\s*0/
-    );
+    // New label — combined teacher + student timeline.
+    expect(MINIVIEW_SRC).toMatch(/History \(\{combined\.length\}\)/);
+    // Combined source: teacherHistory + studentHistory merged.
+    expect(MINIVIEW_SRC).toContain("element.teacherHistory");
+    expect(MINIVIEW_SRC).toContain("element.studentHistory");
   });
 
-  it("history entries map TEACHER_RATING_SCALE label per entry", () => {
-    expect(MINIVIEW_SRC).toMatch(
-      /element\.teacherHistory\.map\(\(entry,\s*i\)\s*=>/
-    );
-    // Multiline regex — the .find call wraps onto two lines in the source.
-    expect(MINIVIEW_SRC).toMatch(
-      /TEACHER_RATING_SCALE\.find\([\s\S]{0,80}r\.value\s*===\s*entry\.rating[\s\S]{0,30}\)/
-    );
+  it("history rows pick the right scale (TEACHER_RATING_SCALE vs STUDENT_RATING_SCALE) per source", () => {
+    expect(MINIVIEW_SRC).toMatch(/TEACHER_RATING_SCALE\.find/);
+    expect(MINIVIEW_SRC).toMatch(/STUDENT_RATING_SCALE\.find/);
   });
 
   it("formatRelative helper exists at the bottom of the file", () => {

@@ -24,6 +24,7 @@ import {
   saveCalibration,
   CalibrationApiError,
   type CalibrationLoad,
+  type CalibrationHistoryEntry,
   type ElementCalibrationState,
 } from "@/lib/unit-tools/attention/calibration-client";
 import {
@@ -60,8 +61,9 @@ export default function CalibrationMiniView({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [data, setData] = useState<CalibrationLoad | null>(null);
   // Map from element.id → teacher's pending input (rating + comment).
-  // Pre-seeded from existing teacher observations so the form shows the
-  // current state — Save replaces with the new values.
+  // Always starts fresh — past teacher observations live in the read-only
+  // history below, not in the editable form. Save creates new rows tagged
+  // event_type='calibration'.
   const [pending, setPending] = useState<Record<string, PendingEntry>>({});
   const [saving, setSaving] = useState(false);
   const [savedToast, setSavedToast] = useState<string | null>(null);
@@ -83,13 +85,11 @@ export default function CalibrationMiniView({
       .then((res) => {
         if (cancelled) return;
         setData(res);
-        // Seed pending state from existing teacher observations
+        // Start fresh — calibration is a NEW entry, not an edit of a
+        // prior observation. Past entries are visible read-only below.
         const seeded: Record<string, PendingEntry> = {};
         for (const e of res.elements) {
-          seeded[e.element.id] = {
-            rating: e.teacherRating,
-            comment: e.teacherComment ?? "",
-          };
+          seeded[e.element.id] = { rating: null, comment: "" };
         }
         setPending(seeded);
         setStatus("ready");
@@ -131,10 +131,10 @@ export default function CalibrationMiniView({
   }
 
   /**
-   * "Dirty" entries = rows where the teacher has either
-   *   (a) set/changed a rating, OR
-   *   (b) edited the comment AND has a rating set
-   * Empty rows are silently skipped.
+   * Build the POST payload — every element the teacher has actually rated
+   * becomes an assessment row. Empty rows (no rating chosen) are silently
+   * skipped. The form starts fresh on every open, so every saved entry is
+   * a new calibration row by definition.
    */
   function buildAssessments(): Array<{
     element: string;
@@ -146,11 +146,6 @@ export default function CalibrationMiniView({
     for (const e of data.elements) {
       const p = pending[e.element.id];
       if (!p || p.rating === null) continue;
-      // Skip if nothing changed from existing teacher observation
-      const ratingUnchanged = p.rating === e.teacherRating;
-      const commentUnchanged =
-        (p.comment ?? "") === (e.teacherComment ?? "");
-      if (ratingUnchanged && commentUnchanged) continue;
       out.push({
         element: e.element.id,
         rating: p.rating,
@@ -463,15 +458,6 @@ function ElementRow({
             );
           })}
         </div>
-        {element.teacherRating !== null && pendingRating === element.teacherRating && element.teacherRatedAt && (
-          <span
-            className="text-[10.5px] text-gray-500 italic"
-            title={`Recorded ${new Date(element.teacherRatedAt).toLocaleString()}`}
-            data-testid="calibration-teacher-current-date"
-          >
-            current · {formatRelative(element.teacherRatedAt)}
-          </span>
-        )}
       </div>
 
       {/* Comment textarea */}
@@ -485,60 +471,88 @@ function ElementRow({
         data-testid={`calibration-comment-${element.element.id}`}
       />
 
-      {/* Round 9: Past observations history (read-only, collapsed by default).
-       *  Each entry is a card showing the rating chip, the date, an optional
-       *  CALIBRATION badge if the row was written via this mini-view, and the
-       *  per-element comment underneath. Matches NM Results' chip-per-row
-       *  visual language so the two surfaces feel consistent. */}
-      {element.teacherHistory.length > 0 && (
-        <details
-          className="text-[11px]"
-          data-testid={`calibration-history-${element.element.id}`}
-        >
-          <summary className="cursor-pointer text-gray-600 hover:text-violet-700 font-semibold py-1">
-            Past observations ({element.teacherHistory.length})
-          </summary>
-          <ul className="mt-2 space-y-2 pl-1">
-            {element.teacherHistory.map((entry, i) => {
-              const scaleEntry = TEACHER_RATING_SCALE.find(
-                (r) => r.value === entry.rating
-              );
-              const chip = TEACHER_RATING_CHIP[entry.rating] ?? TEACHER_RATING_CHIP_FALLBACK;
-              const isCalibration = entry.eventType === "calibration";
-              return (
-                <li
-                  key={`${entry.createdAt}-${i}`}
-                  className="rounded-md border border-violet-100 bg-violet-50/40 px-2.5 py-2"
-                >
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold tracking-wide ${chip}`}
-                    >
-                      {entry.rating}{scaleEntry ? ` · ${scaleEntry.label}` : ""}
-                    </span>
-                    <span
-                      className="text-[10.5px] text-gray-500"
-                      title={new Date(entry.createdAt).toLocaleString()}
-                    >
-                      {formatRelative(entry.createdAt)}
-                    </span>
-                    {isCalibration && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-violet-600 text-white text-[9px] font-extrabold tracking-wider uppercase">
-                        Calibration
+      {/* Combined read-only history: teacher observations + student
+       *  self-ratings interleaved by date, newest first. Each row carries
+       *  a source pill (Teacher / Self), the rating chip, an optional
+       *  CALIBRATION badge for teacher rows written via this mini-view,
+       *  and the per-element comment underneath. Source of truth for what
+       *  was said + chosen on every past occasion — not editable here. */}
+      {(() => {
+        const combined: Array<
+          CalibrationHistoryEntry & { source: "teacher" | "self" }
+        > = [
+          ...element.teacherHistory.map((h) => ({ ...h, source: "teacher" as const })),
+          ...element.studentHistory.map((h) => ({ ...h, source: "self" as const })),
+        ].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+        if (combined.length === 0) return null;
+        return (
+          <details
+            className="text-[11px]"
+            data-testid={`calibration-history-${element.element.id}`}
+          >
+            <summary className="cursor-pointer text-gray-600 hover:text-violet-700 font-semibold py-1">
+              History ({combined.length})
+            </summary>
+            <ul className="mt-2 space-y-2 pl-1">
+              {combined.map((entry, i) => {
+                const isTeacher = entry.source === "teacher";
+                const scaleEntry = isTeacher
+                  ? TEACHER_RATING_SCALE.find((r) => r.value === entry.rating)
+                  : STUDENT_RATING_SCALE.find((r) => r.value === entry.rating);
+                const chip = isTeacher
+                  ? TEACHER_RATING_CHIP[entry.rating] ?? TEACHER_RATING_CHIP_FALLBACK
+                  : STUDENT_RATING_CHIP[entry.rating] ?? TEACHER_RATING_CHIP_FALLBACK;
+                const isCalibration = isTeacher && entry.eventType === "calibration";
+                return (
+                  <li
+                    key={`${entry.createdAt}-${i}`}
+                    className={
+                      "rounded-md border px-2.5 py-2 " +
+                      (isTeacher
+                        ? "border-violet-100 bg-violet-50/40"
+                        : "border-sky-100 bg-sky-50/40")
+                    }
+                  >
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span
+                        className={
+                          "inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider " +
+                          (isTeacher
+                            ? "bg-violet-200 text-violet-900"
+                            : "bg-sky-200 text-sky-900")
+                        }
+                      >
+                        {isTeacher ? "Teacher" : "Self"}
                       </span>
-                    )}
-                  </div>
-                  {entry.comment && (
-                    <div className="text-[11px] text-gray-700 mt-1 whitespace-pre-wrap">
-                      {entry.comment}
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold tracking-wide ${chip}`}
+                      >
+                        {entry.rating}{scaleEntry ? ` · ${scaleEntry.label}` : ""}
+                      </span>
+                      <span
+                        className="text-[10.5px] text-gray-500"
+                        title={new Date(entry.createdAt).toLocaleString()}
+                      >
+                        {formatRelative(entry.createdAt)}
+                      </span>
+                      {isCalibration && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-violet-600 text-white text-[9px] font-extrabold tracking-wider uppercase">
+                          Calibration
+                        </span>
+                      )}
                     </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </details>
-      )}
+                    {entry.comment && (
+                      <div className="text-[11px] text-gray-700 mt-1 whitespace-pre-wrap">
+                        {entry.comment}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </details>
+        );
+      })()}
     </div>
   );
 }
@@ -553,6 +567,15 @@ const TEACHER_RATING_CHIP: Record<number, string> = {
   4: "bg-violet-300 text-violet-900 border border-violet-400",
 };
 const TEACHER_RATING_CHIP_FALLBACK = "bg-gray-100 text-gray-700 border border-gray-300";
+
+/** Student self-rating chip classes — 3-point scale, distinct from the
+ *  teacher palette so the two surfaces don't visually collide in the
+ *  combined history timeline. */
+const STUDENT_RATING_CHIP: Record<number, string> = {
+  1: "bg-amber-100 text-amber-900 border border-amber-300",
+  2: "bg-sky-100 text-sky-900 border border-sky-300",
+  3: "bg-emerald-100 text-emerald-900 border border-emerald-300",
+};
 
 /**
  * Format an ISO timestamp as a short "X mins ago" / "today" / "Mar 5"
