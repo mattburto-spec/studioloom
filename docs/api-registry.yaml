@@ -2222,7 +2222,7 @@ routes:
   - student_briefs
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'student_briefs' — not in schema-registry
+  notes: null
 - path: /api/student/unit-brief
   method: POST
   file: src/app/api/student/unit-brief/route.ts
@@ -2239,7 +2239,7 @@ routes:
   - student_briefs
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'student_briefs' — not in schema-registry
+  notes: null
 - path: /api/student/unit-pages/[pageId]/skill-refs
   method: GET
   file: src/app/api/student/unit-pages/[pageId]/skill-refs/route.ts
@@ -5009,7 +5009,7 @@ routes:
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'student_briefs' — not in schema-registry
+  notes: null
 - path: /api/teacher/unit-pages/[pageId]/skill-refs
   method: GET
   file: src/app/api/teacher/unit-pages/[pageId]/skill-refs/route.ts

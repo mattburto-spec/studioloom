@@ -1882,7 +1882,7 @@ systems:
       - src/components/teacher/unit-brief/LockToggle.tsx                 # Phase F.B; rewritten in polish to single high-contrast pill
       - src/components/teacher/unit-brief/AIBriefAssistModal.tsx         # Phase F AI assist — portal-mounted; field-selection apply
       - src/components/teacher/unit-brief/StudentBriefsTab.tsx           # Phase F.E
-      - src/components/teacher/unit-brief/ChoiceCardBriefTemplateEditor.tsx # Phase F.C — embedded in choice-card editor
+      - src/components/teacher/lesson-editor/ChoiceCardBriefTemplateEditor.tsx # Phase F.C — embedded in the choice-card editor (lives under lesson-editor/ because it's mounted from the activity-block choice-card editor)
       - src/components/teacher/unit-brief/DesignConstraintsEditor.tsx
       - src/components/teacher/unit-brief/AmendmentsEditor.tsx
       - src/components/teacher/unit-brief/DiagramUploader.tsx
