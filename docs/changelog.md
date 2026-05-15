@@ -4,6 +4,43 @@
 
 ---
 
+## 2026-05-15 (evening) — Class Hub consolidation: Attention tab folded into New Metrics ([PR #316](https://github.com/mattburto-spec/studioloom/pull/316))
+
+**Context:** Pickup from a stranded handoff (`docs/handoff/claude__fold-attention-into-nm-tab.md` — the previous worktree was deleted mid-session before any code was written). The plan was already concrete: drop the Attention tab and mount `UnitAttentionPanel` inside the New Metrics tab so teachers have one surface for "who needs me this lesson + what are they being assessed on" rather than two adjacent tabs.
+
+### What shipped
+- `HubTab` union and `TABS` array in `src/app/teacher/units/[unitId]/class/[classId]/page.tsx` drop the `"attention"` entry. URL parser adds an `?tab=attention` → `metrics` backward-compat redirect (alongside the existing `safety` → `badges` and `open-studio` → `studio` shims).
+- New Metrics tab body reordered to: collapsible `<details>`-wrapped `NMElementsPanel` (open by default for fresh classes, collapsed once any element is configured — summary line shows N-of-12 count) → `UnitAttentionPanel` → `NMResultsPanel` → checkpoint-helper card.
+- `UnitAttentionPanel` deliberately rendered OUTSIDE the `globalNmEnabled` gate. Journal / Kanban / Calibration signals don't depend on the NM competency picker, so the panel should still surface for schools that haven't enabled NM.
+- Dead `activeTab === "attention"` block removed.
+
+### Systems touched
+- Modified: `src/app/teacher/units/[unitId]/class/[classId]/page.tsx` (3 surgical edits — type, TABS, parser; one body restructure; one block deletion; net -14 lines)
+- Test rewires: `src/components/teacher/__tests__/UnitAttentionPanel.test.ts` Class Hub wiring `describe` block flipped — now asserts `attention` removed from union/TABS, panel mounts inside metrics block, parser redirects `attention` → `metrics`
+- Test allowance bump: `src/components/nm/__tests__/NMElementsPanel.test.ts` distance regex 800 → 1500 chars to accommodate the new `<details>`/`<summary>` markup between `activeTab === "metrics"` and `<NMElementsPanel>`
+- No schema, no API, no AI call changes, no migrations
+
+### Tests
+- Targeted vitest run `src/components/teacher src/components/nm src/lib/unit-tools/attention`: 522/522 pass
+- `tsc --noEmit` introduces zero new errors in touched files (pre-existing pipeline/adapter test errors unrelated)
+
+### Saveme deltas (this entry)
+- `docs/api-registry.yaml`: scanner rewrite of three `notes: null` rows (stale `student_briefs` "unknown table" warnings — `student_briefs` was added to schema-registry recently, scanner caught up). Not from this session, but the scanner is unconditional so it's bundled.
+- `docs/ai-call-sites.yaml`: clean (no diff)
+- `docs/scanner-reports/feature-flags.json`: status `drift` — pre-existing FU-CC/FU-DD long-tail, unchanged from morning
+- `docs/scanner-reports/vendors.json`: status `ok`
+- `docs/scanner-reports/rls-coverage.json`: status `clean`
+- Migration drift: manual-mode SQL printed (no `DATABASE_URL`); no migrations applied this session so even if `applied_migrations` is mid-backfill (FU-PROD-MIGRATION-BACKLOG-AUDIT P1), nothing new is at stake from this session
+
+### Process notes
+- The handoff file lived in the main worktree (`/Users/matt/CWORK/questerra/docs/handoff/...`) but wasn't checked into git, so the new branch in a fresh worktree couldn't see it. I had to walk all sibling worktrees with `ls docs/handoff/` before finding it. Worth being explicit in future: handoffs are session-scoped artefacts, not committed by default — pickup needs to know which worktree wrote it.
+- `gh pr merge --squash --delete-branch` failed the local fast-forward (main is checked out in `unruffled-edison-719dd4` worktree). Merge succeeded on GitHub (commit `34892cb1`); the remote branch was deleted explicitly via `gh api -X DELETE`. Same class of foot-gun as worktree-cwd issues: gh's merge-and-cleanup assumes main is available locally.
+
+### Stale handoff cleanup
+The old handoff `docs/handoff/claude__fold-attention-into-nm-tab.md` in the main worktree is now obsolete (the work is shipped). Matt to delete at convenience — it's untracked and worktree-local so it won't auto-clean.
+
+---
+
 ## 2026-05-15 (PM) — Video suggestions: hardcoded-model CI fix + teacher search-criteria controls (2 PRs to main)
 
 **Context:** Continuation of the morning 15 May session. Matt opened Gmail and surfaced 8+ CI failure notifications for PRs that had merged earlier in the day (including PRs #281/#282/#285 from this session). Investigation found a single root cause + a related architectural gap. Plus Matt asked for runtime control over the suggest-videos search criteria.
