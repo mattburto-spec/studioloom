@@ -301,8 +301,19 @@ describe("UnitBriefEditor — Phase F.B locks wiring", () => {
   });
 
   it("explains the locks model in a banner above the fields (smoke-friendly hint)", () => {
-    expect(editorSrc).toMatch(/🔒 Locks:/);
-    expect(editorSrc).toContain("non-negotiables");
+    // Polish: dropped the colon after "Locks" when adding the count chip.
+    expect(editorSrc).toMatch(/🔒 Locks/);
+    expect(editorSrc).toContain("non-negotiable");
+  });
+
+  it("post-F.E polish — Lock all / Open all buttons + locked-count summary", () => {
+    expect(editorSrc).toMatch(/data-testid="locks-lock-all"/);
+    expect(editorSrc).toMatch(/data-testid="locks-unlock-all"/);
+    expect(editorSrc).toMatch(/data-testid="locks-count-summary"/);
+    expect(editorSrc).toContain("handleLockAll");
+    expect(editorSrc).toContain("handleUnlockAll");
+    expect(editorSrc).toMatch(/disabled=\{allLocked \|\| saving\}/);
+    expect(editorSrc).toMatch(/disabled=\{noneLocked \|\| saving\}/);
   });
 });
 
@@ -351,9 +362,18 @@ describe("LockToggle — structure", () => {
     expect(lockToggleSrc).toMatch(/aria-pressed=\{locked\}/);
   });
 
-  it("compact + full variants supported (compact default)", () => {
-    expect(lockToggleSrc).toMatch(/variant\?: "compact" \| "full"/);
-    expect(lockToggleSrc).toMatch(/variant = "compact"/);
+  it("post-F.E polish — single bigger pill variant always shows 'Locked' / 'Open' text", () => {
+    // Removed compact/full split: every toggle now renders a labelled
+    // pill. Visual distinction was too subtle in the icon-only variant.
+    expect(lockToggleSrc).not.toMatch(/variant\?: /);
+    expect(lockToggleSrc).toContain('const label = locked ? "Locked" : "Open"');
+    expect(lockToggleSrc).toMatch(/<span>\{label\}<\/span>/);
+  });
+
+  it("locked vs unlocked use distinct high-contrast styles", () => {
+    expect(lockToggleSrc).toMatch(/bg-purple-600/);
+    expect(lockToggleSrc).toMatch(/bg-white/);
+    expect(lockToggleSrc).toMatch(/uppercase tracking-wide/);
   });
 
   it("data-testid keyed by field path so editors can target individual toggles", () => {

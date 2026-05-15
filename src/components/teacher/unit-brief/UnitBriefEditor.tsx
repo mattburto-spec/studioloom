@@ -9,6 +9,7 @@ import type {
   UnitBriefConstraints,
   UnitBriefLocks,
 } from "@/types/unit-brief";
+import { LOCKABLE_FIELDS } from "@/types/unit-brief";
 import { DesignConstraintsEditor } from "./DesignConstraintsEditor";
 import { AmendmentsEditor } from "./AmendmentsEditor";
 import { DiagramUploader } from "./DiagramUploader";
@@ -159,6 +160,30 @@ export function UnitBriefEditor({
     [savePatch],
   );
 
+  // Bulk lock / unlock — post-F.E polish. Sets every lockable field
+  // in one save (saves one round-trip vs toggling each individually).
+  const handleLockAll = useCallback(() => {
+    const nextLocks: UnitBriefLocks = {};
+    for (const field of LOCKABLE_FIELDS) {
+      nextLocks[field] = true;
+    }
+    setLocks(nextLocks);
+    void savePatch({ locks: nextLocks });
+  }, [savePatch]);
+
+  const handleUnlockAll = useCallback(() => {
+    const nextLocks: UnitBriefLocks = {};
+    setLocks(nextLocks);
+    void savePatch({ locks: nextLocks });
+  }, [savePatch]);
+
+  // For the "X of Y locked" indicator and disabling redundant bulk
+  // actions.
+  const lockedCount = Object.values(locks).filter((v) => v === true).length;
+  const totalLockable = LOCKABLE_FIELDS.length;
+  const allLocked = lockedCount === totalLockable;
+  const noneLocked = lockedCount === 0;
+
   const handleAddAmendment = useCallback(
     async (input: { version_label: string; title: string; body: string }) => {
       setSaving(true);
@@ -223,12 +248,42 @@ export function UnitBriefEditor({
         </p>
       </div>
 
-      {/* Phase F.B explainer banner — explain the locks model + Open default. */}
-      <div className="mb-6 rounded border border-purple-200 bg-purple-50 px-3 py-2 text-xs text-purple-900">
-        <strong>🔒 Locks:</strong> Every field is <em>Open</em> by default — students
-        can fill or override. Click 🔓 on any field to lock it: students see your
-        value, can't edit. Locked fields are the non-negotiables; open fields are
-        the spaces students get to author.
+      {/* Phase F.B explainer banner — explain the locks model + Open default.
+          Post-F.E polish: Lock all / Open all bulk buttons + live count. */}
+      <div className="mb-6 rounded border border-purple-200 bg-purple-50 p-3">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-purple-900">
+            <strong>🔒 Locks</strong>
+            <span className="ml-1 font-medium" data-testid="locks-count-summary">
+              ({lockedCount} of {totalLockable} locked)
+            </span>
+          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleLockAll}
+              disabled={allLocked || saving}
+              data-testid="locks-lock-all"
+              className="inline-flex items-center gap-1.5 rounded-md bg-purple-600 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white ring-1 ring-inset ring-purple-700 hover:bg-purple-700 disabled:opacity-40"
+            >
+              <span aria-hidden="true">🔒</span> Lock all
+            </button>
+            <button
+              type="button"
+              onClick={handleUnlockAll}
+              disabled={noneLocked || saving}
+              data-testid="locks-unlock-all"
+              className="inline-flex items-center gap-1.5 rounded-md bg-white px-3 py-1 text-xs font-bold uppercase tracking-wide text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40"
+            >
+              <span aria-hidden="true">🔓</span> Open all
+            </button>
+          </div>
+        </div>
+        <p className="text-xs text-purple-900">
+          Every field is <em>Open</em> by default — students can fill or override.
+          Lock fields that are non-negotiable; open fields are the spaces students
+          get to author.
+        </p>
       </div>
 
       {/* Section 1 — Brief prose */}
