@@ -69,6 +69,12 @@ export default function ClassDjTeacherControls({
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  // Ref on the Run again button so we can scroll it into view AFTER a
+  // pick lands. Post-pick the panel grows (Now Playing banner + faded
+  // unpicked cards + regenerate link), and Run again can sit below the
+  // visible viewport. Auto-scrolling to the end re-anchors the teacher's
+  // eyes on the next action.
+  const runAgainRef = useRef<HTMLButtonElement>(null);
   // Which suggestion the teacher just picked. Surfaced visually on the
   // card + as a "Now play" banner with YouTube/Spotify search links so
   // the teacher can actually play the music (we can't auto-play because
@@ -106,6 +112,22 @@ export default function ClassDjTeacherControls({
       rootRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   }, [status, suggestionLanded]);
+
+  // After a pick lands, scroll the Run again button into view. Post-pick
+  // the panel grows by ~80px (Now Playing banner) which can push Run again
+  // below the fold in a tall lesson. block: "end" anchors the bottom in
+  // the viewport so the teacher's next action is reachable in one click.
+  // Slight delay (50ms) lets the banner mount + DOM measure before scroll.
+  useEffect(() => {
+    if (pickedIndex === null) return;
+    const id = setTimeout(() => {
+      runAgainRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+      });
+    }, 50);
+    return () => clearTimeout(id);
+  }, [pickedIndex]);
 
   // Clear stale actionError when the round changes. Without this, a
   // 429 from a previous round's auto-fire (max_suggestions reached)
@@ -414,6 +436,20 @@ export default function ClassDjTeacherControls({
           {/* Conflict mode chip for context — purely informational */}
           <ConflictModeChip mode={conflictMode} />
         </>
+      ) : gateMet && !actionError ? (
+        // Thinking state — gate was met, auto-fire kicked off /suggest,
+        // we're waiting on the ~5-15s pipeline (Stage 3 LLM + Deezer
+        // + Stage 5 narration). Without this, teacher sees "no
+        // suggestion generated" and assumes it's broken.
+        <div className="rounded-md bg-violet-50 border border-violet-200 p-2 text-center space-y-0.5">
+          <div className="text-xl animate-pulse">🎧</div>
+          <p className="text-[11.5px] font-semibold text-violet-900">
+            DJ is reading the room…
+          </p>
+          <p className="text-[10px] text-violet-600 italic">
+            usually 5-15 seconds
+          </p>
+        </div>
       ) : (
         <p className="text-[11.5px] text-violet-700 text-center py-1">
           Round closed — no suggestion generated.
@@ -421,6 +457,7 @@ export default function ClassDjTeacherControls({
       )}
 
       <button
+        ref={runAgainRef}
         type="button"
         onClick={handleLaunch}
         disabled={isBusy("launch")}
