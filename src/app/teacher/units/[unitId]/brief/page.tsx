@@ -3,13 +3,20 @@
 import { useEffect, useState, use } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { UnitBriefEditor } from "@/components/teacher/unit-brief/UnitBriefEditor";
+import { StudentBriefsTab } from "@/components/teacher/unit-brief/StudentBriefsTab";
 
 /**
- * Teacher Brief & Constraints editor page. Fetches the unit's basic
- * metadata (title, unit_type) to decide whether the Design constraints
- * section renders. The editor itself fetches the brief + amendments
- * via /api/teacher/unit-brief* endpoints.
+ * Teacher Brief & Constraints page. Fetches the unit's basic metadata
+ * (title, unit_type) once, then renders one of two tabs:
+ *   - "Brief"          — the authoring editor (UnitBriefEditor)
+ *   - "Student briefs" — Phase F.E read-only review of per-student
+ *                        overrides (StudentBriefsTab)
+ *
+ * Local tab state — no URL deeplink in v1 (deferred — students
+ * shouldn't share URLs into the teacher review surface anyway).
  */
+type TabKey = "brief" | "students";
+
 export default function UnitBriefPage({
   params,
 }: {
@@ -20,6 +27,7 @@ export default function UnitBriefPage({
   const [unitType, setUnitType] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<TabKey>("brief");
 
   useEffect(() => {
     let cancelled = false;
@@ -63,11 +71,75 @@ export default function UnitBriefPage({
       </div>
     );
   }
+
   return (
-    <UnitBriefEditor
-      unitId={unitId}
-      unitTitle={unitTitle}
-      unitType={unitType}
-    />
+    <>
+      {/* Tab bar — Phase F.E. Local state; no URL deeplink. Centred at
+          the same max-w-3xl as the editor below so tabs align visually
+          with the editor content. */}
+      <div className="mx-auto max-w-3xl px-6 pt-6">
+        <nav
+          className="flex items-center gap-2 border-b border-gray-200"
+          role="tablist"
+          aria-label="Brief sections"
+        >
+          <TabButton
+            tab="brief"
+            active={tab === "brief"}
+            onClick={() => setTab("brief")}
+          >
+            Brief
+          </TabButton>
+          <TabButton
+            tab="students"
+            active={tab === "students"}
+            onClick={() => setTab("students")}
+          >
+            Student briefs
+          </TabButton>
+        </nav>
+      </div>
+
+      {tab === "brief" ? (
+        <UnitBriefEditor
+          unitId={unitId}
+          unitTitle={unitTitle}
+          unitType={unitType}
+        />
+      ) : (
+        <div className="mx-auto max-w-3xl px-6 py-6">
+          <StudentBriefsTab unitId={unitId} />
+        </div>
+      )}
+    </>
+  );
+}
+
+function TabButton({
+  tab,
+  active,
+  onClick,
+  children,
+}: {
+  tab: TabKey;
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      data-testid={`brief-tab-${tab}`}
+      className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition ${
+        active
+          ? "border-indigo-600 text-indigo-700"
+          : "border-transparent text-gray-600 hover:text-gray-900"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
