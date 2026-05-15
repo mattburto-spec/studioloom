@@ -122,10 +122,14 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
   }, [checkpointPageIds, hasGeneralObs]);
 
   // Build grid data: per student, per checkpoint → avg rating + has teacher obs
+  type TeacherObservationEntry = {
+    element: string;
+    rating: number;
+    comment: string | null;
+  };
   type TeacherObservation = {
     createdAt: string;
-    ratings: Record<string, number>;
-    comment: string | null;
+    entries: TeacherObservationEntry[];
   };
   type CellData = {
     selfAvg: number | null;
@@ -138,32 +142,31 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
   };
 
   // Group teacher rows from one POST batch (shared created_at) into observation events.
-  // Returns latest-per-element ratings (later events override earlier ones for the top
-  // summary grid) plus a newest-first list of every observation event for the drill-down
-  // history — each event keeps its own ratings + optional comment so the per-occasion
-  // state stays visible.
+  // Each row keeps its own per-element comment — the writer stores one row per (element,
+  // rating, comment) tuple, so collapsing comments at the event level would drop N-1 of
+  // them. Returns latest-per-element ratings for the top summary grid plus a newest-first
+  // list of events where each event is a list of per-element entries.
   function summarizeTeacherObs(rows: Assessment[]): {
     ratings: Record<string, number>;
     observations: TeacherObservation[];
     latestDate: string;
   } {
-    const events = new Map<string, { ratings: Record<string, number>; comment: string | null }>();
+    const events = new Map<string, TeacherObservationEntry[]>();
     for (const a of rows) {
-      let evt = events.get(a.created_at);
-      if (!evt) {
-        evt = { ratings: {}, comment: null };
-        events.set(a.created_at, evt);
-      }
-      evt.ratings[a.element] = a.rating;
-      if (a.comment?.trim()) evt.comment = a.comment;
+      if (!events.has(a.created_at)) events.set(a.created_at, []);
+      events.get(a.created_at)!.push({
+        element: a.element,
+        rating: a.rating,
+        comment: a.comment?.trim() ? a.comment : null,
+      });
     }
     const sorted = Array.from(events.entries()).sort(([a], [b]) => a.localeCompare(b));
     const ratings: Record<string, number> = {};
-    for (const [, evt] of sorted) {
-      for (const [elem, r] of Object.entries(evt.ratings)) ratings[elem] = r;
+    for (const [, entries] of sorted) {
+      for (const e of entries) ratings[e.element] = e.rating;
     }
     const observations = sorted
-      .map(([createdAt, evt]) => ({ createdAt, ratings: evt.ratings, comment: evt.comment }))
+      .map(([createdAt, entries]) => ({ createdAt, entries }))
       .reverse();
     const latestDate = sorted.length > 0 ? sorted[sorted.length - 1][0] : "";
     return { ratings, observations, latestDate };
@@ -511,34 +514,45 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
                                         </div>
                                       )}
                                       {dd.teacherObservations.map((obs) => {
-                                        const obsElements = elements.filter(eid => obs.ratings[eid] !== undefined);
+                                        const sortedEntries = [...obs.entries].sort((a, b) => {
+                                          const ai = elements.indexOf(a.element);
+                                          const bi = elements.indexOf(b.element);
+                                          if (ai === -1 && bi === -1) return a.element.localeCompare(b.element);
+                                          if (ai === -1) return 1;
+                                          if (bi === -1) return -1;
+                                          return ai - bi;
+                                        });
                                         return (
                                           <div key={obs.createdAt} style={{ padding: "8px 12px", borderRadius: "8px", background: "#faf0fc", border: "1px solid #e0bff0", lineHeight: 1.5 }}>
-                                            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "6px", marginBottom: obs.comment ? "6px" : 0 }}>
+                                            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
                                               <span style={{ fontWeight: 700, color: POP.hotPink, fontSize: "11px" }}>Teacher</span>
                                               <span style={{ color: "#888", fontSize: "11px" }}>{formatDate(obs.createdAt)}</span>
-                                              {obsElements.map(elemId => {
-                                                const r = obs.ratings[elemId];
-                                                const elem = AGENCY_ELEMENT_MAP[elemId];
-                                                const td = TEACHER_DOT[r];
+                                            </div>
+                                            <div style={{ display: "grid", gap: "4px" }}>
+                                              {sortedEntries.map((entry) => {
+                                                const elem = AGENCY_ELEMENT_MAP[entry.element];
+                                                const td = TEACHER_DOT[entry.rating];
                                                 return (
-                                                  <span key={elemId} style={{
-                                                    padding: "2px 8px", borderRadius: "6px",
-                                                    background: td?.bg || "#e5e7eb",
-                                                    color: td?.text || "#999",
-                                                    fontSize: "10px", fontWeight: 800,
-                                                    fontFamily: "'Arial Black', sans-serif",
-                                                    border: `1.5px solid ${POP.hotPink}`,
-                                                    whiteSpace: "nowrap",
-                                                  }}>
-                                                    {elem?.name || elemId}: {td?.label || r}
-                                                  </span>
+                                                  <div key={entry.element} style={{ display: "flex", alignItems: "flex-start", flexWrap: "wrap", gap: "8px" }}>
+                                                    <span style={{
+                                                      padding: "2px 8px", borderRadius: "6px",
+                                                      background: td?.bg || "#e5e7eb",
+                                                      color: td?.text || "#999",
+                                                      fontSize: "10px", fontWeight: 800,
+                                                      fontFamily: "'Arial Black', sans-serif",
+                                                      border: `1.5px solid ${POP.hotPink}`,
+                                                      whiteSpace: "nowrap",
+                                                      flexShrink: 0,
+                                                    }}>
+                                                      {elem?.name || entry.element}: {td?.label || entry.rating}
+                                                    </span>
+                                                    {entry.comment && (
+                                                      <span style={{ fontSize: "11px", color: "#444", flex: 1, minWidth: "140px" }}>{entry.comment}</span>
+                                                    )}
+                                                  </div>
                                                 );
                                               })}
                                             </div>
-                                            {obs.comment && (
-                                              <div style={{ fontSize: "11px", color: "#444" }}>{obs.comment}</div>
-                                            )}
                                           </div>
                                         );
                                       })}
