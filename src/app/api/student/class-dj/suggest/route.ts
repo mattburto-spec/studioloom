@@ -405,8 +405,17 @@ export async function POST(request: NextRequest) {
   }
 
   // 11. Spotify enrich + drop hallucinations / explicit / blocklist.
+  //
+  // Spotify-degraded mode: if SPOTIFY_CLIENT_ID/SECRET aren't set or the
+  // token endpoint is down, enrichCandidatePool passes non-blocklisted
+  // candidates through with imageUrl/spotifyUrl undefined. Suggestion
+  // still appears on screen (UI renders 🎵 placeholder for missing art).
+  // Caught 14 May 2026 — Matt's smoke had unset Vercel env vars, every
+  // round closed with "All candidates dropped by Spotify enrichment."
   const candidatePoolSize = stage3.candidates.length;
-  let { enriched, drops } = await enrichCandidatePool(stage3.candidates);
+  let { enriched, drops, spotifyDegraded } = await enrichCandidatePool(
+    stage3.candidates,
+  );
 
   // Silent Stage 3 retry once if too many drops.
   if (enriched.length < RETRY_THRESHOLD) {
@@ -435,15 +444,20 @@ export async function POST(request: NextRequest) {
       const retryEnriched = await enrichCandidatePool(retry.candidates);
       enriched = [...enriched, ...retryEnriched.enriched];
       drops = [...drops, ...retryEnriched.drops];
+      // If either pass degraded, treat the round as degraded.
+      spotifyDegraded = spotifyDegraded || retryEnriched.spotifyDegraded;
     }
   }
 
   if (enriched.length === 0) {
     await revertIncrement();
-    return NextResponse.json(
-      { error: "All candidates dropped by Spotify enrichment after retry" },
-      { status: 502 },
-    );
+    // When degraded, the only way enriched can be empty is if EVERY
+    // candidate was blocklisted. In normal mode, this branch fires when
+    // every candidate failed Spotify match / explicit / blocklist.
+    const reason = spotifyDegraded
+      ? "All candidates blocklisted — no safe options for this room"
+      : "All candidates dropped by Spotify enrichment after retry";
+    return NextResponse.json({ error: reason }, { status: 502 });
   }
 
   // 12. Stage 1 aggregate over the enriched pool.
