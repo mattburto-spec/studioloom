@@ -4,6 +4,38 @@
 
 ---
 
+## 2026-05-15 — Auth security fix: student-classcode-login cross-class bypass ([studioloom#308](https://github.com/mattburto-spec/studioloom/pull/308))
+
+**Context:** Matt reported students could log into a class they weren't enrolled in by entering its classcode + their own initials. Reproduction: G8 student "ER" entered the G9 classcode `SW3NLD` → login succeeded → dashboard showed "G8 Design" in the header (derived from `class_students` junction) while the session's authenticated class was G9. Internally inconsistent session state.
+
+### Root cause
+`/api/auth/student-classcode-login` had a 3-level student lookup chain. Levels 1+2 correctly required enrollment (junction table + legacy `students.class_id`). **Level 3 matched only on `(username, author_teacher_id)`** — i.e. "do I share a teacher with this class?" — and on success rewrote `students.class_id` to the spoofed class, corrupting the canonical column for ~50 downstream readers. A code comment on the predicate explicitly argued it was safe ("scope filter, not actor permission gate") — the reasoning held only if a teacher owned exactly one class.
+
+### Fix shipped
+- Deleted Level 3 entirely (22 lines removed from `route.ts`)
+- Updated route comments to document the new 2-level enrollment-required chain and the security rationale
+- Upgraded test mock to route students-table queries by first `.eq()` column (so Level 2 vs the removed Level 3 query shapes can be distinguished in tests)
+- Added regression test wired to the exact SW3NLD scenario — asserts an orphan-shaped student matching the Level 3 pattern returns 401 instead of authenticating. Will flip red if anyone ever re-introduces a username-only fallback.
+- Tests: 9 → 10 in `student-classcode-login/__tests__/route.test.ts`. All 12 auth route tests pass.
+
+### Prod data repair
+Audit found 6 students with corrupted `students.class_id` from past Level 3 firings (one as recent as the day before Matt reported it). Repaired via targeted UPDATE that re-synced the legacy column to each student's single active `class_students` enrollment:
+- `sy`, `ez`, `er`, `ej`, `eb` — all had `students.class_id = b97888a4-...` (G9 class) but were actually enrolled in their real G8 class
+- `hh` — opposite direction (corrupted to G8, actually enrolled in G9)
+
+BEFORE state captured for rollback. Post-repair verify query returned 0 rows = no remaining drift between `students.class_id` and `class_students` enrollment.
+
+### Systems touched
+- Modified: `src/app/api/auth/student-classcode-login/route.ts` (-22 lines, +8 comment lines), `src/app/api/auth/student-classcode-login/__tests__/route.test.ts` (+41 lines)
+- No migration. No schema change. No registry impact.
+- New entries: lessons-learned #90 (auth fallbacks must verify membership in the specific target), decisions-log (delete Level 3 vs patch it)
+
+### Open items
+- None — bug closed, prod repaired, regression test in place.
+- Long-term hygiene: deprecate `students.class_id` entirely once Access Model v2 cutover stabilises. Already tracked elsewhere; not blocked on this fix.
+
+---
+
 ## 2026-05-15 — Lesson editor authoring polish + AI video suggestions v1 (5 PRs to main)
 
 **Context:** Matt's three-item ask at the top of the session: (1) process journal questions weren't editable in the unit editor, (2) couldn't bold/bullet text in the unit editor, (3) wanted AI-suggested videos based on activity content. All three shipped in this session — five PRs landed on main, plus one open design brief.

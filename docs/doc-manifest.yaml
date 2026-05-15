@@ -38,9 +38,9 @@ docs:
 
   - path: docs/lessons-learned.md
     title: "Lessons Learned"
-    purpose: "75 hard-won lessons from production bugs, build disasters, Supabase/Vercel gotchas. Latest #74 + #75 (8 May 2026): instrument before adding more guards in same layer; same-layer guards keep failing → bug is probably in adjacent layer."
+    purpose: "90 hard-won lessons from production bugs, build disasters, Supabase/Vercel gotchas. Latest #90 (15 May 2026): auth fallbacks must verify membership in the SPECIFIC target, not shared ownership — Level 3 orphan fallback in student-classcode-login allowed cross-class bypass within a teacher's tenant; deleted entirely; paired with prod-data repair UPDATE."
     category: root
-    last_verified: "2026-05-08"
+    last_verified: "2026-05-15"
     max_age_days: 90
     last_scanned: null
 

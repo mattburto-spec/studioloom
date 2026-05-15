@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 495
+# Total routes: 499
 
 routes:
 - path: /api/admin/ai-budget
@@ -510,8 +510,7 @@ routes:
   - class_students
   - classes
   - students
-  tables_written:
-  - students
+  tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
@@ -2212,15 +2211,35 @@ routes:
   file: src/app/api/student/unit-brief/route.ts
   auth: student
   tables_read:
+  - choice_cards
   - class_students
   - class_units
+  - student_briefs
   - students
   - unit_brief_amendments
   - unit_briefs
-  tables_written: []
+  tables_written:
+  - student_briefs
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: null
+  notes: Reference to unknown table 'student_briefs' — not in schema-registry
+- path: /api/student/unit-brief
+  method: POST
+  file: src/app/api/student/unit-brief/route.ts
+  auth: student
+  tables_read:
+  - choice_cards
+  - class_students
+  - class_units
+  - student_briefs
+  - students
+  - unit_brief_amendments
+  - unit_briefs
+  tables_written:
+  - student_briefs
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'student_briefs' — not in schema-registry
 - path: /api/student/unit-pages/[pageId]/skill-refs
   method: GET
   file: src/app/api/student/unit-pages/[pageId]/skill-refs/route.ts
@@ -2682,6 +2701,18 @@ routes:
   auth: teacher
   tables_read:
   - choice_cards
+  tables_written:
+  - choice_cards
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/choice-cards/[cardId]
+  method: GET
+  file: src/app/api/teacher/choice-cards/[cardId]/route.ts
+  auth: teacher
+  tables_read:
+  - choice_cards
+  - user_profiles
   tables_written:
   - choice_cards
   ai_call_sites: []
@@ -4955,6 +4986,30 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/teacher/unit-brief/generate
+  method: POST
+  file: src/app/api/teacher/unit-brief/generate/route.ts
+  auth: teacher
+  tables_read:
+  - unit_briefs
+  - units
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/unit-brief/student-briefs
+  method: GET
+  file: src/app/api/teacher/unit-brief/student-briefs/route.ts
+  auth: teacher
+  tables_read:
+  - choice_card_selections
+  - choice_cards
+  - student_briefs
+  - students
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'student_briefs' — not in schema-registry
 - path: /api/teacher/unit-pages/[pageId]/skill-refs
   method: GET
   file: src/app/api/teacher/unit-pages/[pageId]/skill-refs/route.ts

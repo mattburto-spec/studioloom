@@ -4,7 +4,7 @@
 >
 > **Companion doc:** [`security-plan.md`](security-plan.md) — gap closure plan to reach world-class.
 >
-> **Last audited:** 2026-05-09 (post Access Model v2 PILOT-READY + first round of P0/P1 fixes shipped)
+> **Last audited:** 2026-05-15 (Level 3 orphan auth bypass closed; see "Newly shipped 2026-05-15" below)
 > **Audit scope:** PII flow to LLMs · RLS · auth/authz · storage · secrets · encryption · DSR · observability
 > **Scanner status:** `rls-coverage` clean · `audit-coverage` clean · `ai-budget-coverage` clean · `role-guard-coverage` 119/206 covered / 80 drift / 7 allowlisted
 
@@ -37,6 +37,9 @@ The architecture is sound. Access Model v2 (Phases 0–6, shipped 4 May 2026) ga
 
 **Newly shipped 2026-05-09 round 2:**
 - ✅ **All storage buckets private** — proxy at [`/api/storage/[bucket]/[...path]`](../../src/app/api/storage/[bucket]/[...path]/route.ts) + 4 writers updated + URL-rewrite migration `20260508232012`. (P-3 closed)
+
+**Newly shipped 2026-05-15:**
+- ✅ **Student-classcode-login Level 3 cross-class bypass closed** ([studioloom#308](https://github.com/mattburto-spec/studioloom/pull/308)) — `/api/auth/student-classcode-login` had a Level 3 orphan fallback that matched students by `(username, author_teacher_id)` without verifying class enrollment, letting any student authenticate to any class run by their owning teacher. On success it also rewrote `students.class_id` to the spoofed class, corrupting the legacy column for downstream readers. Deleted the fallback entirely; both remaining lookup levels require enrollment in the specific target class via `class_students` junction or legacy `students.class_id`. Regression test wired to the SW3NLD reproduction asserts orphan-shaped students return 401. 6 prod students with corrupted `students.class_id` from past firings repaired via targeted UPDATE (BEFORE state captured, post-repair verify clean). Lesson #90 + decisions-log entry filed. No new follow-ups.
 
 Full gap list with severities: [`security-plan.md`](security-plan.md) §"Top 10 gaps".
 

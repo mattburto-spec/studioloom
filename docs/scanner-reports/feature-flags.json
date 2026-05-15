@@ -1,10 +1,12 @@
 {
   "registry": "feature-flags.yaml",
-  "timestamp": "2026-05-14T22:47:18.932514+00:00",
+  "timestamp": "2026-05-15T06:55:27.599989+00:00",
   "version": 1,
   "drift": {
     "orphaned": [
       "SENTRY_AUTH_TOKEN",
+      "SPOTIFY_CLIENT_ID",
+      "SPOTIFY_CLIENT_SECRET",
       "auth.permission_helper_rollout"
     ],
     "missing": [
@@ -14,7 +16,7 @@
   "stats": {
     "registered_flags": 17,
     "registered_secrets": 21,
-    "code_env_vars": 32
+    "code_env_vars": 30
   },
   "status": "drift"
 }

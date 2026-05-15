@@ -189,6 +189,7 @@ call_sites:
   - /api/teacher/lesson-editor/ai-field
   - /api/teacher/lesson-editor/suggest
   - /api/teacher/timetable/parse-upload
+  - /api/teacher/unit-brief/generate
   - /api/teacher/wizard-autoconfig
   - /api/teacher/wizard-suggest
   - /api/tools/marking-comments
@@ -216,6 +217,7 @@ call_sites:
   - /api/teacher/lesson-editor/ai-field
   - /api/teacher/lesson-editor/suggest
   - /api/teacher/timetable/parse-upload
+  - /api/teacher/unit-brief/generate
   - /api/teacher/wizard-autoconfig
   - /api/teacher/wizard-suggest
   - /api/tools/marking-comments
@@ -243,6 +245,7 @@ call_sites:
   - /api/teacher/lesson-editor/ai-field
   - /api/teacher/lesson-editor/suggest
   - /api/teacher/timetable/parse-upload
+  - /api/teacher/unit-brief/generate
   - /api/teacher/wizard-autoconfig
   - /api/teacher/wizard-suggest
   - /api/tools/marking-comments
