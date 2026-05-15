@@ -89,6 +89,16 @@ export default function ClassDjTeacherControls({
     }
   }, [status, suggestionLanded]);
 
+  // Clear stale actionError when the round changes. Without this, a
+  // 429 from a previous round's auto-fire (max_suggestions reached)
+  // would still display in the teacher panel after Run again.
+  const currentRoundId = state?.round
+    ? (state.round as unknown as RoundShape).id
+    : null;
+  useEffect(() => {
+    setActionError(null);
+  }, [currentRoundId]);
+
   async function post(path: string, body?: Record<string, unknown>): Promise<unknown | null> {
     setBusy(path);
     setActionError(null);

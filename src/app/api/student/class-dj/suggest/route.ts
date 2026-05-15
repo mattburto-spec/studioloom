@@ -222,8 +222,39 @@ export async function POST(request: NextRequest) {
   }
   const newSuggestCount = updatedRound.suggest_count;
 
+  // Revert helper for failure paths AFTER the atomic increment. Without
+  // this, every Stage 3 / Spotify-drop / Stage 5 failure permanently
+  // consumes a slot toward max_suggestions — three consecutive failures
+  // would hit the cap and lock the round out from ever generating a
+  // suggestion, even though no suggestion row was ever inserted. Caught
+  // 14 May 2026 when Matt's classroom round 5 hit max with 8 votes but
+  // zero suggestions visible.
+  //
+  // Race-note: this is a relative decrement done via re-read + write,
+  // so there's a tiny window where two concurrent reverts could
+  // overlap. Worst case: one extra slot consumed transiently. Way
+  // better than the current behaviour (slot consumed forever).
+  async function revertIncrement() {
+    try {
+      const { data: cur } = await db
+        .from("class_dj_rounds")
+        .select("suggest_count")
+        .eq("id", round!.id)
+        .maybeSingle<{ suggest_count: number }>();
+      if (cur && cur.suggest_count > 0) {
+        await db
+          .from("class_dj_rounds")
+          .update({ suggest_count: cur.suggest_count - 1 })
+          .eq("id", round!.id);
+      }
+    } catch (e) {
+      console.error("[class-dj/suggest] revertIncrement failed (non-fatal)", e);
+    }
+  }
+
   const teacherId = parseTeacherId(round.started_by);
   if (!teacherId) {
+    await revertIncrement();
     return NextResponse.json(
       { error: "Round has no teacher attribution (started_by malformed)" },
       { status: 500 },
@@ -366,6 +397,7 @@ export async function POST(request: NextRequest) {
   );
 
   if (!stage3.ok) {
+    await revertIncrement();
     return NextResponse.json(
       { error: `Stage 3 failed: ${stage3.reason}`, detail: stage3.detail },
       { status: stage3.reason === "truncated" ? 502 : 502 },
@@ -407,6 +439,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (enriched.length === 0) {
+    await revertIncrement();
     return NextResponse.json(
       { error: "All candidates dropped by Spotify enrichment after retry" },
       { status: 502 },
@@ -496,6 +529,7 @@ export async function POST(request: NextRequest) {
 
   if (insertErr) {
     console.error("[class-dj/suggest] suggestions insert failed", insertErr);
+    await revertIncrement();
     return NextResponse.json({ error: "Failed to record suggestion" }, { status: 500 });
   }
 
