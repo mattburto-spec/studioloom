@@ -10,9 +10,17 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { callAnthropicMessages } from "@/lib/ai/call";
+import { MODELS } from "@/lib/ai/models";
 import type { SuggestionContext, VideoCandidate, YouTubeRawItem } from "./types";
 
-export const SONNET_MODEL = "claude-sonnet-4-6";
+// Use the central MODELS constant rather than hardcoding a string.
+// Keeps the re-ranker in lockstep with the rest of the platform's
+// Sonnet usage, dodges the render-path-fixtures wiring-lock guard
+// (5.13), and avoids runtime 404s from typo'd model strings.
+// PR #281 originally hardcoded "claude-sonnet-4-6"; if that newer
+// Sonnet version is wanted long-term, add MODELS.SONNET_LATEST in
+// models.ts first then swap here.
+export const SONNET_MODEL = MODELS.SONNET;
 
 const SYSTEM_PROMPT = `You re-rank YouTube videos for a secondary school (ages 11-18) teacher about to attach one to a lesson activity.
 
