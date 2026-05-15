@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { setActiveUnit } from "@/lib/classes/active-unit";
 import UnitThumbnailPicker from "@/components/teacher/UnitThumbnailPicker";
 import {
   getPageList,
@@ -23,6 +24,21 @@ import type {
   PageContent,
   WorkshopPhases,
 } from "@/types";
+
+// toggleClassAssignment error toast — maps SQLSTATE codes from
+// set_active_unit RPC failures to human-readable messages. 42501 =
+// permission denied (auth gate inside the function), 23505 =
+// partial-unique violation (race condition; rare). See
+// src/lib/classes/active-unit.ts for the discriminated-union return shape.
+function toastForRpcCode(code: string | undefined): string {
+  if (code === "42501") {
+    return "You don't have permission to change the active unit on this class. Refresh and try again.";
+  }
+  if (code === "23505") {
+    return "Couldn't switch the active unit — another unit may be active. Refresh and try again.";
+  }
+  return "Something went wrong switching units. Try again.";
+}
 
 // ---------------------------------------------------------------------------
 // Style constants (matching SkeletonReview)
@@ -84,6 +100,7 @@ export default function UnitDetailPage({
     termDates: string | null;
   }>>([]);
   const [togglingClass, setTogglingClass] = useState<string | null>(null);
+  const [toggleClassError, setToggleClassError] = useState<string | null>(null);
   const [terms, setTerms] = useState<Array<{
     id: string;
     academic_year: string;
@@ -243,44 +260,27 @@ export default function UnitDetailPage({
     load();
   }, [unitId]);
 
+  // Auto-hide the toggleClassAssignment error toast after ~4.5s.
+  useEffect(() => {
+    if (!toggleClassError) return;
+    const t = window.setTimeout(() => setToggleClassError(null), 4500);
+    return () => window.clearTimeout(t);
+  }, [toggleClassError]);
+
   async function toggleClassAssignment(classId: string, currentlyAssigned: boolean) {
     setTogglingClass(classId);
     const supabase = createClient();
+    // Snapshot for rollback on error.
+    const previousAllClasses = allClasses;
 
-    if (currentlyAssigned) {
-      // Remove assignment — also close any pending term picker.
-      // Soft-toggle to is_active=false (matches the class page's toggle
-      // pattern in /teacher/classes/[id]/page.tsx). Preserves per-class
-      // metadata (term_id, nm_config, forked content) so a re-toggle
-      // restores the prior assignment state rather than losing it.
-      if (pendingTermClass === classId) {
-        setPendingTermClass(null);
-        setPendingTermId(null);
-      }
-      await supabase
-        .from("class_units")
-        .update({ is_active: false })
-        .eq("class_id", classId)
-        .eq("unit_id", unitId);
-    } else {
-      // Create or re-activate assignment. The upsert flips is_active
-      // back to true if a prior soft-removed row exists.
-      await supabase
-        .from("class_units")
-        .upsert({
-          class_id: classId,
-          unit_id: unitId,
-          is_active: true,
-        });
-
-      // If teacher has terms set up, show inline term picker
-      if (terms.length > 0) {
-        setPendingTermClass(classId);
-        setPendingTermId(null);
-      }
-    }
-
-    // Update local state
+    // Optimistic update — flip the target class's assigned flag.
+    // Note: unlike the classes/[classId] page, the units page's
+    // optimistic state is class-flat (one row per class showing
+    // whether THIS unit is assigned). The "deactivate other active
+    // rows" effect happens server-side on the TARGET class's other
+    // units, none of which are visible in allClasses — so there is
+    // no UI ghost state to mirror here. See Block B deliverable (d)
+    // for the deviation rationale.
     setAllClasses((prev) =>
       prev.map((c) =>
         c.id === classId
@@ -288,6 +288,53 @@ export default function UnitDetailPage({
           : c
       )
     );
+
+    if (currentlyAssigned) {
+      // Remove assignment — also close any pending term picker.
+      // Soft-toggle to is_active=false. Preserves per-class metadata
+      // (term_id, nm_config, forked content) so a re-toggle restores
+      // the prior assignment state rather than losing it. Going from
+      // "1 active" to "0 active" on this class doesn't violate the
+      // partial unique, no helper needed.
+      if (pendingTermClass === classId) {
+        setPendingTermClass(null);
+        setPendingTermId(null);
+      }
+      const { error } = await supabase
+        .from("class_units")
+        .update({ is_active: false })
+        .eq("class_id", classId)
+        .eq("unit_id", unitId);
+      if (error) {
+        console.error("toggleClassAssignment deactivate error:", error);
+        setAllClasses(previousAllClasses);
+        setToggleClassError("Couldn't remove the unit from the class. Try again.");
+        setTogglingClass(null);
+        return;
+      }
+    } else {
+      // Activate assignment — route through the atomic RPC helper.
+      // set_active_unit deactivates any other active unit on the
+      // target class + activates this unit in a single transaction
+      // so the partial unique class_units_one_active_per_class is
+      // never tripped.
+      const result = await setActiveUnit(supabase, classId, unitId);
+      if (!result.ok) {
+        console.error("setActiveUnit error:", result.error, result.code);
+        setAllClasses(previousAllClasses);
+        setToggleClassError(toastForRpcCode(result.code));
+        setTogglingClass(null);
+        return;
+      }
+
+      // If teacher has terms set up, show inline term picker.
+      if (terms.length > 0) {
+        setPendingTermClass(classId);
+        setPendingTermId(null);
+      }
+    }
+
+    setToggleClassError(null);
     setTogglingClass(null);
   }
 
@@ -489,6 +536,15 @@ export default function UnitDetailPage({
 
   return (
     <main className="max-w-6xl mx-auto px-4 py-8">
+      {toggleClassError ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed top-4 right-4 z-50 max-w-sm rounded-lg bg-red-600 px-4 py-3 text-sm text-white shadow-lg"
+        >
+          {toggleClassError}
+        </div>
+      ) : null}
       {/* Back link */}
       <Link
         href="/teacher/units"
