@@ -11350,6 +11350,9 @@ tables:
     is_seeded: BOOLEAN NOT NULL DEFAULT FALSE
     created_by: UUID REFERENCES auth.users(id)  # null for seeded cards
     version: INTEGER NOT NULL DEFAULT 1
+    brief_text: TEXT                       # Phase F.A — optional brief-template prose; NULL = no template
+    brief_constraints: JSONB NOT NULL DEFAULT '{}'::jsonb  # Phase F.A — same shape as unit_briefs.constraints
+    brief_locks: JSONB NOT NULL DEFAULT '{}'::jsonb        # Phase F.A — same flat path-keyed lock map as unit_briefs.locks
     created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
     updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
   indexes:
@@ -11369,19 +11372,22 @@ tables:
       target: authenticated
       check: created_by = auth.uid() OR platform admin.
   writers:
-    - /api/teacher/choice-cards (POST create)
-    - /api/teacher/choice-cards/[cardId] (PATCH update — creator or platform admin)
+    - /api/teacher/choice-cards (POST create — accepts optional brief_text/brief_constraints/brief_locks template; Phase F.C)
+    - /api/teacher/choice-cards/[cardId] (PATCH update — creator or platform admin; accepts brief-template fields; Phase F.C)
     - 20260512015124_seed_choice_cards_g8_briefs.sql (6 seeded G8 briefs)
   readers:
     - /api/student/choice-cards/deck (GET — student deck-fetch via service-role)
     - /api/student/choice-cards/[activityId]/pick (GET card by id during pick)
     - /api/student/choice-cards/[activityId]/selection (GET label resolve)
+    - /api/student/unit-brief (GET — resolves student's choice-card pick for the unit, returns brief template as cardTemplate; Phase F.D)
     - /api/teacher/choice-cards/library (GET search + filter)
-    - /api/teacher/choice-cards/[cardId] (PATCH read-then-update)
+    - /api/teacher/choice-cards/[cardId] (GET — drives the choice-card brief-template editor; Phase F.C)
+    - /api/teacher/unit-brief/student-briefs (GET — joins to label each student's pick on the review tab; Phase F.E)
   applied_via:
     - 20260512012304_choice_cards_and_selections.sql
     - 20260512015124_seed_choice_cards_g8_briefs.sql
     - 20260512053424_seed_pitch_your_own_choice_card.sql (seeds the `_pitch-your-own` sentinel row to satisfy the choice_card_selections.card_id FK — Matt hit a FK violation in class when a student picked Pitch your own; the read/write paths special-case the sentinel but the FK didn't know about that, so the row must exist)
+    - 20260514221522_briefs_phase_f_locks_and_student_briefs.sql (adds brief_text/brief_constraints/brief_locks template columns; Phase F.A)
   spec_drift: []
 - name: choice_card_selections
   source_migration: 20260512012304_choice_cards_and_selections.sql
@@ -11643,15 +11649,19 @@ tables:
   spec_drift: []
 
 # ─────────────────────────────────────────────────────────────────────
-# Unit Briefs Foundation (13 May 2026 — Phases A through E)
+# Unit Briefs Foundation (13–15 May 2026 — Phases A through F)
 # Migrations:
-#   20260513092021_unit_briefs_table.sql
-#   20260513092255_unit_brief_amendments_table.sql
-#   20260513133345_unit_briefs_diagram_url.sql
+#   20260513092021_unit_briefs_table.sql                      (Phase A)
+#   20260513092255_unit_brief_amendments_table.sql            (Phase A)
+#   20260513133345_unit_briefs_diagram_url.sql                (Phase B.5)
+#   20260514221522_briefs_phase_f_locks_and_student_briefs.sql (Phase F.A)
 # Solves "students forget the brief by week 4". Unit-level Brief &
 # Constraints surface — teacher authors prose + structured constraints
 # + spec diagram + amendments stack; student sees a persistent
 # LessonSidebar chip + slide-in drawer one click away from every page.
+# Phase F adds per-field locks model + per-student authoring overrides
+# + choice-card brief templates (G8 case) — one unified renderer for
+# class-shared, choice-driven, and pitch-your-own briefs.
 # ─────────────────────────────────────────────────────────────────────
 
 - name: unit_briefs
@@ -11661,14 +11671,17 @@ tables:
   purpose: |
     Unit Briefs Foundation — one row per unit holding the teacher-
     authored brief prose + archetype-discriminated constraints JSONB +
-    spec diagram URL. Read at render time by the student BoldTopNav-
-    adjacent LessonSidebar chip + drawer (loose-coupling per Lesson
-    #86: no copy into downstream activity blocks).
+    spec diagram URL + per-field lock map (Phase F.A). Read at render
+    time by the student BoldTopNav-adjacent LessonSidebar chip +
+    drawer (loose-coupling per Lesson #86: no copy into downstream
+    activity blocks). Locks gate which fields a student can author
+    overrides on via student_briefs.
   columns:
     unit_id: UUID PRIMARY KEY REFERENCES units(id) ON DELETE CASCADE
     brief_text: TEXT
     constraints: JSONB NOT NULL DEFAULT '{}'::jsonb
     diagram_url: TEXT
+    locks: JSONB NOT NULL DEFAULT '{}'::jsonb  # Phase F.A — flat path-keyed lock map; keys from LOCKABLE_FIELDS const in src/types/unit-brief.ts
     created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
     updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
     created_by: UUID REFERENCES auth.users(id)
@@ -11687,14 +11700,17 @@ tables:
         All writes also via service-role (mirrors v2 product-brief-
         pitch pattern); no RLS write policy.
   writers:
-    - /api/teacher/unit-brief (POST partial-patch upsert — brief_text + constraints, author-only via verifyTeacherHasUnit.isAuthor)
+    - /api/teacher/unit-brief (POST partial-patch upsert — brief_text + constraints + locks, author-only via verifyTeacherHasUnit.isAuthor)
     - /api/teacher/unit-brief/diagram (POST FormData upload — sets diagram_url; DELETE clears + removes storage object)
+    - /api/teacher/unit-brief/generate (POST AI assist — Haiku tool-use proposes brief_text + constraints; teacher applies via /unit-brief POST — does NOT write directly)
   readers:
     - /api/teacher/unit-brief (GET, author + co-teacher access)
+    - /api/teacher/unit-brief/student-briefs (GET — joins unit_briefs context for the Student-briefs review tab)
     - /api/student/unit-brief (GET, service-role + token session + enrollment check)
   applied_via:
     - 20260513092021_unit_briefs_table.sql
     - 20260513133345_unit_briefs_diagram_url.sql (adds nullable diagram_url column; Phase B.5)
+    - 20260514221522_briefs_phase_f_locks_and_student_briefs.sql (adds locks JSONB; Phase F.A)
   spec_drift: []
 
 - name: unit_brief_amendments
@@ -11731,4 +11747,56 @@ tables:
     - /api/student/unit-brief (GET, oldest-first ASC — evolution-story rendering in drawer)
   applied_via:
     - 20260513092255_unit_brief_amendments_table.sql
+  spec_drift: []
+
+- name: student_briefs
+  source_migration: 20260514221522_briefs_phase_f_locks_and_student_briefs.sql
+  status: applied
+  applied_date: '2026-05-15'
+  purpose: |
+    Phase F.A. Per-student-per-unit overrides for unlocked brief fields.
+    Layered on top of: (1) choice-card brief template if student has
+    picked one for the unit AND the card has a brief template;
+    (2) unit_briefs row as fallback. Read at render time by both the
+    student drawer (BriefDrawer via computeEffectiveBrief 3-source merge)
+    and the teacher Student-briefs review tab. NULL brief_text + empty
+    constraints `{}` = student hasn't overridden anything yet (renderer
+    falls through to template). Mirrors v2 student_unit_product_briefs
+    shape — service-role writes via token session per Lesson #4.
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    unit_id: UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE
+    brief_text: TEXT                       # NULL = no override (use template)
+    constraints: JSONB NOT NULL DEFAULT '{}'::jsonb  # archetype-discriminated, same shape as unit_briefs.constraints
+    diagram_url: TEXT                      # reserved for future per-student diagram upload
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  unique_constraints:
+    - "(student_id, unit_id)"
+  indexes:
+    - idx_student_briefs_student_unit ON (student_id, unit_id)
+    - idx_student_briefs_unit ON (unit_id)
+  rls_enabled: true
+  rls_policies:
+    - name: student_briefs_teacher_read
+      action: SELECT
+      target: teacher
+      check: |
+        Teacher manages a class that has this unit assigned AND the
+        student is enrolled in that class (class_students + class_units +
+        classes join, is_active=true on both joins, c.teacher_id =
+        auth.uid()). Platform admin escape hatch via user_profiles
+        .is_platform_admin. All writes via service-role (mirrors
+        unit_briefs pattern — students don't use Supabase Auth, Lesson
+        #4). No student/co-teacher SELECT policy in v1 — student reads
+        via service-role API; co-teacher access defers to
+        FU-BRIEFS-CO-TEACHER-READ-POLICY when Access Model v2 lands.
+  writers:
+    - /api/student/unit-brief (POST partial-patch upsert — token session + enrollment + lock check; refuses to write fields the unit OR card has locked)
+  readers:
+    - /api/student/unit-brief (GET, service-role + token session + enrollment check; merged via computeEffectiveBrief)
+    - /api/teacher/unit-brief/student-briefs (GET, author+co-teacher via verifyTeacherHasUnit.hasAccess; drives the Student-briefs review tab)
+  applied_via:
+    - 20260514221522_briefs_phase_f_locks_and_student_briefs.sql
   spec_drift: []

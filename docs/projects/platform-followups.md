@@ -48,31 +48,6 @@ Worth observing real classroom behaviour first. Maybe just TELLING students wher
 
 ---
 
-## FU-BRIEFS-STUDENT-SELF-AUTHORED — Student-authored brief fallback when teacher hasn't set one
-**Surfaced:** 13 May 2026, during Unit Briefs Foundation pre-flight (sparked by David Epstein's "constraints as creative engine" framing arriving in Matt's inbox same morning).
-**Severity:** 🟡 MEDIUM — relevant for self-directed / Open Studio contexts where there's no teacher-authored brief to anchor against. Not blocking v1 — defer until real classroom signal.
-**Target phase:** Phase F follow-up to Unit Briefs Foundation, after v1 ships and we see how often students hit a unit with no teacher brief.
-
-**The problem:**
-v1 of Unit Briefs is teacher-authored only — `unit_briefs.unit_id` is the PK (one row per unit). Students with no teacher brief have no surface to author their own constraints, which matters for self-directed work (Open Studio, choice-cards "pitch your own", student-led inquiry).
-
-**Proposed shape (Option B from pre-flight discussion):**
-- New table `student_briefs (id, student_id, unit_id, brief_text, constraints JSONB, archetype, created_at, updated_at)` — per-student-per-unit, mirrors v2 `student_unit_product_briefs` shape.
-- New activity block `student_brief_editor` for the authoring surface.
-- Drawer read-precedence: teacher's `unit_briefs` row if present, else this student's `student_briefs` row, else empty state with CTA "Author your own brief" linking to the activity block.
-- Constraint schema reuses `UnitBriefConstraints` discriminated union from v1's `src/types/unit-brief.ts`.
-
-**Why NOT in v1:**
-- Bolting it into Phase A would collapse the `unit_id`-as-PK invariant or force a composite PK that complicates RLS and amendments.
-- The use case is Open-Studio-shaped — defer until v1 ships and we see whether self-directed students actually try to set constraints first or just dive in.
-- Matt's call during pre-flight: ship teacher-only v1, observe, then design student-authoring with real classroom data (Lesson #44 simplicity-first).
-
-**Sizing:** ~2 days. Schema migration + activity block + read-precedence in the BriefDrawer.
-
-**Loose coupling note (Lesson #86):** The Brief Drawer in v1 already supports the "no brief" empty state. Adding student-authored rendering is a teacher-side-untouched additive change — no cascade.
-
----
-
 ## FU-BRIEFS-AUDIT-COVERAGE — Wire logAuditEvent into the teacher unit-brief routes
 **Surfaced:** 13 May 2026, during Unit Briefs Foundation Phase B.4 audit-coverage scanner gate.
 **Severity:** 🟢 P3 — defensive logging, no security gap. Same audit-sensitivity class as `/api/teacher/product-brief-pitch` which is also currently audit-skipped.
@@ -330,4 +305,19 @@ One-line UX, zero coupling, no event system. **Do NOT build:**
 
 ## Resolved
 
-_None yet._
+### FU-BRIEFS-STUDENT-SELF-AUTHORED — Student-authored brief fallback when teacher hasn't set one
+**Surfaced:** 13 May 2026, during Unit Briefs Foundation pre-flight (sparked by David Epstein's "constraints as creative engine" framing arriving in Matt's inbox same morning).
+**Resolved:** 15 May 2026 in Unit Briefs Phase F (10-PR arc spanning A through F.F).
+
+**Original ask:** Students with no teacher brief have no surface to author their own constraints, which matters for self-directed work (Open Studio, choice-cards "pitch your own", student-led inquiry).
+
+**How it shipped:**
+- Migration `20260514221522_briefs_phase_f_locks_and_student_briefs.sql` created `public.student_briefs` table with the exact shape proposed: `(id, student_id, unit_id, brief_text, constraints JSONB, diagram_url, created_at, updated_at)` + UNIQUE(student_id, unit_id) + RLS teacher-read policy + 2 indexes + updated_at trigger.
+- Schema reused the v1 `UnitBriefConstraints` discriminated union from `src/types/unit-brief.ts` exactly as proposed.
+- **More than the original ask:** Phase F unified THREE patterns through the same student_briefs path: (1) class-shared (teacher unit_brief), (2) choice-driven (G8 case — choice card brief_text/brief_constraints/brief_locks), (3) per-student authoring (pitch-your-own + future Discovery Engine). All three render through one unified `BriefDrawer` via the new `computeEffectiveBrief` 3-source merge function (locks: card>unit; value: student>card>teacher>empty).
+- **Activity block deferred** — instead of a dedicated `student_brief_editor` activity block, student authoring is integrated directly into the always-on `BriefDrawer`. Locked fields render read-only, unlocked fields render editable inputs in-place. Simpler UX (Lesson #44) — students author where they consult the brief.
+- Plus AI assist (Haiku tool-use `propose_brief`), teacher Student-briefs review tab, and lock-all/open-all bulk actions.
+
+**PRs:** #284 (F.A schema + F.B locks UI), #286 (F.C choice-card templates + validators), #291 (coerce-on-read hotfix → Lesson #91), #294 (F.D student authoring + drawer merge), #299 (F.E teacher review tab), #302 (polish), #306 (AI assist), F.F (this PR).
+
+**Sister followups still open:** FU-BRIEFS-AUDIT-COVERAGE (P3 — 5 audit-skipped POST routes need logAuditEvent), FU-BRIEFS-SERVICE-INQUIRY-ARCHETYPES (P3 — Service/Inquiry/PP constraints beyond generic fallback), FU-BRIEFS-CO-TEACHER-READ-POLICY (P3 future — when Access Model v2 lands), FU-BRIEFS-STUDENT-DIAGRAM-UPLOAD (P3 — column reserved, no UI yet).

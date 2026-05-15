@@ -1824,62 +1824,94 @@ systems:
     name: Unit Briefs & Constraints
     category: Teacher Experience
     status: complete
-    currentVersion: 1
+    currentVersion: 2
     summary: |
       Unit-level Brief & Constraints surface that solves the "students forget the brief by week 4" problem.
       Teacher authors prose brief + structured Design constraints (H×W×D dimensions, materials whitelist
       with catalogue chips + custom additions, budget, audience, must-include/must-avoid) + optional spec
-      diagram + amendment stack ("v2.0 add LEDs"). Students see a persistent purple chip in the LessonSidebar
-      (between the unit title and Project Board button) on every /unit/[unitId]/* page; click opens a
-      portal-mounted slide-in drawer showing the brief, spec diagram, constraints card, and amendments
-      stacked oldest-first as the brief's evolution story. Drawer refetches on each open so amendments
-      added mid-session appear after a close+reopen cycle (no server push by design).
-    depends_on: [units, classes, class_units, class_students, students, auth-system, content-forking]
-    affects: [student-unit-chrome, teacher-unit-editor, lesson-sidebar]
+      diagram + amendment stack ("v2.0 add LEDs"). Phase F (v2) adds three unifying capabilities on top of
+      the v1 teacher-only surface: (1) per-field LOCK MODEL — every field has lock state; teacher locks
+      what's non-negotiable, students get write access to the rest. (2) STUDENT AUTHORING via student_briefs
+      table — partial-patch overrides for unlocked fields, merged with teacher value at render time via
+      computeEffectiveBrief 3-source merge (locks: card>unit; value: student>card>teacher>empty).
+      (3) CHOICE-CARD BRIEF TEMPLATES — choice_cards now carry optional brief_text + brief_constraints +
+      brief_locks; when a student picks a card, the card's template wins entirely over unit locks. Plus
+      AI assist (Haiku tool-use propose_brief), Student-briefs teacher review tab, and lock-all / open-all
+      bulk actions. Students see a persistent purple chip in the LessonSidebar on every /unit/[unitId]/*
+      page; click opens a portal-mounted slide-in drawer (Lesson #89) showing the brief, spec diagram,
+      constraints card, amendments, and editable inputs for any unlocked field with a save status pill.
+    depends_on: [units, classes, class_units, class_students, students, auth-system, content-forking, choice-cards, ai-orchestration]
+    affects: [student-unit-chrome, teacher-unit-editor, lesson-sidebar, choice-cards]
     docs:
       - path: docs/projects/unit-briefs-foundation-brief.md
         purpose: Full 5-phase build plan (A schema → E saveme) with Matt Checkpoints, migration SQL, RLS pattern, stop triggers
       - path: docs/projects/platform-followups.md
-        purpose: FU-BRIEFS-STUDENT-SELF-AUTHORED (P2 — Phase F), FU-BRIEFS-AUDIT-COVERAGE (P3), FU-PLATFORM-BRIEF-AND-CONSTRAINTS-SURFACE (parent FU, closed)
+        purpose: FU-BRIEFS-AUDIT-COVERAGE (P3 — open), FU-BRIEFS-SERVICE-INQUIRY-ARCHETYPES (P3 — open), FU-BRIEFS-STUDENT-SELF-AUTHORED (closed in Phase F), FU-PLATFORM-BRIEF-AND-CONSTRAINTS-SURFACE (parent FU, closed)
+      - path: docs/lessons-learned.md
+        purpose: Lesson #89 (portal-mount modals at document.body to escape ancestor containing-blocks); Lesson #90 (app-side JSONB shape changes need defensive coerce-on-read AND validate-on-write to prevent legacy data poisoning the editor's spread-merge)
     data_fields:
       - table: unit_briefs
-        columns: [unit_id, brief_text, constraints, diagram_url, created_at, updated_at, created_by]
-        notes: One row per unit. constraints is archetype-discriminated JSONB ({ archetype: "design" | "generic", data }); diagram_url is a relative /api/storage/unit-images/<unitId>/brief-diagram-<ts>.jpg proxy URL.
+        columns: [unit_id, brief_text, constraints, diagram_url, locks, created_at, updated_at, created_by]
+        notes: One row per unit. constraints is archetype-discriminated JSONB ({ archetype: "design" | "generic", data }); diagram_url is a relative /api/storage/unit-images/<unitId>/brief-diagram-<ts>.jpg proxy URL. locks (Phase F.A) is a flat path-keyed map (LOCKABLE_FIELDS in src/types/unit-brief.ts) — keys like "brief_text", "constraints.budget", "constraints.materials_whitelist", values true|false.
       - table: unit_brief_amendments
         columns: [id, unit_id, version_label, title, body, created_at, created_by]
         notes: Append-only iteration log. version_label TEXT NOT NULL CHECK (1-20 chars); title + body NOT NULL CHECK > 0. No updated_at — amendments are immutable.
+      - table: student_briefs
+        columns: [id, student_id, unit_id, brief_text, constraints, diagram_url, created_at, updated_at]
+        notes: Phase F.A. Per-student-per-unit overrides for unlocked fields. UNIQUE(student_id, unit_id). NULL brief_text + empty constraints `{}` = no override (renderer falls through to template). RLS teacher-read via class enrollment chain; all writes service-role via token session (Lesson #4).
+      - table: choice_cards
+        columns: [brief_text, brief_constraints, brief_locks]
+        notes: Phase F.A additions. Optional brief template — a card with template wins entirely over unit locks when student picks it. NULL brief_text + empty `{}` constraints/locks = no template (falls through to unit_briefs at render time).
     key_files:
       - supabase/migrations/20260513092021_unit_briefs_table.sql
       - supabase/migrations/20260513092255_unit_brief_amendments_table.sql
       - supabase/migrations/20260513133345_unit_briefs_diagram_url.sql
-      - src/types/unit-brief.ts
-      - src/app/api/teacher/unit-brief/route.ts
+      - supabase/migrations/20260514221522_briefs_phase_f_locks_and_student_briefs.sql
+      - src/types/unit-brief.ts                                          # LOCKABLE_FIELDS, UnitBriefLocks, StudentBrief, EffectiveBriefField<T>
+      - src/lib/unit-brief/validators.ts                                 # Phase F.C — validateConstraints, validateLocks, coerceConstraints (Lesson #90), coerceLocks, GENERIC_CONSTRAINTS
+      - src/lib/unit-brief/effective.ts                                  # Phase F.D — computeEffectiveBrief 3-source merge (pure)
+      - src/app/api/teacher/unit-brief/route.ts                          # POST partial-patch upsert (locks included)
       - src/app/api/teacher/unit-brief/amendments/route.ts
       - src/app/api/teacher/unit-brief/diagram/route.ts
-      - src/app/api/student/unit-brief/route.ts
-      - src/app/teacher/units/[unitId]/brief/page.tsx
-      - src/components/teacher/unit-brief/UnitBriefEditor.tsx
+      - src/app/api/teacher/unit-brief/generate/route.ts                 # Phase F AI assist — Haiku tool-use propose_brief
+      - src/app/api/teacher/unit-brief/student-briefs/route.ts           # Phase F.E — teacher review tab data
+      - src/app/api/student/unit-brief/route.ts                          # Phase F.D — GET returns brief+amendments+cardTemplate+studentBrief; POST upserts student_briefs
+      - src/app/api/teacher/choice-cards/[cardId]/route.ts               # Phase F.C — accepts brief-template fields on PATCH; new GET
+      - src/app/teacher/units/[unitId]/brief/page.tsx                    # Phase F.E — 2-tab container ("Brief" + "Student briefs")
+      - src/components/teacher/unit-brief/UnitBriefEditor.tsx            # locks state + LockToggle wiring + Lock all/Open all + AI assist trigger
+      - src/components/teacher/unit-brief/LockToggle.tsx                 # Phase F.B; rewritten in polish to single high-contrast pill
+      - src/components/teacher/unit-brief/AIBriefAssistModal.tsx         # Phase F AI assist — portal-mounted; field-selection apply
+      - src/components/teacher/unit-brief/StudentBriefsTab.tsx           # Phase F.E
+      - src/components/teacher/unit-brief/ChoiceCardBriefTemplateEditor.tsx # Phase F.C — embedded in choice-card editor
       - src/components/teacher/unit-brief/DesignConstraintsEditor.tsx
       - src/components/teacher/unit-brief/AmendmentsEditor.tsx
       - src/components/teacher/unit-brief/DiagramUploader.tsx
       - src/components/student/unit-brief/BriefChip.tsx
-      - src/components/student/unit-brief/BriefDrawer.tsx
+      - src/components/student/unit-brief/BriefDrawer.tsx                # Phase F.D — 3-source merge consumer, save status pill, editable inputs per unlocked field
     future_needs: |
-      FU-BRIEFS-STUDENT-SELF-AUTHORED (P2, Phase F) — fallback authoring path for self-directed contexts
-      where there's no teacher-authored brief (Open Studio, "pitch your own" etc.). FU-BRIEFS-SERVICE-INQUIRY-
-      ARCHETYPES (P3) — real structured constraints for Service / Inquiry / PP unit types beyond the v1
-      generic fallback. FU-BRIEFS-AUDIT-COVERAGE (P3) — wire logAuditEvent into the 3 audit-skipped POST
-      routes (unit-brief + amendments + diagram) on the next audit-tightening sweep.
+      FU-BRIEFS-SERVICE-INQUIRY-ARCHETYPES (P3) — real structured constraints for Service / Inquiry / PP
+      unit types beyond the v1 generic fallback. FU-BRIEFS-AUDIT-COVERAGE (P3) — wire logAuditEvent into
+      the 5 audit-skipped POST routes (unit-brief + amendments + diagram + student-brief + generate) on
+      the next audit-tightening sweep. FU-BRIEFS-CO-TEACHER-READ-POLICY (P3, future) — add explicit
+      co-teacher SELECT policy on student_briefs once Access Model v2 lands; v1 relies on service-role
+      reads via /api/teacher/* routes. FU-BRIEFS-STUDENT-DIAGRAM-UPLOAD (P3) — student_briefs.diagram_url
+      column reserved but no upload UI shipped; could let students attach their own spec diagram.
     adrs: []
     os_seam: ready
     change_impacts: |
-      Changes to the brief fetch logic must update both the teacher editor (UnitBriefEditor) and the
-      student drawer (BriefChip/BriefDrawer) because they share `/api/teacher/unit-brief` and
-      `/api/student/unit-brief` response shapes. Amendment append must keep chronological order —
-      student drawer renders ASC (oldest-first as evolution story) while teacher review uses DESC.
-      `constraints` is JSONB and the discriminated union shape changes app-side only (no migration
-      needed). The drawer is portal-mounted at document.body to escape ancestor containing blocks —
-      moving it back inside BoldTopNav or a transformed wrapper will re-trigger Phase C smoke bug.
+      Changes to the brief fetch logic must update teacher editor (UnitBriefEditor), student drawer
+      (BriefChip/BriefDrawer), AND the Student-briefs review tab (StudentBriefsTab) because all three
+      share the validators + effective-merge primitives. The 3-source merge precedence is fixed: locks
+      (card>unit) and value (student>card>teacher>empty). Card lock map wins ENTIRELY when card has a
+      template — do not merge card+unit locks or pitch-your-own students will gain editability they
+      shouldn't have. Amendment append must keep chronological order — student drawer renders ASC
+      (oldest-first as evolution story) while teacher review uses DESC. JSONB columns (constraints,
+      locks) MUST go through validateConstraints/coerceConstraints (Lesson #90) — never write raw
+      input; never trust legacy reads. The drawer is portal-mounted at document.body (Lesson #89) —
+      moving it back inside a transformed wrapper will re-trigger the Phase C smoke bug. The AI
+      assist route (teacher/unit-brief-generate) MUST stay on MODELS.HAIKU + cost-class Haiku; if you
+      change models, update ai-call-sites.yaml endpoint entry. Choice-card brief templates: any new
+      choice-card writer must pass brief-template fields through coerceConstraints + coerceLocks.
 
   - id: teacher-integrity
     name: Teacher Integrity Dashboard
