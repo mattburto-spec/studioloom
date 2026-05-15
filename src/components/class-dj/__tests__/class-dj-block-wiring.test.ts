@@ -219,8 +219,14 @@ describe("useClassDjPolling — polling discipline (brief §4)", () => {
     expect(POLLING_SRC).toMatch(/document\.visibilityState === "hidden"/);
   });
 
-  it("stops polling once status === 'closed'", () => {
-    expect(POLLING_SRC).toMatch(/state\?\.status === "closed"[\s\S]{0,200}setStopped\(true\)/);
+  it("stops polling once status === 'closed' (with 15s grace window for auto-suggest)", () => {
+    // 14 May 2026: stop-on-closed now respects a grace window so the
+    // auto-suggest fired by ClassDjBlock has time to propagate before
+    // polling truly stops. Pattern widened from 200 → 800 chars to
+    // accommodate the grace logic + comments.
+    expect(POLLING_SRC).toMatch(/state\?\.status === "closed"[\s\S]{0,800}setStopped\(true\)/);
+    expect(POLLING_SRC).toMatch(/CLOSE_GRACE_MS\s*=\s*15_000/);
+    expect(POLLING_SRC).toMatch(/closeFirstSeenAtRef/);
   });
 
   it("listens for visibilitychange events to wake on tab focus", () => {

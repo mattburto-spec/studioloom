@@ -78,6 +78,22 @@ export function useClassDjPolling(
   // Mount-time epoch for the hard cap.
   const startedAtRef = useRef<number>(Date.now());
 
+  // When `status === "closed"` is first observed, record the timestamp so we
+  // keep polling for a grace window. Reason: when the timer naturally expires
+  // and the gate is met, ClassDjBlock auto-fires /suggest from the student
+  // side. The new suggestion row is inserted server-side, but we need at
+  // least one more poll across all connected clients to catch it. Without
+  // this grace window, polling stops on the first close-poll and every
+  // client misses the auto-generated suggestion until they refresh.
+  const closeFirstSeenAtRef = useRef<number | null>(null);
+
+  // Grace window after close before truly stopping. 15s covers:
+  //   - ~2s student polling cadence × multiple polls
+  //   - Stage 3 LLM candidate-pool call (~3-8s)
+  //   - Stage 5 narration LLM call (~2-5s)
+  //   - Margin for slow networks
+  const CLOSE_GRACE_MS = 15_000;
+
   // Build the URL once per param change.
   const url = (() => {
     const qs = new URLSearchParams({
@@ -129,11 +145,22 @@ export function useClassDjPolling(
       }
       await fetchOnce();
       if (cancelled) return;
-      // Stop polling once round is closed (the suggestion is already in
-      // state; no point hammering the endpoint).
+      // Round closed — keep polling for a grace window so the
+      // auto-suggest fired by ClassDjBlock on close-detection has time
+      // to complete and propagate. Stop early if we already have the
+      // suggestion in hand. See closeFirstSeenAtRef / CLOSE_GRACE_MS docs
+      // above for the rationale.
       if (state?.status === "closed") {
-        setStopped(true);
-        return;
+        if (closeFirstSeenAtRef.current === null) {
+          closeFirstSeenAtRef.current = Date.now();
+        }
+        const elapsed = Date.now() - closeFirstSeenAtRef.current;
+        const hasSuggestion = Boolean(state.suggestion?.items);
+        if (hasSuggestion || elapsed > CLOSE_GRACE_MS) {
+          setStopped(true);
+          return;
+        }
+        // Otherwise keep polling at the normal cadence — fall through.
       }
       timer = setTimeout(tick, CADENCE_MS[role]);
     };
