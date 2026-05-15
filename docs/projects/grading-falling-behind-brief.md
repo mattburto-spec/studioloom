@@ -1,8 +1,16 @@
 # Build Brief — TFL3-FU-STUDENTS-FALLING-BEHIND
 
-> Status: DRAFT — awaiting Matt sign-off before FB.0 pre-flight.
+> **Status: ON HOLD as of 15 May 2026** — pending teacher dashboard
+> restructure. Matt flagged that the "Act now" bucket and/or class
+> cards may go away in the redesign, which would partially invalidate
+> FB.1 + FB.4. The dashboard-independent half (FB.2 table + FB.3
+> teacher Nudge POST + FB.5 student endpoints + FB.6 student toast +
+> SendNudgeDialog) survives any redesign and could ship first if
+> priority shifts back. Resume trigger: dashboard redesign settles
+> AND Matt says "falling behind".
+>
 > Worktree: `/Users/matt/CWORK/questerra-grading`
-> Branch: `feature/falling-behind-dashboard`
+> Branch: `feature/falling-behind-dashboard` (dormant)
 > Drafted: 15 May 2026
 
 ## Why
