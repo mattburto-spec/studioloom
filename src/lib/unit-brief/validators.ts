@@ -38,19 +38,79 @@ const ALLOWED_DESIGN_KEYS = new Set([
  * UnitBriefConstraints shape the client expects. DB rows default to
  * `{}` (empty object); map that to the generic fallback so the client
  * never has to handle an "empty shape" case.
+ *
+ * Defensive: any stale / wrong-shape fields inside design.data are
+ * silently DROPPED on read. This prevents legacy data from poisoning
+ * the editor's `{ ...value }` merge — pre-Phase-B-smoke-polish briefs
+ * had `dimensions: "200mm any axis"` strings; the new structured shape
+ * requires an object. Without sanitisation, the editor would echo the
+ * stale string back on every save and fail validation. Surgical drop
+ * is safer than throwing (teacher just sees the field as empty and
+ * can re-author).
  */
 export function coerceConstraints(raw: unknown): UnitBriefConstraints {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return GENERIC_CONSTRAINTS;
   }
   const r = raw as Record<string, unknown>;
-  if (r.archetype === "design" && r.data && typeof r.data === "object") {
-    return { archetype: "design", data: r.data as UnitBriefConstraints["data"] };
+  if (r.archetype === "design" && r.data && typeof r.data === "object" && !Array.isArray(r.data)) {
+    return {
+      archetype: "design",
+      data: sanitiseDesignData(r.data as Record<string, unknown>),
+    };
   }
   if (r.archetype === "generic") {
     return GENERIC_CONSTRAINTS;
   }
   return GENERIC_CONSTRAINTS;
+}
+
+/**
+ * Drop fields from `data` that don't match the expected shape. Used by
+ * coerceConstraints so legacy / drift values don't survive a round-trip
+ * through the editor. Each field passes only if it matches its v1
+ * structured type; otherwise the key is omitted from the output.
+ */
+function sanitiseDesignData(raw: Record<string, unknown>): UnitBriefConstraints["data"] {
+  // We rebuild from scratch — anything unknown / wrong-shape disappears.
+  const out: Record<string, unknown> = {};
+
+  // String fields
+  if (typeof raw.budget === "string") out.budget = raw.budget;
+  if (typeof raw.audience === "string") out.audience = raw.audience;
+
+  // Dimensions — must be an object with optional numeric h/w/d + unit.
+  // Pre-smoke-polish briefs may have stored a STRING here (Lesson #38
+  // family — let it through silently, drop on read, log nothing).
+  if (raw.dimensions && typeof raw.dimensions === "object" && !Array.isArray(raw.dimensions)) {
+    const d = raw.dimensions as Record<string, unknown>;
+    const cleaned: Record<string, unknown> = {};
+    for (const axis of ["h", "w", "d"] as const) {
+      if (typeof d[axis] === "number" && Number.isFinite(d[axis]) && (d[axis] as number) >= 0) {
+        cleaned[axis] = d[axis];
+      }
+    }
+    if (d.unit === "mm" || d.unit === "cm" || d.unit === "in") {
+      cleaned.unit = d.unit;
+    }
+    if (Object.keys(cleaned).length > 0) {
+      out.dimensions = cleaned;
+    }
+  }
+
+  // String-array fields
+  for (const arrayKey of ["materials_whitelist", "must_include", "must_avoid"] as const) {
+    if (Array.isArray(raw[arrayKey])) {
+      const arr = (raw[arrayKey] as unknown[]).filter(
+        (v): v is string => typeof v === "string" && v.length > 0,
+      );
+      if (arr.length > 0) {
+        out[arrayKey] = arr;
+      }
+    }
+  }
+
+  return out as UnitBriefConstraints["data"];
 }
 
 /**
