@@ -457,7 +457,27 @@ export async function POST(request: NextRequest) {
     const reason = spotifyDegraded
       ? "All candidates blocklisted — no safe options for this room"
       : "All candidates dropped by Spotify enrichment after retry";
-    return NextResponse.json({ error: reason }, { status: 502 });
+    // Surface the drops detail so DevTools shows exactly which names
+    // failed and why. Without this, "All candidates dropped" is a
+    // black box — could be all hallucinations, all explicit, all
+    // blocklisted, or Spotify silently rate-limiting search calls.
+    return NextResponse.json(
+      {
+        error: reason,
+        diagnostics: {
+          spotifyDegraded,
+          candidatePoolSize,
+          totalDropped: drops.length,
+          drops: drops.slice(0, 30),
+          dropReasonCounts: {
+            no_spotify_match: drops.filter((d) => d.reason === "no_spotify_match").length,
+            explicit: drops.filter((d) => d.reason === "explicit").length,
+            blocklist: drops.filter((d) => d.reason === "blocklist").length,
+          },
+        },
+      },
+      { status: 502 },
+    );
   }
 
   // 12. Stage 1 aggregate over the enriched pool.
