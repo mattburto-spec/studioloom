@@ -122,7 +122,11 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
   }, [checkpointPageIds, hasGeneralObs]);
 
   // Build grid data: per student, per checkpoint → avg rating + has teacher obs
-  type TeacherObservation = { createdAt: string; comment: string };
+  type TeacherObservation = {
+    createdAt: string;
+    ratings: Record<string, number>;
+    comment: string | null;
+  };
   type CellData = {
     selfAvg: number | null;
     teacherAvg: number | null;
@@ -134,8 +138,10 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
   };
 
   // Group teacher rows from one POST batch (shared created_at) into observation events.
-  // Returns latest-per-element ratings (later events override earlier ones for the badges)
-  // plus a newest-first list of comment-bearing events for the drill-down history.
+  // Returns latest-per-element ratings (later events override earlier ones for the top
+  // summary grid) plus a newest-first list of every observation event for the drill-down
+  // history — each event keeps its own ratings + optional comment so the per-occasion
+  // state stays visible.
   function summarizeTeacherObs(rows: Assessment[]): {
     ratings: Record<string, number>;
     observations: TeacherObservation[];
@@ -157,8 +163,7 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
       for (const [elem, r] of Object.entries(evt.ratings)) ratings[elem] = r;
     }
     const observations = sorted
-      .filter(([, evt]) => evt.comment !== null)
-      .map(([createdAt, evt]) => ({ createdAt, comment: evt.comment! }))
+      .map(([createdAt, evt]) => ({ createdAt, ratings: evt.ratings, comment: evt.comment }))
       .reverse();
     const latestDate = sorted.length > 0 ? sorted[sorted.length - 1][0] : "";
     return { ratings, observations, latestDate };
@@ -499,19 +504,44 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
                                     })}
                                   </div>
                                   {(dd.selfComment || dd.teacherObservations.length > 0) && (
-                                    <div style={{ marginTop: "8px", display: "grid", gap: "4px" }}>
+                                    <div style={{ marginTop: "8px", display: "grid", gap: "6px" }}>
                                       {dd.selfComment && (
                                         <div style={{ padding: "6px 12px", borderRadius: "8px", background: "#f0fafb", border: "1px solid #d1ecf0", fontSize: "11px", color: "#444", lineHeight: 1.5 }}>
                                           <span style={{ fontWeight: 700, color: "#0891b2" }}>Student:</span> {dd.selfComment}
                                         </div>
                                       )}
-                                      {dd.teacherObservations.map((obs) => (
-                                        <div key={obs.createdAt} style={{ padding: "6px 12px", borderRadius: "8px", background: "#faf0fc", border: "1px solid #e0bff0", fontSize: "11px", color: "#444", lineHeight: 1.5 }}>
-                                          <span style={{ fontWeight: 700, color: POP.hotPink }}>Teacher</span>
-                                          <span style={{ color: "#888", marginLeft: "6px" }}>{formatDate(obs.createdAt)}:</span>{" "}
-                                          {obs.comment}
-                                        </div>
-                                      ))}
+                                      {dd.teacherObservations.map((obs) => {
+                                        const obsElements = elements.filter(eid => obs.ratings[eid] !== undefined);
+                                        return (
+                                          <div key={obs.createdAt} style={{ padding: "8px 12px", borderRadius: "8px", background: "#faf0fc", border: "1px solid #e0bff0", lineHeight: 1.5 }}>
+                                            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "6px", marginBottom: obs.comment ? "6px" : 0 }}>
+                                              <span style={{ fontWeight: 700, color: POP.hotPink, fontSize: "11px" }}>Teacher</span>
+                                              <span style={{ color: "#888", fontSize: "11px" }}>{formatDate(obs.createdAt)}</span>
+                                              {obsElements.map(elemId => {
+                                                const r = obs.ratings[elemId];
+                                                const elem = AGENCY_ELEMENT_MAP[elemId];
+                                                const td = TEACHER_DOT[r];
+                                                return (
+                                                  <span key={elemId} style={{
+                                                    padding: "2px 8px", borderRadius: "6px",
+                                                    background: td?.bg || "#e5e7eb",
+                                                    color: td?.text || "#999",
+                                                    fontSize: "10px", fontWeight: 800,
+                                                    fontFamily: "'Arial Black', sans-serif",
+                                                    border: `1.5px solid ${POP.hotPink}`,
+                                                    whiteSpace: "nowrap",
+                                                  }}>
+                                                    {elem?.name || elemId}: {td?.label || r}
+                                                  </span>
+                                                );
+                                              })}
+                                            </div>
+                                            {obs.comment && (
+                                              <div style={{ fontSize: "11px", color: "#444" }}>{obs.comment}</div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   )}
                                 </div>
