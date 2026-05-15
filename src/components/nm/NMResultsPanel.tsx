@@ -122,15 +122,48 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
   }, [checkpointPageIds, hasGeneralObs]);
 
   // Build grid data: per student, per checkpoint → avg rating + has teacher obs
+  type TeacherObservation = { createdAt: string; comment: string };
   type CellData = {
     selfAvg: number | null;
     teacherAvg: number | null;
     selfRatings: Record<string, number>;
     teacherRatings: Record<string, number>;
     selfComment: string | null;
-    teacherComment: string | null;
+    teacherObservations: TeacherObservation[];
     latestDate: string;
   };
+
+  // Group teacher rows from one POST batch (shared created_at) into observation events.
+  // Returns latest-per-element ratings (later events override earlier ones for the badges)
+  // plus a newest-first list of comment-bearing events for the drill-down history.
+  function summarizeTeacherObs(rows: Assessment[]): {
+    ratings: Record<string, number>;
+    observations: TeacherObservation[];
+    latestDate: string;
+  } {
+    const events = new Map<string, { ratings: Record<string, number>; comment: string | null }>();
+    for (const a of rows) {
+      let evt = events.get(a.created_at);
+      if (!evt) {
+        evt = { ratings: {}, comment: null };
+        events.set(a.created_at, evt);
+      }
+      evt.ratings[a.element] = a.rating;
+      if (a.comment?.trim()) evt.comment = a.comment;
+    }
+    const sorted = Array.from(events.entries()).sort(([a], [b]) => a.localeCompare(b));
+    const ratings: Record<string, number> = {};
+    for (const [, evt] of sorted) {
+      for (const [elem, r] of Object.entries(evt.ratings)) ratings[elem] = r;
+    }
+    const observations = sorted
+      .filter(([, evt]) => evt.comment !== null)
+      .map(([createdAt, evt]) => ({ createdAt, comment: evt.comment! }))
+      .reverse();
+    const latestDate = sorted.length > 0 ? sorted[sorted.length - 1][0] : "";
+    return { ratings, observations, latestDate };
+  }
+
   const gridData = useMemo(() => {
     const data: Record<string, Record<string, CellData>> = {};
 
@@ -151,21 +184,19 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
           if (a.created_at > latestDate) latestDate = a.created_at;
         }
 
-        const teacherRatings: Record<string, number> = {};
-        let teacherComment: string | null = null;
-        for (const a of teacherHere) {
-          teacherRatings[a.element] = a.rating;
-          if (a.comment?.trim()) teacherComment = a.comment;
-          if (a.created_at > latestDate) latestDate = a.created_at;
-        }
+        const teacher = summarizeTeacherObs(teacherHere);
+        if (teacher.latestDate > latestDate) latestDate = teacher.latestDate;
 
         const selfVals = Object.values(selfRatings);
-        const teacherVals = Object.values(teacherRatings);
+        const teacherVals = Object.values(teacher.ratings);
         const selfAvg = selfVals.length > 0 ? selfVals.reduce((s, v) => s + v, 0) / selfVals.length : null;
         const teacherAvg = teacherVals.length > 0 ? teacherVals.reduce((s, v) => s + v, 0) / teacherVals.length : null;
 
         if (selfVals.length > 0 || teacherVals.length > 0) {
-          data[sid][pid] = { selfAvg, teacherAvg, selfRatings, teacherRatings, selfComment, teacherComment, latestDate };
+          data[sid][pid] = {
+            selfAvg, teacherAvg, selfRatings, teacherRatings: teacher.ratings,
+            selfComment, teacherObservations: teacher.observations, latestDate,
+          };
         }
       }
 
@@ -175,20 +206,13 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
           a.student_id === sid && (!a.page_id || !checkpointPageIds.includes(a.page_id))
         );
         if (generalTeacher.length > 0) {
-          const teacherRatings: Record<string, number> = {};
-          let teacherComment: string | null = null;
-          let latestDate = "";
-          for (const a of generalTeacher) {
-            teacherRatings[a.element] = a.rating;
-            if (a.comment?.trim()) teacherComment = a.comment;
-            if (a.created_at > latestDate) latestDate = a.created_at;
-          }
-          const teacherVals = Object.values(teacherRatings);
+          const teacher = summarizeTeacherObs(generalTeacher);
+          const teacherVals = Object.values(teacher.ratings);
           const teacherAvg = teacherVals.length > 0 ? teacherVals.reduce((s, v) => s + v, 0) / teacherVals.length : null;
           if (teacherVals.length > 0) {
             data[sid][GENERAL_OBS_ID] = {
-              selfAvg: null, teacherAvg, selfRatings: {}, teacherRatings,
-              selfComment: null, teacherComment, latestDate,
+              selfAvg: null, teacherAvg, selfRatings: {}, teacherRatings: teacher.ratings,
+              selfComment: null, teacherObservations: teacher.observations, latestDate: teacher.latestDate,
             };
           }
         }
@@ -474,18 +498,20 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
                                       );
                                     })}
                                   </div>
-                                  {(dd.selfComment || dd.teacherComment) && (
+                                  {(dd.selfComment || dd.teacherObservations.length > 0) && (
                                     <div style={{ marginTop: "8px", display: "grid", gap: "4px" }}>
                                       {dd.selfComment && (
                                         <div style={{ padding: "6px 12px", borderRadius: "8px", background: "#f0fafb", border: "1px solid #d1ecf0", fontSize: "11px", color: "#444", lineHeight: 1.5 }}>
                                           <span style={{ fontWeight: 700, color: "#0891b2" }}>Student:</span> {dd.selfComment}
                                         </div>
                                       )}
-                                      {dd.teacherComment && (
-                                        <div style={{ padding: "6px 12px", borderRadius: "8px", background: "#faf0fc", border: "1px solid #e0bff0", fontSize: "11px", color: "#444", lineHeight: 1.5 }}>
-                                          <span style={{ fontWeight: 700, color: POP.hotPink }}>Teacher:</span> {dd.teacherComment}
+                                      {dd.teacherObservations.map((obs) => (
+                                        <div key={obs.createdAt} style={{ padding: "6px 12px", borderRadius: "8px", background: "#faf0fc", border: "1px solid #e0bff0", fontSize: "11px", color: "#444", lineHeight: 1.5 }}>
+                                          <span style={{ fontWeight: 700, color: POP.hotPink }}>Teacher</span>
+                                          <span style={{ color: "#888", marginLeft: "6px" }}>{formatDate(obs.createdAt)}:</span>{" "}
+                                          {obs.comment}
                                         </div>
-                                      )}
+                                      ))}
                                     </div>
                                   )}
                                 </div>
