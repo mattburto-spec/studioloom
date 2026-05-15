@@ -132,8 +132,15 @@ describe("Stage 5 system prompt — brief §6.2 hard rules (NC)", () => {
 });
 
 describe("/api/student/class-dj/suggest route — pipeline wiring", () => {
-  it("requires student session (any student can punch the suggest button)", () => {
-    expect(SUGGEST_ROUTE_SRC).toMatch(/requireStudentSession/);
+  it("accepts either student OR teacher session (auth relaxed 14 May 2026)", () => {
+    // Originally student-only (Phase 5). Relaxed to dual-role on 14 May so
+    // the teacher cockpit's auto-fire on round close also works when no
+    // students are still on the page. Role-specific authorisation:
+    //   - student → enrollment check via class_students
+    //   - teacher → membership check via verifyTeacherInClass
+    expect(SUGGEST_ROUTE_SRC).toMatch(/getActorSession/);
+    expect(SUGGEST_ROUTE_SRC).toMatch(/actor\.type === "student"/);
+    expect(SUGGEST_ROUTE_SRC).toMatch(/verifyTeacherInClass/);
   });
 
   it("calls all 4 deterministic stages from the algorithm library", () => {
