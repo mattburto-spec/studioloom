@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { setActiveUnit } from "@/lib/classes/active-unit";
 // ELL_LEVELS + EllLevel imports removed 28 Apr 2026 — inline ELL selector
 // was moved to the unified per-student Support tab. ELL_COLORS (defined
 // below) still surfaces the resolved-value badge for at-a-glance scanning.
@@ -49,6 +50,21 @@ function gradYearToYearLevel(gradYear: number): number | null {
   const level = FINAL_YEAR - (gradYear - endYear);
   if (level < 1 || level > FINAL_YEAR) return null;
   return level;
+}
+
+// toggleUnit error toast — maps SQLSTATE codes from set_active_unit RPC
+// failures to human-readable messages. 42501 = permission denied (auth
+// gate inside the function), 23505 = partial-unique violation (race
+// condition; rare). See src/lib/classes/active-unit.ts for the
+// discriminated-union return shape.
+function toastForRpcCode(code: string | undefined): string {
+  if (code === "42501") {
+    return "You don't have permission to change the active unit on this class. Refresh and try again.";
+  }
+  if (code === "23505") {
+    return "Couldn't switch the active unit — another unit may be active. Refresh and try again.";
+  }
+  return "Something went wrong switching units. Try again.";
 }
 
 const ELL_COLORS: Record<number, { bg: string; color: string; label: string }> = {
@@ -100,6 +116,7 @@ export default function ClassDetailPage({
   const [students, setStudents] = useState<Student[]>([]);
   const [allUnits, setAllUnits] = useState<Unit[]>([]);
   const [classUnits, setClassUnits] = useState<ClassUnit[]>([]);
+  const [toggleUnitError, setToggleUnitError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAddStudent, setShowAddStudent] = useState(false);
   const [newUsername, setNewUsername] = useState("");
@@ -237,6 +254,13 @@ export default function ClassDetailPage({
     loadTermsAndCohorts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classId]);
+
+  // Auto-hide the toggleUnit error toast after ~4.5s.
+  useEffect(() => {
+    if (!toggleUnitError) return;
+    const t = window.setTimeout(() => setToggleUnitError(null), 4500);
+    return () => window.clearTimeout(t);
+  }, [toggleUnitError]);
 
   async function loadData() {
     const supabase = createClient();
@@ -520,40 +544,70 @@ export default function ClassDetailPage({
 
   async function toggleUnit(unitId: string, isActive: boolean) {
     const supabase = createClient();
-    const existing = classUnits.find((cu) => cu.unit_id === unitId);
+    // Snapshot for rollback on error — the optimistic update flips the
+    // target row AND any other currently-active rows, so a partial-write
+    // failure must restore the whole list, not just the target.
+    const previousClassUnits = classUnits;
 
-    // Optimistic update for instant feedback
+    // Optimistic update.
+    // On activate: flip the target to is_active=true AND flip any other
+    // currently-active rows for this class to is_active=false. This
+    // mirrors what set_active_unit does server-side; without the
+    // deactivate-others step the UI shows a ghost double-active state
+    // until the next re-fetch. See decisions-log.md "One active unit per
+    // class enforced at DB level" (16 May 2026).
+    // On deactivate: flip just the target row to false. Going from
+    // "1 active" to "0 active" doesn't violate the partial unique
+    // class_units_one_active_per_class, no helper needed.
     setClassUnits((prev) => {
-      const idx = prev.findIndex((cu) => cu.unit_id === unitId);
-      if (idx >= 0) {
-        const updated = [...prev];
-        updated[idx] = { ...updated[idx], is_active: isActive };
-        return updated;
+      if (isActive) {
+        const targetExists = prev.some((cu) => cu.unit_id === unitId);
+        const flipped = prev.map((cu) =>
+          cu.unit_id === unitId
+            ? { ...cu, is_active: true }
+            : cu.is_active
+              ? { ...cu, is_active: false }
+              : cu
+        );
+        if (!targetExists) {
+          return [
+            ...flipped,
+            { class_id: classId, unit_id: unitId, is_active: true } as ClassUnit,
+          ];
+        }
+        return flipped;
       }
-      // Add a new entry optimistically
-      return [...prev, { class_id: classId, unit_id: unitId, is_active: isActive } as ClassUnit];
+      return prev.map((cu) =>
+        cu.unit_id === unitId ? { ...cu, is_active: false } : cu
+      );
     });
 
-    let error;
-    if (existing) {
-      ({ error } = await supabase
-        .from("class_units")
-        .update({ is_active: isActive })
-        .eq("class_id", classId)
-        .eq("unit_id", unitId));
+    if (isActive) {
+      // Activate path: route through the atomic RPC helper. The helper
+      // deactivates other active rows + activates the target in a single
+      // transaction so the partial unique never sees two active rows.
+      const result = await setActiveUnit(supabase, classId, unitId);
+      if (!result.ok) {
+        console.error("setActiveUnit error:", result.error, result.code);
+        setClassUnits(previousClassUnits);
+        setToggleUnitError(toastForRpcCode(result.code));
+        return;
+      }
     } else {
-      ({ error } = await supabase.from("class_units").insert({
-        class_id: classId,
-        unit_id: unitId,
-        is_active: isActive,
-      }));
+      // Deactivate path: direct narrow update. Constraint not in play.
+      const { error } = await supabase
+        .from("class_units")
+        .update({ is_active: false })
+        .eq("class_id", classId)
+        .eq("unit_id", unitId);
+      if (error) {
+        console.error("toggleUnit deactivate error:", error);
+        setClassUnits(previousClassUnits);
+        setToggleUnitError("Couldn't deactivate the unit. Try again.");
+        return;
+      }
     }
-
-    if (error) {
-      console.error("toggleUnit error:", error);
-      // Revert optimistic update on failure
-      loadData();
-    }
+    setToggleUnitError(null);
   }
 
   async function removeStudent(studentId: string) {
@@ -888,6 +942,15 @@ export default function ClassDetailPage({
 
   return (
     <main className="max-w-6xl mx-auto px-4 py-8">
+      {toggleUnitError ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed top-4 right-4 z-50 max-w-sm rounded-lg bg-red-600 px-4 py-3 text-sm text-white shadow-lg"
+        >
+          {toggleUnitError}
+        </div>
+      ) : null}
       <div className="mb-2">
         <Link
           href="/teacher/classes"
