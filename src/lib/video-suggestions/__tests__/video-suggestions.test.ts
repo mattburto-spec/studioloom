@@ -7,7 +7,10 @@
  * Vercel preview smoke tests + the source-static API-registry scanner.
  */
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "fs";
+import { join } from "path";
 import {
+  composeFinalQuery,
   composeUserPrompt,
   heuristicQuery,
   sanitiseQuery,
@@ -294,5 +297,240 @@ describe("rerank — assembleCandidates", () => {
       items,
     );
     expect(out[0].caption).toBe("padded.");
+  });
+});
+
+describe("build-query — composeFinalQuery (search criteria controls)", () => {
+  it("returns the base query when no extras given", () => {
+    expect(composeFinalQuery("empathy interviews year 7")).toBe(
+      "empathy interviews year 7",
+    );
+  });
+
+  it("appends extra keywords verbatim as positive terms", () => {
+    expect(
+      composeFinalQuery("empathy interviews", "animation primary school"),
+    ).toBe("empathy interviews animation primary school");
+  });
+
+  it("prefixes exclude keywords with `-` for YouTube negation", () => {
+    expect(composeFinalQuery("empathy", undefined, "music shorts")).toBe(
+      "empathy -music -shorts",
+    );
+  });
+
+  it("splits exclude keywords on commas as well as whitespace", () => {
+    expect(composeFinalQuery("empathy", undefined, "music, shorts ,reaction")).toBe(
+      "empathy -music -shorts -reaction",
+    );
+  });
+
+  it("leaves exclude terms already prefixed with `-` as-is (power-user input)", () => {
+    expect(composeFinalQuery("empathy", undefined, "-music shorts")).toBe(
+      "empathy -music -shorts",
+    );
+  });
+
+  it("combines extra + exclude correctly", () => {
+    expect(
+      composeFinalQuery(
+        "empathy interviews",
+        "animation",
+        "music shorts",
+      ),
+    ).toBe("empathy interviews animation -music -shorts");
+  });
+
+  it("handles empty / whitespace-only extras as missing", () => {
+    expect(composeFinalQuery("empathy", "   ", "  ")).toBe("empathy");
+  });
+
+  it("caps at 200 chars", () => {
+    const long = "a ".repeat(200);
+    expect(composeFinalQuery("base", long).length).toBeLessThanOrEqual(200);
+  });
+});
+
+describe("composeRerankPrompt — count + teacher keywords surface in prompt", () => {
+  const item: YouTubeRawItem = {
+    videoId: "abc",
+    title: "Empathy mapping basics",
+    channelTitle: "IDEO",
+    description: "Short overview",
+    thumbnail: "t",
+    durationSeconds: 360,
+    embeddable: true,
+  };
+
+  it("default count=3 reflects in the instruction sentence", () => {
+    const out = composeRerankPrompt(
+      { task: "Run empathy interviews" },
+      [item],
+    );
+    expect(out).toContain("up to 3 picks");
+    expect(out).toContain("Never exceed 3");
+  });
+
+  it("count=5 propagates to the instruction sentence", () => {
+    const out = composeRerankPrompt(
+      { task: "Run empathy interviews" },
+      [item],
+      5,
+    );
+    expect(out).toContain("up to 5 picks");
+    expect(out).toContain("Never exceed 5");
+  });
+
+  it("count=10 propagates to the instruction sentence", () => {
+    const out = composeRerankPrompt(
+      { task: "Run empathy interviews" },
+      [item],
+      10,
+    );
+    expect(out).toContain("up to 10 picks");
+  });
+
+  it("includes teacher's extraKeywords + excludeKeywords in the context block", () => {
+    const out = composeRerankPrompt(
+      {
+        task: "Run empathy interviews",
+        extraKeywords: "animation",
+        excludeKeywords: "music shorts",
+      },
+      [item],
+    );
+    expect(out).toContain("Teacher's extra keywords: animation");
+    expect(out).toContain("Teacher's exclude keywords: music shorts");
+  });
+
+  it("omits the keyword context lines when not provided", () => {
+    const out = composeRerankPrompt(
+      { task: "Run empathy interviews" },
+      [item],
+    );
+    expect(out).not.toContain("Teacher's extra keywords");
+    expect(out).not.toContain("Teacher's exclude keywords");
+  });
+});
+
+// ─── Source-static guards for the new controls wiring ─────────────────
+
+const FETCH_YOUTUBE_SRC = readFileSync(
+  join(__dirname, "..", "fetch-youtube.ts"),
+  "utf-8",
+);
+
+const RERANK_SRC = readFileSync(join(__dirname, "..", "rerank.ts"), "utf-8");
+
+const ROUTE_SRC = readFileSync(
+  join(__dirname, "..", "..", "..", "app", "api", "teacher", "suggest-videos", "route.ts"),
+  "utf-8",
+);
+
+const MODAL_SRC = readFileSync(
+  join(
+    __dirname,
+    "..",
+    "..",
+    "..",
+    "components",
+    "teacher",
+    "lesson-editor",
+    "VideoSuggestionsModal.tsx",
+  ),
+  "utf-8",
+);
+
+describe("fetch-youtube — duration option wired through (controls)", () => {
+  it("exposes DurationBucket type alias", () => {
+    expect(FETCH_YOUTUBE_SRC).toMatch(
+      /export type DurationBucket = "short" \| "medium" \| "long" \| "any"/,
+    );
+  });
+
+  it("only sets videoDuration param when duration !== 'any'", () => {
+    expect(FETCH_YOUTUBE_SRC).toMatch(/if \(duration !== "any"\)/);
+    expect(FETCH_YOUTUBE_SRC).toMatch(
+      /searchParams\.set\("videoDuration", duration\)/,
+    );
+  });
+});
+
+describe("rerank — count enforced + extraKeywords surfaced (controls)", () => {
+  it("tool schema maxItems bumped to 10 to support count=10", () => {
+    expect(RERANK_SRC).toMatch(/maxItems:\s*10,/);
+  });
+
+  it("rerankWithClaude accepts count and clamps to [1, 10]", () => {
+    expect(RERANK_SRC).toContain(
+      "Math.min(Math.max(opts.count ?? 3, 1), 10)",
+    );
+  });
+
+  it("response picks are sliced to count as defensive over-cap guard", () => {
+    expect(RERANK_SRC).toMatch(
+      /input\?\.picks\)\s*\?\s*input\.picks\.slice\(0,\s*count\)/,
+    );
+  });
+
+  it("metadata captures requestedCount for breakdown attribution", () => {
+    expect(RERANK_SRC).toContain("requestedCount: count");
+  });
+});
+
+describe("orchestrator route — body parsing + composeFinalQuery + duration/count pass-through (controls)", () => {
+  it("validates duration against the 4-bucket allowlist", () => {
+    expect(ROUTE_SRC).toContain(
+      'const VALID_DURATIONS: ReadonlyArray<DurationBucket> = [',
+    );
+    expect(ROUTE_SRC).toContain('"short"');
+    expect(ROUTE_SRC).toContain('"medium"');
+    expect(ROUTE_SRC).toContain('"long"');
+    expect(ROUTE_SRC).toContain('"any"');
+  });
+
+  it("validates count against [3, 5, 10] set", () => {
+    expect(ROUTE_SRC).toMatch(/VALID_COUNTS = new Set\(\[3, 5, 10\]\)/);
+  });
+
+  it("threads extraKeywords + excludeKeywords through composeFinalQuery", () => {
+    expect(ROUTE_SRC).toMatch(
+      /composeFinalQuery\(\s*aiQuery,\s*ctx\.extraKeywords,\s*ctx\.excludeKeywords/,
+    );
+  });
+
+  it("bumps searchLimit when teacher asks for more candidates (>=10 floor)", () => {
+    expect(ROUTE_SRC).toMatch(/Math\.max\(10, count \* 3\)/);
+  });
+});
+
+describe("VideoSuggestionsModal — controls UI + body pass-through (controls)", () => {
+  it("renders the 4 duration pills (Short / Medium / Long / Any)", () => {
+    expect(MODAL_SRC).toContain('label: "Short"');
+    expect(MODAL_SRC).toContain('label: "Medium"');
+    expect(MODAL_SRC).toContain('label: "Long"');
+    expect(MODAL_SRC).toContain('label: "Any"');
+  });
+
+  it("renders the 3 count options ([3, 5, 10])", () => {
+    expect(MODAL_SRC).toMatch(/COUNT_OPTIONS:\s*SuggestionCount\[\]\s*=\s*\[3,\s*5,\s*10\]/);
+  });
+
+  it("controls write to local state via setDuration / setCount / setExtraKeywords / setExcludeKeywords", () => {
+    expect(MODAL_SRC).toContain("setDuration(pill.value)");
+    expect(MODAL_SRC).toContain("setCount(n)");
+    expect(MODAL_SRC).toContain("setExtraKeywords(e.target.value)");
+    expect(MODAL_SRC).toContain("setExcludeKeywords(e.target.value)");
+  });
+
+  it("POST body includes duration / count / extraKeywords / excludeKeywords", () => {
+    expect(MODAL_SRC).toMatch(/duration,\s*\n\s*count,\s*\n\s*extraKeywords:/);
+    expect(MODAL_SRC).toMatch(/extraKeywords:\s*extraKeywords\.trim\(\)\s*\|\|\s*undefined/);
+    expect(MODAL_SRC).toMatch(/excludeKeywords:\s*excludeKeywords\.trim\(\)\s*\|\|\s*undefined/);
+  });
+
+  it('has a "Search with these settings" action that re-runs', () => {
+    expect(MODAL_SRC).toContain("Search with these settings");
+    expect(MODAL_SRC).toContain("handleSearchAgain");
   });
 });

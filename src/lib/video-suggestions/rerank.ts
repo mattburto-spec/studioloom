@@ -32,7 +32,7 @@ Hard rules:
 - Reject videos that are pure entertainment with no teaching value for the stated activity.
 - Captions must be ONE sentence (max ~20 words). Concrete, specific to the activity — not generic ("a good video about empathy").
 
-If fewer than 3 candidates pass, return what you have (1 or 2). If none pass, return an empty array.`;
+If fewer candidates pass than the teacher asked for, return what you have. If none pass, return an empty array. NEVER return more than the requested count.`;
 
 const RERANK_TOOL = {
   name: "submit_rerank",
@@ -42,9 +42,9 @@ const RERANK_TOOL = {
     properties: {
       picks: {
         type: "array",
-        maxItems: 3,
+        maxItems: 10,
         description:
-          "Best-fit videos in rank order (best first). Empty if none pass.",
+          "Best-fit videos in rank order (best first). Empty if none pass. Cap at the count the prompt asks for.",
         items: {
           type: "object",
           properties: {
@@ -74,6 +74,7 @@ interface ToolPick {
 export function composeRerankPrompt(
   ctx: SuggestionContext,
   items: YouTubeRawItem[],
+  count: number = 3,
 ): string {
   const ctxLines: string[] = [];
   if (ctx.unitTitle) ctxLines.push(`Unit: ${ctx.unitTitle}`);
@@ -82,6 +83,12 @@ export function composeRerankPrompt(
   if (ctx.framing) ctxLines.push(`Framing: ${ctx.framing}`);
   if (ctx.task) ctxLines.push(`Task: ${ctx.task}`);
   if (ctx.success_signal) ctxLines.push(`Success signal: ${ctx.success_signal}`);
+  if (ctx.extraKeywords?.trim()) {
+    ctxLines.push(`Teacher's extra keywords: ${ctx.extraKeywords.trim()}`);
+  }
+  if (ctx.excludeKeywords?.trim()) {
+    ctxLines.push(`Teacher's exclude keywords: ${ctx.excludeKeywords.trim()}`);
+  }
 
   const itemLines = items.map((it, i) => {
     const mins = Math.round(it.durationSeconds / 60);
@@ -101,7 +108,7 @@ export function composeRerankPrompt(
     `CANDIDATES (${items.length}):`,
     itemLines.join("\n\n"),
     "",
-    "Call submit_rerank with up to 3 picks (best first).",
+    `Call submit_rerank with up to ${count} picks (best first). Never exceed ${count}.`,
   ].join("\n");
 }
 
@@ -141,11 +148,14 @@ export interface RerankResult {
 export async function rerankWithClaude(
   ctx: SuggestionContext,
   items: YouTubeRawItem[],
-  opts: { supabase: SupabaseClient; teacherId: string },
+  opts: { supabase: SupabaseClient; teacherId: string; count?: number },
 ): Promise<RerankResult> {
   if (items.length === 0) {
     return { candidates: [], note: "no embeddable matches" };
   }
+  // Hard-cap count to the tool schema's maxItems so a buggy caller
+  // can't ask the model to overflow.
+  const count = Math.min(Math.max(opts.count ?? 3, 1), 10);
 
   const result = await callAnthropicMessages({
     endpoint: "teacher/suggest-videos:rerank",
@@ -154,15 +164,18 @@ export async function rerankWithClaude(
     teacherId: opts.teacherId,
     system: SYSTEM_PROMPT,
     messages: [
-      { role: "user", content: composeRerankPrompt(ctx, items) },
+      { role: "user", content: composeRerankPrompt(ctx, items, count) },
     ],
-    maxTokens: 800,
+    // Per-pick output ~50-80 tokens. Budget = count * 100 + 200 overhead,
+    // floored at 800 so the 3-pick default behaves like before.
+    maxTokens: Math.max(800, count * 100 + 200),
     temperature: 0.2,
     tools: [RERANK_TOOL as never],
     toolChoice: { type: "tool", name: RERANK_TOOL.name },
     metadata: {
       phase: "rerank",
       candidateCount: items.length,
+      requestedCount: count,
     },
   });
 
@@ -182,7 +195,9 @@ export async function rerankWithClaude(
     return { candidates: [], note: "rerank returned no structured output" };
   }
   const input = toolBlock.input as { picks?: ToolPick[] };
-  const picks = Array.isArray(input?.picks) ? input.picks : [];
+  // Hard-cap to count even though the prompt + schema both ask for ≤ count
+  // — defensive against a model that overshoots.
+  const picks = Array.isArray(input?.picks) ? input.picks.slice(0, count) : [];
   const candidates = assembleCandidates(picks, items);
   return {
     candidates,

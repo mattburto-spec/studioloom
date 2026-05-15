@@ -49,6 +49,9 @@ export interface VideoSuggestionsModalProps {
   gradeLevel?: string;
 }
 
+type DurationBucket = "short" | "medium" | "long" | "any";
+type SuggestionCount = 3 | 5 | 10;
+
 type FetchState =
   | { kind: "idle" }
   | { kind: "loading" }
@@ -63,6 +66,15 @@ function formatDuration(seconds: number): string {
   return `${m} min ${s}s`;
 }
 
+const DURATION_PILLS: { value: DurationBucket; label: string; hint: string }[] = [
+  { value: "short", label: "Short", hint: "< 4 min" },
+  { value: "medium", label: "Medium", hint: "4–20 min" },
+  { value: "long", label: "Long", hint: "> 20 min" },
+  { value: "any", label: "Any", hint: "no limit" },
+];
+
+const COUNT_OPTIONS: SuggestionCount[] = [3, 5, 10];
+
 export function VideoSuggestionsModal({
   open,
   onClose,
@@ -75,6 +87,10 @@ export function VideoSuggestionsModal({
 }: VideoSuggestionsModalProps) {
   const [state, setState] = useState<FetchState>({ kind: "idle" });
   const [excludedIds, setExcludedIds] = useState<string[]>([]);
+  const [duration, setDuration] = useState<DurationBucket>("medium");
+  const [count, setCount] = useState<SuggestionCount>(3);
+  const [extraKeywords, setExtraKeywords] = useState("");
+  const [excludeKeywords, setExcludeKeywords] = useState("");
 
   const run = useCallback(
     async (excludeOverride?: string[]) => {
@@ -90,6 +106,10 @@ export function VideoSuggestionsModal({
             unitTitle,
             gradeLevel,
             excludeVideoIds: excludeOverride ?? excludedIds,
+            duration,
+            count,
+            extraKeywords: extraKeywords.trim() || undefined,
+            excludeKeywords: excludeKeywords.trim() || undefined,
           }),
         });
 
@@ -146,18 +166,32 @@ export function VideoSuggestionsModal({
         });
       }
     },
-    [framing, task, success_signal, unitTitle, gradeLevel, excludedIds],
+    [
+      framing,
+      task,
+      success_signal,
+      unitTitle,
+      gradeLevel,
+      excludedIds,
+      duration,
+      count,
+      extraKeywords,
+      excludeKeywords,
+    ],
   );
 
-  // Auto-run once when the modal opens.
+  // Auto-run once when the modal opens. Resets when closed so reopening
+  // re-fetches with current control values.
   useEffect(() => {
     if (open && state.kind === "idle") {
       void run([]);
     }
     if (!open && state.kind !== "idle") {
-      // Reset on close so reopening re-fetches with fresh state.
       setState({ kind: "idle" });
       setExcludedIds([]);
+      // Controls are NOT reset — sticky across opens-within-session feels
+      // natural (the teacher who wanted Short videos likely wants them
+      // again next click). Closing the block / page is the natural reset.
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -180,6 +214,14 @@ export function VideoSuggestionsModal({
     void run(newExcluded);
   }, [state, excludedIds, run]);
 
+  // Re-search reuses the current control values + accumulated exclude
+  // IDs so successive clicks fan out instead of repeating. Used by the
+  // "Search with these settings" button when the teacher tweaks
+  // controls and wants a fresh result with the same exclude memory.
+  const handleSearchAgain = useCallback(() => {
+    void run(excludedIds);
+  }, [excludedIds, run]);
+
   return (
     <Modal
       open={open}
@@ -187,6 +229,110 @@ export function VideoSuggestionsModal({
       title="✨ Suggest videos"
       maxWidth="max-w-3xl"
     >
+      {/* Always-visible controls row — tweak then click "Search with
+          these settings" to re-fetch. Defaults (Medium / 3 / no extras)
+          mirror the original auto-run behaviour. */}
+      <div className="mb-4 pb-3 border-b border-gray-100 space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[10.5px] font-bold uppercase tracking-wider text-gray-500 mb-1">
+              Duration
+            </label>
+            <div className="flex gap-1 flex-wrap">
+              {DURATION_PILLS.map((pill) => {
+                const active = duration === pill.value;
+                return (
+                  <button
+                    key={pill.value}
+                    type="button"
+                    onClick={() => setDuration(pill.value)}
+                    title={pill.hint}
+                    className={`px-2.5 py-1 rounded-full text-[11.5px] font-semibold border transition-colors ${
+                      active
+                        ? "bg-violet-600 text-white border-violet-600"
+                        : "bg-white text-gray-700 border-gray-200 hover:border-violet-300"
+                    }`}
+                  >
+                    {pill.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <label className="block text-[10.5px] font-bold uppercase tracking-wider text-gray-500 mb-1">
+              How many
+            </label>
+            <div className="flex gap-1">
+              {COUNT_OPTIONS.map((n) => {
+                const active = count === n;
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setCount(n)}
+                    className={`px-3 py-1 rounded-full text-[11.5px] font-semibold border transition-colors ${
+                      active
+                        ? "bg-violet-600 text-white border-violet-600"
+                        : "bg-white text-gray-700 border-gray-200 hover:border-violet-300"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label
+              htmlFor="suggest-extra-keywords"
+              className="block text-[10.5px] font-bold uppercase tracking-wider text-gray-500 mb-1"
+            >
+              Extra keywords
+            </label>
+            <input
+              id="suggest-extra-keywords"
+              type="text"
+              value={extraKeywords}
+              onChange={(e) => setExtraKeywords(e.target.value)}
+              placeholder="e.g. animation, primary school"
+              className="w-full px-2.5 py-1.5 text-[12px] border border-gray-200 rounded bg-white text-gray-800 focus:outline-none focus:border-violet-400"
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="suggest-exclude-keywords"
+              className="block text-[10.5px] font-bold uppercase tracking-wider text-gray-500 mb-1"
+            >
+              Exclude keywords
+            </label>
+            <input
+              id="suggest-exclude-keywords"
+              type="text"
+              value={excludeKeywords}
+              onChange={(e) => setExcludeKeywords(e.target.value)}
+              placeholder="e.g. music, shorts"
+              className="w-full px-2.5 py-1.5 text-[12px] border border-gray-200 rounded bg-white text-gray-800 focus:outline-none focus:border-violet-400"
+            />
+          </div>
+        </div>
+        <div className="flex items-center justify-between">
+          <p className="text-[10.5px] text-[var(--le-ink-3)] italic">
+            Defaults: Medium duration, 3 suggestions, no extra terms.
+          </p>
+          <button
+            type="button"
+            onClick={handleSearchAgain}
+            disabled={state.kind === "loading"}
+            className="px-3 py-1 text-[12px] font-bold text-violet-700 bg-violet-50 border border-violet-200 rounded hover:bg-violet-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            Search with these settings
+          </button>
+        </div>
+      </div>
+
       {state.kind === "loading" && (
         <div className="py-12 text-center">
           <div className="inline-block w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
