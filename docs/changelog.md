@@ -4,6 +4,55 @@
 
 ---
 
+## 2026-05-15 (PM) — Video suggestions: hardcoded-model CI fix + teacher search-criteria controls (2 PRs to main)
+
+**Context:** Continuation of the morning 15 May session. Matt opened Gmail and surfaced 8+ CI failure notifications for PRs that had merged earlier in the day (including PRs #281/#282/#285 from this session). Investigation found a single root cause + a related architectural gap. Plus Matt asked for runtime control over the suggest-videos search criteria.
+
+### CI red — root cause + recovery
+Earlier today, `src/lib/video-suggestions/build-query.ts` (PR #281) hardcoded `"claude-haiku-4-5-20251001"` as a top-level constant. That tripped the wiring-lock guard test at `src/lib/frameworks/__tests__/render-path-fixtures.test.ts:no hardcoded model IDs in production code (5.13)` — the test scans `src/` for the canonical model strings outside `models.ts`. My auto-merge with `--auto --squash` merged anyway because CI is not a required check on this repo; the failure propagated post-merge to every subsequent PR on main until a separate Claude session patched `build-query.ts` to use `MODELS.HAIKU` (~03:46 UTC). CI green on main has held since.
+
+**Companion fix shipped: [PR #307](https://github.com/mattburto-spec/studioloom/pull/307)** — `rerank.ts` still had `claude-sonnet-4-6` as a literal (a different Sonnet version, NOT the platform's `MODELS.SONNET = claude-sonnet-4-20250514`). The guard test only checks specific model-ID strings so it didn't fire, but the literal was a latent runtime risk (potential 404 if the version doesn't route) and an architectural inconsistency. Swapped to `MODELS.SONNET` with a comment noting that if Sonnet 4.6 is genuinely wanted long-term, add `MODELS.SONNET_LATEST` in `models.ts` first.
+
+**Lesson banked:** auto-merge with `--auto --squash` does NOT block on CI when CI isn't a required status check. Either (a) make CI required on the repo, or (b) before merging anything with new model strings in non-test files, manually verify the wiring-lock guard passes. The guard catches the two specific hardcoded model IDs the platform has historically standardised on, but not arbitrary new ones — needs broadening if `MODELS.SONNET_LATEST` lands.
+
+**Worktree slip mid-saveme:** I ran `git add -A && git commit` from the main worktree's shell cwd while another Claude session had `feat-class-dj-deezer-art-source` checked out there. The commit captured two of their untracked WIP docs onto someone else's branch. Recovered with `git reset HEAD~1` — no data lost. New memory saved: **"cd into the worktree before git operations"** — sanity-check with `git log --oneline -1` before commit, never trust the main worktree as a default cwd.
+
+### Teacher search-criteria controls ([PR #310](https://github.com/mattburto-spec/studioloom/pull/310))
+Always-visible controls bar at the top of the "✨ Suggest videos" modal:
+
+- **Duration** pills — Short (<4 min) / Medium (4-20 min, default) / Long (>20 min) / Any (no filter). Maps to YouTube's `videoDuration` param; `any` skips the filter so post-fetch `maxDurationSeconds` is the only ceiling.
+- **How many** pills — 3 (default) / 5 / 10. Larger counts pull bigger candidate pools (`searchLimit = max(10, count * 3)`), bump the re-ranker `maxTokens` budget linearly, and slice picks defensively so the model can't overshoot.
+- **Extra keywords** text field — appended verbatim to the YouTube query as positive terms (e.g. "animation primary school").
+- **Exclude keywords** text field — split on whitespace/comma and each term prefixed with `-` for YouTube's negation syntax (e.g. "music shorts" → `-music -shorts`).
+
+Both keyword fields ALSO surface in the re-ranker prompt context so Claude understands the teacher's preferences when ranking — belt-and-braces (YouTube filter + AI awareness). Controls are sticky across opens within a session. New "Search with these settings" button re-runs with current control values + accumulated excluded-IDs.
+
+New `composeFinalQuery` pure helper does the query composition; extracted so it's easy to unit-test. Tool schema `maxItems` bumped 3 → 10 to allow count=10. Defensive `picks.slice(0, count)` belt-and-braces against model overshoot. Metadata includes `requestedCount` for breakdown attribution.
+
+### Systems touched
+- Modified: `src/lib/video-suggestions/types.ts` (+4 fields on SuggestionContext), `build-query.ts` (composeFinalQuery helper, ~30 LOC), `fetch-youtube.ts` (DurationBucket type, optional duration param), `rerank.ts` (count threading, model-ID constant swap, picks slice), `route.ts` (body parser + allowlist validation + composeFinalQuery + searchLimit bump), `VideoSuggestionsModal.tsx` (controls UI + state + body pass-through)
+- No new files, no migrations
+- AI call sites unchanged (still 2 callsites via `callAnthropicMessages` at endpoint strings `teacher/suggest-videos:query` + `:rerank`)
+
+### Open items (unchanged from morning saveme)
+- **Matt — provision `YOUTUBE_API_KEY`** in Vercel + `.env.local` (route returns 503 until set)
+- **Matt — provide 5-10 channel allowlist seed** for re-ranker boost (not blocking)
+- **PR #276 close-out** — design brief, decisions baked into code, could close as superseded
+
+### Tests
+- `src/lib/video-suggestions`: 24 → 64 (+40)
+  - 8 new `composeFinalQuery` pure-helper tests
+  - 4 `composeRerankPrompt` count + teacher-keyword surface tests
+  - 28 source-static wiring assertions across fetch-youtube / rerank / route / modal
+- Model-ID guard (render-path-fixtures) still green
+- tsc clean for all touched files
+
+### Memory updates this session
+- New feedback memory: **"cd into the worktree before git operations"** — shell cwd does NOT follow `git worktree add`; sanity-check with `git log --oneline -1` before commit
+- (Earlier today) new feedback memory: **"Don't offer Vercel preview verification"** — Matt tests himself; never say "ping me to check the URL"
+
+---
+
 ## 2026-05-15 — Unit Briefs Phase F arc complete (locks + per-student authoring + choice-card templates + AI assist)
 
 **Context:** Phase A–E shipped a teacher-only Brief & Constraints surface (13–14 May). Phase F closes the loop by adding three unifying capabilities on top: per-field LOCK MODEL, STUDENT AUTHORING via a new `student_briefs` table, and CHOICE-CARD BRIEF TEMPLATES (G8 case). All three render through one unified `BriefDrawer` via the new `computeEffectiveBrief` 3-source merge. Plus AI assist (Haiku tool-use), Student-briefs teacher review tab, lock-all/open-all bulk actions, and the saveme to land it all.
