@@ -13,9 +13,13 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { callAnthropicMessages } from "@/lib/ai/call";
+import { MODELS } from "@/lib/ai/models";
 import type { SuggestionContext } from "./types";
 
-export const HAIKU_MODEL = "claude-haiku-4-5-20251001";
+// Import from the central models registry so the render-path-fixtures
+// guard (no hardcoded model IDs outside models.ts) stays green. Was a
+// raw string in PR #281 which left CI red on main.
+export const HAIKU_MODEL = MODELS.HAIKU;
 
 const SYSTEM_PROMPT = `You compress a lesson activity into a short YouTube search query (6 to 10 words). The query should surface short educational videos suitable for secondary students aged 11 to 18.
 
