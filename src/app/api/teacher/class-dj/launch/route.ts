@@ -145,19 +145,27 @@ export async function POST(request: NextRequest) {
   const startedAt = new Date();
   const endsAt = new Date(startedAt.getTime() + durationSeconds * 1000);
 
+  const classRoundIndex = (maxRow?.class_round_index ?? 0) + 1;
   const insertRow = {
     unit_id: unitId,
     page_id: pageId,
     activity_id: activityId,
     class_id: classId,
-    class_round_index: (maxRow?.class_round_index ?? 0) + 1,
+    class_round_index: classRoundIndex,
     started_by: `teacher:${teacherId}`,
     started_at: startedAt.toISOString(),
     duration_seconds: durationSeconds,
     ends_at: endsAt.toISOString(),
     closed_at: null,
     suggest_count: 0,
-    version: 1,
+    // Version matches class_round_index so each round gets a FRESH set of
+    // student_tool_sessions rows. Was hardcoded to 1, which caused votes
+    // from previous rounds to bleed into the next round — student would
+    // see "You voted!" on a brand-new round and be asked to edit a stale
+    // vote instead of cast a fresh one. Caught 15 May 2026 in Matt's
+    // smoke. SMALLINT range is 32767 — plenty of headroom for years of
+    // rounds per class.
+    version: classRoundIndex,
     conflict_mode: null as null,
   };
 

@@ -16,7 +16,7 @@
  * Brief: docs/projects/class-dj-block-brief.md §7 (UI surface).
  */
 
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useClassDjPolling, type Role } from "./useClassDjPolling";
 import ClassDjArmedView from "./ClassDjArmedView";
 import ClassDjLiveStudentView from "./ClassDjLiveStudentView";
@@ -260,6 +260,32 @@ export default function ClassDjBlock({
     );
   }
 
+  // Distinguish "DJ is thinking" (gate met, suggest in flight or just
+  // about to be) from "round genuinely closed without enough votes."
+  // The auto-fire useEffect kicks off /suggest when gate is met +
+  // status flips to closed. While that ~5-15s pipeline runs (Stage 3
+  // LLM + Deezer enrichment + Stage 5 narration), students see this
+  // placeholder. Without the "thinking" copy they assume it's broken.
+  const isThinking =
+    gateMet && !requestError && state.participation_count > 0;
+
+  if (isThinking) {
+    return (
+      <div className="my-3 rounded-xl border border-violet-200 bg-violet-50/60 p-5 text-center">
+        <div className="text-3xl mb-2 animate-pulse">🎧</div>
+        <h3 className="text-base font-bold text-violet-900 mb-1">
+          The DJ is reading the room…
+        </h3>
+        <p className="text-sm text-violet-700">
+          <ThinkingPhrase />
+        </p>
+        <p className="text-[11px] text-violet-500 mt-2 italic">
+          (this usually takes 5-15 seconds)
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="my-3 rounded-xl border border-violet-200 bg-violet-50/60 p-5 text-center">
       <div className="text-2xl mb-1">🎵</div>
@@ -267,7 +293,8 @@ export default function ClassDjBlock({
         Class DJ — round {round.class_round_index} closed
       </h3>
       <p className="text-sm text-violet-700">
-        {state.participation_count} of {state.class_size} voted. No suggestion generated.
+        {state.participation_count} of {state.class_size} voted.{" "}
+        {requestError ? `Error: ${requestError}` : "No suggestion generated."}
       </p>
       {stopped && (
         <p className="text-[10px] text-violet-400 mt-1">
@@ -276,4 +303,30 @@ export default function ClassDjBlock({
       )}
     </div>
   );
+}
+
+/**
+ * Rotating playful copy shown while the DJ algorithm is running. Cycles
+ * every ~2.5s so the wait feels alive instead of stuck. School-appropriate
+ * — no jokes that could read awkward to a 13-year-old or their parent.
+ */
+function ThinkingPhrase() {
+  const phrases = React.useMemo(
+    () => [
+      "Digging through the crates…",
+      "Negotiating with the algorithm…",
+      "Spinning the wheels of fate…",
+      "Asking three Yes-or-No questions…",
+      "Mixing your vibes into 3 tracks…",
+      "Consulting the room's BPM…",
+      "Auditioning artists in the back room…",
+    ],
+    [],
+  );
+  const [idx, setIdx] = React.useState(0);
+  React.useEffect(() => {
+    const id = setInterval(() => setIdx((i) => (i + 1) % phrases.length), 2500);
+    return () => clearInterval(id);
+  }, [phrases.length]);
+  return <span>{phrases[idx]}</span>;
 }
