@@ -107,6 +107,16 @@ export async function spotifySearchArtist(
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!searchRes.ok) {
+    // Log the HTTP status so we can see in Vercel function logs WHY
+    // every search is failing. Caught 15 May 2026 when every search
+    // returned 4xx/5xx despite the token fetch succeeding — probable
+    // root cause: Spotify's Nov-2024 dev-mode API restrictions hit
+    // /v1/search for apps without Extended Quota Mode approval.
+    console.error("[spotify-enrich] search failed", {
+      name,
+      status: searchRes.status,
+      statusText: searchRes.statusText,
+    });
     if (searchRes.status === 401) {
       // Token rejected — clear cache; caller can retry. For one-shot
       // simplicity here we just return null and let the caller drop.
@@ -159,18 +169,48 @@ export interface EnrichmentResult {
 }
 
 /**
- * Probe Spotify availability by attempting a token fetch. Returns true if
- * credentials are configured AND the token endpoint responds. Used by
- * enrichCandidatePool to decide between full enrichment vs graceful
- * degradation. Exposed for the test seam.
+ * Probe Spotify availability by attempting BOTH a token fetch AND a
+ * search call for a known-good artist ("Mozart"). The token endpoint
+ * passing isn't enough — caught 15 May 2026 when Matt's classroom smoke
+ * had a working token but every /v1/search returned 4xx/5xx (probable
+ * cause: Spotify's Nov 2024 dev-mode API restrictions blocking
+ * /v1/search for apps without Extended Quota Mode approval).
+ *
+ * Returns true only if BOTH endpoints respond. False otherwise →
+ * enrichCandidatePool falls back to no-enrichment passthrough so the
+ * suggestion still appears (just without album art).
  */
 export async function probeSpotifyAvailability(): Promise<boolean> {
+  let token: string;
   try {
-    const token = await getAccessToken();
-    return Boolean(token);
+    token = await getAccessToken();
+    if (!token) return false;
   } catch (e) {
     console.warn(
-      "[spotify-enrich] Spotify unavailable — falling back to no-enrichment passthrough.",
+      "[spotify-enrich] Spotify token unavailable — falling back to no-enrichment passthrough.",
+      e instanceof Error ? e.message : e,
+    );
+    return false;
+  }
+
+  // Test the actual search endpoint with a name that definitely exists
+  // on Spotify. If this fails, /v1/search is blocked for our app even
+  // though the token works (Spotify dev-mode restriction or rate limit).
+  try {
+    const qs = new URLSearchParams({ q: "Mozart", type: "artist", limit: "1" });
+    const res = await fetch(`${SEARCH_URL}?${qs}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      console.warn(
+        `[spotify-enrich] Spotify search probe failed (HTTP ${res.status}) — falling back to no-enrichment passthrough.`,
+      );
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.warn(
+      "[spotify-enrich] Spotify search probe error — falling back to no-enrichment passthrough.",
       e instanceof Error ? e.message : e,
     );
     return false;
