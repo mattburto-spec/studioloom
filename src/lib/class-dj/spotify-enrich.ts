@@ -144,27 +144,89 @@ export async function spotifySearchArtist(
 }
 
 export interface EnrichmentResult {
-  /** Survivors — candidates that matched Spotify + cleared explicit + blocklist. */
+  /** Survivors — candidates that matched Spotify + cleared explicit + blocklist.
+   *  When `spotifyDegraded` is true, this contains non-blocklisted candidates
+   *  passed through WITHOUT imageUrl/spotifyUrl (graceful degradation). */
   enriched: Candidate[];
   /** Dropped names with reason (for logging + telemetry). */
   drops: { name: string; reason: "no_spotify_match" | "explicit" | "blocklist" }[];
+  /** True when the Spotify API is unavailable (env vars missing, token fetch
+   *  failed, etc.) and we passed candidates through without enrichment instead
+   *  of dropping them. Lets the route distinguish "infrastructure problem" from
+   *  "every candidate is genuinely explicit / blocklisted / hallucinated" — the
+   *  former should NOT fail the round; the latter is a real content issue. */
+  spotifyDegraded: boolean;
 }
 
 /**
- * Run a candidate pool through Spotify enrichment. Drops hallucinations,
- * explicit artists, and blocklist matches. Returns the cleaned pool plus
- * a list of drops (for telemetry / suggestion-row spotify_drops counter).
+ * Probe Spotify availability by attempting a token fetch. Returns true if
+ * credentials are configured AND the token endpoint responds. Used by
+ * enrichCandidatePool to decide between full enrichment vs graceful
+ * degradation. Exposed for the test seam.
+ */
+export async function probeSpotifyAvailability(): Promise<boolean> {
+  try {
+    const token = await getAccessToken();
+    return Boolean(token);
+  } catch (e) {
+    console.warn(
+      "[spotify-enrich] Spotify unavailable — falling back to no-enrichment passthrough.",
+      e instanceof Error ? e.message : e,
+    );
+    return false;
+  }
+}
+
+/**
+ * Run a candidate pool through Spotify enrichment. Drops explicit artists +
+ * blocklist matches. Hallucination drops (no Spotify match) when Spotify IS
+ * available; passthrough (no enrichment, kept in pool) when Spotify is NOT
+ * available.
  *
  * Parallelised — each candidate is searched concurrently.
  *
- * Test seam: pass `searchImpl` to mock Spotify search (avoid network).
+ * Test seams:
+ *   - `searchImpl` mocks the per-candidate search call
+ *   - `tokenProbe` mocks the upfront availability check (default: real probe)
  */
 export async function enrichCandidatePool(
   pool: readonly Candidate[],
-  opts: { searchImpl?: typeof spotifySearchArtist } = {},
+  opts: {
+    searchImpl?: typeof spotifySearchArtist;
+    tokenProbe?: () => Promise<boolean>;
+  } = {},
 ): Promise<EnrichmentResult> {
   const searchFn = opts.searchImpl ?? spotifySearchArtist;
+  const probe = opts.tokenProbe ?? probeSpotifyAvailability;
 
+  const spotifyAvailable = await probe();
+
+  // DEGRADED MODE — Spotify is down or unconfigured. Skip network search
+  // entirely. Still apply blocklist (local + free + safety-critical). Pass
+  // non-blocklisted candidates through without image/spotify URLs. The
+  // ClassDjSuggestionView renders 🎵 placeholder when image_url is null,
+  // and the green Spotify button was already removed in PR #263 — so the
+  // student experience degrades cleanly. Suggestion still appears; just
+  // without album art.
+  if (!spotifyAvailable) {
+    const enriched: Candidate[] = [];
+    const drops: EnrichmentResult["drops"] = [];
+    for (const c of pool) {
+      if (isBlocked(c.name, c.contentTags)) {
+        drops.push({ name: c.name, reason: "blocklist" });
+        continue;
+      }
+      enriched.push({
+        ...c,
+        imageUrl: undefined,
+        spotifyUrl: undefined,
+        explicit: false,
+      });
+    }
+    return { enriched, drops, spotifyDegraded: true };
+  }
+
+  // NORMAL MODE — Spotify is available; do the full enrichment.
   const results = await Promise.all(
     pool.map(async (c) => {
       // Pre-check: blocklist BEFORE Spotify hit (saves a network call).
@@ -208,5 +270,5 @@ export async function enrichCandidatePool(
     });
   }
 
-  return { enriched, drops };
+  return { enriched, drops, spotifyDegraded: false };
 }
