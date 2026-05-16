@@ -72,6 +72,32 @@ describe("setActiveUnit", () => {
         code: undefined,
       });
     });
+
+    it("surfaces the 42501 unit-ownership-gate error from migration 20260516052310 (Block C)", async () => {
+      // Block C added a SECOND auth gate to set_active_unit: caller must
+      // own the target unit OR the unit must be is_published=true. Both
+      // gates raise 42501; the discriminated-union surfaces the gate-2
+      // message verbatim so callers can branch on message text if they
+      // need to differentiate (the existing toggleUnit toast doesn't —
+      // toastForRpcCode("42501") is generic across both gates).
+      const gate2Message =
+        "set_active_unit: cannot attach unit 85008520-b92c-4a5c-aeb7-77e65611c48b (caller does not own it and it is not published)";
+      const { client } = makeSupabase({
+        data: null,
+        error: { message: gate2Message, code: "42501" },
+      });
+      const result = await setActiveUnit(client, CLASS_ID, UNIT_ID);
+      expect(result).toEqual({
+        ok: false,
+        error: gate2Message,
+        code: "42501",
+      });
+      // Same SQLSTATE as gate 1 — wrapper doesn't differentiate, by design.
+      // Callers can branch on message text if they need to.
+      if (!result.ok) {
+        expect(result.error).toContain("cannot attach unit");
+      }
+    });
   });
 
   describe("discriminated-union shape (matches src/lib/ai/call.ts convention)", () => {
