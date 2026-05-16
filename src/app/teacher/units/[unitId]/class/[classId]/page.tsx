@@ -25,7 +25,6 @@ import { StudentResponseValue } from "@/components/teacher/StudentResponseValue"
 import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
 import { analyzeIntegrity, worstIntegrityLevel } from "@/lib/integrity/analyze-integrity";
 import { ClassProfileOverview } from "@/components/teacher/ClassProfileOverview";
-import { GalleryRoundCreator, GalleryMonitor, GalleryRoundCard, GalleryCanvasModal } from "@/components/gallery";
 import { getYearLevelNumber } from "@/lib/utils/year-level";
 import StudentDrawer from "@/components/teacher/class-hub/StudentDrawer";
 import StudentRosterDrawer from "@/components/teacher/class-hub/StudentRosterDrawer";
@@ -156,142 +155,11 @@ function deriveTodaysLessonIndex(
 // Component
 // ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
-// Gallery Tab — manages gallery rounds for this class+unit
-// ---------------------------------------------------------------------------
-function GalleryTab({ unitId, classId, unitPages }: { unitId: string; classId: string; unitPages: UnitPage[] }) {
-  const [rounds, setRounds] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showCreator, setShowCreator] = useState(false);
-  const [monitorRoundId, setMonitorRoundId] = useState<string | null>(null);
-  const [canvasRoundId, setCanvasRoundId] = useState<string | null>(null);
-
-  const loadRounds = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/teacher/gallery?unitId=${unitId}&classId=${classId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setRounds(data.rounds || []);
-      }
-    } catch (e) {
-      console.error("Failed to load gallery rounds:", e);
-    } finally {
-      setLoading(false);
-    }
-  }, [unitId, classId]);
-
-  useEffect(() => { loadRounds(); }, [loadRounds]);
-
-  return (
-    <div className="max-w-4xl space-y-6">
-      {/* Monitor modal (grid display mode) */}
-      {monitorRoundId && (
-        <GalleryMonitor roundId={monitorRoundId} onClose={() => { setMonitorRoundId(null); loadRounds(); }} />
-      )}
-
-      {/* Canvas modal (canvas display mode) */}
-      {canvasRoundId && (
-        <GalleryCanvasModal roundId={canvasRoundId} onClose={() => { setCanvasRoundId(null); loadRounds(); }} />
-      )}
-
-      {/* Creator modal */}
-      {showCreator && (
-        <GalleryRoundCreator
-          unitId={unitId}
-          classId={classId}
-          pages={unitPages.map(p => ({ id: p.id, title: p.title }))}
-          onCreated={() => { setShowCreator(false); loadRounds(); }}
-          onClose={() => setShowCreator(false)}
-        />
-      )}
-
-      {/* Header + New Round button */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-bold text-gray-900">Pin-Up Gallery</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Create critique rounds where students share work and give peer feedback</p>
-        </div>
-        <button
-          onClick={() => setShowCreator(true)}
-          className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition flex items-center gap-2"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          New Gallery Round
-        </button>
-      </div>
-
-      {/* Rounds list */}
-      {loading ? (
-        <div className="space-y-3">
-          <div className="h-24 bg-gray-100 rounded-xl animate-pulse" />
-          <div className="h-24 bg-gray-100 rounded-xl animate-pulse" />
-        </div>
-      ) : rounds.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-purple-100 flex items-center justify-center mx-auto mb-4">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          </div>
-          <p className="text-gray-900 font-semibold mb-1">No gallery rounds yet</p>
-          <p className="text-gray-500 text-sm mb-4">Create a pin-up crit round for students to share work and give peer feedback.</p>
-          <button
-            onClick={() => setShowCreator(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition"
-          >
-            Create Your First Round
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {rounds.map((round: any) => (
-            <GalleryRoundCard
-              key={round.id}
-              round={round}
-              onClick={() => {
-                if (round.display_mode === "canvas") {
-                  setCanvasRoundId(round.id);
-                } else {
-                  setMonitorRoundId(round.id);
-                }
-              }}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Info card */}
-      <div className="bg-purple-50 border border-purple-200 rounded-xl p-5">
-        <h3 className="font-semibold text-purple-900 flex items-center gap-2 mb-2">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
-          </svg>
-          About Pin-Up Gallery
-        </h3>
-        <p className="text-sm text-purple-700 leading-relaxed mb-3">
-          Pin-up crits are a core design studio practice. Students share work-in-progress, then browse and give structured feedback to classmates. Effort-gated: students must complete their reviews before seeing feedback on their own work.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-          <div className="bg-white/70 rounded-lg p-3 border border-purple-100">
-            <div className="font-semibold text-purple-800 mb-1">Review Formats</div>
-            <p className="text-purple-600 text-xs">Quick Comment, PMI Analysis, Two Stars & a Wish, or any toolkit tool.</p>
-          </div>
-          <div className="bg-white/70 rounded-lg p-3 border border-purple-100">
-            <div className="font-semibold text-purple-800 mb-1">Effort-Gating</div>
-            <p className="text-purple-600 text-xs">Students must complete minimum reviews before seeing their own feedback.</p>
-          </div>
-          <div className="bg-white/70 rounded-lg p-3 border border-purple-100">
-            <div className="font-semibold text-purple-800 mb-1">MYP Criterion D</div>
-            <p className="text-purple-600 text-xs">Structured peer evaluation maps directly to Criterion D (Evaluating).</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+// (Phase 3.5 Step 1 — GalleryTab function lifted to
+// src/components/teacher/class-hub/GalleryDrawer.tsx. Triggered by
+// the canvas gallery-strip "Open gallery →" CTA + ?tab=gallery
+// legacy compat. The inline function lived here from before the
+// canvas rebuild but was orphan from Phase 3.1 Step 2 onward.)
 
 export default function ClassHubPage({
   params,
