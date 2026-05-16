@@ -8,6 +8,7 @@ import { StudentContext } from "./student-context";
 // Component file preserved for future re-integration via a unified surface.
 import { StudioSetup } from "@/components/student/StudioSetup";
 import { BugReportButton } from "@/components/shared/BugReportButton";
+import { WrongRoleBanner } from "@/components/shared/WrongRoleBanner";
 import { BoldTopNav } from "@/components/student/BoldTopNav";
 import { BellCountContext } from "@/components/student/BellCountContext";
 import { SidebarSlotContext } from "@/components/student/SidebarSlotContext";
@@ -233,6 +234,12 @@ export default function StudentLayout({
             onOpenSettings={() => setShowSettings(true)}
             onLogout={handleLogout}
           />
+          {/* FU-AV2-WRONG-ROLE-TOAST: surfaces when middleware Phase 6.3b
+              or the TeacherLayout/SchoolLayout fail-closed fix bounces a
+              wrong-role session here with ?wrong_role=1. Render BETWEEN
+              the top nav and the page content so the banner appears in
+              the content column, not above the chrome. */}
+          <WrongRoleBanner role="student" />
           {children}
 
           {/* QuickToolFAB removed 23 Apr 2026 — was floating on every
