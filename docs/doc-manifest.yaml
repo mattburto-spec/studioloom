@@ -30,9 +30,9 @@ docs:
 
   - path: docs/decisions-log.md
     title: "Key Decisions Log"
-    purpose: "215+ architectural and design decisions. Latest 11 May 2026: Summative Lessons reconciled as B′ (presentation moves on Task System) — deferred to next semester after independent Cowork + Gemini review confirmed 5 May verdict. 8 May 2026 marathon: kanban save-race fix; hard-nav for Next.js 15 silent fail; Vercel Analytics consolidation; auto-merge default workflow."
+    purpose: "217+ architectural and design decisions. Latest 16 May 2026: Student-side Unit → Project rename split into 3 phases (UI strings → URLs → data model), teacher-side Unit vocabulary preserved."
     category: root
-    last_verified: "2026-05-11"
+    last_verified: "2026-05-16"
     max_age_days: 90
     last_scanned: null
 

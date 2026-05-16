@@ -74,6 +74,47 @@ No FUs filed for these — all expected platform/browser behaviour. Documented i
 
 ---
 
+## 2026-05-16 (evening) — Student-side "Unit" → "Project" UI rename Phase 2 ([studioloom#329](https://github.com/mattburto-spec/studioloom/pull/329))
+
+**Context:** Phase 2 of a phased Unit→Project rename. Prompt 1 (an earlier discussion, not in this session) decided to split the rename into surface change → URL rename → data model rename. This session executed the surface change (Phase 2).
+
+**Scope rule:** UI strings only on student-facing surfaces. No data-model, route, API path, type name, or AI-prompt changes. Teacher-side "Unit" vocabulary preserved (it's the curriculum-planning artifact name in teacher mental model).
+
+**Audit (two passes before any code touched):**
+- Pass 1 — top-level student page chrome + components. Identified 25 string sites across 10 files.
+- Pass 2 — extended audit covering all activity blocks (kanban, timeline, choice-cards, first-move, inspiration-board, product-brief, project-spec, success-criteria, tap-a-word, user-profile, lesson-bold), the unit-brief drawer ("Design Brief & Constraints" UI, ~900 lines read in full), AI prompt bodies (design-assistant + open-studio), Discovery Engine (8 stations + Kit mentor + shell), onboarding (StudioSetup, StudentIntakeSurvey), gallery/safety/fabrication student-side. **Net new finds from Pass 2: 0.** Pass 1 map was complete. Important Pass 2 finding: AI prompt bodies already use `vocabulary.project` from FrameworkAdapter — no prompt rename needed because the AI is already producing "project" language as the fallback.
+
+**What shipped (PR #329, squash commit `f0160f79`):**
+- 10 files / 25 string sites / 25 insertions / 25 deletions
+- dashboard top-nav label "Units" → "Projects" + paired DOM anchor `dashboard-units` → `dashboard-projects` (label + section id moved together so smooth scroll keeps working)
+- Empty-state copy ("No projects yet", "Your teacher will add projects…")
+- CTA labels ("Start this project", "Start project")
+- Inline copy ("Your projects · N in progress", "Show all projects")
+- Lesson page h1 fallback + "This project doesn't have any lesson content yet"
+- Grades empty state, Open Studio back link ("← Back to Project"), Skills empty state, BadgeGate copy, OwnTime card copy, PDF export header
+
+**Verification:**
+- `tsc --noEmit` clean for touched files (one pre-existing unrelated test regex error)
+- Dev server compiled all 6 touched student routes with zero errors
+- Production smoke confirmed by Matt post-merge
+
+**Footguns encountered:**
+- Worktree was on `fix-class-dj-teacher-thinking-rotation` (not the labeled `claude/vigorous-darwin-2befdc`) with one unmerged class-dj follow-up commit (69bae83a) and uncommitted WIP in 4 unrelated docs files. Recovered by saving my edits to a patch file, reverting working tree, branching cleanly off `origin/main`, re-applying the patch — clean PR without bundling the prior session's work.
+- `gh pr merge --delete-branch` failed local fast-forward (same footgun as 15 May Class Hub PR — "main is already used by worktree at sibling worktree"). PR merged on GitHub regardless; remote branch deleted via `gh api -X DELETE`.
+
+**Systems affected:** Student dashboard chrome, lesson view, Open Studio entry, skills page, grades page, BadgeGate, OwnTimeCard, PDF export. No system topology change — pure surface refactor.
+
+**Tests:** No test assertions reference these literal strings (verified during audit). 5180-baseline test count preserved.
+
+**Follow-ups filed:**
+- Phase 3 (URL rename): `/student/unit/[unitId]` → `/student/project/[projectId]`. Deferred deliberately. Worth bundling with the API path rename (`/api/student/unit/...` → `/api/student/project/...`).
+- Phase 4 (data model rename): `units` table → `projects`, `unit_type` → `project_type`, `UnitBrief` → `ProjectBrief`, `class_units` → `class_projects`, etc. + WIRING.yaml + schema-registry.yaml + all internal docs vocabulary sweep.
+- **FU-SCHEMA-REGISTRY-YAML-PARSE** (P3) — `docs/schema-registry.yaml:2384` has a YAML parse error blocking `scan-api-routes.py`. Pre-existing (not from this session); likely a hand-edit went wrong. Surfaced during saveme registry sync. Fixing it would unblock the api-registry scanner.
+- Vocabulary gap: internal docs (WIRING, registries, lessons-learned, changelog) still say "Unit". By design — will flip with Phase 4. Worth being aware that for the next 1-N weeks (until Phase 4 lands), there's a UI/docs vocabulary split.
+- **`FU-SCHEMA-REGISTRY-YAML-PARSE` (P3) — RESOLVED in [PR #331](https://github.com/mattburto-spec/studioloom/pull/331)** (this saveme's security-arc saveme, which ran into the same blocker an hour later). Root cause: `PR #N` and `Lesson #N` substrings in unquoted multi-line spec_drift entries — `#` after whitespace = YAML inline comment marker. Fix: two `replace_all`s (`PR #` → `PR-`, `Lesson #` → `Lesson-`).
+
+---
+
 ## 2026-05-16 (PM, earlier) — Trigger fix + cleanup: 53 phantom student-shape teacher rows (Lesson #92, Lesson #65 redux)
 
 **Context:** Session opened to start `FU-SEC-TEACHER-LAYOUT-FAIL-OPEN` (P1) — the morning saveme had filed it after Matt found a student rendering the teacher chrome in /teacher/classes. Mid-pre-flight Matt opened /admin/teachers to spot-check the diagnostic and found 56 teacher rows instead of ~3 — 53 of them were synthetic-email shapes (`student-<uuid>@students.studioloom.local`). Same shape as the original Lesson #65 leak (1 May). Layout work was paused; the active production data integrity issue took precedence. (Block C `set_active_unit` security session — entry below — happened in parallel and shipped ~30 min later.)
