@@ -229,7 +229,19 @@ export default function StudentLayout({
           <BoldTopNav
             student={student}
             classInfo={effectiveClassInfo}
-            loading={false}
+            // Pass loading=true whenever student is null so the existing
+            // skeleton-pulse UI covers the brief window between layout
+            // mount and loadSession() resolving — or, on the bounce-to-
+            // /login path, the window between loading flipping false and
+            // router.push completing. Previously this was hardcoded
+            // `loading={false}` and `studentToSession(null)` fell back to
+            // STUDENT_MOCK ("Sam · Year 7 · Design"). 16 May 2026:
+            // surfaced via FU-AV2-CROSS-TAB-ROLE-COLLISION smoke — a
+            // teacher whose sb-* cookie got stomped by a student
+            // classcode-login briefly saw the "Sam" placeholder before
+            // bouncing. Defense in depth: STUDENT_MOCK was also changed
+            // to neutral placeholders in the same commit.
+            loading={!student}
             bellCount={bellCount}
             onOpenSettings={() => setShowSettings(true)}
             onLogout={handleLogout}

@@ -55,12 +55,29 @@ export function gradFor(name: string): string {
   return AVATAR_GRADS[Math.abs(hash) % AVATAR_GRADS.length];
 }
 
+/**
+ * Placeholder shown when the BoldTopNav renders with no student in
+ * context (e.g. during the brief window between layout mount and
+ * loadSession() resolving). Intentionally neutral — no realistic name,
+ * no plausible class — so a user catching the flash mid-navigation
+ * never gets the false impression that someone else is logged in.
+ *
+ * 16 May 2026: was previously `name: "Sam", classTag: "Year 7 · Design"`.
+ * A teacher whose Supabase session got stomped by a stale student
+ * classcode-login cookie (FU-AV2-CROSS-TAB-ROLE-COLLISION) opened
+ * /dashboard in a new tab, the student layout briefly mounted while
+ * loadSession was in flight, and "Sam · Year 7 · Design" flashed —
+ * a name they didn't recognise. Same risk for any expired-student-token
+ * bounce path. Defense in depth: even if the layout fix
+ * (`loading={!student}`) ever regresses, this fallback won't lie about
+ * identity.
+ */
 export const STUDENT_MOCK: SessionStudent = {
-  name: "Sam",
-  first: "Sam",
-  initials: "SM",
-  avatarGrad: "from-[#E86F2C] to-[#EC4899]",
-  classTag: "Year 7 · Design",
+  name: "—",
+  first: "—",
+  initials: "—",
+  avatarGrad: "from-[#E8E6DF] to-[#D4D1C8]",
+  classTag: null,
 };
 
 /** Derive a SessionStudent view-model from the raw Student object held in
