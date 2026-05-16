@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, use, useCallback } from "react";
+import { useState, useEffect, use, useCallback, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 // Lever-MM (4 May 2026): NMConfigPanel no longer mounted from this surface
 // — configuration moved to the lesson editor's New Metrics block category.
@@ -27,6 +28,7 @@ import { ClassProfileOverview } from "@/components/teacher/ClassProfileOverview"
 import { GalleryRoundCreator, GalleryMonitor, GalleryRoundCard, GalleryCanvasModal } from "@/components/gallery";
 import { getYearLevelNumber } from "@/lib/utils/year-level";
 import StudentDrawer from "@/components/teacher/class-hub/StudentDrawer";
+import StudentRosterDrawer from "@/components/teacher/class-hub/StudentRosterDrawer";
 import UnitAttentionPanel from "@/components/teacher/UnitAttentionPanel";
 
 // ---------------------------------------------------------------------------
@@ -258,6 +260,11 @@ export default function ClassHubPage({
   params: Promise<{ unitId: string; classId: string }>;
 }) {
   const { unitId, classId } = use(params);
+  const router = useRouter();
+  // Guard against the legacy ?tab compat handler firing twice (React strict
+  // mode double-mount in dev, plus the effect's deps would re-trigger if
+  // we depended on `students`). Module-mount-once contract.
+  const legacyTabCompatFired = useRef(false);
 
   // Shared data (loaded once)
   const [unit, setUnit] = useState<Unit | null>(null);
@@ -300,15 +307,107 @@ export default function ClassHubPage({
   // Open Studio unlock/revoke is managed entirely in the Open Studio tab
   const [badgeRequirements, setBadgeRequirements] = useState<Array<{ badge_id: string; badge_name: string; badge_slug: string; is_required: boolean }>>([]);
   const [badgeStatusMap, setBadgeStatusMap] = useState<Record<string, Array<{ badge_id: string; status: "earned" | "failed" | "not_attempted"; score: number | null }>>>({});
-  const [selectedDetailStudent, setSelectedDetailStudent] = useState<{ id: string; name: string } | null>(null);
-  const [selectedDetailPage, setSelectedDetailPage] = useState<string | null>(null);
-  const [detailResponses, setDetailResponses] = useState<Record<string, string> | null>(null);
-  const [detailIntegrity, setDetailIntegrity] = useState<Record<string, IntegrityMetadata> | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
   const [nmObserveStudent, setNmObserveStudent] = useState<{ id: string; name: string } | null>(null);
 
-  // Student Drawer state
+  // Student Drawer state — `drawerPageId` (Phase 3.1 Step 4) carries an
+  // optional pageId qualifier that the drawer's Recent Work section uses
+  // to auto-scroll + highlight a specific page entry on mount. Used by:
+  //   - legacy ?tab compat (Step 4) when the URL carries &page=... too
+  //   - future per-page deep-links (Phase 3.5 gallery / 3.6 cutover)
+  // For 3.1 the grid name + progress-bar clicks set drawerStudent with
+  // pageId=null (whole-student snapshot). The pageId capability is in
+  // place so deep-links don't need a follow-up StudentDrawer refactor.
   const [drawerStudent, setDrawerStudent] = useState<{ id: string; name: string } | null>(null);
+  const [drawerPageId, setDrawerPageId] = useState<string | null>(null);
+
+  // Add-student drawer (Phase 3.1 Step 4) — opens the lifted
+  // StudentRosterDrawer wrapping the old StudentsTab logic.
+  const [rosterDrawerOpen, setRosterDrawerOpen] = useState(false);
+
+  // -----------------------------------------------------------------------
+  // Legacy ?tab=... compat (Phase 3.1 Step 4, G12 sign-off).
+  // -----------------------------------------------------------------------
+  // The dashboard route + old bookmarks still mint ?tab=progress / grade /
+  // students / metrics / badges / gallery / studio / settings URLs (plus
+  // the legacy aliases safety / open-studio / attention). Fire once on
+  // mount, route to the matching canvas surface where one exists, then
+  // drop the param so the URL stops carrying stale tab state.
+  //
+  // Surfaces that have landed by Phase 3.1 Step 4:
+  //   • tab=students            → open StudentRosterDrawer
+  //   • tab=grade               → redirect to /teacher/marking
+  //   • tab=progress (or none)  → no-op (canvas IS the progress view)
+  //
+  // Deferred surfaces (no-op until the matching phase ships):
+  //   • tab=metrics             → side-rail metrics card (Phase 3.2)
+  //   • tab=badges              → side-rail safety card (Phase 3.2)
+  //   • tab=gallery             → gallery strip (Phase 3.5)
+  //   • tab=studio              → side-rail Open Studio card (Phase 3.2)
+  //   • tab=settings            → /teacher/classes/[classId]/settings (Phase 3.4)
+  //
+  // Legacy aliases (mirrored from the old activeTab initializer):
+  //   • tab=safety              → badges (deferred above)
+  //   • tab=open-studio         → studio (deferred above)
+  //   • tab=attention           → metrics (deferred above)
+  //
+  // Optional deep-link qualifiers:
+  //   • &student=<id>&page=<pageId>  → open StudentDrawer for that
+  //     student with the pageId qualifier (works regardless of which
+  //     tab= value is set). Phase 3.5 / 3.6 will mint these for
+  //     per-page notification deep-links.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (legacyTabCompatFired.current) return;
+    // Wait for the roster to load so we can resolve student deep-links
+    // to display names. If `students` arrives empty (loader finished but
+    // class has no enrolment), fire anyway to clear the URL.
+    if (loading) return;
+    legacyTabCompatFired.current = true;
+
+    const url = new URL(window.location.href);
+    const tab = url.searchParams.get("tab");
+    const studentParam = url.searchParams.get("student");
+    const pageParam = url.searchParams.get("page");
+
+    // ?tab=grade → external redirect (preserve class+unit context)
+    if (tab === "grade") {
+      router.replace(`/teacher/marking?class=${classId}&unit=${unitId}`);
+      return;
+    }
+
+    // ?tab=settings → sub-route lands in Phase 3.4. For 3.1, no-op
+    // (drop the param, stay on canvas). The kebab "Class settings…"
+    // item from Phase 3.4 will be the canonical entry point.
+    // ?tab=metrics / badges / gallery / studio (+ aliases) → no-op
+    // surfaces wire in 3.2 / 3.5. Console hint so smoke-test logs
+    // make it visible the redirect fired.
+    let openedRoster = false;
+    if (tab === "students") {
+      setRosterDrawerOpen(true);
+      openedRoster = true;
+    }
+
+    // ?student=<id>&page=<pageId> → open StudentDrawer with pageId
+    // (independent of tab=). Skip if we just opened the roster drawer
+    // to avoid two drawers stacking.
+    if (!openedRoster && studentParam && students.length > 0) {
+      const match = students.find((s) => s.id === studentParam);
+      if (match) {
+        setDrawerStudent({ id: match.id, name: match.display_name || match.username });
+        if (pageParam) setDrawerPageId(pageParam);
+      }
+    }
+
+    // Always drop the tab/student/page params after handling — the
+    // canvas is the canonical surface; URL state shouldn't pin to the
+    // legacy tab name. Other query params survive.
+    if (tab || studentParam || pageParam) {
+      url.searchParams.delete("tab");
+      url.searchParams.delete("student");
+      url.searchParams.delete("page");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [loading, students, router, classId, unitId]);
 
   // -----------------------------------------------------------------------
   // Load shared data (unit, class, students, pages, settings)
@@ -556,56 +655,17 @@ export default function ClassHubPage({
     finally { setSavingTerm(false); }
   }
 
-  function getStudentCompletion(studentId: string): number {
-    const sp = progressMap[studentId];
-    if (!sp) return 0;
-    return Object.values(sp).filter((c) => c.status === "complete").length;
-  }
-
-  function getPageCompletion(pageId: string): number {
-    let count = 0;
-    students.forEach((s) => {
-      if (progressMap[s.id]?.[pageId]?.status === "complete") count++;
-    });
-    return count;
-  }
-
-  function getStatusColor(status: string | undefined) {
-    switch (status) {
-      case "complete": return "bg-accent-green text-white";
-      case "in_progress": return "bg-amber-400 text-white";
-      default: return "bg-gray-100 text-gray-400";
-    }
-  }
-
-  function getStatusIcon(status: string | undefined) {
-    switch (status) { case "complete": return "✓"; case "in_progress": return "●"; default: return "—"; }
-  }
-
-  async function loadStudentDetail(student: { id: string; name: string }, pageId: string) {
-    setSelectedDetailStudent(student);
-    setSelectedDetailPage(pageId);
-    setDetailLoading(true);
-    setDetailResponses(null);
-    setDetailIntegrity(null);
-
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("student_progress")
-      .select("responses, integrity_metadata")
-      .eq("student_id", student.id)
-      .eq("unit_id", unitId)
-      .eq("page_id", pageId)
-      .maybeSingle();
-
-    setDetailResponses((data?.responses as Record<string, string>) || {});
-    const raw = data as unknown as Record<string, unknown>;
-    const intMeta = raw?.integrity_metadata;
-    if (intMeta && typeof intMeta === "object" && Object.keys(intMeta as Record<string, unknown>).length > 0) {
-      setDetailIntegrity(intMeta as Record<string, IntegrityMetadata>);
-    }
-    setDetailLoading(false);
-  }
+  // ─── G9 sign-off (16 May 2026) ────────────────────────────────────────
+  // The old inline per-cell student-detail modal + its loader + the
+  // 4 dead progress-grid helpers (getStudentCompletion, getPageCompletion,
+  // getStatusColor, getStatusIcon) were removed when the Progress tab
+  // JSX went away. Per-cell drill-down now flows through StudentDrawer
+  // with an optional pageId qualifier (see drawerPageId state above
+  // + StudentDrawer pageId prop). The grid's name + progress-bar clicks
+  // open the drawer for a whole-student snapshot; pageId-scoped opens
+  // come from legacy ?tab=... deep-links (parsed below) and future
+  // per-page UIs (Phase 3.5 gallery / 3.6 cutover).
+  // ──────────────────────────────────────────────────────────────────────
 
   // -----------------------------------------------------------------------
   // Render
@@ -758,15 +818,16 @@ export default function ClassHubPage({
                     </button>
                   ))}
                 </div>
-                {/* Add-student is a Step 4 wiring (StudentRosterDrawer). The
-                    button renders disabled in 3.1 Step 3 so its slot in
-                    the header doesn't shift when 4 lands. */}
+                {/* + Add student → opens StudentRosterDrawer (Phase 3.1
+                    Step 4 — lifted from the old Students tab). Drawer
+                    handles Add Existing / Create New / edit / remove +
+                    class-code reveal. */}
                 <button
                   type="button"
                   data-testid="student-grid-add-student"
-                  disabled
-                  title="Add student (drawer arrives in Phase 3.1 Step 4)"
-                  className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-text-primary text-white opacity-50 cursor-not-allowed flex items-center gap-1.5"
+                  onClick={() => setRosterDrawerOpen(true)}
+                  title="Manage roster — add, edit, or remove students"
+                  className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-text-primary text-white hover:opacity-90 transition flex items-center gap-1.5"
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                   Add student
@@ -929,8 +990,20 @@ export default function ClassHubPage({
                     />
                   </div>
 
-                  {/* Unit progress bar + % */}
-                  <div className="flex flex-col gap-1">
+                  {/* Unit progress bar + % — clicking opens StudentDrawer
+                      for that student (whole-student snapshot, no pageId
+                      qualifier). Per-page deep-links come via legacy
+                      ?tab=...&page=... or future per-page surfaces. */}
+                  <button
+                    type="button"
+                    data-testid={`student-row-${student.id}-progress`}
+                    onClick={() => {
+                      setDrawerPageId(null);
+                      setDrawerStudent({ id: student.id, name: studentName });
+                    }}
+                    title={`Open ${studentName}'s snapshot`}
+                    className="flex flex-col gap-1 w-full hover:opacity-80 transition"
+                  >
                     <div className="w-full h-1.5 rounded-full bg-surface-alt overflow-hidden">
                       <div
                         className="h-full bg-accent-green transition-all"
@@ -938,7 +1011,7 @@ export default function ClassHubPage({
                       />
                     </div>
                     <div className="text-[11px] font-medium text-text-secondary text-center">{percent}%</div>
-                  </div>
+                  </button>
 
                   {/* Marking pill */}
                   <div className="flex justify-center">
@@ -1066,7 +1139,9 @@ export default function ClassHubPage({
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* Student Drawer                                                    */}
+      {/* Student Drawer (Phase 3.1) — pageId qualifier carried through for */}
+      {/* per-page deep-links from legacy ?tab=...&page=... compat + future */}
+      {/* per-page UIs (Phase 3.5 gallery, 3.6 cutover).                    */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {drawerStudent && (
         <StudentDrawer
@@ -1074,7 +1149,28 @@ export default function ClassHubPage({
           studentName={drawerStudent.name}
           unitId={unitId}
           classId={classId}
-          onClose={() => setDrawerStudent(null)}
+          pageId={drawerPageId}
+          onClose={() => {
+            setDrawerStudent(null);
+            setDrawerPageId(null);
+          }}
+        />
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* Student Roster Drawer (Phase 3.1 Step 4) — lifted from old        */}
+      {/* StudentsTab. Triggered by the student-grid "+ Add student"       */}
+      {/* button. Handles Add Existing / Create New + edit + remove + class*/}
+      {/* code reveal.                                                      */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {rosterDrawerOpen && (
+        <StudentRosterDrawer
+          classId={classId}
+          classCode={classCode}
+          className={className}
+          students={students}
+          setStudents={setStudents}
+          onClose={() => setRosterDrawerOpen(false)}
         />
       )}
 
@@ -1098,424 +1194,3 @@ export default function ClassHubPage({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Students Tab — manage class enrollment
-// ---------------------------------------------------------------------------
-
-function StudentsTab({
-  classId,
-  students,
-  setStudents,
-}: {
-  classId: string;
-  students: Array<{ id: string; display_name: string; username: string; graduation_year?: string | null }>;
-  setStudents: React.Dispatch<React.SetStateAction<Array<{ id: string; display_name: string; username: string; graduation_year?: string | null }>>>;
-}) {
-  const [addMode, setAddMode] = useState(false);
-  const [addTab, setAddTab] = useState<"existing" | "new">("existing");
-  const [newDisplayName, setNewDisplayName] = useState("");
-  const [newUsername, setNewUsername] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editUsername, setEditUsername] = useState("");
-  const [removeConfirmId, setRemoveConfirmId] = useState<string | null>(null);
-  const [removing, setRemoving] = useState(false);
-  // Existing students state
-  const [existingStudents, setExistingStudents] = useState<Array<{ id: string; display_name: string; username: string; graduation_year?: string | null }>>([]);
-  const [loadingExisting, setLoadingExisting] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [enrollingIds, setEnrollingIds] = useState<Set<string>>(new Set());
-
-  // Load teacher's existing students when "Add Existing" tab is shown
-  useEffect(() => {
-    if (!addMode || addTab !== "existing") return;
-    let cancelled = false;
-    async function loadExisting() {
-      setLoadingExisting(true);
-      try {
-        const supabase = createClient();
-        // Get current user (teacher)
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user || cancelled) return;
-
-        // Get all students owned by this teacher
-        const { data: allStudents } = await supabase
-          .from("students")
-          .select("id, display_name, username, graduation_year")
-          .eq("author_teacher_id", user.id)
-          .order("display_name", { ascending: true });
-
-        if (cancelled || !allStudents) return;
-
-        // Filter out students already in this class
-        const enrolledIds = new Set(students.map((s) => s.id));
-        const available = allStudents.filter((s) => !enrolledIds.has(s.id));
-        setExistingStudents(available);
-      } catch (e) {
-        console.error("[StudentsTab] Failed to load existing students:", e);
-      } finally {
-        if (!cancelled) setLoadingExisting(false);
-      }
-    }
-    loadExisting();
-    return () => { cancelled = true; };
-  }, [addMode, addTab, classId, students]);
-
-  async function enrollExistingStudent(student: { id: string; display_name: string; username: string; graduation_year?: string | null }) {
-    setEnrollingIds((prev) => new Set(prev).add(student.id));
-    setError("");
-    try {
-      const supabase = createClient();
-      const { error: enrollErr } = await supabase.from("class_students").insert({
-        student_id: student.id,
-        class_id: classId,
-        is_active: true,
-      });
-
-      if (enrollErr) {
-        // Might be duplicate — try reactivating
-        if (enrollErr.code === "23505") {
-          await supabase
-            .from("class_students")
-            .update({ is_active: true })
-            .eq("student_id", student.id)
-            .eq("class_id", classId);
-        } else {
-          throw enrollErr;
-        }
-      }
-
-      setStudents((prev) => [...prev, student].sort((a, b) => (a.display_name || a.username).localeCompare(b.display_name || b.username)));
-      setExistingStudents((prev) => prev.filter((s) => s.id !== student.id));
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to enrol student");
-    } finally {
-      setEnrollingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(student.id);
-        return next;
-      });
-    }
-  }
-
-  async function addStudent() {
-    if (!newDisplayName.trim() && !newUsername.trim()) return;
-    setSaving(true);
-    setError("");
-    try {
-      // FU-AV2-UI-STUDENT-INSERT-REFACTOR (30 Apr 2026): create + enroll
-      // via POST /api/teacher/students. Atomic INSERT + auth.users
-      // provision + class_students enrollment.
-      const res = await fetch("/api/teacher/students", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username:
-            newUsername.trim() ||
-            newDisplayName.trim().toLowerCase().replace(/\s+/g, "_"),
-          displayName: newDisplayName.trim(),
-          classId,
-        }),
-      });
-      const body = await res.json();
-      if (!res.ok) {
-        throw new Error(body?.error || "Failed to create student");
-      }
-      // Coerce route response (display_name: string|null, graduation_year:
-      // number|null) to the local state's expected shape.
-      const routeStudent = body.student as {
-        id: string;
-        display_name: string | null;
-        username: string;
-        graduation_year: number | null;
-      };
-      const newStudent = {
-        id: routeStudent.id,
-        display_name: routeStudent.display_name ?? "",
-        username: routeStudent.username,
-        graduation_year: routeStudent.graduation_year != null
-          ? String(routeStudent.graduation_year)
-          : null,
-      };
-
-      setStudents((prev) => [...prev, newStudent].sort((a, b) => (a.display_name || a.username).localeCompare(b.display_name || b.username)));
-      setNewDisplayName("");
-      setNewUsername("");
-      setAddMode(false);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to add student");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function saveEdit(studentId: string) {
-    if (!editName.trim() && !editUsername.trim()) return;
-    setSaving(true);
-    try {
-      const supabase = createClient();
-      await supabase.from("students").update({
-        display_name: editName.trim(),
-        username: editUsername.trim(),
-      }).eq("id", studentId);
-
-      setStudents((prev) => prev.map((s) =>
-        s.id === studentId ? { ...s, display_name: editName.trim(), username: editUsername.trim() } : s
-      ));
-      setEditingId(null);
-    } catch {
-      // silent
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function removeStudent(studentId: string) {
-    setRemoving(true);
-    try {
-      // Use server API — handles deactivation + session invalidation
-      const res = await fetch("/api/teacher/class-students", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId, classId }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        console.error("[removeStudent] Error:", data.error);
-        return;
-      }
-
-      setStudents((prev) => prev.filter((s) => s.id !== studentId));
-      setRemoveConfirmId(null);
-    } catch {
-      // silent
-    } finally {
-      setRemoving(false);
-    }
-  }
-
-  const filteredExisting = searchQuery.trim()
-    ? existingStudents.filter((s) =>
-        (s.display_name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (s.username || "").toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : existingStudents;
-
-  return (
-    <div className="max-w-2xl">
-      {/* Header with add button */}
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-text-secondary">{students.length} student{students.length !== 1 ? "s" : ""} enrolled</p>
-        <button
-          onClick={() => { setAddMode(true); setAddTab("existing"); setError(""); setSearchQuery(""); }}
-          className="px-3 py-1.5 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 transition flex items-center gap-1.5"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          Add Student
-        </button>
-      </div>
-
-      {/* Add student panel */}
-      {addMode && (
-        <div className="mb-4 bg-purple-50 border border-purple-200 rounded-xl p-4">
-          {/* Tab toggle */}
-          <div className="flex gap-1 mb-3 bg-purple-100 rounded-lg p-0.5">
-            <button
-              onClick={() => { setAddTab("existing"); setError(""); }}
-              className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition ${
-                addTab === "existing" ? "bg-white text-purple-700 shadow-sm" : "text-purple-600 hover:text-purple-800"
-              }`}
-            >
-              Add Existing
-            </button>
-            <button
-              onClick={() => { setAddTab("new"); setError(""); }}
-              className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition ${
-                addTab === "new" ? "bg-white text-purple-700 shadow-sm" : "text-purple-600 hover:text-purple-800"
-              }`}
-            >
-              Create New
-            </button>
-          </div>
-
-          {addTab === "existing" ? (
-            /* Enrol existing students */
-            <div>
-              <input
-                id="student-search"
-                name="student-search"
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search your students..."
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 mb-2"
-                autoFocus
-              />
-              {loadingExisting ? (
-                <p className="text-xs text-gray-500 py-4 text-center">Loading students...</p>
-              ) : filteredExisting.length === 0 ? (
-                <div className="py-4 text-center">
-                  <p className="text-xs text-gray-500">
-                    {existingStudents.length === 0
-                      ? "No other students found. All your students are already in this class, or create a new one below."
-                      : "No students match your search."}
-                  </p>
-                  {existingStudents.length === 0 && (
-                    <button onClick={() => setAddTab("new")} className="text-xs text-purple-600 font-medium mt-1 hover:underline">
-                      Create a new student instead
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white divide-y divide-gray-100">
-                  {filteredExisting.map((s) => (
-                    <div key={s.id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 transition">
-                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-indigo-400 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
-                        {(s.display_name || s.username || "?").charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{s.display_name || s.username}</p>
-                        {s.display_name && s.username && s.display_name !== s.username && (
-                          <p className="text-[10px] text-gray-400 font-mono">{s.username}</p>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => enrollExistingStudent(s)}
-                        disabled={enrollingIds.has(s.id)}
-                        className="px-2.5 py-1 rounded-lg bg-purple-600 text-white text-xs font-medium hover:bg-purple-700 transition disabled:opacity-50 flex-shrink-0"
-                      >
-                        {enrollingIds.has(s.id) ? "Adding..." : "Add"}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            /* Create new student */
-            <div>
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <div>
-                  <label htmlFor="new-student-name" className="block text-xs font-medium text-gray-700 mb-1">Display Name</label>
-                  <input
-                    id="new-student-name"
-                    name="new-student-name"
-                    type="text"
-                    value={newDisplayName}
-                    onChange={(e) => setNewDisplayName(e.target.value)}
-                    placeholder="e.g. Sarah Chen"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    autoFocus
-                  />
-                </div>
-                <div>
-                  <label htmlFor="new-student-username" className="block text-xs font-medium text-gray-700 mb-1">Username</label>
-                  <input
-                    id="new-student-username"
-                    name="new-student-username"
-                    type="text"
-                    value={newUsername}
-                    onChange={(e) => setNewUsername(e.target.value)}
-                    placeholder="auto-generated if blank"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={addStudent} disabled={saving || (!newDisplayName.trim() && !newUsername.trim())}
-                  className="px-4 py-1.5 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 transition disabled:opacity-50">
-                  {saving ? "Creating..." : "Create & Add"}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
-          <div className="flex justify-end mt-3">
-            <button onClick={() => { setAddMode(false); setError(""); setSearchQuery(""); }} className="px-4 py-1.5 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition">
-              Done
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Student list */}
-      <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-        {students.length === 0 ? (
-          <div className="p-8 text-center text-gray-400">
-            <p className="text-sm">No students in this class yet.</p>
-            <p className="text-xs mt-1">Add students above or share the class code for students to join.</p>
-          </div>
-        ) : (
-          students.map((s) => (
-            <div key={s.id} className="flex items-center gap-3 px-4 py-3 group hover:bg-gray-50 transition">
-              {/* Avatar */}
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-blue-400 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                {(s.display_name || s.username || "?").charAt(0).toUpperCase()}
-              </div>
-
-              {editingId === s.id ? (
-                /* Edit mode */
-                <div className="flex-1 flex items-center gap-2">
-                  <input id="edit-student-name" name="edit-student-name" type="text" value={editName} onChange={(e) => setEditName(e.target.value)}
-                    className="flex-1 px-2 py-1 rounded border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                  <input id="edit-student-username" name="edit-student-username" type="text" value={editUsername} onChange={(e) => setEditUsername(e.target.value)}
-                    className="w-32 px-2 py-1 rounded border border-gray-300 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                  <button onClick={() => saveEdit(s.id)} disabled={saving}
-                    className="px-2 py-1 rounded bg-purple-600 text-white text-xs font-medium hover:bg-purple-700 transition disabled:opacity-50">Save</button>
-                  <button onClick={() => setEditingId(null)} className="px-2 py-1 rounded border border-gray-300 text-xs text-gray-600 hover:bg-gray-50 transition">Cancel</button>
-                </div>
-              ) : (
-                /* Display mode */
-                <>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{s.display_name || s.username}</p>
-                    {s.display_name && s.username && s.display_name !== s.username && (
-                      <p className="text-xs text-gray-400 font-mono">{s.username}</p>
-                    )}
-                  </div>
-                  {s.graduation_year && (
-                    <span className="text-xs text-gray-400 font-mono">Y{getYearLevelNumber(typeof s.graduation_year === "number" ? s.graduation_year : parseInt(s.graduation_year, 10) || null)}</span>
-                  )}
-
-                  {/* Action buttons — visible on hover */}
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
-                    <button onClick={() => { setEditingId(s.id); setEditName(s.display_name); setEditUsername(s.username); }}
-                      className="p-1.5 rounded-lg hover:bg-gray-200 transition" title="Edit">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                      </svg>
-                    </button>
-
-                    {removeConfirmId === s.id ? (
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => removeStudent(s.id)} disabled={removing}
-                          className="px-2 py-1 rounded bg-red-600 text-white text-[10px] font-medium hover:bg-red-700 transition disabled:opacity-50">
-                          {removing ? "..." : "Remove"}
-                        </button>
-                        <button onClick={() => setRemoveConfirmId(null)} className="px-2 py-1 rounded border border-gray-300 text-[10px] text-gray-600 hover:bg-gray-50 transition">No</button>
-                      </div>
-                    ) : (
-                      <button onClick={() => setRemoveConfirmId(s.id)}
-                        className="p-1.5 rounded-lg hover:bg-red-50 transition" title="Remove from class">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
