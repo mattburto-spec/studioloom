@@ -304,6 +304,11 @@ export default function ClassHubPage({
   // in Phase 3.2 alongside the side-rail card.
   const [studentFilter, setStudentFilter] = useState<StudentFilterId>("all");
   const [gradingStatusMap, setGradingStatusMap] = useState<Record<string, GradingStatus>>({});
+  // Per-student draft `assessed_at` ISO timestamp (Phase 3.2 Step 1).
+  // Populated alongside gradingStatusMap from the same /api/teacher/assessments
+  // response so the Marking side-rail card can show "oldest N days" without
+  // a second fetch.
+  const [oldestDraftAtMap, setOldestDraftAtMap] = useState<Record<string, string>>({});
   // Open Studio unlock/revoke is managed entirely in the Open Studio tab
   const [badgeRequirements, setBadgeRequirements] = useState<Array<{ badge_id: string; badge_name: string; badge_slug: string; is_required: boolean }>>([]);
   const [badgeStatusMap, setBadgeStatusMap] = useState<Record<string, Array<{ badge_id: string; status: "earned" | "failed" | "not_attempted"; score: number | null }>>>({});
@@ -563,14 +568,22 @@ export default function ClassHubPage({
       setLastActiveMap(lastActive);
     }
 
-    // Grading status
+    // Grading status — feeds both the per-row Marking pill and the
+    // side-rail Marking summary card (Phase 3.2 Step 1). Capturing the
+    // per-row `assessed_at` for draft rows lets the card show "oldest
+    // N days" without a second fetch.
     try {
       const assessRes = await fetch(`/api/teacher/assessments?classId=${classId}&unitId=${unitId}`);
       if (assessRes.ok) {
         const { assessments } = (await assessRes.json()) as { assessments: AssessmentRecordRow[] };
         const statusMap: Record<string, GradingStatus> = {};
-        for (const a of assessments) statusMap[a.student_id] = a.is_draft ? "draft" : "published";
+        const oldestDraft: Record<string, string> = {};
+        for (const a of assessments) {
+          statusMap[a.student_id] = a.is_draft ? "draft" : "published";
+          if (a.is_draft && a.assessed_at) oldestDraft[a.student_id] = a.assessed_at;
+        }
         setGradingStatusMap(statusMap);
+        setOldestDraftAtMap(oldestDraft);
       }
     } catch { /* non-critical */ }
 
@@ -1084,18 +1097,76 @@ export default function ClassHubPage({
           data-testid="canvas-side-rail"
           className="flex flex-col gap-4 lg:sticky lg:top-32"
         >
-          <div
-            data-testid="canvas-rail-card-marking"
-            data-placeholder="phase-3-2"
-            className="bg-white rounded-2xl border border-border p-5"
-          >
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
-              Marking queue
-            </div>
-            <div className="mt-2 text-xs text-text-secondary">
-              Summary lands in Phase 3.2.
-            </div>
-          </div>
+          {/* MARKING QUEUE — re-uses gradingStatusMap + oldestDraftAtMap
+              already loaded for the per-row Marking pill. CTA links out
+              to the canonical /teacher/marking surface with class+unit
+              context (skips the picker steps). No new fetches. */}
+          {(() => {
+            let toMarkCount = 0;
+            let draftCount = 0;
+            let oldestDraftAt: string | null = null;
+            for (const s of students) {
+              const status = gradingStatusMap[s.id];
+              if (status === "draft") {
+                draftCount += 1;
+                const ts = oldestDraftAtMap[s.id];
+                if (ts && (!oldestDraftAt || ts < oldestDraftAt)) oldestDraftAt = ts;
+              } else if (status !== "published") {
+                // No assessment row OR ungraded — counts as "to mark" only if
+                // the student has completed at least one page (otherwise
+                // there's nothing to mark yet).
+                const pages = progressMap[s.id] || {};
+                const completed = Object.values(pages).filter((c) => c.status === "complete").length;
+                if (completed > 0) toMarkCount += 1;
+              }
+            }
+            const total = toMarkCount + draftCount;
+            const oldestDays = oldestDraftAt
+              ? Math.max(0, Math.floor((Date.now() - new Date(oldestDraftAt).getTime()) / 86_400_000))
+              : null;
+            return (
+              <div
+                data-testid="canvas-rail-card-marking"
+                className="bg-white rounded-2xl border border-border p-5"
+              >
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+                  Marking queue
+                </div>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span
+                    data-testid="rail-marking-count"
+                    className={`text-2xl font-bold ${total > 0 ? "text-text-primary" : "text-text-tertiary"}`}
+                  >
+                    {total}
+                  </span>
+                  <span className="text-xs text-text-secondary">
+                    {total === 1 ? "item" : "items"}
+                  </span>
+                </div>
+                <div className="mt-1 text-xs text-text-secondary">
+                  {total === 0 ? (
+                    "All clear — nothing to mark."
+                  ) : (
+                    <>
+                      {draftCount > 0 && `${draftCount} draft`}
+                      {draftCount > 0 && toMarkCount > 0 && " · "}
+                      {toMarkCount > 0 && `${toMarkCount} awaiting`}
+                      {oldestDays != null && draftCount > 0 && (
+                        <> · oldest {oldestDays === 0 ? "today" : `${oldestDays}d`}</>
+                      )}
+                    </>
+                  )}
+                </div>
+                <Link
+                  data-testid="rail-marking-cta"
+                  href={`/teacher/marking?class=${classId}&unit=${unitId}`}
+                  className="mt-3 inline-flex items-center justify-center w-full px-3 py-2 rounded-lg bg-surface-alt text-text-primary hover:bg-text-primary hover:text-white transition text-xs font-medium"
+                >
+                  Open marking →
+                </Link>
+              </div>
+            );
+          })()}
 
           <div
             data-testid="canvas-rail-card-studio"
