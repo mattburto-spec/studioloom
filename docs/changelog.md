@@ -4,6 +4,60 @@
 
 ---
 
+## 2026-05-16 (afternoon) — Block C: set_active_unit unit-ownership gate ([PR #323](https://github.com/mattburto-spec/studioloom/pull/323), closes [FU-SEC-SET-ACTIVE-UNIT-MISSING-UNIT-OWNERSHIP-CHECK](security/security-plan.md))
+
+**Context:** Adversarial probing of the Block A/B `set_active_unit` SECURITY DEFINER function (PR #319, earlier same day) revealed that the function only authorized on `class_uuid` (via `is_teacher_of_class`) but did NOT check anything about `target_unit_uuid`. Any authenticated teacher could attach any unit_id (including foreign teachers' private unpublished units) to one of their own classes, bypassing the fork flow + fork_count attribution + publish gate. Live exploit was attempted but obstructed by Matt being the only teacher with units in this prod instance — the test inadvertently picked one of his own units and returned 204 as a no-op self-activation. Gap was provable from migration source alone. Filed as `FU-SEC-SET-ACTIVE-UNIT-MISSING-UNIT-OWNERSHIP-CHECK` (P1) via PR [#321](https://github.com/mattburto-spec/studioloom/pull/321) + sister-to `FU-SEC-TEACHER-LAYOUT-FAIL-OPEN` from the same probe session.
+
+### What shipped
+
+- **Migration `20260516052310_set_active_unit_unit_ownership_check`** — `CREATE OR REPLACE FUNCTION public.set_active_unit(uuid, uuid)` with a SECOND `IF NOT EXISTS` auth gate inserted between the existing `is_teacher_of_class` check and the deactivate-others UPDATE. Design picked via Cowork sign-off: **Option B — authored-or-published.** Caller must own the target unit (`units.author_teacher_id = auth.uid()`) OR the unit must be `is_published = true`. Matches the existing fork-from-library affordance: published units can be attached directly; private/unpublished units owned by other teachers are blocked. Both gates raise SQLSTATE 42501. Preserves SECURITY DEFINER + `search_path = public, pg_temp` lockdown + `REVOKE ALL FROM PUBLIC` / `GRANT EXECUTE TO authenticated` + INSERT-ON-CONFLICT mutation shape. Lesson #66 sanity DO-block extended with 3 new LIKE assertions for the gate's load-bearing pieces (`author_teacher_id = auth.uid()`, `is_published = true`, "cannot attach unit" RAISE EXCEPTION message). `applied_migrations` row logged in same Supabase SQL Editor session per Lesson #83.
+- **Down.sql** — `CREATE OR REPLACE` restoring the prior (single-gate) function body with a warning header documenting that rollback re-opens the privilege escalation gap.
+- **No app-code change.** The wrapper at `src/lib/classes/active-unit.ts` already surfaces SQLSTATE 42501 via its discriminated-union return; the existing `toastForRpcCode("42501")` text covers both gates ("You don't have permission to change the active unit on this class").
+
+### Systems touched
+
+- New: `supabase/migrations/20260516052310_set_active_unit_unit_ownership_check.sql` + `.down.sql`, `src/lib/classes/__tests__/migration-set-active-unit-unit-ownership-check.test.ts` (new 28-test file)
+- Modified: `src/lib/classes/__tests__/active-unit.test.ts` (+1 test for the gate-2 error path), `docs/schema-registry.yaml` (new `spec_drift` entry on `class_units`), `docs/security/security-plan.md` (FU marked DONE in tracking table)
+- No new API routes, no new feature flags, no new vendors, no RLS changes.
+
+### Pre-flight audit (deliverable g)
+
+Grepped the entire `supabase/migrations/` tree for SECURITY DEFINER functions that INSERT/UPDATE `class_units`. **Zero sibling DEFINER functions need the same gate retrofitted.** `set_active_unit` is the only SECURITY DEFINER function that mutates `class_units`. Other class_units writes are: a non-DEFINER `update_class_units_updated_at` trigger (runs in caller's privilege context, subject to RLS), a one-time historical UPDATE in migration 011, and ALTER TABLE column adds. All other DEFINER functions in the codebase (`is_teacher_of_class`, `is_teacher_of_student`, `current_teacher_school_id`, `handle_new_teacher`, `classes_seed_lead_teacher_membership`, `phase_5_2_atomic_ai_budget_increment`, `bump_student_seen_comment_at_rpc`, `sync_tile_feedback_from_comment`) operate on tables OTHER than `class_units`. Single-function fix, no sibling FU opened.
+
+### Tests
+
+- Local: 6442 → 6471 passing (+29 net).
+  - New file `migration-set-active-unit-unit-ownership-check.test.ts` — 28 tests covering: function signature + safety preserved (5), gate 1 still present (2), gate 2 unit ownership shape including Option-B-confirming `OR` assertion (5), statement order gate1→gate2→deactivate→INSERT (3), permissions hardening preserved (3), Lesson #66 sanity DO-block extended (5), NC mutation removes gate 2 (1), down.sql preserves prior body without gate 2 pieces (4).
+  - Extended `active-unit.test.ts` — +1 test exercising the gate-2 42501 error path with the new "cannot attach unit" message.
+- NC pattern: in-memory mutation removes the new gate's IF NOT EXISTS block, asserts the regex no longer matches the mutated SQL, re-reads file from disk to confirm untouched.
+
+### Prod verification
+
+After Matt applied both SQL blocks (function CREATE OR REPLACE + applied_migrations INSERT), a `pg_get_functiondef` query confirmed `GATE 2 PRESENT — Block C live`. All four load-bearing pieces (`is_teacher_of_class`, `author_teacher_id = auth.uid()`, `is_published = true`, "cannot attach unit") survived the CREATE OR REPLACE. Live happy-path UI smoke + live console exploit test against a non-existent unit_uuid were offered as belt-and-braces but not requested before close.
+
+### Footguns banked
+
+- **Multi-line SQL comment text breaks single-line regex assertions.** The down.sql warning text "RE-OPENS the privilege escalation gap" wrapped at 80 cols with `--` continuation, so the test regex needed `\s+(?:--\s+)?` between "escalation" and "gap" to match. Caught by the first test run + fixed in-place before commit. Worth remembering for any future migration-shape test that asserts comment text. Not a true new Lesson — falls under existing Lesson #67 (regex assertions need to match the actual file shape).
+- **`gh pr merge --squash --delete-branch` continues to fail locally when main is checked out elsewhere.** Third time this session. Workaround (delete remote branch via `gh api -X DELETE`) is now a reflexive cleanup step.
+
+### Surfaced (still open from earlier today)
+
+- **`FU-SEC-TEACHER-LAYOUT-FAIL-OPEN` (P1)** — TeacherLayout fails open when teacher-row lookup returns PGRST116, rendering teacher chrome + leaking class codes to logged-in students. Sister FU to Block C from the same 16 May probe session, distinct surface (page-level vs function-body). Paste-able prompt provided to start a fresh focused session.
+
+### Active-unit work — fully shipped
+
+Three blocks, three PRs, three migrations, all merged + applied to prod + smoke-validated + bookkeeped:
+
+| Block | PR | Migration | What |
+|---|---|---|---|
+| A | [#319](https://github.com/mattburto-spec/studioloom/pull/319) | `20260515214045` | Partial unique index `class_units_one_active_per_class` |
+| B | [#319](https://github.com/mattburto-spec/studioloom/pull/319) | `20260515220845` | `public.set_active_unit` SECURITY DEFINER helper + TS wrapper + caller refactor |
+| C | [#323](https://github.com/mattburto-spec/studioloom/pull/323) | `20260516052310` | Unit-ownership gate added to `set_active_unit` (closes `FU-SEC-SET-ACTIVE-UNIT-MISSING-UNIT-OWNERSHIP-CHECK`) |
+
+The DB-level invariant "exactly one active unit per class, attached only by its rightful caller" is now enforceable, enforced, and used. Downstream resolver work (`/teacher/classes/[classId]` → active-unit redirect, cockpit current-unit, class chip rail, student-side surface routing per decisions-log line 5) unblocks.
+
+---
+
 ## 2026-05-16 — One active unit per class enforced at DB level ([PR #319](https://github.com/mattburto-spec/studioloom/pull/319))
 
 **Context:** Implementation of the decision logged in [docs/decisions-log.md](decisions-log.md) line 7 dated 16 May 2026 — "One active unit per class enforced at DB level". Pre-Block-A audit confirmed prod was clean (zero classes with multiple `is_active=true` rows on `class_units`) so reconciliation was unnecessary. Three-block phased build (constraint → atomic helper → caller refactor), each with its own Matt Checkpoint and STOP AND REPORT gate per [build-methodology.md](build-methodology.md).
