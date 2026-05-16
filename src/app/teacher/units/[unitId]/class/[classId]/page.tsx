@@ -33,6 +33,7 @@ import OpenStudioDrawer from "@/components/teacher/class-hub/OpenStudioDrawer";
 import MetricsDrawer from "@/components/teacher/class-hub/MetricsDrawer";
 import ChangeUnitModal from "@/components/teacher/class-hub/ChangeUnitModal";
 import GalleryDrawer from "@/components/teacher/class-hub/GalleryDrawer";
+import ClassShareChips from "@/components/teacher/class-hub/ClassShareChips";
 import KebabMenu, { type KebabMenuSection } from "@/components/teacher/class-hub/KebabMenu";
 
 // ---------------------------------------------------------------------------
@@ -831,6 +832,12 @@ export default function ClassHubPage({
           <p className="text-sm text-text-secondary mt-0.5">
             {students.length} student{students.length !== 1 ? "s" : ""} · {pages.length} page{pages.length !== 1 ? "s" : ""}
           </p>
+          {/* Phase 3.6 Step 2 — busy-teacher share row. Class code +
+              student join link as click-to-copy chips so a mid-lesson
+              "type this code / open this link" hand-off doesn't need
+              the kebab → StudentRosterDrawer → class-code reveal three-
+              click dance. */}
+          <ClassShareChips classCode={classCode} />
         </div>
         {/* Quick actions */}
         <div className="flex items-center gap-2">
