@@ -30,24 +30,18 @@ import StudentDrawer from "@/components/teacher/class-hub/StudentDrawer";
 import UnitAttentionPanel from "@/components/teacher/UnitAttentionPanel";
 
 // ---------------------------------------------------------------------------
-// Class Hub — Central teacher command centre for a class+unit
+// DT Class Canvas — single unified per-class surface for the teacher.
 // ---------------------------------------------------------------------------
-// Tabs: Progress (default) | Grade | Settings
-// Student Drawer opens from any student name click.
+// Replaces the 7-tab Class Hub (16 May 2026 rebuild — see audit Section F /
+// Phase 3.1). Layout: canvas-header + canvas-grid (main column + 360px
+// sticky side rail). Main column = lesson hero (3.3), student grid (3.1),
+// gallery strip (3.5). Side rail = Marking / Open Studio / Class Metrics /
+// Safety summary cards (3.2). Kebab on the header carries class + unit
+// actions (3.4). Surfaces previously living on Students / Gallery / Open
+// Studio / New Metrics / Badges / Settings tabs now open as drawers /
+// sub-routes wired through the side-rail card CTAs and the kebab.
 // URL: /teacher/units/[unitId]/class/[classId]
 // ---------------------------------------------------------------------------
-
-type HubTab = "progress" | "students" | "gallery" | "studio" | "metrics" | "badges" | "settings";
-
-const TABS: { id: HubTab; label: string; icon: string }[] = [
-  { id: "progress", label: "Progress", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
-  { id: "students", label: "Students", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zm13 10v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" },
-  { id: "gallery", label: "Gallery", icon: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" },
-  { id: "studio", label: "Open Studio", icon: "M3 11h18M3 11v8a2 2 0 002 2h14a2 2 0 002-2v-8M7 11V7a5 5 0 0110 0v4" },
-  { id: "metrics", label: "New Metrics", icon: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" },
-  { id: "badges", label: "Badges", icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" },
-  { id: "settings", label: "Settings", icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" },
-];
 
 // ---------------------------------------------------------------------------
 // Progress tab types
@@ -221,19 +215,6 @@ export default function ClassHubPage({
 }) {
   const { unitId, classId } = use(params);
 
-  // Tab state (from URL or default)
-  const [activeTab, setActiveTab] = useState<HubTab>(() => {
-    if (typeof window !== "undefined") {
-      const sp = new URLSearchParams(window.location.search);
-      const tab = sp.get("tab");
-      if (tab === "progress" || tab === "students" || tab === "gallery" || tab === "studio" || tab === "metrics" || tab === "badges" || tab === "settings") return tab;
-      if (tab === "safety") return "badges"; // backward compat
-      if (tab === "open-studio") return "studio"; // backward compat
-      if (tab === "attention") return "metrics"; // backward compat — Attention folded into New Metrics (15 May 2026)
-    }
-    return "progress";
-  });
-
   // Shared data (loaded once)
   const [unit, setUnit] = useState<Unit | null>(null);
   const [className, setClassName] = useState("");
@@ -276,16 +257,6 @@ export default function ClassHubPage({
 
   // Student Drawer state
   const [drawerStudent, setDrawerStudent] = useState<{ id: string; name: string } | null>(null);
-
-  // -----------------------------------------------------------------------
-  // Update URL when tab changes
-  // -----------------------------------------------------------------------
-  function switchTab(tab: HubTab) {
-    setActiveTab(tab);
-    const url = new URL(window.location.href);
-    url.searchParams.set("tab", tab);
-    window.history.replaceState({}, "", url.toString());
-  }
 
   // -----------------------------------------------------------------------
   // Load shared data (unit, class, students, pages, settings)
@@ -457,11 +428,14 @@ export default function ClassHubPage({
     setProgressLoaded(true);
   }, [students, unitId, classId, progressLoaded, progressLoading]);
 
+  // DT canvas (Phase 3.1) — student grid is always-mounted in the main
+  // column, so progress data loads unconditionally once the shared loader
+  // has resolved the roster. No tab gate any more.
   useEffect(() => {
-    if (activeTab === "progress" && !loading && students.length > 0 && !progressLoaded) {
+    if (!loading && students.length > 0 && !progressLoaded) {
       loadProgressData();
     }
-  }, [activeTab, loading, students, progressLoaded, loadProgressData]);
+  }, [loading, students, progressLoaded, loadProgressData]);
 
   // -----------------------------------------------------------------------
   // Schedule loading (for Settings tab)
@@ -642,587 +616,133 @@ export default function ClassHubPage({
             </svg>
             Edit
           </Link>
-        </div>
-      </div>
-
-      {/* Tab bar */}
-      <div className="flex gap-1 mb-6 border-b border-border">
-        {TABS.map((tab) => (
+          {/* Canvas-header kebab. Stub for Phase 3.1 — opens nothing yet.
+              Phase 3.4 wires the dropdown contents: Unit (Edit / View as
+              student / Change unit / Past units) + Class (Class settings /
+              Roll over / Duplicate / Archive / Delete). Mockup view 2,
+              kebab-menu block (~line 1478). */}
           <button
-            key={tab.id}
-            onClick={() => switchTab(tab.id)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab.id
-                ? "border-purple-600 text-purple-700"
-                : "border-transparent text-text-secondary hover:text-text-primary hover:border-gray-300"
-            }`}
+            type="button"
+            data-testid="canvas-header-kebab"
+            aria-label="Class and unit actions"
+            title="Class and unit actions (coming in Phase 3.4)"
+            disabled
+            className="w-10 h-10 rounded-xl border border-border text-text-secondary opacity-50 cursor-not-allowed flex items-center justify-center"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d={tab.icon} />
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="5" r="1.2" />
+              <circle cx="12" cy="12" r="1.2" />
+              <circle cx="12" cy="19" r="1.2" />
             </svg>
-            {tab.label}
           </button>
-        ))}
+        </div>
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* PROGRESS TAB (inline matrix)                                      */}
+      {/* CANVAS GRID — main column (lesson hero + student grid + gallery) */}
+      {/*               + 360px sticky side rail (Marking / Open Studio / */}
+      {/*               Class Metrics / Safety summary cards).             */}
+      {/* Each section starts as an empty placeholder; subsequent Phase    */}
+      {/* 3.x sub-phases fill them in (3.1 = student grid, 3.2 = side     */}
+      {/* rail, 3.3 = lesson hero, 3.5 = gallery strip).                   */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {activeTab === "progress" && (
-        <div>
-          {progressLoading ? (
-            <div className="animate-pulse space-y-4">
-              <div className="h-8 w-48 bg-gray-200 rounded" />
-              <div className="h-64 bg-gray-200 rounded" />
-            </div>
-          ) : students.length === 0 ? (
-            <div className="bg-white rounded-xl p-12 text-center">
-              <p className="text-text-secondary">No students in this class yet.</p>
-            </div>
-          ) : (
-            <>
-              {/* Student Learning Profiles */}
-              <div className="mb-4">
-                <ClassProfileOverview classId={classId} />
-              </div>
+      <div
+        data-testid="dt-canvas-grid"
+        className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start"
+      >
+        {/* MAIN COLUMN */}
+        <div className="flex flex-col gap-6 min-w-0">
+          {/* Lesson hero placeholder — Phase 3.3 fills this with the
+              Today's-lesson card (Workshop Model outline + Change unit
+              affordance + Teach CTA). Empty in 3.1. */}
+          <section
+            data-testid="canvas-lesson-hero"
+            data-placeholder="phase-3-3"
+            className="hidden"
+            aria-hidden="true"
+          />
 
-              {/* Legend */}
-              <div className="flex items-center gap-4 text-xs mb-4">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-5 h-5 rounded bg-gray-100 flex items-center justify-center text-gray-400">—</div>
-                  <span className="text-text-secondary">Not started</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-5 h-5 rounded bg-amber-400 flex items-center justify-center text-white">●</div>
-                  <span className="text-text-secondary">In progress</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-5 h-5 rounded bg-accent-green flex items-center justify-center text-white">✓</div>
-                  <span className="text-text-secondary">Complete</span>
-                </div>
-              </div>
+          {/* Student grid placeholder — Phase 3.1 (Step 3) fills this
+              with the new student × column matrix + filter chips. */}
+          <section
+            data-testid="canvas-student-grid"
+            data-placeholder="phase-3-1-step-3"
+            className="bg-white rounded-2xl border border-border p-8 text-sm text-text-secondary"
+          >
+            Student grid lands in the next commit (Phase 3.1 step 3).
+          </section>
 
-              {/* Student × Page matrix */}
-              <div className="bg-white rounded-xl overflow-hidden shadow-sm">
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr className="border-b border-border">
-                        <th className="sticky left-0 z-10 bg-white px-4 py-2 text-left text-xs font-medium text-text-secondary min-w-[180px]">
-                          Student
-                        </th>
-                        {badgeRequirements.length > 0 && (
-                          <th className="px-2 py-2 text-center text-xs font-medium text-amber-700 min-w-[60px] bg-amber-50 border-b-2 border-amber-400" title="Safety badge status">
-                            <span className="flex items-center justify-center gap-1">
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-                              Safety
-                            </span>
-                          </th>
-                        )}
-                        {unitPages.map((page, pageIdx) => {
-                          const color = getPageColor(page);
-                          const completion = getPageCompletion(page.id);
-                          const pct = students.length > 0 ? Math.round((completion / students.length) * 100) : 0;
-                          // Round 13 (6 May 2026) — show position (1-based)
-                          // instead of the raw page id. Legacy IDs like "L1"
-                          // used to strip cleanly via the ^L0? regex; modern
-                          // auto-generated IDs (`page-1778052965342-eo3geu5`)
-                          // bypass it and leak the slug into the header.
-                          // Position-based labels are deterministic + readable.
-                          const headerLabel = String(pageIdx + 1);
-                          return (
-                            <th key={page.id} className="px-1 py-2 text-center text-xs font-medium min-w-[36px] cursor-default border-b-2"
-                              title={`${pageIdx + 1}. ${page.title || page.id}\n${completion}/${students.length} complete (${pct}%)`}
-                              style={{ color, borderBottomColor: color }}>
-                              {headerLabel}
-                            </th>
-                          );
-                        })}
-                        <th className="px-2 py-2 text-center text-xs font-medium text-text-secondary min-w-[48px]">
-                          /{unitPages.length}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {students.map((student) => {
-                        const completed = getStudentCompletion(student.id);
-                        const studentName = student.display_name || student.username;
-                        return (
-                          <tr key={student.id} className="border-b border-border/50 last:border-0 hover:bg-surface-alt/50">
-                            <td className="sticky left-0 z-10 bg-white px-4 py-2">
-                              <div className="flex flex-col">
-                                <button
-                                  onClick={() => setDrawerStudent({ id: student.id, name: studentName })}
-                                  className="text-sm font-medium text-text-primary hover:text-purple-700 transition text-left truncate max-w-[160px] flex items-center gap-1.5"
-                                >
-                                  {studentName}
-                                  {(() => {
-                                    const gy = student.graduation_year;
-                                    const ylNum = getYearLevelNumber(typeof gy === 'number' ? gy : gy ? parseInt(gy, 10) || null : null);
-                                    return ylNum ? <span className="text-[9px] font-bold text-indigo-400" title={`Year ${ylNum}`}>{ylNum}</span> : null;
-                                  })()}
-                                  {gradingStatusMap[student.id] === "published" && (
-                                    <span className="inline-block w-2 h-2 rounded-full bg-accent-green" title="Graded" />
-                                  )}
-                                  {gradingStatusMap[student.id] === "draft" && (
-                                    <span className="inline-block w-2 h-2 rounded-full bg-amber-400" title="Draft grade" />
-                                  )}
-                                </button>
-                                {student.display_name && (
-                                  <span className="text-xs text-text-secondary font-mono">{student.username}</span>
-                                )}
-                              </div>
-                              <div className="mt-1 flex items-center gap-1">
-                                {nmConfig?.enabled && (
-                                  <button
-                                    onClick={() => setNmObserveStudent({ id: student.id, name: studentName })}
-                                    className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors"
-                                    title="Record NM observation"
-                                  >
-                                    NM
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                            {badgeRequirements.length > 0 && (
-                              <td className="px-2 py-2 text-center bg-amber-50/50">
-                                {(() => {
-                                  const statuses = badgeStatusMap[student.id] || [];
-                                  const allEarned = statuses.length > 0 && statuses.every((s) => s.status === "earned");
-                                  const anyFailed = statuses.some((s) => s.status === "failed");
-                                  const noneAttempted = statuses.every((s) => s.status === "not_attempted");
-
-                                  if (allEarned) return <span className="inline-flex items-center justify-center w-7 h-7 rounded bg-emerald-100 text-emerald-600" title={`All ${statuses.length} badge(s) earned`}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg></span>;
-                                  if (anyFailed) return <span className="inline-flex items-center justify-center w-7 h-7 rounded bg-red-100 text-red-600 text-xs font-bold" title={`${statuses.filter((s) => s.status === "failed").length} badge(s) failed`}>✗</span>;
-                                  if (noneAttempted) return <span className="inline-flex items-center justify-center w-7 h-7 rounded bg-gray-100 text-gray-400 text-xs" title="Not attempted">—</span>;
-                                  const earnedCount = statuses.filter((s) => s.status === "earned").length;
-                                  return <span className="inline-flex items-center justify-center w-7 h-7 rounded bg-amber-100 text-amber-700 text-[10px] font-bold" title={`${earnedCount}/${statuses.length} badges earned`}>{earnedCount}/{statuses.length}</span>;
-                                })()}
-                              </td>
-                            )}
-                            {unitPages.map((page) => {
-                              const cell = progressMap[student.id]?.[page.id];
-                              return (
-                                <td key={page.id} className="px-1 py-2 text-center">
-                                  <div className="relative inline-block">
-                                    <button
-                                      onClick={() => loadStudentDetail({ id: student.id, name: studentName }, page.id)}
-                                      className={`w-7 h-7 rounded text-xs font-medium transition hover:scale-110 ${getStatusColor(cell?.status)}`}
-                                      title={`${studentName} - ${page.id}: ${cell?.status || "not_started"}${cell?.hasIntegrityData ? " • Integrity data collected" : ""}`}
-                                    >
-                                      {getStatusIcon(cell?.status)}
-                                    </button>
-                                    {cell?.integrityLevel === "low" && (
-                                      <span
-                                        className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-rose-500 ring-1 ring-white"
-                                        title="Integrity concern flagged — open to review"
-                                      />
-                                    )}
-                                    {cell?.integrityLevel === "medium" && (
-                                      <span
-                                        className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-500 ring-1 ring-white"
-                                        title="Integrity warning — minor concern, open to review"
-                                      />
-                                    )}
-                                  </div>
-                                </td>
-                              );
-                            })}
-                            <td className="px-2 py-2 text-center">
-                              <span className={`text-sm font-medium ${completed === unitPages.length ? "text-accent-green" : completed > 0 ? "text-text-primary" : "text-text-secondary"}`}>
-                                {completed}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t border-border bg-surface-alt/30">
-                        <td className="sticky left-0 z-10 bg-surface-alt/30 px-4 py-2 text-xs font-medium text-text-secondary">Class completion</td>
-                        {badgeRequirements.length > 0 && (
-                          <td className="px-2 py-2 text-center text-xs text-amber-700 bg-amber-50/30">
-                            {(() => {
-                              if (students.length === 0) return "—";
-                              let allEarnedCount = 0;
-                              for (const s of students) {
-                                const statuses = badgeStatusMap[s.id] || [];
-                                if (statuses.length > 0 && statuses.every((st) => st.status === "earned")) allEarnedCount++;
-                              }
-                              return `${Math.round((allEarnedCount / students.length) * 100)}%`;
-                            })()}
-                          </td>
-                        )}
-                        {unitPages.map((page) => {
-                          const completion = getPageCompletion(page.id);
-                          const pct = students.length > 0 ? Math.round((completion / students.length) * 100) : 0;
-                          return (
-                            <td key={page.id} className="px-1 py-2 text-center text-xs text-text-secondary" title={`${completion}/${students.length} complete`}>
-                              {pct}%
-                            </td>
-                          );
-                        })}
-                        <td />
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-
-              {/* Pace Feedback Summary */}
-              <div className="mt-6 p-5 bg-white rounded-xl border border-border shadow-sm">
-                <div className="flex items-center gap-2 mb-3">
-                  <h2 className="text-sm font-semibold text-text-primary">Lesson Pace Feedback</h2>
-                  <span className="text-xs text-text-secondary ml-auto">From student post-lesson surveys</span>
-                </div>
-                <PaceFeedbackSummary unitId={unitId} />
-              </div>
-
-              {/* Open Studio management moved to dedicated Open Studio tab */}
-            </>
-          )}
-
-          {/* Student detail modal */}
-          {selectedDetailStudent && selectedDetailPage !== null && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-xl w-full max-w-2xl mx-4 max-h-[80vh] overflow-hidden flex flex-col">
-                <div className="px-6 py-4 border-b border-border flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold text-text-primary">{selectedDetailStudent.name}</h2>
-                    <p className="text-sm text-text-secondary">{selectedDetailPage}: {unitPages.find((p) => p.id === selectedDetailPage)?.title}</p>
-                  </div>
-                  <button onClick={() => { setSelectedDetailStudent(null); setSelectedDetailPage(null); setDetailResponses(null); setDetailIntegrity(null); }} className="w-8 h-8 rounded-full hover:bg-surface-alt flex items-center justify-center text-text-secondary">✕</button>
-                </div>
-                <div className="px-6 py-4 overflow-y-auto flex-1">
-                  {detailLoading ? (
-                    <div className="animate-pulse space-y-3">
-                      <div className="h-4 bg-gray-200 rounded w-3/4" />
-                      <div className="h-20 bg-gray-200 rounded" />
-                    </div>
-                  ) : !detailResponses || Object.keys(detailResponses).length === 0 ? (
-                    <p className="text-text-secondary text-center py-8">No responses yet for this page.</p>
-                  ) : (
-                    <div className="space-y-4">
-                      {(() => {
-                        const selectedUnitPage = unitPages.find((p) => p.id === selectedDetailPage);
-                        const page = selectedUnitPage?.content as { sections?: { prompt: string }[]; reflection?: { type: string; items: string[] } } | undefined;
-                        const sections = page?.sections || [];
-                        return Object.entries(detailResponses).filter(([key]) => !key.startsWith("_tracking_")).map(([key, value]) => {
-                          let label = key;
-                          if (key.startsWith("section_")) { const idx = parseInt(key.replace("section_", "")); label = sections[idx]?.prompt || `Section ${idx + 1}`; }
-                          else if (key.startsWith("activity_")) { const actSection = sections.find((s: any) => s.activityId === key.replace("activity_", "")); label = actSection?.prompt || key; }
-                          else if (key.startsWith("check_")) { const idx = parseInt(key.replace("check_", "")); label = page?.reflection?.items?.[idx] || `Checklist item ${idx + 1}`; }
-                          else if (key.startsWith("reflection_")) { label = `Reflection ${parseInt(key.replace("reflection_", "")) + 1}`; }
-                          else if (key === "freeform") { label = "Freeform notes"; }
-
-                          // Find matching integrity data for this response key
-                          const integrityMeta = detailIntegrity?.[key];
-
-                          return (
-                            <div
-                              key={key}
-                              className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
-                            >
-                              <p className="text-xs font-medium text-text-secondary uppercase tracking-wide mb-2">{label}</p>
-                              <div className="bg-surface-alt rounded-lg p-3">
-                                <StudentResponseValue value={value} />
-                              </div>
-                              {integrityMeta && (
-                                <div className="mt-3 border-t border-gray-100 pt-3">
-                                  <IntegrityReport metadata={integrityMeta} />
-                                </div>
-                              )}
-                            </div>
-                          );
-                        });
-                      })()}
-
-                      {/* Aggregate integrity summary when data exists */}
-                      {detailIntegrity && Object.keys(detailIntegrity).length > 0 && (
-                        <div className="mt-6 pt-4 border-t border-border">
-                          <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-3">Writing Integrity Summary</h3>
-                          <div className="flex flex-wrap gap-2">
-                            {Object.entries(detailIntegrity).map(([key, meta]) => {
-                              const analysis = analyzeIntegrity(meta);
-                              const scoreColor = analysis.score >= 70 ? "bg-green-100 text-green-800" : analysis.score >= 40 ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800";
-                              return (
-                                <span key={key} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${scoreColor}`}>
-                                  {key.replace("section_", "S").replace("activity_", "A:")} — {analysis.score}%
-                                </span>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Gallery strip placeholder — Phase 3.5 fills this with the
+              recent-work thumbnail tiles + "Open gallery ›" link. */}
+          <section
+            data-testid="canvas-gallery-strip"
+            data-placeholder="phase-3-5"
+            className="hidden"
+            aria-hidden="true"
+          />
         </div>
-      )}
 
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* STUDENTS TAB                                                       */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {activeTab === "students" && (
-        <StudentsTab classId={classId} students={students} setStudents={setStudents} />
-      )}
-
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* NEW METRICS TAB — 15 May 2026 consolidation:                       */}
-      {/* Attention tab folded in here so teachers have one surface for      */}
-      {/* "who needs me this lesson + what are they being assessed on".      */}
-      {/* Order: NM element picker (collapsed once configured) →             */}
-      {/* UnitAttentionPanel (the daily-driver rotation list) →              */}
-      {/* NMResultsPanel (drill-down) → checkpoints helper.                  */}
-      {/* The Attention panel itself works without NM enabled — it surfaces  */}
-      {/* Journal/Kanban/Calibration signals — so it renders outside the    */}
-      {/* globalNmEnabled gate.                                              */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {activeTab === "metrics" && (
-        <div>
-          {globalNmEnabled && (
-            // Setup panel: pick competency + elements. Persists via
-            // /api/teacher/nm-config. checkpoints field is preserved
-            // from the existing config (lesson editor owns it). Collapsed
-            // once at least one element is configured.
-            <details className="mb-6 group" open={!(nmConfig?.elements?.length)}>
-              <summary className="cursor-pointer select-none px-4 py-3 rounded-xl border border-border bg-surface-alt hover:bg-gray-50 flex items-center justify-between gap-3">
-                <span className="text-sm font-semibold text-text-primary">
-                  {nmConfig?.elements?.length
-                    ? `NM settings — tracking ${nmConfig.elements.length} of 12 elements (click to edit)`
-                    : "NM settings — pick which elements to track"}
-                </span>
-                <span className="text-xs text-text-secondary group-open:hidden">expand</span>
-                <span className="text-xs text-text-secondary hidden group-open:inline">collapse</span>
-              </summary>
-              <div className="mt-3">
-                <NMElementsPanel
-                  currentConfig={nmConfig}
-                  onSave={async (next) => {
-                    const previous = nmConfig;
-                    setNmConfig(next);
-                    try {
-                      const res = await fetch("/api/teacher/nm-config", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ unitId, classId, config: next }),
-                      });
-                      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    } catch (err) {
-                      console.error("[NMElementsPanel] save failed:", err);
-                      setNmConfig(previous);
-                      throw err;
-                    }
-                  }}
-                />
-              </div>
-            </details>
-          )}
-
-          {/* Attention-Rotation panel (was its own tab until 15 May 2026).
-              Renders regardless of NM enabled — Journal/Kanban/Calibration
-              signals don't depend on the NM competency picker. */}
-          <div className="mb-6">
-            <UnitAttentionPanel unitId={unitId} classId={classId} />
+        {/* SIDE RAIL — Phase 3.2 fills each card with summary count + sub
+            + CTA. Empty cards in 3.1 so the layout doesn't reflow on the
+            3.2 land. Sticky positioning matches the mockup's
+            .canvas-side rule (top: 130px). */}
+        <aside
+          data-testid="canvas-side-rail"
+          className="flex flex-col gap-4 lg:sticky lg:top-32"
+        >
+          <div
+            data-testid="canvas-rail-card-marking"
+            data-placeholder="phase-3-2"
+            className="bg-white rounded-2xl border border-border p-5"
+          >
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+              Marking queue
+            </div>
+            <div className="mt-2 text-xs text-text-secondary">
+              Summary lands in Phase 3.2.
+            </div>
           </div>
 
-          {globalNmEnabled ? (
-            <>
-              {/* Results panel — unchanged. Renders whether or not nm_config.enabled
-                  is true, so teachers see "no results yet" state on a fresh class. */}
-              <div className="mb-6">
-                <NMResultsPanel unitId={unitId} classId={classId} />
-              </div>
-              {/* Where-do-I-configure-checkpoints helper — points teachers
-                  at the lesson editor for per-lesson timing. Low-prominence
-                  reminder, kept at the bottom. */}
-              <div className="mb-6 px-4 py-3 rounded-xl border border-violet-200 bg-violet-50/60 flex items-start gap-3">
-                <span className="text-violet-700 text-lg flex-shrink-0">🎯</span>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-text-primary text-sm mb-0.5">
-                    Per-lesson checkpoints live in the lesson editor
-                  </h3>
-                  <p className="text-xs text-text-secondary leading-relaxed">
-                    The NM settings above control WHICH elements you track. To choose WHEN students rate themselves, open any lesson, expand the <strong>New Metrics</strong> block category in the Blocks pane, and click an element to register a checkpoint on that lesson.
-                  </p>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="p-6 bg-gray-50 rounded-xl border border-border text-center">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-3">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
-              <h3 className="font-semibold text-text-primary mb-1">New Metrics</h3>
-              <p className="text-sm text-text-secondary mb-3">
-                Enable New Metrics in your school settings to configure competency assessments for this class.
-              </p>
-              <Link href="/teacher/settings?tab=school" className="text-purple-600 text-sm font-medium hover:underline">Go to Settings →</Link>
+          <div
+            data-testid="canvas-rail-card-studio"
+            data-placeholder="phase-3-2"
+            className="bg-white rounded-2xl border border-border p-5"
+          >
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+              Open Studio
             </div>
-          )}
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* GALLERY TAB (Pin-Up Crits & Peer Review)                          */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {activeTab === "gallery" && (
-        <GalleryTab unitId={unitId} classId={classId} unitPages={unitPages} />
-      )}
-
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* OPEN STUDIO TAB                                                    */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {activeTab === "studio" && (
-        <div className="max-w-4xl space-y-6">
-          {/* Open Studio Class View — unlock/revoke/status for all students */}
-          <OpenStudioClassView unitId={unitId} classId={classId} />
-
-          {/* Info card about Open Studio */}
-          <div className="bg-violet-50 border border-violet-200 rounded-xl p-5">
-            <h3 className="font-semibold text-violet-900 flex items-center gap-2 mb-2">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 16v-4M12 8h.01" />
-              </svg>
-              About Open Studio
-            </h3>
-            <p className="text-sm text-violet-700 leading-relaxed mb-3">
-              Open Studio gives students self-directed working time. When unlocked, the AI mentor switches from guided Socratic tutor to studio critic mode — asking deeper questions and encouraging independent decision-making.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-              <div className="bg-white/70 rounded-lg p-3 border border-violet-100">
-                <div className="font-semibold text-violet-800 mb-1">Check-ins</div>
-                <p className="text-violet-600 text-xs">Students receive periodic check-ins (configurable interval) to stay on track.</p>
-              </div>
-              <div className="bg-white/70 rounded-lg p-3 border border-violet-100">
-                <div className="font-semibold text-violet-800 mb-1">Drift Detection</div>
-                <p className="text-violet-600 text-xs">3-level escalation: gentle nudge → direct question → silent flag to you.</p>
-              </div>
-              <div className="bg-white/70 rounded-lg p-3 border border-violet-100">
-                <div className="font-semibold text-violet-800 mb-1">Auto-Revocation</div>
-                <p className="text-violet-600 text-xs">2 consecutive sessions with drift flags triggers automatic revocation.</p>
-              </div>
+            <div className="mt-2 text-xs text-text-secondary">
+              Summary lands in Phase 3.2.
             </div>
           </div>
-        </div>
-      )}
 
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* BADGES TAB                                                        */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {activeTab === "badges" && (
-        <BadgesTab
-          unitId={unitId}
-          classId={classId}
-          students={students.map((s) => ({ id: s.id, display_name: s.display_name, username: s.username }))}
-        />
-      )}
-
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* SETTINGS TAB                                                      */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {activeTab === "settings" && (
-        <div className="max-w-3xl">
-          {/* Term Assignment */}
-          <div className="mb-6 bg-surface-alt rounded-xl p-4 border border-border">
-            <label className="block text-xs font-semibold text-text-primary mb-2">Assign to Term</label>
-            {terms.length === 0 ? (
-              <div className="text-sm text-text-secondary">
-                <p className="mb-2">No school calendar set up yet.</p>
-                <Link href="/teacher/settings?tab=school" className="text-accent-blue text-xs font-medium hover:underline">Set up your school calendar →</Link>
-              </div>
-            ) : (
-              <select value={selectedTermId || ""} onChange={(e) => handleTermChange(e.target.value || null)} disabled={savingTerm}
-                className="w-full px-3 py-2 rounded-lg border border-border bg-white text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50">
-                <option value="">— No term assigned —</option>
-                {Array.from(new Map(terms.map((t) => [t.academic_year, t])).keys()).map((year) => (
-                  <optgroup key={year} label={year}>
-                    {terms.filter((t) => t.academic_year === year).sort((a, b) => a.term_order - b.term_order).map((term) => (
-                      <option key={term.id} value={term.id}>{term.term_name}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            )}
-            {termMessage && <p className={`mt-2 text-xs font-medium ${termMessage.includes("assigned") ? "text-accent-green" : "text-amber-600"}`}>{termMessage}</p>}
+          <div
+            data-testid="canvas-rail-card-metrics"
+            data-placeholder="phase-3-2"
+            className="bg-white rounded-2xl border border-border p-5"
+          >
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+              Class metrics · this unit
+            </div>
+            <div className="mt-2 text-xs text-text-secondary">
+              Summary lands in Phase 3.2.
+            </div>
           </div>
 
-          {/* Schedule Info */}
-          {selectedTermId && (
-            <div className="mb-6 bg-surface-alt rounded-xl p-4 border border-border">
-              <h3 className="text-xs font-semibold text-text-primary mb-3 flex items-center gap-2">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
-                </svg>
-                Schedule
-              </h3>
-              {scheduleLoading ? (
-                <div className="animate-pulse flex gap-4">
-                  <div className="h-14 bg-gray-200 rounded-lg flex-1" />
-                  <div className="h-14 bg-gray-200 rounded-lg flex-1" />
-                </div>
-              ) : scheduleInfo?.lessonCount != null ? (
-                <div className="flex gap-3">
-                  <div className="flex-1 bg-white rounded-lg p-3 border border-border">
-                    <div className="text-2xl font-bold text-purple-600">{scheduleInfo.lessonCount}</div>
-                    <div className="text-xs text-text-secondary mt-0.5">lessons this term</div>
-                  </div>
-                  <div className="flex-1 bg-white rounded-lg p-3 border border-border">
-                    {scheduleInfo.nextClass ? (
-                      <>
-                        <div className="text-sm font-semibold text-text-primary">{scheduleInfo.nextClass.short}</div>
-                        <div className="text-xs text-text-secondary mt-0.5">Next: {scheduleInfo.nextClass.dayOfWeek} {scheduleInfo.nextClass.dateISO}</div>
-                        {scheduleInfo.nextClass.room && <div className="text-xs text-text-tertiary mt-0.5">Room {scheduleInfo.nextClass.room}</div>}
-                      </>
-                    ) : (
-                      <>
-                        <div className="text-sm font-medium text-text-secondary">—</div>
-                        <div className="text-xs text-text-tertiary mt-0.5">No upcoming classes</div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-text-secondary">
-                  No timetable set up yet. <Link href="/teacher/settings?tab=school" className="text-purple-600 text-xs font-medium hover:underline">Set up your timetable →</Link>
-                </p>
-              )}
+          <div
+            data-testid="canvas-rail-card-safety"
+            data-placeholder="phase-3-2"
+            className="bg-white rounded-2xl border border-border p-5"
+          >
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+              Safety &amp; badges
             </div>
-          )}
-
-          {/* Lesson Schedule */}
-          {(() => {
-            const term = terms.find((t) => t.id === selectedTermId) as any;
-            return (
-              <div className="mb-6">
-                <LessonSchedule unitId={unitId} classId={classId} pages={pages} termStart={term?.start_date} termEnd={term?.end_date}
-                  overrides={scheduleOverrides} onOverridesChange={setScheduleOverrides}
-                  onSave={async (newOverrides) => {
-                    const res = await fetch("/api/teacher/class-units", {
-                      method: "PATCH", headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ classId, unitId, schedule_overrides: newOverrides }),
-                    });
-                    if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || "Save failed"); }
-                  }}
-                />
-              </div>
-            );
-          })()}
-
-          {/* Class code */}
-          {classCode && (
-            <div className="mb-6 bg-surface-alt rounded-xl p-4 border border-border">
-              <label className="block text-xs font-semibold text-text-primary mb-2">Class Code</label>
-              <p className="text-lg font-mono font-bold text-purple-600">{classCode}</p>
-              <p className="text-xs text-text-secondary mt-1">Students use this code to join this class.</p>
+            <div className="mt-2 text-xs text-text-secondary">
+              Summary lands in Phase 3.2.
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        </aside>
+      </div>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* Student Drawer                                                    */}

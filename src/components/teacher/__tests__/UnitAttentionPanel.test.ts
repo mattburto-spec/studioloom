@@ -124,8 +124,11 @@ describe("DontRescueBanner (AG.4.3)", () => {
 });
 
 describe("Class Hub wiring (15 May 2026 — Attention folded into New Metrics tab)", () => {
+  // These two negative guards still apply — the "attention" surface stays
+  // dropped from the canvas. Phase 3.1 keeps them green by virtue of the
+  // entire tab-bar going away. They are now even tighter: the HubTab
+  // union doesn't exist any more.
   it('Attention tab REMOVED from HubTab union', () => {
-    // The "attention" tab no longer exists; folded into the metrics tab.
     expect(HUB_SRC).not.toMatch(/type HubTab[\s\S]{0,400}"attention"/);
   });
 
@@ -133,15 +136,23 @@ describe("Class Hub wiring (15 May 2026 — Attention folded into New Metrics ta
     expect(HUB_SRC).not.toContain('id: "attention"');
   });
 
-  it("UnitAttentionPanel mounts inside the metrics tab with unitId + classId", () => {
-    // After the consolidation the panel renders inside the activeTab === "metrics"
-    // block, between the NM elements picker and the NM results panel.
+  // ─── Deferred to Phase 3.2 — DT canvas Phase 3.1 (Step 2, 16 May 2026) ─
+  // The Metrics tab is now a side-rail card placeholder; Phase 3.2 wires
+  // the CTA ("Score students now →") to a drawer that mounts
+  // UnitAttentionPanel between the NM elements picker and the NM results
+  // panel. Unskip once that drawer ships.
+  it.skip("UnitAttentionPanel mounts inside the metrics tab with unitId + classId [unskip in Phase 3.2]", () => {
     expect(HUB_SRC).toMatch(
       /activeTab === "metrics"[\s\S]*?<UnitAttentionPanel unitId=\{unitId\} classId=\{classId\}/
     );
   });
 
-  it("URL tab parser redirects ?tab=attention → metrics for backward compat", () => {
+  // ─── Deferred to Phase 3.1 Step 4 — DT canvas (Step 2, 16 May 2026) ────
+  // The legacy ?tab=attention compat used to live in the activeTab state
+  // initializer. The initializer is gone (no tabs on the canvas); Step 4
+  // re-attaches the legacy compat via a one-shot mount-time parser that
+  // opens the matching drawer/card. Unskip once Step 4 ships.
+  it.skip("URL tab parser redirects ?tab=attention → metrics for backward compat [unskip in Phase 3.1 Step 4]", () => {
     expect(HUB_SRC).toMatch(/tab === "attention".*return "metrics"/);
   });
 });
