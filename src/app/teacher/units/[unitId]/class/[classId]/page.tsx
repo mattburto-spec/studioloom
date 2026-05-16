@@ -32,6 +32,7 @@ import SafetyDrawer from "@/components/teacher/class-hub/SafetyDrawer";
 import OpenStudioDrawer from "@/components/teacher/class-hub/OpenStudioDrawer";
 import MetricsDrawer from "@/components/teacher/class-hub/MetricsDrawer";
 import ChangeUnitModal from "@/components/teacher/class-hub/ChangeUnitModal";
+import GalleryDrawer from "@/components/teacher/class-hub/GalleryDrawer";
 import KebabMenu, { type KebabMenuSection } from "@/components/teacher/class-hub/KebabMenu";
 
 // ---------------------------------------------------------------------------
@@ -273,6 +274,19 @@ export default function ClassHubPage({
   // public.set_active_unit RPC via the setActiveUnit helper.
   const [changeUnitModalOpen, setChangeUnitModalOpen] = useState(false);
 
+  // Gallery strip + drawer (Phase 3.5). One fetch on mount populates
+  // the strip tiles + the drawer's initial state (drawer still re-fetches
+  // on open so mutations stay self-contained — same pattern as
+  // OpenStudioDrawer + MetricsDrawer).
+  const [galleryRounds, setGalleryRounds] = useState<Array<{
+    id: string;
+    title?: string | null;
+    display_mode?: string | null;
+    submission_count?: number | null;
+    state?: string | null;
+  }>>([]);
+  const [galleryDrawerOpen, setGalleryDrawerOpen] = useState(false);
+
   // -----------------------------------------------------------------------
   // Legacy ?tab=... compat (Phase 3.1 Step 4, G12 sign-off).
   // -----------------------------------------------------------------------
@@ -331,12 +345,16 @@ export default function ClassHubPage({
     // Phase 3.2 wired the matching drawers — route legacy URLs into
     // them so deep-links from the dashboard route + old bookmarks
     // land on the right surface.
-    //   • students                       → roster drawer (Step 4 wired)
+    //   • students                       → roster drawer (3.1 Step 4)
     //   • metrics / attention            → metrics drawer (3.2 Step 4)
     //   • badges / safety                → safety drawer  (3.2 Step 2)
     //   • studio / open-studio           → OS drawer      (3.2 Step 3)
-    //   • gallery                        → no-op (Phase 3.5 lands the drawer)
-    //   • settings                       → no-op (Phase 3.4 sub-route)
+    //   • gallery                        → gallery drawer (3.5 Step 2)
+    //   • settings                       → no-op (Phase 3.4 routes
+    //                                       via the kebab "Class
+    //                                       settings…" item; standalone
+    //                                       /teacher/classes/[id]/settings
+    //                                       sub-route is a follow-up)
     // Only one drawer opens — if the URL carries both ?tab=students
     // and ?student=..., students wins to avoid stacking.
     let openedDrawer = false;
@@ -351,6 +369,9 @@ export default function ClassHubPage({
       openedDrawer = true;
     } else if (tab === "studio" || tab === "open-studio") {
       setOpenStudioDrawerOpen(true);
+      openedDrawer = true;
+    } else if (tab === "gallery") {
+      setGalleryDrawerOpen(true);
       openedDrawer = true;
     }
     const openedRoster = openedDrawer; // backward-compat alias for the
@@ -581,6 +602,17 @@ export default function ClassHubPage({
         const badgeData = await badgeRes.json();
         setBadgeRequirements(badgeData.requirements || []);
         setBadgeStatusMap(badgeData.student_status || {});
+      }
+    } catch { /* non-critical */ }
+
+    // Gallery rounds (Phase 3.5) — feeds the strip tiles. GalleryDrawer
+    // also fetches independently on open so the New Round flow stays
+    // self-contained.
+    try {
+      const galRes = await fetch(`/api/teacher/gallery?unitId=${unitId}&classId=${classId}`);
+      if (galRes.ok) {
+        const galData = await galRes.json();
+        setGalleryRounds(galData.rounds || []);
       }
     } catch { /* non-critical */ }
 
@@ -1492,14 +1524,81 @@ export default function ClassHubPage({
             })()}
           </section>
 
-          {/* Gallery strip placeholder — Phase 3.5 fills this with the
-              recent-work thumbnail tiles + "Open gallery ›" link. */}
+          {/* Gallery strip (Phase 3.5 Step 2) — recent-work tile row +
+              "Open gallery →" link. Tiles render the most recent 6
+              rounds with rotating gradient backgrounds (matches mockup
+              .gallery-tile palette). Click any tile or the CTA →
+              opens GalleryDrawer. Empty state shows 6 dashed
+              placeholder tiles + a friendlier "Create your first
+              round" prompt. */}
           <section
             data-testid="canvas-gallery-strip"
-            data-placeholder="phase-3-5"
-            className="hidden"
-            aria-hidden="true"
-          />
+            className="bg-white rounded-2xl border border-border p-5"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-semibold text-text-primary">
+                Pin-Up Gallery
+                <span className="text-text-tertiary font-normal ml-1.5">
+                  · {galleryRounds.length} {galleryRounds.length === 1 ? "round" : "rounds"}
+                </span>
+              </div>
+              <button
+                type="button"
+                data-testid="gallery-strip-open-cta"
+                onClick={() => setGalleryDrawerOpen(true)}
+                className="text-xs font-medium text-text-secondary hover:text-text-primary transition"
+              >
+                Open gallery →
+              </button>
+            </div>
+            {galleryRounds.length === 0 ? (
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                {[0, 1, 2, 3, 4, 5].map((i) => (
+                  <div
+                    key={i}
+                    data-testid="gallery-strip-tile-empty"
+                    className="aspect-square rounded-lg border-2 border-dashed border-border bg-surface-alt/30"
+                  />
+                ))}
+                <p className="col-span-3 sm:col-span-6 text-xs text-text-secondary text-center mt-1">
+                  No pin-up rounds yet.{" "}
+                  <button
+                    type="button"
+                    onClick={() => setGalleryDrawerOpen(true)}
+                    className="text-purple-600 hover:underline font-medium"
+                  >
+                    Create your first round →
+                  </button>
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                {galleryRounds.slice(0, 6).map((round, i) => {
+                  // Rotate through the mockup's 4 tile gradients
+                  const palettes = [
+                    "bg-gradient-to-br from-emerald-100 to-teal-200 text-emerald-700",
+                    "bg-gradient-to-br from-orange-100 to-amber-200 text-orange-700",
+                    "bg-gradient-to-br from-violet-100 to-indigo-200 text-violet-700",
+                    "bg-gradient-to-br from-rose-100 to-pink-200 text-rose-700",
+                  ];
+                  const palette = palettes[i % palettes.length];
+                  const initial = (round.title || "•").charAt(0).toUpperCase();
+                  return (
+                    <button
+                      key={round.id}
+                      type="button"
+                      data-testid={`gallery-strip-tile-${round.id}`}
+                      onClick={() => setGalleryDrawerOpen(true)}
+                      title={round.title || "Untitled round"}
+                      className={`aspect-square rounded-lg ${palette} flex items-center justify-center text-lg font-bold hover:scale-[1.02] hover:shadow-sm transition`}
+                    >
+                      {initial}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </section>
         </div>
 
         {/* SIDE RAIL — Phase 3.2 fills each card with summary count + sub
@@ -1900,6 +1999,20 @@ export default function ClassHubPage({
           currentUnitId={unitId}
           className={className}
           onClose={() => setChangeUnitModalOpen(false)}
+        />
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* Gallery Drawer (Phase 3.5) — Pin-Up Gallery management.            */}
+      {/* Triggered by the canvas gallery strip "Open gallery →" CTA + the  */}
+      {/* legacy ?tab=gallery compat handler.                                */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {galleryDrawerOpen && (
+        <GalleryDrawer
+          unitId={unitId}
+          classId={classId}
+          unitPages={unitPages}
+          onClose={() => setGalleryDrawerOpen(false)}
         />
       )}
 
