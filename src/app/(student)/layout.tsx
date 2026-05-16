@@ -52,6 +52,14 @@ export default function StudentLayout({
       try {
         const res = await fetch("/api/auth/student-session");
         if (!res.ok) {
+          // Bounce path: leave `loading` at its initial `true` so the
+          // warm-paper full-screen spinner keeps covering the window
+          // until router.push completes. Previously the finally block
+          // below flipped loading=false here, which let BoldTopNav
+          // briefly render with student=null — the student-area pill
+          // nav flashed at non-students during the bounce. Mirrors
+          // TeacherLayout's fail-closed "redirecting" placeholder
+          // pattern (see FU-SEC-TEACHER-LAYOUT-FAIL-OPEN, 16 May 2026).
           router.push("/login");
           return;
         }
@@ -65,10 +73,15 @@ export default function StudentLayout({
         if ("mentor_id" in data.student && data.student.mentor_id === null) {
           setShowOnboarding(true);
         }
-      } catch {
-        router.push("/login");
-      } finally {
+
+        // Only flip loading=false on the success path. The bounce
+        // branches above + the catch below intentionally leave loading
+        // true so the spinner stays mounted until navigation completes.
         setLoading(false);
+      } catch {
+        // Same fail-closed shape as the !res.ok branch — leave loading
+        // true so no chrome flashes during the bounce.
+        router.push("/login");
       }
     }
     loadSession();
