@@ -1939,6 +1939,15 @@ Phase 6.3b (this same session) closed the worst hole by adding a `user_type` gua
 
 **Sequence:** post-pilot. Phase 6.3b's middleware guard makes this no longer pilot-blocking.
 
+**Update 2026-05-16 — Path 1 ✅ shipped + secondary leak closed:**
+
+- **Path 1 (`FU-AV2-WRONG-ROLE-TOAST`) shipped** in PR [#326](https://github.com/mattburto-spec/studioloom/pull/326). `?wrong_role=1` surfaces a dismissable amber banner on both dashboards with role-appropriate sign-out flows.
+- **Secondary leak found in smoke + closed in the same session:** Matt was logged in as teacher in Chrome; a prior student-classcode-login had stomped his sb-* cookie (this exact issue). New tab → /dashboard briefly mounted the student layout with `student=null`, and `BoldTopNav` rendered `STUDENT_MOCK` as "Sam · Year 7 · Design" — a name he didn't recognise. Then loadSession()'s student-token check 401'd and bounced to /login. **Two surgical fixes** (PR pending this commit batch):
+  1. `STUDENT_MOCK` at [src/components/student/BoldTopNav.tsx:75](src/components/student/BoldTopNav.tsx:75) changed to neutral em-dash placeholders + null classTag + grey gradient. Even if the fallback ever fires, it can't lie about identity.
+  2. [src/app/(student)/layout.tsx](src/app/(student)/layout.tsx) now passes `loading={!student}` to `BoldTopNav` so the existing skeleton-pulse UI covers the auth-flash window (was hardcoded `loading={false}`).
+  - +7 source-static tests with NC mutation at `src/components/student/__tests__/bold-top-nav-mock-flash.test.ts`. Suite 6516 → 6523, no regressions.
+- **Path 3 (browser-profile separation) is the operational recommendation for pre-pilot.** For solo-dev smoke testing on a Chrome with both teacher + student sessions, use a separate Chrome profile OR Firefox container OR incognito window for one of the roles. Path 2 (tab-scoped session ID) remains the architectural fix, deferred until post-pilot or multi-school onboarding.
+
 ---
 
 ## FU-AV2-WRONG-ROLE-TOAST — surface "wrong role logged in" banner when `?wrong_role=1` (P3) ✅ RESOLVED
