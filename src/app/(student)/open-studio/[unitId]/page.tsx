@@ -353,7 +353,7 @@ export default function OpenStudioPage({
                 DARK_THEME.textMuted;
             }}
           >
-            ← Back to Unit
+            ← Back to Project
           </Link>
 
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>

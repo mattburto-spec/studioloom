@@ -275,13 +275,13 @@ function UnitPageViewInner({
                 color: "var(--sl-ink)",
               }}
             >
-              {data?.unit.title || "Unit"}
+              {data?.unit.title || "Project"}
             </h1>
             <p
               className="mt-3"
               style={{ fontSize: "15px", color: "var(--sl-ink-2)" }}
             >
-              This unit doesn&apos;t have any lesson content yet. Your teacher will
+              This project doesn&apos;t have any lesson content yet. Your teacher will
               add content soon.
             </p>
           </div>

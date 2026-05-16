@@ -207,7 +207,7 @@ export function OwnTimeCard() {
               Own Time
             </h3>
             <p className="text-sm text-slate-400 mt-0.5 leading-relaxed">
-              Complete your current units to unlock self-directed learning time with an AI mentor.
+              Complete your current projects to unlock self-directed learning time with an AI mentor.
             </p>
 
             {/* Progress hint */}

@@ -198,7 +198,7 @@ type NavItem =
 
 const NAV_S: NavItem[] = [
   { label: "My work",   anchor: "dashboard-hero" },
-  { label: "Units",     anchor: "dashboard-units" },
+  { label: "Projects",  anchor: "dashboard-projects" },
   { label: "Skills",    route:  "/skills" },
   // Preflight Phase 6-6i — lands students on the /fabrication
   // overview (list of their submissions). "+ New submission" CTA on

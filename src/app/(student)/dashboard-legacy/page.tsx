@@ -260,8 +260,8 @@ export default function StudentDashboard() {
                       <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
                     </svg>
                   </div>
-                  <p className="text-lg font-semibold mb-1" style={{ color: themeStyles["--st-text"] }}>No units assigned yet</p>
-                  <p className="text-sm" style={{ color: themeStyles["--st-text-secondary"] }}>Your teacher will assign units for you to work on.</p>
+                  <p className="text-lg font-semibold mb-1" style={{ color: themeStyles["--st-text"] }}>No projects assigned yet</p>
+                  <p className="text-sm" style={{ color: themeStyles["--st-text-secondary"] }}>Your teacher will assign projects for you to work on.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -306,7 +306,7 @@ export default function StudentDashboard() {
                           <div className="p-4 flex-1 flex flex-col">
                             <h2 className="font-bold text-base mb-1 line-clamp-2" style={{ color: themeStyles["--st-text"] }}>{unit.title}</h2>
                             <p className="text-sm" style={{ color: themeStyles["--st-text-secondary"] }}>
-                              {percent === 0 ? "Start this unit" : isComplete ? "Complete" : "Continue where you left off"} &rarr;
+                              {percent === 0 ? "Start this project" : isComplete ? "Complete" : "Continue where you left off"} &rarr;
                             </p>
                           </div>
 

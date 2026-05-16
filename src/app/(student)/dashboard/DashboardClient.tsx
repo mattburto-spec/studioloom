@@ -465,9 +465,9 @@ const S_UNITS_MOCK: StudentUnit[] = [
   { id: "biom",    title: "Biomimicry",                     kicker: "Plastic pouch inspired by nature",      classTag: "7 Design",  color: "#0EA5A4", img: "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?w=900&h=600&fit=crop",    progress: 34, state: "in-progress", task: "Continue lesson",  href: "#" },
   { id: "arcade",  title: "Arcade Machine",                 kicker: "Build a working coin-op arcade",        classTag: "Service",   color: "#EC4899", img: "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=900&h=600&fit=crop",    progress: 62, state: "in-progress", task: "Continue lesson",  href: "#" },
   { id: "coffee",  title: "Coffee Table",                   kicker: "Designing and building a coffee table", classTag: "10 Design", color: "#9333EA", img: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=900&h=600&fit=crop",    progress: 12, state: "in-progress", task: "Continue lesson",  href: "#" },
-  { id: "pinball", title: "Engineering a Pinball Machine",  kicker: "Workshop unit · mechanical systems",    classTag: "Workshop",  color: "#F59E0B", img: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this unit",  href: "#" },
-  { id: "recycle", title: "Recycling Awareness",            kicker: "Correct bins across campus",            classTag: "Service",   color: "#10B981", img: "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this unit",  href: "#" },
-  { id: "co2",     title: "CO2 Racer",                      kicker: "Speed Through Science & Design",        classTag: "10 Design", color: "#E86F2C", img: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this unit",  href: "#" },
+  { id: "pinball", title: "Engineering a Pinball Machine",  kicker: "Workshop project · mechanical systems",    classTag: "Workshop",  color: "#F59E0B", img: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this project",  href: "#" },
+  { id: "recycle", title: "Recycling Awareness",            kicker: "Correct bins across campus",            classTag: "Service",   color: "#10B981", img: "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this project",  href: "#" },
+  { id: "co2",     title: "CO2 Racer",                      kicker: "Speed Through Science & Design",        classTag: "10 Design", color: "#E86F2C", img: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this project",  href: "#" },
 ];
 
 /** Build a grid card from a /api/student/units row. */
@@ -503,7 +503,7 @@ function unitRowToStudentUnit(unit: UnitRow): StudentUnit {
     img: unit.thumbnail_url,
     progress: progressPct,
     state,
-    task: state === "not-started" ? "Start this unit" : "Continue lesson",
+    task: state === "not-started" ? "Start this project" : "Continue lesson",
     href,
   };
 }
@@ -922,7 +922,7 @@ function MiddleRow({ buckets, badges }: { buckets: PriorityBuckets; badges: Badg
 // ================= UNITS GRID =================
 function UnitCard({ u }: { u: StudentUnit }) {
   const isNotStarted = u.state === "not-started";
-  const cta = isNotStarted ? "Start unit" : "Continue";
+  const cta = isNotStarted ? "Start project" : "Continue";
   return (
     <Link href={u.href} className="group bg-white rounded-3xl overflow-hidden card-shadow hover:card-shadow-lg hover:-translate-y-0.5 transition-all flex flex-col">
       <div className="aspect-[16/9] relative overflow-hidden" style={{ background: u.color }}>
@@ -974,11 +974,11 @@ function UnitsGrid({ units }: { units: StudentUnit[] }) {
     }`;
 
   return (
-    <section id="dashboard-units" className="max-w-[1400px] mx-auto px-6 pt-12">
+    <section id="dashboard-projects" className="max-w-[1400px] mx-auto px-6 pt-12">
       <div className="flex items-end justify-between mb-4">
         <div>
           <div className="cap text-[var(--sl-ink-3)]">
-            Your units · {filter === "in-progress" ? `${inProgressCount} in progress` : `${units.length} total`}
+            Your projects · {filter === "in-progress" ? `${inProgressCount} in progress` : `${units.length} total`}
           </div>
           <h2 className="display text-[32px] leading-none mt-1">Everything you&apos;re working on.</h2>
         </div>
@@ -1001,18 +1001,18 @@ function UnitsGrid({ units }: { units: StudentUnit[] }) {
         filter === "in-progress" ? (
           <div className="bg-white rounded-2xl border border-[var(--sl-hair)] p-8 text-center">
             <div className="text-[13px] text-[var(--sl-ink-3)]">
-              No units in progress yet. Start one below — open a unit and save a response to get going.
+              No projects in progress yet. Start one below — open a project and save a response to get going.
             </div>
             <button
               onClick={() => setFilter("all")}
               className="mt-4 btn-primary rounded-full px-4 py-2 text-[12.5px] inline-flex items-center gap-1.5"
             >
-              Show all units <Icon name="arrow" size={11} s={2.5} />
+              Show all projects <Icon name="arrow" size={11} s={2.5} />
             </button>
           </div>
         ) : (
           <div className="bg-white rounded-2xl border border-[var(--sl-hair)] p-8 text-center text-[13px] text-[var(--sl-ink-3)]">
-            No units assigned yet — your teacher will add some soon.
+            No projects assigned yet — your teacher will add some soon.
           </div>
         )
       ) : (
@@ -1106,7 +1106,7 @@ function EmptyHero({ firstName }: { firstName: string }) {
     <section className="max-w-[1400px] mx-auto px-6 pt-8">
       <div className="mb-4 px-1">
         <div className="cap text-[var(--sl-ink-3)]">{greet}, {firstName}</div>
-        <h1 className="display-lg text-[30px] md:text-[44px] leading-[0.95] mt-1">No units yet.</h1>
+        <h1 className="display-lg text-[30px] md:text-[44px] leading-[0.95] mt-1">No projects yet.</h1>
       </div>
       <div className="rounded-[32px] bg-white card-shadow p-10 text-center">
         <div className="w-16 h-16 rounded-2xl bg-[var(--sl-hair)]/60 mx-auto flex items-center justify-center">
@@ -1114,7 +1114,7 @@ function EmptyHero({ firstName }: { firstName: string }) {
         </div>
         <h2 className="display text-[22px] mt-5">Nothing assigned yet</h2>
         <p className="text-[13.5px] text-[var(--sl-ink-3)] mt-2 max-w-md mx-auto">
-          Your teacher will add units for you to work through. Check back soon, or head to the Safety page to earn your workshop badges while you wait.
+          Your teacher will add projects for you to work through. Check back soon, or head to the Safety page to earn your workshop badges while you wait.
         </p>
       </div>
     </section>
@@ -1221,7 +1221,7 @@ export default function DashboardClient() {
             ageDays < 1 ? "today" : ageDays === 1 ? "yesterday" : `${ageDays}d ago`;
           const titlePrefix =
             g.count === 1 ? "New feedback" : `${g.count} new feedback comments`;
-          const unit = g.unit_title?.trim() || "Unit";
+          const unit = g.unit_title?.trim() || "Project";
           return {
             id: `feedback-${g.unit_id}-${g.page_id}`,
             kind: "feedback",

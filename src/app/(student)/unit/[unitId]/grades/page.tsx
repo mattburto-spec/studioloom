@@ -85,7 +85,7 @@ export default function StudentGradesPage({
             No grades published yet
           </h2>
           <p className="text-sm text-gray-500 max-w-sm mx-auto">
-            Your teacher hasn&apos;t published grades for this unit yet. Keep working on your lessons — grades will appear here once they&apos;re ready.
+            Your teacher hasn&apos;t published grades for this project yet. Keep working on your lessons — grades will appear here once they&apos;re ready.
           </p>
         </div>
       </div>
