@@ -115,6 +115,41 @@ function lastActiveLabel(iso: string | null): string {
   return `${Math.round(ageMs / day)} d ago`;
 }
 
+// Phase 3.3 — "Today's lesson" derivation. Picks the page the class
+// is most likely working on right now:
+//   1. The lowest-index page where ANY student is currently
+//      in_progress (active focus).
+//   2. Fallback: the lowest-index page where NOT ALL students are
+//      complete (the next page to teach).
+//   3. Final fallback: page 0.
+// No schedule fetch — works without a configured timetable. A
+// schedule-driven derivation (use today's calendar date → mapped
+// page) is a Phase 3.4 follow-up.
+function deriveTodaysLessonIndex(
+  unitPages: UnitPage[],
+  progressMap: Record<string, Record<string, { status: "not_started" | "in_progress" | "complete" }>>,
+  studentIds: string[],
+): number {
+  if (unitPages.length === 0) return 0;
+  // Pass 1: any student in_progress
+  for (let i = 0; i < unitPages.length; i++) {
+    const pageId = unitPages[i].id;
+    const anyInProgress = studentIds.some(
+      (sid) => progressMap[sid]?.[pageId]?.status === "in_progress",
+    );
+    if (anyInProgress) return i;
+  }
+  // Pass 2: first not-all-complete
+  for (let i = 0; i < unitPages.length; i++) {
+    const pageId = unitPages[i].id;
+    const allComplete = studentIds.length > 0 && studentIds.every(
+      (sid) => progressMap[sid]?.[pageId]?.status === "complete",
+    );
+    if (!allComplete) return i;
+  }
+  return 0;
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -919,15 +954,147 @@ export default function ClassHubPage({
       >
         {/* MAIN COLUMN */}
         <div className="flex flex-col gap-6 min-w-0">
-          {/* Lesson hero placeholder — Phase 3.3 fills this with the
-              Today's-lesson card (Workshop Model outline + Change unit
-              affordance + Teach CTA). Empty in 3.1. */}
-          <section
-            data-testid="canvas-lesson-hero"
-            data-placeholder="phase-3-3"
-            className="hidden"
-            aria-hidden="true"
-          />
+          {/* Today's lesson hero (Phase 3.3) — orange card per mockup
+              view 2 .lesson-card (lines 1502-1527). Picks the page
+              the class is most likely working on right now (see
+              deriveTodaysLessonIndex). Outline pulls from the page's
+              workshopPhases when present; otherwise a friendly
+              "no Workshop Model timing yet" empty state. ▶ Teach CTA
+              links to /teacher/teach/[unitId]?classId=[classId] with
+              the today's page pre-selected. Change unit affordance
+              opens ChangeUnitModal (Step 2). */}
+          {unitPages.length === 0 ? (
+            <section
+              data-testid="canvas-lesson-hero"
+              data-empty="no-pages"
+              className="bg-orange-50 border border-orange-200 rounded-2xl p-6 text-sm text-orange-900"
+            >
+              No pages in this unit yet. Open <strong>Edit</strong> in the header to add one.
+            </section>
+          ) : (() => {
+            const studentIds = students.map((s) => s.id);
+            const todayIdx = deriveTodaysLessonIndex(unitPages, progressMap, studentIds);
+            const todayPage = unitPages[todayIdx];
+            const wp = todayPage?.content?.workshopPhases;
+            const totalMin = wp
+              ? (wp.opening?.durationMinutes ?? 0) +
+                (wp.miniLesson?.durationMinutes ?? 0) +
+                (wp.workTime?.durationMinutes ?? 0) +
+                (wp.debrief?.durationMinutes ?? 0)
+              : null;
+            // Outline rows — only render phases that have non-zero
+            // durations. Mockup style: time chip + bold phase name
+            // + focus/protocol detail.
+            const outlineRows: Array<{ minutes: number; name: string; detail: string }> = [];
+            if (wp) {
+              if (wp.opening?.durationMinutes) {
+                outlineRows.push({
+                  minutes: wp.opening.durationMinutes,
+                  name: wp.opening.phaseName || "Opening",
+                  detail: wp.opening.hook || "Hook + activate prior knowledge.",
+                });
+              }
+              if (wp.miniLesson?.durationMinutes) {
+                outlineRows.push({
+                  minutes: wp.miniLesson.durationMinutes,
+                  name: wp.miniLesson.phaseName || "Mini-lesson",
+                  detail: wp.miniLesson.focus || "Direct instruction on today's focus.",
+                });
+              }
+              if (wp.workTime?.durationMinutes) {
+                outlineRows.push({
+                  minutes: wp.workTime.durationMinutes,
+                  name: wp.workTime.phaseName || "Studio time",
+                  detail: wp.workTime.focus || "Sustained independent + collaborative work.",
+                });
+              }
+              if (wp.debrief?.durationMinutes) {
+                outlineRows.push({
+                  minutes: wp.debrief.durationMinutes,
+                  name: wp.debrief.phaseName || "Share",
+                  detail: wp.debrief.protocol || wp.debrief.prompt || "Structured share-out + reflection.",
+                });
+              }
+            }
+            return (
+              <section
+                data-testid="canvas-lesson-hero"
+                data-today-index={todayIdx}
+                className="relative bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-2xl shadow-sm overflow-hidden"
+              >
+                {/* Change unit affordance — top-right. Stub until Step 2
+                    wires the modal. */}
+                <button
+                  type="button"
+                  data-testid="lesson-hero-change-unit"
+                  title="Pick a different unit for this class (modal arrives in Phase 3.3 Step 2)"
+                  disabled
+                  className="absolute top-4 right-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 text-white/90 text-xs font-medium opacity-60 cursor-not-allowed"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M8 3 4 7l4 4" /><path d="M4 7h16" /><path d="m16 21 4-4-4-4" /><path d="M20 17H4" /></svg>
+                  Change unit
+                </button>
+                <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 lg:gap-8 p-6">
+                  <div>
+                    <span className="inline-block text-[10px] font-bold uppercase tracking-[0.08em] px-2.5 py-1 rounded-full bg-white/20">
+                      Today · Lesson {todayIdx + 1} of {unitPages.length}
+                    </span>
+                    <h2
+                      data-testid="lesson-hero-title"
+                      className="mt-3 text-2xl sm:text-3xl font-bold leading-tight"
+                    >
+                      {todayPage?.title || todayPage?.content?.title || `Page ${todayIdx + 1}`}
+                    </h2>
+                    <div className="mt-2 text-sm text-white/85">
+                      <strong className="font-semibold">Workshop Model</strong>
+                      {totalMin != null && totalMin > 0 && (
+                        <> · {totalMin} min</>
+                      )}
+                    </div>
+                    <Link
+                      data-testid="lesson-hero-teach-cta"
+                      href={`/teacher/teach/${unitId}?classId=${classId}&page=${encodeURIComponent(todayPage?.id ?? "")}`}
+                      className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-text-primary text-sm font-semibold shadow-sm hover:bg-white/95 transition"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                        <polygon points="5 3 19 12 5 21 5 3" />
+                      </svg>
+                      Teach
+                    </Link>
+                  </div>
+                  {/* Outline — right column on lg+, stacks below on small */}
+                  <div className="lg:border-l lg:border-white/25 lg:pl-7 flex flex-col gap-3 justify-center">
+                    {outlineRows.length === 0 ? (
+                      <p
+                        data-testid="lesson-hero-outline-empty"
+                        className="text-xs text-white/80 leading-relaxed"
+                      >
+                        No Workshop Model timing on this page yet.
+                        Open <strong>Edit</strong> to add opening / mini-lesson / work
+                        time / debrief phases.
+                      </p>
+                    ) : (
+                      outlineRows.map((row, i) => (
+                        <div
+                          key={i}
+                          data-testid="lesson-hero-outline-row"
+                          className="flex items-start gap-3"
+                        >
+                          <span className="flex-shrink-0 text-[10px] font-bold tracking-wider px-2 py-0.5 rounded bg-white/20 min-w-[44px] text-center">
+                            {row.minutes} min
+                          </span>
+                          <div className="text-xs leading-relaxed">
+                            <strong className="font-semibold">{row.name}.</strong>{" "}
+                            <span className="text-white/85">{row.detail}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </section>
+            );
+          })()}
 
           {/* Student grid — the heart of the canvas. Replaces the old
               Progress tab's student × page matrix with a per-student-row
