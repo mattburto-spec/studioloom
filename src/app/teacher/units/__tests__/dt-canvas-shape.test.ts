@@ -352,3 +352,134 @@ describe("DT canvas Phase 3.2 — legacy ?tab= compat enhanced for new drawers",
     );
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Phase 3.3 — Today's lesson hero + Change unit modal
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe("DT canvas Phase 3.3 — Today's lesson hero card", () => {
+  it("defines a module-scope deriveTodaysLessonIndex helper", () => {
+    expect(HUB_SRC).toMatch(/function\s+deriveTodaysLessonIndex\(/);
+  });
+
+  it("the derivation prefers in_progress then falls back to first-not-complete", () => {
+    // Two-pass shape: lock both passes so the priority order can't
+    // silently invert.
+    expect(HUB_SRC).toContain('?.status === "in_progress"');
+    expect(HUB_SRC).toContain('?.status === "complete"');
+  });
+
+  it("hero renders the title chip + h2 + Teach CTA testids", () => {
+    expect(HUB_SRC).toContain('data-testid="canvas-lesson-hero"');
+    expect(HUB_SRC).toContain('data-testid="lesson-hero-title"');
+    expect(HUB_SRC).toContain('data-testid="lesson-hero-teach-cta"');
+  });
+
+  it('"Today · Lesson X of Y" chip renders the derived position', () => {
+    expect(HUB_SRC).toMatch(/Today · Lesson \{todayIdx \+ 1\} of \{unitPages\.length\}/);
+  });
+
+  it("Teach CTA href carries the &page=<pageId> qualifier (pre-selects today's lesson)", () => {
+    const idx = HUB_SRC.indexOf('data-testid="lesson-hero-teach-cta"');
+    expect(idx).toBeGreaterThan(0);
+    const slice = HUB_SRC.slice(idx, idx + 800);
+    expect(slice).toMatch(
+      /href=\{`\/teacher\/teach\/\$\{unitId\}\?classId=\$\{classId\}&page=\$\{encodeURIComponent\(todayPage\?\.id \?\? ""\)\}`\}/
+    );
+  });
+
+  it("outline rows render one per populated workshop phase (opening / miniLesson / workTime / debrief)", () => {
+    // The wp.* gates ensure phases with zero durationMinutes don't
+    // surface as empty rows.
+    expect(HUB_SRC).toContain("wp.opening?.durationMinutes");
+    expect(HUB_SRC).toContain("wp.miniLesson?.durationMinutes");
+    expect(HUB_SRC).toContain("wp.workTime?.durationMinutes");
+    expect(HUB_SRC).toContain("wp.debrief?.durationMinutes");
+    expect(HUB_SRC).toContain('data-testid="lesson-hero-outline-row"');
+  });
+
+  it("empty-outline state renders when workshopPhases is missing", () => {
+    expect(HUB_SRC).toContain('data-testid="lesson-hero-outline-empty"');
+    expect(HUB_SRC).toContain("No Workshop Model timing on this page yet.");
+  });
+
+  it("empty-pages state renders when the unit has zero pages", () => {
+    expect(HUB_SRC).toContain('data-empty="no-pages"');
+    expect(HUB_SRC).toContain("No pages in this unit yet.");
+  });
+});
+
+describe("DT canvas Phase 3.3 — Change unit modal + setActiveUnit wiring", () => {
+  it("renders the Change unit button (lesson-hero-change-unit testid)", () => {
+    expect(HUB_SRC).toContain('data-testid="lesson-hero-change-unit"');
+  });
+
+  it("Change unit button onClick opens the modal", () => {
+    const idx = HUB_SRC.indexOf('data-testid="lesson-hero-change-unit"');
+    expect(idx).toBeGreaterThan(0);
+    const slice = HUB_SRC.slice(idx, idx + 600);
+    expect(slice).toMatch(/onClick=\{[\s\S]{0,80}setChangeUnitModalOpen\(true\)/);
+    // No longer disabled (Step 1 stub removed)
+    expect(slice).not.toMatch(/disabled\s*\n/);
+  });
+
+  it("page.tsx imports + mounts ChangeUnitModal gated on changeUnitModalOpen", () => {
+    expect(HUB_SRC).toMatch(
+      /import\s+ChangeUnitModal\s+from\s+["']@\/components\/teacher\/class-hub\/ChangeUnitModal["']/
+    );
+    expect(HUB_SRC).toMatch(
+      /changeUnitModalOpen\s*&&\s*\(\s*<ChangeUnitModal/
+    );
+  });
+
+  it("ChangeUnitModal imports the setActiveUnit helper from @/lib/classes/active-unit", () => {
+    const MODAL_SRC = readFileSync(
+      join(
+        process.cwd(),
+        "src/components/teacher/class-hub/ChangeUnitModal.tsx"
+      ),
+      "utf-8"
+    );
+    expect(MODAL_SRC).toMatch(
+      /import\s*\{[^}]*setActiveUnit[^}]*\}\s*from\s*["']@\/lib\/classes\/active-unit["']/
+    );
+  });
+
+  it("ChangeUnitModal calls setActiveUnit(supabase, classId, targetUnitId) on Make active", () => {
+    const MODAL_SRC = readFileSync(
+      join(
+        process.cwd(),
+        "src/components/teacher/class-hub/ChangeUnitModal.tsx"
+      ),
+      "utf-8"
+    );
+    expect(MODAL_SRC).toMatch(
+      /setActiveUnit\(supabase,\s*classId,\s*targetUnitId\)/
+    );
+  });
+
+  it("ChangeUnitModal maps SQLSTATE 42501 + 23505 to friendly error copy", () => {
+    const MODAL_SRC = readFileSync(
+      join(
+        process.cwd(),
+        "src/components/teacher/class-hub/ChangeUnitModal.tsx"
+      ),
+      "utf-8"
+    );
+    expect(MODAL_SRC).toContain('result.code === "42501"');
+    expect(MODAL_SRC).toContain('result.code === "23505"');
+  });
+
+  it("ChangeUnitModal navigates to the new unit's canvas on success", () => {
+    const MODAL_SRC = readFileSync(
+      join(
+        process.cwd(),
+        "src/components/teacher/class-hub/ChangeUnitModal.tsx"
+      ),
+      "utf-8"
+    );
+    expect(MODAL_SRC).toMatch(
+      /router\.push\(`\/teacher\/units\/\$\{targetUnitId\}\/class\/\$\{classId\}`\)/
+    );
+  });
+});
