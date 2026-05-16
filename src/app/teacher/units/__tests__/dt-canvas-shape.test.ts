@@ -44,17 +44,29 @@ describe("DT canvas — header shape", () => {
     );
   });
 
-  it("renders a canvas-header kebab stub (data-testid=canvas-header-kebab)", () => {
-    expect(HUB_SRC).toContain('data-testid="canvas-header-kebab"');
+  // ─── Phase 3.4 Step 1 (16 May 2026) ──────────────────────────────────
+  // Stub kebab replaced by a live KebabMenu dropdown. testId="canvas-
+  // header-kebab" prop sets the wrapper's data-testid at runtime. The
+  // disabled-state guard inverted — the kebab is no longer disabled
+  // since real items are wired.
+  it("renders a canvas-header KebabMenu (testId=canvas-header-kebab)", () => {
+    expect(HUB_SRC).toMatch(/testId=["']canvas-header-kebab["']/);
+    // KebabMenu component imported
+    expect(HUB_SRC).toMatch(
+      /import\s+KebabMenu[\s\S]{0,80}from\s+["']@\/components\/teacher\/class-hub\/KebabMenu["']/
+    );
   });
 
-  it("kebab is disabled in Phase 3.1 (real items wire in 3.4)", () => {
-    // Anchor on the kebab testid, then look for the disabled prop
-    // on the same element within a short slice.
-    const idx = HUB_SRC.indexOf('data-testid="canvas-header-kebab"');
+  it("Phase 3.4: kebab is no longer disabled — items wired", () => {
+    // The Phase 3.1 stub had a `disabled` prop on a bare <button>. The
+    // KebabMenu replacement doesn't pass disabled at all on the wrapper.
+    // Anchor: the canvas-header-kebab testId should NOT sit within 400
+    // chars of a `disabled` attribute (which would indicate the stub
+    // came back).
+    const idx = HUB_SRC.search(/testId=["']canvas-header-kebab["']/);
     expect(idx).toBeGreaterThan(0);
     const slice = HUB_SRC.slice(idx, idx + 400);
-    expect(slice).toMatch(/disabled\b/);
+    expect(slice).not.toMatch(/disabled\b/);
   });
 });
 

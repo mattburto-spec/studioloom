@@ -33,6 +33,7 @@ import SafetyDrawer from "@/components/teacher/class-hub/SafetyDrawer";
 import OpenStudioDrawer from "@/components/teacher/class-hub/OpenStudioDrawer";
 import MetricsDrawer from "@/components/teacher/class-hub/MetricsDrawer";
 import ChangeUnitModal from "@/components/teacher/class-hub/ChangeUnitModal";
+import KebabMenu, { type KebabMenuSection } from "@/components/teacher/class-hub/KebabMenu";
 
 // ---------------------------------------------------------------------------
 // DT Class Canvas — single unified per-class surface for the teacher.
@@ -944,25 +945,63 @@ export default function ClassHubPage({
             </svg>
             Change unit
           </button>
-          {/* Canvas-header kebab. Stub for Phase 3.1 — opens nothing yet.
-              Phase 3.4 wires the dropdown contents: Unit (Edit / View as
-              student / Change unit / Past units) + Class (Class settings /
-              Roll over / Duplicate / Archive / Delete). Mockup view 2,
+          {/* Canvas-header kebab (Phase 3.4 Step 1 — Unit section).
+              Class section + stubs land in Step 2. Mockup view 2,
               kebab-menu block (~line 1478). */}
-          <button
-            type="button"
-            data-testid="canvas-header-kebab"
-            aria-label="Class and unit actions"
-            title="Class and unit actions (coming in Phase 3.4)"
-            disabled
-            className="w-10 h-10 rounded-xl border border-border text-text-secondary opacity-50 cursor-not-allowed flex items-center justify-center"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="5" r="1.2" />
-              <circle cx="12" cy="12" r="1.2" />
-              <circle cx="12" cy="19" r="1.2" />
-            </svg>
-          </button>
+          {(() => {
+            const previewPageId = unitPages[0]?.id;
+            const unitSection: KebabMenuSection = {
+              label: `Unit · ${unit.title}`,
+              items: [
+                {
+                  testId: "kebab-unit-edit",
+                  label: "Edit unit",
+                  icon: <span aria-hidden>✎</span>,
+                  href: `/teacher/units/${unitId}/class/${classId}/edit`,
+                },
+                {
+                  testId: "kebab-unit-view-as-student",
+                  label: "View as student",
+                  icon: <span aria-hidden>👁</span>,
+                  href: previewPageId
+                    ? `/teacher/units/${unitId}/preview/${previewPageId}?classId=${classId}`
+                    : undefined,
+                  newTab: true,
+                  disabled: !previewPageId,
+                  conditional: previewPageId ? undefined : "no pages",
+                },
+                {
+                  testId: "kebab-unit-change",
+                  label: "Change unit…",
+                  icon: <span aria-hidden>↔</span>,
+                  onClick: () => setChangeUnitModalOpen(true),
+                },
+                {
+                  testId: "kebab-unit-past",
+                  label: "Past units on this class",
+                  icon: <span aria-hidden>⌛</span>,
+                  href: `/teacher/classes/${classId}/units`,
+                },
+              ],
+            };
+            return (
+              <KebabMenu
+                testId="canvas-header-kebab"
+                triggerAriaLabel="Class and unit actions"
+                sections={[unitSection]}
+                align="right"
+                trigger={
+                  <span className="w-10 h-10 rounded-xl border border-border text-text-secondary hover:bg-surface-alt flex items-center justify-center transition">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="5" r="1.2" />
+                      <circle cx="12" cy="12" r="1.2" />
+                      <circle cx="12" cy="19" r="1.2" />
+                    </svg>
+                  </span>
+                }
+              />
+            );
+          })()}
         </div>
       </div>
 
