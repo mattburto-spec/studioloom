@@ -24,9 +24,9 @@ docs:
     title: "Session Changelog"
     purpose: "Rolling log of changes across sessions for cross-session context"
     category: root
-    last_verified: "2026-05-14"
+    last_verified: "2026-05-16"
     max_age_days: 90
-    last_scanned: "2026-05-14"
+    last_scanned: "2026-05-16"
 
   - path: docs/decisions-log.md
     title: "Key Decisions Log"
@@ -464,12 +464,12 @@ docs:
 
   - path: docs/security/security-plan.md
     title: "Security Plan — P0–P3 Gap Closure + External-Review Closure"
-    purpose: "Forward-looking gap-closure plan with P0–P3 prioritisation and per-item effort estimates. Each item has ID (P-1, P-2, P-3, etc.), description, owner, target PR, status (OPEN / IN PROGRESS / DONE), and date+PR-link when shipped. Tracking table at the bottom keeps the audit trail. As of 10 May 2026: P-1..P-3, P-5, P-6, P-10 all DONE (PRs #140 + #142, 9 May). External-review closure S1–S7 SHIPPED 9–10 May 2026 — closes ALL 20 cowork findings (F-1..F-20) across phases: S1 RLS hardening, S2 units publish ownership gate, S3 requireTeacher sweep on 80 long-tail routes, S4 Sentry hardening, S5 storage proxy per-bucket scoping, S6 fab login hardening (bcrypt+lockout), S7 P3 bundle. Tracking section at bottom lists all 20 with closure commits + prod-applied migrations."
+    purpose: "Forward-looking gap-closure plan with P0–P3 prioritisation and per-item effort estimates. Each item has ID (P-1, P-2, P-3, etc.), description, owner, target PR, status (OPEN / IN PROGRESS / DONE), and date+PR-link when shipped. Tracking table at the bottom keeps the audit trail. As of 16 May 2026: P-1..P-3, P-5, P-6, P-10 all DONE; 20 cowork findings F-1..F-20 closed in S1–S7 (9–10 May); FU-SEC-TEACHER-LAYOUT-FAIL-OPEN (P1) + FU-SEC-SET-ACTIVE-UNIT-MISSING-UNIT-OWNERSHIP-CHECK (P1) both DONE 16 May. Two new P3 follow-ups filed: FU-SEC-MIDDLEWARE-USERTYPE-NULL, FU-SEC-LAYOUT-RUNTIME-TEST-INFRA."
     category: security
-    last_verified: "2026-05-10"
+    last_verified: "2026-05-16"
     referenced_from: ["CLAUDE.md Security section", "security-overview.md cross-link"]
     max_age_days: 90
-    last_scanned: "2026-05-10"
+    last_scanned: "2026-05-16"
 
   - path: docs/projects/discovery-engine-cognitive-layer.md
     title: "Discovery Engine — Cognitive Layer (MindPrint-Informed)"
