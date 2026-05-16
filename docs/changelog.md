@@ -4,6 +4,57 @@
 
 ---
 
+## 2026-05-16 (PM) — Trigger fix + cleanup: 53 phantom student-shape teacher rows (Lesson #92, Lesson #65 redux)
+
+**Context:** Session opened to start `FU-SEC-TEACHER-LAYOUT-FAIL-OPEN` (P1) — the morning saveme had filed it after Matt found a student rendering the teacher chrome in /teacher/classes. Mid-pre-flight Matt opened /admin/teachers to spot-check the diagnostic and found 56 teacher rows instead of ~3 — 53 of them were synthetic-email shapes (`student-<uuid>@students.studioloom.local`). Same shape as the original Lesson #65 leak (1 May). Layout work was paused; the active production data integrity issue took precedence.
+
+### Diagnostic walk
+- **Q1** (function definition in prod) — `pg_get_functiondef('public.handle_new_teacher()'::regprocedure)` showed the 11 May handpatch body: `user_type='student'` guard on `raw_app_meta_data`, search_path locked, `public.teachers` schema-qualified, EXCEPTION-WHEN-others. Function looked correct.
+- **Q2** (applied_migrations tracker) — handpatch row landed 2026-05-11 08:30 UTC. No migration drift; the handpatch was on disk in prod.
+- **Q3** (scope + dates) — 53 phantom rows, ALL post-handpatch. Earliest 2026-05-11 08:39 (+9 minutes after handpatch landed), latest 2026-05-14 23:54. Bug was firing immediately after the handpatch unblocked student creation.
+- **Q4** (smoking gun — auth.users metadata for 5 phantom rows) — BOTH `raw_app_meta_data.user_type` and `raw_user_meta_data.user_type` were `'student'` at query time. So the data IS correctly written eventually. But the trigger fired and created the phantom row anyway.
+- **Q5** (FK safety enumeration across all 17 columns pointing at teachers(id)) — `Success. No rows returned.` Phantoms are pure orphans.
+
+### Root cause (Lesson #92)
+Supabase Auth (gotrue) doesn't INSERT auth.users with `app_metadata` set in one go. It does INSERT-then-UPDATE:
+1. INSERT auth.users with `raw_app_meta_data = '{}'`
+2. AFTER INSERT trigger fires — sees empty `raw_app_meta_data`, the user_type guard misses, INSERTs phantom teacher row
+3. UPDATE auth.users SET `raw_app_meta_data = '{user_type: "student", ...}'` — invisible to the trigger
+
+`raw_user_meta_data` IS populated in the original INSERT (the sibling `handle_new_user_profile` trigger has worked all along because it reads `raw_user_meta_data`). The handpatch read the wrong bucket. The mocked-admin-client tests never exercised the real gotrue path, so the bug stayed latent for 2 weeks.
+
+### What shipped (5 commits, branch `claude/vigilant-kepler-ec859c`)
+- **Mig `20260516044909_fix_handle_new_teacher_check_user_metadata_bucket`** — one-line guard change: `IF (NEW.raw_app_meta_data->>'user_type') = 'student' OR (NEW.raw_user_meta_data->>'user_type') = 'student' THEN`. Sanity DO-block extended to assert BOTH bucket checks present. Applied to prod 16 May; `applied_migrations` row logged in the same SQL Editor session per Lesson #83.
+- **Mig `20260516050159_cleanup_phantom_student_teacher_rows`** — single DO-block with belt-and-braces: pre-count via RAISE NOTICE, FK-safety re-asserted INSIDE migration body across all 17 columns (any non-zero → RAISE EXCEPTION + rollback), filter is hardcoded synthetic-email pattern, GET DIAGNOSTICS captures rows-deleted, post-condition asserts zero phantoms remain (rolls back if not). Applied to prod 16 May; deleted 53; `/admin/teachers` now shows 3 real teachers.
+- **`src/lib/access-v2/__tests__/migration-handle-new-teacher-bucket-fix.test.ts`** — 22 source-static assertions covering both migrations. NC mutation proven load-bearing: removing the `raw_user_meta_data` guard breaks 2 specific tests.
+- **`docs/lessons-learned.md`** — Lesson #92 banked (full diagnosis + root cause + 4 operational rules + filed-with summary). Lesson #65 amended with a 16 May update note + audit checklist step 4 ("verify the bucket you're reading IS populated at trigger time").
+- **`docs/security/security-plan.md`** — new "Surfaced 2026-05-16" tracking-table section: Lesson #92 trigger fix marked DONE, `FU-AUTH-TRIGGER-AUDIT-METADATA-BUCKETS` (P2) filed to sweep every other AFTER INSERT trigger on auth.users for the same wrong-bucket pattern.
+
+### Smoke results
+- ✅ Trigger fix in prod: provisioned a fresh student "test999" via `/teacher/classes/[classId]` Add Student modal → student appears in class normally → `phantom_count_before === phantom_count_after === 53` (no new phantom). Latest phantom still from 14 May 23:54 (the moment before the fix landed in the chain).
+- ✅ Cleanup in prod: DO-block printed `pre-count = 53 → deleted 53 → post=0` → `/admin/teachers` refreshed to show 3 real teachers as expected.
+- ✅ Local: 6442 → 6464 passing (+22 net, exactly the new shape tests). No regressions.
+
+### Systems touched
+- **Schema:** `public.handle_new_teacher()` function body replaced (single → dual bucket guard); 53 rows DELETEd from `public.teachers`. No table/column/RLS changes.
+- **Code (added):** the test file under `src/lib/access-v2/__tests__/`. No app-code changes.
+- **Docs:** `docs/lessons-learned.md` (Lesson #92 + Lesson #65 amendment), `docs/security/security-plan.md` (Lesson #92 entry + FU-AUTH-TRIGGER-AUDIT-METADATA-BUCKETS), this changelog entry.
+- **Registries:** api-registry / ai-call-sites / vendors / RLS all re-scanned, no drift. feature-flags drift report pre-existing (21 registered vs 30 code env vars), not from this session. Scanner-report JSON timestamps refreshed.
+- No new API routes, no new AI call sites, no new feature flags, no new vendors, no WIRING.yaml entries affected (auth-system is downstream of the trigger but its `key_files` don't reference the function name directly).
+
+### Footguns banked (again)
+- **Edit-tool absolute paths to the wrong worktree.** Mid-Block-C I wrote 3 Edit calls targeting `/Users/matt/CWORK/questerra/docs/...` (the main worktree) instead of `/Users/matt/CWORK/questerra/.claude/worktrees/vigilant-kepler-ec859c/docs/...` (this session's worktree). Caught when `git status` showed the test file as untracked but the docs files as not-modified, then `grep -c "Lesson #92"` confirmed the edits had landed in the main worktree. Recovery: confirmed via `git -C /Users/matt/CWORK/questerra diff` that the main worktree had NO pre-existing modifications to those files (only my accidental edits), reverted via `git -C /Users/matt/CWORK/questerra checkout --`, re-applied with the correct prefixed paths. Cost: ~5 min. This is the EXACT footgun banked in the morning saveme — re-banked here so the lesson keeps surfacing until tooling closes it. Lesson candidate: when working in a session worktree, prefer relative paths from `pwd`, or pre-flight every Edit call by greping `pwd` to confirm the path.
+
+### Surfaced (still TODO, picks up next session)
+- **`FU-SEC-TEACHER-LAYOUT-FAIL-OPEN`** — the original morning task. Layout audit was complete (6 layouts surveyed, TeacherLayout + SchoolLayout identified as fail-open, AdminLayout identified as the gold-standard fail-closed reference) but no code touched. Pickup ready: re-read [`docs/security/security-plan.md`](security/security-plan.md) §FU-SEC-TEACHER-LAYOUT-FAIL-OPEN, apply the AdminLayout state-machine pattern (`checking | teacher | redirecting`) to TeacherLayout + SchoolLayout, redirect missing-teacher-row to `/dashboard?wrong_role=1` (mirrors middleware Phase 6.3b convention), add source-static shape tests, smoke as Scott. Estimated ~1–2h.
+- **`FU-AUTH-TRIGGER-AUDIT-METADATA-BUCKETS`** (P2) — sweep every other AFTER INSERT trigger on auth.users (e.g. `handle_new_user_profile`, and any others enumerated via `information_schema.triggers`). Known good: `handle_new_user_profile` reads `raw_user_meta_data` (verified). Estimated ~1h.
+
+### Next
+- Open PR for branch `claude/vigilant-kepler-ec859c` (5 commits, 2 migrations + 1 test file + 2 doc updates + this changelog entry).
+- Pick up `FU-SEC-TEACHER-LAYOUT-FAIL-OPEN` in a fresh worktree (cleaner separation from this PR).
+
+---
+
 ## 2026-05-16 — One active unit per class enforced at DB level ([PR #319](https://github.com/mattburto-spec/studioloom/pull/319))
 
 **Context:** Implementation of the decision logged in [docs/decisions-log.md](decisions-log.md) line 7 dated 16 May 2026 — "One active unit per class enforced at DB level". Pre-Block-A audit confirmed prod was clean (zero classes with multiple `is_active=true` rows on `class_units`) so reconciliation was unnecessary. Three-block phased build (constraint → atomic helper → caller refactor), each with its own Matt Checkpoint and STOP AND REPORT gate per [build-methodology.md](build-methodology.md).
