@@ -4,6 +4,76 @@
 
 ---
 
+## 2026-05-16 (PM, later) — `FU-SEC-TEACHER-LAYOUT-FAIL-OPEN` (P1) closed + 3 smoke-discovered adjacencies fixed across 4 PRs
+
+**Context:** Session opened to pick up `FU-SEC-TEACHER-LAYOUT-FAIL-OPEN` (P1) — filed in this morning's saveme after Matt found a logged-in student session rendering the full teacher chrome at `/teacher/classes` (class codes visible). The morning session had completed the layout census (TeacherLayout + SchoolLayout = fail-open, AdminLayout = gold-standard fail-closed) but pivoted to the 53-phantom-teacher cleanup (Lesson #92) before touching layout code. This session shipped the original fix + every adjacency that surfaced from smoking it.
+
+### Four PRs, four bugs of the same class
+
+| # | PR | Closes | Tests | Verified |
+|---|---|---|---|---|
+| 1 | [#325](https://github.com/mattburto-spec/studioloom/pull/325) | `FU-SEC-TEACHER-LAYOUT-FAIL-OPEN` (P1) — original class-code leak | 6471 → 6481 (+10 source-static, 2 NC mutation) | Smoke: student → /teacher/classes bounces to /dashboard?wrong_role=1, no chrome, no codes ✅ |
+| 2 | [#326](https://github.com/mattburto-spec/studioloom/pull/326) | `FU-AV2-WRONG-ROLE-TOAST` (P3) — silent bounce on `?wrong_role=1` | 6503 → 6516 (+13, 1 NC mutation) | Smoke: amber banner appears, dismiss strips param, sign-out works ✅ |
+| 3 | [#327](https://github.com/mattburto-spec/studioloom/pull/327) | "Sam · Year 7 · Design" flash — STUDENT_MOCK identity-lie in BoldTopNav fallback path | 6516 → 6523 (+7, 2 NC mutation) | Smoke: skeleton-pulse on the user-info chip, no realistic name ✅ |
+| 4 | [#328](https://github.com/mattburto-spec/studioloom/pull/328) | Student-area chrome flash during bounce window (Matt asked "should it be showing topnav?") | 6523 → 6530 (+7, 2 NC mutation) | Smoke: full-screen warm-paper spinner only, no logo/pills/chip at all ✅ |
+
+**Net:** 6471 → 6530 (+59 tests across 4 PRs), 11 skipped, 0 regressions throughout.
+
+### How the cascade unfolded
+
+The class of bug is the same throughout: a logged-in non-owner of a layout briefly sees content shaped for that layout's owner.
+
+1. **#325 — original bug.** `src/app/teacher/layout.tsx:86-96` logged the PGRST116 "no teacher row" error and rendered TeacherShell anyway. `src/app/school/layout.tsx:58-71` had the identical pattern (file header explicitly noted `FU-AV2-LAYOUT-DEDUP P3`). Fix: state-machine mirroring AdminLayout — `"checking" | "teacher" | "redirecting" | "public" | "chromeless"`, chrome only renders on `authState === "teacher"`. Missing-row bounces to `/dashboard?wrong_role=1` matching middleware Phase 6.3b convention. `router.push` → `router.replace` everywhere.
+
+2. **#326 — silent bounce.** Smoke confirmed the redirect mechanism worked, but the dashboard surfaced no UX explaining why. `FU-AV2-WRONG-ROLE-TOAST` (P3, filed 4 May 2026) was already tracked. New shared `WrongRoleBanner` component reads `?wrong_role=1` via `useSearchParams`, renders dismissable amber notice with role-appropriate copy and sign-out flows (student: `DELETE /api/auth/student-session` + `/login`; teacher: `supabase.auth.signOut()` + `/teacher/login`). Mounted in `(student)/layout.tsx` between `BoldTopNav` and `{children}`, and in `teacher/layout.tsx` inside the `authState === "teacher"` branch only (asserted by source-static test — NOT in the fail-closed placeholder, which would defeat #325).
+
+3. **#327 — "Sam" flash.** Smoke of #326 surfaced a deeper bug. Matt opened `/dashboard` from a Chrome that had both a teacher session AND a stale student-classcode-login (the underlying `FU-AV2-CROSS-TAB-ROLE-COLLISION` P2 — both flows write to the same `sb-*` cookie at studioloom.org, second login stomps first). Middleware let `/dashboard` through (sb-* user_type was now student). Student layout mounted with `student=null`. `BoldTopNav` rendered `STUDENT_MOCK` as "Sam · Year 7 · Design" — a fabricated identity. Then `loadSession()` 401'd on the missing student-token cookie and bounced. **Two surgical fixes:** (a) `STUDENT_MOCK` at `src/components/student/BoldTopNav.tsx:75` → neutral em-dash placeholders + null classTag + skeleton-grey gradient; (b) `(student)/layout.tsx` passes `loading={!student}` to `BoldTopNav` so the existing skeleton-pulse UI covers the auth-flash window (was hardcoded `loading={false}`).
+
+4. **#328 — chrome flash during bounce.** Matt's smoke of #327: "ok yes did loading, then had the topnav and the name was hidden as skeleton. is that right? should it be showing topnav?" The skeleton hid only the user-info chip; the student-area chrome (StudioLoom logo + "My work / Units / Skills / Preflight / Journal / Resources" pill nav) still rendered briefly during the bounce. **Cause:** the `loadSession` useEffect's `finally { setLoading(false) }` unconditionally flipped the layout out of its full-screen warm-paper spinner state, even on bounce branches. **Fix mirrors TeacherLayout's fail-closed shape:** drop the `finally`, only call `setLoading(false)` on the success path after `setStudent`, leave `loading=true` on both bounce branches so the spinner stays mounted until `/login` navigation completes. No chrome ever renders for a non-student now.
+
+### Smoke-discovered noise (filed, not fixed)
+
+| Console error | Verdict |
+|---|---|
+| `XHR GET /unit/[id]?_rsc=... 404` (consistent across all smokes) | Next.js noise. Dashboard `<Link>` to `/unit/[id]` triggers RSC prefetch; the route server-side `redirect()`s to `/unit/[id]/[firstPageId]`; RSC payload of a redirect-only response is 404 by design. All three of Scott's unit cards open fine on click. User-invisible. |
+| `Cookie "__cf_bm" rejected for invalid domain` × N | Cloudflare bot-management cookie, domain-attribute mismatch at Vercel edge. Pre-existing for life of deployment. |
+| `Cookie "__Secure-YEC" rejected (SameSite Lax/Strict cross-site)` | YouTube embed cookie blocked when the lesson's "Watch on YouTube" iframe loads. Happens on every site with YouTube embeds. |
+
+No FUs filed for these — all expected platform/browser behaviour. Documented in the smoke replies in this thread for future reference.
+
+### Tracker updates
+
+- `FU-SEC-TEACHER-LAYOUT-FAIL-OPEN` (P1) → **DONE 2026-05-16** in [`docs/security/security-plan.md`](security/security-plan.md) tracking table.
+- `FU-AV2-WRONG-ROLE-TOAST` (P3) → **RESOLVED 2026-05-16** in [`docs/projects/dimensions3-followups.md`](projects/dimensions3-followups.md).
+- `FU-AV2-CROSS-TAB-ROLE-COLLISION` (P2) — **detailed update appended** to its existing entry: path 1 (wrong-role toast) shipped via #326, the secondary STUDENT_MOCK + chrome-flash leaks closed via #327/#328, path 3 (browser-profile separation) confirmed as operational recommendation for pre-pilot, path 2 (tab-scoped session ID) deferred post-pilot. Stays at P2 OPEN.
+- Two new P3 follow-ups filed in security-plan.md tracking table:
+  - `FU-SEC-MIDDLEWARE-USERTYPE-NULL` — middleware Phase 6.3b checks `userType === "student"` but doesn't redirect when the field is unset. Layout fix now covers it in React; middleware should tighten at the edge.
+  - `FU-SEC-LAYOUT-RUNTIME-TEST-INFRA` — add jsdom + RTL mocking so future layout FUs can ship runtime mount tests alongside source-static.
+
+### Systems touched
+
+- **Code (modified):** `src/app/teacher/layout.tsx`, `src/app/school/layout.tsx`, `src/app/(student)/layout.tsx`, `src/components/student/BoldTopNav.tsx`. No new routes, no new components except `WrongRoleBanner`.
+- **Code (added):** `src/components/shared/WrongRoleBanner.tsx` (+ test), `src/app/teacher/__tests__/layout-fail-closed.test.ts`, `src/components/shared/__tests__/wrong-role-banner.test.ts`, `src/components/student/__tests__/bold-top-nav-mock-flash.test.ts`, `src/app/(student)/__tests__/layout-bounce-spinner.test.ts`. All source-static with NC mutation checks.
+- **Docs:** `docs/security/security-plan.md` (FU closed + 2 P3 filed), `docs/projects/dimensions3-followups.md` (2 FUs updated/resolved).
+- **No migrations.** No schema changes. No RLS changes. No new AI call sites. No new feature flags. No new vendors. No WIRING.yaml entries affected.
+
+### Footgun banked (single occurrence — not yet Lesson)
+
+**`git stash pop` with mixed tracked-edits + untracked files can silently drop the tracked edits.** During #326 I needed to capture a clean post-merge baseline for the test count; ran `git stash -u` (which captured my in-progress edits to (student)/layout.tsx + teacher/layout.tsx + an untracked test file + an untracked component file), then `npm test` for baseline, then `git stash pop`. The pop output said "no changes added to commit … The stash entry is kept in case you need it again." which LOOKS like a clean pop. But a `git status` post-pop didn't show the layout edits, only the untracked component/test files. Caught when I grepped for `WrongRoleBanner` in the layouts before commit. Recovery: re-did the layout edits from scratch (Edit tool, ~2 min). Lesson candidate if it recurs — single occurrence so far, banking here. **Operational rule:** after `git stash pop` with a mixed-content stash, verify with a content grep, not just `git status`.
+
+### Worktree footguns (recurrence — known-known)
+
+- `gh pr merge --squash --delete-branch` failed local fast-forward on all 4 PRs because `main` is checked out in sibling worktree `unruffled-edison-719dd4`. Merge succeeded on GitHub every time; branch deleted via `gh api -X DELETE /repos/.../git/refs/heads/<branch>` + `git fetch origin --prune`. Same pattern banked in this morning's kepler handoff. Not blocking, just repetitive — the explicit `gh api` step is the workaround.
+
+### Surfaced (carried forward, not in scope this session)
+
+- `FU-AV2-CROSS-TAB-ROLE-COLLISION` (P2) — path 2 (server-side per-tab session map) for post-pilot.
+- `FU-SEC-MIDDLEWARE-USERTYPE-NULL` (P3) — defensive edge tightening.
+- `FU-SEC-LAYOUT-RUNTIME-TEST-INFRA` (P3) — RTL mounting infra so future layout work can ship runtime tests.
+- `FU-AV2-LAYOUT-DEDUP` (P3) — TeacherLayout + SchoolLayout duplication, called out in school/layout.tsx file header. Deliberately not deduped while the security fix was load-bearing; opportunistic cleanup later.
+
+---
+
 ## 2026-05-16 (evening) — Student-side "Unit" → "Project" UI rename Phase 2 ([studioloom#329](https://github.com/mattburto-spec/studioloom/pull/329))
 
 **Context:** Phase 2 of a phased Unit→Project rename. Prompt 1 (an earlier discussion, not in this session) decided to split the rename into surface change → URL rename → data model rename. This session executed the surface change (Phase 2).
@@ -41,6 +111,7 @@
 - Phase 4 (data model rename): `units` table → `projects`, `unit_type` → `project_type`, `UnitBrief` → `ProjectBrief`, `class_units` → `class_projects`, etc. + WIRING.yaml + schema-registry.yaml + all internal docs vocabulary sweep.
 - **FU-SCHEMA-REGISTRY-YAML-PARSE** (P3) — `docs/schema-registry.yaml:2384` has a YAML parse error blocking `scan-api-routes.py`. Pre-existing (not from this session); likely a hand-edit went wrong. Surfaced during saveme registry sync. Fixing it would unblock the api-registry scanner.
 - Vocabulary gap: internal docs (WIRING, registries, lessons-learned, changelog) still say "Unit". By design — will flip with Phase 4. Worth being aware that for the next 1-N weeks (until Phase 4 lands), there's a UI/docs vocabulary split.
+- **`FU-SCHEMA-REGISTRY-YAML-PARSE` (P3) — RESOLVED in [PR #331](https://github.com/mattburto-spec/studioloom/pull/331)** (this saveme's security-arc saveme, which ran into the same blocker an hour later). Root cause: `PR #N` and `Lesson #N` substrings in unquoted multi-line spec_drift entries — `#` after whitespace = YAML inline comment marker. Fix: two `replace_all`s (`PR #` → `PR-`, `Lesson #` → `Lesson-`).
 
 ---
 

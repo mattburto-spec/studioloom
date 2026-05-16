@@ -2309,7 +2309,7 @@ tables:
     note: 'Phase 1.4 CS-2 hotfix #2 — applied 20260430015239_phase_1_4_cs2_fix_class_students_classes_recursion.sql. DROP+CREATE
       `Teachers manage class_students` to use SECURITY DEFINER helper public.is_teacher_of_class(class_id) instead of inlined
       `class_id IN (SELECT id FROM classes WHERE teacher_id = auth.uid())` subquery. Breaks classes↔class_students RLS recursion
-      cycle (Lesson #64). Same semantic, no inline subquery.'
+      cycle (Lesson-64). Same semantic, no inline subquery.'
   classification:
     student_id:
       pii: true
@@ -2422,15 +2422,15 @@ tables:
     `toggleUnit` and `toggleClassAssignment` route is_active=true through
     setActiveUnit() helper at src/lib/classes/active-unit.ts. See
     docs/decisions-log.md "One active unit per class enforced at DB level"
-    (16 May 2026) and PR #319.
+    (16 May 2026) and PR-319.
   - 2026-05-16 — `public.set_active_unit` extended with a SECOND auth gate
-    via migration 20260516052310 (Block C, PR #323) — caller must own the
+    via migration 20260516052310 (Block C, PR-323) — caller must own the
     target unit (units.author_teacher_id = auth.uid()) OR the unit must be
     is_published = true. Closes FU-SEC-SET-ACTIVE-UNIT-MISSING-UNIT-OWNERSHIP-CHECK
     (P1) — without this gate, any authenticated teacher could attach any
     unit_id to one of their own classes, bypassing the fork flow. CREATE OR
     REPLACE preserves SECURITY DEFINER, search_path lockdown, REVOKE/GRANT,
-    and INSERT-ON-CONFLICT shape. Lesson #66 sanity DO-block extended with
+    and INSERT-ON-CONFLICT shape. Lesson-66 sanity DO-block extended with
     3 new LIKE assertions (author_teacher_id, is_published, "cannot attach
     unit"). No app-code change required — wrapper's discriminated-union
     surfaces SQLSTATE 42501 regardless of which gate fires; existing toast
@@ -3910,7 +3910,7 @@ tables:
       BLOCK rules. Read by /admin/preflight/flagged dev review surface + teacher Needs Attention tab + fab queue/detail
       override flag. Pilot flag controlled in src/lib/fabrication/pilot-mode.ts (PILOT_MODE_ENABLED constant).
   notes: 'lab_tech_picked_up_by intentionally has no FK to fabricators(id) — table not yet existed at migration time. FK hardening
-    deferred. Dual-visibility RLS uses direct teacher_id fallback rather than Lesson #29 junction UNION because teacher_id
+    deferred. Dual-visibility RLS uses direct teacher_id fallback rather than Lesson-29 junction UNION because teacher_id
     column covers the NULL class_id case cleanly.'
 - name: fabrication_labs
   source_migration: 20260427134953_fabrication_labs.sql
@@ -3993,7 +3993,7 @@ tables:
   source_migration: 097_fabricators.sql
   status: applied
   applied_date: null
-  purpose: 'Cookie session records for Fabricators. Same pattern as student_sessions (Lesson #4) — bcrypt-hashed token stored;
+  purpose: 'Cookie session records for Fabricators. Same pattern as student_sessions (Lesson-4) — bcrypt-hashed token stored;
     cookie value random 32-byte string hashed before comparison.'
   columns:
     id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
@@ -8859,7 +8859,7 @@ tables:
   - src/app/api/admin/audit-log/route.ts
   spec_drift:
   - date: 2026-04-14
-    finding: 'FU-N Option C applied via migration 078 (Lesson #29 UNION pattern). SELECT + UPDATE policies now handle NULL
+    finding: 'FU-N Option C applied via migration 078 (Lesson-29 UNION pattern). SELECT + UPDATE policies now handle NULL
       class_id by routing through student_id via class_students junction UNION legacy students.class_id path. 14 of 17 writer
       sites pass NULL class_id by design.'
     decision: Closed. FU-N-followup (P2) filed to migrate to Option B admin queue when FU-O roles land.
@@ -9679,7 +9679,7 @@ tables:
       check: |
         Teacher owns a class with this unit assigned (via class_units
         join, is_active = true). Platform admins also pass.
-        Students access via service-role API (Lesson #4 — token
+        Students access via service-role API (Lesson-4 — token
         sessions, not auth.uid()) so no student policy needed.
   writers:
     - /api/student/project-spec (POST partial-patch upsert)
@@ -9742,7 +9742,7 @@ tables:
       check: |
         Teacher owns a class with this unit assigned (via class_units
         join, is_active = true). Platform admins also pass. Students
-        access via service-role API (Lesson #4 — token sessions, not
+        access via service-role API (Lesson-4 — token sessions, not
         auth.uid()) so no student policy needed.
   writers:
     - /api/student/product-brief (POST partial-patch upsert; pitch_text auto-flips status null/revise → pending)
@@ -9950,7 +9950,7 @@ tables:
     note: 'Phase 1.4 CS-2 hotfix #1 — applied 20260430010922_phase_1_4_cs2_fix_students_rls_recursion.sql. DROP+CREATE `Teachers
       manage students` to use SECURITY DEFINER helper public.is_teacher_of_student(id) instead of inlined `id IN (SELECT cs.student_id
       FROM class_students cs JOIN classes c ON ...)` subquery. Breaks students↔class_students RLS recursion cycle that fired
-      the moment SSR client first read students (Lesson #64). Same semantic; no inline subquery.'
+      the moment SSR client first read students (Lesson-64). Same semantic; no inline subquery.'
   classification:
     id:
       pii: true
@@ -11448,8 +11448,8 @@ tables:
       check: |
         Teacher owns a class with this unit assigned (via class_units join,
         is_active=true). Platform admins also pass. Route through unit_id
-        means NULL class_id is handled naturally — Lesson #29 fallback NOT
-        needed here. Students access via service-role API (Lesson #4 —
+        means NULL class_id is handled naturally — Lesson-29 fallback NOT
+        needed here. Students access via service-role API (Lesson-4 —
         token sessions, not auth.uid()).
   writers:
     - /api/student/choice-cards/[activityId]/pick (POST upsert on student_id+activity_id)
@@ -11698,7 +11698,7 @@ tables:
     authored brief prose + archetype-discriminated constraints JSONB +
     spec diagram URL + per-field lock map (Phase F.A). Read at render
     time by the student BoldTopNav-adjacent LessonSidebar chip +
-    drawer (loose-coupling per Lesson #86: no copy into downstream
+    drawer (loose-coupling per Lesson-86: no copy into downstream
     activity blocks). Locks gate which fields a student can author
     overrides on via student_briefs.
   columns:
@@ -11720,7 +11720,7 @@ tables:
         co-teacher with the unit assigned to one of their active
         classes (via class_units + classes join, is_active = true) OR
         platform admin (user_profiles.is_platform_admin = true).
-        Students access via service-role API (Lesson #4 — token
+        Students access via service-role API (Lesson-4 — token
         sessions, not auth.uid()), so no student RLS policy needed.
         All writes also via service-role (mirrors v2 product-brief-
         pitch pattern); no RLS write policy.
@@ -11787,7 +11787,7 @@ tables:
     and the teacher Student-briefs review tab. NULL brief_text + empty
     constraints `{}` = student hasn't overridden anything yet (renderer
     falls through to template). Mirrors v2 student_unit_product_briefs
-    shape — service-role writes via token session per Lesson #4.
+    shape — service-role writes via token session per Lesson-4.
   columns:
     id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
     student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
