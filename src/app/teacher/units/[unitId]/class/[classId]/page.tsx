@@ -841,6 +841,34 @@ export default function ClassHubPage({
     finally { setSavingTerm(false); }
   }
 
+  // ─── Phase 3.4 Step 4: row kebab "Remove from class" handler ─────────
+  // Lightweight handler — window.confirm + the existing
+  // DELETE /api/teacher/class-students endpoint (server handles
+  // deactivation + session invalidation). Matches the existing flow
+  // inside StudentRosterDrawer; lifted to the parent here so the row
+  // kebab can fire it without round-tripping the drawer.
+  async function removeStudentFromClassRow(studentId: string, studentName: string) {
+    const ok = typeof window !== "undefined"
+      ? window.confirm(`Remove ${studentName} from this class?`)
+      : false;
+    if (!ok) return;
+    try {
+      const res = await fetch("/api/teacher/class-students", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId, classId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        console.error("[removeStudentFromClassRow]", data.error || res.statusText);
+        return;
+      }
+      setStudents((prev) => prev.filter((s) => s.id !== studentId));
+    } catch (e) {
+      console.error("[removeStudentFromClassRow]", e);
+    }
+  }
+
   // ─── G9 sign-off (16 May 2026) ────────────────────────────────────────
   // The old inline per-cell student-detail modal + its loader + the
   // 4 dead progress-grid helpers (getStudentCompletion, getPageCompletion,
@@ -1528,22 +1556,69 @@ export default function ClassHubPage({
                     )}
                   </div>
 
-                  {/* Row menu — hover-only stub. Phase 3.4 wires actions
-                      (Message · Reset code · Remove · NM observation). */}
-                  <button
-                    type="button"
-                    data-testid={`student-row-${student.id}-menu`}
-                    aria-label={`Actions for ${studentName}`}
-                    title="Row actions (coming in Phase 3.4)"
-                    disabled
-                    className="opacity-0 group-hover:opacity-100 transition w-6 h-6 rounded-full text-text-tertiary hover:bg-surface-alt flex items-center justify-center cursor-not-allowed"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                      <circle cx="5" cy="12" r="1.5" />
-                      <circle cx="12" cy="12" r="1.5" />
-                      <circle cx="19" cy="12" r="1.5" />
-                    </svg>
-                  </button>
+                  {/* Row kebab (Phase 3.4 Step 4) — hover-revealed
+                      menu of per-student actions. Reset code is a
+                      greyed stub (no API surface yet — follow-up).
+                      Each row owns its own KebabMenu instance; the
+                      component is lightweight so per-row mount cost
+                      is negligible. */}
+                  <div className="opacity-0 group-hover:opacity-100 transition">
+                    {(() => {
+                      const rowItems: KebabMenuSection["items"] = [
+                        {
+                          testId: `row-action-${student.id}-snapshot`,
+                          label: "Open snapshot",
+                          icon: <span aria-hidden>👤</span>,
+                          onClick: () => {
+                            setDrawerPageId(null);
+                            setDrawerStudent({ id: student.id, name: studentName });
+                          },
+                        },
+                      ];
+                      if (nmConfig?.enabled === true) {
+                        rowItems.push({
+                          testId: `row-action-${student.id}-observe`,
+                          label: "Record NM observation",
+                          icon: <span aria-hidden>📊</span>,
+                          onClick: () => setNmObserveStudent({ id: student.id, name: studentName }),
+                        });
+                      }
+                      rowItems.push({
+                        testId: `row-action-${student.id}-reset-code`,
+                        label: "Reset student code",
+                        icon: <span aria-hidden>↻</span>,
+                        disabled: true,
+                        conditional: "coming soon",
+                      });
+                      rowItems.push({
+                        testId: `row-action-${student.id}-remove`,
+                        label: "Remove from class",
+                        icon: <span aria-hidden>🗑</span>,
+                        danger: true,
+                        onClick: () => removeStudentFromClassRow(student.id, studentName),
+                      });
+                      return (
+                        <KebabMenu
+                          testId={`student-row-${student.id}-menu`}
+                          triggerAriaLabel={`Actions for ${studentName}`}
+                          sections={[{ items: rowItems }]}
+                          align="right"
+                          trigger={
+                            <span
+                              title={`Actions for ${studentName}`}
+                              className="w-6 h-6 rounded-full text-text-tertiary hover:bg-surface-alt flex items-center justify-center"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                                <circle cx="5" cy="12" r="1.5" />
+                                <circle cx="12" cy="12" r="1.5" />
+                                <circle cx="19" cy="12" r="1.5" />
+                              </svg>
+                            </span>
+                          }
+                        />
+                      );
+                    })()}
+                  </div>
                 </div>
               ));
             })()}
