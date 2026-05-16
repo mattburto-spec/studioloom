@@ -410,12 +410,18 @@ describe("DT canvas Phase 3.3 — Today's lesson hero card", () => {
 });
 
 describe("DT canvas Phase 3.3 — Change unit modal + setActiveUnit wiring", () => {
-  it("renders the Change unit button (lesson-hero-change-unit testid)", () => {
-    expect(HUB_SRC).toContain('data-testid="lesson-hero-change-unit"');
+  it("renders the Change unit button in the canvas header (relocated from hero)", () => {
+    // Phase 3.3 Step 2 originally absolute-positioned this button inside
+    // the orange lesson hero. It overlapped the outline column text on
+    // real lesson data — relocated to the canvas header next to Edit
+    // + kebab. testid renamed canvas-header-change-unit.
+    expect(HUB_SRC).toContain('data-testid="canvas-header-change-unit"');
+    // The old in-hero testid must NOT come back (guards against revert).
+    expect(HUB_SRC).not.toContain('data-testid="lesson-hero-change-unit"');
   });
 
   it("Change unit button onClick opens the modal", () => {
-    const idx = HUB_SRC.indexOf('data-testid="lesson-hero-change-unit"');
+    const idx = HUB_SRC.indexOf('data-testid="canvas-header-change-unit"');
     expect(idx).toBeGreaterThan(0);
     const slice = HUB_SRC.slice(idx, idx + 600);
     expect(slice).toMatch(/onClick=\{[\s\S]{0,80}setChangeUnitModalOpen\(true\)/);

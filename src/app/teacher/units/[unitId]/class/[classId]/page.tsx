@@ -924,6 +924,26 @@ export default function ClassHubPage({
             </svg>
             Edit
           </Link>
+          {/* Change unit — relocated from inside the lesson hero (Phase
+              3.3 Step 2 had it absolute-positioned top-right of the
+              orange card, which overlapped the outline column text on
+              real data). Now lives in the header so the hero stays
+              clean + the action is visible even in the empty state. */}
+          <button
+            type="button"
+            data-testid="canvas-header-change-unit"
+            title="Pick a different unit for this class"
+            onClick={() => setChangeUnitModalOpen(true)}
+            className="px-4 py-2 rounded-xl border border-border text-text-primary font-medium text-sm hover:bg-surface-alt transition-colors flex items-center gap-2"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 3 4 7l4 4" />
+              <path d="M4 7h16" />
+              <path d="m16 21 4-4-4-4" />
+              <path d="M20 17H4" />
+            </svg>
+            Change unit
+          </button>
           {/* Canvas-header kebab. Stub for Phase 3.1 — opens nothing yet.
               Phase 3.4 wires the dropdown contents: Unit (Edit / View as
               student / Change unit / Past units) + Class (Class settings /
@@ -1026,20 +1046,14 @@ export default function ClassHubPage({
               <section
                 data-testid="canvas-lesson-hero"
                 data-today-index={todayIdx}
-                className="relative bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-2xl shadow-sm overflow-hidden"
+                className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-2xl shadow-sm overflow-hidden"
               >
-                {/* Change unit affordance — top-right. Stub until Step 2
-                    wires the modal. */}
-                <button
-                  type="button"
-                  data-testid="lesson-hero-change-unit"
-                  title="Pick a different unit for this class"
-                  onClick={() => setChangeUnitModalOpen(true)}
-                  className="absolute top-4 right-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/20 text-white text-xs font-medium hover:bg-white/30 transition"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M8 3 4 7l4 4" /><path d="M4 7h16" /><path d="m16 21 4-4-4-4" /><path d="M20 17H4" /></svg>
-                  Change unit
-                </button>
+                {/* Change unit affordance was here in Phase 3.3 Step 2 as
+                    an absolute-positioned pill — it overlapped the outline
+                    column text on real lesson data. Moved into the canvas
+                    header next to Edit + kebab so the hero stays clean
+                    and the action remains visible when the hero is in
+                    its empty state. testid renamed canvas-header-change-unit. */}
                 <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 lg:gap-8 p-6">
                   <div>
                     <span className="inline-block text-[10px] font-bold uppercase tracking-[0.08em] px-2.5 py-1 rounded-full bg-white/20">
