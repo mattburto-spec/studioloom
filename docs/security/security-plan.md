@@ -481,6 +481,59 @@ Class codes are credentials for the classcode-login flow ([studioloom#308](https
 
 ---
 
+### FU-SEC-SET-ACTIVE-UNIT-MISSING-UNIT-OWNERSHIP-CHECK (P1)
+
+**Surfaced:** 16 May 2026, during adversarial probing of the Block A/B `set_active_unit` SECURITY DEFINER function (PR [#319](https://github.com/mattburto-spec/socialmaltburto-spec/studioloom/pull/319)). Filed alongside `FU-SEC-TEACHER-LAYOUT-FAIL-OPEN` from the same probe session.
+
+**The gap (proven from code-reading, not yet from live exploit):**
+
+The function `public.set_active_unit(class_uuid uuid, target_unit_uuid uuid)` checks `is_teacher_of_class(class_uuid)` — the caller must be a teacher of the target class. It does NOT check anything about `target_unit_uuid`. So any authenticated teacher can call:
+
+```sql
+SELECT public.set_active_unit('<class I own>'::uuid, '<any unit_id, regardless of owner>'::uuid);
+```
+
+…and the function will:
+1. Pass the class auth gate (the caller IS teacher of the class)
+2. UPDATE class_units to deactivate other active rows (correct)
+3. INSERT-ON-CONFLICT a new class_units row linking the target class to the foreign unit, with `is_active=true`
+
+The only constraint that would reject is `class_units.unit_id REFERENCES units(id)` — the unit_id must exist somewhere in the units table. There is no `author_teacher_id` check, no `is_published` check, no fork-lineage check.
+
+**Why this matters:**
+
+- Bypasses the fork flow entirely. Normal pathway for using another teacher's unit: discover via library → fork (creates a NEW units row owned by the forking teacher) → use the forked unit. The function lets you skip the fork and directly attach the original.
+- Bypasses `fork_count` attribution on the original unit (the unit's author has no signal that their content is being used).
+- Bypasses the publish gate. Even un-published private units owned by other teachers can be attached if the unit_id is known.
+- Bypasses any future tier-gating on content (paid/premium units, school-scoped units, etc.).
+- Foreign content surfaces to YOUR students under YOUR class context — privacy/compliance surface if the foreign unit has any embedded references, settings, or rubric content tied to its original school.
+
+**Bounded blast radius:**
+
+- Only the calling teacher's class is affected. The original unit's author / their classes / their students are untouched.
+- The function doesn't grant any modification rights on the foreign unit itself; only the per-class `class_units` row is created (per-class settings + forked content + due dates can be edited on that row, but the underlying unit is read-only via this path).
+- Discovery requires knowing the foreign `unit_id` (32-byte UUID, not enumerable from the UI for non-published units).
+
+**Severity P1, not P0:** real-world exposure is near-zero today (only one teacher with units in this prod instance — verified via `SELECT id FROM units WHERE author_teacher_id <> $self LIMIT 10` returning zero rows). Must be closed before any second teacher account is provisioned in prod. Class-of-bug parallel to `FU-SEC-TEACHER-LAYOUT-FAIL-OPEN` — both are missing-second-auth-gate findings from the same 16 May probe session.
+
+**Why end-to-end live demonstration didn't happen:** the probe attempted to call `set_active_unit` with a "foreign" unit_id but inadvertently picked one of the caller's own units (same `author_teacher_id`). The function correctly handled it as a no-op self-activation and returned 204. A real foreign-author unit is not available in this prod instance to re-test against. The gap is provable from the function source alone — `set_active_unit_function.sql` migration body has only one `IF NOT` guard (`is_teacher_of_class`).
+
+**Scope of fix:**
+
+1. New migration `<timestamp>_set_active_unit_unit_ownership_check.sql` that does `CREATE OR REPLACE FUNCTION public.set_active_unit(...)` with a second auth gate, before the deactivate-others UPDATE. Open question for the brief: should the gate allow only `author_teacher_id = auth.uid()` (strictest — explicit fork required for any foreign unit), or also allow `is_published = true` (matches the existing fork-from-library affordance)? Settle in the brief before code is written.
+2. Update the Lesson #66 sanity DO-block to assert the new gate is present in `pg_get_functiondef(oid)`.
+3. Extend `src/lib/classes/__tests__/migration-set-active-unit-function.test.ts` with shape assertions for the new gate.
+4. Add a wrapper test in `src/lib/classes/__tests__/active-unit.test.ts` exercising the new error-path SQLSTATE (still 42501 — same code, different message).
+5. Same merge ritual as Block A/B.
+
+**No app-code change needed** in `src/app/teacher/classes/[classId]/page.tsx` or `src/app/teacher/units/[unitId]/page.tsx` — the wrapper's discriminated union already surfaces `code: "42501"` regardless of which gate fires; the toast string `toastForRpcCode("42501")` already says "You don't have permission to change the active unit on this class."
+
+**Reference docs:** [docs/security/security-overview.md](security-overview.md), [Lesson #64](../lessons-learned.md) (SECURITY DEFINER + locked search_path), [Lesson #66](../lessons-learned.md) (sanity DO-block discipline), [Block A/B PR #319](https://github.com/mattburto-spec/socialmaltburto-spec/studioloom/pull/319).
+
+**Effort:** ~30–45 min focused (mechanical fix; pattern is already established by Block A's helper migration).
+
+---
+
 ## What "world-class secure with student info" looks like (the bar)
 
 A reasonable EdTech CIO at a $50K/year contract should be able to:
@@ -539,6 +592,7 @@ The current state delivers (1) for the rls/audit/encryption/DSR/AI-chokepoint su
 | FU-SEC-VENDORS-AI-USAGE-LOG-METADATA | vendors.yaml drift: ai_usage_log.metadata holds PII | P3 | 5min | **DONE — 2026-05-09** (Supabase entry updated with telemetry_metadata category) | matt | — |
 | FU-SEC-NAME-REDACTION-SCOPE-CLARIFY | Clarify §1 of overview: student-self-typed names DO flow under COPPA | P3 | 10min | **DONE — 2026-05-09** (overview §1 rewritten with precise scope) | matt | — |
 | FU-SEC-TEACHER-LAYOUT-FAIL-OPEN | TeacherLayout (and likely sibling root layouts under (teacher|fab|admin)/layout.tsx) renders teacher chrome + leaks class codes to non-teachers when the teacher-row lookup returns PGRST116. Logs error and proceeds instead of redirecting. Surfaced 16 May 2026 during Block B smoke when a logged-in student opened /teacher/classes and saw all 4 of his enrolled classes' codes. RLS scoping is correct; the leak is page-level. Bidirectional impersonation pathway via leaked code + classmate username re-opens the attack class #308 closed. | P1 | 1–2h | TODO | matt | pre-pilot-expand |
+| FU-SEC-SET-ACTIVE-UNIT-MISSING-UNIT-OWNERSHIP-CHECK | `public.set_active_unit(class_uuid, target_unit_uuid)` only checks `is_teacher_of_class(class_uuid)` — no auth check on `target_unit_uuid`. Any teacher can attach any unit_id (including foreign teachers' un-published private units) to one of their own classes, bypassing the fork flow. Provable from migration source; live exploit not demonstrated (only one teacher with units in this prod instance). Sister finding to FU-SEC-TEACHER-LAYOUT-FAIL-OPEN — both surfaced 16 May 2026 from same probe session. Fix: add second `IF NOT` gate inside function body checking `target_unit_uuid` ownership / publication. | P1 | 30–45min | **DONE — 2026-05-16** (Option B authored-or-published via migration `20260516052310` + Block C PR [#323](https://github.com/mattburto-spec/studioloom/pull/323); applied to prod + verified live via `pg_get_functiondef` returning `GATE 2 PRESENT`; +29 tests; no app-code change) | matt | — |
 
 ### From cowork external review (filed 2026-05-09)
 
