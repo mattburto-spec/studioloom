@@ -842,6 +842,8 @@ Plus a backfill DELETE with safety assertion (refuse to delete if any leaked row
 
 **Security audit:** clean. `buildTeacherSession` only routes when `user_type='teacher'` (set explicitly via app_metadata, not derived from teachers row existence); `requireAdmin` checks `is_admin=true` which is `false` on phantom rows. Leak was purely cosmetic in admin UI. **Document this in security audits as the exemplar of "wrong but not exploitable" — not every data integrity issue is a security issue, but every one of them needs a paper trail.**
 
+> **Update 16 May 2026 — the May-1 fix had a latent bug.** The guard in the May-1 fix migration read `NEW.raw_app_meta_data->>'user_type'`. That was the wrong metadata bucket. Supabase Auth (gotrue) writes the auth.users row with `raw_app_meta_data = '{}'` first, then UPDATEs the row to set `raw_app_meta_data` from the caller-supplied `app_metadata`. The AFTER INSERT trigger fires on the INSERT, before the UPDATE — so `NEW.raw_app_meta_data->>'user_type'` returned NULL and the guard never matched. The bug went undetected from 1 May until 16 May (2 weeks); 53 phantom teacher rows accumulated. The bug surfaced only because the 11 May handpatch (`20260511085324`) finally got the SET search_path right and unblocked the INSERTs that had been silently failing — at which point the bypass became visible in `/admin/teachers`. **Full diagnosis + fix → Lesson #92.** The May-1 unit test for `provisionStudentAuthUser` mocks the supabase admin client, so the trigger never fires in test — there was no test that exercised the trigger end-to-end against a real Postgres. That gap remained until the 16 May trigger-shape test was banked. **Operational rule extension:** the original Lesson #65 audit checklist needs one more step: `(4) When the guard reads from `auth.users` metadata, verify the bucket you're reading IS populated at trigger time. raw_user_meta_data is; raw_app_meta_data is not.`
+
 
 ---
 
@@ -1427,3 +1429,59 @@ The validator was correct. The editor was correct. The legacy data on disk was t
 - Lesson #42 — Tool input schemas are training-time hints, not runtime guarantees. Same principle: don't trust the shape, check it.
 
 **Filed:** Pattern enshrined in `src/lib/unit-brief/validators.ts` (`sanitiseDesignData` helper added in PR #291 hotfix) + consumed by 4 read paths and 3 write paths across the briefs system. Reuse for any JSONB column whose app-side shape may evolve without a migration.
+
+---
+
+### Lesson #92 — `auth.users` AFTER INSERT triggers must read `raw_user_meta_data`, not `raw_app_meta_data` (gotrue late-binds app_metadata)
+**Date:** 16 May 2026
+**Phase:** FU-AUTH-TRIGGER-METADATA-BUCKET — Lesson #65 redux
+
+**What happened:** Matt opened `/admin/teachers` and found 56 teacher rows where there should have been ~3 — 53 of them were synthetic-email shapes (`student-<uuid>@students.studioloom.local`). Same shape as the original Lesson #65 leak (1 May), even though that bug was supposedly fixed by the 1 May migration AND by the 11 May handpatch that re-applied the May fixes after `FU-PROD-MIGRATION-BACKLOG-AUDIT` discovered they'd never reached prod.
+
+Diagnostic walk:
+- **Q1** — `pg_get_functiondef('public.handle_new_teacher()'::regprocedure)` showed the function body in prod IS the handpatch version: `IF (NEW.raw_app_meta_data->>'user_type') = 'student' THEN RETURN NEW; END IF;` plus search_path lockdown, schema-qualified writes, EXCEPTION-WHEN-others. Function definition was correct.
+- **Q2** — `applied_migrations` confirmed the 11 May handpatch was logged. No migration drift.
+- **Q3** — 53 phantom rows, ALL post-handpatch (earliest `2026-05-11 08:39`, +9min after handpatch). The bug was firing the moment the handpatch unblocked student creation.
+- **Q4 (smoking gun)** — joined the phantoms back to `auth.users` and inspected metadata. **Both `raw_app_meta_data.user_type` AND `raw_user_meta_data.user_type` were `'student'` at query time.** So the data IS correctly written in the end. But the trigger fired and inserted teacher rows anyway.
+
+**Root cause:** Supabase Auth (gotrue) doesn't INSERT the auth.users row with `app_metadata` set in one go. It does:
+1. INSERT auth.users with `raw_app_meta_data = '{}'`
+2. AFTER INSERT trigger fires → sees `NEW.raw_app_meta_data->>'user_type'` = NULL → guard misses → falls through → INSERTs phantom teacher row
+3. UPDATE auth.users SET `raw_app_meta_data = '{user_type: "student", ...}'`
+
+The trigger only fires on AFTER INSERT, so step 3's UPDATE is invisible to it. By the time anything else queries auth.users, raw_app_meta_data looks correct, hiding the timing hole.
+
+`raw_user_meta_data` IS populated in the original INSERT (step 1). That's why the sibling `handle_new_user_profile` trigger has worked correctly all along — it reads `raw_user_meta_data`. And it's why `provision-student-auth-user.ts` already sets `user_type` in BOTH metadata buckets (the comment in that file explicitly notes the dual-set is for "the Phase 0 handle_new_user_profile trigger which reads raw_user_meta_data") — but nobody connected the dots back to handle_new_teacher.
+
+**Why test never caught it:** the unit test for `provisionStudentAuthUser` mocks the supabase admin client, so the trigger never fires in test. There was no end-to-end test against a real Postgres. The May-1 fix was "verified" against a mocked client and a hand-built audit query that ran AFTER gotrue's UPDATE had landed — both views showed the world the fix was intended to produce, neither showed the timing hole.
+
+**Fix:** migration `20260516044909_fix_handle_new_teacher_check_user_metadata_bucket.sql` changes the guard from single-bucket to dual-bucket:
+
+```sql
+IF (NEW.raw_app_meta_data->>'user_type')  = 'student'
+   OR (NEW.raw_user_meta_data->>'user_type') = 'student' THEN
+  RETURN NEW;
+END IF;
+```
+
+Then `20260516050159_cleanup_phantom_student_teacher_rows.sql` deleted the 53 phantoms with belt-and-braces FK-safety re-assertion across all 17 columns pointing at `teachers(id)`. Smoke verified in prod: provisioned a fresh student via the teacher flow → phantom_count stayed at 53 (then 0 after cleanup).
+
+**Operational rules:**
+- **For any AFTER INSERT trigger on `auth.users` that needs to gate on `user_type` / role / claim from caller-supplied metadata: read `raw_user_meta_data`, not `raw_app_meta_data`.** raw_user_meta_data is populated in the original INSERT; raw_app_meta_data is set by a follow-up UPDATE the trigger does not see. **Read both in an OR for belt-and-braces** — raw_user_meta_data is the load-bearing check, raw_app_meta_data stays as a forward-compat fallback in case a future caller sets app_metadata only.
+- **When fixing a "trigger guard isn't matching" bug, immediately query `auth.users` for a fresh INSERT and inspect both metadata columns AT TRIGGER TIME, not at query time.** The values you see at query time may have been written by a follow-up UPDATE that fired after the trigger. The truthful test is: does `RAISE LOG 'app=%, user=%', NEW.raw_app_meta_data, NEW.raw_user_meta_data;` show the metadata you expected? Add the RAISE LOG temporarily, do one provision, read pg_log.
+- **Mocked admin-client tests cannot verify trigger behaviour.** If a feature relies on a Postgres trigger firing correctly, test it with a real Supabase instance — local or a sandboxed remote — not with a mocked client. The May-1 fix passed every test in the codebase; it failed against real gotrue. (This is the trigger version of Lesson #64's "smoke under SSR client" rule.)
+- **When auditing every trigger on `auth.users` for new-user-type compatibility (Lesson #65 step 1), also check WHICH metadata bucket the guard reads from.** The Lesson #65 audit checklist now has step 4: `verify the bucket you're reading IS populated at trigger time.`
+
+**Filed:**
+- Trigger fix shipped + applied to prod ([20260516044909](../supabase/migrations/20260516044909_fix_handle_new_teacher_check_user_metadata_bucket.sql))
+- Cleanup applied to prod ([20260516050159](../supabase/migrations/20260516050159_cleanup_phantom_student_teacher_rows.sql)) — 53 phantoms deleted
+- Migration shape test asserts dual-bucket guard ([migration-handle-new-teacher-bucket-fix.test.ts](../src/lib/access-v2/__tests__/migration-handle-new-teacher-bucket-fix.test.ts), 22 tests, NC mutation proven load-bearing)
+- Lesson #65 amended with the late-binding update note + audit checklist step 4
+- `FU-AUTH-TRIGGER-AUDIT-METADATA-BUCKETS` (P2) filed — sweep every other AFTER INSERT trigger on auth.users for the same wrong-bucket pattern. Known good: `handle_new_user_profile` (reads raw_user_meta_data correctly).
+
+**Sister lessons:**
+- Lesson #65 — Old triggers don't know about new user types. Three audit-step extension above.
+- Lesson #66 — SECURITY DEFINER function rewrites must re-apply search_path lockdown. Sister "trigger function rewrite drops a safety property" pattern.
+- Lesson #38 — Verify expected values, not just non-null. The May-1 verify ran AFTER the late-bound UPDATE; truthful verification has to capture the trigger-time view.
+- Lesson #54 — Code makes assumptions about what's available that aren't documented anywhere. The provision code's "user_metadata is set so the Phase 0 trigger can read it" comment was the breadcrumb that pointed at the right bucket — it just wasn't connected back to handle_new_teacher.
+- Lesson #83 — Prod has no migration tracking; assume nothing about applied state. Diagnosis here started with Q2 (applied_migrations check) precisely because of this lesson.
