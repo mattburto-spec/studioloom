@@ -30,6 +30,7 @@ import { getYearLevelNumber } from "@/lib/utils/year-level";
 import StudentDrawer from "@/components/teacher/class-hub/StudentDrawer";
 import StudentRosterDrawer from "@/components/teacher/class-hub/StudentRosterDrawer";
 import SafetyDrawer from "@/components/teacher/class-hub/SafetyDrawer";
+import OpenStudioDrawer from "@/components/teacher/class-hub/OpenStudioDrawer";
 import UnitAttentionPanel from "@/components/teacher/UnitAttentionPanel";
 
 // ---------------------------------------------------------------------------
@@ -334,6 +335,20 @@ export default function ClassHubPage({
   // card CTA and mounts the existing tab content as-is inside drawer
   // chrome. Marking is excluded — it routes externally to /teacher/marking.
   const [safetyDrawerOpen, setSafetyDrawerOpen] = useState(false);
+  const [openStudioDrawerOpen, setOpenStudioDrawerOpen] = useState(false);
+
+  // Open Studio per-student status (Phase 3.2 Step 3). One fetch on
+  // mount populates both:
+  //   1. The per-row "Studio" pill in the student grid (replaces the
+  //      Step 3 placeholder "—").
+  //   2. The side-rail Open Studio card's headline + named student.
+  // The OpenStudioDrawer (which wraps OpenStudioClassView) still runs
+  // its own fetch on open — necessary to handle grant/revoke mutations
+  // without a parent-state plumb. Acceptable: one redundant fetch only
+  // when the drawer is opened.
+  const [openStudioStatusMap, setOpenStudioStatusMap] = useState<
+    Record<string, { status: "locked" | "unlocked" | "revoked"; unlockedAt: string | null }>
+  >({});
 
   // -----------------------------------------------------------------------
   // Legacy ?tab=... compat (Phase 3.1 Step 4, G12 sign-off).
@@ -593,7 +608,28 @@ export default function ClassHubPage({
       }
     } catch { /* non-critical */ }
 
-    // Open Studio statuses managed in Open Studio tab (OpenStudioClassView)
+    // Open Studio per-student status — feeds both the per-row Studio
+    // pill in the grid and the side-rail Open Studio card. The
+    // OpenStudioDrawer (Step 3) still runs its own fetch on open
+    // to manage mutations independently.
+    try {
+      const osRes = await fetch(`/api/teacher/open-studio/status?unitId=${unitId}&classId=${classId}`);
+      if (osRes.ok) {
+        const { students: rows } = (await osRes.json()) as {
+          students: Array<{ student: { id: string }; openStudio: { status: "locked" | "unlocked" | "revoked"; unlocked_at: string | null } | null }>;
+        };
+        const osMap: Record<string, { status: "locked" | "unlocked" | "revoked"; unlockedAt: string | null }> = {};
+        for (const row of rows) {
+          if (row.openStudio) {
+            osMap[row.student.id] = {
+              status: row.openStudio.status,
+              unlockedAt: row.openStudio.unlocked_at,
+            };
+          }
+        }
+        setOpenStudioStatusMap(osMap);
+      }
+    } catch { /* non-critical */ }
 
     // Badge requirements + status
     try {
@@ -1041,9 +1077,22 @@ export default function ClassHubPage({
                     {marking === "none" && <span className="text-xs text-text-tertiary">—</span>}
                   </div>
 
-                  {/* Open Studio pill — placeholder, Phase 3.2 wires the data */}
-                  <div className="flex justify-center" data-placeholder="phase-3-2">
-                    <span className="text-xs text-text-tertiary">—</span>
+                  {/* Open Studio pill — Phase 3.2 Step 3 wires from
+                      openStudioStatusMap (populated alongside progress
+                      data via the per-class status fetch). Only show
+                      "In Studio" badge for unlocked students; locked +
+                      revoked + no-record all collapse to the —. */}
+                  <div
+                    className="flex justify-center"
+                    data-testid={`student-row-${student.id}-studio`}
+                  >
+                    {openStudioStatusMap[student.id]?.status === "unlocked" ? (
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 font-medium">
+                        In Studio
+                      </span>
+                    ) : (
+                      <span className="text-xs text-text-tertiary">—</span>
+                    )}
                   </div>
 
                   {/* Metrics dots — placeholder, Phase 3.2 wires the data */}
@@ -1174,18 +1223,53 @@ export default function ClassHubPage({
             );
           })()}
 
-          <div
-            data-testid="canvas-rail-card-studio"
-            data-placeholder="phase-3-2"
-            className="bg-white rounded-2xl border border-border p-5"
-          >
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
-              Open Studio
-            </div>
-            <div className="mt-2 text-xs text-text-secondary">
-              Summary lands in Phase 3.2.
-            </div>
-          </div>
+          {/* OPEN STUDIO — re-uses openStudioStatusMap loaded inside
+              loadProgressData. CTA opens OpenStudioDrawer wrapping
+              OpenStudioClassView (full unlock/revoke/check-in UI). */}
+          {(() => {
+            const unlocked = students.filter(
+              (s) => openStudioStatusMap[s.id]?.status === "unlocked",
+            );
+            const firstName = unlocked[0]
+              ? unlocked[0].display_name || unlocked[0].username
+              : null;
+            return (
+              <div
+                data-testid="canvas-rail-card-studio"
+                className="bg-white rounded-2xl border border-border p-5"
+              >
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+                  Open Studio
+                </div>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span
+                    data-testid="rail-studio-count"
+                    className={`text-2xl font-bold ${unlocked.length > 0 ? "text-violet-600" : "text-text-tertiary"}`}
+                  >
+                    {unlocked.length}
+                  </span>
+                  <span className="text-xs text-text-secondary">
+                    in studio mode
+                  </span>
+                </div>
+                <div className="mt-1 text-xs text-text-secondary">
+                  {unlocked.length === 0
+                    ? "No one in self-directed mode yet."
+                    : unlocked.length === 1
+                      ? `${firstName} is working independently.`
+                      : `${firstName} + ${unlocked.length - 1} more.`}
+                </div>
+                <button
+                  type="button"
+                  data-testid="rail-studio-cta"
+                  onClick={() => setOpenStudioDrawerOpen(true)}
+                  className="mt-3 inline-flex items-center justify-center w-full px-3 py-2 rounded-lg bg-surface-alt text-text-primary hover:bg-text-primary hover:text-white transition text-xs font-medium"
+                >
+                  {unlocked.length === 0 ? "Manage Open Studio →" : "View plans →"}
+                </button>
+              </div>
+            );
+          })()}
 
           <div
             data-testid="canvas-rail-card-metrics"
@@ -1327,6 +1411,17 @@ export default function ClassHubPage({
           classId={classId}
           students={students.map((s) => ({ id: s.id, display_name: s.display_name, username: s.username }))}
           onClose={() => setSafetyDrawerOpen(false)}
+        />
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* Open Studio Drawer (Phase 3.2 Step 3) — wraps OpenStudioClassView */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {openStudioDrawerOpen && (
+        <OpenStudioDrawer
+          unitId={unitId}
+          classId={classId}
+          onClose={() => setOpenStudioDrawerOpen(false)}
         />
       )}
 
