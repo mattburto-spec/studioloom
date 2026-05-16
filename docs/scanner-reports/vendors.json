@@ -1,6 +1,6 @@
 {
   "registry": "vendors.yaml",
-  "timestamp": "2026-05-16T05:30:28.484202+00:00",
+  "timestamp": "2026-05-16T12:28:22.836800+00:00",
   "version": 1,
   "drift": {
     "orphaned": [],
@@ -26,8 +26,8 @@
       ],
       "env_found": [
         "SUPABASE_SERVICE_ROLE_KEY",
-        "NEXT_PUBLIC_SUPABASE_URL",
-        "NEXT_PUBLIC_SUPABASE_ANON_KEY"
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+        "NEXT_PUBLIC_SUPABASE_URL"
       ],
       "http_found": [
         "supabase.co"
@@ -85,9 +85,9 @@
         "@sentry/nextjs"
       ],
       "env_found": [
-        "NEXT_PUBLIC_SENTRY_PROJECT_SLUG",
         "NEXT_PUBLIC_SENTRY_DSN",
-        "NEXT_PUBLIC_SENTRY_ORG_SLUG"
+        "NEXT_PUBLIC_SENTRY_ORG_SLUG",
+        "NEXT_PUBLIC_SENTRY_PROJECT_SLUG"
       ],
       "http_found": [],
       "has_evidence": true
