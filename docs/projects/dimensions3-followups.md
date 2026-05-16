@@ -1941,17 +1941,29 @@ Phase 6.3b (this same session) closed the worst hole by adding a `user_type` gua
 
 ---
 
-## FU-AV2-WRONG-ROLE-TOAST — surface "wrong role logged in" banner when `?wrong_role=1` (P3)
+## FU-AV2-WRONG-ROLE-TOAST — surface "wrong role logged in" banner when `?wrong_role=1` (P3) ✅ RESOLVED
 
-**Status:** OPEN — filed 4 May 2026 alongside FU-AV2-CROSS-TAB-ROLE-COLLISION.
+**Status:** OPEN → RESOLVED 16 May 2026 (immediately after FU-SEC-TEACHER-LAYOUT-FAIL-OPEN merge; the layout fail-closed fix surfaced this gap during smoke and made closure timely).
 
 **Issue:** Phase 6.3b's middleware redirects wrong-role sessions with `?wrong_role=1` query param. The dashboard pages don't currently consume this — the user lands silently and might not realise their session got switched.
 
-**Recommended approach:** in the student dashboard layout (`src/app/(student)/layout.tsx` or equivalent) and teacher dashboard layout, read the `wrong_role` search param and render a dismissable toast: "You were redirected because you're logged in as a [role]. [Sign out] to switch accounts." Sign-out link goes to the appropriate logout route.
+**Resolution:**
 
-**Definition of done:** users hitting a wrong-role redirect see a clear explanation + path to recover.
+1. New `WrongRoleBanner` component at `src/components/shared/WrongRoleBanner.tsx`. Reads `?wrong_role=1` via `useSearchParams`, renders a dismissable amber banner with role-specific copy. Sign-out flows mirror the existing layouts' logout handlers:
+   - Student → `DELETE /api/auth/student-session` then `window.location.href = "/login"` (matches `StudentLayout.handleLogout`).
+   - Teacher → `supabase.auth.signOut()` then `window.location.href = "/teacher/login"` (matches `TopNav.handleLogout`).
+2. Dismiss strips the `wrong_role` param via `router.replace(pathname + preservedQuery)` — preserves other params, prevents the banner from re-showing on hard refresh.
+3. Mounted in **both** layouts:
+   - `src/app/(student)/layout.tsx` — between `BoldTopNav` and `{children}`.
+   - `src/app/teacher/layout.tsx` — inside the `authState === "teacher"` branch only (NOT in the fail-closed placeholder, which would flash a wrong-role banner before the redirect lands).
+4. Source-static + NC-mutation tests at `src/components/shared/__tests__/wrong-role-banner.test.ts` (+13 tests, covers component contract + mount points + chrome-vs-placeholder isolation in TeacherLayout).
+5. Triggers on TWO redirect surfaces in prod:
+   - Middleware Phase 6.3b wrong-role redirect (existing).
+   - TeacherLayout / SchoolLayout fail-closed redirect from FU-SEC-TEACHER-LAYOUT-FAIL-OPEN (new, shipped 16 May as PR [#325](https://github.com/mattburto-spec/studioloom/pull/325)).
 
-**Sequence:** opportunistic UX polish.
+**Definition of done:** users hitting a wrong-role redirect see a clear explanation + path to recover. ✅
+
+**Tests:** 6503 → 6516 (+13), no regressions. PR: pending (this commit batch).
 
 ---
 

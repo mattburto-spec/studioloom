@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { TeacherContext } from "./teacher-context";
 import { TeacherShell } from "@/components/teacher-dashboard-v2/TeacherShell";
 import { BugReportButton } from "@/components/shared/BugReportButton";
+import { WrongRoleBanner } from "@/components/shared/WrongRoleBanner";
 import type { Teacher } from "@/types";
 
 /**
@@ -216,9 +217,19 @@ export default function TeacherLayout({
   // the TopNav with scope chip + avatar dropdown, and the classes
   // fetch for the chip. Settings / log-out live in the avatar
   // dropdown; Alerts land under the bell button.
+  // WrongRoleBanner (FU-AV2-WRONG-ROLE-TOAST): surfaces when middleware
+  // Phase 6.3b or the (student-side) layout fail-closed fix bounces a
+  // wrong-role session here with ?wrong_role=1. Mounted inside
+  // TeacherShell so it appears in the teacher content column under the
+  // TopNav, not above it. Only reachable from the "teacher" branch —
+  // not from the "checking" / "redirecting" placeholder, which would
+  // defeat the FU-SEC-TEACHER-LAYOUT-FAIL-OPEN fix.
   return (
     <TeacherContext.Provider value={{ teacher }}>
-      <TeacherShell>{children}</TeacherShell>
+      <TeacherShell>
+        <WrongRoleBanner role="teacher" />
+        {children}
+      </TeacherShell>
       <BugReportButton role="teacher" />
     </TeacherContext.Provider>
   );
