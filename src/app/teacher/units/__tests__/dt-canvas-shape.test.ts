@@ -501,3 +501,173 @@ describe("DT canvas Phase 3.3 — Change unit modal + setActiveUnit wiring", () 
     );
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Phase 3.4 — canvas-header kebab + row kebab + Past units sub-route
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe("DT canvas Phase 3.4 — canvas-header kebab Unit section", () => {
+  it("renders the four Unit-section item testids", () => {
+    expect(HUB_SRC).toContain('"kebab-unit-edit"');
+    expect(HUB_SRC).toContain('"kebab-unit-view-as-student"');
+    expect(HUB_SRC).toContain('"kebab-unit-change"');
+    expect(HUB_SRC).toContain('"kebab-unit-past"');
+  });
+
+  it("Edit unit links to the existing edit route", () => {
+    const idx = HUB_SRC.indexOf('"kebab-unit-edit"');
+    expect(idx).toBeGreaterThan(0);
+    const slice = HUB_SRC.slice(idx, idx + 400);
+    expect(slice).toMatch(
+      /href:\s*`\/teacher\/units\/\$\{unitId\}\/class\/\$\{classId\}\/edit`/
+    );
+  });
+
+  it("View as student opens preview in a new tab and disables when no pages", () => {
+    const idx = HUB_SRC.indexOf('"kebab-unit-view-as-student"');
+    expect(idx).toBeGreaterThan(0);
+    const slice = HUB_SRC.slice(idx, idx + 600);
+    expect(slice).toContain("newTab: true");
+    expect(slice).toMatch(
+      /href:\s*previewPageId[\s\S]{0,200}\/teacher\/units\/\$\{unitId\}\/preview\/\$\{previewPageId\}\?classId=\$\{classId\}/
+    );
+    expect(slice).toContain("disabled: !previewPageId");
+  });
+
+  it("Change unit kebab item opens the existing ChangeUnitModal", () => {
+    const idx = HUB_SRC.indexOf('"kebab-unit-change"');
+    expect(idx).toBeGreaterThan(0);
+    const slice = HUB_SRC.slice(idx, idx + 400);
+    expect(slice).toMatch(/onClick:\s*\(\)\s*=>\s*setChangeUnitModalOpen\(true\)/);
+  });
+
+  it("Past units links to the new /teacher/classes/[classId]/units sub-route", () => {
+    const idx = HUB_SRC.indexOf('"kebab-unit-past"');
+    expect(idx).toBeGreaterThan(0);
+    const slice = HUB_SRC.slice(idx, idx + 400);
+    expect(slice).toMatch(/href:\s*`\/teacher\/classes\/\$\{classId\}\/units`/);
+  });
+});
+
+describe("DT canvas Phase 3.4 — canvas-header kebab Class section", () => {
+  it("renders the five Class-section item testids", () => {
+    expect(HUB_SRC).toContain('"kebab-class-settings"');
+    expect(HUB_SRC).toContain('"kebab-class-rollover"');
+    expect(HUB_SRC).toContain('"kebab-class-duplicate"');
+    expect(HUB_SRC).toContain('"kebab-class-archive"');
+    expect(HUB_SRC).toContain('"kebab-class-delete"');
+  });
+
+  it("Class settings links to the existing per-class-unit settings route", () => {
+    const idx = HUB_SRC.indexOf('"kebab-class-settings"');
+    expect(idx).toBeGreaterThan(0);
+    const slice = HUB_SRC.slice(idx, idx + 400);
+    expect(slice).toMatch(
+      /href:\s*`\/teacher\/classes\/\$\{classId\}\/settings\/\$\{unitId\}`/
+    );
+  });
+
+  it("Roll over / Duplicate / Archive / Delete are all disabled stubs (G3 sign-off)", () => {
+    for (const id of ["kebab-class-rollover", "kebab-class-duplicate", "kebab-class-archive", "kebab-class-delete"]) {
+      const idx = HUB_SRC.indexOf(`"${id}"`);
+      expect(idx).toBeGreaterThan(0);
+      const slice = HUB_SRC.slice(idx, idx + 400);
+      expect(slice).toContain("disabled: true");
+    }
+  });
+
+  it("Delete item has danger styling + conditional 'if archived' hint", () => {
+    const idx = HUB_SRC.indexOf('"kebab-class-delete"');
+    expect(idx).toBeGreaterThan(0);
+    const slice = HUB_SRC.slice(idx, idx + 400);
+    expect(slice).toContain("danger: true");
+    expect(slice).toContain('"if archived"');
+  });
+});
+
+describe("DT canvas Phase 3.4 — row kebab actions", () => {
+  it("Open snapshot wires to setDrawerStudent", () => {
+    expect(HUB_SRC).toMatch(/row-action-\$\{student\.id\}-snapshot/);
+    const idx = HUB_SRC.indexOf("row-action-${student.id}-snapshot");
+    expect(idx).toBeGreaterThan(0);
+    const slice = HUB_SRC.slice(idx, idx + 600);
+    expect(slice).toMatch(/setDrawerStudent\(\{\s*id:\s*student\.id/);
+  });
+
+  it("Record NM observation gated on nmConfig.enabled, fires setNmObserveStudent", () => {
+    expect(HUB_SRC).toMatch(/row-action-\$\{student\.id\}-observe/);
+    // The observe item is pushed inside an `if (nmConfig?.enabled === true)` block.
+    expect(HUB_SRC).toMatch(
+      /if\s*\(\s*nmConfig\?\.enabled\s*===\s*true\s*\)[\s\S]{0,400}row-action-\$\{student\.id\}-observe/
+    );
+  });
+
+  it("Reset student code is a disabled stub (no API surface yet)", () => {
+    expect(HUB_SRC).toMatch(/row-action-\$\{student\.id\}-reset-code/);
+    const idx = HUB_SRC.indexOf("row-action-${student.id}-reset-code");
+    expect(idx).toBeGreaterThan(0);
+    const slice = HUB_SRC.slice(idx, idx + 400);
+    expect(slice).toContain("disabled: true");
+  });
+
+  it("Remove from class fires removeStudentFromClassRow with danger styling", () => {
+    expect(HUB_SRC).toMatch(/row-action-\$\{student\.id\}-remove/);
+    const idx = HUB_SRC.indexOf("row-action-${student.id}-remove");
+    expect(idx).toBeGreaterThan(0);
+    const slice = HUB_SRC.slice(idx, idx + 400);
+    expect(slice).toContain("danger: true");
+    expect(slice).toMatch(/removeStudentFromClassRow\(student\.id,\s*studentName\)/);
+  });
+
+  it("removeStudentFromClassRow gates on window.confirm + DELETEs class-students", () => {
+    expect(HUB_SRC).toContain("window.confirm");
+    expect(HUB_SRC).toMatch(
+      /fetch\(\s*"\/api\/teacher\/class-students"\s*,\s*\{[\s\S]{0,200}method:\s*"DELETE"/
+    );
+  });
+});
+
+describe("DT canvas Phase 3.4 — Past units sub-route", () => {
+  const UNITS_SRC = readFileSync(
+    join(
+      process.cwd(),
+      "src/app/teacher/classes/[classId]/units/page.tsx"
+    ),
+    "utf-8"
+  );
+
+  it("imports the setActiveUnit helper", () => {
+    expect(UNITS_SRC).toMatch(
+      /import\s*\{\s*setActiveUnit\s*\}\s*from\s*["']@\/lib\/classes\/active-unit["']/
+    );
+  });
+
+  it("calls setActiveUnit(supabase, classId, targetUnitId) on Make active", () => {
+    expect(UNITS_SRC).toMatch(
+      /setActiveUnit\(supabase,\s*classId,\s*targetUnitId\)/
+    );
+  });
+
+  it("navigates to the new active canvas on success", () => {
+    expect(UNITS_SRC).toMatch(
+      /router\.push\(`\/teacher\/units\/\$\{targetUnitId\}\/class\/\$\{classId\}`\)/
+    );
+  });
+
+  it("maps SQLSTATE 42501 + 23505 to friendly error copy (same shape as ChangeUnitModal)", () => {
+    expect(UNITS_SRC).toContain('result.code === "42501"');
+    expect(UNITS_SRC).toContain('result.code === "23505"');
+  });
+
+  it("loads class_units joined with units(title, unit_type, is_published) ordered by is_active + forked_at", () => {
+    expect(UNITS_SRC).toMatch(
+      /from\(["']class_units["']\)[\s\S]{0,400}order\(["']is_active["'],\s*\{\s*ascending:\s*false\s*\}\)[\s\S]{0,200}order\(["']forked_at["']/
+    );
+  });
+
+  it("renders Currently active + Past units sections with row testids", () => {
+    expect(UNITS_SRC).toContain("Currently active");
+    expect(UNITS_SRC).toContain("Past units");
+    expect(UNITS_SRC).toContain('data-testid={`class-units-row-${row.unit_id}`}');
+  });
+});
