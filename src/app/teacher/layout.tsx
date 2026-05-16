@@ -54,6 +54,29 @@ function isChromelessTeacherPath(pathname: string): boolean {
  * legacy inline-SVG nav used to render now flows through that module.
  */
 
+/**
+ * Auth state for the teacher shell. Mirrors AdminLayout's pattern
+ * (closes FU-SEC-TEACHER-LAYOUT-FAIL-OPEN, 16 May 2026).
+ *
+ *  - "checking"     → waiting on the first auth/teacher-row response
+ *  - "teacher"      → confirmed teacher row; render the chrome + children
+ *  - "redirecting"  → no user, or auth.getUser() returned a user with no
+ *                     matching teachers row (PGRST116). router.replace is
+ *                     in flight. Do NOT render chrome — the prior fail-open
+ *                     pattern leaked /teacher/classes class codes to
+ *                     enrolled-student sessions that landed here via
+ *                     cross-tab cookie collision.
+ *  - "public"       → on a PUBLIC_TEACHER_PATHS page; render bare children.
+ *  - "chromeless"   → on an isChromelessTeacherPath() page (e.g. projector);
+ *                     render with TeacherContext but no shell.
+ */
+type TeacherAuthState =
+  | "checking"
+  | "teacher"
+  | "redirecting"
+  | "public"
+  | "chromeless";
+
 export default function TeacherLayout({
   children,
 }: {
@@ -62,7 +85,7 @@ export default function TeacherLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [teacher, setTeacher] = useState<Teacher | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [authState, setAuthState] = useState<TeacherAuthState>("checking");
 
   useEffect(() => {
     async function loadTeacher() {
@@ -76,10 +99,14 @@ export default function TeacherLayout({
 
         if (!user) {
           // Don't trap users who are legitimately on a bare auth-flow page.
-          if (!isPublicTeacherPath(pathname)) {
-            router.push("/teacher/login");
+          if (isPublicTeacherPath(pathname)) {
+            setAuthState("public");
+          } else {
+            // Set "redirecting" BEFORE router.push so the next render
+            // shows the bare placeholder, not the teacher chrome.
+            setAuthState("redirecting");
+            router.replace("/teacher/login");
           }
-          setLoading(false);
           return;
         }
 
@@ -93,6 +120,21 @@ export default function TeacherLayout({
           console.error("[TeacherLayout] Teacher query error:", teacherError.message);
         }
 
+        // Fail-closed (FU-SEC-TEACHER-LAYOUT-FAIL-OPEN, 16 May 2026):
+        // a logged-in user with no matching teachers row is NOT a teacher.
+        // Prior behaviour was to log the error, setTeacher(null), and
+        // render TeacherShell anyway — that leaked class codes to
+        // enrolled-student sessions whose user_type was missing from
+        // app_metadata (middleware Phase 6.3b only blocks
+        // user_type === "student", not unset). Mirror the middleware's
+        // wrong-role convention so the bounce surfaces a friendly toast
+        // on /dashboard.
+        if (!teacherData) {
+          setAuthState("redirecting");
+          router.replace("/dashboard?wrong_role=1");
+          return;
+        }
+
         setTeacher(teacherData);
 
         // Phase 1B: first-login detector. If the teacher hasn't finished the
@@ -101,13 +143,18 @@ export default function TeacherLayout({
         // redirect or the teacher would be trapped — critically, the
         // /teacher/set-password step that the invite callback routes to.
         // See migration 083.
-        if (
-          teacherData &&
-          !teacherData.onboarded_at &&
-          !isPublicTeacherPath(pathname)
-        ) {
-          router.push("/teacher/welcome");
+        if (!teacherData.onboarded_at && !isPublicTeacherPath(pathname)) {
+          setAuthState("redirecting");
+          router.replace("/teacher/welcome");
           return;
+        }
+
+        if (isPublicTeacherPath(pathname)) {
+          setAuthState("public");
+        } else if (isChromelessTeacherPath(pathname)) {
+          setAuthState("chromeless");
+        } else {
+          setAuthState("teacher");
         }
 
         // Phase 6B's critical-alert count query removed in Phase 11 —
@@ -116,19 +163,29 @@ export default function TeacherLayout({
         // count there).
       } catch (err) {
         console.error("[TeacherLayout] Unexpected error:", err);
-      } finally {
-        setLoading(false);
+        // Fail-closed on unexpected error too — don't render chrome.
+        setAuthState("redirecting");
+        router.replace("/teacher/login");
       }
     }
     loadTeacher();
   }, [router, pathname]);
 
-  if (loading) {
+  // Defense in depth: never render the teacher chrome until we've
+  // confirmed a teacher row exists. The bare placeholder covers
+  // "checking" (initial load) AND "redirecting" (router.replace in
+  // flight) so a non-teacher caller never sees TeacherShell.
+  if (authState === "checking" || authState === "redirecting") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-surface-alt">
+      <div
+        className="min-h-screen flex items-center justify-center bg-surface-alt"
+        data-testid="teacher-auth-checking"
+      >
         <div className="flex items-center gap-3">
           <div className="w-5 h-5 border-2 border-brand-purple border-t-transparent rounded-full animate-spin" />
-          <span className="text-text-secondary text-sm">Loading...</span>
+          <span className="text-text-secondary text-sm">
+            {authState === "redirecting" ? "Redirecting…" : "Loading…"}
+          </span>
         </div>
       </div>
     );
@@ -136,7 +193,7 @@ export default function TeacherLayout({
 
   // Bare-render any of the public auth-flow pages without the header /
   // nav — these screens manage their own visual chrome.
-  if (isPublicTeacherPath(pathname)) {
+  if (authState === "public") {
     return (
       <TeacherContext.Provider value={{ teacher }}>
         {children}
@@ -146,7 +203,7 @@ export default function TeacherLayout({
 
   // Chromeless paths (Bold dashboard v2 preview) keep auth + context but
   // drop the legacy header/nav so the v2's own TopNav is the only chrome.
-  if (isChromelessTeacherPath(pathname)) {
+  if (authState === "chromeless") {
     return (
       <TeacherContext.Provider value={{ teacher }}>
         {children}
