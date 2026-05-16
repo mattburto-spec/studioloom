@@ -35,7 +35,7 @@ export function ExportPagePdf({
       doc.setFontSize(10);
       doc.setTextColor(100, 100, 100);
       doc.text(`Student: ${studentName}`, 20, 28);
-      doc.text(`Unit: ${unitTitle}`, 20, 34);
+      doc.text(`Project: ${unitTitle}`, 20, 34);
       doc.text(`Exported: ${new Date().toLocaleDateString()}`, 20, 40);
 
       // Divider line

@@ -133,7 +133,7 @@ export default function BadgeGate({ unitId, children }: BadgeGateProps) {
               margin: '0',
             }}
           >
-            Complete the required safety badges below to access this unit.
+            Complete the required safety badges below to access this project.
           </p>
         </div>
 

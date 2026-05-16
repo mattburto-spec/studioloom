@@ -645,7 +645,7 @@ export default function SkillsPage() {
             </div>
           ) : (
             <div className="bg-white rounded-2xl p-6 border border-[var(--sl-hair)] text-[13px] text-[var(--sl-ink-3)]">
-              Nothing to unlock right now — your units haven&apos;t required
+              Nothing to unlock right now — your projects haven&apos;t required
               any safety tests yet.
             </div>
           )}
