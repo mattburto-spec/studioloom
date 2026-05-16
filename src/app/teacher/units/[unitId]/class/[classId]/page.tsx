@@ -68,6 +68,50 @@ type GradingStatus = "ungraded" | "draft" | "published";
 type StudentProgressMap = Record<string, Record<string, ProgressCell>>;
 
 // ---------------------------------------------------------------------------
+// Student grid — filter chip definitions + today-dot helpers (Phase 3.1).
+// Kept at module scope so subsequent sub-phases (3.2 side rail, 3.5 gallery)
+// can reuse the helpers without refactoring + so unit tests can import.
+// ---------------------------------------------------------------------------
+const STUDENT_FILTERS = [
+  { id: "all", label: "All students" },
+  { id: "marking", label: "Marking due" },
+  { id: "flagged", label: "Flagged" },
+  { id: "studio", label: "In Open Studio" },
+] as const;
+type StudentFilterId = (typeof STUDENT_FILTERS)[number]["id"];
+type MarkingKind = "graded" | "draft" | "to_mark" | "clear" | "none";
+
+// G10 sign-off: green = active in last 24h, yellow = last 3 days, red = ≥3 days.
+function todayDotClass(lastActiveISO: string | null): string {
+  if (!lastActiveISO) return "bg-gray-300";
+  const ageMs = Date.now() - new Date(lastActiveISO).getTime();
+  const dayMs = 86_400_000;
+  if (ageMs < dayMs) return "bg-emerald-500";
+  if (ageMs < 3 * dayMs) return "bg-amber-400";
+  return "bg-rose-500";
+}
+
+function todayDotLabel(lastActiveISO: string | null): string {
+  if (!lastActiveISO) return "No activity yet";
+  const ageMs = Date.now() - new Date(lastActiveISO).getTime();
+  const dayMs = 86_400_000;
+  if (ageMs < dayMs) return "Active in the last 24 hours";
+  if (ageMs < 3 * dayMs) return "Active in the last 3 days";
+  return "Inactive for 3+ days";
+}
+
+function lastActiveLabel(iso: string | null): string {
+  if (!iso) return "never active";
+  const ageMs = Date.now() - new Date(iso).getTime();
+  const minute = 60_000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  if (ageMs < hour) return `${Math.max(1, Math.round(ageMs / minute))} min ago`;
+  if (ageMs < day) return `${Math.round(ageMs / hour)} hr ago`;
+  return `${Math.round(ageMs / day)} d ago`;
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -240,10 +284,18 @@ export default function ClassHubPage({
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [scheduleOverrides, setScheduleOverrides] = useState<ScheduleOverrides>({});
 
-  // Progress tab state
+  // Student grid state (Phase 3.1)
   const [progressMap, setProgressMap] = useState<StudentProgressMap>({});
   const [progressLoading, setProgressLoading] = useState(false);
   const [progressLoaded, setProgressLoaded] = useState(false);
+  // Per-student max(updated_at) — derived from the same /student_progress
+  // query that builds progressMap, so the Today dot doesn't need its own
+  // fetch. Map<studentId, ISO timestamp>.
+  const [lastActiveMap, setLastActiveMap] = useState<Record<string, string>>({});
+  // Filter chip state for the grid header. Default "all". The "studio"
+  // chip currently filters to empty — Open Studio per-student data wires
+  // in Phase 3.2 alongside the side-rail card.
+  const [studentFilter, setStudentFilter] = useState<StudentFilterId>("all");
   const [gradingStatusMap, setGradingStatusMap] = useState<Record<string, GradingStatus>>({});
   // Open Studio unlock/revoke is managed entirely in the Open Studio tab
   const [badgeRequirements, setBadgeRequirements] = useState<Array<{ badge_id: string; badge_name: string; badge_slug: string; is_required: boolean }>>([]);
@@ -371,6 +423,7 @@ export default function ClassHubPage({
         .in("student_id", studentIds);
 
       const map: StudentProgressMap = {};
+      const lastActive: Record<string, string> = {};
       (progress || []).forEach((p: StudentProgress) => {
         if (!map[p.student_id]) map[p.student_id] = {};
         const raw = p as unknown as Record<string, unknown>;
@@ -397,8 +450,18 @@ export default function ClassHubPage({
           hasIntegrityData,
           integrityLevel,
         };
+        // Track per-student max(updated_at) for the Today dot. Skip if
+        // the row doesn't carry the column (defensive against shape drift).
+        const updatedAt = raw.updated_at;
+        if (typeof updatedAt === "string") {
+          const existing = lastActive[p.student_id];
+          if (!existing || updatedAt > existing) {
+            lastActive[p.student_id] = updatedAt;
+          }
+        }
       });
       setProgressMap(map);
+      setLastActiveMap(lastActive);
     }
 
     // Grading status
@@ -662,14 +725,272 @@ export default function ClassHubPage({
             aria-hidden="true"
           />
 
-          {/* Student grid placeholder — Phase 3.1 (Step 3) fills this
-              with the new student × column matrix + filter chips. */}
+          {/* Student grid — the heart of the canvas. Replaces the old
+              Progress tab's student × page matrix with a per-student-row
+              composite: Today dot, Unit %, Marking pill, Open Studio
+              pill (Phase 3.2 data), Metrics dots (Phase 3.2 data),
+              Badges count, row-menu (Phase 3.4 actions). Mockup view 2,
+              .student-grid-wrap block (lines ~1530–1777). */}
           <section
             data-testid="canvas-student-grid"
-            data-placeholder="phase-3-1-step-3"
-            className="bg-white rounded-2xl border border-border p-8 text-sm text-text-secondary"
+            className="bg-white rounded-2xl border border-border overflow-hidden"
           >
-            Student grid lands in the next commit (Phase 3.1 step 3).
+            {/* Header — title count + filter chips + Add student (Step 4) */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-5 py-4 border-b border-border">
+              <div className="text-base font-semibold text-text-primary">
+                Students <span className="text-text-tertiary font-normal ml-1">· {students.length}</span>
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex gap-1" role="group" aria-label="Student filter">
+                  {STUDENT_FILTERS.map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      data-testid={`student-filter-${f.id}`}
+                      onClick={() => setStudentFilter(f.id)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                        studentFilter === f.id
+                          ? "bg-text-primary text-white"
+                          : "bg-surface-alt text-text-secondary hover:bg-gray-200"
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+                {/* Add-student is a Step 4 wiring (StudentRosterDrawer). The
+                    button renders disabled in 3.1 Step 3 so its slot in
+                    the header doesn't shift when 4 lands. */}
+                <button
+                  type="button"
+                  data-testid="student-grid-add-student"
+                  disabled
+                  title="Add student (drawer arrives in Phase 3.1 Step 4)"
+                  className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-text-primary text-white opacity-50 cursor-not-allowed flex items-center gap-1.5"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                  Add student
+                </button>
+              </div>
+            </div>
+
+            {/* Column header row — hidden on narrow screens (the row layout
+                stacks naturally there). Tracks the row template below. */}
+            <div className="hidden md:grid grid-cols-[28px_minmax(0,1fr)_56px_120px_88px_88px_100px_72px_28px] gap-3 px-5 py-2 bg-surface-alt text-[10px] font-semibold uppercase tracking-wider text-text-tertiary border-b border-border">
+              <div />
+              <div className="text-left">Student</div>
+              <div className="text-center">Today</div>
+              <div className="text-center">Unit</div>
+              <div className="text-center">Marking</div>
+              <div className="text-center">Studio</div>
+              <div className="text-center">Metrics</div>
+              <div className="text-center">Badges</div>
+              <div />
+            </div>
+
+            {/* Rows */}
+            {(() => {
+              if (progressLoading && !progressLoaded) {
+                return (
+                  <div className="px-5 py-8" data-testid="student-grid-loading">
+                    <div className="animate-pulse space-y-3">
+                      <div className="h-10 bg-gray-100 rounded" />
+                      <div className="h-10 bg-gray-100 rounded" />
+                      <div className="h-10 bg-gray-100 rounded" />
+                    </div>
+                  </div>
+                );
+              }
+              if (students.length === 0) {
+                return (
+                  <div className="px-5 py-12 text-center text-sm text-text-secondary" data-testid="student-grid-empty-roster">
+                    No students enrolled in this class yet.
+                  </div>
+                );
+              }
+
+              // Per-row derived values + the filter chip predicate.
+              const rows = students.map((student) => {
+                const studentName = student.display_name || student.username;
+                const initials = (student.display_name?.[0] || student.username?.[0] || "?").toUpperCase();
+                const pages = progressMap[student.id] || {};
+                const completed = Object.values(pages).filter((c) => c.status === "complete").length;
+                const percent = unitPages.length > 0 ? Math.round((completed / unitPages.length) * 100) : 0;
+                const lastActive = lastActiveMap[student.id] || null;
+                const todayClass = todayDotClass(lastActive);
+                const todayLabel = todayDotLabel(lastActive);
+
+                // Per-row aggregate of the worst integrity level across
+                // all pages. Surfaces inline next to the name. Preserves
+                // the `cell?.integrityLevel === "low" | "medium"` shape
+                // that integrity-dot-logic.test.ts source-static guards
+                // lock against (Step 5 unskips those once shape matches).
+                let worstLevel: "low" | "medium" | null = null;
+                unitPages.forEach((p) => {
+                  const lvl = pages[p.id]?.integrityLevel;
+                  if (lvl === "low") worstLevel = "low";
+                  else if (lvl === "medium" && worstLevel !== "low") worstLevel = "medium";
+                });
+                const cell: { integrityLevel: "low" | "medium" | null } = { integrityLevel: worstLevel };
+
+                const gradeStatus = gradingStatusMap[student.id];
+                let marking: MarkingKind;
+                if (gradeStatus === "published") marking = "graded";
+                else if (gradeStatus === "draft") marking = "draft";
+                else if (completed > 0) marking = "to_mark";
+                else if (unitPages.length === 0) marking = "none";
+                else marking = "clear";
+
+                const badgeStatuses = badgeStatusMap[student.id] || [];
+                const badgesEarned = badgeStatuses.filter((b) => b.status === "earned").length;
+                const badgeTotal = badgeRequirements.length;
+
+                return { student, studentName, initials, percent, lastActive, todayClass, todayLabel, cell, marking, badgesEarned, badgeTotal };
+              });
+
+              const filtered = rows.filter(({ student, marking, cell, lastActive }) => {
+                switch (studentFilter) {
+                  case "all":
+                    return true;
+                  case "marking":
+                    return marking === "draft" || marking === "to_mark";
+                  case "flagged":
+                    // Low-integrity OR red Today dot (inactive ≥3 days)
+                    return cell?.integrityLevel === "low" || todayDotClass(lastActive) === "bg-rose-500";
+                  case "studio":
+                    // Open Studio per-student data wires in Phase 3.2.
+                    // Filter currently matches nothing — empty-state
+                    // copy below tells teachers what's coming.
+                    void student;
+                    return false;
+                  default:
+                    return true;
+                }
+              });
+
+              if (filtered.length === 0) {
+                const filterLabel = STUDENT_FILTERS.find((f) => f.id === studentFilter)?.label ?? "filter";
+                return (
+                  <div className="px-5 py-12 text-center text-sm text-text-secondary" data-testid="student-grid-empty-filtered">
+                    {studentFilter === "studio" ? (
+                      <>Open Studio counts wire in Phase 3.2. No data to filter on yet.</>
+                    ) : (
+                      <>No students match the &ldquo;{filterLabel}&rdquo; filter.</>
+                    )}
+                  </div>
+                );
+              }
+
+              return filtered.map(({ student, studentName, initials, percent, lastActive, todayClass, todayLabel, cell, marking, badgesEarned, badgeTotal }) => (
+                <div
+                  key={student.id}
+                  data-testid={`student-row-${student.id}`}
+                  className="group grid grid-cols-[28px_minmax(0,1fr)_56px_120px_88px_88px_100px_72px_28px] gap-3 px-5 py-3.5 border-b border-border last:border-0 hover:bg-surface-alt items-center"
+                >
+                  {/* Avatar */}
+                  <div className="w-7 h-7 rounded-full bg-surface-alt text-[11px] font-semibold text-text-secondary flex items-center justify-center">
+                    {initials}
+                  </div>
+
+                  {/* Name + last-active + inline integrity dot */}
+                  <div className="min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => setDrawerStudent({ id: student.id, name: studentName })}
+                      className="text-sm font-medium text-text-primary hover:text-purple-700 transition text-left truncate flex items-center gap-1.5"
+                    >
+                      <span className="truncate">{studentName}</span>
+                      {cell?.integrityLevel === "low" && (
+                        <span
+                          data-testid={`student-row-${student.id}-integrity-low`}
+                          className="inline-block w-2 h-2 rounded-full bg-rose-500 ring-1 ring-white flex-shrink-0"
+                          title="Integrity concern flagged — open to review"
+                        />
+                      )}
+                      {cell?.integrityLevel === "medium" && (
+                        <span
+                          data-testid={`student-row-${student.id}-integrity-medium`}
+                          className="inline-block w-2 h-2 rounded-full bg-amber-500 ring-1 ring-white flex-shrink-0"
+                          title="Integrity warning — minor concern, open to review"
+                        />
+                      )}
+                    </button>
+                    <div className="text-[11px] text-text-tertiary mt-0.5">
+                      {lastActiveLabel(lastActive)}
+                    </div>
+                  </div>
+
+                  {/* Today dot */}
+                  <div className="flex justify-center">
+                    <span
+                      data-testid={`student-row-${student.id}-today`}
+                      className={`inline-block w-2.5 h-2.5 rounded-full ${todayClass}`}
+                      title={todayLabel}
+                    />
+                  </div>
+
+                  {/* Unit progress bar + % */}
+                  <div className="flex flex-col gap-1">
+                    <div className="w-full h-1.5 rounded-full bg-surface-alt overflow-hidden">
+                      <div
+                        className="h-full bg-accent-green transition-all"
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
+                    <div className="text-[11px] font-medium text-text-secondary text-center">{percent}%</div>
+                  </div>
+
+                  {/* Marking pill */}
+                  <div className="flex justify-center">
+                    {marking === "graded" && <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium">graded</span>}
+                    {marking === "draft" && <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium">draft</span>}
+                    {marking === "to_mark" && <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-medium">to mark</span>}
+                    {marking === "clear" && <span className="text-[11px] px-2 py-0.5 rounded-full bg-surface-alt text-text-secondary font-medium">clear</span>}
+                    {marking === "none" && <span className="text-xs text-text-tertiary">—</span>}
+                  </div>
+
+                  {/* Open Studio pill — placeholder, Phase 3.2 wires the data */}
+                  <div className="flex justify-center" data-placeholder="phase-3-2">
+                    <span className="text-xs text-text-tertiary">—</span>
+                  </div>
+
+                  {/* Metrics dots — placeholder, Phase 3.2 wires the data */}
+                  <div className="flex justify-center gap-0.5" data-placeholder="phase-3-2">
+                    {[1, 2, 3, 4].map((i) => (
+                      <span key={i} className="inline-block w-3 h-1 rounded-sm bg-surface-alt" />
+                    ))}
+                  </div>
+
+                  {/* Badge count */}
+                  <div className="flex justify-center">
+                    {badgeTotal > 0 ? (
+                      <span className="text-xs font-medium text-text-secondary inline-flex items-center gap-1">
+                        <span aria-hidden>★</span> {badgesEarned}/{badgeTotal}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-text-tertiary">—</span>
+                    )}
+                  </div>
+
+                  {/* Row menu — hover-only stub. Phase 3.4 wires actions
+                      (Message · Reset code · Remove · NM observation). */}
+                  <button
+                    type="button"
+                    data-testid={`student-row-${student.id}-menu`}
+                    aria-label={`Actions for ${studentName}`}
+                    title="Row actions (coming in Phase 3.4)"
+                    disabled
+                    className="opacity-0 group-hover:opacity-100 transition w-6 h-6 rounded-full text-text-tertiary hover:bg-surface-alt flex items-center justify-center cursor-not-allowed"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                      <circle cx="5" cy="12" r="1.5" />
+                      <circle cx="12" cy="12" r="1.5" />
+                      <circle cx="19" cy="12" r="1.5" />
+                    </svg>
+                  </button>
+                </div>
+              ));
+            })()}
           </section>
 
           {/* Gallery strip placeholder — Phase 3.5 fills this with the
