@@ -41,6 +41,13 @@ describe("Class Hub progress-grid integrity dot — round 8 fix", () => {
     );
   });
 
+  // ─── Phase 3.1 Step 3 (16 May 2026) — re-attached on the canvas ───────
+  // The progress-grid was temporarily unmounted in Step 2 of the DT
+  // canvas rebuild and re-attached in Step 3. The dot now renders as a
+  // per-row aggregate next to the student name (worst integrity level
+  // across all pages) rather than per-cell. The {cell?.integrityLevel
+  // === "low" | "medium"} source pattern is preserved verbatim so these
+  // guards continue to lock the rose/amber/tooltip contract.
   it("renders a rose dot only when integrityLevel === 'low'", () => {
     expect(HUB_SRC).toMatch(
       /cell\?\.integrityLevel\s*===\s*"low"[\s\S]{0,400}bg-rose-500/

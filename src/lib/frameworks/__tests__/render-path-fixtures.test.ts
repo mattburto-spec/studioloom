@@ -294,15 +294,21 @@ describe("render-path wiring lock — teacher grading pages (§4.5c)", () => {
     );
   });
 
-  it("G3: class/[classId]/page.tsx imports getCriterionLabels from adapter", () => {
-    expect(gradingPage2).toMatch(
-      /import\s*\{\s*getCriterionLabels\s*\}\s*from\s*["']@\/lib\/frameworks\/adapter["']/,
+  // G3/G4 inverted (DT canvas Phase 3.1, 16 May 2026): the dead grade-tab
+  // JSX was stripped from class/[classId]/page.tsx — Marking now lives at
+  // /teacher/marking and is reached via the side-rail card (Phase 3.2). The
+  // adapter + render-helper imports were grade-tab-exclusive and went away
+  // with the body. These guards now lock the absence so the dead block
+  // can't come back via cherry-pick or merge resurrection.
+  it("G3: class/[classId]/page.tsx no longer imports getCriterionLabels (grade tab stripped)", () => {
+    expect(gradingPage2).not.toMatch(
+      /import\s*\{[^}]*\bgetCriterionLabels\b[^}]*\}\s*from\s*["']@\/lib\/frameworks\/adapter["']/,
     );
   });
 
-  it("G4: class/[classId]/page.tsx imports getCriterionColor from render-helpers", () => {
-    expect(gradingPage2).toMatch(
-      /import\s*\{\s*getCriterionColor\s*\}\s*from\s*["']@\/lib\/frameworks\/render-helpers["']/,
+  it("G4: class/[classId]/page.tsx no longer imports getCriterionColor (grade tab stripped)", () => {
+    expect(gradingPage2).not.toMatch(
+      /import\s*\{[^}]*\bgetCriterionColor\b[^}]*\}\s*from\s*["']@\/lib\/frameworks\/render-helpers["']/,
     );
   });
 

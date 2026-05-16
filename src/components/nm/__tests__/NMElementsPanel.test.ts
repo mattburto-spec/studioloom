@@ -83,7 +83,17 @@ describe("NMElementsPanel", () => {
   });
 });
 
-describe("Class Hub Metrics tab — NMElementsPanel mount (round 8)", () => {
+// ─── Deferred to Phase 3.2 — DT canvas Phase 3.1 (Step 2, 16 May 2026) ───
+// The Metrics tab was replaced by the side-rail "Class metrics · this unit"
+// card in the canvas-grid scaffold. The card is an empty placeholder in
+// Phase 3.1 — its CTA ("Score students now →") opens an NM observation
+// drawer/sheet that Phase 3.2 (side-rail wiring) will mount NMElementsPanel
+// inside. These guards stay skipped until Phase 3.2 lands, at which point
+// the mount-anchor changes from `activeTab === "metrics"` to the
+// side-rail CTA's drawer/sheet. The first describe block (NMElementsPanel
+// behaviour itself) still passes — it locks the component's contract,
+// not its mount location.
+describe.skip("Class Hub Metrics tab — NMElementsPanel mount (round 8) [unskip in Phase 3.2]", () => {
   it('imports NMElementsPanel from "@/components/nm"', () => {
     expect(CLASS_HUB_SRC).toMatch(
       /import\s*\{[^}]*NMElementsPanel[^}]*\}\s*from\s*"@\/components\/nm"/

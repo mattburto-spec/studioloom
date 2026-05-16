@@ -14,6 +14,16 @@ interface StudentDrawerProps {
   studentName: string;
   unitId: string;
   classId: string;
+  /**
+   * Optional page-id qualifier (DT canvas Phase 3.1 Step 4, 16 May 2026).
+   * When present, the drawer scrolls + highlights the matching Page
+   * Progress chip on mount. Used by:
+   *   - legacy ?tab=... deep-links carrying &page=... (Step 4 compat)
+   *   - future per-page UIs (Phase 3.5 gallery, 3.6 cutover)
+   * No-op when the page isn't in the rendered set — the drawer still
+   * opens cleanly without the highlight.
+   */
+  pageId?: string | null;
   onClose: () => void;
 }
 
@@ -65,11 +75,12 @@ function formatMinutes(seconds: number): string {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
-export default function StudentDrawer({ studentId, studentName, unitId, classId, onClose }: StudentDrawerProps) {
+export default function StudentDrawer({ studentId, studentName, unitId, classId, pageId, onClose }: StudentDrawerProps) {
   const [data, setData] = useState<SnapshotData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const pageChipRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     setLoading(true);
@@ -103,6 +114,19 @@ export default function StudentDrawer({ studentId, studentName, unitId, classId,
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
   }, [onClose]);
+
+  // pageId qualifier (Phase 3.1 Step 4) — scroll the matching Page
+  // Progress chip into view once the snapshot has loaded. No-op when
+  // pageId is null/undefined or no chip with that id exists. The
+  // highlight ring is applied via className above; this just brings it
+  // on-screen.
+  useEffect(() => {
+    if (!pageId || !data) return;
+    const el = pageChipRefs.current[pageId];
+    if (el && typeof el.scrollIntoView === "function") {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [pageId, data]);
 
   return (
     <>
@@ -167,18 +191,24 @@ export default function StudentDrawer({ studentId, studentName, unitId, classId,
               {/* Progress strip */}
               <Section title="Page Progress">
                 <div className="flex flex-wrap gap-1">
-                  {data.pages.map(page => {
+                  {data.pages.map((page, pageIdx) => {
                     const p = data.progress[page.id];
                     const bg = p?.status === "complete" ? "#10B981" : p?.status === "in_progress" ? "#F59E0B" : "#E5E7EB";
                     const textColor = p?.status && p.status !== "not_started" ? "#fff" : "#9CA3AF";
+                    const isPageIdMatch = pageId === page.id;
                     return (
                       <div
                         key={page.id}
-                        className="w-8 h-8 rounded flex items-center justify-center text-[10px] font-bold"
+                        ref={(el) => { pageChipRefs.current[page.id] = el; }}
+                        data-testid={`drawer-page-chip-${page.id}`}
+                        data-page-id={page.id}
+                        className={`w-8 h-8 rounded flex items-center justify-center text-[10px] font-bold ${
+                          isPageIdMatch ? "ring-2 ring-violet-500 ring-offset-1" : ""
+                        }`}
                         style={{ background: bg, color: textColor }}
-                        title={`${page.id}: ${page.title} — ${p?.status || "not started"}`}
+                        title={`${pageIdx + 1}. ${page.title || page.id} — ${p?.status || "not started"}`}
                       >
-                        {page.id.replace(/^L0?/, "")}
+                        {pageIdx + 1}
                       </div>
                     );
                   })}
