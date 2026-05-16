@@ -32,6 +32,7 @@ import StudentRosterDrawer from "@/components/teacher/class-hub/StudentRosterDra
 import SafetyDrawer from "@/components/teacher/class-hub/SafetyDrawer";
 import OpenStudioDrawer from "@/components/teacher/class-hub/OpenStudioDrawer";
 import MetricsDrawer from "@/components/teacher/class-hub/MetricsDrawer";
+import ChangeUnitModal from "@/components/teacher/class-hub/ChangeUnitModal";
 
 // ---------------------------------------------------------------------------
 // DT Class Canvas — single unified per-class surface for the teacher.
@@ -397,6 +398,11 @@ export default function ClassHubPage({
     Record<string, number>
   >({});
   const [metricsDrawerOpen, setMetricsDrawerOpen] = useState(false);
+
+  // Change-unit modal (Phase 3.3 Step 2). Triggered by the orange
+  // lesson-hero "Change unit" button. Wires the atomic
+  // public.set_active_unit RPC via the setActiveUnit helper.
+  const [changeUnitModalOpen, setChangeUnitModalOpen] = useState(false);
 
   // -----------------------------------------------------------------------
   // Legacy ?tab=... compat (Phase 3.1 Step 4, G12 sign-off).
@@ -1027,9 +1033,9 @@ export default function ClassHubPage({
                 <button
                   type="button"
                   data-testid="lesson-hero-change-unit"
-                  title="Pick a different unit for this class (modal arrives in Phase 3.3 Step 2)"
-                  disabled
-                  className="absolute top-4 right-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 text-white/90 text-xs font-medium opacity-60 cursor-not-allowed"
+                  title="Pick a different unit for this class"
+                  onClick={() => setChangeUnitModalOpen(true)}
+                  className="absolute top-4 right-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/20 text-white text-xs font-medium hover:bg-white/30 transition"
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M8 3 4 7l4 4" /><path d="M4 7h16" /><path d="m16 21 4-4-4-4" /><path d="M20 17H4" /></svg>
                   Change unit
@@ -1836,6 +1842,20 @@ export default function ClassHubPage({
             }
           }}
           onClose={() => setMetricsDrawerOpen(false)}
+        />
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* Change Unit Modal (Phase 3.3 Step 2) — wires the atomic           */}
+      {/* public.set_active_unit RPC via setActiveUnit helper. Triggered    */}
+      {/* by the orange lesson-hero "Change unit" button.                    */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {changeUnitModalOpen && (
+        <ChangeUnitModal
+          classId={classId}
+          currentUnitId={unitId}
+          className={className}
+          onClose={() => setChangeUnitModalOpen(false)}
         />
       )}
 
