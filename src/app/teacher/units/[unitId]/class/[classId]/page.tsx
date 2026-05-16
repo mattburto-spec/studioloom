@@ -984,11 +984,59 @@ export default function ClassHubPage({
                 },
               ],
             };
+            // Phase 3.4 Step 2 — Class section. Per Matt G3 sign-off,
+            // Roll over / Duplicate / Archive / Delete all ship as
+            // greyed stubs in 3.4. Each has its own UX work waiting in
+            // a follow-up phase. Class settings links to the existing
+            // per-class-unit settings page (due dates + page settings
+            // already lives there — the deleted Settings tab's term
+            // picker + LessonSchedule content is a separate follow-up,
+            // tracked in the Phase 3.4 STOP AND REPORT).
+            const classSection: KebabMenuSection = {
+              label: `Class · ${className}`,
+              items: [
+                {
+                  testId: "kebab-class-settings",
+                  label: "Class settings…",
+                  icon: <span aria-hidden>⚙</span>,
+                  href: `/teacher/classes/${classId}/settings/${unitId}`,
+                },
+                {
+                  testId: "kebab-class-rollover",
+                  label: "Roll over to next semester…",
+                  icon: <span aria-hidden>↻</span>,
+                  disabled: true,
+                  conditional: "coming soon",
+                },
+                {
+                  testId: "kebab-class-duplicate",
+                  label: "Duplicate class",
+                  icon: <span aria-hidden>⎘</span>,
+                  disabled: true,
+                  conditional: "coming soon",
+                },
+                {
+                  testId: "kebab-class-archive",
+                  label: "Archive class",
+                  icon: <span aria-hidden>▤</span>,
+                  disabled: true,
+                  conditional: "coming soon",
+                },
+                {
+                  testId: "kebab-class-delete",
+                  label: "Delete permanently",
+                  icon: <span aria-hidden>🗑</span>,
+                  disabled: true,
+                  danger: true,
+                  conditional: "if archived",
+                },
+              ],
+            };
             return (
               <KebabMenu
                 testId="canvas-header-kebab"
                 triggerAriaLabel="Class and unit actions"
-                sections={[unitSection]}
+                sections={[unitSection, classSection]}
                 align="right"
                 trigger={
                   <span className="w-10 h-10 rounded-xl border border-border text-text-secondary hover:bg-surface-alt flex items-center justify-center transition">
