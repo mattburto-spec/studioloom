@@ -2423,6 +2423,18 @@ tables:
     setActiveUnit() helper at src/lib/classes/active-unit.ts. See
     docs/decisions-log.md "One active unit per class enforced at DB level"
     (16 May 2026) and PR #319.
+  - 2026-05-16 — `public.set_active_unit` extended with a SECOND auth gate
+    via migration 20260516052310 (Block C, PR #323) — caller must own the
+    target unit (units.author_teacher_id = auth.uid()) OR the unit must be
+    is_published = true. Closes FU-SEC-SET-ACTIVE-UNIT-MISSING-UNIT-OWNERSHIP-CHECK
+    (P1) — without this gate, any authenticated teacher could attach any
+    unit_id to one of their own classes, bypassing the fork flow. CREATE OR
+    REPLACE preserves SECURITY DEFINER, search_path lockdown, REVOKE/GRANT,
+    and INSERT-ON-CONFLICT shape. Lesson #66 sanity DO-block extended with
+    3 new LIKE assertions (author_teacher_id, is_published, "cannot attach
+    unit"). No app-code change required — wrapper's discriminated-union
+    surfaces SQLSTATE 42501 regardless of which gate fires; existing toast
+    text covers both.
   writers:
   - src/app/api/teacher/class-units/content/route.ts
   - src/app/api/teacher/class-units/route.ts
