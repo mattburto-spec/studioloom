@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect, use, useCallback, useRef } from "react";
+import { useState, useEffect, use, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 // Lever-MM (4 May 2026): NMConfigPanel no longer mounted from this surface
 // — configuration moved to the lesson editor's New Metrics block category.
@@ -13,13 +12,9 @@ import { LessonSchedule } from "@/components/teacher/LessonSchedule";
 import type { ScheduleOverrides } from "@/components/teacher/LessonSchedule";
 import type { NMUnitConfig } from "@/lib/nm/constants";
 import { DEFAULT_NM_CONFIG, AGENCY_ELEMENTS } from "@/lib/nm/constants";
-import { getPageList, isV3 } from "@/lib/unit-adapter";
-import { getCriterionKeys, getCriterion, getGradingScale } from "@/lib/constants";
-import { getPageColor, CRITERIA, GRADING_SCALES, type CriterionKey, type GradingScale } from "@/lib/constants";
-import { getCriterionLabels } from "@/lib/frameworks/adapter";
-import type { FrameworkId } from "@/lib/frameworks/adapter";
-import { getCriterionColor } from "@/lib/frameworks/render-helpers";
-import type { Unit, UnitPage, UnitContentData, Student, StudentProgress } from "@/types";
+import { getPageList } from "@/lib/unit-adapter";
+import { getPageColor } from "@/lib/constants";
+import type { Unit, UnitPage, UnitContentData, StudentProgress } from "@/types";
 import type { AssessmentRecordRow } from "@/types/assessment";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
 import { OpenStudioClassView } from "@/components/open-studio";
@@ -42,15 +37,10 @@ import UnitAttentionPanel from "@/components/teacher/UnitAttentionPanel";
 // URL: /teacher/units/[unitId]/class/[classId]
 // ---------------------------------------------------------------------------
 
-type HubTab = "progress" | "grade" | "students" | "gallery" | "studio" | "metrics" | "badges" | "settings";
+type HubTab = "progress" | "students" | "gallery" | "studio" | "metrics" | "badges" | "settings";
 
 const TABS: { id: HubTab; label: string; icon: string }[] = [
   { id: "progress", label: "Progress", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
-  // Renamed from "Grade" → "Marking" (11 May 2026). Rendered as a Link below
-  // (not an internal tab) — sends the teacher to the proper /teacher/marking
-  // page with class+unit context. The activeTab === "grade" branch further
-  // down is dead code now; left for later cleanup.
-  { id: "grade", label: "Marking", icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" },
   { id: "students", label: "Students", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zm13 10v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" },
   { id: "gallery", label: "Gallery", icon: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" },
   { id: "studio", label: "Open Studio", icon: "M3 11h18M3 11v8a2 2 0 002 2h14a2 2 0 002-2v-8M7 11V7a5 5 0 0110 0v4" },
@@ -230,30 +220,19 @@ export default function ClassHubPage({
   params: Promise<{ unitId: string; classId: string }>;
 }) {
   const { unitId, classId } = use(params);
-  const router = useRouter();
 
   // Tab state (from URL or default)
   const [activeTab, setActiveTab] = useState<HubTab>(() => {
     if (typeof window !== "undefined") {
       const sp = new URLSearchParams(window.location.search);
       const tab = sp.get("tab");
-      if (tab === "progress" || tab === "grade" || tab === "students" || tab === "gallery" || tab === "studio" || tab === "metrics" || tab === "badges" || tab === "settings") return tab;
+      if (tab === "progress" || tab === "students" || tab === "gallery" || tab === "studio" || tab === "metrics" || tab === "badges" || tab === "settings") return tab;
       if (tab === "safety") return "badges"; // backward compat
       if (tab === "open-studio") return "studio"; // backward compat
       if (tab === "attention") return "metrics"; // backward compat — Attention folded into New Metrics (15 May 2026)
     }
     return "progress";
   });
-
-  // Legacy redirect: ?tab=grade is the old internal grading view. The
-  // canonical Marking surface now lives at /teacher/marking — send any
-  // old bookmark there with class+unit context so the page lands on
-  // the calibrate view directly.
-  useEffect(() => {
-    if (activeTab === "grade") {
-      router.replace(`/teacher/marking?class=${classId}&unit=${unitId}`);
-    }
-  }, [activeTab, classId, unitId, router]);
 
   // Shared data (loaded once)
   const [unit, setUnit] = useState<Unit | null>(null);
@@ -283,20 +262,6 @@ export default function ClassHubPage({
   // Progress tab state
   const [progressMap, setProgressMap] = useState<StudentProgressMap>({});
   const [progressLoading, setProgressLoading] = useState(false);
-
-  // Grade tab state
-  const [assessments, setAssessments] = useState<Map<string, any>>(new Map());
-  const [assessmentIds, setAssessmentIds] = useState<Map<string, string>>(new Map());
-  const [selectedStudentForGrading, setSelectedStudentForGrading] = useState<string | null>(null);
-  const [currentScores, setCurrentScores] = useState<Map<string, any>>(new Map());
-  const [teacherComments, setTeacherComments] = useState("");
-  const [overallGrade, setOverallGrade] = useState<number | undefined>();
-  const [gradeLoading, setGradeLoading] = useState(false);
-  const [gradeSaving, setGradeSaving] = useState(false);
-  const [gradeSaved, setGradeSaved] = useState(false);
-  const [gradeDirty, setGradeDirty] = useState(false);
-  const [unitCriteriaForGrade, setUnitCriteriaForGrade] = useState<string[]>([]);
-  const gradeDataLoadedRef = useRef(false);
   const [progressLoaded, setProgressLoaded] = useState(false);
   const [gradingStatusMap, setGradingStatusMap] = useState<Record<string, GradingStatus>>({});
   // Open Studio unlock/revoke is managed entirely in the Open Studio tab
@@ -499,97 +464,6 @@ export default function ClassHubPage({
   }, [activeTab, loading, students, progressLoaded, loadProgressData]);
 
   // -----------------------------------------------------------------------
-  // Load grading data (lazy — only when Grade tab is active)
-  // -----------------------------------------------------------------------
-  const loadGradeData = useCallback(async () => {
-    if (!unit) return;
-    setGradeLoading(true);
-
-    try {
-      // Determine criteria to grade against — via FrameworkAdapter.
-      const gradeFwId: FrameworkId =
-        (classFramework as FrameworkId | null | undefined) ?? "IB_MYP";
-      const fwLabels = getCriterionLabels(gradeFwId);
-      let criteria: string[];
-
-      if (fwLabels.length > 0) {
-        criteria = fwLabels.map((l) => l.short);
-      } else {
-        // Fallback: extract from unit content
-        const uniqueCriteria = new Set<string>();
-        unitPages.forEach((p) => {
-          (p.content?.sections || []).forEach((s: any) => {
-            (s.criterionTags || []).forEach((t: string) => uniqueCriteria.add(t));
-          });
-        });
-        unitPages.filter((p) => p.type === "strand" && p.criterion).forEach((p) => {
-          if (p.criterion) uniqueCriteria.add(p.criterion);
-        });
-        unitPages.forEach((p) => {
-          if (p.criterion) uniqueCriteria.add(p.criterion);
-        });
-        criteria = Array.from(uniqueCriteria);
-      }
-      setUnitCriteriaForGrade(criteria);
-
-      // Fetch assessments
-      const assessRes = await fetch(`/api/teacher/assessments?classId=${classId}&unitId=${unitId}`);
-      if (assessRes.ok) {
-        const { assessments: rows } = (await assessRes.json()) as { assessments: AssessmentRecordRow[] };
-        const assessMap = new Map<string, any>();
-        const idMap = new Map<string, string>();
-        for (const row of rows) {
-          assessMap.set(row.student_id, row.data);
-          idMap.set(row.student_id, row.id);
-        }
-        setAssessments(assessMap);
-        setAssessmentIds(idMap);
-      }
-
-      // Auto-select first student if not already selected
-      if (!selectedStudentForGrading && students.length > 0) {
-        setSelectedStudentForGrading(students[0].id);
-      }
-    } catch {
-      // silently fail
-    } finally {
-      setGradeLoading(false);
-    }
-  }, [unit, unitId, classId, unitPages, students, selectedStudentForGrading]);
-
-  useEffect(() => {
-    if (activeTab === "grade" && !loading && unit && unitPages.length > 0 && !gradeDataLoadedRef.current) {
-      gradeDataLoadedRef.current = true;
-      loadGradeData();
-    }
-    // Reset loaded ref when tab changes away so re-entering refreshes
-    if (activeTab !== "grade") {
-      gradeDataLoadedRef.current = false;
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, loading, unit, unitPages]);
-
-  // Load assessment form when selected student changes
-  useEffect(() => {
-    if (!selectedStudentForGrading) return;
-    const existing = assessments.get(selectedStudentForGrading);
-    if (existing) {
-      const scoreMap = new Map<string, any>();
-      for (const cs of existing.criterion_scores || []) {
-        scoreMap.set(cs.criterion_key, cs);
-      }
-      setCurrentScores(scoreMap);
-      setOverallGrade(existing.overall_grade);
-      setTeacherComments(existing.teacher_comments || "");
-    } else {
-      setCurrentScores(new Map());
-      setOverallGrade(undefined);
-      setTeacherComments("");
-    }
-    setGradeDirty(false);
-  }, [selectedStudentForGrading, assessments]);
-
-  // -----------------------------------------------------------------------
   // Schedule loading (for Settings tab)
   // -----------------------------------------------------------------------
   useEffect(() => {
@@ -697,83 +571,6 @@ export default function ClassHubPage({
   }
 
   // -----------------------------------------------------------------------
-  // Grade tab helpers
-  // -----------------------------------------------------------------------
-
-  function getCriterionScore(key: string): any {
-    return currentScores.get(key) || { criterion_key: key, level: 0 };
-  }
-
-  function updateCriterionScore(key: string, updates: any) {
-    setCurrentScores((prev) => {
-      const next = new Map(prev);
-      const existing = next.get(key) || { criterion_key: key, level: 0 };
-      next.set(key, { ...existing, ...updates });
-      return next;
-    });
-    setGradeDirty(true);
-  }
-
-  function getGradeStatus(studentId: string): GradingStatus {
-    const a = assessments.get(studentId);
-    if (!a) return "ungraded";
-    return a.is_draft ? "draft" : "published";
-  }
-
-  async function saveGradeAssessment(isDraft: boolean) {
-    if (!selectedStudentForGrading) return;
-    setGradeSaving(true);
-
-    const record = {
-      id: assessmentIds.get(selectedStudentForGrading) || crypto.randomUUID(),
-      student_id: selectedStudentForGrading,
-      unit_id: unitId,
-      class_id: classId,
-      teacher_id: "",
-      criterion_scores: Array.from(currentScores.values()).filter((cs) => cs.level > 0),
-      overall_grade: overallGrade,
-      teacher_comments: teacherComments || undefined,
-      assessed_at: new Date().toISOString(),
-      is_draft: isDraft,
-    };
-
-    try {
-      const res = await fetch("/api/teacher/assessments", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          student_id: selectedStudentForGrading,
-          unit_id: unitId,
-          class_id: classId,
-          data: record,
-          is_draft: isDraft,
-        }),
-      });
-
-      if (res.ok) {
-        const { assessment } = await res.json();
-        setAssessments((prev) => {
-          const next = new Map(prev);
-          next.set(selectedStudentForGrading, assessment.data);
-          return next;
-        });
-        setAssessmentIds((prev) => {
-          const next = new Map(prev);
-          next.set(selectedStudentForGrading, assessment.id);
-          return next;
-        });
-        setGradeDirty(false);
-        setGradeSaved(true);
-        setTimeout(() => setGradeSaved(false), 2000);
-      }
-    } catch {
-      // silently fail
-    }
-
-    setGradeSaving(false);
-  }
-
-  // -----------------------------------------------------------------------
   // Render
   // -----------------------------------------------------------------------
 
@@ -850,41 +647,22 @@ export default function ClassHubPage({
 
       {/* Tab bar */}
       <div className="flex gap-1 mb-6 border-b border-border">
-        {TABS.map((tab) => {
-          // Marking tab: navigate out to the canonical /teacher/marking page
-          // with class+unit context (skips the picker steps). Never renders
-          // as "active" here — the destination owns that state.
-          if (tab.id === "grade") {
-            return (
-              <Link
-                key={tab.id}
-                href={`/teacher/marking?class=${classId}&unit=${unitId}`}
-                className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors border-transparent text-text-secondary hover:text-text-primary hover:border-gray-300"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d={tab.icon} />
-                </svg>
-                {tab.label}
-              </Link>
-            );
-          }
-          return (
-            <button
-              key={tab.id}
-              onClick={() => switchTab(tab.id)}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === tab.id
-                  ? "border-purple-600 text-purple-700"
-                  : "border-transparent text-text-secondary hover:text-text-primary hover:border-gray-300"
-              }`}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d={tab.icon} />
-              </svg>
-              {tab.label}
-            </button>
-          );
-        })}
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => switchTab(tab.id)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === tab.id
+                ? "border-purple-600 text-purple-700"
+                : "border-transparent text-text-secondary hover:text-text-primary hover:border-gray-300"
+            }`}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d={tab.icon} />
+            </svg>
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
@@ -1181,346 +959,6 @@ export default function ClassHubPage({
                 </div>
               </div>
             </div>
-          )}
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* GRADE TAB                                                         */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {activeTab === "grade" && (
-        <div className="space-y-4">
-          {gradeLoading ? (
-            <div className="bg-white rounded-xl border border-border p-6 animate-pulse">
-              <div className="h-40 bg-gray-200 rounded" />
-            </div>
-          ) : students.length === 0 ? (
-            <div className="bg-white rounded-xl border border-border p-6 text-center">
-              <p className="text-text-secondary">No students in this class yet.</p>
-            </div>
-          ) : unitCriteriaForGrade.length === 0 ? (
-            <div className="bg-white rounded-xl border border-border p-6 text-center">
-              <p className="text-text-secondary mb-3">No criteria found in this unit.</p>
-              <Link href={`/teacher/classes/${classId}/grading/${unitId}`} className="text-accent-blue text-sm font-medium hover:underline">
-                Open Full Grading View →
-              </Link>
-            </div>
-          ) : (
-            <>
-              {/* Student List & Grading Form */}
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-                {/* Student List Sidebar */}
-                <div className="bg-white rounded-xl border border-border overflow-hidden lg:col-span-1">
-                  <div className="px-4 py-3 border-b border-border">
-                    <h3 className="text-xs font-semibold text-text-secondary uppercase">Students</h3>
-                  </div>
-                  <div className="max-h-[60vh] overflow-y-auto divide-y divide-border/50">
-                    {students.map((s) => {
-                      const status = getGradeStatus(s.id);
-                      const isSelected = s.id === selectedStudentForGrading;
-                      const statusColors = {
-                        "ungraded": "bg-gray-50 text-gray-600",
-                        "draft": "bg-blue-50 text-blue-600",
-                        "published": "bg-green-50 text-green-600",
-                      };
-                      return (
-                        <button
-                          key={s.id}
-                          onClick={() => setSelectedStudentForGrading(s.id)}
-                          className={`w-full text-left px-3 py-2.5 flex items-center gap-2 transition ${
-                            isSelected
-                              ? "bg-accent-blue/5 border-l-2 border-accent-blue"
-                              : "hover:bg-surface-alt border-l-2 border-transparent"
-                          }`}
-                        >
-                          <span className="text-xs font-medium text-text-primary truncate flex-1">
-                            {s.display_name || s.username}
-                          </span>
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap ${statusColors[status]}`}>
-                            {status === "ungraded" ? "—" : status === "draft" ? "Draft" : "✓"}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Grading Form */}
-                <div className="bg-white rounded-xl border border-border p-5 lg:col-span-3 space-y-4">
-                  {selectedStudentForGrading && (() => {
-                    const student = students.find((s) => s.id === selectedStudentForGrading);
-                    const scale = getGradingScale(classFramework);
-                    return (
-                      <>
-                        {/* Student header */}
-                        <div className="flex items-center justify-between pb-3 border-b border-border">
-                          <h3 className="text-sm font-semibold text-text-primary">
-                            {student?.display_name || student?.username}
-                          </h3>
-                          {gradeSaved && (
-                            <span className="text-xs text-accent-green font-medium">✓ Saved</span>
-                          )}
-                        </div>
-
-                        {/* Student Work Quick-View */}
-                        {unitPages.length > 0 && (
-                          <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-[10px] font-semibold text-blue-600 uppercase tracking-wide">Student Work</span>
-                              <span className="text-[10px] text-blue-400">Click to view responses & integrity</span>
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                              {unitPages.map((page) => {
-                                const progress = progressMap[selectedStudentForGrading]?.[page.id];
-                                const hasResponses = progress?.hasResponses ?? false;
-                                const rawP = progress as unknown as Record<string, unknown>;
-                                const hasIntegrity = rawP?.integrity_metadata && typeof rawP.integrity_metadata === "object" && Object.keys(rawP.integrity_metadata as Record<string, unknown>).length > 0;
-                                return (
-                                  <button
-                                    key={page.id}
-                                    onClick={() => loadStudentDetail({ id: selectedStudentForGrading, name: student?.display_name || student?.username || "" }, page.id)}
-                                    className={`relative px-2 py-1 rounded text-[11px] font-medium transition border ${
-                                      hasResponses
-                                        ? "bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
-                                        : "bg-gray-50 border-gray-200 text-gray-400"
-                                    }`}
-                                    title={`${page.title || page.id}${hasIntegrity ? " • Has integrity data" : ""}`}
-                                  >
-                                    {page.title ? (page.title.length > 20 ? page.title.slice(0, 18) + "…" : page.title) : page.id}
-                                    {hasIntegrity ? (
-                                      <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-blue-500 ring-1 ring-white" />
-                                    ) : null}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Criteria sections */}
-                        <div className="space-y-4">
-                          {unitCriteriaForGrade.map((criterionKey) => {
-                            const gradeCriterion = (() => {
-                              const fwId: FrameworkId =
-                                (classFramework as FrameworkId | null | undefined) ?? "IB_MYP";
-                              const labels = getCriterionLabels(fwId);
-                              const match = labels.find((l) => l.short === criterionKey);
-                              const color = getCriterionColor(criterionKey, fwId);
-                              return match
-                                ? { key: criterionKey, name: match.name, color }
-                                : { key: criterionKey, name: criterionKey, color: "#6366F1" };
-                            })();
-                            const criterion = gradeCriterion;
-                            if (!criterion) return null;
-                            const score = getCriterionScore(criterionKey);
-
-                            return (
-                              <div key={criterionKey} className="p-3 bg-gray-50 rounded-lg space-y-2">
-                                {/* Criterion header */}
-                                <div className="flex items-center gap-2">
-                                  <span
-                                    className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-                                    style={{ backgroundColor: criterion.color }}
-                                  >
-                                    {criterionKey}
-                                  </span>
-                                  <span className="text-xs font-semibold text-text-primary flex-1">
-                                    {criterion.name}
-                                  </span>
-                                  {score.level > 0 && (
-                                    <span className="text-xs font-bold" style={{ color: criterion.color }}>
-                                      {scale.formatDisplay(score.level)}
-                                    </span>
-                                  )}
-                                </div>
-
-                                {/* Level picker */}
-                                {(scale.max - scale.min) > 20 ? (
-                                  /* Percentage/large-range: number input */
-                                  <div className="flex items-center gap-2">
-                                    <input
-                                      type="number"
-                                      min={scale.min}
-                                      max={scale.max}
-                                      step={scale.step}
-                                      value={score.level || ""}
-                                      onChange={(e) => {
-                                        const val = e.target.value === "" ? 0 : Number(e.target.value);
-                                        if (val > scale.max) return;
-                                        updateCriterionScore(criterionKey, { level: val });
-                                      }}
-                                      placeholder={scale.formatDisplay(scale.min)}
-                                      className="w-20 px-2 py-1 border rounded font-semibold text-xs text-center focus:outline-none focus:ring-2 focus:ring-indigo-400/50"
-                                      style={{ borderColor: criterion.color + "60" }}
-                                    />
-                                    <span className="text-xs text-gray-500">
-                                      {score.level > 0 ? scale.formatDisplay(score.level) : `${scale.min}–${scale.max}`}
-                                    </span>
-                                    {score.level > 0 && (
-                                      <button
-                                        onClick={() => updateCriterionScore(criterionKey, { level: 0 })}
-                                        className="w-7 h-7 rounded-lg bg-gray-200 text-gray-400 hover:bg-gray-300 transition text-xs font-semibold"
-                                      >
-                                        ✕
-                                      </button>
-                                    )}
-                                  </div>
-                                ) : (
-                                  /* Discrete scales: button picker */
-                                  <div className="flex gap-1 flex-wrap">
-                                    {Array.from({ length: Math.round((scale.max - scale.min) / scale.step) + 1 }, (_, i) => scale.min + i * scale.step).map((v) => {
-                                      const isSelected = v === score.level;
-                                      return (
-                                        <button
-                                          key={v}
-                                          onClick={() => updateCriterionScore(criterionKey, { level: v })}
-                                          className="w-7 h-7 rounded-lg font-semibold text-xs transition min-w-[1.75rem]"
-                                          style={{
-                                            backgroundColor: isSelected ? criterion.color : "#e5e7eb",
-                                            color: isSelected ? "white" : "#9ca3af",
-                                          }}
-                                        >
-                                          {scale.formatDisplay(v)}
-                                        </button>
-                                      );
-                                    })}
-                                    {score.level > 0 && (
-                                      <button
-                                        onClick={() => updateCriterionScore(criterionKey, { level: 0 })}
-                                        className="w-7 h-7 rounded-lg bg-gray-200 text-gray-400 hover:bg-gray-300 transition text-xs font-semibold"
-                                      >
-                                        ✕
-                                      </button>
-                                    )}
-                                  </div>
-                                )}
-
-                                {/* Criterion comment */}
-                                <textarea
-                                  value={score.comment || ""}
-                                  onChange={(e) => updateCriterionScore(criterionKey, { comment: e.target.value })}
-                                  placeholder={`Comment on ${criterionKey}...`}
-                                  rows={1}
-                                  className="w-full px-2 py-1.5 border border-border rounded text-xs focus:outline-none focus:ring-2 focus:ring-accent-blue/30 resize-none"
-                                />
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Overall assessment */}
-                        <div className="p-3 bg-indigo-50 rounded-lg space-y-2 border border-indigo-200">
-                          <label className="block text-xs font-semibold text-indigo-900">
-                            Overall Grade {scale.type === "percentage" ? `(${scale.min}-${scale.max}%)` : ""}
-                          </label>
-                          {(scale.max - scale.min) > 20 ? (
-                            /* Percentage/large-range scales: number input */
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="number"
-                                min={scale.min}
-                                max={scale.max}
-                                step={scale.step}
-                                value={overallGrade ?? ""}
-                                onChange={(e) => {
-                                  const val = e.target.value === "" ? undefined : Number(e.target.value);
-                                  if (val !== undefined && (val < scale.min || val > scale.max)) return;
-                                  setOverallGrade(val);
-                                  setGradeDirty(true);
-                                }}
-                                placeholder={scale.formatDisplay(scale.min)}
-                                className="w-24 px-3 py-1.5 border border-indigo-300 rounded font-semibold text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-400/50"
-                              />
-                              <span className="text-xs text-gray-500">
-                                {overallGrade !== undefined ? scale.formatDisplay(overallGrade) : `${scale.min}–${scale.max}`}
-                              </span>
-                              {overallGrade !== undefined && (
-                                <button
-                                  onClick={() => { setOverallGrade(undefined); setGradeDirty(true); }}
-                                  className="px-2 py-1.5 rounded bg-gray-200 text-gray-400 hover:bg-gray-300 transition text-xs font-semibold"
-                                >
-                                  ✕
-                                </button>
-                              )}
-                            </div>
-                          ) : (
-                            /* Discrete scales (MYP 1-8, PLTW 1-4): button picker */
-                            <div className="flex gap-1 flex-wrap">
-                              {Array.from({ length: Math.round((scale.max - scale.min) / scale.step) + 1 }, (_, i) => scale.min + i * scale.step).map((v) => {
-                                const isSelected = v === overallGrade;
-                                return (
-                                  <button
-                                    key={v}
-                                    onClick={() => { setOverallGrade(v); setGradeDirty(true); }}
-                                    className="flex-1 py-1.5 rounded font-semibold text-xs transition min-w-[2rem]"
-                                    style={{
-                                      backgroundColor: isSelected ? "#6366f1" : "#e0e7ff",
-                                      color: isSelected ? "white" : "#6b7280",
-                                    }}
-                                  >
-                                    {scale.formatDisplay(v)}
-                                  </button>
-                                );
-                              })}
-                              {overallGrade !== undefined && (
-                                <button
-                                  onClick={() => { setOverallGrade(undefined); setGradeDirty(true); }}
-                                  className="px-2 py-1.5 rounded bg-gray-200 text-gray-400 hover:bg-gray-300 transition text-xs font-semibold"
-                                >
-                                  ✕
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Teacher comments */}
-                        <div>
-                          <label className="block text-xs font-semibold text-text-secondary mb-1">
-                            Teacher Comments
-                          </label>
-                          <textarea
-                            value={teacherComments}
-                            onChange={(e) => { setTeacherComments(e.target.value); setGradeDirty(true); }}
-                            placeholder="Overall feedback and next steps..."
-                            rows={3}
-                            className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/30 resize-none"
-                          />
-                        </div>
-
-                        {/* Action buttons */}
-                        <div className="flex gap-2 pt-2">
-                          <button
-                            onClick={() => saveGradeAssessment(true)}
-                            disabled={gradeSaving || !gradeDirty}
-                            className="flex-1 px-4 py-2 rounded-lg bg-blue-50 text-blue-700 font-medium text-sm hover:bg-blue-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {gradeSaving ? "Saving..." : "Save as Draft"}
-                          </button>
-                          <button
-                            onClick={() => saveGradeAssessment(false)}
-                            disabled={gradeSaving || !gradeDirty}
-                            className="flex-1 px-4 py-2 rounded-lg bg-purple-600 text-white font-medium text-sm hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {gradeSaving ? "Saving..." : "Publish"}
-                          </button>
-                        </div>
-
-                        {/* Link to full grading view */}
-                        <div className="pt-2 border-t border-border">
-                          <Link
-                            href={`/teacher/classes/${classId}/grading/${unitId}`}
-                            className="text-accent-blue text-xs font-medium hover:underline inline-flex items-center gap-1"
-                          >
-                            ↗ Open Full Grading View
-                          </Link>
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              </div>
-            </>
           )}
         </div>
       )}
