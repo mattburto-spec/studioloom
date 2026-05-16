@@ -31,7 +31,7 @@ import StudentDrawer from "@/components/teacher/class-hub/StudentDrawer";
 import StudentRosterDrawer from "@/components/teacher/class-hub/StudentRosterDrawer";
 import SafetyDrawer from "@/components/teacher/class-hub/SafetyDrawer";
 import OpenStudioDrawer from "@/components/teacher/class-hub/OpenStudioDrawer";
-import UnitAttentionPanel from "@/components/teacher/UnitAttentionPanel";
+import MetricsDrawer from "@/components/teacher/class-hub/MetricsDrawer";
 
 // ---------------------------------------------------------------------------
 // DT Class Canvas — single unified per-class surface for the teacher.
@@ -350,6 +350,19 @@ export default function ClassHubPage({
     Record<string, { status: "locked" | "unlocked" | "revoked"; unlockedAt: string | null }>
   >({});
 
+  // Metrics card + per-row Metrics dots (Phase 3.2 Step 4). Per-student
+  // average teacher-observation rating, derived from a single
+  // /api/teacher/nm-results fetch (only runs when nmConfig.enabled).
+  // The MetricsDrawer (NMResultsPanel + NMElementsPanel) still runs
+  // its own fetch on open — same pattern as OpenStudioDrawer.
+  const [metricsByStudent, setMetricsByStudent] = useState<
+    Record<string, { avgTeacher: number | null; elementCount: number }>
+  >({});
+  const [metricsByElement, setMetricsByElement] = useState<
+    Record<string, number>
+  >({});
+  const [metricsDrawerOpen, setMetricsDrawerOpen] = useState(false);
+
   // -----------------------------------------------------------------------
   // Legacy ?tab=... compat (Phase 3.1 Step 4, G12 sign-off).
   // -----------------------------------------------------------------------
@@ -641,9 +654,65 @@ export default function ClassHubPage({
       }
     } catch { /* non-critical */ }
 
+    // NM per-student aggregate (Phase 3.2 Step 4) — only fetched when
+    // NM tracking is enabled for this class-unit. Feeds the side-rail
+    // Metrics card (avg + strongest/weakest) AND the per-row 4-dot
+    // metrics indicator in the student grid.
+    if (nmConfig?.enabled) {
+      try {
+        const nmRes = await fetch(`/api/teacher/nm-results?unitId=${unitId}&classId=${classId}`);
+        if (nmRes.ok) {
+          const { assessments } = (await nmRes.json()) as {
+            assessments: Array<{
+              student_id: string;
+              element: string;
+              source: "student_self" | "teacher_observation";
+              rating: number;
+              created_at: string;
+            }>;
+          };
+          // Latest teacher rating per (student, element)
+          const latest = new Map<string, { rating: number; createdAt: string }>();
+          for (const a of assessments) {
+            if (a.source !== "teacher_observation") continue;
+            const key = `${a.student_id}::${a.element}`;
+            const cur = latest.get(key);
+            if (!cur || a.created_at > cur.createdAt) {
+              latest.set(key, { rating: a.rating, createdAt: a.created_at });
+            }
+          }
+          // Aggregate per student + per element
+          const byStudent: Record<string, { sum: number; count: number }> = {};
+          const elementTotals: Record<string, { sum: number; count: number }> = {};
+          latest.forEach(({ rating }, key) => {
+            const [studentId, elementId] = key.split("::");
+            const sBucket = byStudent[studentId] ||= { sum: 0, count: 0 };
+            sBucket.sum += rating;
+            sBucket.count += 1;
+            const eBucket = elementTotals[elementId] ||= { sum: 0, count: 0 };
+            eBucket.sum += rating;
+            eBucket.count += 1;
+          });
+          const studentMap: Record<string, { avgTeacher: number | null; elementCount: number }> = {};
+          for (const s of students) {
+            const b = byStudent[s.id];
+            studentMap[s.id] = b
+              ? { avgTeacher: b.sum / b.count, elementCount: b.count }
+              : { avgTeacher: null, elementCount: 0 };
+          }
+          const elementAvgs: Record<string, number> = {};
+          for (const [el, b] of Object.entries(elementTotals)) {
+            elementAvgs[el] = b.sum / b.count;
+          }
+          setMetricsByStudent(studentMap);
+          setMetricsByElement(elementAvgs);
+        }
+      } catch { /* non-critical */ }
+    }
+
     setProgressLoading(false);
     setProgressLoaded(true);
-  }, [students, unitId, classId, progressLoaded, progressLoading]);
+  }, [students, unitId, classId, progressLoaded, progressLoading, nmConfig?.enabled]);
 
   // DT canvas (Phase 3.1) — student grid is always-mounted in the main
   // column, so progress data loads unconditionally once the shared loader
@@ -1095,12 +1164,64 @@ export default function ClassHubPage({
                     )}
                   </div>
 
-                  {/* Metrics dots — placeholder, Phase 3.2 wires the data */}
-                  <div className="flex justify-center gap-0.5" data-placeholder="phase-3-2">
-                    {[1, 2, 3, 4].map((i) => (
-                      <span key={i} className="inline-block w-3 h-1 rounded-sm bg-surface-alt" />
-                    ))}
-                  </div>
+                  {/* Metrics dots — Phase 3.2 Step 4 fills 4 bars from
+                      the student's avg teacher rating (1-4 scale).
+                      Mockup convention: empty bar (bg-surface-alt) /
+                      mid (bg-amber-300) / full (bg-emerald-500).
+                      Clickable when NM is enabled — opens ObservationSnap
+                      to record an observation right from the row
+                      (re-attaches the NM trigger lost when the old
+                      Progress-tab "NM" pill went away). */}
+                  {(() => {
+                    const m = metricsByStudent[student.id];
+                    const avg = m?.avgTeacher;
+                    const dots = [0, 1, 2, 3].map((i) => {
+                      if (avg == null) return "empty" as const;
+                      if (avg >= i + 1) return "full" as const;
+                      if (avg >= i + 0.5) return "mid" as const;
+                      return "empty" as const;
+                    });
+                    const canObserve = nmConfig?.enabled === true;
+                    const inner = (
+                      <span
+                        data-testid={`student-row-${student.id}-metrics`}
+                        className="inline-flex gap-0.5"
+                        title={canObserve
+                          ? avg != null
+                            ? `Avg ${avg.toFixed(1)}/4 — click to record observation`
+                            : "No observations yet — click to record one"
+                          : "Enable New Metrics on this class to track competencies"}
+                      >
+                        {dots.map((kind, i) => (
+                          <span
+                            key={i}
+                            className={`inline-block w-3 h-1.5 rounded-sm ${
+                              kind === "full"
+                                ? "bg-emerald-500"
+                                : kind === "mid"
+                                  ? "bg-amber-300"
+                                  : "bg-gray-200"
+                            }`}
+                          />
+                        ))}
+                      </span>
+                    );
+                    return (
+                      <div className="flex justify-center">
+                        {canObserve ? (
+                          <button
+                            type="button"
+                            onClick={() => setNmObserveStudent({ id: student.id, name: studentName })}
+                            className="hover:opacity-70 transition"
+                          >
+                            {inner}
+                          </button>
+                        ) : (
+                          inner
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Badge count */}
                   <div className="flex justify-center">
@@ -1271,18 +1392,94 @@ export default function ClassHubPage({
             );
           })()}
 
-          <div
-            data-testid="canvas-rail-card-metrics"
-            data-placeholder="phase-3-2"
-            className="bg-white rounded-2xl border border-border p-5"
-          >
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
-              Class metrics · this unit
-            </div>
-            <div className="mt-2 text-xs text-text-secondary">
-              Summary lands in Phase 3.2.
-            </div>
-          </div>
+          {/* CLASS METRICS — re-uses metricsByStudent + metricsByElement
+              loaded inside loadProgressData (only fires when nmConfig
+              is enabled). Card shows class avg + strongest/weakest
+              element one-liner. CTA opens MetricsDrawer stacking
+              NMElementsPanel + UnitAttentionPanel + NMResultsPanel. */}
+          {(() => {
+            if (!globalNmEnabled || !nmConfig?.enabled) {
+              return (
+                <div
+                  data-testid="canvas-rail-card-metrics"
+                  className="bg-white rounded-2xl border border-border p-5"
+                >
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+                    Class metrics · this unit
+                  </div>
+                  <div
+                    data-testid="rail-metrics-count"
+                    className="mt-2 text-2xl font-bold text-text-tertiary"
+                  >
+                    —
+                  </div>
+                  <div className="mt-1 text-xs text-text-secondary">
+                    New Metrics is off for this {globalNmEnabled ? "unit" : "class"}.
+                  </div>
+                  <button
+                    type="button"
+                    data-testid="rail-metrics-cta"
+                    onClick={() => setMetricsDrawerOpen(true)}
+                    className="mt-3 inline-flex items-center justify-center w-full px-3 py-2 rounded-lg bg-surface-alt text-text-primary hover:bg-text-primary hover:text-white transition text-xs font-medium"
+                  >
+                    Configure metrics →
+                  </button>
+                </div>
+              );
+            }
+            const avgs = Object.values(metricsByStudent)
+              .map((m) => m.avgTeacher)
+              .filter((v): v is number => v != null);
+            const classAvg = avgs.length > 0
+              ? avgs.reduce((a, b) => a + b, 0) / avgs.length
+              : null;
+            // Strongest / weakest by per-element class avg
+            const entries = Object.entries(metricsByElement);
+            entries.sort((a, b) => b[1] - a[1]);
+            const strongest = entries[0]?.[0];
+            const weakest = entries[entries.length - 1]?.[0];
+            // Map element IDs → human-readable names (AGENCY_ELEMENTS
+            // is the v1 source). Fallback to the id when not found.
+            function elName(id: string | undefined): string {
+              if (!id) return "—";
+              const el = AGENCY_ELEMENTS.find((e) => e.id === id);
+              return el?.name ?? id;
+            }
+            return (
+              <div
+                data-testid="canvas-rail-card-metrics"
+                className="bg-white rounded-2xl border border-border p-5"
+              >
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+                  Class metrics · this unit
+                </div>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span
+                    data-testid="rail-metrics-count"
+                    className={`text-2xl font-bold ${classAvg != null ? "text-blue-600" : "text-text-tertiary"}`}
+                  >
+                    {classAvg != null ? classAvg.toFixed(1) : "—"}
+                  </span>
+                  <span className="text-xs text-text-secondary">/ 4 avg</span>
+                </div>
+                <div className="mt-1 text-xs text-text-secondary">
+                  {classAvg == null
+                    ? "No observations recorded yet."
+                    : entries.length === 1
+                      ? `${elName(strongest)} only`
+                      : `${elName(strongest)} strongest · ${elName(weakest)} weakest`}
+                </div>
+                <button
+                  type="button"
+                  data-testid="rail-metrics-cta"
+                  onClick={() => setMetricsDrawerOpen(true)}
+                  className="mt-3 inline-flex items-center justify-center w-full px-3 py-2 rounded-lg bg-surface-alt text-text-primary hover:bg-text-primary hover:text-white transition text-xs font-medium"
+                >
+                  {classAvg == null ? "Score students now →" : "Open metrics →"}
+                </button>
+              </div>
+            );
+          })()}
 
           {/* SAFETY & BADGES — re-uses badgeRequirements +
               badgeStatusMap already loaded for the per-row Badge
@@ -1422,6 +1619,36 @@ export default function ClassHubPage({
           unitId={unitId}
           classId={classId}
           onClose={() => setOpenStudioDrawerOpen(false)}
+        />
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* Metrics Drawer (Phase 3.2 Step 4) — wraps NMElementsPanel +       */}
+      {/* UnitAttentionPanel + NMResultsPanel.                              */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {metricsDrawerOpen && (
+        <MetricsDrawer
+          unitId={unitId}
+          classId={classId}
+          globalNmEnabled={globalNmEnabled}
+          nmConfig={nmConfig}
+          onNmConfigChange={async (next) => {
+            const previous = nmConfig;
+            setNmConfig(next);
+            try {
+              const res = await fetch("/api/teacher/nm-config", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ unitId, classId, config: next }),
+              });
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            } catch (err) {
+              console.error("[MetricsDrawer.onNmConfigChange] save failed:", err);
+              setNmConfig(previous);
+              throw err;
+            }
+          }}
+          onClose={() => setMetricsDrawerOpen(false)}
         />
       )}
 
