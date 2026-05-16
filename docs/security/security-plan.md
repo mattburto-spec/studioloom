@@ -448,6 +448,39 @@ Pay a security-focused dev to do a deep review of the AI chokepoint specifically
 
 ---
 
+### FU-SEC-TEACHER-LAYOUT-FAIL-OPEN (P1)
+
+**Surfaced:** 16 May 2026, during Block B smoke test for "One active unit per class" phase ([studioloom#319](https://github.com/mattburto-spec/studioloom/pull/319)). Matt was logged into Firefox as student "Scott" (`user_id 99e1b39a-9d02-4fe2-8b61-6fdef41a82a3`, enrolled in classes 7 Design / 8 Design / 9 / 9 Design Science) and pasted a `/teacher/classes/[classId]` URL into a new tab to trigger a 42501 toast. Instead of redirecting or 401-ing, the page rendered the full teacher chrome including class codes for all 4 of his enrolled classes (`KCZSLF`, `GBSTWG`, `KSLNPQ`, plus the 9 Design Science code).
+
+**Root cause (best diagnosis from console evidence, not yet confirmed by code audit):**
+
+- `TeacherLayout` (and likely sibling root layouts under `src/app/(teacher|fab|admin)/layout.tsx`) does a `teachers` table lookup keyed by `auth.uid()`. When the lookup returns PGRST116 (no row — i.e. caller isn't a teacher), the layout LOGS the error (`[TeacherLayout] Teacher query error: Cannot coerce the result to a single JSON object`) and proceeds to render instead of redirecting. **Fail-open instead of fail-closed.**
+- The `/teacher/classes` page's data fetch then hits `supabase.from("classes").select(...)` via the SSR/anon client. The `classes` RLS policy correctly returns only Scott's enrolled classes (Phase 1.4 CS-1 student-side policy is working as designed). Scoping is correct; the leak is that the teacher-mode UI is being rendered to a non-teacher at all.
+- `/api/teacher/me/scope` and `/api/teacher/notifications` correctly return 403 (route-level guards intact). **Mutations are not exposed.** Read-side leak only.
+
+**Concrete exposure pathway:**
+
+Class codes are credentials for the classcode-login flow ([studioloom#308](https://github.com/mattburto-spec/studioloom/pull/308) hardened that route 15 May to require enrollment, but the code+username combination still authenticates a student). Scott can now see codes for ALL 4 of his enrolled classes plus visible classmate display names from his student-side roster. **Bidirectional impersonation:** any student in a shared class can log in as any other student in the same class via leaked code + known username. This re-opens the same attack class that #308 closed, from a different surface (page leak instead of route bypass).
+
+**Severity P1, not P0:** real-world exposure is near-zero today (no real students in production beyond Matt's own test accounts). Must be closed before any pilot student is created.
+
+**Scope of fix:**
+
+1. **Audit every root layout** under `src/app/(teacher|fab|admin)/layout.tsx` (and any nested layouts that gate role-specific chrome) for the same fail-open pattern. Convert each to redirect-on-missing-role-row instead of log-and-render.
+2. **Decide redirect target per role:** non-teacher hitting `/teacher/*` → `/dashboard` if has student token, `/login` otherwise. Same shape for `/fab/*`, `/admin/*`.
+3. **Migration shape test** asserting each layout file imports a redirect helper and uses it in the no-row branch (similar to the `migration-phase-4-3-y-handle-new-teacher-auto-personal-school.test.ts` pattern but for layout files). Plus a runtime test that mounts the layout with a non-matching auth.uid() and asserts redirect, not render.
+4. **No RLS changes needed** — the policies are doing their job. This is a pure UI / server-component fix.
+
+**Reference docs (read first):** [docs/security/security-overview.md](../security/security-overview.md) §1–§4 (auth + RLS surfaces), Lesson #49 (`Layout auth gates need a public paths allowlist` — different bug, same family), [studioloom#308](https://github.com/mattburto-spec/studioloom/pull/308) (the recent classcode-login fix that this leak partially re-opens).
+
+**Effort:** 1–2 hours focused. Not bundle-able into a feature phase — needs its own session with security context loaded.
+
+**Evidence captured 16 May 2026 in chat:** 4 screenshots showing the leaked `/teacher/classes` view + `/teacher/settings` "Loading..." page + the PGRST116 console error + the leaked class codes. Available in the originating session transcript.
+
+**Effort:** 1–2 hours.
+
+---
+
 ## What "world-class secure with student info" looks like (the bar)
 
 A reasonable EdTech CIO at a $50K/year contract should be able to:
@@ -505,6 +538,7 @@ The current state delivers (1) for the rls/audit/encryption/DSR/AI-chokepoint su
 | FU-SEC-REQUEST-ACCESS-TURNSTILE | `/api/teacher/request-access/route.ts` is anonymous-public (allowlisted in scan-role-guards.py) but lacks Turnstile + rate-limiting. Sister route `welcome/request-school-access` already has Turnstile — mirror the pattern. | P2 | 1h | TODO | matt | pre-paid |
 | FU-SEC-VENDORS-AI-USAGE-LOG-METADATA | vendors.yaml drift: ai_usage_log.metadata holds PII | P3 | 5min | **DONE — 2026-05-09** (Supabase entry updated with telemetry_metadata category) | matt | — |
 | FU-SEC-NAME-REDACTION-SCOPE-CLARIFY | Clarify §1 of overview: student-self-typed names DO flow under COPPA | P3 | 10min | **DONE — 2026-05-09** (overview §1 rewritten with precise scope) | matt | — |
+| FU-SEC-TEACHER-LAYOUT-FAIL-OPEN | TeacherLayout (and likely sibling root layouts under (teacher|fab|admin)/layout.tsx) renders teacher chrome + leaks class codes to non-teachers when the teacher-row lookup returns PGRST116. Logs error and proceeds instead of redirecting. Surfaced 16 May 2026 during Block B smoke when a logged-in student opened /teacher/classes and saw all 4 of his enrolled classes' codes. RLS scoping is correct; the leak is page-level. Bidirectional impersonation pathway via leaked code + classmate username re-opens the attack class #308 closed. | P1 | 1–2h | TODO | matt | pre-pilot-expand |
 
 ### From cowork external review (filed 2026-05-09)
 

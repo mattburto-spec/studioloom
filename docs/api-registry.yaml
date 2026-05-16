@@ -1230,9 +1230,9 @@ routes:
   file: src/app/api/student/first-move/[unitId]/route.ts
   auth: student
   tables_read:
-  - planning_tasks
   - student_progress
   - student_unit_kanban
+  - student_unit_timeline
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null

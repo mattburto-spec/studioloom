@@ -4,6 +4,55 @@
 
 ---
 
+## 2026-05-16 — One active unit per class enforced at DB level ([PR #319](https://github.com/mattburto-spec/studioloom/pull/319))
+
+**Context:** Implementation of the decision logged in [docs/decisions-log.md](decisions-log.md) line 7 dated 16 May 2026 — "One active unit per class enforced at DB level". Pre-Block-A audit confirmed prod was clean (zero classes with multiple `is_active=true` rows on `class_units`) so reconciliation was unnecessary. Three-block phased build (constraint → atomic helper → caller refactor), each with its own Matt Checkpoint and STOP AND REPORT gate per [build-methodology.md](build-methodology.md).
+
+### What shipped
+
+- **Migration `20260515214045_class_units_one_active_per_class`** — partial unique index `class_units(class_id) WHERE is_active = true`. Applied to prod; `applied_migrations` row logged in same Supabase session per Lesson #83.
+- **Migration `20260515220845_set_active_unit_function`** — `public.set_active_unit(class_uuid, target_unit_uuid)` SECURITY DEFINER function. Deactivates other active rows + activates target via `INSERT ON CONFLICT (class_id, unit_id) DO UPDATE SET is_active = true`, all in one implicit transaction so the partial unique never sees a 2-active window. `search_path = public, pg_temp` locked per Lesson #64. `is_teacher_of_class(class_uuid)` auth gate inside the function body (raises `42501` on non-teacher) — SECURITY DEFINER bypasses RLS so the gate must live in-body. Lesson #66 sanity DO-block asserts SECURITY DEFINER + search_path lockdown + auth gate via `pg_get_functiondef(oid)` and refuses-to-apply on missing properties. `REVOKE ALL FROM PUBLIC` + `GRANT EXECUTE TO authenticated`. Applied to prod; `applied_migrations` row logged.
+- **TS wrapper** [`src/lib/classes/active-unit.ts`](../src/lib/classes/active-unit.ts) — `setActiveUnit(supabase: SupabaseClient, classId, unitId): Promise<{ ok: true } | { ok: false; error: string; code?: string }>`. Discriminated-union return mirrors the convention in `src/lib/ai/call.ts`. Takes `supabase` as a parameter (matches `src/lib/units/resolve-content.ts` pattern) so the same module serves both client + server callers.
+- **Caller refactor (Block B):**
+  - [`src/app/teacher/classes/[classId]/page.tsx`](../src/app/teacher/classes/%5BclassId%5D/page.tsx) `toggleUnit` — branches on isActive: activate → `setActiveUnit(...)`, deactivate → narrow `.update({ is_active: false })`. Optimistic state in the activate branch flips both target row to true AND any other-active rows to false (mirrors RPC semantics — without this the UI shows ghost double-active until re-fetch).
+  - [`src/app/teacher/units/[unitId]/page.tsx`](../src/app/teacher/units/%5BunitId%5D/page.tsx) `toggleClassAssignment` — same pattern. Optimistic state stays class-flat (the `allClasses[]` shape doesn't surface other units in target classes, so deactivate-others is a conceptual no-op on this surface — documented inline).
+  - Both pages: snapshot-rollback on failure, fixed-position red toast banner mapped from SQLSTATE (`42501` → permission denied copy, `23505` → race condition copy, default → generic), 4.5s auto-hide via `useEffect`.
+
+### Systems touched
+
+- Modified: `src/app/teacher/classes/[classId]/page.tsx` (~+90 lines net), `src/app/teacher/units/[unitId]/page.tsx` (~+79 lines net), `src/app/teacher/units/[unitId]/__tests__/class-units-sync.test.ts` (rewritten 4 → 15 tests)
+- New: `src/lib/classes/` directory, `src/lib/classes/active-unit.ts` (TS wrapper), `src/lib/classes/__tests__/active-unit.test.ts` (6 wrapper-mock tests), `src/lib/classes/__tests__/migration-set-active-unit-function.test.ts` (19 migration shape + NC tests), 2 migration `.sql` + 2 `.down.sql` files
+- Schema: `class_units` gains the partial unique index; new `public.set_active_unit(uuid, uuid)` function in `public` schema. Schema-registry updated with new index + spec_drift entry.
+- No new API routes, no new AI call sites, no new feature flags, no new vendors. Registry scanners reconfirmed clean (only incidental scanner-output reorderings).
+
+### Tests
+
+- Local: 6406 → 6442 passing (+36 net across the three blocks; +25 in Block A's helper phase, +11 in Block B's caller phase from the rewritten class-units-sync test).
+- Two new NC tests assert that the deactivate-others UPDATE in the SQL migration AND the `setActiveUnit(...)` call in both pages are load-bearing — meta-mutation pattern (load source, mutate in-memory, assert regex no longer matches, re-read from disk to confirm file untouched).
+- Migration shape test asserts SECURITY DEFINER + search_path lockdown + 42501 auth gate + INSERT-ON-CONFLICT shape + permissions hardening + Lesson #66 sanity DO-block presence.
+
+### Smoke results
+
+- ✅ Sequentially activate three units on the same class → "Current Units (1)" UI shows only the latest active unit; the other two move to Unit History. The `(1)` counter is the constraint manifesting at the UI surface.
+- ✅ Reactivate a Unit History entry → atomically deactivates the previously-active unit; UI updates correctly. Hard-refresh confirmed DB state matches UI.
+- ✅ Network tab on activations shows `204` from the RPC (success for `RETURNS void`); CORS preflight `200`. **Zero `23505` violations** observed across all test activations.
+- ⏭️ Error path (force a 42501 toast) was not exercised end-to-end via the UI — the auth gate is verified by the migration shape test (`42501` SQLSTATE present), the wrapper unit test (`42501` propagates to `result.code`), and the toast string is regex-tested as a constant in both pages.
+
+### Footguns banked
+
+- **Absolute paths to the wrong worktree.** Mid-Block-B I used `/Users/matt/CWORK/questerra/src/...` (the main worktree) instead of `/Users/matt/CWORK/questerra/.claude/worktrees/fervent-shirley-b7949a/src/...` (this session's worktree) in 4 consecutive Edit calls. The Edit tool reported success each time (it was writing the files, just to the wrong tree). Caught when `git commit` reported "nothing to commit". Recovery: reverted the accidental edits in the main worktree (`git checkout -- <file>` on the one affected file, leaving Matt's other modifications alone), then re-applied in the session worktree using the correct prefix path. Lesson candidate: when working in a session worktree, always include the `.claude/worktrees/<name>/` prefix in absolute Edit paths; alternatively use relative paths from `pwd`. Cost: ~5 min of confusion + one `git checkout --` cleanup.
+- **`gh pr merge --squash --delete-branch` fails locally when main is checked out in a sibling worktree** — same footgun banked from 15 May evening. The merge succeeded on GitHub (squash commit `3740b3ce` landed on origin/main); the local fast-forward + branch deletion failed with `'main' is already used by worktree at '...'`. Workaround: explicit branch deletion via `gh api -X DELETE repos/<owner>/<repo>/git/refs/heads/<branch>`. CLAUDE.md already notes this; pattern is now seen twice.
+
+### Surfaced (but not closed) this session
+
+- **`FU-SEC-TEACHER-LAYOUT-FAIL-OPEN` (P1)** — filed in [security-plan.md](security/security-plan.md) tracking table. While testing the Block B error path, Matt logged into Firefox as student "Scott" and pasted a `/teacher/classes/[classId]` URL into a new tab; the page rendered the full teacher chrome including class codes for all 4 of his enrolled classes. Diagnosis: `TeacherLayout` logs the PGRST116 from the `teachers` table lookup but proceeds to render instead of redirecting. RLS scoping is correct (Phase 1.4 CS-1 student-side `classes` policy returns enrolled classes only); the leak is page-level UI. Bidirectional impersonation pathway via leaked code + classmate username re-opens the attack class [studioloom#308](https://github.com/mattburto-spec/studioloom/pull/308) closed. Real-world exposure ~zero (no real students yet); must be closed before any pilot. Flagged as next-session work; explicitly NOT bundled into Block B's saveme.
+
+### Next
+
+- Security investigation session for `FU-SEC-TEACHER-LAYOUT-FAIL-OPEN` — paste-able prompt provided at session end.
+
+---
+
 ## 2026-05-15 (evening) — Class Hub consolidation: Attention tab folded into New Metrics ([PR #316](https://github.com/mattburto-spec/studioloom/pull/316))
 
 **Context:** Pickup from a stranded handoff (`docs/handoff/claude__fold-attention-into-nm-tab.md` — the previous worktree was deleted mid-session before any code was written). The plan was already concrete: drop the Attention tab and mount `UnitAttentionPanel` inside the New Metrics tab so teachers have one surface for "who needs me this lesson + what are they being assessed on" rather than two adjacent tabs.

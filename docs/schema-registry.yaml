@@ -2408,14 +2408,27 @@ tables:
   indexes:
   - idx_class_units_due_dates ON (class_id, final_due_date)
   - idx_class_units_term ON (term_id) WHERE term_id IS NOT NULL
+  - class_units_one_active_per_class UNIQUE ON (class_id) WHERE is_active = true
+    -- partial unique, migration 20260515214045
   rls:
     read: Teachers manage class units (unknown); Read class units (unknown)
     write: Teachers manage class units (unknown)
+  spec_drift:
+  - 2026-05-16 — partial unique index `class_units_one_active_per_class` added
+    via migration 20260515214045. Enforces "at most one active unit per class"
+    at the DB level. Paired atomic helper `public.set_active_unit(class_uuid,
+    target_unit_uuid)` in migration 20260515220845 — SECURITY DEFINER, locked
+    search_path = public, pg_temp, gated via is_teacher_of_class. Callers
+    `toggleUnit` and `toggleClassAssignment` route is_active=true through
+    setActiveUnit() helper at src/lib/classes/active-unit.ts. See
+    docs/decisions-log.md "One active unit per class enforced at DB level"
+    (16 May 2026) and PR #319.
   writers:
   - src/app/api/teacher/class-units/content/route.ts
   - src/app/api/teacher/class-units/route.ts
   - src/app/api/teacher/exhibition/route.ts
   - src/app/api/teacher/nm-config/route.ts
+  - src/lib/classes/active-unit.ts (RPC wrapper for set_active_unit)
   - src/app/api/teacher/units/[unitId]/promote-fork/route.ts
   - src/app/teacher/classes/[classId]/page.tsx
   - src/app/teacher/classes/[classId]/settings/[unitId]/page.tsx
