@@ -29,7 +29,9 @@ import { GalleryRoundCreator, GalleryMonitor, GalleryRoundCard, GalleryCanvasMod
 import { getYearLevelNumber } from "@/lib/utils/year-level";
 import StudentDrawer from "@/components/teacher/class-hub/StudentDrawer";
 import StudentRosterDrawer from "@/components/teacher/class-hub/StudentRosterDrawer";
-import UnitAttentionPanel from "@/components/teacher/UnitAttentionPanel";
+import SafetyDrawer from "@/components/teacher/class-hub/SafetyDrawer";
+import OpenStudioDrawer from "@/components/teacher/class-hub/OpenStudioDrawer";
+import MetricsDrawer from "@/components/teacher/class-hub/MetricsDrawer";
 
 // ---------------------------------------------------------------------------
 // DT Class Canvas — single unified per-class surface for the teacher.
@@ -304,6 +306,11 @@ export default function ClassHubPage({
   // in Phase 3.2 alongside the side-rail card.
   const [studentFilter, setStudentFilter] = useState<StudentFilterId>("all");
   const [gradingStatusMap, setGradingStatusMap] = useState<Record<string, GradingStatus>>({});
+  // Per-student draft `assessed_at` ISO timestamp (Phase 3.2 Step 1).
+  // Populated alongside gradingStatusMap from the same /api/teacher/assessments
+  // response so the Marking side-rail card can show "oldest N days" without
+  // a second fetch.
+  const [oldestDraftAtMap, setOldestDraftAtMap] = useState<Record<string, string>>({});
   // Open Studio unlock/revoke is managed entirely in the Open Studio tab
   const [badgeRequirements, setBadgeRequirements] = useState<Array<{ badge_id: string; badge_name: string; badge_slug: string; is_required: boolean }>>([]);
   const [badgeStatusMap, setBadgeStatusMap] = useState<Record<string, Array<{ badge_id: string; status: "earned" | "failed" | "not_attempted"; score: number | null }>>>({});
@@ -323,6 +330,38 @@ export default function ClassHubPage({
   // Add-student drawer (Phase 3.1 Step 4) — opens the lifted
   // StudentRosterDrawer wrapping the old StudentsTab logic.
   const [rosterDrawerOpen, setRosterDrawerOpen] = useState(false);
+
+  // Side-rail card drawers (Phase 3.2). Each opens via the matching
+  // card CTA and mounts the existing tab content as-is inside drawer
+  // chrome. Marking is excluded — it routes externally to /teacher/marking.
+  const [safetyDrawerOpen, setSafetyDrawerOpen] = useState(false);
+  const [openStudioDrawerOpen, setOpenStudioDrawerOpen] = useState(false);
+
+  // Open Studio per-student status (Phase 3.2 Step 3). One fetch on
+  // mount populates both:
+  //   1. The per-row "Studio" pill in the student grid (replaces the
+  //      Step 3 placeholder "—").
+  //   2. The side-rail Open Studio card's headline + named student.
+  // The OpenStudioDrawer (which wraps OpenStudioClassView) still runs
+  // its own fetch on open — necessary to handle grant/revoke mutations
+  // without a parent-state plumb. Acceptable: one redundant fetch only
+  // when the drawer is opened.
+  const [openStudioStatusMap, setOpenStudioStatusMap] = useState<
+    Record<string, { status: "locked" | "unlocked" | "revoked"; unlockedAt: string | null }>
+  >({});
+
+  // Metrics card + per-row Metrics dots (Phase 3.2 Step 4). Per-student
+  // average teacher-observation rating, derived from a single
+  // /api/teacher/nm-results fetch (only runs when nmConfig.enabled).
+  // The MetricsDrawer (NMResultsPanel + NMElementsPanel) still runs
+  // its own fetch on open — same pattern as OpenStudioDrawer.
+  const [metricsByStudent, setMetricsByStudent] = useState<
+    Record<string, { avgTeacher: number | null; elementCount: number }>
+  >({});
+  const [metricsByElement, setMetricsByElement] = useState<
+    Record<string, number>
+  >({});
+  const [metricsDrawerOpen, setMetricsDrawerOpen] = useState(false);
 
   // -----------------------------------------------------------------------
   // Legacy ?tab=... compat (Phase 3.1 Step 4, G12 sign-off).
@@ -378,14 +417,34 @@ export default function ClassHubPage({
     // ?tab=settings → sub-route lands in Phase 3.4. For 3.1, no-op
     // (drop the param, stay on canvas). The kebab "Class settings…"
     // item from Phase 3.4 will be the canonical entry point.
-    // ?tab=metrics / badges / gallery / studio (+ aliases) → no-op
-    // surfaces wire in 3.2 / 3.5. Console hint so smoke-test logs
-    // make it visible the redirect fired.
-    let openedRoster = false;
+    // ?tab=metrics / badges / gallery / studio + aliases:
+    // Phase 3.2 wired the matching drawers — route legacy URLs into
+    // them so deep-links from the dashboard route + old bookmarks
+    // land on the right surface.
+    //   • students                       → roster drawer (Step 4 wired)
+    //   • metrics / attention            → metrics drawer (3.2 Step 4)
+    //   • badges / safety                → safety drawer  (3.2 Step 2)
+    //   • studio / open-studio           → OS drawer      (3.2 Step 3)
+    //   • gallery                        → no-op (Phase 3.5 lands the drawer)
+    //   • settings                       → no-op (Phase 3.4 sub-route)
+    // Only one drawer opens — if the URL carries both ?tab=students
+    // and ?student=..., students wins to avoid stacking.
+    let openedDrawer = false;
     if (tab === "students") {
       setRosterDrawerOpen(true);
-      openedRoster = true;
+      openedDrawer = true;
+    } else if (tab === "metrics" || tab === "attention") {
+      setMetricsDrawerOpen(true);
+      openedDrawer = true;
+    } else if (tab === "badges" || tab === "safety") {
+      setSafetyDrawerOpen(true);
+      openedDrawer = true;
+    } else if (tab === "studio" || tab === "open-studio") {
+      setOpenStudioDrawerOpen(true);
+      openedDrawer = true;
     }
+    const openedRoster = openedDrawer; // backward-compat alias for the
+                                        // student-deep-link branch below
 
     // ?student=<id>&page=<pageId> → open StudentDrawer with pageId
     // (independent of tab=). Skip if we just opened the roster drawer
@@ -563,18 +622,47 @@ export default function ClassHubPage({
       setLastActiveMap(lastActive);
     }
 
-    // Grading status
+    // Grading status — feeds both the per-row Marking pill and the
+    // side-rail Marking summary card (Phase 3.2 Step 1). Capturing the
+    // per-row `assessed_at` for draft rows lets the card show "oldest
+    // N days" without a second fetch.
     try {
       const assessRes = await fetch(`/api/teacher/assessments?classId=${classId}&unitId=${unitId}`);
       if (assessRes.ok) {
         const { assessments } = (await assessRes.json()) as { assessments: AssessmentRecordRow[] };
         const statusMap: Record<string, GradingStatus> = {};
-        for (const a of assessments) statusMap[a.student_id] = a.is_draft ? "draft" : "published";
+        const oldestDraft: Record<string, string> = {};
+        for (const a of assessments) {
+          statusMap[a.student_id] = a.is_draft ? "draft" : "published";
+          if (a.is_draft && a.assessed_at) oldestDraft[a.student_id] = a.assessed_at;
+        }
         setGradingStatusMap(statusMap);
+        setOldestDraftAtMap(oldestDraft);
       }
     } catch { /* non-critical */ }
 
-    // Open Studio statuses managed in Open Studio tab (OpenStudioClassView)
+    // Open Studio per-student status — feeds both the per-row Studio
+    // pill in the grid and the side-rail Open Studio card. The
+    // OpenStudioDrawer (Step 3) still runs its own fetch on open
+    // to manage mutations independently.
+    try {
+      const osRes = await fetch(`/api/teacher/open-studio/status?unitId=${unitId}&classId=${classId}`);
+      if (osRes.ok) {
+        const { students: rows } = (await osRes.json()) as {
+          students: Array<{ student: { id: string }; openStudio: { status: "locked" | "unlocked" | "revoked"; unlocked_at: string | null } | null }>;
+        };
+        const osMap: Record<string, { status: "locked" | "unlocked" | "revoked"; unlockedAt: string | null }> = {};
+        for (const row of rows) {
+          if (row.openStudio) {
+            osMap[row.student.id] = {
+              status: row.openStudio.status,
+              unlockedAt: row.openStudio.unlocked_at,
+            };
+          }
+        }
+        setOpenStudioStatusMap(osMap);
+      }
+    } catch { /* non-critical */ }
 
     // Badge requirements + status
     try {
@@ -586,9 +674,65 @@ export default function ClassHubPage({
       }
     } catch { /* non-critical */ }
 
+    // NM per-student aggregate (Phase 3.2 Step 4) — only fetched when
+    // NM tracking is enabled for this class-unit. Feeds the side-rail
+    // Metrics card (avg + strongest/weakest) AND the per-row 4-dot
+    // metrics indicator in the student grid.
+    if (nmConfig?.enabled) {
+      try {
+        const nmRes = await fetch(`/api/teacher/nm-results?unitId=${unitId}&classId=${classId}`);
+        if (nmRes.ok) {
+          const { assessments } = (await nmRes.json()) as {
+            assessments: Array<{
+              student_id: string;
+              element: string;
+              source: "student_self" | "teacher_observation";
+              rating: number;
+              created_at: string;
+            }>;
+          };
+          // Latest teacher rating per (student, element)
+          const latest = new Map<string, { rating: number; createdAt: string }>();
+          for (const a of assessments) {
+            if (a.source !== "teacher_observation") continue;
+            const key = `${a.student_id}::${a.element}`;
+            const cur = latest.get(key);
+            if (!cur || a.created_at > cur.createdAt) {
+              latest.set(key, { rating: a.rating, createdAt: a.created_at });
+            }
+          }
+          // Aggregate per student + per element
+          const byStudent: Record<string, { sum: number; count: number }> = {};
+          const elementTotals: Record<string, { sum: number; count: number }> = {};
+          latest.forEach(({ rating }, key) => {
+            const [studentId, elementId] = key.split("::");
+            const sBucket = byStudent[studentId] ||= { sum: 0, count: 0 };
+            sBucket.sum += rating;
+            sBucket.count += 1;
+            const eBucket = elementTotals[elementId] ||= { sum: 0, count: 0 };
+            eBucket.sum += rating;
+            eBucket.count += 1;
+          });
+          const studentMap: Record<string, { avgTeacher: number | null; elementCount: number }> = {};
+          for (const s of students) {
+            const b = byStudent[s.id];
+            studentMap[s.id] = b
+              ? { avgTeacher: b.sum / b.count, elementCount: b.count }
+              : { avgTeacher: null, elementCount: 0 };
+          }
+          const elementAvgs: Record<string, number> = {};
+          for (const [el, b] of Object.entries(elementTotals)) {
+            elementAvgs[el] = b.sum / b.count;
+          }
+          setMetricsByStudent(studentMap);
+          setMetricsByElement(elementAvgs);
+        }
+      } catch { /* non-critical */ }
+    }
+
     setProgressLoading(false);
     setProgressLoaded(true);
-  }, [students, unitId, classId, progressLoaded, progressLoading]);
+  }, [students, unitId, classId, progressLoaded, progressLoading, nmConfig?.enabled]);
 
   // DT canvas (Phase 3.1) — student grid is always-mounted in the main
   // column, so progress data loads unconditionally once the shared loader
@@ -1022,17 +1166,82 @@ export default function ClassHubPage({
                     {marking === "none" && <span className="text-xs text-text-tertiary">—</span>}
                   </div>
 
-                  {/* Open Studio pill — placeholder, Phase 3.2 wires the data */}
-                  <div className="flex justify-center" data-placeholder="phase-3-2">
-                    <span className="text-xs text-text-tertiary">—</span>
+                  {/* Open Studio pill — Phase 3.2 Step 3 wires from
+                      openStudioStatusMap (populated alongside progress
+                      data via the per-class status fetch). Only show
+                      "In Studio" badge for unlocked students; locked +
+                      revoked + no-record all collapse to the —. */}
+                  <div
+                    className="flex justify-center"
+                    data-testid={`student-row-${student.id}-studio`}
+                  >
+                    {openStudioStatusMap[student.id]?.status === "unlocked" ? (
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 font-medium">
+                        In Studio
+                      </span>
+                    ) : (
+                      <span className="text-xs text-text-tertiary">—</span>
+                    )}
                   </div>
 
-                  {/* Metrics dots — placeholder, Phase 3.2 wires the data */}
-                  <div className="flex justify-center gap-0.5" data-placeholder="phase-3-2">
-                    {[1, 2, 3, 4].map((i) => (
-                      <span key={i} className="inline-block w-3 h-1 rounded-sm bg-surface-alt" />
-                    ))}
-                  </div>
+                  {/* Metrics dots — Phase 3.2 Step 4 fills 4 bars from
+                      the student's avg teacher rating (1-4 scale).
+                      Mockup convention: empty bar (bg-surface-alt) /
+                      mid (bg-amber-300) / full (bg-emerald-500).
+                      Clickable when NM is enabled — opens ObservationSnap
+                      to record an observation right from the row
+                      (re-attaches the NM trigger lost when the old
+                      Progress-tab "NM" pill went away). */}
+                  {(() => {
+                    const m = metricsByStudent[student.id];
+                    const avg = m?.avgTeacher;
+                    const dots = [0, 1, 2, 3].map((i) => {
+                      if (avg == null) return "empty" as const;
+                      if (avg >= i + 1) return "full" as const;
+                      if (avg >= i + 0.5) return "mid" as const;
+                      return "empty" as const;
+                    });
+                    const canObserve = nmConfig?.enabled === true;
+                    const inner = (
+                      <span
+                        data-testid={`student-row-${student.id}-metrics`}
+                        className="inline-flex gap-0.5"
+                        title={canObserve
+                          ? avg != null
+                            ? `Avg ${avg.toFixed(1)}/4 — click to record observation`
+                            : "No observations yet — click to record one"
+                          : "Enable New Metrics on this class to track competencies"}
+                      >
+                        {dots.map((kind, i) => (
+                          <span
+                            key={i}
+                            className={`inline-block w-3 h-1.5 rounded-sm ${
+                              kind === "full"
+                                ? "bg-emerald-500"
+                                : kind === "mid"
+                                  ? "bg-amber-300"
+                                  : "bg-gray-200"
+                            }`}
+                          />
+                        ))}
+                      </span>
+                    );
+                    return (
+                      <div className="flex justify-center">
+                        {canObserve ? (
+                          <button
+                            type="button"
+                            onClick={() => setNmObserveStudent({ id: student.id, name: studentName })}
+                            className="hover:opacity-70 transition"
+                          >
+                            {inner}
+                          </button>
+                        ) : (
+                          inner
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Badge count */}
                   <div className="flex justify-center">
@@ -1084,57 +1293,292 @@ export default function ClassHubPage({
           data-testid="canvas-side-rail"
           className="flex flex-col gap-4 lg:sticky lg:top-32"
         >
-          <div
-            data-testid="canvas-rail-card-marking"
-            data-placeholder="phase-3-2"
-            className="bg-white rounded-2xl border border-border p-5"
-          >
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
-              Marking queue
-            </div>
-            <div className="mt-2 text-xs text-text-secondary">
-              Summary lands in Phase 3.2.
-            </div>
-          </div>
+          {/* MARKING QUEUE — re-uses gradingStatusMap + oldestDraftAtMap
+              already loaded for the per-row Marking pill. CTA links out
+              to the canonical /teacher/marking surface with class+unit
+              context (skips the picker steps). No new fetches. */}
+          {(() => {
+            let toMarkCount = 0;
+            let draftCount = 0;
+            let oldestDraftAt: string | null = null;
+            for (const s of students) {
+              const status = gradingStatusMap[s.id];
+              if (status === "draft") {
+                draftCount += 1;
+                const ts = oldestDraftAtMap[s.id];
+                if (ts && (!oldestDraftAt || ts < oldestDraftAt)) oldestDraftAt = ts;
+              } else if (status !== "published") {
+                // No assessment row OR ungraded — counts as "to mark" only if
+                // the student has completed at least one page (otherwise
+                // there's nothing to mark yet).
+                const pages = progressMap[s.id] || {};
+                const completed = Object.values(pages).filter((c) => c.status === "complete").length;
+                if (completed > 0) toMarkCount += 1;
+              }
+            }
+            const total = toMarkCount + draftCount;
+            const oldestDays = oldestDraftAt
+              ? Math.max(0, Math.floor((Date.now() - new Date(oldestDraftAt).getTime()) / 86_400_000))
+              : null;
+            return (
+              <div
+                data-testid="canvas-rail-card-marking"
+                className="bg-white rounded-2xl border border-border p-5"
+              >
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+                  Marking queue
+                </div>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span
+                    data-testid="rail-marking-count"
+                    className={`text-2xl font-bold ${total > 0 ? "text-text-primary" : "text-text-tertiary"}`}
+                  >
+                    {total}
+                  </span>
+                  <span className="text-xs text-text-secondary">
+                    {total === 1 ? "item" : "items"}
+                  </span>
+                </div>
+                <div className="mt-1 text-xs text-text-secondary">
+                  {total === 0 ? (
+                    "All clear — nothing to mark."
+                  ) : (
+                    <>
+                      {draftCount > 0 && `${draftCount} draft`}
+                      {draftCount > 0 && toMarkCount > 0 && " · "}
+                      {toMarkCount > 0 && `${toMarkCount} awaiting`}
+                      {oldestDays != null && draftCount > 0 && (
+                        <> · oldest {oldestDays === 0 ? "today" : `${oldestDays}d`}</>
+                      )}
+                    </>
+                  )}
+                </div>
+                <Link
+                  data-testid="rail-marking-cta"
+                  href={`/teacher/marking?class=${classId}&unit=${unitId}`}
+                  className="mt-3 inline-flex items-center justify-center w-full px-3 py-2 rounded-lg bg-surface-alt text-text-primary hover:bg-text-primary hover:text-white transition text-xs font-medium"
+                >
+                  Open marking →
+                </Link>
+              </div>
+            );
+          })()}
 
-          <div
-            data-testid="canvas-rail-card-studio"
-            data-placeholder="phase-3-2"
-            className="bg-white rounded-2xl border border-border p-5"
-          >
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
-              Open Studio
-            </div>
-            <div className="mt-2 text-xs text-text-secondary">
-              Summary lands in Phase 3.2.
-            </div>
-          </div>
+          {/* OPEN STUDIO — re-uses openStudioStatusMap loaded inside
+              loadProgressData. CTA opens OpenStudioDrawer wrapping
+              OpenStudioClassView (full unlock/revoke/check-in UI). */}
+          {(() => {
+            const unlocked = students.filter(
+              (s) => openStudioStatusMap[s.id]?.status === "unlocked",
+            );
+            const firstName = unlocked[0]
+              ? unlocked[0].display_name || unlocked[0].username
+              : null;
+            return (
+              <div
+                data-testid="canvas-rail-card-studio"
+                className="bg-white rounded-2xl border border-border p-5"
+              >
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+                  Open Studio
+                </div>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span
+                    data-testid="rail-studio-count"
+                    className={`text-2xl font-bold ${unlocked.length > 0 ? "text-violet-600" : "text-text-tertiary"}`}
+                  >
+                    {unlocked.length}
+                  </span>
+                  <span className="text-xs text-text-secondary">
+                    in studio mode
+                  </span>
+                </div>
+                <div className="mt-1 text-xs text-text-secondary">
+                  {unlocked.length === 0
+                    ? "No one in self-directed mode yet."
+                    : unlocked.length === 1
+                      ? `${firstName} is working independently.`
+                      : `${firstName} + ${unlocked.length - 1} more.`}
+                </div>
+                <button
+                  type="button"
+                  data-testid="rail-studio-cta"
+                  onClick={() => setOpenStudioDrawerOpen(true)}
+                  className="mt-3 inline-flex items-center justify-center w-full px-3 py-2 rounded-lg bg-surface-alt text-text-primary hover:bg-text-primary hover:text-white transition text-xs font-medium"
+                >
+                  {unlocked.length === 0 ? "Manage Open Studio →" : "View plans →"}
+                </button>
+              </div>
+            );
+          })()}
 
-          <div
-            data-testid="canvas-rail-card-metrics"
-            data-placeholder="phase-3-2"
-            className="bg-white rounded-2xl border border-border p-5"
-          >
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
-              Class metrics · this unit
-            </div>
-            <div className="mt-2 text-xs text-text-secondary">
-              Summary lands in Phase 3.2.
-            </div>
-          </div>
+          {/* CLASS METRICS — re-uses metricsByStudent + metricsByElement
+              loaded inside loadProgressData (only fires when nmConfig
+              is enabled). Card shows class avg + strongest/weakest
+              element one-liner. CTA opens MetricsDrawer stacking
+              NMElementsPanel + UnitAttentionPanel + NMResultsPanel. */}
+          {(() => {
+            if (!globalNmEnabled || !nmConfig?.enabled) {
+              return (
+                <div
+                  data-testid="canvas-rail-card-metrics"
+                  className="bg-white rounded-2xl border border-border p-5"
+                >
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+                    Class metrics · this unit
+                  </div>
+                  <div
+                    data-testid="rail-metrics-count"
+                    className="mt-2 text-2xl font-bold text-text-tertiary"
+                  >
+                    —
+                  </div>
+                  <div className="mt-1 text-xs text-text-secondary">
+                    New Metrics is off for this {globalNmEnabled ? "unit" : "class"}.
+                  </div>
+                  <button
+                    type="button"
+                    data-testid="rail-metrics-cta"
+                    onClick={() => setMetricsDrawerOpen(true)}
+                    className="mt-3 inline-flex items-center justify-center w-full px-3 py-2 rounded-lg bg-surface-alt text-text-primary hover:bg-text-primary hover:text-white transition text-xs font-medium"
+                  >
+                    Configure metrics →
+                  </button>
+                </div>
+              );
+            }
+            const avgs = Object.values(metricsByStudent)
+              .map((m) => m.avgTeacher)
+              .filter((v): v is number => v != null);
+            const classAvg = avgs.length > 0
+              ? avgs.reduce((a, b) => a + b, 0) / avgs.length
+              : null;
+            // Strongest / weakest by per-element class avg
+            const entries = Object.entries(metricsByElement);
+            entries.sort((a, b) => b[1] - a[1]);
+            const strongest = entries[0]?.[0];
+            const weakest = entries[entries.length - 1]?.[0];
+            // Map element IDs → human-readable names (AGENCY_ELEMENTS
+            // is the v1 source). Fallback to the id when not found.
+            function elName(id: string | undefined): string {
+              if (!id) return "—";
+              const el = AGENCY_ELEMENTS.find((e) => e.id === id);
+              return el?.name ?? id;
+            }
+            return (
+              <div
+                data-testid="canvas-rail-card-metrics"
+                className="bg-white rounded-2xl border border-border p-5"
+              >
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+                  Class metrics · this unit
+                </div>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span
+                    data-testid="rail-metrics-count"
+                    className={`text-2xl font-bold ${classAvg != null ? "text-blue-600" : "text-text-tertiary"}`}
+                  >
+                    {classAvg != null ? classAvg.toFixed(1) : "—"}
+                  </span>
+                  <span className="text-xs text-text-secondary">/ 4 avg</span>
+                </div>
+                <div className="mt-1 text-xs text-text-secondary">
+                  {classAvg == null
+                    ? "No observations recorded yet."
+                    : entries.length === 1
+                      ? `${elName(strongest)} only`
+                      : `${elName(strongest)} strongest · ${elName(weakest)} weakest`}
+                </div>
+                <button
+                  type="button"
+                  data-testid="rail-metrics-cta"
+                  onClick={() => setMetricsDrawerOpen(true)}
+                  className="mt-3 inline-flex items-center justify-center w-full px-3 py-2 rounded-lg bg-surface-alt text-text-primary hover:bg-text-primary hover:text-white transition text-xs font-medium"
+                >
+                  {classAvg == null ? "Score students now →" : "Open metrics →"}
+                </button>
+              </div>
+            );
+          })()}
 
-          <div
-            data-testid="canvas-rail-card-safety"
-            data-placeholder="phase-3-2"
-            className="bg-white rounded-2xl border border-border p-5"
-          >
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
-              Safety &amp; badges
-            </div>
-            <div className="mt-2 text-xs text-text-secondary">
-              Summary lands in Phase 3.2.
-            </div>
-          </div>
+          {/* SAFETY & BADGES — re-uses badgeRequirements +
+              badgeStatusMap already loaded for the per-row Badge
+              count. CTA opens SafetyDrawer wrapping BadgesTab. No new
+              fetches. */}
+          {(() => {
+            const totalReq = badgeRequirements.length;
+            let workshopReady = 0;
+            let needsAssessment: string | null = null;
+            if (totalReq > 0) {
+              for (const s of students) {
+                const statuses = badgeStatusMap[s.id] || [];
+                const allEarned =
+                  statuses.length === totalReq &&
+                  statuses.every((b) => b.status === "earned");
+                if (allEarned) {
+                  workshopReady += 1;
+                } else if (!needsAssessment) {
+                  needsAssessment = s.display_name || s.username;
+                }
+              }
+            }
+            return (
+              <div
+                data-testid="canvas-rail-card-safety"
+                className="bg-white rounded-2xl border border-border p-5"
+              >
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+                  Safety &amp; badges
+                </div>
+                {totalReq === 0 ? (
+                  <>
+                    <div
+                      data-testid="rail-safety-count"
+                      className="mt-2 text-2xl font-bold text-text-tertiary"
+                    >
+                      —
+                    </div>
+                    <div className="mt-1 text-xs text-text-secondary">
+                      No badges required for this unit.
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="mt-2 flex items-baseline gap-2">
+                      <span
+                        data-testid="rail-safety-count"
+                        className={`text-2xl font-bold ${
+                          workshopReady === students.length && students.length > 0
+                            ? "text-emerald-600"
+                            : "text-text-primary"
+                        }`}
+                      >
+                        {workshopReady}/{students.length}
+                      </span>
+                      <span className="text-xs text-text-secondary">
+                        workshop ready
+                      </span>
+                    </div>
+                    <div className="mt-1 text-xs text-text-secondary">
+                      {needsAssessment
+                        ? `${needsAssessment} needs assessment`
+                        : students.length === 0
+                          ? "No students enrolled yet."
+                          : "All students badged up."}
+                    </div>
+                  </>
+                )}
+                <button
+                  type="button"
+                  data-testid="rail-safety-cta"
+                  onClick={() => setSafetyDrawerOpen(true)}
+                  className="mt-3 inline-flex items-center justify-center w-full px-3 py-2 rounded-lg bg-surface-alt text-text-primary hover:bg-text-primary hover:text-white transition text-xs font-medium"
+                >
+                  Manage badges →
+                </button>
+              </div>
+            );
+          })()}
         </aside>
       </div>
 
@@ -1171,6 +1615,60 @@ export default function ClassHubPage({
           students={students}
           setStudents={setStudents}
           onClose={() => setRosterDrawerOpen(false)}
+        />
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* Safety Drawer (Phase 3.2 Step 2) — wraps BadgesTab. Triggered by */}
+      {/* the side-rail "Safety & badges" card CTA.                          */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {safetyDrawerOpen && (
+        <SafetyDrawer
+          unitId={unitId}
+          classId={classId}
+          students={students.map((s) => ({ id: s.id, display_name: s.display_name, username: s.username }))}
+          onClose={() => setSafetyDrawerOpen(false)}
+        />
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* Open Studio Drawer (Phase 3.2 Step 3) — wraps OpenStudioClassView */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {openStudioDrawerOpen && (
+        <OpenStudioDrawer
+          unitId={unitId}
+          classId={classId}
+          onClose={() => setOpenStudioDrawerOpen(false)}
+        />
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* Metrics Drawer (Phase 3.2 Step 4) — wraps NMElementsPanel +       */}
+      {/* UnitAttentionPanel + NMResultsPanel.                              */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {metricsDrawerOpen && (
+        <MetricsDrawer
+          unitId={unitId}
+          classId={classId}
+          globalNmEnabled={globalNmEnabled}
+          nmConfig={nmConfig}
+          onNmConfigChange={async (next) => {
+            const previous = nmConfig;
+            setNmConfig(next);
+            try {
+              const res = await fetch("/api/teacher/nm-config", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ unitId, classId, config: next }),
+              });
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            } catch (err) {
+              console.error("[MetricsDrawer.onNmConfigChange] save failed:", err);
+              setNmConfig(previous);
+              throw err;
+            }
+          }}
+          onClose={() => setMetricsDrawerOpen(false)}
         />
       )}
 

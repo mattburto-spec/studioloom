@@ -136,24 +136,35 @@ describe("Class Hub wiring (15 May 2026 — Attention folded into New Metrics ta
     expect(HUB_SRC).not.toContain('id: "attention"');
   });
 
-  // ─── Deferred to Phase 3.2 — DT canvas Phase 3.1 (Step 2, 16 May 2026) ─
-  // The Metrics tab is now a side-rail card placeholder; Phase 3.2 wires
-  // the CTA ("Score students now →") to a drawer that mounts
-  // UnitAttentionPanel between the NM elements picker and the NM results
-  // panel. Unskip once that drawer ships.
-  it.skip("UnitAttentionPanel mounts inside the metrics tab with unitId + classId [unskip in Phase 3.2]", () => {
-    expect(HUB_SRC).toMatch(
-      /activeTab === "metrics"[\s\S]*?<UnitAttentionPanel unitId=\{unitId\} classId=\{classId\}/
+  // ─── Phase 3.2 Step 4 (16 May 2026) — re-attached on MetricsDrawer ───
+  // UnitAttentionPanel was lifted out of the old `activeTab === "metrics"`
+  // block (gone with the tab strip) into MetricsDrawer alongside
+  // NMElementsPanel + NMResultsPanel. The mount-anchor is the drawer
+  // component file, not page.tsx.
+  it("UnitAttentionPanel mounts inside MetricsDrawer with unitId + classId", () => {
+    const DRAWER_SRC = readFileSync(
+      join(
+        process.cwd(),
+        "src/components/teacher/class-hub/MetricsDrawer.tsx"
+      ),
+      "utf-8"
+    );
+    expect(DRAWER_SRC).toMatch(
+      /<UnitAttentionPanel\s+unitId=\{unitId\}\s+classId=\{classId\}/
     );
   });
 
-  // ─── Deferred to Phase 3.1 Step 4 — DT canvas (Step 2, 16 May 2026) ────
-  // The legacy ?tab=attention compat used to live in the activeTab state
-  // initializer. The initializer is gone (no tabs on the canvas); Step 4
-  // re-attaches the legacy compat via a one-shot mount-time parser that
-  // opens the matching drawer/card. Unskip once Step 4 ships.
-  it.skip("URL tab parser redirects ?tab=attention → metrics for backward compat [unskip in Phase 3.1 Step 4]", () => {
-    expect(HUB_SRC).toMatch(/tab === "attention".*return "metrics"/);
+  // ─── Phase 3.2 Step 5 (16 May 2026) — legacy ?tab compat shape change ─
+  // The old activeTab state initializer's "return 'metrics'" pattern is
+  // gone (no tab state on the canvas). The Phase 3.1 Step 4 compat
+  // handler dropped the param silently; Phase 3.2 Step 5 enhances it to
+  // open the matching drawer instead. ?tab=attention now opens the
+  // metrics drawer alongside ?tab=metrics — both routes land on the
+  // same surface.
+  it("legacy ?tab=attention opens MetricsDrawer (alongside ?tab=metrics)", () => {
+    expect(HUB_SRC).toMatch(
+      /tab\s*===\s*"metrics"\s*\|\|\s*tab\s*===\s*"attention"[\s\S]{0,200}setMetricsDrawerOpen\(true\)/
+    );
   });
 });
 

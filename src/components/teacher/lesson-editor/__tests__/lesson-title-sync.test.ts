@@ -57,30 +57,38 @@ describe("useLessonEditor.updatePage — title mirror", () => {
   });
 });
 
-// ─── Transient skips — DT canvas Phase 3.1 (Step 2, 16 May 2026) ─────────
-// The Progress grid was temporarily unmounted when the tab JSX was
-// replaced by the canvas-grid scaffold. Step 3 of Phase 3.1 rebuilds
-// the grid inside `data-testid="canvas-student-grid"` and re-uses the
-// (page, pageIdx) iteration + 1-based column header. Step 5 unskips
-// these guards once the new render path is in place. The old
-// page.id.replace(/^L0?/, "") regex stays out — that's the regression
-// these guards lock against.
-describe.skip("Progress grid — column header (round 13) [unskip in Phase 3.1 Step 3/5]", () => {
-  it("uses position index (1-based) instead of stripping page.id", () => {
-    expect(HUB_SRC).toMatch(
-      /const headerLabel\s*=\s*String\(pageIdx\s*\+\s*1\)/
-    );
-    // Old regex strip retired
+// ─── Re-targeted on StudentDrawer Page Progress chip (DT canvas Phase 3.2
+// Step 5, 16 May 2026) — same round-13 intent (page-title renames flow
+// through to teacher-side display + the old `L0?` regex strip stays
+// retired), now anchored at the StudentDrawer's per-page chip rather
+// than the old per-page column header on the Progress tab. The canvas
+// student grid has one Unit progress bar per row; per-page granularity
+// lives in the drawer.
+describe("StudentDrawer Page Progress chip — title sync (round 13, re-targeted)", () => {
+  const DRAWER_SRC = readFileSync(
+    join(
+      process.cwd(),
+      "src/components/teacher/class-hub/StudentDrawer.tsx"
+    ),
+    "utf-8"
+  );
+
+  it("uses 1-based position index instead of stripping page.id", () => {
+    // The drawer renders `{pageIdx + 1}` inside the chip — same anchor
+    // for round-13's "position not slug" contract.
+    expect(DRAWER_SRC).toMatch(/\{pageIdx\s*\+\s*1\}/);
+    // Old regex strip stays retired across the codebase
+    expect(DRAWER_SRC).not.toContain('page.id.replace(/^L0?/, "")');
     expect(HUB_SRC).not.toContain('page.id.replace(/^L0?/, "")');
   });
 
-  it("title attribute carries the human-readable label + page.title fallback", () => {
-    expect(HUB_SRC).toMatch(
-      /title=\{`\$\{pageIdx \+ 1\}\. \$\{page\.title \|\| page\.id\}/
+  it("chip title attribute carries the human-readable label + page.title fallback", () => {
+    expect(DRAWER_SRC).toMatch(
+      /title=\{`\$\{pageIdx \+ 1\}\.\s*\$\{page\.title \|\| page\.id\}/
     );
   });
 
-  it("unitPages.map signature accepts pageIdx as second arg", () => {
-    expect(HUB_SRC).toMatch(/unitPages\.map\(\(page,\s*pageIdx\)\s*=>/);
+  it("data.pages.map signature accepts pageIdx as second arg", () => {
+    expect(DRAWER_SRC).toMatch(/data\.pages\.map\(\(page,\s*pageIdx\)\s*=>/);
   });
 });
