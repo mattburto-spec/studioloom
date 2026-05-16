@@ -29,6 +29,7 @@ import { GalleryRoundCreator, GalleryMonitor, GalleryRoundCard, GalleryCanvasMod
 import { getYearLevelNumber } from "@/lib/utils/year-level";
 import StudentDrawer from "@/components/teacher/class-hub/StudentDrawer";
 import StudentRosterDrawer from "@/components/teacher/class-hub/StudentRosterDrawer";
+import SafetyDrawer from "@/components/teacher/class-hub/SafetyDrawer";
 import UnitAttentionPanel from "@/components/teacher/UnitAttentionPanel";
 
 // ---------------------------------------------------------------------------
@@ -328,6 +329,11 @@ export default function ClassHubPage({
   // Add-student drawer (Phase 3.1 Step 4) — opens the lifted
   // StudentRosterDrawer wrapping the old StudentsTab logic.
   const [rosterDrawerOpen, setRosterDrawerOpen] = useState(false);
+
+  // Side-rail card drawers (Phase 3.2). Each opens via the matching
+  // card CTA and mounts the existing tab content as-is inside drawer
+  // chrome. Marking is excluded — it routes externally to /teacher/marking.
+  const [safetyDrawerOpen, setSafetyDrawerOpen] = useState(false);
 
   // -----------------------------------------------------------------------
   // Legacy ?tab=... compat (Phase 3.1 Step 4, G12 sign-off).
@@ -1194,18 +1200,84 @@ export default function ClassHubPage({
             </div>
           </div>
 
-          <div
-            data-testid="canvas-rail-card-safety"
-            data-placeholder="phase-3-2"
-            className="bg-white rounded-2xl border border-border p-5"
-          >
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
-              Safety &amp; badges
-            </div>
-            <div className="mt-2 text-xs text-text-secondary">
-              Summary lands in Phase 3.2.
-            </div>
-          </div>
+          {/* SAFETY & BADGES — re-uses badgeRequirements +
+              badgeStatusMap already loaded for the per-row Badge
+              count. CTA opens SafetyDrawer wrapping BadgesTab. No new
+              fetches. */}
+          {(() => {
+            const totalReq = badgeRequirements.length;
+            let workshopReady = 0;
+            let needsAssessment: string | null = null;
+            if (totalReq > 0) {
+              for (const s of students) {
+                const statuses = badgeStatusMap[s.id] || [];
+                const allEarned =
+                  statuses.length === totalReq &&
+                  statuses.every((b) => b.status === "earned");
+                if (allEarned) {
+                  workshopReady += 1;
+                } else if (!needsAssessment) {
+                  needsAssessment = s.display_name || s.username;
+                }
+              }
+            }
+            return (
+              <div
+                data-testid="canvas-rail-card-safety"
+                className="bg-white rounded-2xl border border-border p-5"
+              >
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+                  Safety &amp; badges
+                </div>
+                {totalReq === 0 ? (
+                  <>
+                    <div
+                      data-testid="rail-safety-count"
+                      className="mt-2 text-2xl font-bold text-text-tertiary"
+                    >
+                      —
+                    </div>
+                    <div className="mt-1 text-xs text-text-secondary">
+                      No badges required for this unit.
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="mt-2 flex items-baseline gap-2">
+                      <span
+                        data-testid="rail-safety-count"
+                        className={`text-2xl font-bold ${
+                          workshopReady === students.length && students.length > 0
+                            ? "text-emerald-600"
+                            : "text-text-primary"
+                        }`}
+                      >
+                        {workshopReady}/{students.length}
+                      </span>
+                      <span className="text-xs text-text-secondary">
+                        workshop ready
+                      </span>
+                    </div>
+                    <div className="mt-1 text-xs text-text-secondary">
+                      {needsAssessment
+                        ? `${needsAssessment} needs assessment`
+                        : students.length === 0
+                          ? "No students enrolled yet."
+                          : "All students badged up."}
+                    </div>
+                  </>
+                )}
+                <button
+                  type="button"
+                  data-testid="rail-safety-cta"
+                  onClick={() => setSafetyDrawerOpen(true)}
+                  className="mt-3 inline-flex items-center justify-center w-full px-3 py-2 rounded-lg bg-surface-alt text-text-primary hover:bg-text-primary hover:text-white transition text-xs font-medium"
+                >
+                  Manage badges →
+                </button>
+              </div>
+            );
+          })()}
         </aside>
       </div>
 
@@ -1242,6 +1314,19 @@ export default function ClassHubPage({
           students={students}
           setStudents={setStudents}
           onClose={() => setRosterDrawerOpen(false)}
+        />
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* Safety Drawer (Phase 3.2 Step 2) — wraps BadgesTab. Triggered by */}
+      {/* the side-rail "Safety & badges" card CTA.                          */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {safetyDrawerOpen && (
+        <SafetyDrawer
+          unitId={unitId}
+          classId={classId}
+          students={students.map((s) => ({ id: s.id, display_name: s.display_name, username: s.username }))}
+          onClose={() => setSafetyDrawerOpen(false)}
         />
       )}
 
