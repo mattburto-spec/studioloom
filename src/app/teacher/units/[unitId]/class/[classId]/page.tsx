@@ -25,7 +25,6 @@ import { StudentResponseValue } from "@/components/teacher/StudentResponseValue"
 import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
 import { analyzeIntegrity, worstIntegrityLevel } from "@/lib/integrity/analyze-integrity";
 import { ClassProfileOverview } from "@/components/teacher/ClassProfileOverview";
-import { GalleryRoundCreator, GalleryMonitor, GalleryRoundCard, GalleryCanvasModal } from "@/components/gallery";
 import { getYearLevelNumber } from "@/lib/utils/year-level";
 import StudentDrawer from "@/components/teacher/class-hub/StudentDrawer";
 import StudentRosterDrawer from "@/components/teacher/class-hub/StudentRosterDrawer";
@@ -33,6 +32,7 @@ import SafetyDrawer from "@/components/teacher/class-hub/SafetyDrawer";
 import OpenStudioDrawer from "@/components/teacher/class-hub/OpenStudioDrawer";
 import MetricsDrawer from "@/components/teacher/class-hub/MetricsDrawer";
 import ChangeUnitModal from "@/components/teacher/class-hub/ChangeUnitModal";
+import GalleryDrawer from "@/components/teacher/class-hub/GalleryDrawer";
 import KebabMenu, { type KebabMenuSection } from "@/components/teacher/class-hub/KebabMenu";
 
 // ---------------------------------------------------------------------------
@@ -156,142 +156,11 @@ function deriveTodaysLessonIndex(
 // Component
 // ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
-// Gallery Tab — manages gallery rounds for this class+unit
-// ---------------------------------------------------------------------------
-function GalleryTab({ unitId, classId, unitPages }: { unitId: string; classId: string; unitPages: UnitPage[] }) {
-  const [rounds, setRounds] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showCreator, setShowCreator] = useState(false);
-  const [monitorRoundId, setMonitorRoundId] = useState<string | null>(null);
-  const [canvasRoundId, setCanvasRoundId] = useState<string | null>(null);
-
-  const loadRounds = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/teacher/gallery?unitId=${unitId}&classId=${classId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setRounds(data.rounds || []);
-      }
-    } catch (e) {
-      console.error("Failed to load gallery rounds:", e);
-    } finally {
-      setLoading(false);
-    }
-  }, [unitId, classId]);
-
-  useEffect(() => { loadRounds(); }, [loadRounds]);
-
-  return (
-    <div className="max-w-4xl space-y-6">
-      {/* Monitor modal (grid display mode) */}
-      {monitorRoundId && (
-        <GalleryMonitor roundId={monitorRoundId} onClose={() => { setMonitorRoundId(null); loadRounds(); }} />
-      )}
-
-      {/* Canvas modal (canvas display mode) */}
-      {canvasRoundId && (
-        <GalleryCanvasModal roundId={canvasRoundId} onClose={() => { setCanvasRoundId(null); loadRounds(); }} />
-      )}
-
-      {/* Creator modal */}
-      {showCreator && (
-        <GalleryRoundCreator
-          unitId={unitId}
-          classId={classId}
-          pages={unitPages.map(p => ({ id: p.id, title: p.title }))}
-          onCreated={() => { setShowCreator(false); loadRounds(); }}
-          onClose={() => setShowCreator(false)}
-        />
-      )}
-
-      {/* Header + New Round button */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-bold text-gray-900">Pin-Up Gallery</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Create critique rounds where students share work and give peer feedback</p>
-        </div>
-        <button
-          onClick={() => setShowCreator(true)}
-          className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition flex items-center gap-2"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          New Gallery Round
-        </button>
-      </div>
-
-      {/* Rounds list */}
-      {loading ? (
-        <div className="space-y-3">
-          <div className="h-24 bg-gray-100 rounded-xl animate-pulse" />
-          <div className="h-24 bg-gray-100 rounded-xl animate-pulse" />
-        </div>
-      ) : rounds.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-purple-100 flex items-center justify-center mx-auto mb-4">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          </div>
-          <p className="text-gray-900 font-semibold mb-1">No gallery rounds yet</p>
-          <p className="text-gray-500 text-sm mb-4">Create a pin-up crit round for students to share work and give peer feedback.</p>
-          <button
-            onClick={() => setShowCreator(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition"
-          >
-            Create Your First Round
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {rounds.map((round: any) => (
-            <GalleryRoundCard
-              key={round.id}
-              round={round}
-              onClick={() => {
-                if (round.display_mode === "canvas") {
-                  setCanvasRoundId(round.id);
-                } else {
-                  setMonitorRoundId(round.id);
-                }
-              }}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Info card */}
-      <div className="bg-purple-50 border border-purple-200 rounded-xl p-5">
-        <h3 className="font-semibold text-purple-900 flex items-center gap-2 mb-2">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
-          </svg>
-          About Pin-Up Gallery
-        </h3>
-        <p className="text-sm text-purple-700 leading-relaxed mb-3">
-          Pin-up crits are a core design studio practice. Students share work-in-progress, then browse and give structured feedback to classmates. Effort-gated: students must complete their reviews before seeing feedback on their own work.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-          <div className="bg-white/70 rounded-lg p-3 border border-purple-100">
-            <div className="font-semibold text-purple-800 mb-1">Review Formats</div>
-            <p className="text-purple-600 text-xs">Quick Comment, PMI Analysis, Two Stars & a Wish, or any toolkit tool.</p>
-          </div>
-          <div className="bg-white/70 rounded-lg p-3 border border-purple-100">
-            <div className="font-semibold text-purple-800 mb-1">Effort-Gating</div>
-            <p className="text-purple-600 text-xs">Students must complete minimum reviews before seeing their own feedback.</p>
-          </div>
-          <div className="bg-white/70 rounded-lg p-3 border border-purple-100">
-            <div className="font-semibold text-purple-800 mb-1">MYP Criterion D</div>
-            <p className="text-purple-600 text-xs">Structured peer evaluation maps directly to Criterion D (Evaluating).</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+// (Phase 3.5 Step 1 — GalleryTab function lifted to
+// src/components/teacher/class-hub/GalleryDrawer.tsx. Triggered by
+// the canvas gallery-strip "Open gallery →" CTA + ?tab=gallery
+// legacy compat. The inline function lived here from before the
+// canvas rebuild but was orphan from Phase 3.1 Step 2 onward.)
 
 export default function ClassHubPage({
   params,
@@ -405,6 +274,19 @@ export default function ClassHubPage({
   // public.set_active_unit RPC via the setActiveUnit helper.
   const [changeUnitModalOpen, setChangeUnitModalOpen] = useState(false);
 
+  // Gallery strip + drawer (Phase 3.5). One fetch on mount populates
+  // the strip tiles + the drawer's initial state (drawer still re-fetches
+  // on open so mutations stay self-contained — same pattern as
+  // OpenStudioDrawer + MetricsDrawer).
+  const [galleryRounds, setGalleryRounds] = useState<Array<{
+    id: string;
+    title?: string | null;
+    display_mode?: string | null;
+    submission_count?: number | null;
+    state?: string | null;
+  }>>([]);
+  const [galleryDrawerOpen, setGalleryDrawerOpen] = useState(false);
+
   // -----------------------------------------------------------------------
   // Legacy ?tab=... compat (Phase 3.1 Step 4, G12 sign-off).
   // -----------------------------------------------------------------------
@@ -463,12 +345,16 @@ export default function ClassHubPage({
     // Phase 3.2 wired the matching drawers — route legacy URLs into
     // them so deep-links from the dashboard route + old bookmarks
     // land on the right surface.
-    //   • students                       → roster drawer (Step 4 wired)
+    //   • students                       → roster drawer (3.1 Step 4)
     //   • metrics / attention            → metrics drawer (3.2 Step 4)
     //   • badges / safety                → safety drawer  (3.2 Step 2)
     //   • studio / open-studio           → OS drawer      (3.2 Step 3)
-    //   • gallery                        → no-op (Phase 3.5 lands the drawer)
-    //   • settings                       → no-op (Phase 3.4 sub-route)
+    //   • gallery                        → gallery drawer (3.5 Step 2)
+    //   • settings                       → no-op (Phase 3.4 routes
+    //                                       via the kebab "Class
+    //                                       settings…" item; standalone
+    //                                       /teacher/classes/[id]/settings
+    //                                       sub-route is a follow-up)
     // Only one drawer opens — if the URL carries both ?tab=students
     // and ?student=..., students wins to avoid stacking.
     let openedDrawer = false;
@@ -483,6 +369,9 @@ export default function ClassHubPage({
       openedDrawer = true;
     } else if (tab === "studio" || tab === "open-studio") {
       setOpenStudioDrawerOpen(true);
+      openedDrawer = true;
+    } else if (tab === "gallery") {
+      setGalleryDrawerOpen(true);
       openedDrawer = true;
     }
     const openedRoster = openedDrawer; // backward-compat alias for the
@@ -713,6 +602,17 @@ export default function ClassHubPage({
         const badgeData = await badgeRes.json();
         setBadgeRequirements(badgeData.requirements || []);
         setBadgeStatusMap(badgeData.student_status || {});
+      }
+    } catch { /* non-critical */ }
+
+    // Gallery rounds (Phase 3.5) — feeds the strip tiles. GalleryDrawer
+    // also fetches independently on open so the New Round flow stays
+    // self-contained.
+    try {
+      const galRes = await fetch(`/api/teacher/gallery?unitId=${unitId}&classId=${classId}`);
+      if (galRes.ok) {
+        const galData = await galRes.json();
+        setGalleryRounds(galData.rounds || []);
       }
     } catch { /* non-critical */ }
 
@@ -1624,14 +1524,81 @@ export default function ClassHubPage({
             })()}
           </section>
 
-          {/* Gallery strip placeholder — Phase 3.5 fills this with the
-              recent-work thumbnail tiles + "Open gallery ›" link. */}
+          {/* Gallery strip (Phase 3.5 Step 2) — recent-work tile row +
+              "Open gallery →" link. Tiles render the most recent 6
+              rounds with rotating gradient backgrounds (matches mockup
+              .gallery-tile palette). Click any tile or the CTA →
+              opens GalleryDrawer. Empty state shows 6 dashed
+              placeholder tiles + a friendlier "Create your first
+              round" prompt. */}
           <section
             data-testid="canvas-gallery-strip"
-            data-placeholder="phase-3-5"
-            className="hidden"
-            aria-hidden="true"
-          />
+            className="bg-white rounded-2xl border border-border p-5"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-semibold text-text-primary">
+                Pin-Up Gallery
+                <span className="text-text-tertiary font-normal ml-1.5">
+                  · {galleryRounds.length} {galleryRounds.length === 1 ? "round" : "rounds"}
+                </span>
+              </div>
+              <button
+                type="button"
+                data-testid="gallery-strip-open-cta"
+                onClick={() => setGalleryDrawerOpen(true)}
+                className="text-xs font-medium text-text-secondary hover:text-text-primary transition"
+              >
+                Open gallery →
+              </button>
+            </div>
+            {galleryRounds.length === 0 ? (
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                {[0, 1, 2, 3, 4, 5].map((i) => (
+                  <div
+                    key={i}
+                    data-testid="gallery-strip-tile-empty"
+                    className="aspect-square rounded-lg border-2 border-dashed border-border bg-surface-alt/30"
+                  />
+                ))}
+                <p className="col-span-3 sm:col-span-6 text-xs text-text-secondary text-center mt-1">
+                  No pin-up rounds yet.{" "}
+                  <button
+                    type="button"
+                    onClick={() => setGalleryDrawerOpen(true)}
+                    className="text-purple-600 hover:underline font-medium"
+                  >
+                    Create your first round →
+                  </button>
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                {galleryRounds.slice(0, 6).map((round, i) => {
+                  // Rotate through the mockup's 4 tile gradients
+                  const palettes = [
+                    "bg-gradient-to-br from-emerald-100 to-teal-200 text-emerald-700",
+                    "bg-gradient-to-br from-orange-100 to-amber-200 text-orange-700",
+                    "bg-gradient-to-br from-violet-100 to-indigo-200 text-violet-700",
+                    "bg-gradient-to-br from-rose-100 to-pink-200 text-rose-700",
+                  ];
+                  const palette = palettes[i % palettes.length];
+                  const initial = (round.title || "•").charAt(0).toUpperCase();
+                  return (
+                    <button
+                      key={round.id}
+                      type="button"
+                      data-testid={`gallery-strip-tile-${round.id}`}
+                      onClick={() => setGalleryDrawerOpen(true)}
+                      title={round.title || "Untitled round"}
+                      className={`aspect-square rounded-lg ${palette} flex items-center justify-center text-lg font-bold hover:scale-[1.02] hover:shadow-sm transition`}
+                    >
+                      {initial}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </section>
         </div>
 
         {/* SIDE RAIL — Phase 3.2 fills each card with summary count + sub
@@ -2032,6 +1999,20 @@ export default function ClassHubPage({
           currentUnitId={unitId}
           className={className}
           onClose={() => setChangeUnitModalOpen(false)}
+        />
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* Gallery Drawer (Phase 3.5) — Pin-Up Gallery management.            */}
+      {/* Triggered by the canvas gallery strip "Open gallery →" CTA + the  */}
+      {/* legacy ?tab=gallery compat handler.                                */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {galleryDrawerOpen && (
+        <GalleryDrawer
+          unitId={unitId}
+          classId={classId}
+          unitPages={unitPages}
+          onClose={() => setGalleryDrawerOpen(false)}
         />
       )}
 

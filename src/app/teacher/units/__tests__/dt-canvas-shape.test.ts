@@ -671,3 +671,81 @@ describe("DT canvas Phase 3.4 — Past units sub-route", () => {
     expect(UNITS_SRC).toContain('data-testid={`class-units-row-${row.unit_id}`}');
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Phase 3.5 — Gallery strip + GalleryDrawer + legacy ?tab=gallery compat
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe("DT canvas Phase 3.5 — gallery strip + drawer", () => {
+  it("strip is no longer hidden — placeholder text replaced with live content", () => {
+    // The Phase 3.1 placeholder rendered `<section ... className="hidden" />`
+    // — the live strip uses bg-white rounded-2xl + header copy.
+    const idx = HUB_SRC.indexOf('data-testid="canvas-gallery-strip"');
+    expect(idx).toBeGreaterThan(0);
+    const slice = HUB_SRC.slice(idx, idx + 1500);
+    expect(slice).not.toMatch(/className="hidden"/);
+    expect(slice).toContain("Pin-Up Gallery");
+  });
+
+  it("renders the Open gallery CTA + opens GalleryDrawer", () => {
+    expect(HUB_SRC).toContain('data-testid="gallery-strip-open-cta"');
+    const idx = HUB_SRC.indexOf('data-testid="gallery-strip-open-cta"');
+    expect(idx).toBeGreaterThan(0);
+    const slice = HUB_SRC.slice(idx, idx + 400);
+    expect(slice).toMatch(/onClick=\{[\s\S]{0,80}setGalleryDrawerOpen\(true\)/);
+  });
+
+  it("page.tsx imports + mounts GalleryDrawer gated on galleryDrawerOpen", () => {
+    expect(HUB_SRC).toMatch(
+      /import\s+GalleryDrawer\s+from\s+["']@\/components\/teacher\/class-hub\/GalleryDrawer["']/
+    );
+    expect(HUB_SRC).toMatch(/galleryDrawerOpen\s*&&\s*\(\s*<GalleryDrawer/);
+  });
+
+  it("loadProgressData fetches /api/teacher/gallery to populate galleryRounds", () => {
+    expect(HUB_SRC).toContain("galleryRounds");
+    expect(HUB_SRC).toMatch(
+      /fetch\(`\/api\/teacher\/gallery\?unitId=\$\{unitId\}&classId=\$\{classId\}`\)/
+    );
+  });
+
+  it("tile slice caps at 6 rounds (mockup convention)", () => {
+    expect(HUB_SRC).toMatch(/galleryRounds\.slice\(0,\s*6\)/);
+  });
+
+  it("empty-state renders 6 dashed placeholder tiles", () => {
+    expect(HUB_SRC).toContain('data-testid="gallery-strip-tile-empty"');
+  });
+
+  it("each populated tile carries a per-round testid + click opens the drawer", () => {
+    expect(HUB_SRC).toMatch(/data-testid=\{`gallery-strip-tile-\$\{round\.id\}`\}/);
+    // Anchor on the testid template + walk to setGalleryDrawerOpen
+    const idx = HUB_SRC.search(/data-testid=\{`gallery-strip-tile-\$\{round\.id\}`\}/);
+    expect(idx).toBeGreaterThan(0);
+    const slice = HUB_SRC.slice(idx, idx + 600);
+    expect(slice).toMatch(/onClick=\{[\s\S]{0,200}setGalleryDrawerOpen\(true\)/);
+  });
+
+  it("GalleryDrawer is sourced from the lifted component (not inline GalleryTab)", () => {
+    // The inline `function GalleryTab(` is gone from page.tsx; the
+    // lifted drawer lives in @/components/teacher/class-hub/GalleryDrawer
+    expect(HUB_SRC).not.toMatch(/^function GalleryTab\(/m);
+    // And the gallery component imports moved with the lift — they
+    // were only needed by the inline JSX.
+    expect(HUB_SRC).not.toMatch(
+      /import\s*\{[^}]*GalleryRoundCreator[^}]*\}\s*from\s*["']@\/components\/gallery["']/
+    );
+  });
+});
+
+describe("DT canvas Phase 3.5 — legacy ?tab=gallery compat enhanced", () => {
+  it("?tab=gallery opens GalleryDrawer (was no-op before Phase 3.5)", () => {
+    // Multiline-anchored: the setGalleryDrawerOpen call must live on
+    // a line that doesn't start with `//` (so a commented-out
+    // hotfix can't pass the guard silently — lesson from the Phase
+    // 3.5 NC where the original regex matched a commented call).
+    expect(HUB_SRC).toMatch(
+      /tab\s*===\s*"gallery"[\s\S]{0,200}^[^/\n]*setGalleryDrawerOpen\(true\)/m
+    );
+  });
+});
