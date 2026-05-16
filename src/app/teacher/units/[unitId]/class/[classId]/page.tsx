@@ -417,14 +417,34 @@ export default function ClassHubPage({
     // ?tab=settings → sub-route lands in Phase 3.4. For 3.1, no-op
     // (drop the param, stay on canvas). The kebab "Class settings…"
     // item from Phase 3.4 will be the canonical entry point.
-    // ?tab=metrics / badges / gallery / studio (+ aliases) → no-op
-    // surfaces wire in 3.2 / 3.5. Console hint so smoke-test logs
-    // make it visible the redirect fired.
-    let openedRoster = false;
+    // ?tab=metrics / badges / gallery / studio + aliases:
+    // Phase 3.2 wired the matching drawers — route legacy URLs into
+    // them so deep-links from the dashboard route + old bookmarks
+    // land on the right surface.
+    //   • students                       → roster drawer (Step 4 wired)
+    //   • metrics / attention            → metrics drawer (3.2 Step 4)
+    //   • badges / safety                → safety drawer  (3.2 Step 2)
+    //   • studio / open-studio           → OS drawer      (3.2 Step 3)
+    //   • gallery                        → no-op (Phase 3.5 lands the drawer)
+    //   • settings                       → no-op (Phase 3.4 sub-route)
+    // Only one drawer opens — if the URL carries both ?tab=students
+    // and ?student=..., students wins to avoid stacking.
+    let openedDrawer = false;
     if (tab === "students") {
       setRosterDrawerOpen(true);
-      openedRoster = true;
+      openedDrawer = true;
+    } else if (tab === "metrics" || tab === "attention") {
+      setMetricsDrawerOpen(true);
+      openedDrawer = true;
+    } else if (tab === "badges" || tab === "safety") {
+      setSafetyDrawerOpen(true);
+      openedDrawer = true;
+    } else if (tab === "studio" || tab === "open-studio") {
+      setOpenStudioDrawerOpen(true);
+      openedDrawer = true;
     }
+    const openedRoster = openedDrawer; // backward-compat alias for the
+                                        // student-deep-link branch below
 
     // ?student=<id>&page=<pageId> → open StudentDrawer with pageId
     // (independent of tab=). Skip if we just opened the roster drawer

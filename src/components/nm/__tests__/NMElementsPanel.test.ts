@@ -83,48 +83,66 @@ describe("NMElementsPanel", () => {
   });
 });
 
-// ─── Deferred to Phase 3.2 — DT canvas Phase 3.1 (Step 2, 16 May 2026) ───
-// The Metrics tab was replaced by the side-rail "Class metrics · this unit"
-// card in the canvas-grid scaffold. The card is an empty placeholder in
-// Phase 3.1 — its CTA ("Score students now →") opens an NM observation
-// drawer/sheet that Phase 3.2 (side-rail wiring) will mount NMElementsPanel
-// inside. These guards stay skipped until Phase 3.2 lands, at which point
-// the mount-anchor changes from `activeTab === "metrics"` to the
-// side-rail CTA's drawer/sheet. The first describe block (NMElementsPanel
-// behaviour itself) still passes — it locks the component's contract,
-// not its mount location.
-describe.skip("Class Hub Metrics tab — NMElementsPanel mount (round 8) [unskip in Phase 3.2]", () => {
-  it('imports NMElementsPanel from "@/components/nm"', () => {
-    expect(CLASS_HUB_SRC).toMatch(
-      /import\s*\{[^}]*NMElementsPanel[^}]*\}\s*from\s*"@\/components\/nm"/
+// ─── DT canvas Phase 3.2 Step 4 (16 May 2026) — re-attached on MetricsDrawer ─
+// The old `activeTab === "metrics"` mount-anchor in page.tsx went away with
+// the tab strip. NMElementsPanel now mounts inside MetricsDrawer
+// (src/components/teacher/class-hub/MetricsDrawer.tsx), opened via the
+// side-rail "Class metrics · this unit" card CTA. page.tsx passes nmConfig
+// + an onNmConfigChange callback to the drawer (the optimistic-update
+// pattern lives in page.tsx now, not the drawer); the drawer just calls
+// onSave. The violet checkpoint banner moved with the panel.
+describe("MetricsDrawer — NMElementsPanel mount (Phase 3.2 Step 4)", () => {
+  const DRAWER_SRC = readFileSync(
+    join(
+      process.cwd(),
+      "src/components/teacher/class-hub/MetricsDrawer.tsx"
+    ),
+    "utf-8"
+  );
+
+  it('MetricsDrawer imports NMElementsPanel from "@/components/nm"', () => {
+    expect(DRAWER_SRC).toMatch(
+      /import\s*\{[^}]*NMElementsPanel[^}]*\}\s*from\s*["']@\/components\/nm["']/
     );
   });
 
-  it('mounts <NMElementsPanel> inside the metrics tab', () => {
-    // Distance bumped to 1500 (15 May 2026) — panel now lives inside a
-    // collapsible <details> with a summary header, which adds markup
-    // between activeTab === "metrics" and the panel itself.
-    expect(CLASS_HUB_SRC).toMatch(
-      /activeTab === "metrics"[\s\S]{0,1500}<NMElementsPanel[\s\S]{0,200}currentConfig=\{nmConfig\}/
+  it("mounts <NMElementsPanel> inside the drawer with currentConfig={nmConfig}", () => {
+    expect(DRAWER_SRC).toMatch(
+      /<NMElementsPanel[\s\S]{0,200}currentConfig=\{nmConfig\}/
     );
   });
 
-  it("onSave POSTs to /api/teacher/nm-config with optimistic update + revert on error", () => {
-    const idx = CLASS_HUB_SRC.indexOf("<NMElementsPanel");
+  it("delegates save to the parent via onSave={async (next) => onNmConfigChange(next)}", () => {
+    // Mutation lives in page.tsx now (so the optimistic update + revert
+    // can use the same setNmConfig state as the row Metrics dots).
+    expect(DRAWER_SRC).toMatch(
+      /onSave=\{async\s*\(next\)\s*=>\s*\{[\s\S]{0,200}onNmConfigChange\(next\)/
+    );
+  });
+
+  it("page.tsx wires onNmConfigChange to /api/teacher/nm-config POST with optimistic revert", () => {
+    // The optimistic update + revert pattern preserved across the lift.
+    const idx = CLASS_HUB_SRC.indexOf("onNmConfigChange");
     expect(idx).toBeGreaterThan(0);
     const slice = CLASS_HUB_SRC.slice(idx, idx + 1500);
     expect(slice).toContain('fetch("/api/teacher/nm-config"');
     expect(slice).toContain('method: "POST"');
     expect(slice).toMatch(/setNmConfig\(next\)/);
-    // Revert on failure
     expect(slice).toMatch(/setNmConfig\(previous\)/);
     expect(slice).toMatch(/throw err/);
   });
 
-  it("yellow checkpoint banner replaced by violet pointer to lesson editor", () => {
-    // Old yellow box is gone; new violet box explains where checkpoints
-    // live now (lesson editor) without conflicting with the new panel.
-    expect(CLASS_HUB_SRC).toContain("Per-lesson checkpoints live in the lesson editor");
-    expect(CLASS_HUB_SRC).toMatch(/border-violet-200\s+bg-violet-50/);
+  it("violet checkpoint pointer banner moved into the drawer (text + colours preserved)", () => {
+    expect(DRAWER_SRC).toContain("Per-lesson checkpoints live in the lesson editor");
+    expect(DRAWER_SRC).toMatch(/border-violet-200\s+bg-violet-50/);
+  });
+
+  it("page.tsx imports + mounts MetricsDrawer gated on metricsDrawerOpen", () => {
+    expect(CLASS_HUB_SRC).toMatch(
+      /import\s+MetricsDrawer\s+from\s+["']@\/components\/teacher\/class-hub\/MetricsDrawer["']/
+    );
+    expect(CLASS_HUB_SRC).toMatch(
+      /metricsDrawerOpen\s*&&\s*\(\s*<MetricsDrawer/
+    );
   });
 });

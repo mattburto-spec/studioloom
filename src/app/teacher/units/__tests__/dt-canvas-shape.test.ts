@@ -202,3 +202,153 @@ describe("DT canvas — absence guards (the rebuild stripped these)", () => {
     expect(HUB_SRC).not.toMatch(/<PaceFeedbackSummary\b/);
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Phase 3.2 — side-rail cards + drawers
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe("DT canvas Phase 3.2 — side-rail Marking card", () => {
+  it("renders a derived count + Open marking → CTA", () => {
+    expect(HUB_SRC).toContain('data-testid="rail-marking-count"');
+    expect(HUB_SRC).toContain('data-testid="rail-marking-cta"');
+    expect(HUB_SRC).toContain("Open marking →");
+  });
+
+  it("Marking CTA routes externally to /teacher/marking with class+unit context", () => {
+    const idx = HUB_SRC.indexOf('data-testid="rail-marking-cta"');
+    expect(idx).toBeGreaterThan(0);
+    const slice = HUB_SRC.slice(idx, idx + 400);
+    expect(slice).toMatch(/href=\{`\/teacher\/marking\?class=\$\{classId\}&unit=\$\{unitId\}`\}/);
+  });
+
+  it("derives oldestDays from a per-student oldestDraftAtMap loaded in loadProgressData", () => {
+    expect(HUB_SRC).toContain("oldestDraftAtMap");
+    expect(HUB_SRC).toContain("setOldestDraftAtMap");
+  });
+
+  it("'All clear' empty-state copy when total is zero", () => {
+    expect(HUB_SRC).toContain("All clear — nothing to mark.");
+  });
+});
+
+describe("DT canvas Phase 3.2 — side-rail Safety card + drawer", () => {
+  it("renders a derived 'X/Y workshop ready' count + Manage badges → CTA", () => {
+    expect(HUB_SRC).toContain('data-testid="rail-safety-count"');
+    expect(HUB_SRC).toContain('data-testid="rail-safety-cta"');
+    expect(HUB_SRC).toContain("workshop ready");
+    expect(HUB_SRC).toContain("Manage badges →");
+  });
+
+  it("Safety CTA opens SafetyDrawer (setSafetyDrawerOpen(true))", () => {
+    const idx = HUB_SRC.indexOf('data-testid="rail-safety-cta"');
+    expect(idx).toBeGreaterThan(0);
+    const slice = HUB_SRC.slice(idx, idx + 400);
+    expect(slice).toMatch(/onClick=\{[\s\S]{0,80}setSafetyDrawerOpen\(true\)/);
+  });
+
+  it("page.tsx imports + mounts SafetyDrawer gated on safetyDrawerOpen", () => {
+    expect(HUB_SRC).toMatch(
+      /import\s+SafetyDrawer\s+from\s+["']@\/components\/teacher\/class-hub\/SafetyDrawer["']/
+    );
+    expect(HUB_SRC).toMatch(/safetyDrawerOpen\s*&&\s*\(\s*<SafetyDrawer/);
+  });
+
+  it("Safety empty-state when no badges are required for this unit", () => {
+    expect(HUB_SRC).toContain("No badges required for this unit.");
+  });
+});
+
+describe("DT canvas Phase 3.2 — side-rail Open Studio card + row pill + drawer", () => {
+  it("renders a derived count + Manage/View CTA", () => {
+    expect(HUB_SRC).toContain('data-testid="rail-studio-count"');
+    expect(HUB_SRC).toContain('data-testid="rail-studio-cta"');
+    expect(HUB_SRC).toContain("in studio mode");
+  });
+
+  it("Studio CTA opens OpenStudioDrawer", () => {
+    const idx = HUB_SRC.indexOf('data-testid="rail-studio-cta"');
+    expect(idx).toBeGreaterThan(0);
+    const slice = HUB_SRC.slice(idx, idx + 400);
+    expect(slice).toMatch(/onClick=\{[\s\S]{0,80}setOpenStudioDrawerOpen\(true\)/);
+  });
+
+  it("page.tsx imports + mounts OpenStudioDrawer gated on openStudioDrawerOpen", () => {
+    expect(HUB_SRC).toMatch(
+      /import\s+OpenStudioDrawer\s+from\s+["']@\/components\/teacher\/class-hub\/OpenStudioDrawer["']/
+    );
+    expect(HUB_SRC).toMatch(/openStudioDrawerOpen\s*&&\s*\(\s*<OpenStudioDrawer/);
+  });
+
+  it("loadProgressData fetches /api/teacher/open-studio/status to populate openStudioStatusMap", () => {
+    expect(HUB_SRC).toContain("openStudioStatusMap");
+    expect(HUB_SRC).toMatch(
+      /fetch\(`\/api\/teacher\/open-studio\/status\?unitId=\$\{unitId\}&classId=\$\{classId\}`\)/
+    );
+  });
+
+  it("per-row Studio pill: 'In Studio' badge gated on status === 'unlocked'", () => {
+    expect(HUB_SRC).toMatch(
+      /openStudioStatusMap\[student\.id\]\?\.status\s*===\s*"unlocked"[\s\S]{0,300}In Studio/
+    );
+  });
+});
+
+describe("DT canvas Phase 3.2 — side-rail Metrics card + row dots + drawer", () => {
+  it("renders a derived avg count + Score/Open CTA", () => {
+    expect(HUB_SRC).toContain('data-testid="rail-metrics-count"');
+    expect(HUB_SRC).toContain('data-testid="rail-metrics-cta"');
+    expect(HUB_SRC).toContain("/ 4 avg");
+  });
+
+  it("Metrics CTA opens MetricsDrawer (setMetricsDrawerOpen(true))", () => {
+    const idx = HUB_SRC.indexOf('data-testid="rail-metrics-cta"');
+    expect(idx).toBeGreaterThan(0);
+    const slice = HUB_SRC.slice(idx, idx + 400);
+    expect(slice).toMatch(/onClick=\{[\s\S]{0,80}setMetricsDrawerOpen\(true\)/);
+  });
+
+  it("page.tsx imports + mounts MetricsDrawer gated on metricsDrawerOpen", () => {
+    expect(HUB_SRC).toMatch(
+      /import\s+MetricsDrawer\s+from\s+["']@\/components\/teacher\/class-hub\/MetricsDrawer["']/
+    );
+    expect(HUB_SRC).toMatch(/metricsDrawerOpen\s*&&\s*\(\s*<MetricsDrawer/);
+  });
+
+  it("NM observation re-attached: per-row metrics dots fire setNmObserveStudent when nmConfig.enabled", () => {
+    // Closes the G7 follow-up from the Phase 3.1 STOP AND REPORT (NM
+    // observation trigger orphan). The dots become a button only when
+    // NM is enabled — title attribute hints at the click action. The
+    // dot-render JSX is ~30 lines long, so distance is generous (3000)
+    // to absorb the SVG + title + className strings between the
+    // canObserve guard + the onClick.
+    expect(HUB_SRC).toMatch(
+      /nmConfig\?\.enabled\s*===\s*true[\s\S]{0,3000}setNmObserveStudent\(\{\s*id:\s*student\.id/
+    );
+  });
+
+  it("loadProgressData NM aggregate gated on nmConfig?.enabled (no fetch when NM is off)", () => {
+    expect(HUB_SRC).toMatch(
+      /if\s*\(\s*nmConfig\?\.enabled\s*\)\s*\{[\s\S]{0,200}fetch\(`\/api\/teacher\/nm-results/
+    );
+  });
+});
+
+describe("DT canvas Phase 3.2 — legacy ?tab= compat enhanced for new drawers", () => {
+  it("?tab=metrics OR ?tab=attention opens MetricsDrawer", () => {
+    expect(HUB_SRC).toMatch(
+      /tab\s*===\s*"metrics"\s*\|\|\s*tab\s*===\s*"attention"[\s\S]{0,200}setMetricsDrawerOpen\(true\)/
+    );
+  });
+
+  it("?tab=badges OR ?tab=safety opens SafetyDrawer", () => {
+    expect(HUB_SRC).toMatch(
+      /tab\s*===\s*"badges"\s*\|\|\s*tab\s*===\s*"safety"[\s\S]{0,200}setSafetyDrawerOpen\(true\)/
+    );
+  });
+
+  it("?tab=studio OR ?tab=open-studio opens OpenStudioDrawer", () => {
+    expect(HUB_SRC).toMatch(
+      /tab\s*===\s*"studio"\s*\|\|\s*tab\s*===\s*"open-studio"[\s\S]{0,200}setOpenStudioDrawerOpen\(true\)/
+    );
+  });
+});
