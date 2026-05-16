@@ -628,6 +628,15 @@ Source: [`external-review-2026-05-09-findings.md`](external-review-2026-05-09-fi
 | F-21 | `class_units FOR SELECT USING (true)` (mig 001:201) — never replaced; cross-tenant class→unit assignment leak | P1 | S1 | **DONE — 2026-05-09** (same migration; required for canonical-chain compatibility with mig 20260430030419 student units-read policy) | matt | — |
 | FU-SEC-MIG-035-PUBLIC-READ-AUDIT | Confirm `badges`, `unit_badge_requirements`, `safety_sessions_read_by_code` are intentional public-read; document or scope per Q2 in brief | P3 | 1h | **PLANNED — phase S1 pre-flight** | matt | — |
 
+### Surfaced 2026-05-16 during phantom-teacher-row investigation
+
+(Pre-existing FU-SEC-TEACHER-LAYOUT-FAIL-OPEN row above remains TODO — was about to start when this phantom-row issue surfaced and pre-empted the layout work. Pickup ready in worktree `vigilant-kepler-ec859c`.)
+
+| ID | Title | Severity | Effort | Status | Owner | Target |
+|---|---|---|---|---|---|---|
+| Lesson #92 trigger fix | `handle_new_teacher` AFTER INSERT trigger guard reads `raw_app_meta_data` only — bucket is empty at trigger time because gotrue late-binds app_metadata via a follow-up UPDATE. 53 phantom student-shape teacher rows accumulated 11–14 May. Closes Lesson #65 redux. | P1 | 2h | **DONE — 2026-05-16** (mig `20260516044909` dual-bucket guard + mig `20260516050159` cleanup of 53 phantoms; both applied to prod; smoke verified; 22 shape tests with NC mutation proven load-bearing) | matt | — |
+| FU-AUTH-TRIGGER-AUDIT-METADATA-BUCKETS | Sweep every other AFTER INSERT trigger on `auth.users` for the same wrong-metadata-bucket pattern. Known good: `handle_new_user_profile` reads `raw_user_meta_data`. Audit: enumerate all triggers via `SELECT * FROM information_schema.triggers WHERE event_object_table = 'users'`, read each function body, flag any that gate on `raw_app_meta_data->>` for caller-supplied claims. | P2 | 1h | TODO | matt | pre-pilot-expand |
+
 Update on every `saveme` that touches a security item. Mark `IN PROGRESS` / `DONE` with date and PR link.
 
 ---
