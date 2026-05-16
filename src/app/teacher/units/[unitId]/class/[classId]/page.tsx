@@ -33,6 +33,7 @@ import SafetyDrawer from "@/components/teacher/class-hub/SafetyDrawer";
 import OpenStudioDrawer from "@/components/teacher/class-hub/OpenStudioDrawer";
 import MetricsDrawer from "@/components/teacher/class-hub/MetricsDrawer";
 import ChangeUnitModal from "@/components/teacher/class-hub/ChangeUnitModal";
+import KebabMenu, { type KebabMenuSection } from "@/components/teacher/class-hub/KebabMenu";
 
 // ---------------------------------------------------------------------------
 // DT Class Canvas — single unified per-class surface for the teacher.
@@ -840,6 +841,34 @@ export default function ClassHubPage({
     finally { setSavingTerm(false); }
   }
 
+  // ─── Phase 3.4 Step 4: row kebab "Remove from class" handler ─────────
+  // Lightweight handler — window.confirm + the existing
+  // DELETE /api/teacher/class-students endpoint (server handles
+  // deactivation + session invalidation). Matches the existing flow
+  // inside StudentRosterDrawer; lifted to the parent here so the row
+  // kebab can fire it without round-tripping the drawer.
+  async function removeStudentFromClassRow(studentId: string, studentName: string) {
+    const ok = typeof window !== "undefined"
+      ? window.confirm(`Remove ${studentName} from this class?`)
+      : false;
+    if (!ok) return;
+    try {
+      const res = await fetch("/api/teacher/class-students", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId, classId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        console.error("[removeStudentFromClassRow]", data.error || res.statusText);
+        return;
+      }
+      setStudents((prev) => prev.filter((s) => s.id !== studentId));
+    } catch (e) {
+      console.error("[removeStudentFromClassRow]", e);
+    }
+  }
+
   // ─── G9 sign-off (16 May 2026) ────────────────────────────────────────
   // The old inline per-cell student-detail modal + its loader + the
   // 4 dead progress-grid helpers (getStudentCompletion, getPageCompletion,
@@ -944,25 +973,111 @@ export default function ClassHubPage({
             </svg>
             Change unit
           </button>
-          {/* Canvas-header kebab. Stub for Phase 3.1 — opens nothing yet.
-              Phase 3.4 wires the dropdown contents: Unit (Edit / View as
-              student / Change unit / Past units) + Class (Class settings /
-              Roll over / Duplicate / Archive / Delete). Mockup view 2,
+          {/* Canvas-header kebab (Phase 3.4 Step 1 — Unit section).
+              Class section + stubs land in Step 2. Mockup view 2,
               kebab-menu block (~line 1478). */}
-          <button
-            type="button"
-            data-testid="canvas-header-kebab"
-            aria-label="Class and unit actions"
-            title="Class and unit actions (coming in Phase 3.4)"
-            disabled
-            className="w-10 h-10 rounded-xl border border-border text-text-secondary opacity-50 cursor-not-allowed flex items-center justify-center"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="5" r="1.2" />
-              <circle cx="12" cy="12" r="1.2" />
-              <circle cx="12" cy="19" r="1.2" />
-            </svg>
-          </button>
+          {(() => {
+            const previewPageId = unitPages[0]?.id;
+            const unitSection: KebabMenuSection = {
+              label: `Unit · ${unit.title}`,
+              items: [
+                {
+                  testId: "kebab-unit-edit",
+                  label: "Edit unit",
+                  icon: <span aria-hidden>✎</span>,
+                  href: `/teacher/units/${unitId}/class/${classId}/edit`,
+                },
+                {
+                  testId: "kebab-unit-view-as-student",
+                  label: "View as student",
+                  icon: <span aria-hidden>👁</span>,
+                  href: previewPageId
+                    ? `/teacher/units/${unitId}/preview/${previewPageId}?classId=${classId}`
+                    : undefined,
+                  newTab: true,
+                  disabled: !previewPageId,
+                  conditional: previewPageId ? undefined : "no pages",
+                },
+                {
+                  testId: "kebab-unit-change",
+                  label: "Change unit…",
+                  icon: <span aria-hidden>↔</span>,
+                  onClick: () => setChangeUnitModalOpen(true),
+                },
+                {
+                  testId: "kebab-unit-past",
+                  label: "Past units on this class",
+                  icon: <span aria-hidden>⌛</span>,
+                  href: `/teacher/classes/${classId}/units`,
+                },
+              ],
+            };
+            // Phase 3.4 Step 2 — Class section. Per Matt G3 sign-off,
+            // Roll over / Duplicate / Archive / Delete all ship as
+            // greyed stubs in 3.4. Each has its own UX work waiting in
+            // a follow-up phase. Class settings links to the existing
+            // per-class-unit settings page (due dates + page settings
+            // already lives there — the deleted Settings tab's term
+            // picker + LessonSchedule content is a separate follow-up,
+            // tracked in the Phase 3.4 STOP AND REPORT).
+            const classSection: KebabMenuSection = {
+              label: `Class · ${className}`,
+              items: [
+                {
+                  testId: "kebab-class-settings",
+                  label: "Class settings…",
+                  icon: <span aria-hidden>⚙</span>,
+                  href: `/teacher/classes/${classId}/settings/${unitId}`,
+                },
+                {
+                  testId: "kebab-class-rollover",
+                  label: "Roll over to next semester…",
+                  icon: <span aria-hidden>↻</span>,
+                  disabled: true,
+                  conditional: "coming soon",
+                },
+                {
+                  testId: "kebab-class-duplicate",
+                  label: "Duplicate class",
+                  icon: <span aria-hidden>⎘</span>,
+                  disabled: true,
+                  conditional: "coming soon",
+                },
+                {
+                  testId: "kebab-class-archive",
+                  label: "Archive class",
+                  icon: <span aria-hidden>▤</span>,
+                  disabled: true,
+                  conditional: "coming soon",
+                },
+                {
+                  testId: "kebab-class-delete",
+                  label: "Delete permanently",
+                  icon: <span aria-hidden>🗑</span>,
+                  disabled: true,
+                  danger: true,
+                  conditional: "if archived",
+                },
+              ],
+            };
+            return (
+              <KebabMenu
+                testId="canvas-header-kebab"
+                triggerAriaLabel="Class and unit actions"
+                sections={[unitSection, classSection]}
+                align="right"
+                trigger={
+                  <span className="w-10 h-10 rounded-xl border border-border text-text-secondary hover:bg-surface-alt flex items-center justify-center transition">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="5" r="1.2" />
+                      <circle cx="12" cy="12" r="1.2" />
+                      <circle cx="12" cy="19" r="1.2" />
+                    </svg>
+                  </span>
+                }
+              />
+            );
+          })()}
         </div>
       </div>
 
@@ -1441,22 +1556,69 @@ export default function ClassHubPage({
                     )}
                   </div>
 
-                  {/* Row menu — hover-only stub. Phase 3.4 wires actions
-                      (Message · Reset code · Remove · NM observation). */}
-                  <button
-                    type="button"
-                    data-testid={`student-row-${student.id}-menu`}
-                    aria-label={`Actions for ${studentName}`}
-                    title="Row actions (coming in Phase 3.4)"
-                    disabled
-                    className="opacity-0 group-hover:opacity-100 transition w-6 h-6 rounded-full text-text-tertiary hover:bg-surface-alt flex items-center justify-center cursor-not-allowed"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                      <circle cx="5" cy="12" r="1.5" />
-                      <circle cx="12" cy="12" r="1.5" />
-                      <circle cx="19" cy="12" r="1.5" />
-                    </svg>
-                  </button>
+                  {/* Row kebab (Phase 3.4 Step 4) — hover-revealed
+                      menu of per-student actions. Reset code is a
+                      greyed stub (no API surface yet — follow-up).
+                      Each row owns its own KebabMenu instance; the
+                      component is lightweight so per-row mount cost
+                      is negligible. */}
+                  <div className="opacity-0 group-hover:opacity-100 transition">
+                    {(() => {
+                      const rowItems: KebabMenuSection["items"] = [
+                        {
+                          testId: `row-action-${student.id}-snapshot`,
+                          label: "Open snapshot",
+                          icon: <span aria-hidden>👤</span>,
+                          onClick: () => {
+                            setDrawerPageId(null);
+                            setDrawerStudent({ id: student.id, name: studentName });
+                          },
+                        },
+                      ];
+                      if (nmConfig?.enabled === true) {
+                        rowItems.push({
+                          testId: `row-action-${student.id}-observe`,
+                          label: "Record NM observation",
+                          icon: <span aria-hidden>📊</span>,
+                          onClick: () => setNmObserveStudent({ id: student.id, name: studentName }),
+                        });
+                      }
+                      rowItems.push({
+                        testId: `row-action-${student.id}-reset-code`,
+                        label: "Reset student code",
+                        icon: <span aria-hidden>↻</span>,
+                        disabled: true,
+                        conditional: "coming soon",
+                      });
+                      rowItems.push({
+                        testId: `row-action-${student.id}-remove`,
+                        label: "Remove from class",
+                        icon: <span aria-hidden>🗑</span>,
+                        danger: true,
+                        onClick: () => removeStudentFromClassRow(student.id, studentName),
+                      });
+                      return (
+                        <KebabMenu
+                          testId={`student-row-${student.id}-menu`}
+                          triggerAriaLabel={`Actions for ${studentName}`}
+                          sections={[{ items: rowItems }]}
+                          align="right"
+                          trigger={
+                            <span
+                              title={`Actions for ${studentName}`}
+                              className="w-6 h-6 rounded-full text-text-tertiary hover:bg-surface-alt flex items-center justify-center"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                                <circle cx="5" cy="12" r="1.5" />
+                                <circle cx="12" cy="12" r="1.5" />
+                                <circle cx="19" cy="12" r="1.5" />
+                              </svg>
+                            </span>
+                          }
+                        />
+                      );
+                    })()}
+                  </div>
                 </div>
               ));
             })()}
