@@ -799,9 +799,10 @@ export function ClassCanvas({ unitId, classId }: { unitId: string; classId: stri
             <span className="text-text-tertiary font-normal">·</span>
             <span className="text-text-secondary font-normal truncate max-w-[300px]">{unit.title}</span>
           </h1>
-          <p className="text-sm text-text-secondary mt-0.5">
-            {students.length} student{students.length !== 1 ? "s" : ""} · {pages.length} page{pages.length !== 1 ? "s" : ""}
-          </p>
+          {/* "X students · N pages" sub-line dropped 17 May 2026 PM
+              smoke v4 — student count lives in the "Students · N"
+              section header below, and page count is implicit in the
+              lesson card's "Lesson X of N" pill. */}
           {/* Phase 3.6 Step 2 — busy-teacher share row. Class code +
               student join link as click-to-copy chips so a mid-lesson
               "type this code / open this link" hand-off doesn't need
