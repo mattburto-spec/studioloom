@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { studentInitials } from "@/lib/teacher/student-initials";
 
 // ---------------------------------------------------------------------------
 // StudentDrawer — Slide-out panel showing comprehensive student snapshot
@@ -143,7 +144,12 @@ export default function StudentDrawer({ studentId, studentName, unitId, classId,
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-lg font-bold shrink-0">
-              {(studentName[0] || "?").toUpperCase()}
+              {/* Polish A.2 (17 May 2026): adopt the shared
+                  studentInitials helper. The prop is the already-
+                  merged display-or-username string so pass it as
+                  displayName — the helper handles word-splitting
+                  ("Henry Park" → HP) + 2-char fallback ("hh" → HH). */}
+              {studentInitials(studentName, null)}
             </div>
             <div className="min-w-0">
               <h2 className="text-base font-bold text-gray-900 truncate">{studentName}</h2>

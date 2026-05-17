@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getYearLevelNumber } from "@/lib/utils/year-level";
+import { studentInitials } from "@/lib/teacher/student-initials";
 
 // ---------------------------------------------------------------------------
 // StudentRosterDrawer — slide-out roster management surface
@@ -349,7 +350,7 @@ export default function StudentRosterDrawer({
                     {filteredExisting.map((s) => (
                       <div key={s.id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 transition">
                         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-indigo-400 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
-                          {(s.display_name || s.username || "?").charAt(0).toUpperCase()}
+                          {studentInitials(s.display_name, s.username)}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 truncate">
@@ -435,7 +436,7 @@ export default function StudentRosterDrawer({
                     className="flex items-center gap-3 px-3 py-2.5 group hover:bg-gray-50 transition rounded-md"
                   >
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-blue-400 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                      {(s.display_name || s.username || "?").charAt(0).toUpperCase()}
+                      {studentInitials(s.display_name, s.username)}
                     </div>
                     {editingId === s.id ? (
                       <div className="flex-1 flex items-center gap-2">

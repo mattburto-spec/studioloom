@@ -6,6 +6,28 @@ import { createClient } from "@/lib/supabase/client";
 import { CRITERIA, type CriterionKey, DEFAULT_PAGE_SETTINGS, getPageColor } from "@/lib/constants";
 import { getPageList } from "@/lib/unit-adapter";
 import type { PageSettings, PageSettingsMap, PageDueDatesMap, UnitPage } from "@/types";
+import { LessonSchedule } from "@/components/teacher/LessonSchedule";
+import type { ScheduleOverrides } from "@/components/teacher/LessonSchedule";
+
+// Term picker, schedule info card, LessonSchedule per-page calendar, and
+// the class-code reveal moved here from the deleted DT canvas Settings
+// tab (Polish A.3, 17 May 2026). The kebab "Class settings…" item on the
+// canvas links here, so this is the canonical home now.
+
+type Term = {
+  id: string;
+  academic_year: string;
+  term_name: string;
+  term_order: number;
+  start_date?: string;
+  end_date?: string;
+};
+
+type ScheduleInfo = {
+  lessonCount: number | null;
+  nextClass: { dateISO: string; dayOfWeek: string; cycleDay: number; periodNumber?: number; room?: string; formatted: string; short: string } | null;
+  reason?: string;
+};
 
 export default function UnitSettingsPage({
   params,
@@ -18,6 +40,7 @@ export default function UnitSettingsPage({
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [className, setClassName] = useState("");
+  const [classCode, setClassCode] = useState("");
   const [unitTitle, setUnitTitle] = useState("");
   const [unitPages, setUnitPages] = useState<UnitPage[]>([]);
 
@@ -30,6 +53,15 @@ export default function UnitSettingsPage({
     Record<string, PageSettings>
   >({});
 
+  // Term + schedule (re-homed from the old canvas Settings tab — Polish A.3)
+  const [terms, setTerms] = useState<Term[]>([]);
+  const [selectedTermId, setSelectedTermId] = useState<string | null>(null);
+  const [savingTerm, setSavingTerm] = useState(false);
+  const [termMessage, setTermMessage] = useState("");
+  const [scheduleInfo, setScheduleInfo] = useState<ScheduleInfo | null>(null);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [scheduleOverrides, setScheduleOverrides] = useState<ScheduleOverrides>({});
+
   useEffect(() => {
     loadSettings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -38,18 +70,26 @@ export default function UnitSettingsPage({
   async function loadSettings() {
     const supabase = createClient();
 
-    const [classRes, unitRes, cuRes] = await Promise.all([
-      supabase.from("classes").select("name").eq("id", classId).single(),
+    // Extended select picks up term + schedule fields the canvas Settings
+    // tab used to consume. cohortTermRes mirrors the canvas auto-inherit:
+    // when class_units.term_id is null but the class has an active cohort
+    // with a term, adopt that term silently. classes.code surfaces for
+    // the share row.
+    const [classRes, unitRes, cuRes, termsRes, cohortTermRes] = await Promise.all([
+      supabase.from("classes").select("name, code").eq("id", classId).single(),
       supabase.from("units").select("title, content_data").eq("id", unitId).single(),
       supabase
         .from("class_units")
-        .select("final_due_date, page_due_dates, page_settings")
+        .select("final_due_date, page_due_dates, page_settings, term_id, schedule_overrides")
         .eq("class_id", classId)
         .eq("unit_id", unitId)
         .single(),
+      fetch("/api/teacher/school-calendar").then((r) => (r.ok ? r.json() : Promise.resolve({ terms: [] }))),
+      supabase.from("class_students").select("term_id").eq("class_id", classId).eq("is_active", true).not("term_id", "is", null).order("enrolled_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
 
     setClassName(classRes.data?.name || "");
+    setClassCode(classRes.data?.code || "");
     setUnitTitle(unitRes.data?.title || "");
 
     // Get pages from unit content data
@@ -76,6 +116,23 @@ export default function UnitSettingsPage({
         merged[page.id] = { ...DEFAULT_PAGE_SETTINGS, ...saved[page.id] };
       }
       setPageSettings(merged);
+
+      // Term auto-inherit + schedule overrides — same shape as the
+      // canvas page used to do before the Settings tab was retired.
+      let resolvedTermId: string | null = cuRes.data.term_id || null;
+      const cohortTermId = (cohortTermRes?.data?.term_id as string | undefined) || null;
+      if (!resolvedTermId && cohortTermId) {
+        resolvedTermId = cohortTermId;
+        void fetch("/api/teacher/class-units", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ classId, unitId, term_id: cohortTermId }),
+        });
+      }
+      setSelectedTermId(resolvedTermId);
+      if (cuRes.data.schedule_overrides) {
+        setScheduleOverrides(cuRes.data.schedule_overrides as ScheduleOverrides);
+      }
     } else {
       const defaults: Record<string, PageSettings> = {};
       for (const page of pages) {
@@ -84,7 +141,60 @@ export default function UnitSettingsPage({
       setPageSettings(defaults);
     }
 
+    if (termsRes?.terms) setTerms(termsRes.terms);
+
     setLoading(false);
+  }
+
+  // Schedule loading (re-homed from canvas useEffect 692-722).
+  // Fetches the lesson count + next-meeting card whenever the selected
+  // term or class changes. Falls back to null when the term has no
+  // start/end dates set.
+  useEffect(() => {
+    async function loadSchedule() {
+      const term = terms.find((t) => t.id === selectedTermId) as Term | undefined;
+      if (!term?.start_date || !term?.end_date) { setScheduleInfo(null); return; }
+
+      setScheduleLoading(true);
+      try {
+        const today = new Date().toISOString().split("T")[0];
+        const fromDate = term.start_date > today ? term.start_date : today;
+        const [countRes, nextRes] = await Promise.all([
+          fetch(`/api/teacher/schedule/lessons?classId=${classId}&mode=count&from=${term.start_date}&to=${term.end_date}`).then((r) => (r.ok ? r.json() : null)),
+          fetch(`/api/teacher/schedule/lessons?classId=${classId}&mode=next&from=${fromDate}&count=1`).then((r) => (r.ok ? r.json() : null)),
+        ]);
+        const nextLesson = nextRes?.lessons?.[0] || null;
+        setScheduleInfo({
+          lessonCount: countRes?.lessonCount ?? null,
+          nextClass: nextLesson ? {
+            dateISO: nextLesson.dateISO, dayOfWeek: nextLesson.dayOfWeek, cycleDay: nextLesson.cycleDay,
+            periodNumber: nextLesson.periodNumber, room: nextLesson.room,
+            formatted: `${nextLesson.dayOfWeek} ${nextLesson.dateISO} (Day ${nextLesson.cycleDay}${nextLesson.periodNumber ? `, P${nextLesson.periodNumber}` : ""})`,
+            short: `Day ${nextLesson.cycleDay}${nextLesson.periodNumber ? `, P${nextLesson.periodNumber}` : ""} — ${nextLesson.dayOfWeek?.slice(0, 3)}`,
+          } : null,
+          reason: nextRes?.lessons?.length === 0 ? "no_meetings" : undefined,
+        });
+      } catch { setScheduleInfo(null); }
+      finally { setScheduleLoading(false); }
+    }
+    loadSchedule();
+  }, [selectedTermId, classId, terms]);
+
+  async function handleTermChange(termId: string | null) {
+    setSelectedTermId(termId);
+    setSavingTerm(true);
+    setTermMessage("");
+    try {
+      const res = await fetch("/api/teacher/class-units", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ classId, unitId, term_id: termId }),
+      });
+      if (!res.ok) { const data = await res.json(); setTermMessage(data.error || "Failed to save term"); return; }
+      setTermMessage("Term assigned!");
+      setTimeout(() => setTermMessage(""), 3000);
+    } catch { setTermMessage("Network error. Please try again."); }
+    finally { setSavingTerm(false); }
   }
 
   function updatePageSetting(
@@ -198,6 +308,137 @@ export default function UnitSettingsPage({
         Unit Settings
       </h1>
       <p className="text-text-secondary mb-8">{unitTitle}</p>
+
+      {/* ========== TERM ASSIGNMENT ========== */}
+      <section
+        data-testid="settings-term-section"
+        className="bg-white rounded-xl p-6 mb-6"
+      >
+        <h2 className="text-lg font-semibold text-text-primary mb-3">
+          Assign to Term
+        </h2>
+        {terms.length === 0 ? (
+          <div className="text-sm text-text-secondary">
+            <p className="mb-2">No school calendar set up yet.</p>
+            <Link href="/teacher/settings?tab=school" className="text-accent-blue text-xs font-medium hover:underline">
+              Set up your school calendar →
+            </Link>
+          </div>
+        ) : (
+          <select
+            value={selectedTermId || ""}
+            onChange={(e) => handleTermChange(e.target.value || null)}
+            disabled={savingTerm}
+            className="w-full max-w-md px-3 py-2 rounded-lg border border-border bg-white text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
+          >
+            <option value="">— No term assigned —</option>
+            {Array.from(new Map(terms.map((t) => [t.academic_year, t])).keys()).map((year) => (
+              <optgroup key={year} label={year}>
+                {terms.filter((t) => t.academic_year === year).sort((a, b) => a.term_order - b.term_order).map((term) => (
+                  <option key={term.id} value={term.id}>{term.term_name}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        )}
+        {termMessage && (
+          <p
+            data-testid="settings-term-message"
+            className={`mt-2 text-xs font-medium ${termMessage.includes("assigned") ? "text-accent-green" : "text-amber-600"}`}
+          >
+            {termMessage}
+          </p>
+        )}
+
+        {/* Schedule info card — only renders when a term with start/end
+            dates is selected. Falls back silently when the term has no
+            dates (info is computed server-side from the cycle calendar
+            + timetable + this term's window). */}
+        {selectedTermId && (
+          <div className="mt-4">
+            {scheduleLoading ? (
+              <div className="animate-pulse flex gap-4">
+                <div className="h-14 bg-gray-100 rounded-lg flex-1 max-w-xs" />
+                <div className="h-14 bg-gray-100 rounded-lg flex-1 max-w-xs" />
+              </div>
+            ) : scheduleInfo?.lessonCount != null ? (
+              <div className="flex gap-3 max-w-xl" data-testid="settings-schedule-info">
+                <div className="flex-1 bg-surface-alt rounded-lg p-3 border border-border">
+                  <div className="text-2xl font-bold text-purple-600">{scheduleInfo.lessonCount}</div>
+                  <div className="text-xs text-text-secondary mt-0.5">lessons this term</div>
+                </div>
+                <div className="flex-1 bg-surface-alt rounded-lg p-3 border border-border">
+                  {scheduleInfo.nextClass ? (
+                    <>
+                      <div className="text-sm font-semibold text-text-primary">{scheduleInfo.nextClass.short}</div>
+                      <div className="text-xs text-text-secondary mt-0.5">Next: {scheduleInfo.nextClass.dayOfWeek} {scheduleInfo.nextClass.dateISO}</div>
+                      {scheduleInfo.nextClass.room && <div className="text-xs text-text-tertiary mt-0.5">Room {scheduleInfo.nextClass.room}</div>}
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-sm font-medium text-text-secondary">—</div>
+                      <div className="text-xs text-text-tertiary mt-0.5">No upcoming classes</div>
+                    </>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-text-secondary">
+                No timetable set up yet.{" "}
+                <Link href="/teacher/settings?tab=school" className="text-purple-600 text-xs font-medium hover:underline">
+                  Set up your timetable →
+                </Link>
+              </p>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* ========== LESSON SCHEDULE (per-page calendar grid) ========== */}
+      {(() => {
+        const term = terms.find((t) => t.id === selectedTermId) as Term | undefined;
+        return (
+          <section
+            data-testid="settings-lesson-schedule-section"
+            className="bg-white rounded-xl p-6 mb-6"
+          >
+            <LessonSchedule
+              unitId={unitId}
+              classId={classId}
+              pages={unitPages.map((p) => ({ id: p.id, title: p.title || `Page ${p.id}` }))}
+              termStart={term?.start_date}
+              termEnd={term?.end_date}
+              overrides={scheduleOverrides}
+              onOverridesChange={setScheduleOverrides}
+              onSave={async (newOverrides) => {
+                const res = await fetch("/api/teacher/class-units", {
+                  method: "PATCH", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ classId, unitId, schedule_overrides: newOverrides }),
+                });
+                if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || "Save failed"); }
+              }}
+            />
+          </section>
+        );
+      })()}
+
+      {/* ========== CLASS CODE ========== */}
+      {classCode && (
+        <section
+          data-testid="settings-class-code-section"
+          className="bg-white rounded-xl p-6 mb-6"
+        >
+          <h2 className="text-lg font-semibold text-text-primary mb-2">
+            Class Code
+          </h2>
+          <p className="text-xl font-mono font-bold text-purple-600">{classCode}</p>
+          <p className="text-xs text-text-secondary mt-1">
+            Students use this code to join this class. The canvas header
+            also surfaces it as a click-to-copy chip alongside the join
+            URL for quick share.
+          </p>
+        </section>
+      )}
 
       {/* ========== FINAL DUE DATE ========== */}
       <section className="bg-white rounded-xl p-6 mb-6">

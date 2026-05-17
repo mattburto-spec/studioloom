@@ -486,6 +486,124 @@ describe("DT canvas — lesson hero unit thumbnail (17 May 2026)", () => {
   });
 });
 
+describe("DT canvas — Polish A.1 (17 May 2026) — 'View as student' targets today's lesson", () => {
+  // Was: kebab href hard-coded to unitPages[0]?.id. Now: uses
+  // deriveTodaysLessonIndex so preview-as-student matches what the
+  // teacher is about to teach.
+  it("kebab previewPageId derives via deriveTodaysLessonIndex (with unitPages[0] fallback)", () => {
+    expect(HUB_SRC).toMatch(
+      /previewIdx\s*=\s*unitPages\.length\s*>\s*0\s*\?\s*deriveTodaysLessonIndex\(unitPages,\s*progressMap,\s*studentIds\)\s*:\s*0/
+    );
+    expect(HUB_SRC).toMatch(
+      /previewPageId\s*=\s*unitPages\[previewIdx\]\?\.id\s*\?\?\s*unitPages\[0\]\?\.id/
+    );
+  });
+
+  it("kebab href still uses previewPageId — wiring shape preserved", () => {
+    const idx = HUB_SRC.indexOf('"kebab-unit-view-as-student"');
+    expect(idx).toBeGreaterThan(0);
+    const slice = HUB_SRC.slice(idx, idx + 600);
+    expect(slice).toMatch(
+      /href:\s*previewPageId[\s\S]{0,200}preview\/\$\{previewPageId\}\?classId=\$\{classId\}/
+    );
+  });
+});
+
+describe("DT canvas — Polish A.2 (17 May 2026) — drawer avatars adopt studentInitials", () => {
+  it("StudentDrawer imports studentInitials + uses it for the header avatar", () => {
+    const DRAWER_SRC = readFileSync(
+      join(process.cwd(), "src/components/teacher/class-hub/StudentDrawer.tsx"),
+      "utf-8",
+    );
+    expect(DRAWER_SRC).toMatch(
+      /import\s*\{\s*studentInitials\s*\}\s*from\s*["']@\/lib\/teacher\/student-initials["']/
+    );
+    // Receives merged studentName string; passes as displayName + null
+    expect(DRAWER_SRC).toContain("studentInitials(studentName, null)");
+    // Anti-revert: the old single-char derivation must not come back
+    expect(DRAWER_SRC).not.toMatch(/\(studentName\[0\]\s*\|\|\s*"\?"\)\.toUpperCase\(\)/);
+  });
+
+  it("StudentRosterDrawer imports studentInitials + uses it for both row avatars", () => {
+    const ROSTER_SRC = readFileSync(
+      join(process.cwd(), "src/components/teacher/class-hub/StudentRosterDrawer.tsx"),
+      "utf-8",
+    );
+    expect(ROSTER_SRC).toMatch(
+      /import\s*\{\s*studentInitials\s*\}\s*from\s*["']@\/lib\/teacher\/student-initials["']/
+    );
+    // Both call-sites take (display_name, username) — count occurrences
+    const matches = ROSTER_SRC.match(/studentInitials\(s\.display_name,\s*s\.username\)/g);
+    expect(matches?.length ?? 0).toBeGreaterThanOrEqual(2);
+    // Anti-revert
+    expect(ROSTER_SRC).not.toMatch(/\(s\.display_name\s*\|\|\s*s\.username\s*\|\|\s*"\?"\)\.charAt\(0\)\.toUpperCase\(\)/);
+  });
+});
+
+describe("DT canvas — Polish A.3 (17 May 2026) — Settings tab content re-homed", () => {
+  const SETTINGS_SRC = readFileSync(
+    join(process.cwd(), "src/app/teacher/classes/[classId]/settings/[unitId]/page.tsx"),
+    "utf-8",
+  );
+
+  // Settings sub-route guards: the three re-homed sections are present
+  // with the testids the kebab "Class settings…" item routes into.
+  it("settings sub-route imports LessonSchedule + ScheduleOverrides type", () => {
+    expect(SETTINGS_SRC).toMatch(
+      /import\s*\{\s*LessonSchedule\s*\}\s*from\s*["']@\/components\/teacher\/LessonSchedule["']/
+    );
+    expect(SETTINGS_SRC).toMatch(
+      /import\s+type\s*\{\s*ScheduleOverrides\s*\}\s*from\s*["']@\/components\/teacher\/LessonSchedule["']/
+    );
+  });
+
+  it("settings sub-route renders the three re-homed sections via stable testids", () => {
+    expect(SETTINGS_SRC).toContain('data-testid="settings-term-section"');
+    expect(SETTINGS_SRC).toContain('data-testid="settings-lesson-schedule-section"');
+    expect(SETTINGS_SRC).toContain('data-testid="settings-class-code-section"');
+  });
+
+  it("settings sub-route loads class_units with term_id + schedule_overrides", () => {
+    expect(SETTINGS_SRC).toMatch(
+      /\.select\(["']final_due_date,\s*page_due_dates,\s*page_settings,\s*term_id,\s*schedule_overrides["']\)/
+    );
+    // school-calendar fetch + cohort-term inherit query both present
+    expect(SETTINGS_SRC).toContain('fetch("/api/teacher/school-calendar")');
+    expect(SETTINGS_SRC).toMatch(/\.not\(["']term_id["'],\s*["']is["'],\s*null\)/);
+  });
+
+  it("settings sub-route owns handleTermChange + schedule loading useEffect", () => {
+    expect(SETTINGS_SRC).toMatch(/async function handleTermChange\(/);
+    expect(SETTINGS_SRC).toMatch(/async function loadSchedule\(\)/);
+    expect(SETTINGS_SRC).toMatch(
+      /fetch\(`\/api\/teacher\/schedule\/lessons\?classId=\$\{classId\}&mode=count/
+    );
+  });
+
+  // Canvas guards: the orphan Settings state + load is GONE.
+  // Anti-revert protects the cleanup from accidental re-introduction.
+  it("canvas page.tsx no longer holds Settings tab state", () => {
+    for (const sym of ["selectedTermId", "setSelectedTermId", "scheduleOverrides", "scheduleInfo", "handleTermChange", "loadSchedule"]) {
+      // Should not appear as a state-decl / function-decl on the canvas
+      expect(HUB_SRC).not.toMatch(new RegExp(`useState[^;]*\\b${sym}\\b`));
+      expect(HUB_SRC).not.toMatch(new RegExp(`async function ${sym}\\(`));
+    }
+  });
+
+  it("canvas page.tsx no longer fetches school-calendar or imports ScheduleOverrides", () => {
+    expect(HUB_SRC).not.toContain('fetch("/api/teacher/school-calendar")');
+    expect(HUB_SRC).not.toMatch(
+      /^[^/\n]*import[^;]*\bScheduleOverrides\b[^;]*from/m
+    );
+  });
+
+  it("canvas class_units select is trimmed to per-class fork fields only", () => {
+    expect(HUB_SRC).toContain('.select("content_data, forked_at, forked_from_version, nm_config")');
+    // term_id + schedule_overrides no longer requested on the canvas
+    expect(HUB_SRC).not.toMatch(/\.select\([^)]*\bterm_id\b[^)]*\bschedule_overrides\b/);
+  });
+});
+
 describe("DT canvas Phase 3.3 — Change unit modal + setActiveUnit wiring", () => {
   it("renders the Change unit button in the canvas header (relocated from hero)", () => {
     // Phase 3.3 Step 2 originally absolute-positioned this button inside
