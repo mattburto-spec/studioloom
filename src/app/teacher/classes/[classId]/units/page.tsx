@@ -201,11 +201,37 @@ export default function ClassUnitsPage({
               />
             </section>
           )}
-          {past.length > 0 && (
-            <section>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-text-tertiary mb-2">
-                Past units ({past.length})
+          {/* Past units — always rendered (Matt's 17 May smoke flagged
+              that hiding the section when empty made the page look
+              broken: he arrived expecting to see history and saw
+              nothing labelled as such). Empty-state copy explains
+              where past rows come from + that pre-soft-toggle
+              removes (before May 2026) hard-deleted the rows. */}
+          <section>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-text-tertiary mb-2">
+              Past units ({past.length})
+            </div>
+            {past.length === 0 ? (
+              <div
+                data-testid="class-units-past-empty"
+                className="rounded-xl border border-dashed border-border bg-surface-alt/40 px-4 py-4 text-xs text-text-secondary leading-relaxed"
+              >
+                No past units on this class yet. Units appear here after
+                you swap to a different one — the previous unit moves to
+                history with its content + per-class settings preserved
+                so you can re-open it any time.
+                {rows.length === 1 && (
+                  <>
+                    {" "}
+                    <span className="text-text-tertiary">
+                      (If you removed units before May 2026 they were
+                      hard-deleted by the older code path and won&apos;t
+                      appear — only soft-toggled rows survive here.)
+                    </span>
+                  </>
+                )}
               </div>
+            ) : (
               <div className="space-y-2">
                 {past.map((r) => (
                   <UnitRow
@@ -217,8 +243,8 @@ export default function ClassUnitsPage({
                   />
                 ))}
               </div>
-            </section>
-          )}
+            )}
+          </section>
           <section>
             <div className="text-[10px] font-bold uppercase tracking-wider text-purple-600 mb-1">
               Other units you can assign

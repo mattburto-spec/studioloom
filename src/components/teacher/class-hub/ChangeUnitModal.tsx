@@ -242,11 +242,22 @@ export default function ChangeUnitModal({
                     />
                   </div>
                 )}
-                {past.length > 0 && (
-                  <div>
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">
-                      Past units on this class
+                {/* Past units — always rendered with explicit empty
+                    state. Matches the Past units sub-route so the modal
+                    + page tell the same story when history is empty. */}
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">
+                    Past units on this class
+                  </div>
+                  {past.length === 0 ? (
+                    <div
+                      data-testid="change-unit-past-empty"
+                      className="rounded-lg border border-dashed border-gray-200 bg-gray-50/50 px-3 py-3 text-[11px] text-gray-500 leading-relaxed"
+                    >
+                      No past units yet — swapping the active unit moves
+                      the current one here.
                     </div>
+                  ) : (
                     <div className="space-y-2">
                       {past.map((opt) => (
                         <UnitRow
@@ -258,8 +269,8 @@ export default function ChangeUnitModal({
                         />
                       ))}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
                 <div>
                   <div className="text-[10px] font-bold uppercase tracking-wider text-purple-600 mb-1">
                     Other units you can assign

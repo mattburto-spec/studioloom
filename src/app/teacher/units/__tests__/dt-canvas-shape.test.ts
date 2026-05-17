@@ -708,6 +708,40 @@ describe("DT canvas — ChangeUnitModal 'Other units' picker (17 May 2026)", () 
   });
 });
 
+describe("DT canvas — explicit empty state for past units (17 May 2026)", () => {
+  // Matt's 17 May smoke: arrived at /teacher/classes/<id>/units, saw
+  // only the active unit + the empty Other-units section, no "Past
+  // units" section at all. The page TITLE promised history; the silent-
+  // hide-when-empty made the page look broken. Fix: always render the
+  // section with an explanatory empty state — same wording on both the
+  // sub-route + the modal so the two surfaces tell the same story.
+  it("Past units sub-route always renders the Past units section + empty state copy", () => {
+    const PAST_SRC = readFileSync(
+      join(process.cwd(), "src/app/teacher/classes/[classId]/units/page.tsx"),
+      "utf-8",
+    );
+    // No more gated `past.length > 0 &&` wrap on the section.
+    expect(PAST_SRC).not.toMatch(/\{past\.length\s*>\s*0\s*&&\s*\(\s*<section/);
+    // Section header includes the count even when zero.
+    expect(PAST_SRC).toContain("Past units ({past.length})");
+    // Empty-state testid + explanatory copy
+    expect(PAST_SRC).toContain('data-testid="class-units-past-empty"');
+    expect(PAST_SRC).toContain("No past units on this class yet");
+    expect(PAST_SRC).toContain("hard-deleted by the older code path");
+  });
+
+  it("ChangeUnitModal always renders the Past units section + empty state copy", () => {
+    const MODAL_SRC = readFileSync(
+      join(process.cwd(), "src/components/teacher/class-hub/ChangeUnitModal.tsx"),
+      "utf-8",
+    );
+    expect(MODAL_SRC).not.toMatch(/\{past\.length\s*>\s*0\s*&&\s*\(\s*<div/);
+    expect(MODAL_SRC).toContain("Past units on this class");
+    expect(MODAL_SRC).toContain('data-testid="change-unit-past-empty"');
+    expect(MODAL_SRC).toContain("No past units yet");
+  });
+});
+
 describe("DT canvas — Past units sub-route 'Other units' picker (17 May 2026)", () => {
   // Same picker shape on the full-page sub-route — slightly higher
   // cap (40 vs 30) since the page has more room to browse. Anti-
