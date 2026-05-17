@@ -110,6 +110,33 @@ export default function MetricsDrawer({
               {/* Per-element drill-down */}
               <NMResultsPanel unitId={unitId} classId={classId} />
 
+              {/* Stub for PaceFeedbackSummary — was dropped from the
+                  canvas in Phase 3.1 Step 3 per G7 ("folds into the
+                  Metrics detail sheet"). Lives here as a greyed
+                  placeholder so the un-stub work has a destination
+                  (the original PaceFeedbackSummary component still
+                  exists; just needs to be mounted + styled to fit
+                  the drawer's vertical stack). */}
+              <div
+                data-testid="metrics-drawer-pace-feedback-stub"
+                aria-disabled="true"
+                className="px-4 py-3 rounded-xl border border-dashed border-border bg-surface-alt/40 opacity-60 cursor-not-allowed flex items-start gap-3"
+              >
+                <span className="text-text-tertiary text-lg flex-shrink-0">⏱</span>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-text-secondary text-sm mb-0.5">
+                    Pace feedback summary
+                    <span className="text-[10px] text-text-tertiary italic font-normal ml-2">coming soon</span>
+                  </h3>
+                  <p className="text-xs text-text-tertiary leading-relaxed">
+                    Per-lesson pace distribution from student post-lesson
+                    surveys — was on the canvas Progress tab before the
+                    rebuild, folding back in here once the drawer's
+                    vertical stack has room.
+                  </p>
+                </div>
+              </div>
+
               {/* Lesson-editor pointer */}
               <div className="px-4 py-3 rounded-xl border border-violet-200 bg-violet-50/60 flex items-start gap-3">
                 <span className="text-violet-700 text-lg flex-shrink-0">🎯</span>

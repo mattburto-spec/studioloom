@@ -620,13 +620,12 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
           priority: 55,
           title: `Stuck for ${days > 0 ? days + "d" : Math.floor(ageMs / 3600000) + "h"}`,
           subtitle: `${studentLabel} · ${cls.name} · ${unit.title}`,
-          // DT canvas Phase 3.6 cutover: bare canvas URL (was legacy
-          // `${baseHref}?tab=progress`). The student-deep-link
-          // qualifier could be added here too — `${baseHref}?student=${p.student_id}`
-          // would open StudentDrawer on land via the legacy compat
-          // handler. Deferred — keeps this insight as a "look at
-          // the class" instead of "look at the student" for now.
-          href: baseHref,
+          // Polish (17 May 2026): adds the &student=<id> deep-link
+          // qualifier the canvas's legacy ?tab=...&student=...&page=...
+          // compat handler picks up to open StudentDrawer on land. Now
+          // a "go check on THIS student" insight is one click instead
+          // of two (land on canvas → find student → click name).
+          href: `${baseHref}?student=${p.student_id}`,
           studentName: studentLabel,
           accentColor: "#6366F1",
           timestamp: p.updated_at,

@@ -540,6 +540,54 @@ describe("DT canvas — Polish A.2 (17 May 2026) — drawer avatars adopt studen
   });
 });
 
+describe("DT canvas — stuck-student dashboard deep-link (17 May 2026)", () => {
+  const DASH_SRC = readFileSync(
+    join(process.cwd(), "src/app/api/teacher/dashboard/route.ts"),
+    "utf-8",
+  );
+
+  it("stuck_student insight href carries &student=<id> deep-link qualifier", () => {
+    // Was: bare baseHref. Now: ${baseHref}?student=${p.student_id}
+    // so the canvas legacy ?student= compat opens StudentDrawer on
+    // land. The 5-line "Polish" comment block + template-literal
+    // title push the href past the standard 600-char window — bumped
+    // to 1200 with a still-tight match on the deep-link shape.
+    const idx = DASH_SRC.indexOf('type: "stuck_student"');
+    expect(idx).toBeGreaterThan(0);
+    const slice = DASH_SRC.slice(idx, idx + 1200);
+    expect(slice).toContain("href: `${baseHref}?student=${p.student_id}`");
+  });
+});
+
+describe("DT canvas — remember-me stubs (17 May 2026)", () => {
+  // Discoverability for the un-built items so they don't slip from
+  // memory. Both are greyed kebab/drawer rows with "coming soon"
+  // copy and the testid prefix matches their permanent identifier
+  // so the un-stub work just needs to re-target the same testid.
+
+  it("Canvas-header kebab Class section has a greyed 'View class profile' stub", () => {
+    expect(HUB_SRC).toContain('"kebab-class-profile"');
+    const idx = HUB_SRC.indexOf('"kebab-class-profile"');
+    expect(idx).toBeGreaterThan(0);
+    const slice = HUB_SRC.slice(idx, idx + 400);
+    expect(slice).toContain("View class profile…");
+    expect(slice).toContain("disabled: true");
+    expect(slice).toContain('"coming soon"');
+  });
+
+  it("MetricsDrawer has a greyed 'Pace feedback summary' stub", () => {
+    const DRAWER_SRC = readFileSync(
+      join(process.cwd(), "src/components/teacher/class-hub/MetricsDrawer.tsx"),
+      "utf-8",
+    );
+    expect(DRAWER_SRC).toContain('data-testid="metrics-drawer-pace-feedback-stub"');
+    expect(DRAWER_SRC).toContain("Pace feedback summary");
+    expect(DRAWER_SRC).toContain("coming soon");
+    // aria-disabled stays on so screen readers don't promise interaction.
+    expect(DRAWER_SRC).toMatch(/aria-disabled=["']true["']/);
+  });
+});
+
 describe("DT canvas — Polish A.3 (17 May 2026) — Settings tab content re-homed", () => {
   const SETTINGS_SRC = readFileSync(
     join(process.cwd(), "src/app/teacher/classes/[classId]/settings/[unitId]/page.tsx"),
