@@ -1,7 +1,36 @@
 # Class Hub + Student Drawer — Spec
 
+> **⚠️ SUPERSEDED — DT canvas unification (Phase 3.1 → 3.6, 16 May 2026).**
+> The 7-tab Class Hub described below was replaced by a single
+> canvas-grid layout (lesson hero + student grid + gallery strip in
+> the main column; Marking / Open Studio / Metrics / Safety summary
+> cards in a 360px sticky side rail; kebab in the canvas header
+> exposing Unit + Class actions). All the tab content lives in
+> drawers or sub-routes now:
+>
+> - Students tab    → `StudentRosterDrawer` (triggered by "+ Add student")
+> - Gallery tab     → `GalleryDrawer` (triggered by the gallery strip)
+> - Open Studio tab → `OpenStudioDrawer` (side-rail card CTA)
+> - New Metrics tab → `MetricsDrawer` (side-rail card CTA)
+> - Badges tab      → `SafetyDrawer` (side-rail card CTA)
+> - Marking tab     → external `/teacher/marking?class=&unit=` (no drawer)
+> - Settings tab    → kebab "Class settings…" → `/teacher/classes/[id]/settings/[unitId]`
+>                     (term picker + LessonSchedule still need a home —
+>                     follow-up tracked in Phase 3.6 STOP AND REPORT)
+>
+> Past units → new sub-route `/teacher/classes/[classId]/units` via the
+> kebab. Change unit → modal via the canvas-header "Change unit" button
+> (wires the atomic `set_active_unit` RPC).
+>
+> The original spec below stays for historical reference but does not
+> describe the current implementation. PRs that shipped the canvas:
+> #332 (3.1), #333 (3.2), #334 (3.3), #335 (relocate), #336 (3.4),
+> #337 (3.5), and the Phase 3.6 cutover that closes this banner.
+
+---
+
 **Date:** 25 March 2026
-**Status:** Ready for build
+**Status:** ~~Ready for build~~ — SUPERSEDED (see banner above)
 **Route:** `/teacher/units/[unitId]/class/[classId]`
 
 ## Problem

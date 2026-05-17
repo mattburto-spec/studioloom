@@ -28,7 +28,9 @@ all already enforce these — this is regression-spotting):
 1. **Cross-teacher 403 on `/api/teacher/student-attention`**
    - Log in as Teacher A. Get the `classId` of a class owned by Teacher B
      (via DB or a second browser).
-   - Visit `/teacher/units/<unitId>/class/<B-classId>?tab=attention`.
+   - Visit `/teacher/units/<unitId>/class/<B-classId>?tab=attention`
+     (DT canvas Phase 3.2 routes this to the Metrics drawer; same
+     UnitAttentionPanel mounts inside).
    - Expected: panel shows the load-error state with a 403-shaped
      message ("Forbidden: not your class"), or the row data is empty.
      Do NOT expect to see Teacher B's student data.
