@@ -391,16 +391,26 @@ describe("DT canvas Phase 3.3 — Today's lesson hero card", () => {
   // (right). The Teach CTA is removed from the hero because the
   // canvas-header already has the canonical purple Teach button. These
   // guards lock the new shape.
-  it("renders the new unit-hero card (canvas-unit-hero + unit-hero-eyebrow pill)", () => {
-    // 17 May PM smoke round 2 — title + stats dropped from the hero
-    // because they're already in the canvas-header above (unit.title
-    // appears as "<class> · <unit>" + the "X students · N pages"
-    // sub-line). The hero is now purely visual + a single eyebrow
-    // pill.
+  it("renders the unit-hero card (canvas-unit-hero + eyebrow pill + big unit title)", () => {
+    // 17 May PM smoke v6 — title moved back into the hero card and
+    // out of the canvas-header h1 (Matt: "the left side is too
+    // empty"). Header h1 is now class-only.
     expect(HUB_SRC).toContain('data-testid="canvas-unit-hero"');
     expect(HUB_SRC).toContain('data-testid="unit-hero-eyebrow"');
-    // Anti-revert: the old unit-hero-title is gone (redundant with header)
-    expect(HUB_SRC).not.toContain('data-testid="unit-hero-title"');
+    expect(HUB_SRC).toContain('data-testid="unit-hero-title"');
+  });
+
+  it("canvas header h1 is class-only — unit title is NOT in the header (lives in the hero)", () => {
+    // Anti-regression: the previous "<className> · <unit.title>"
+    // composition is gone. The class avatar + class name remain in
+    // the h1; the unit title now sits in the unit-hero-title h2.
+    expect(HUB_SRC).not.toMatch(
+      /\{className\}\s*[\s\S]{0,200}\{unit\.title\}\s*<\/span>\s*<\/h1>/
+    );
+    // Sanity-check the new shape (h1 closes right after {className})
+    expect(HUB_SRC).toMatch(
+      /\{className\}\s*<\/h1>/
+    );
   });
 
   it("renders the today's-lesson card (canvas-lesson-hero + lesson-hero-title)", () => {

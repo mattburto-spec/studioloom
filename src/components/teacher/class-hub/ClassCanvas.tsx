@@ -798,13 +798,15 @@ export function ClassCanvas({ unitId, classId }: { unitId: string; classId: stri
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
+          {/* Header now class-only — unit title moved into the hero
+              card (17 May PM smoke v6) so the teal panel's empty
+              left side carries the unit identity. Breadcrumb above
+              still mentions the unit. */}
           <h1 className="text-lg font-semibold text-text-primary flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 text-sm font-bold flex-shrink-0">
               {className.charAt(0).toUpperCase()}
             </div>
             {className}
-            <span className="text-text-tertiary font-normal">·</span>
-            <span className="text-text-secondary font-normal truncate max-w-[300px]">{unit.title}</span>
           </h1>
           {/* "X students · N pages" sub-line dropped 17 May 2026 PM
               smoke v4 — student count lives in the "Students · N"
@@ -1104,19 +1106,25 @@ export function ClassCanvas({ unitId, classId }: { unitId: string; classId: stri
                       className="absolute inset-0 bg-gradient-to-br from-teal-500 via-cyan-500 to-emerald-500"
                     />
                   )}
-                  {/* Foreground: a single "Unit on screen" pill in the
-                      bottom-left so the card has SOME label without
-                      duplicating the header's class·unit + stats line.
-                      Title + student/page stats live in the canvas
-                      header above; the hero is the visual focal
-                      point. */}
+                  {/* Foreground: eyebrow pill + big unit title stacked
+                      at the bottom-left over the teal panel. Mirrors
+                      the student dashboard "Currently working on" +
+                      big unit title pattern. Title moved here from
+                      the canvas header in 17 May PM smoke v6 — the
+                      teal panel was empty without it. */}
                   <div className="relative h-full min-h-[220px] flex flex-col justify-end p-6 text-white">
                     <span
                       data-testid="unit-hero-eyebrow"
-                      className="inline-block self-start text-[10px] font-bold uppercase tracking-[0.08em] px-2.5 py-1 rounded-full bg-white/25 backdrop-blur-sm"
+                      className="inline-block self-start text-[10px] font-bold uppercase tracking-[0.08em] px-2.5 py-1 rounded-full bg-white/25 backdrop-blur-sm mb-3"
                     >
                       Unit on screen
                     </span>
+                    <h2
+                      data-testid="unit-hero-title"
+                      className="text-3xl sm:text-4xl font-bold leading-[1.05] tracking-tight drop-shadow-sm max-w-[480px]"
+                    >
+                      {unit.title}
+                    </h2>
                   </div>
                 </section>
 
