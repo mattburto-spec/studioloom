@@ -7,19 +7,19 @@ import { setActiveUnit } from "@/lib/classes/active-unit";
 
 // ---------------------------------------------------------------------------
 // ChangeUnitModal — pick a different unit to make active on this class
-// (DT canvas Phase 3.3 Step 2, 16 May 2026). Triggered by the orange
-// lesson-hero "Change unit" button.
+// (DT canvas Phase 3.3 Step 2, 16 May 2026; "Other units" section added
+// 17 May 2026 after smoke flagged the no-add path).
 //
-// Scope: lists units already on this class (active + past via
-// class_units rows including is_active=false soft-removed ones).
-// Adding brand-new units to the class is a Phase 3.4 sub-route
-// ("/teacher/classes/[classId]/units" — fork-from-library flow).
+// Sections:
+//   1. Currently active           — the single is_active=true class_units row
+//   2. Past units on this class   — soft-removed (is_active=false) class_units
+//   3. Other units you can assign — units authored by the teacher OR published
+//                                    in the library, NOT already on this class
 //
-// Wires the atomic public.set_active_unit RPC (migration
-// 20260515220845 + ownership-check 20260516052310) via the
-// setActiveUnit helper. On success, navigates to the new unit's
-// canvas URL. On error, surfaces the SQLSTATE-mapped message
-// inline + keeps the modal open so the teacher can recover.
+// "Make active" on any row fires the atomic public.set_active_unit RPC
+// (migration 20260515220845 + ownership-check 20260516052310). The RPC
+// uses INSERT ON CONFLICT so creating the class_units row for an
+// "other unit" + activating it happens in one transaction.
 // ---------------------------------------------------------------------------
 
 interface ClassUnitOption {
@@ -28,6 +28,13 @@ interface ClassUnitOption {
   forked_at: string | null;
   title: string;
   unit_type: string | null;
+}
+
+interface AvailableUnit {
+  unit_id: string;
+  title: string;
+  isYours: boolean;
+  is_published: boolean;
 }
 
 interface ChangeUnitModalProps {
@@ -46,6 +53,7 @@ export default function ChangeUnitModal({
   const router = useRouter();
   const panelRef = useRef<HTMLDivElement>(null);
   const [options, setOptions] = useState<ClassUnitOption[]>([]);
+  const [available, setAvailable] = useState<AvailableUnit[]>([]);
   const [loading, setLoading] = useState(true);
   const [activatingId, setActivatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -108,6 +116,39 @@ export default function ChangeUnitModal({
           };
         });
         setOptions(rows);
+
+        // Second query — "Other units you can assign". Matches the
+        // set_active_unit RPC's ownership gate (migration
+        // 20260516052310): units the teacher authored OR units that are
+        // published in the library. Excludes anything already on this
+        // class (active or past). Capped at 50 to keep the modal usable
+        // even for teachers with large libraries; the units listing
+        // page is the deeper browse surface.
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user || cancelled) return;
+        const existingIds = new Set(rows.map((r) => r.unit_id));
+        const { data: avData, error: avErr } = await supabase
+          .from("units")
+          .select("id, title, author_teacher_id, is_published, updated_at")
+          .or(`author_teacher_id.eq.${user.id},is_published.eq.true`)
+          .order("updated_at", { ascending: false })
+          .limit(80);
+        if (cancelled) return;
+        if (avErr) {
+          // Non-fatal — currently-active + past sections still render.
+          console.error("[ChangeUnitModal] available-units fetch failed:", avErr);
+        } else {
+          const filtered: AvailableUnit[] = (avData || [])
+            .filter((u) => !existingIds.has(u.id))
+            .slice(0, 30)
+            .map((u) => ({
+              unit_id: u.id,
+              title: u.title || "(untitled unit)",
+              isYours: u.author_teacher_id === user.id,
+              is_published: !!u.is_published,
+            }));
+          setAvailable(filtered);
+        }
       } catch (e: unknown) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : "Failed to load units");
@@ -186,10 +227,6 @@ export default function ChangeUnitModal({
                 <div className="h-14 bg-gray-100 rounded-lg" />
                 <div className="h-14 bg-gray-100 rounded-lg" />
               </div>
-            ) : options.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-6">
-                No units have ever been assigned to this class.
-              </p>
             ) : (
               <>
                 {active && (
@@ -222,6 +259,55 @@ export default function ChangeUnitModal({
                       ))}
                     </div>
                   </div>
+                )}
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-purple-600 mb-1">
+                    Other units you can assign
+                  </div>
+                  <p className="text-[11px] text-gray-500 mb-2">
+                    Pick one to assign + make active — your authored units and library favourites.
+                  </p>
+                  {available.length === 0 ? (
+                    <div
+                      data-testid="change-unit-available-empty"
+                      className="rounded-lg border border-dashed border-gray-200 bg-gray-50/50 px-3 py-4 text-center text-xs text-gray-500"
+                    >
+                      No other units available.{" "}
+                      <a href="/teacher/units" className="text-purple-600 font-medium hover:underline">
+                        Browse the units library →
+                      </a>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        {available.map((opt) => (
+                          <AvailableUnitRow
+                            key={opt.unit_id}
+                            option={opt}
+                            activatingId={activatingId}
+                            onMakeActive={makeActive}
+                          />
+                        ))}
+                      </div>
+                      <div className="mt-3 text-center">
+                        <a
+                          href="/teacher/units"
+                          className="text-[11px] text-purple-600 font-medium hover:underline"
+                        >
+                          Browse more in the units library →
+                        </a>
+                      </div>
+                    </>
+                  )}
+                </div>
+                {options.length === 0 && available.length === 0 && (
+                  <p
+                    data-testid="change-unit-modal-empty"
+                    className="text-sm text-gray-500 text-center py-2"
+                  >
+                    No units have ever been assigned to this class, and you
+                    don&apos;t have any authored or published units yet.
+                  </p>
                 )}
               </>
             )}
@@ -284,6 +370,51 @@ function UnitRow({
           {isActivating ? "Switching…" : option.is_active ? "Re-open" : "Make active"}
         </button>
       )}
+    </div>
+  );
+}
+
+function AvailableUnitRow({
+  option,
+  activatingId,
+  onMakeActive,
+}: {
+  option: AvailableUnit;
+  activatingId: string | null;
+  onMakeActive: (unitId: string) => void;
+}) {
+  const isActivating = activatingId === option.unit_id;
+  return (
+    <div
+      data-testid={`change-unit-available-row-${option.unit_id}`}
+      className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition"
+    >
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-gray-900 truncate">{option.title}</p>
+        <div className="mt-0.5 flex items-center gap-2">
+          {option.isYours && (
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded">
+              Yours
+            </span>
+          )}
+          {!option.isYours && option.is_published && (
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
+              Library
+            </span>
+          )}
+          <span className="text-[11px] text-gray-500">
+            Not yet on this class
+          </span>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => onMakeActive(option.unit_id)}
+        disabled={activatingId !== null}
+        className="px-3 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-medium hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {isActivating ? "Assigning…" : "Make active"}
+      </button>
     </div>
   );
 }

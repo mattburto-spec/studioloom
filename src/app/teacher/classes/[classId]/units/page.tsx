@@ -28,6 +28,13 @@ interface ClassUnitRow {
   is_published: boolean | null;
 }
 
+interface AvailableUnit {
+  unit_id: string;
+  title: string;
+  isYours: boolean;
+  is_published: boolean;
+}
+
 export default function ClassUnitsPage({
   params,
 }: {
@@ -37,6 +44,7 @@ export default function ClassUnitsPage({
   const router = useRouter();
   const [className, setClassName] = useState("");
   const [rows, setRows] = useState<ClassUnitRow[]>([]);
+  const [available, setAvailable] = useState<AvailableUnit[]>([]);
   const [loading, setLoading] = useState(true);
   const [activatingId, setActivatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -82,6 +90,37 @@ export default function ClassUnitsPage({
           };
         });
         setRows(mapped);
+
+        // Available units (17 May 2026) — units the teacher authored OR
+        // units that are published, NOT already on this class. Matches
+        // the set_active_unit RPC's ownership gate so any row here is
+        // safe to "Make active". Capped at 40; the units listing page
+        // is the deeper browse surface for libraries with more.
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user || cancelled) return;
+        const existingIds = new Set(mapped.map((m) => m.unit_id));
+        const { data: avData, error: avErr } = await supabase
+          .from("units")
+          .select("id, title, author_teacher_id, is_published, updated_at")
+          .or(`author_teacher_id.eq.${user.id},is_published.eq.true`)
+          .order("updated_at", { ascending: false })
+          .limit(80);
+        if (cancelled) return;
+        if (avErr) {
+          // Non-fatal — the active + past sections still render.
+          console.error("[ClassUnitsPage] available-units fetch failed:", avErr);
+        } else {
+          const filtered: AvailableUnit[] = (avData || [])
+            .filter((u) => !existingIds.has(u.id))
+            .slice(0, 40)
+            .map((u) => ({
+              unit_id: u.id,
+              title: u.title || "(untitled unit)",
+              isYours: u.author_teacher_id === user.id,
+              is_published: !!u.is_published,
+            }));
+          setAvailable(filtered);
+        }
       } catch (e: unknown) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : "Failed to load units");
@@ -137,8 +176,9 @@ export default function ClassUnitsPage({
         Units on {className || "this class"}
       </h1>
       <p className="text-sm text-text-secondary mb-6">
-        Currently active + past units. Click a unit to open its canvas, or
-        re-activate a past unit to bring it to the front.
+        Currently active + past units. Click a unit to open its canvas,
+        re-activate a past unit, or pick one from your authored / library
+        units to assign + activate in one click.
       </p>
 
       {loading ? (
@@ -146,20 +186,8 @@ export default function ClassUnitsPage({
           <div className="h-16 bg-gray-100 rounded-xl" />
           <div className="h-16 bg-gray-100 rounded-xl" />
         </div>
-      ) : rows.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-border p-8 text-center">
-          <p className="text-sm text-text-secondary">
-            No units have ever been assigned to this class.
-          </p>
-          <Link
-            href={`/teacher/classes/${classId}`}
-            className="mt-3 inline-block text-purple-600 text-sm font-medium hover:underline"
-          >
-            ← Back to class
-          </Link>
-        </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-8">
           {active && (
             <section>
               <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 mb-2">
@@ -191,6 +219,49 @@ export default function ClassUnitsPage({
               </div>
             </section>
           )}
+          <section>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-purple-600 mb-1">
+              Other units you can assign
+            </div>
+            <p className="text-[11px] text-text-secondary mb-2">
+              Your authored units and library favourites. Pick one to
+              assign and make active on this class.
+            </p>
+            {available.length === 0 ? (
+              <div
+                data-testid="class-units-available-empty"
+                className="rounded-xl border border-dashed border-border bg-surface-alt/40 p-6 text-center text-sm text-text-secondary"
+              >
+                {rows.length === 0
+                  ? "No units yet — this class has never had one assigned and you don't have any authored or published units to pull from."
+                  : "No other units available."}{" "}
+                <Link href="/teacher/units" className="text-purple-600 font-medium hover:underline">
+                  Browse the units library →
+                </Link>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  {available.map((opt) => (
+                    <AvailableUnitRow
+                      key={opt.unit_id}
+                      option={opt}
+                      activatingId={activatingId}
+                      onMakeActive={makeActive}
+                    />
+                  ))}
+                </div>
+                <div className="mt-3 text-center">
+                  <Link
+                    href="/teacher/units"
+                    className="text-xs text-purple-600 font-medium hover:underline"
+                  >
+                    Browse more in the units library →
+                  </Link>
+                </div>
+              </>
+            )}
+          </section>
         </div>
       )}
 
@@ -256,6 +327,57 @@ function UnitRow({
           {isActivating ? "Switching…" : "Make active"}
         </button>
       )}
+    </div>
+  );
+}
+
+function AvailableUnitRow({
+  option,
+  activatingId,
+  onMakeActive,
+}: {
+  option: AvailableUnit;
+  activatingId: string | null;
+  onMakeActive: (unitId: string) => void;
+}) {
+  const isActivating = activatingId === option.unit_id;
+  const isBusy = activatingId !== null;
+  return (
+    <div
+      data-testid={`class-units-available-row-${option.unit_id}`}
+      className="flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-white hover:bg-surface-alt transition"
+    >
+      <div className="flex-1 min-w-0">
+        <Link
+          href={`/teacher/units/${option.unit_id}`}
+          className="text-sm font-semibold text-text-primary hover:text-purple-700 transition truncate inline-block max-w-full"
+        >
+          {option.title}
+        </Link>
+        <div className="mt-0.5 flex items-center gap-2 flex-wrap">
+          {option.isYours && (
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded">
+              Yours
+            </span>
+          )}
+          {!option.isYours && option.is_published && (
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
+              Library
+            </span>
+          )}
+          <span className="text-[11px] text-text-secondary">
+            Not yet on this class
+          </span>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => onMakeActive(option.unit_id)}
+        disabled={isBusy}
+        className="px-3 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-medium hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {isActivating ? "Assigning…" : "Make active"}
+      </button>
     </div>
   );
 }
