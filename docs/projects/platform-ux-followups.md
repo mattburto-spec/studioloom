@@ -192,3 +192,29 @@ retroactive audit can wait, but the template guard should land in the
 next brief drafted.
 
 ---
+
+## FU-STUDENT-DASHBOARD-FORMAT-PROGRESS-DATA — Real stage / week-of-N / hours-logged data for non-DT project cards
+**Surfaced:** 17 May 2026, student-dashboard Priority #5 polish (Commit 4 — project card format variants)
+**Target phase:** Trigger when the first PYP / PP / Service unit ships to a real student, OR when Inquiry Board MVP lands
+**Severity:** 🟡 P2 (placeholder labels acceptable for v1; gates real format-awareness)
+
+**Origin:** [src/app/(student)/dashboard/DashboardClient.tsx — `CardProgressChip`](../../src/app/(student)/dashboard/DashboardClient.tsx). The Bold dashboard project cards now branch on `unit_type` and render a placeholder format-pill in place of the DT % ring for inquiry / personal_project / service formats:
+
+- inquiry          → "Inquiry · in progress"
+- personal_project → "Project · in progress"
+- service          → "Service · ongoing"
+
+These are placeholders. The mockup spec ([`docs/mockups/teacher-cockpit-mockup.html:2322`](../mockups/teacher-cockpit-mockup.html) view-student) wants the real format signal in that slot:
+
+- **inquiry** → current PYP stage pill ("Finding out", "Sorting out", "Going further") sourced from the Inquiry Board widget aggregate. Schema TBD — depends on the Inquiry Board surface decided 16 May 2026 ([`docs/decisions-log.md`](../decisions-log.md) "Student landing surface determined by active unit's format").
+- **personal_project** → "Wk 3 / 14" pill sourced from `units.duration_weeks` + a PP start-date column (not yet on schema). Or derive from class start-date / class_units.is_active flip date.
+- **service** → "12.5 hours" pill sourced from a Service Log aggregator (Service Log shape TBD — see same 16 May decision).
+
+**Action when triggered:**
+1. Resolve the data shape per format (depends on Inquiry Board + Service Log + PP Portfolio schema landing — at least one of these unblocks the corresponding format).
+2. Extend `/api/student/units` payload with `format_progress: { kind: "pyp_stage" | "pp_week" | "service_hours" | "dt_percent"; value: ... }` so the dashboard reads one shape.
+3. Replace the placeholder branch in `CardProgressChip` with the real value.
+
+**Don't defer past trigger because:** the placeholder label is functional but pedagogically thin — a Year-5 PP student reads "Project · in progress" and learns nothing about where they are in the 14-week arc. Real data signal is the whole point of the per-format dashboard.
+
+---

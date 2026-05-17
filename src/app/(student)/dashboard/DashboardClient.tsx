@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getPageList, getPageById } from "@/lib/unit-adapter";
 import type { UnitContentData, StudentProgress } from "@/types";
+import type { UnitType } from "@/lib/ai/unit-types";
 import { useStudent } from "../student-context";
 import { useBellCount, type NotificationItem } from "@/components/student/BellCountContext";
 import { composedPromptText } from "@/lib/lever-1/compose-prompt";
@@ -25,6 +26,60 @@ import { NextActionPill } from "@/components/student/NextActionPill";
 // SessionStudent, AVATAR_GRADS, getInitials, gradFor, STUDENT_MOCK,
 // toSessionStudent, and NAV_S moved to BoldTopNav.tsx in Phase 10.
 
+// ================= FORMAT-AWARE STUDENT LABELS =================
+//
+// Format-on-unit decision (16 May 2026 — see docs/decisions-log.md):
+// the student dashboard adapts hero verb + task label + project card verb
+// per unit_type. Service / Personal Project / Inquiry framings deliberately
+// diverge from DT — a Year-5 PP student doesn't have a "current task,"
+// they have a next milestone.
+type HeroLabels = {
+  /** Verb on the giant hero CTA + FocusOverlay button. */
+  ctaVerb: string;
+  /** Caption above the current-task name inside the white task panel. */
+  taskLabel: string;
+  /** Fallback task name when computeTaskState() can't resolve one. */
+  fallbackTaskName: string;
+};
+type CardLabels = {
+  /** In-progress CTA pill text. */
+  ctaContinue: string;
+  /** Not-started CTA pill text. */
+  ctaStart: string;
+  /** Inline task verb inside the card body for in-progress cards. */
+  task: string;
+  /** Caption above the inline task verb. */
+  taskLabel: string;
+};
+
+export function formatToHeroLabels(unitType: UnitType): HeroLabels {
+  switch (unitType) {
+    case "inquiry":
+      return { ctaVerb: "Resume inquiry", taskLabel: "Current stage", fallbackTaskName: "Continue inquiry" };
+    case "personal_project":
+      return { ctaVerb: "Open project", taskLabel: "Next milestone", fallbackTaskName: "Continue project" };
+    case "service":
+      return { ctaVerb: "Log next session", taskLabel: "Hours logged", fallbackTaskName: "Log next session" };
+    case "design":
+    default:
+      return { ctaVerb: "Continue", taskLabel: "Your current task", fallbackTaskName: "Continue lesson" };
+  }
+}
+
+export function formatToCardLabels(unitType: UnitType): CardLabels {
+  switch (unitType) {
+    case "inquiry":
+      return { ctaContinue: "Resume inquiry", ctaStart: "Start inquiry", task: "Resume inquiry", taskLabel: "Current stage" };
+    case "personal_project":
+      return { ctaContinue: "Open project", ctaStart: "Start project", task: "Open project", taskLabel: "Next milestone" };
+    case "service":
+      return { ctaContinue: "Log session", ctaStart: "Start logging", task: "Log next session", taskLabel: "Service log" };
+    case "design":
+    default:
+      return { ctaContinue: "Continue", ctaStart: "Start project", task: "Continue lesson", taskLabel: "Current task" };
+  }
+}
+
 // Phase 3A: hero identity (title/subtitle/class/color/image/%) is wired.
 // Task card + teacher note still mock — Phase 3B wires the task card;
 // teacher note is deferred pending the general-notes system.
@@ -40,6 +95,9 @@ type HeroUnit = {
   img: string | null;
   /** Continue button target — URL of the current task's page. null = inert. */
   continueHref: string | null;
+  /** Pedagogical format from units.unit_type. Drives the hero's verb,
+   *  task-card label, and FocusOverlay button via formatToHeroLabels(). */
+  unitType: UnitType;
   // Placeholders until Phase 3B:
   currentTask: string;
   taskProgress: number;
@@ -61,6 +119,7 @@ const HERO_MOCK: HeroUnit = {
   colorDark: "#0F766E",
   img: "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?w=1000&h=1200&fit=crop",
   continueHref: null,
+  unitType: "design",
   currentTask: "Sketch 3 structural ideas",
   taskProgress: 1,
   taskTotal: 3,
@@ -120,6 +179,8 @@ type UnitRow = {
   description: string | null;
   thumbnail_url: string | null;
   content_data: UnitContentData | null;
+  /** Pedagogical format — defaults to "design" if missing (migration 051). */
+  unit_type: UnitType | null;
   progress: StudentProgress[];
   class_id: string | null;
   class_name: string | null;
@@ -174,8 +235,11 @@ function buildHeroUnit(unit: UnitRow): HeroUnit {
     colorDark: palette.colorDark,
     img: unit.thumbnail_url,
     continueHref,
-    // Phase 3B placeholders — filled by loadUnitDetail() after the second fetch
-    currentTask: HERO_MOCK.currentTask,
+    unitType: unit.unit_type ?? "design",
+    // Phase 3B placeholders — filled by loadUnitDetail() after the second fetch.
+    // currentTask gets a format-aware placeholder so the hero doesn't flash
+    // "Sketch 3 structural ideas" at a PYP student before detail resolves.
+    currentTask: formatToHeroLabels(unit.unit_type ?? "design").fallbackTaskName,
     taskProgress: HERO_MOCK.taskProgress,
     taskTotal: HERO_MOCK.taskTotal,
     dueIn: HERO_MOCK.dueIn,
@@ -228,6 +292,7 @@ function computeTaskState(
   contentData: UnitContentData | null,
   pageId: string | null,
   responses: Record<string, unknown>,
+  unitType: UnitType = "design",
 ): TaskState | null {
   if (!pageId) return null;
   const page = getPageById(contentData, pageId);
@@ -235,9 +300,11 @@ function computeTaskState(
   const sections = page.content?.sections ?? [];
   const total = sections.length;
 
-  // No blocks on this page — task = the lesson itself
+  // No blocks on this page — task = the lesson itself. Fallback name is
+  // format-aware so a PYP student doesn't see "Continue lesson" verbatim.
   if (total === 0) {
-    return { currentTask: page.title || page.content?.title || "Continue lesson", taskProgress: 0, taskTotal: 1 };
+    const fallback = formatToHeroLabels(unitType).fallbackTaskName;
+    return { currentTask: page.title || page.content?.title || fallback, taskProgress: 0, taskTotal: 1 };
   }
 
   // Find first section with no response
@@ -436,8 +503,17 @@ function classifyInsights(insights: InsightRow[]): PriorityBuckets {
   const todayTop = todayCandidates.sort((a, b) => b.priority - a.priority)[0];
   const today = todayTop ? [insightToQueueItem(todayTop, "today")] : [];
 
-  soon.sort((a, b) => b.priority - a.priority);
-  const soonItems = soon.slice(0, 5).map((i) => insightToQueueItem(i, "soon"));
+  // Order soon by timestamp ascending — the user-facing "Coming up" surface
+  // is time-anchored, not priority-anchored. Priority still wins ordering
+  // server-side (P95 safety > P45 due-soon); within "soon" the question is
+  // *when*, not *how important*. Cap at 12 so See-all has meaningful room
+  // to expand into without dragging the bell popover off-screen.
+  soon.sort((a, b) => {
+    const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+    const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+    return ta - tb;
+  });
+  const soonItems = soon.slice(0, 12).map((i) => insightToQueueItem(i, "soon"));
 
   return { overdue, today, soon: soonItems };
 }
@@ -459,15 +535,18 @@ type StudentUnit = {
   state: UnitState;
   task: string;
   href: string;
+  /** Pedagogical format — drives the card's verb, task label, and the
+   *  format-pill that replaces the % chip for non-DT formats. */
+  unitType: UnitType;
 };
 
 const S_UNITS_MOCK: StudentUnit[] = [
-  { id: "biom",    title: "Biomimicry",                     kicker: "Plastic pouch inspired by nature",      classTag: "7 Design",  color: "#0EA5A4", img: "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?w=900&h=600&fit=crop",    progress: 34, state: "in-progress", task: "Continue lesson",  href: "#" },
-  { id: "arcade",  title: "Arcade Machine",                 kicker: "Build a working coin-op arcade",        classTag: "Service",   color: "#EC4899", img: "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=900&h=600&fit=crop",    progress: 62, state: "in-progress", task: "Continue lesson",  href: "#" },
-  { id: "coffee",  title: "Coffee Table",                   kicker: "Designing and building a coffee table", classTag: "10 Design", color: "#9333EA", img: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=900&h=600&fit=crop",    progress: 12, state: "in-progress", task: "Continue lesson",  href: "#" },
-  { id: "pinball", title: "Engineering a Pinball Machine",  kicker: "Workshop project · mechanical systems",    classTag: "Workshop",  color: "#F59E0B", img: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this project",  href: "#" },
-  { id: "recycle", title: "Recycling Awareness",            kicker: "Correct bins across campus",            classTag: "Service",   color: "#10B981", img: "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this project",  href: "#" },
-  { id: "co2",     title: "CO2 Racer",                      kicker: "Speed Through Science & Design",        classTag: "10 Design", color: "#E86F2C", img: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this project",  href: "#" },
+  { id: "biom",    title: "Biomimicry",                     kicker: "Plastic pouch inspired by nature",      classTag: "7 Design",  color: "#0EA5A4", img: "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?w=900&h=600&fit=crop",    progress: 34, state: "in-progress", task: "Continue lesson",  href: "#", unitType: "design" },
+  { id: "arcade",  title: "Arcade Machine",                 kicker: "Build a working coin-op arcade",        classTag: "Service",   color: "#EC4899", img: "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=900&h=600&fit=crop",    progress: 62, state: "in-progress", task: "Continue lesson",  href: "#", unitType: "design" },
+  { id: "coffee",  title: "Coffee Table",                   kicker: "Designing and building a coffee table", classTag: "10 Design", color: "#9333EA", img: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=900&h=600&fit=crop",    progress: 12, state: "in-progress", task: "Continue lesson",  href: "#", unitType: "design" },
+  { id: "pinball", title: "Engineering a Pinball Machine",  kicker: "Workshop project · mechanical systems",    classTag: "Workshop",  color: "#F59E0B", img: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this project",  href: "#", unitType: "design" },
+  { id: "recycle", title: "Recycling Awareness",            kicker: "Correct bins across campus",            classTag: "Service",   color: "#10B981", img: "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this project",  href: "#", unitType: "design" },
+  { id: "co2",     title: "CO2 Racer",                      kicker: "Speed Through Science & Design",        classTag: "10 Design", color: "#E86F2C", img: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this project",  href: "#", unitType: "design" },
 ];
 
 /** Build a grid card from a /api/student/units row. */
@@ -493,6 +572,8 @@ function unitRowToStudentUnit(unit: UnitRow): StudentUnit {
   const href = resumePageId ? `/unit/${unit.id}/${resumePageId}` : `/unit/${unit.id}/narrative`;
 
   const state: UnitState = unit.progress.length === 0 ? "not-started" : "in-progress";
+  const unitType: UnitType = unit.unit_type ?? "design";
+  const labels = formatToCardLabels(unitType);
 
   return {
     id: unit.id,
@@ -503,8 +584,9 @@ function unitRowToStudentUnit(unit: UnitRow): StudentUnit {
     img: unit.thumbnail_url,
     progress: progressPct,
     state,
-    task: state === "not-started" ? "Start this project" : "Continue lesson",
+    task: state === "not-started" ? `Start this ${unitType === "service" ? "log" : unitType === "inquiry" ? "inquiry" : "project"}` : labels.task,
     href,
+    unitType,
   };
 }
 
@@ -631,6 +713,7 @@ function timeGreeting(now: Date = new Date()): string {
 
 function ResumeHero({ student, hero }: { student: SessionStudent; hero: HeroUnit }) {
   const n = hero;
+  const heroLabels = formatToHeroLabels(hero.unitType);
   return (
     <section id="dashboard-hero" className="max-w-[1400px] mx-auto px-6 pt-8">
       <div className="mb-4 px-1">
@@ -680,7 +763,7 @@ function ResumeHero({ student, hero }: { student: SessionStudent; hero: HeroUnit
                 </div>
               </div>
               <div className="flex-1 min-w-0">
-                <div className="cap text-[var(--sl-ink-3)]">Your current task</div>
+                <div className="cap text-[var(--sl-ink-3)]">{heroLabels.taskLabel}</div>
                 <div className="display text-[18px] leading-tight mt-0.5">{n.currentTask}</div>
                 <div className="text-[11.5px] text-[var(--sl-ink-3)] mt-1 font-semibold">
                   Due <span className="text-[var(--sl-ink)] font-bold">{n.dueIn}</span>
@@ -691,11 +774,11 @@ function ResumeHero({ student, hero }: { student: SessionStudent; hero: HeroUnit
             <div className="flex items-center gap-2 mt-6">
               {n.continueHref ? (
                 <Link href={n.continueHref} className="bg-white text-[var(--sl-ink)] rounded-full px-6 py-3 font-bold text-[14px] inline-flex items-center gap-2 hover:shadow-lg transition">
-                  <Icon name="play" size={11} s={0} /> Continue
+                  <Icon name="play" size={11} s={0} /> {heroLabels.ctaVerb}
                 </Link>
               ) : (
                 <button className="bg-white text-[var(--sl-ink)] rounded-full px-6 py-3 font-bold text-[14px] inline-flex items-center gap-2 hover:shadow-lg transition">
-                  <Icon name="play" size={11} s={0} /> Continue
+                  <Icon name="play" size={11} s={0} /> {heroLabels.ctaVerb}
                 </button>
               )}
               {/* "Open journal" button removed 23 Apr 2026 — no backing route
@@ -760,6 +843,7 @@ function FocusOverlay({ hero, onExit }: { hero: HeroUnit; onExit: () => void }) 
   }, [onExit]);
 
   const pct = hero.taskTotal > 0 ? (hero.taskProgress / hero.taskTotal) * 100 : 0;
+  const heroLabels = formatToHeroLabels(hero.unitType);
 
   return (
     <div className="fixed inset-0 z-50 bg-[var(--sl-bg)] overflow-auto">
@@ -798,14 +882,14 @@ function FocusOverlay({ hero, onExit }: { hero: HeroUnit; onExit: () => void }) 
                 className="text-white rounded-full px-8 py-3.5 font-bold text-[15px] inline-flex items-center gap-2 hover:brightness-110 transition"
                 style={{ background: hero.color }}
               >
-                <Icon name="play" size={12} s={0} /> Continue
+                <Icon name="play" size={12} s={0} /> {heroLabels.ctaVerb}
               </Link>
             ) : (
               <button
                 className="text-white rounded-full px-8 py-3.5 font-bold text-[15px] inline-flex items-center gap-2"
                 style={{ background: hero.color }}
               >
-                <Icon name="play" size={12} s={0} /> Continue
+                <Icon name="play" size={12} s={0} /> {heroLabels.ctaVerb}
               </button>
             )}
           </div>
@@ -884,45 +968,127 @@ function MiddleRow({ buckets, badges }: { buckets: PriorityBuckets; badges: Badg
 
         {/* Coming up — expanded from md:col-span-3 to md:col-span-7 so
             the soon list breathes and shows more context per row. */}
-        <div className="md:col-span-7">
-          <div className="cap text-[var(--sl-ink-2)] mb-3">Coming up · {soon.length}</div>
-          <div className="bg-white rounded-3xl p-2 card-shadow">
-            {soon.length === 0 ? (
-              <div className="p-4 text-[12px] text-[var(--sl-ink-3)] text-center">
-                Nothing upcoming.
-              </div>
-            ) : (
-              soon.map((q, i) => {
-                const rowClass = "w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-[var(--sl-bg)] transition text-left";
-                const rowContent = (
-                  <>
-                    <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: `${q.color}1a`, color: q.color }}>
-                      <Icon name={q.icon} size={14} s={2.2} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[12px] font-extrabold leading-tight truncate">{q.title}</div>
-                      <div className="text-[10.5px] text-[var(--sl-ink-3)] truncate mt-0.5">{q.sub}</div>
-                    </div>
-                  </>
-                );
-                return q.href ? (
-                  <Link key={i} href={q.href} className={rowClass}>{rowContent}</Link>
-                ) : (
-                  <button key={i} className={rowClass}>{rowContent}</button>
-                );
-              })
-            )}
-          </div>
-        </div>
+        <ComingUpPanel soon={soon} />
       </div>
     </section>
   );
 }
 
+/**
+ * "Coming up" — formerly inline inside MiddleRow. Lifted out 17 May 2026
+ * so it can own its own expand state. Renders 6 rows by default; clicking
+ * "See all →" reveals the rest (up to the 12-row classifyInsights cap)
+ * and the link flips to "Show fewer ↑".
+ *
+ * Each row now surfaces:
+ *   - format icon + accent color (unchanged)
+ *   - title + sub (unchanged)
+ *   - a time-anchored dueText pill on the right ("Due in 3 days", "today",
+ *     "tomorrow", etc.) — previously populated but only piped to the bell
+ *     popover. Brings the panel closer to the cockpit mockup spec.
+ */
+function ComingUpPanel({ soon }: { soon: QueueItem[] }) {
+  const DEFAULT_VISIBLE = 6;
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? soon : soon.slice(0, DEFAULT_VISIBLE);
+  const hasOverflow = soon.length > DEFAULT_VISIBLE;
+
+  return (
+    <div className="md:col-span-7">
+      <div className="cap text-[var(--sl-ink-2)] mb-3">Coming up · {soon.length}</div>
+      <div className="bg-white rounded-3xl p-2 card-shadow">
+        {soon.length === 0 ? (
+          <div className="p-4 text-[12px] text-[var(--sl-ink-3)] text-center">
+            Nothing upcoming.
+          </div>
+        ) : (
+          <>
+            {visible.map((q, i) => {
+              const rowClass = "w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-[var(--sl-bg)] transition text-left";
+              const rowContent = (
+                <>
+                  <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: `${q.color}1a`, color: q.color }}>
+                    <Icon name={q.icon} size={14} s={2.2} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[12px] font-extrabold leading-tight truncate">{q.title}</div>
+                    <div className="text-[10.5px] text-[var(--sl-ink-3)] truncate mt-0.5">{q.sub}</div>
+                  </div>
+                  {q.dueText && (
+                    <div
+                      className="flex-shrink-0 text-[10px] font-extrabold rounded-full px-2.5 py-1 whitespace-nowrap"
+                      style={{ background: `${q.color}14`, color: q.color }}
+                    >
+                      {q.dueText}
+                    </div>
+                  )}
+                </>
+              );
+              return q.href ? (
+                <Link key={i} href={q.href} className={rowClass}>{rowContent}</Link>
+              ) : (
+                <button key={i} className={rowClass}>{rowContent}</button>
+              );
+            })}
+            {hasOverflow && (
+              <button
+                onClick={() => setExpanded((v) => !v)}
+                className="w-full text-[11px] font-extrabold text-[var(--sl-ink-2)] hover:text-[var(--sl-ink)] py-2.5 mt-1 transition"
+              >
+                {expanded ? `Show fewer ↑` : `See all (${soon.length}) →`}
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </div>);
+}
+
 // ================= UNITS GRID =================
+
+/**
+ * Progress chip on the top-right of a project card.
+ *
+ * For DT (the only format with real lesson-completion data today) it
+ * renders the existing ring + "%". For inquiry / personal_project /
+ * service the % indicator doesn't map cleanly to the format's natural
+ * progress signal (PYP stage / PP week-of-N / Service hours-logged),
+ * so we render a placeholder format-pill instead — see
+ * FU-STUDENT-DASHBOARD-FORMAT-PROGRESS-DATA P2 for the real data wiring.
+ */
+function CardProgressChip({ u }: { u: StudentUnit }) {
+  if (u.unitType === "design") {
+    return (
+      <div className="absolute top-3 right-3 bg-white/95 backdrop-blur rounded-full p-1 flex items-center gap-1.5 pr-2.5">
+        <div className="relative w-7 h-7 flex-shrink-0">
+          <RingProgress pct={Math.max(u.progress, 0.5)} size={28} stroke={3} color={u.color} />
+        </div>
+        <div className="text-[10.5px] font-extrabold tnum" style={{ color: u.color }}>{u.progress}%</div>
+      </div>
+    );
+  }
+  const label =
+    u.unitType === "inquiry"          ? "Inquiry · in progress"  :
+    u.unitType === "personal_project" ? "Project · in progress"  :
+                                        "Service · ongoing";
+  return (
+    <div
+      className="absolute top-3 right-3 bg-white/95 backdrop-blur rounded-full px-3 py-1.5 text-[10.5px] font-extrabold"
+      style={{ color: u.color }}
+    >
+      {label}
+    </div>
+  );
+}
+
 function UnitCard({ u }: { u: StudentUnit }) {
   const isNotStarted = u.state === "not-started";
-  const cta = isNotStarted ? "Start project" : "Continue";
+  const labels = formatToCardLabels(u.unitType);
+  const cta = isNotStarted ? labels.ctaStart : labels.ctaContinue;
+  // "Starts" reads fine for any not-started format. For in-progress, use
+  // the format-specific caption — Current task / Current stage / Next
+  // milestone / Service log.
+  const inlineLabel = isNotStarted ? "Starts" : labels.taskLabel;
   return (
     <Link href={u.href} className="group bg-white rounded-3xl overflow-hidden card-shadow hover:card-shadow-lg hover:-translate-y-0.5 transition-all flex flex-col">
       <div className="aspect-[16/9] relative overflow-hidden" style={{ background: u.color }}>
@@ -937,19 +1103,14 @@ function UnitCard({ u }: { u: StudentUnit }) {
             {u.classTag}
           </div>
         )}
-        <div className="absolute top-3 right-3 bg-white/95 backdrop-blur rounded-full p-1 flex items-center gap-1.5 pr-2.5">
-          <div className="relative w-7 h-7 flex-shrink-0">
-            <RingProgress pct={Math.max(u.progress, 0.5)} size={28} stroke={3} color={u.color} />
-          </div>
-          <div className="text-[10.5px] font-extrabold tnum" style={{ color: u.color }}>{u.progress}%</div>
-        </div>
+        <CardProgressChip u={u} />
       </div>
       <div className="p-5 flex-1 flex flex-col">
         <h3 className="display text-[22px] leading-none">{u.title}</h3>
         {u.kicker && <p className="text-[12.5px] text-[var(--sl-ink-3)] mt-1.5 leading-snug">{u.kicker}</p>}
         <div className="mt-auto flex items-center justify-between gap-3 pt-4 border-t border-[var(--sl-hair)]">
           <div>
-            <div className="text-[10.5px] text-[var(--sl-ink-3)] font-semibold">{isNotStarted ? "Starts" : "Current task"}</div>
+            <div className="text-[10.5px] text-[var(--sl-ink-3)] font-semibold">{inlineLabel}</div>
             <div className="text-[12px] font-extrabold leading-tight mt-0.5" style={{ color: u.color }}>{u.task}</div>
           </div>
           <span className="text-white rounded-full px-4 py-2 font-extrabold text-[12px] inline-flex items-center gap-1.5 whitespace-nowrap group-hover:brightness-110 transition" style={{ background: u.color }}>
@@ -1344,7 +1505,7 @@ export default function DashboardClient() {
         const pageId = selectCurrentPageId(detail.unit.content_data, detail.progress);
         const currentProgress = detail.progress.find((p) => p.page_id === pageId);
         const responses = (currentProgress?.responses ?? {}) as Record<string, unknown>;
-        const task = computeTaskState(detail.unit.content_data, pageId, responses);
+        const task = computeTaskState(detail.unit.content_data, pageId, responses, heroIdentity.unitType);
         const dueInText = pageId ? computeDueInText(detail.pageDueDates[pageId]) : null;
 
         if (cancelled) return;
