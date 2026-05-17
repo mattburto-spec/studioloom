@@ -332,25 +332,27 @@ One-line UX, zero coupling, no event system. **Do NOT build:**
 
 ---
 
-## FU-PR340-CLEANUP-WIDEN-SELECTS — Restore unit_type to canvas selects + drop anti-regression guard
+## Resolved
+
+### FU-PR340-CLEANUP-WIDEN-SELECTS — Restore unit_type to canvas selects + drop anti-regression guard
 **Surfaced:** 17 May 2026, during FU-PROD-MIGRATION-BACKLOG-AUDIT Round 2 close-out.
-**Severity:** 🟢 LOW (P3) — cleanup of a temporary mitigation. Current state (narrow selects without `unit_type`) works fine; restoring the column would surface unit type in the canvas surfaces that originally needed it (ChangeUnitModal + Past units sub-route).
-**Target phase:** Standalone PR — ~30 min when next touching the canvas pages.
+**Resolved:** 17 May 2026 (same session — Matt rolled all three FUs into one continuous close-out).
+**Severity at close:** 🟢 LOW (P3)
 
-**Background:** PR [#340](https://github.com/mattburto-spec/studioloom/pull/340) (commit `56b18204`) narrowed two `units(...)` selects to omit `unit_type` after the column was discovered missing from prod (Round 2 trigger). Migration `051_unit_type` has now been applied to prod (17 May 2026, this audit's apply phase), so the narrow-select mitigation is no longer needed.
+**Original ask:** Restore `unit_type` to the two narrowed selects + drop the anti-regression `describe` block now that migration 051 was applied during the audit.
 
-**Definition of done:**
-- Widen the `units(...)` selects in [src/app/teacher/classes/[classId]/units/page.tsx](../../src/app/teacher/classes/%5BclassId%5D/units/page.tsx) and [src/components/teacher/class-hub/ChangeUnitModal.tsx](../../src/components/teacher/class-hub/ChangeUnitModal.tsx) back to include `unit_type` (and `is_published` if it was also narrowed — verify).
-- Delete the anti-regression describe block at [src/app/teacher/units/\_\_tests\_\_/dt-canvas-shape.test.ts:437](../../src/app/teacher/units/__tests__/dt-canvas-shape.test.ts) (`describe("DT canvas — prod migration drift anti-regression (FU-PROD-MIGRATION-BACKLOG-AUDIT)", ...)`).
-- Update the stale test description at [dt-canvas-shape.test.ts:696](../../src/app/teacher/units/__tests__/dt-canvas-shape.test.ts) (the regex doesn't validate the column list, so cosmetic only — but worth fixing while you're in the file).
-- Run `npm test` and confirm no regressions.
-- Smoke-test the canvas surfaces locally: ChangeUnitModal should render unit types in any visible unit metadata; Past units page should display unit type if used in the UI.
+**How it shipped (commit `51d42762`):**
+- `src/components/teacher/class-hub/ChangeUnitModal.tsx`: select widened from `units(title)` → `units(title, unit_type)` (matches pre-PR340 shape). Mapping pulls `u?.unit_type` instead of hardcoded null. NOTE comment removed.
+- `src/app/teacher/classes/[classId]/units/page.tsx`: select widened from `units(title)` → `units(title, unit_type, is_published)` (matches pre-PR340 shape per `git show f08c9836^`). Mapping pulls real values. NOTE comment removed.
+- `src/app/teacher/units/__tests__/dt-canvas-shape.test.ts`: anti-regression `describe("DT canvas — prod migration drift anti-regression")` block dropped (was lines 435-463). The Phase 3.4 describe block at the bottom of the file still asserts the canvas-hub class_units select shape — its description now matches the restored columns.
 
-**Why P3 not P2:** the platform works fine without unit_type in those two selects. The cleanup is about restoring intentional behaviour (the column was added to be queryable), not closing a hazard.
+**Verified:**
+- `dt-canvas-shape.test.ts`: 151/151 tests pass post-cleanup
+- `npx tsc --noEmit`: 0 errors in either modified source file (pre-existing 268 baseline elsewhere is unrelated)
+
+**Skipped (cosmetic only):** the stale test description at line 696 was technically still using outdated column list wording but the regex doesn't validate the column list, so the test was passing fine throughout. Description now happens to be correct again post-restoration.
 
 ---
-
-## Resolved
 
 ### FU-AUDIT-3DIGIT-001-044-SWEEP — Probe foundational 3-digit migrations not covered by Round 2 (initial)
 **Surfaced:** 17 May 2026, during FU-PROD-MIGRATION-BACKLOG-AUDIT Round 2 close-out.
