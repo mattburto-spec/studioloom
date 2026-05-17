@@ -661,6 +661,87 @@ describe("DT canvas Phase 3.4 — row kebab actions", () => {
   });
 });
 
+describe("DT canvas — ChangeUnitModal 'Other units' picker (17 May 2026)", () => {
+  // Smoke after the unit_type prod-drift fix flagged that the modal only
+  // listed units already on the class — no path to assign a brand-new
+  // unit. Picker added: fetches authored + published units (matches the
+  // set_active_unit RPC ownership gate), filters out units already on
+  // the class, capped at 30 in the modal / 40 on the sub-route.
+  const MODAL_SRC = readFileSync(
+    join(process.cwd(), "src/components/teacher/class-hub/ChangeUnitModal.tsx"),
+    "utf-8",
+  );
+
+  it("queries units with author OR is_published filter (matches RPC ownership gate)", () => {
+    expect(MODAL_SRC).toMatch(
+      /\.or\(`author_teacher_id\.eq\.\$\{user\.id\},is_published\.eq\.true`\)/
+    );
+  });
+
+  it("excludes units already on this class (uses existingIds set)", () => {
+    expect(MODAL_SRC).toMatch(/existingIds\s*=\s*new Set/);
+    expect(MODAL_SRC).toMatch(/!existingIds\.has\(u\.id\)/);
+  });
+
+  it("renders an 'Other units' section header + the AvailableUnitRow component", () => {
+    expect(MODAL_SRC).toContain("Other units you can assign");
+    expect(MODAL_SRC).toMatch(/<AvailableUnitRow/);
+    expect(MODAL_SRC).toMatch(/function AvailableUnitRow\(/);
+  });
+
+  it("AvailableUnitRow distinguishes Yours vs Library + carries per-row testid", () => {
+    expect(MODAL_SRC).toContain('data-testid={`change-unit-available-row-${option.unit_id}`}');
+    expect(MODAL_SRC).toMatch(/option\.isYours[\s\S]{0,300}Yours/);
+    expect(MODAL_SRC).toMatch(/!option\.isYours\s*&&\s*option\.is_published[\s\S]{0,300}Library/);
+  });
+
+  it("Available-empty state links to /teacher/units (library browse)", () => {
+    expect(MODAL_SRC).toContain('data-testid="change-unit-available-empty"');
+    expect(MODAL_SRC).toContain('href="/teacher/units"');
+  });
+
+  it("AvailableUnitRow Make-active button wires to onMakeActive(option.unit_id)", () => {
+    // Same setActiveUnit RPC as the past-unit row; the RPC handles
+    // the INSERT-on-conflict for class_units rows that don't exist
+    // yet, so "assign + activate" is one call.
+    expect(MODAL_SRC).toMatch(/onClick=\{\s*\(\)\s*=>\s*onMakeActive\(option\.unit_id\)/);
+  });
+});
+
+describe("DT canvas — Past units sub-route 'Other units' picker (17 May 2026)", () => {
+  // Same picker shape on the full-page sub-route — slightly higher
+  // cap (40 vs 30) since the page has more room to browse. Anti-
+  // revert guard ensures the section can't silently disappear from
+  // either surface.
+  const PAST_SRC = readFileSync(
+    join(process.cwd(), "src/app/teacher/classes/[classId]/units/page.tsx"),
+    "utf-8",
+  );
+
+  it("queries units with author OR is_published filter (same RPC ownership match)", () => {
+    expect(PAST_SRC).toMatch(
+      /\.or\(`author_teacher_id\.eq\.\$\{user\.id\},is_published\.eq\.true`\)/
+    );
+  });
+
+  it("excludes units already on this class via existingIds set", () => {
+    expect(PAST_SRC).toMatch(/existingIds\s*=\s*new Set/);
+    expect(PAST_SRC).toMatch(/!existingIds\.has\(u\.id\)/);
+  });
+
+  it("renders an 'Other units' section header + AvailableUnitRow component", () => {
+    expect(PAST_SRC).toContain("Other units you can assign");
+    expect(PAST_SRC).toMatch(/<AvailableUnitRow/);
+    expect(PAST_SRC).toMatch(/function AvailableUnitRow\(/);
+  });
+
+  it("per-row testid + empty-state link to /teacher/units", () => {
+    expect(PAST_SRC).toContain('data-testid={`class-units-available-row-${option.unit_id}`}');
+    expect(PAST_SRC).toContain('data-testid="class-units-available-empty"');
+    expect(PAST_SRC).toContain('href="/teacher/units"');
+  });
+});
+
 describe("DT canvas Phase 3.4 — Past units sub-route", () => {
   const UNITS_SRC = readFileSync(
     join(
