@@ -438,25 +438,62 @@ describe("DT canvas Phase 3.3 — Today's lesson hero card", () => {
     expect(HUB_SRC).not.toMatch(/<strong[^>]*>Workshop Model<\/strong>/);
   });
 
-  it("renders the new date pill (lesson-hero-date-pill) with scheduled date or 'Today' fallback", () => {
+  it("renders the new date pill (lesson-hero-date-pill) with scheduled date / 'Today' / 'Lesson N' tiers", () => {
     expect(HUB_SRC).toContain('data-testid="lesson-hero-date-pill"');
-    // Pill text format: "<dateLabel> · Lesson X of N"
+    // Pill text computed in pillText — three tiers: dated, "Today",
+    // or just "Lesson X of N" when viewing an unscheduled adjacent
+    // lesson (17 May PM smoke v5 — added lesson navigator).
     expect(HUB_SRC).toMatch(
-      /\{dateLabel\}\s*·\s*Lesson \{todayIdx \+ 1\} of \{unitPages\.length\}/
+      /pillText\s*=\s*dateLabel[\s\S]{0,200}Lesson \$\{viewIdx \+ 1\} of \$\{unitPages\.length\}/
     );
+    expect(HUB_SRC).toContain("{pillText}");
   });
 
   it("renders learning goal when present (lesson-hero-learning-goal)", () => {
     expect(HUB_SRC).toContain('data-testid="lesson-hero-learning-goal"');
-    expect(HUB_SRC).toContain("todayPage?.content?.learningGoal");
+    // 17 May PM smoke v5 — derived from viewPage (lesson navigator)
+    // instead of todayPage.
+    expect(HUB_SRC).toContain("viewPage?.content?.learningGoal");
   });
 
   it("renders activity rows from page.content.sections (lesson-hero-activity-row, capped at 4)", () => {
     expect(HUB_SRC).toContain('data-testid="lesson-hero-activity-row"');
-    expect(HUB_SRC).toContain("todayPage?.content?.sections");
+    expect(HUB_SRC).toContain("viewPage?.content?.sections");
     // Cap at 4 with overflow chip
     expect(HUB_SRC).toMatch(/activitySections\.slice\(0,\s*4\)/);
     expect(HUB_SRC).toContain('data-testid="lesson-hero-activity-overflow"');
+  });
+
+  // ─── 17 May PM smoke v5 — lesson navigator ────────────────────────
+  // Matt: "could have left and right buttons here to go see other
+  // lessons". Adds prev/next arrows + "Today" reset button to the
+  // lesson card so the teacher can peek at adjacent lessons without
+  // leaving the canvas.
+  it("renders prev/next arrows + Today reset button (lesson-hero-nav-prev / -next / -today)", () => {
+    expect(HUB_SRC).toContain('data-testid="lesson-hero-nav-prev"');
+    expect(HUB_SRC).toContain('data-testid="lesson-hero-nav-next"');
+    expect(HUB_SRC).toContain('data-testid="lesson-hero-nav-today"');
+  });
+
+  it("prev/next buttons disabled at boundaries (canPrev / canNext)", () => {
+    expect(HUB_SRC).toMatch(/canPrev\s*=\s*hasPages\s*&&\s*viewIdx\s*>\s*0/);
+    expect(HUB_SRC).toMatch(/canNext\s*=\s*hasPages\s*&&\s*viewIdx\s*<\s*unitPages\.length\s*-\s*1/);
+    expect(HUB_SRC).toContain("disabled={!canPrev}");
+    expect(HUB_SRC).toContain("disabled={!canNext}");
+  });
+
+  it("Today reset button only renders when viewing a non-today lesson", () => {
+    // Gated on !isViewingToday so the button doesn't compete with
+    // the pill when the card is already on today's lesson.
+    expect(HUB_SRC).toMatch(
+      /!isViewingToday\s*&&\s*\([\s\S]{0,200}lesson-hero-nav-today/
+    );
+  });
+
+  it("viewIdx clamps to a valid index even if lessonViewIdx went stale across a unit swap", () => {
+    expect(HUB_SRC).toMatch(
+      /viewIdx\s*=\s*hasPages[\s\S]{0,200}Math\.max\(0,\s*Math\.min\(rawViewIdx,\s*unitPages\.length\s*-\s*1\)\)/
+    );
   });
 
   it("empty-activities state renders when sections is empty", () => {

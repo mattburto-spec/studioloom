@@ -208,6 +208,13 @@ export function ClassCanvas({ unitId, classId }: { unitId: string; classId: stri
   // (17 May 2026, lesson card v2 per Matt's smoke.)
   const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
 
+  // Lesson card navigator (17 May PM smoke v5) — null = follow
+  // today's lesson (the default). Set by the < / > arrow buttons on
+  // the lesson card so the teacher can peek at adjacent lessons
+  // without leaving the canvas. Auto-clamped to [0, unitPages.length-1]
+  // at compute time.
+  const [lessonViewIdx, setLessonViewIdx] = useState<number | null>(null);
+
   // NM still lives on the canvas (rail card + observation modal + the
   // MetricsDrawer that wraps NMElementsPanel/NMResultsPanel). The term
   // picker + LessonSchedule + class-code reveal that used to be in the
@@ -1008,14 +1015,25 @@ export function ClassCanvas({ unitId, classId }: { unitId: string; classId: stri
             const todayIdx = hasPages
               ? deriveTodaysLessonIndex(unitPages, progressMap, studentIds, schedule)
               : 0;
-            const todayPage = hasPages ? unitPages[todayIdx] : null;
+            // 17 May PM smoke v5 — lesson navigator. viewIdx is what
+            // the card actually renders; defaults to todayIdx until
+            // the teacher clicks the < / > arrows. Clamped to a
+            // valid index even if lessonViewIdx went stale across a
+            // unit swap (more pages → larger valid range, fewer →
+            // we just snap to the last page).
+            const rawViewIdx = lessonViewIdx ?? todayIdx;
+            const viewIdx = hasPages
+              ? Math.max(0, Math.min(rawViewIdx, unitPages.length - 1))
+              : 0;
+            const viewPage = hasPages ? unitPages[viewIdx] : null;
+            const isViewingToday = viewIdx === todayIdx;
             // 17 May 2026 lesson card v2 — Workshop Model + phase
             // outline retired (Matt: "I hate workshop model"). New
             // payload pulls REAL lesson content: learning goal +
             // activity prompts. Activity list capped at 4 with a
             // "+N more" overflow chip.
-            const scheduledEntry = todayPage
-              ? schedule.find((s) => s.page_id === todayPage.id)
+            const scheduledEntry = viewPage
+              ? schedule.find((s) => s.page_id === viewPage.id)
               : undefined;
             const scheduledDate = scheduledEntry?.scheduled_date
               ? new Date(scheduledEntry.scheduled_date)
@@ -1026,15 +1044,22 @@ export function ClassCanvas({ unitId, classId }: { unitId: string; classId: stri
                   day: "numeric",
                   month: "short",
                 })
-              : "Today";
-            const learningGoal = todayPage?.content?.learningGoal?.trim() || null;
-            const activitySections = (todayPage?.content?.sections ?? [])
+              : isViewingToday
+                ? "Today"
+                : null;
+            const pillText = dateLabel
+              ? `${dateLabel} · Lesson ${viewIdx + 1} of ${unitPages.length}`
+              : `Lesson ${viewIdx + 1} of ${unitPages.length}`;
+            const learningGoal = viewPage?.content?.learningGoal?.trim() || null;
+            const activitySections = (viewPage?.content?.sections ?? [])
               .filter((s) => typeof s.prompt === "string" && s.prompt.trim().length > 0);
             const activityRows = activitySections.slice(0, 4).map((s, i) => ({
-              key: `${todayPage?.id ?? "p"}-${i}`,
+              key: `${viewPage?.id ?? "p"}-${i}`,
               prompt: s.prompt.trim(),
             }));
             const overflowCount = Math.max(0, activitySections.length - activityRows.length);
+            const canPrev = hasPages && viewIdx > 0;
+            const canNext = hasPages && viewIdx < unitPages.length - 1;
             return (
               <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4 items-stretch">
                 {/* LEFT: Unit hero — colourful, thumbnail-forward.
@@ -1114,24 +1139,67 @@ export function ClassCanvas({ unitId, classId }: { unitId: string; classId: stri
                   <section
                     data-testid="canvas-lesson-hero"
                     data-today-index={todayIdx}
+                    data-view-index={viewIdx}
                     data-scheduled={scheduledDate ? "true" : "false"}
                     className="rounded-2xl bg-white border border-gray-200 shadow-sm p-5 flex flex-col"
                   >
-                    {/* Pill: "Wed 19 May · Lesson 5 of 14" when scheduled,
-                        "Today · Lesson X of N" otherwise. */}
+                    {/* Navigator: ‹ prev / date+position pill / › next.
+                        Pill format: "Wed 19 May · Lesson 5 of 14" when
+                        scheduled, "Today · Lesson X of N" when viewing
+                        today w/o a schedule, "Lesson X of N" when
+                        peeking at an unscheduled adjacent lesson.
+                        Reset-to-today button surfaces when viewIdx !==
+                        todayIdx so the teacher can snap back without
+                        clicking through every step. */}
                     <div className="flex items-center gap-2 mb-3">
+                      <button
+                        type="button"
+                        data-testid="lesson-hero-nav-prev"
+                        onClick={() => setLessonViewIdx(Math.max(0, viewIdx - 1))}
+                        disabled={!canPrev}
+                        aria-label="Previous lesson"
+                        title="Previous lesson"
+                        className="w-7 h-7 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <polyline points="15 18 9 12 15 6" />
+                        </svg>
+                      </button>
                       <span
                         data-testid="lesson-hero-date-pill"
                         className="inline-block text-[10px] font-bold uppercase tracking-[0.08em] px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700"
                       >
-                        {dateLabel} · Lesson {todayIdx + 1} of {unitPages.length}
+                        {pillText}
                       </span>
+                      <button
+                        type="button"
+                        data-testid="lesson-hero-nav-next"
+                        onClick={() => setLessonViewIdx(Math.min(unitPages.length - 1, viewIdx + 1))}
+                        disabled={!canNext}
+                        aria-label="Next lesson"
+                        title="Next lesson"
+                        className="w-7 h-7 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                      </button>
+                      {!isViewingToday && (
+                        <button
+                          type="button"
+                          data-testid="lesson-hero-nav-today"
+                          onClick={() => setLessonViewIdx(null)}
+                          className="ml-auto text-[10px] font-semibold tracking-wider uppercase text-indigo-600 hover:text-indigo-700 transition"
+                        >
+                          Today
+                        </button>
+                      )}
                     </div>
                     <h2
                       data-testid="lesson-hero-title"
                       className="text-lg font-bold leading-tight text-gray-900"
                     >
-                      {todayPage?.title || todayPage?.content?.title || `Page ${todayIdx + 1}`}
+                      {viewPage?.title || viewPage?.content?.title || `Page ${viewIdx + 1}`}
                     </h2>
                     {learningGoal && (
                       <p
