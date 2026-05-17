@@ -4,6 +4,7 @@ import Link from "next/link";
 import { I } from "./icons";
 import { SectionEmpty } from "./empty-states";
 import type { RailCard } from "./current-period";
+import { buildSlugWithId } from "@/lib/url/slug";
 
 interface TodayRailProps {
   /** Real schedule cards. Empty + loaded → empty state banner. */
@@ -30,9 +31,12 @@ function RailCardView({ c }: { c: RailCard }) {
   const isLive = c.state === "live";
   const isNext = c.state === "next";
   const isDone = c.state === "done";
+  // DT canvas Package B.5 (17 May 2026): mint slug URL via class name.
+  // RailCard.className carries the class name (set at e.className in
+  // current-period.ts:386).
   const manageHref =
-    c.unitId && c.classId
-      ? `/teacher/units/${c.unitId}/class/${c.classId}`
+    c.classId
+      ? `/teacher/c/${buildSlugWithId(c.className, c.classId)}`
       : null;
 
   return (

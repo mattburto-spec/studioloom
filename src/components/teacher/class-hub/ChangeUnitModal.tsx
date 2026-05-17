@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { setActiveUnit } from "@/lib/classes/active-unit";
+import { buildSlugWithId } from "@/lib/url/slug";
 
 // ---------------------------------------------------------------------------
 // ChangeUnitModal — pick a different unit to make active on this class
@@ -182,8 +183,10 @@ export default function ChangeUnitModal({
         }
         return;
       }
-      // Success — navigate to the new unit's canvas.
-      router.push(`/teacher/units/${targetUnitId}/class/${classId}`);
+      // Success — navigate to the canvas. DT canvas Package B.5: the
+      // canvas URL is class-canonical (it always renders the class's
+      // active unit, which we just set).
+      router.push(`/teacher/c/${buildSlugWithId(className, classId)}`);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Unexpected error");
     } finally {

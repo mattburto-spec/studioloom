@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { I } from "./icons";
 import type { CurrentPeriod } from "./current-period";
+import { buildSlugWithId } from "@/lib/url/slug";
 
 interface NowHeroProps {
   /** Resolved current-or-next period. Null + loaded → "no class now"
@@ -106,9 +107,11 @@ export function NowHero({ current, loaded }: NowHeroProps) {
       : vm.unitId
         ? `/teacher/units/${vm.unitId}`
         : null;
+  // DT canvas Package B.5 (17 May 2026): canvas URL is now class-canonical.
+  // /edit retains the unit-first URL since the editor needs both segments.
   const progressHref =
-    vm.unitId && classId
-      ? `/teacher/units/${vm.unitId}/class/${classId}`
+    classId
+      ? `/teacher/c/${buildSlugWithId(vm.className, classId)}`
       : vm.unitId
         ? `/teacher/units/${vm.unitId}`
         : null;

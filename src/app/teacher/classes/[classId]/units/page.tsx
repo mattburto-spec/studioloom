@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { setActiveUnit } from "@/lib/classes/active-unit";
+import { buildSlugWithId } from "@/lib/url/slug";
 
 // ---------------------------------------------------------------------------
 // Past units on this class (DT canvas Phase 3.4 Step 3, 16 May 2026).
@@ -148,7 +149,8 @@ export default function ClassUnitsPage({
         }
         return;
       }
-      router.push(`/teacher/units/${targetUnitId}/class/${classId}`);
+      // DT canvas Package B.5: route to the class-canonical canvas URL.
+      router.push(`/teacher/c/${buildSlugWithId(className, classId)}`);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Unexpected error");
     } finally {
@@ -196,6 +198,7 @@ export default function ClassUnitsPage({
               <UnitRow
                 row={active}
                 classId={classId}
+                className={className}
                 activatingId={activatingId}
                 onMakeActive={makeActive}
               />
@@ -238,6 +241,7 @@ export default function ClassUnitsPage({
                     key={r.unit_id}
                     row={r}
                     classId={classId}
+                    className={className}
                     activatingId={activatingId}
                     onMakeActive={makeActive}
                   />
@@ -307,11 +311,15 @@ export default function ClassUnitsPage({
 function UnitRow({
   row,
   classId,
+  className,
   activatingId,
   onMakeActive,
 }: {
   row: ClassUnitRow;
   classId: string;
+  /** Class name used to mint the slug URL on the title link. DT canvas
+   *  Package B.5 (17 May 2026). */
+  className: string;
   activatingId: string | null;
   onMakeActive: (unitId: string) => void;
 }) {
@@ -326,7 +334,10 @@ function UnitRow({
     >
       <div className="flex-1 min-w-0">
         <Link
-          href={`/teacher/units/${row.unit_id}/class/${classId}`}
+          // DT canvas Package B.5: canvas URL is class-canonical; clicking
+          // a past unit row activates it via Activate button below (we don't
+          // change active here, just navigate to the class's current canvas).
+          href={`/teacher/c/${buildSlugWithId(className, classId)}`}
           className="text-sm font-semibold text-text-primary hover:text-purple-700 transition truncate inline-block max-w-full"
         >
           {row.title}

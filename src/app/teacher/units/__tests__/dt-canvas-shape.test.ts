@@ -719,7 +719,7 @@ describe("DT canvas Phase 3.3 — Change unit modal + setActiveUnit wiring", () 
     expect(MODAL_SRC).toContain('result.code === "23505"');
   });
 
-  it("ChangeUnitModal navigates to the new unit's canvas on success", () => {
+  it("ChangeUnitModal navigates to the new unit's canvas on success (class-canonical slug URL — Package B.5)", () => {
     const MODAL_SRC = readFileSync(
       join(
         process.cwd(),
@@ -727,8 +727,11 @@ describe("DT canvas Phase 3.3 — Change unit modal + setActiveUnit wiring", () 
       ),
       "utf-8"
     );
+    // DT canvas Package B.5 (17 May 2026): canvas URL is class-canonical.
+    // The just-activated unit is the class's new active unit, so the
+    // slug URL renders it on next load.
     expect(MODAL_SRC).toMatch(
-      /router\.push\(`\/teacher\/units\/\$\{targetUnitId\}\/class\/\$\{classId\}`\)/
+      /router\.push\(`\/teacher\/c\/\$\{buildSlugWithId\(className,\s*classId\)\}`\)/
     );
   });
 });
@@ -994,9 +997,13 @@ describe("DT canvas Phase 3.4 — Past units sub-route", () => {
     );
   });
 
-  it("navigates to the new active canvas on success", () => {
+  it("navigates to the new active canvas on success (class-canonical slug URL — Package B.5)", () => {
+    // DT canvas Package B.5 (17 May 2026): the canvas URL is now
+    // class-canonical (/teacher/c/<slug>-<6id>), no unit segment.
+    // setActiveUnit() flipped is_active before this navigation, so the
+    // class will render the targetUnitId on next load.
     expect(UNITS_SRC).toMatch(
-      /router\.push\(`\/teacher\/units\/\$\{targetUnitId\}\/class\/\$\{classId\}`\)/
+      /router\.push\(`\/teacher\/c\/\$\{buildSlugWithId\(className,\s*classId\)\}`\)/
     );
   });
 

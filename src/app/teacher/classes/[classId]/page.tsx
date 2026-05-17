@@ -4,6 +4,7 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { setActiveUnit } from "@/lib/classes/active-unit";
+import { buildSlugWithId } from "@/lib/url/slug";
 // ELL_LEVELS + EllLevel imports removed 28 Apr 2026 — inline ELL selector
 // was moved to the unified per-student Support tab. ELL_COLORS (defined
 // below) still surfaces the resolved-value badge for at-a-glance scanning.
@@ -1999,6 +2000,7 @@ export default function ClassDetailPage({
         allUnits={allUnits}
         classUnits={classUnits}
         classId={classId}
+        className={classInfo?.name ?? null}
         onToggle={toggleUnit}
       />
 
@@ -2018,11 +2020,16 @@ function UnitsSection({
   allUnits,
   classUnits,
   classId,
+  className,
   onToggle,
 }: {
   allUnits: Unit[];
   classUnits: ClassUnit[];
   classId: string;
+  /** Class name. Used to mint the slug URL for the "Manage" canvas link.
+   *  Null while classInfo is still loading. Falls back to "untitled" in
+   *  buildSlugWithId(). DT canvas Package B.5 (17 May 2026). */
+  className: string | null;
   onToggle: (unitId: string, isActive: boolean) => void;
 }) {
   const [showHistory, setShowHistory] = useState(false);
@@ -2180,7 +2187,8 @@ function UnitsSection({
                       Teach
                     </Link>
                     <Link
-                      href={`/teacher/units/${unit.id}/class/${classId}`}
+                      // DT canvas Package B.5: class-canonical canvas URL.
+                      href={`/teacher/c/${buildSlugWithId(className, classId)}`}
                       className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl border border-gray-200 text-text-secondary transition hover:bg-gray-50"
                     >
                       Manage
