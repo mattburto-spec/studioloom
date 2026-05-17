@@ -713,6 +713,7 @@ function timeGreeting(now: Date = new Date()): string {
 
 function ResumeHero({ student, hero }: { student: SessionStudent; hero: HeroUnit }) {
   const n = hero;
+  const heroLabels = formatToHeroLabels(hero.unitType);
   return (
     <section id="dashboard-hero" className="max-w-[1400px] mx-auto px-6 pt-8">
       <div className="mb-4 px-1">
@@ -762,7 +763,7 @@ function ResumeHero({ student, hero }: { student: SessionStudent; hero: HeroUnit
                 </div>
               </div>
               <div className="flex-1 min-w-0">
-                <div className="cap text-[var(--sl-ink-3)]">Your current task</div>
+                <div className="cap text-[var(--sl-ink-3)]">{heroLabels.taskLabel}</div>
                 <div className="display text-[18px] leading-tight mt-0.5">{n.currentTask}</div>
                 <div className="text-[11.5px] text-[var(--sl-ink-3)] mt-1 font-semibold">
                   Due <span className="text-[var(--sl-ink)] font-bold">{n.dueIn}</span>
@@ -773,11 +774,11 @@ function ResumeHero({ student, hero }: { student: SessionStudent; hero: HeroUnit
             <div className="flex items-center gap-2 mt-6">
               {n.continueHref ? (
                 <Link href={n.continueHref} className="bg-white text-[var(--sl-ink)] rounded-full px-6 py-3 font-bold text-[14px] inline-flex items-center gap-2 hover:shadow-lg transition">
-                  <Icon name="play" size={11} s={0} /> Continue
+                  <Icon name="play" size={11} s={0} /> {heroLabels.ctaVerb}
                 </Link>
               ) : (
                 <button className="bg-white text-[var(--sl-ink)] rounded-full px-6 py-3 font-bold text-[14px] inline-flex items-center gap-2 hover:shadow-lg transition">
-                  <Icon name="play" size={11} s={0} /> Continue
+                  <Icon name="play" size={11} s={0} /> {heroLabels.ctaVerb}
                 </button>
               )}
               {/* "Open journal" button removed 23 Apr 2026 — no backing route
@@ -842,6 +843,7 @@ function FocusOverlay({ hero, onExit }: { hero: HeroUnit; onExit: () => void }) 
   }, [onExit]);
 
   const pct = hero.taskTotal > 0 ? (hero.taskProgress / hero.taskTotal) * 100 : 0;
+  const heroLabels = formatToHeroLabels(hero.unitType);
 
   return (
     <div className="fixed inset-0 z-50 bg-[var(--sl-bg)] overflow-auto">
@@ -880,14 +882,14 @@ function FocusOverlay({ hero, onExit }: { hero: HeroUnit; onExit: () => void }) 
                 className="text-white rounded-full px-8 py-3.5 font-bold text-[15px] inline-flex items-center gap-2 hover:brightness-110 transition"
                 style={{ background: hero.color }}
               >
-                <Icon name="play" size={12} s={0} /> Continue
+                <Icon name="play" size={12} s={0} /> {heroLabels.ctaVerb}
               </Link>
             ) : (
               <button
                 className="text-white rounded-full px-8 py-3.5 font-bold text-[15px] inline-flex items-center gap-2"
                 style={{ background: hero.color }}
               >
-                <Icon name="play" size={12} s={0} /> Continue
+                <Icon name="play" size={12} s={0} /> {heroLabels.ctaVerb}
               </button>
             )}
           </div>
