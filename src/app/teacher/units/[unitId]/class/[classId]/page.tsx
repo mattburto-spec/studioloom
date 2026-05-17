@@ -25,6 +25,7 @@ import type { AssessmentRecordRow } from "@/types/assessment";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
 import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
 import { worstIntegrityLevel } from "@/lib/integrity/analyze-integrity";
+import { studentInitials } from "@/lib/teacher/student-initials";
 import StudentDrawer from "@/components/teacher/class-hub/StudentDrawer";
 import StudentRosterDrawer from "@/components/teacher/class-hub/StudentRosterDrawer";
 import SafetyDrawer from "@/components/teacher/class-hub/SafetyDrawer";
@@ -104,33 +105,6 @@ function todayDotLabel(lastActiveISO: string | null): string {
   if (ageMs < dayMs) return "Active in the last 24 hours";
   if (ageMs < 3 * dayMs) return "Active in the last 3 days";
   return "Inactive for 3+ days";
-}
-
-// Phase 3.6 Step 3 — avatar initials that don't collide.
-// Smoke from Phase 3.1 + Phase 3.2 showed two students with usernames
-// starting "H" (e.g. HH + HP) both rendering as a single "H" avatar —
-// indistinguishable at a glance. This helper widens to 2 chars when
-// available and prefers the first letter of each word when the
-// display_name has multiple words.
-//   "Henry Park"     → HP
-//   "Bea Martinez"   → BM
-//   "Aiden Chen"     → AC
-//   "Alex"           → AL  (single-word display_name)
-//   "HH" / "hh"      → HH  (username fallback)
-//   "z"              → Z   (single-char username)
-//   ""               → ?
-export function studentInitials(displayName: string | null | undefined, username: string | null | undefined): string {
-  const dn = (displayName ?? "").trim();
-  if (dn) {
-    const words = dn.split(/\s+/).filter(Boolean);
-    if (words.length >= 2) {
-      return (words[0][0] + words[1][0]).toUpperCase();
-    }
-    return dn.slice(0, 2).toUpperCase();
-  }
-  const un = (username ?? "").trim();
-  if (un) return un.slice(0, 2).toUpperCase();
-  return "?";
 }
 
 function lastActiveLabel(iso: string | null): string {
