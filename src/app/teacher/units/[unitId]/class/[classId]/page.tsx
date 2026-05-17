@@ -1068,15 +1068,36 @@ export default function ClassHubPage({
               <section
                 data-testid="canvas-lesson-hero"
                 data-today-index={todayIdx}
-                className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-2xl shadow-sm overflow-hidden"
+                data-has-thumbnail={unit.thumbnail_url ? "true" : "false"}
+                style={
+                  unit.thumbnail_url
+                    ? { backgroundImage: `url(${unit.thumbnail_url})`, backgroundSize: "cover", backgroundPosition: "center" }
+                    : undefined
+                }
+                className={`relative rounded-2xl shadow-sm overflow-hidden text-white ${unit.thumbnail_url ? "" : "bg-gradient-to-br from-orange-500 to-orange-600"}`}
               >
+                {/* Orange overlay (Phase 3.6+ polish, 17 May 2026) —
+                    when the unit has a thumbnail_url, the image fills
+                    the card as a background + this overlay washes
+                    most of the left column orange so the title /
+                    outline text stays legible, with the right edge
+                    fading back toward the image so a slice of art
+                    still shows. When there's no thumbnail, the
+                    overlay is invisible (the gradient on the section
+                    itself paints the whole card). */}
+                {unit.thumbnail_url && (
+                  <div
+                    aria-hidden
+                    className="absolute inset-0 bg-gradient-to-r from-orange-600/95 via-orange-600/85 to-orange-500/40 pointer-events-none"
+                  />
+                )}
                 {/* Change unit affordance was here in Phase 3.3 Step 2 as
                     an absolute-positioned pill — it overlapped the outline
                     column text on real lesson data. Moved into the canvas
                     header next to Edit + kebab so the hero stays clean
                     and the action remains visible when the hero is in
                     its empty state. testid renamed canvas-header-change-unit. */}
-                <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 lg:gap-8 p-6">
+                <div className="relative grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 lg:gap-8 p-6">
                   <div>
                     <span className="inline-block text-[10px] font-bold uppercase tracking-[0.08em] px-2.5 py-1 rounded-full bg-white/20">
                       Today · Lesson {todayIdx + 1} of {unitPages.length}

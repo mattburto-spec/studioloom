@@ -455,6 +455,37 @@ describe("DT canvas — prod migration drift anti-regression (FU-PROD-MIGRATION-
   });
 });
 
+describe("DT canvas — lesson hero unit thumbnail (17 May 2026)", () => {
+  // Matt's polish ask: get the unit thumbnail onto the canvas. Hero
+  // card now uses unit.thumbnail_url as a CSS background-image with an
+  // orange-gradient overlay (95% opacity left, fades to 40% on the
+  // right) so text stays legible while a slice of the unit art shows
+  // through. Graceful fallback to the existing solid orange gradient
+  // when the unit has no thumbnail.
+  it("hero sets backgroundImage from unit.thumbnail_url when available", () => {
+    expect(HUB_SRC).toMatch(
+      /backgroundImage:\s*`url\(\$\{unit\.thumbnail_url\}\)`/
+    );
+  });
+
+  it("hero adds an orange-gradient overlay above the image so text is legible", () => {
+    expect(HUB_SRC).toContain("from-orange-600/95 via-orange-600/85 to-orange-500/40");
+  });
+
+  it("hero falls back to solid gradient when no thumbnail_url", () => {
+    // Ternary: thumbnail_url ? (no bg-gradient class) : bg-gradient-to-br…
+    expect(HUB_SRC).toMatch(
+      /unit\.thumbnail_url\s*\?\s*""\s*:\s*"bg-gradient-to-br from-orange-500 to-orange-600"/
+    );
+  });
+
+  it("hero carries data-has-thumbnail flag for smoke + debug", () => {
+    expect(HUB_SRC).toMatch(
+      /data-has-thumbnail=\{unit\.thumbnail_url\s*\?\s*"true"\s*:\s*"false"\}/
+    );
+  });
+});
+
 describe("DT canvas Phase 3.3 — Change unit modal + setActiveUnit wiring", () => {
   it("renders the Change unit button in the canvas header (relocated from hero)", () => {
     // Phase 3.3 Step 2 originally absolute-positioned this button inside
