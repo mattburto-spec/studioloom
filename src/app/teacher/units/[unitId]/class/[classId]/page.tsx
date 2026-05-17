@@ -884,7 +884,18 @@ export default function ClassHubPage({
               Class section + stubs land in Step 2. Mockup view 2,
               kebab-menu block (~line 1478). */}
           {(() => {
-            const previewPageId = unitPages[0]?.id;
+            // Polish A.1 (17 May 2026): "View as student" used to open
+            // unitPages[0] (always the first page). Now opens today's
+            // page — same derivation as the orange lesson hero so the
+            // teacher previews the page their students are about to
+            // see, not a stale Lesson 1. Falls back to unitPages[0]
+            // if today's derivation yields nothing (empty class +
+            // empty progressMap).
+            const studentIds = students.map((s) => s.id);
+            const previewIdx = unitPages.length > 0
+              ? deriveTodaysLessonIndex(unitPages, progressMap, studentIds)
+              : 0;
+            const previewPageId = unitPages[previewIdx]?.id ?? unitPages[0]?.id;
             const unitSection: KebabMenuSection = {
               label: `Unit · ${unit.title}`,
               items: [
