@@ -503,8 +503,17 @@ function classifyInsights(insights: InsightRow[]): PriorityBuckets {
   const todayTop = todayCandidates.sort((a, b) => b.priority - a.priority)[0];
   const today = todayTop ? [insightToQueueItem(todayTop, "today")] : [];
 
-  soon.sort((a, b) => b.priority - a.priority);
-  const soonItems = soon.slice(0, 5).map((i) => insightToQueueItem(i, "soon"));
+  // Order soon by timestamp ascending — the user-facing "Coming up" surface
+  // is time-anchored, not priority-anchored. Priority still wins ordering
+  // server-side (P95 safety > P45 due-soon); within "soon" the question is
+  // *when*, not *how important*. Cap at 12 so See-all has meaningful room
+  // to expand into without dragging the bell popover off-screen.
+  soon.sort((a, b) => {
+    const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+    const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+    return ta - tb;
+  });
+  const soonItems = soon.slice(0, 12).map((i) => insightToQueueItem(i, "soon"));
 
   return { overdue, today, soon: soonItems };
 }
@@ -957,39 +966,80 @@ function MiddleRow({ buckets, badges }: { buckets: PriorityBuckets; badges: Badg
 
         {/* Coming up — expanded from md:col-span-3 to md:col-span-7 so
             the soon list breathes and shows more context per row. */}
-        <div className="md:col-span-7">
-          <div className="cap text-[var(--sl-ink-2)] mb-3">Coming up · {soon.length}</div>
-          <div className="bg-white rounded-3xl p-2 card-shadow">
-            {soon.length === 0 ? (
-              <div className="p-4 text-[12px] text-[var(--sl-ink-3)] text-center">
-                Nothing upcoming.
-              </div>
-            ) : (
-              soon.map((q, i) => {
-                const rowClass = "w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-[var(--sl-bg)] transition text-left";
-                const rowContent = (
-                  <>
-                    <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: `${q.color}1a`, color: q.color }}>
-                      <Icon name={q.icon} size={14} s={2.2} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[12px] font-extrabold leading-tight truncate">{q.title}</div>
-                      <div className="text-[10.5px] text-[var(--sl-ink-3)] truncate mt-0.5">{q.sub}</div>
-                    </div>
-                  </>
-                );
-                return q.href ? (
-                  <Link key={i} href={q.href} className={rowClass}>{rowContent}</Link>
-                ) : (
-                  <button key={i} className={rowClass}>{rowContent}</button>
-                );
-              })
-            )}
-          </div>
-        </div>
+        <ComingUpPanel soon={soon} />
       </div>
     </section>
   );
+}
+
+/**
+ * "Coming up" — formerly inline inside MiddleRow. Lifted out 17 May 2026
+ * so it can own its own expand state. Renders 6 rows by default; clicking
+ * "See all →" reveals the rest (up to the 12-row classifyInsights cap)
+ * and the link flips to "Show fewer ↑".
+ *
+ * Each row now surfaces:
+ *   - format icon + accent color (unchanged)
+ *   - title + sub (unchanged)
+ *   - a time-anchored dueText pill on the right ("Due in 3 days", "today",
+ *     "tomorrow", etc.) — previously populated but only piped to the bell
+ *     popover. Brings the panel closer to the cockpit mockup spec.
+ */
+function ComingUpPanel({ soon }: { soon: QueueItem[] }) {
+  const DEFAULT_VISIBLE = 6;
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? soon : soon.slice(0, DEFAULT_VISIBLE);
+  const hasOverflow = soon.length > DEFAULT_VISIBLE;
+
+  return (
+    <div className="md:col-span-7">
+      <div className="cap text-[var(--sl-ink-2)] mb-3">Coming up · {soon.length}</div>
+      <div className="bg-white rounded-3xl p-2 card-shadow">
+        {soon.length === 0 ? (
+          <div className="p-4 text-[12px] text-[var(--sl-ink-3)] text-center">
+            Nothing upcoming.
+          </div>
+        ) : (
+          <>
+            {visible.map((q, i) => {
+              const rowClass = "w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-[var(--sl-bg)] transition text-left";
+              const rowContent = (
+                <>
+                  <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: `${q.color}1a`, color: q.color }}>
+                    <Icon name={q.icon} size={14} s={2.2} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[12px] font-extrabold leading-tight truncate">{q.title}</div>
+                    <div className="text-[10.5px] text-[var(--sl-ink-3)] truncate mt-0.5">{q.sub}</div>
+                  </div>
+                  {q.dueText && (
+                    <div
+                      className="flex-shrink-0 text-[10px] font-extrabold rounded-full px-2.5 py-1 whitespace-nowrap"
+                      style={{ background: `${q.color}14`, color: q.color }}
+                    >
+                      {q.dueText}
+                    </div>
+                  )}
+                </>
+              );
+              return q.href ? (
+                <Link key={i} href={q.href} className={rowClass}>{rowContent}</Link>
+              ) : (
+                <button key={i} className={rowClass}>{rowContent}</button>
+              );
+            })}
+            {hasOverflow && (
+              <button
+                onClick={() => setExpanded((v) => !v)}
+                className="w-full text-[11px] font-extrabold text-[var(--sl-ink-2)] hover:text-[var(--sl-ink)] py-2.5 mt-1 transition"
+              >
+                {expanded ? `Show fewer ↑` : `See all (${soon.length}) →`}
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </div>);
 }
 
 // ================= UNITS GRID =================
