@@ -42,6 +42,9 @@ RETIRED_MIGRATIONS=(
   # Added 17 May 2026 (Round 2 audit — FU-CHECK-APPLIED-3DIGIT-SCOPE close-out):
   "121_student_progress_autonomy_level"            # local-dev only per migration file comment; never applied to prod
   "122_drop_student_progress_autonomy_level"       # paired rollback of 121; no prod effect (column never existed on prod)
+  # Added 17 May 2026 (Round 2 audit — FU-AUDIT-3DIGIT-001-044-SWEEP close-out):
+  "028_own_time"                                   # deprecated feature; own_time_* tables intentionally absent on prod (superseded by Open Studio)
+  "118_machine_profiles_uniq_lab_scope"            # superseded by 20260428074205_machine_profiles_school_scoped (school-scoped uq index landed instead)
 )
 
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")

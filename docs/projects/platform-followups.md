@@ -332,26 +332,6 @@ One-line UX, zero coupling, no event system. **Do NOT build:**
 
 ---
 
-## FU-AUDIT-3DIGIT-001-044-SWEEP — Probe foundational 3-digit migrations not covered by Round 2
-**Surfaced:** 17 May 2026, during FU-PROD-MIGRATION-BACKLOG-AUDIT Round 2 close-out.
-**Severity:** 🟢 LOW (P3) — the lowest-likelihood drift class. Foundational schema migrations (`001`–`044`) added the canonical tables (`teachers`, `units`, `classes`, `students`, `knowledge_uploads`, etc.). Drift here would already have caused 500s on app boot.
-**Target phase:** Optional — one paste cycle when convenient. Can be deferred indefinitely without operational impact.
-
-**The gap:** Round 2's expand probe pack covered 3-digit migrations `045–119`. The 44 migrations in range `001`–`044` were not probed — they're pre-Dimensions3 era and operationally proven by the platform booting at all. But "operationally proven by boot" isn't the same as "verified via probe", and the truth doc principle is to verify, not assume.
-
-**Method (~5 min to author, 1 paste cycle to run):**
-- Read each migration's `CREATE TABLE` / `ADD COLUMN` statement for a distinctive artifact (most are CREATE TABLE in this range).
-- Build a 30-probe `UNION ALL` SQL block in the same shape as `/tmp/audit-3digit-probe-pack.sql`.
-- Skip migrations that are pure RLS-fix or index-only (no distinctive artifact to probe).
-- Expected: all return `applied = true`. Anything that doesn't is a P0 (foundational drift = app likely broken in unobvious ways).
-
-**Definition of done:**
-- 30-probe SQL block authored + pasted + result captured.
-- Findings (if any) added to truth doc as Round 3.
-- For migrations confirmed applied, append rows to `applied_migrations` with `source='backfill'`. Pairs with `FU-CHECK-APPLIED-3DIGIT-SCOPE`.
-
----
-
 ## FU-PR340-CLEANUP-WIDEN-SELECTS — Restore unit_type to canvas selects + drop anti-regression guard
 **Surfaced:** 17 May 2026, during FU-PROD-MIGRATION-BACKLOG-AUDIT Round 2 close-out.
 **Severity:** 🟢 LOW (P3) — cleanup of a temporary mitigation. Current state (narrow selects without `unit_type`) works fine; restoring the column would surface unit type in the canvas surfaces that originally needed it (ChangeUnitModal + Past units sub-route).
@@ -371,6 +351,33 @@ One-line UX, zero coupling, no event system. **Do NOT build:**
 ---
 
 ## Resolved
+
+### FU-AUDIT-3DIGIT-001-044-SWEEP — Probe foundational 3-digit migrations not covered by Round 2 (initial)
+**Surfaced:** 17 May 2026, during FU-PROD-MIGRATION-BACKLOG-AUDIT Round 2 close-out.
+**Resolved:** 17 May 2026 (same session, scope expanded to all 71 unprobed migrations).
+**Severity at close:** 🟢 LOW (P3)
+
+**Original ask:** Probe the 44 foundational 3-digit migrations (`001`–`044`) not covered by Round 2's expand pack, plus 27 others in the `045`–`119` range that were `assumed applied` rather than `verified via probe`.
+
+**Method:** Built a single 71-probe `UNION ALL` SQL block (`/tmp/audit-sweep-3digit.sql`) with one distinctive artifact per migration, read directly from each migration body per Lesson #93.
+
+**Findings:**
+- **68 / 71 returned `applied=true` on first pass.** All probed-and-confirmed migrations had their `applied_migrations.notes` upgraded from `assumed applied` to `verified via Round 2 17 May 2026 audit sweep pack`.
+- **3 returned `applied=false`** — triaged with corrective re-probes (Lesson #93 in action):
+  - `084_fk_cascade_fixes_for_teacher_delete` — **probe bug.** I assumed `units.author_teacher_id` was `SET NULL`; the migration body actually sets it `CASCADE`. Re-probe confirmed migration applied correctly. Upgraded to verified.
+  - `028_own_time` — **real absence, deprecated.** `own_time_approvals`, `own_time_projects`, `own_time_sessions` tables all confirmed missing on prod. Worktree CLAUDE.md flagged `own_time_*` as `deprecated; safe to delete` (FU-AA). Feature was superseded by Open Studio. **Migration added to `RETIRED_MIGRATIONS`** in `check-applied.sh`.
+  - `118_machine_profiles_uniq_lab_scope` — **superseded.** Neither old (`uq_machine_profiles_teacher_name`) nor new (`uq_machine_profiles_teacher_lab_name`) index exists on prod. The deep probe found a third index `uq_machine_profiles_lab_name_active` (created by `20260428074205_machine_profiles_school_scoped.sql` on 28 Apr 2026, three days after 118 was authored on 25 Apr) which dropped 093's old index and created a school-scoped replacement. The school-scope shape `(lab_id, name) WHERE is_active AND NOT is_system_template` is the correct end-state; mig 118's per-teacher scope was abandoned in favor of school-scope. **Migration added to `RETIRED_MIGRATIONS`** with note explaining the supersession.
+
+**How it shipped:**
+- 69 `applied_migrations` rows upgraded `assumed applied` → `verified via sweep pack`. 2 rows DELETEd for the retired migrations.
+- 2 entries appended to `check-applied.sh` `RETIRED_MIGRATIONS`: `028_own_time`, `118_machine_profiles_uniq_lab_scope`. Brings total retired to 6.
+- CLAUDE.md "Migration discipline (v2)" section updated to reflect the new retired list + 100% verified status (114 verified-via-probe + 4 applied-this-session = 118 verified rows; 0 assumed remaining).
+
+**Insight banked:** When two migrations evolve in parallel during the cutover window (3-digit `118` authored 25 Apr, timestamp `20260428074205` authored 28 Apr), the LATER one supersedes the earlier silently if no tracker exists. This was Lesson #83's structural source — the 11 May tracker now prevents this class going forward, but historical drift like 118 is only catchable via audits like this one.
+
+**Sibling follow-up:** None new. The triage is complete.
+
+---
 
 ### FU-CHECK-APPLIED-3DIGIT-SCOPE — Extend check-applied.sh to cover 3-digit migrations
 **Surfaced:** 17 May 2026, during FU-PROD-MIGRATION-BACKLOG-AUDIT Round 2 close-out.
