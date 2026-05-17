@@ -22,6 +22,7 @@ import { getPageList } from "@/lib/unit-adapter";
 import type { Unit, UnitPage, UnitContentData, StudentProgress } from "@/types";
 import type { AssessmentRecordRow } from "@/types/assessment";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
+import { pickTodaysLessonId, type ScheduleEntry } from "@/lib/scheduling/pick-todays-lesson";
 import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
 import { worstIntegrityLevel } from "@/lib/integrity/analyze-integrity";
 import { studentInitials } from "@/lib/teacher/student-initials";
@@ -117,22 +118,34 @@ function lastActiveLabel(iso: string | null): string {
   return `${Math.round(ageMs / day)} d ago`;
 }
 
-// Phase 3.3 — "Today's lesson" derivation. Picks the page the class
-// is most likely working on right now:
-//   1. The lowest-index page where ANY student is currently
-//      in_progress (active focus).
-//   2. Fallback: the lowest-index page where NOT ALL students are
-//      complete (the next page to teach).
-//   3. Final fallback: page 0.
-// No schedule fetch — works without a configured timetable. A
-// schedule-driven derivation (use today's calendar date → mapped
-// page) is a Phase 3.4 follow-up.
+// "Today's lesson" derivation — schedule-first with progress fallback
+// (17 May 2026 PM, lesson card v2 per Matt's smoke).
+//
+//   1. If a per-class lesson schedule exists, defer to pickTodaysLessonId
+//      (smallest absolute difference between today and a scheduled date,
+//      ties broken by earlier display order).
+//   2. Otherwise: lowest-index page where ANY student is in_progress.
+//   3. Otherwise: lowest-index page where NOT ALL students are complete.
+//   4. Final fallback: page 0.
+//
+// Same callers as before (lesson hero + kebab "View as student" preview);
+// the new schedule arg is optional so behaviour is unchanged when the
+// teacher hasn't set a schedule yet.
 function deriveTodaysLessonIndex(
   unitPages: UnitPage[],
   progressMap: Record<string, Record<string, { status: "not_started" | "in_progress" | "complete" }>>,
   studentIds: string[],
+  schedule: ScheduleEntry[] = [],
 ): number {
   if (unitPages.length === 0) return 0;
+  // Pass 0 (new): schedule-driven pick.
+  if (schedule.length > 0) {
+    const pickedId = pickTodaysLessonId(unitPages, schedule);
+    if (pickedId) {
+      const idx = unitPages.findIndex((p) => p.id === pickedId);
+      if (idx >= 0) return idx;
+    }
+  }
   // Pass 1: any student in_progress
   for (let i = 0; i < unitPages.length; i++) {
     const pageId = unitPages[i].id;
@@ -188,6 +201,12 @@ export function ClassCanvas({ unitId, classId }: { unitId: string; classId: stri
   const [pages, setPages] = useState<Array<{ id: string; title: string }>>([]);
   const [unitPages, setUnitPages] = useState<UnitPage[]>([]);
   const [loading, setLoading] = useState(true);
+  // Per-class lesson schedule (page_id → ISO date). Drives the
+  // today's-lesson hero pick + the "Wed 19 May · Lesson N" pill on the
+  // right-side hero card. Empty when the teacher hasn't set a schedule
+  // yet — we fall back to the progress-based derivation below.
+  // (17 May 2026, lesson card v2 per Matt's smoke.)
+  const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
 
   // NM still lives on the canvas (rail card + observation modal + the
   // MetricsDrawer that wraps NMElementsPanel/NMResultsPanel). The term
@@ -453,6 +472,24 @@ export function ClassCanvas({ unitId, classId }: { unitId: string; classId: stri
 
       // (Polish A.3 — term auto-inherit + schedule overrides load
       // moved to the settings sub-route; nothing to set here.)
+
+      // Lesson schedule (17 May 2026, lesson card v2). The canvas
+      // doesn't render the schedule editor (that lives in settings),
+      // but it consumes the schedule to pick today's lesson. Non-fatal
+      // on error — falls back to progress-based derivation.
+      try {
+        const schedRes = await fetch(
+          `/api/teacher/classes/${classId}/lesson-schedule?unitId=${unitId}`,
+          { credentials: "same-origin", cache: "no-store" },
+        );
+        if (schedRes.ok) {
+          const body = (await schedRes.json()) as { schedule?: ScheduleEntry[] };
+          if (Array.isArray(body.schedule)) setSchedule(body.schedule);
+        }
+      } catch {
+        // ignored — schedule stays empty, deriveTodaysLessonIndex
+        // covers it.
+      }
 
       // NM config
       try {
@@ -826,7 +863,7 @@ export function ClassCanvas({ unitId, classId }: { unitId: string; classId: stri
             // empty progressMap).
             const studentIds = students.map((s) => s.id);
             const previewIdx = unitPages.length > 0
-              ? deriveTodaysLessonIndex(unitPages, progressMap, studentIds)
+              ? deriveTodaysLessonIndex(unitPages, progressMap, studentIds, schedule)
               : 0;
             const previewPageId = unitPages[previewIdx]?.id ?? unitPages[0]?.id;
             const unitSection: KebabMenuSection = {
@@ -968,49 +1005,35 @@ export function ClassCanvas({ unitId, classId }: { unitId: string; classId: stri
             const studentIds = students.map((s) => s.id);
             const hasPages = unitPages.length > 0;
             const todayIdx = hasPages
-              ? deriveTodaysLessonIndex(unitPages, progressMap, studentIds)
+              ? deriveTodaysLessonIndex(unitPages, progressMap, studentIds, schedule)
               : 0;
             const todayPage = hasPages ? unitPages[todayIdx] : null;
-            const wp = todayPage?.content?.workshopPhases;
-            const totalMin = wp
-              ? (wp.opening?.durationMinutes ?? 0) +
-                (wp.miniLesson?.durationMinutes ?? 0) +
-                (wp.workTime?.durationMinutes ?? 0) +
-                (wp.debrief?.durationMinutes ?? 0)
+            // 17 May 2026 lesson card v2 — Workshop Model + phase
+            // outline retired (Matt: "I hate workshop model"). New
+            // payload pulls REAL lesson content: learning goal +
+            // activity prompts. Activity list capped at 4 with a
+            // "+N more" overflow chip.
+            const scheduledEntry = todayPage
+              ? schedule.find((s) => s.page_id === todayPage.id)
+              : undefined;
+            const scheduledDate = scheduledEntry?.scheduled_date
+              ? new Date(scheduledEntry.scheduled_date)
               : null;
-            // Outline rows — only render phases that have non-zero
-            // durations. Time chip + bold phase name + focus/protocol detail.
-            const outlineRows: Array<{ minutes: number; name: string; detail: string }> = [];
-            if (wp) {
-              if (wp.opening?.durationMinutes) {
-                outlineRows.push({
-                  minutes: wp.opening.durationMinutes,
-                  name: wp.opening.phaseName || "Opening",
-                  detail: wp.opening.hook || "Hook + activate prior knowledge.",
-                });
-              }
-              if (wp.miniLesson?.durationMinutes) {
-                outlineRows.push({
-                  minutes: wp.miniLesson.durationMinutes,
-                  name: wp.miniLesson.phaseName || "Mini-lesson",
-                  detail: wp.miniLesson.focus || "Direct instruction on today's focus.",
-                });
-              }
-              if (wp.workTime?.durationMinutes) {
-                outlineRows.push({
-                  minutes: wp.workTime.durationMinutes,
-                  name: wp.workTime.phaseName || "Studio time",
-                  detail: wp.workTime.focus || "Sustained independent + collaborative work.",
-                });
-              }
-              if (wp.debrief?.durationMinutes) {
-                outlineRows.push({
-                  minutes: wp.debrief.durationMinutes,
-                  name: wp.debrief.phaseName || "Share",
-                  detail: wp.debrief.protocol || wp.debrief.prompt || "Structured share-out + reflection.",
-                });
-              }
-            }
+            const dateLabel = scheduledDate
+              ? scheduledDate.toLocaleDateString("en-GB", {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                })
+              : "Today";
+            const learningGoal = todayPage?.content?.learningGoal?.trim() || null;
+            const activitySections = (todayPage?.content?.sections ?? [])
+              .filter((s) => typeof s.prompt === "string" && s.prompt.trim().length > 0);
+            const activityRows = activitySections.slice(0, 4).map((s, i) => ({
+              key: `${todayPage?.id ?? "p"}-${i}`,
+              prompt: s.prompt.trim(),
+            }));
+            const overflowCount = Math.max(0, activitySections.length - activityRows.length);
             return (
               <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4 items-stretch">
                 {/* LEFT: Unit hero — colourful, thumbnail-forward.
@@ -1068,15 +1091,18 @@ export function ClassCanvas({ unitId, classId }: { unitId: string; classId: stri
                   </div>
                 </section>
 
-                {/* RIGHT: Today's lesson card — warm cream/orange tones
-                    so it reads as related-but-distinct from the unit
-                    hero. Compact stack of pill + lesson title +
-                    Workshop Model summary + outline rows. */}
+                {/* RIGHT: Today's lesson card — modern white card with
+                    a soft indigo accent that complements the hero's
+                    indigo gradient. Stack: scheduled date + lesson
+                    position pill / lesson title / learning goal /
+                    first 4 activity prompts + overflow chip.
+                    Workshop Model retired per Matt's smoke (17 May PM
+                    v2 round). */}
                 {!hasPages ? (
                   <section
                     data-testid="canvas-lesson-hero"
                     data-empty="no-pages"
-                    className="rounded-2xl bg-amber-50 border border-amber-200 p-5 text-sm text-amber-900 flex items-center"
+                    className="rounded-2xl bg-white border border-gray-200 shadow-sm p-5 text-sm text-gray-700 flex items-center"
                   >
                     No pages in this unit yet. Open <strong>Edit</strong> in the header to add one.
                   </section>
@@ -1084,49 +1110,67 @@ export function ClassCanvas({ unitId, classId }: { unitId: string; classId: stri
                   <section
                     data-testid="canvas-lesson-hero"
                     data-today-index={todayIdx}
-                    className="rounded-2xl bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-200/60 shadow-sm p-5 flex flex-col"
+                    data-scheduled={scheduledDate ? "true" : "false"}
+                    className="rounded-2xl bg-white border border-gray-200 shadow-sm p-5 flex flex-col"
                   >
-                    <span className="inline-block self-start text-[10px] font-bold uppercase tracking-[0.08em] px-2.5 py-1 rounded-full bg-orange-600 text-white mb-3">
-                      Today · Lesson {todayIdx + 1} of {unitPages.length}
-                    </span>
+                    {/* Pill: "Wed 19 May · Lesson 5 of 14" when scheduled,
+                        "Today · Lesson X of N" otherwise. */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <span
+                        data-testid="lesson-hero-date-pill"
+                        className="inline-block text-[10px] font-bold uppercase tracking-[0.08em] px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700"
+                      >
+                        {dateLabel} · Lesson {todayIdx + 1} of {unitPages.length}
+                      </span>
+                    </div>
                     <h2
                       data-testid="lesson-hero-title"
                       className="text-lg font-bold leading-tight text-gray-900"
                     >
                       {todayPage?.title || todayPage?.content?.title || `Page ${todayIdx + 1}`}
                     </h2>
-                    <div className="mt-1 text-xs text-gray-600">
-                      <strong className="font-semibold">Workshop Model</strong>
-                      {totalMin != null && totalMin > 0 && (
-                        <> · {totalMin} min</>
-                      )}
-                    </div>
-                    <div className="mt-4 flex flex-col gap-2.5 flex-1">
-                      {outlineRows.length === 0 ? (
+                    {learningGoal && (
+                      <p
+                        data-testid="lesson-hero-learning-goal"
+                        className="mt-1.5 text-xs leading-relaxed text-gray-600"
+                      >
+                        {learningGoal}
+                      </p>
+                    )}
+                    <div className="mt-4 flex flex-col gap-2 flex-1">
+                      {activityRows.length === 0 ? (
                         <p
-                          data-testid="lesson-hero-outline-empty"
-                          className="text-xs text-gray-600 leading-relaxed"
+                          data-testid="lesson-hero-activities-empty"
+                          className="text-xs text-gray-500 leading-relaxed"
                         >
-                          No Workshop Model timing on this page yet.
-                          Open <strong>Edit</strong> to add opening / mini-lesson / work
-                          time / debrief phases.
+                          No activities on this lesson yet. Open <strong>Edit</strong> in the
+                          header to add some.
                         </p>
                       ) : (
-                        outlineRows.map((row, i) => (
-                          <div
-                            key={i}
-                            data-testid="lesson-hero-outline-row"
-                            className="flex items-start gap-2.5"
-                          >
-                            <span className="flex-shrink-0 text-[10px] font-bold tracking-wider px-2 py-0.5 rounded bg-orange-100 text-orange-800 min-w-[44px] text-center">
-                              {row.minutes} min
-                            </span>
-                            <div className="text-xs leading-snug text-gray-800">
-                              <strong className="font-semibold">{row.name}.</strong>{" "}
-                              <span className="text-gray-600">{row.detail}</span>
+                        <>
+                          {activityRows.map((row, i) => (
+                            <div
+                              key={row.key}
+                              data-testid="lesson-hero-activity-row"
+                              className="flex items-start gap-2.5"
+                            >
+                              <span className="flex-shrink-0 w-5 h-5 mt-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-bold flex items-center justify-center">
+                                {i + 1}
+                              </span>
+                              <p className="text-xs leading-snug text-gray-800 line-clamp-2">
+                                {row.prompt}
+                              </p>
                             </div>
-                          </div>
-                        ))
+                          ))}
+                          {overflowCount > 0 && (
+                            <div
+                              data-testid="lesson-hero-activity-overflow"
+                              className="ml-7 mt-0.5 text-[11px] font-medium text-indigo-600"
+                            >
+                              + {overflowCount} more activit{overflowCount === 1 ? "y" : "ies"}
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   </section>
