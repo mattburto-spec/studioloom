@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getPageList, getPageById } from "@/lib/unit-adapter";
 import type { UnitContentData, StudentProgress } from "@/types";
+import type { UnitType } from "@/lib/ai/unit-types";
 import { useStudent } from "../student-context";
 import { useBellCount, type NotificationItem } from "@/components/student/BellCountContext";
 import { composedPromptText } from "@/lib/lever-1/compose-prompt";
@@ -25,6 +26,60 @@ import { NextActionPill } from "@/components/student/NextActionPill";
 // SessionStudent, AVATAR_GRADS, getInitials, gradFor, STUDENT_MOCK,
 // toSessionStudent, and NAV_S moved to BoldTopNav.tsx in Phase 10.
 
+// ================= FORMAT-AWARE STUDENT LABELS =================
+//
+// Format-on-unit decision (16 May 2026 — see docs/decisions-log.md):
+// the student dashboard adapts hero verb + task label + project card verb
+// per unit_type. Service / Personal Project / Inquiry framings deliberately
+// diverge from DT — a Year-5 PP student doesn't have a "current task,"
+// they have a next milestone.
+type HeroLabels = {
+  /** Verb on the giant hero CTA + FocusOverlay button. */
+  ctaVerb: string;
+  /** Caption above the current-task name inside the white task panel. */
+  taskLabel: string;
+  /** Fallback task name when computeTaskState() can't resolve one. */
+  fallbackTaskName: string;
+};
+type CardLabels = {
+  /** In-progress CTA pill text. */
+  ctaContinue: string;
+  /** Not-started CTA pill text. */
+  ctaStart: string;
+  /** Inline task verb inside the card body for in-progress cards. */
+  task: string;
+  /** Caption above the inline task verb. */
+  taskLabel: string;
+};
+
+export function formatToHeroLabels(unitType: UnitType): HeroLabels {
+  switch (unitType) {
+    case "inquiry":
+      return { ctaVerb: "Resume inquiry", taskLabel: "Current stage", fallbackTaskName: "Continue inquiry" };
+    case "personal_project":
+      return { ctaVerb: "Open project", taskLabel: "Next milestone", fallbackTaskName: "Continue project" };
+    case "service":
+      return { ctaVerb: "Log next session", taskLabel: "Hours logged", fallbackTaskName: "Log next session" };
+    case "design":
+    default:
+      return { ctaVerb: "Continue", taskLabel: "Your current task", fallbackTaskName: "Continue lesson" };
+  }
+}
+
+export function formatToCardLabels(unitType: UnitType): CardLabels {
+  switch (unitType) {
+    case "inquiry":
+      return { ctaContinue: "Resume inquiry", ctaStart: "Start inquiry", task: "Resume inquiry", taskLabel: "Current stage" };
+    case "personal_project":
+      return { ctaContinue: "Open project", ctaStart: "Start project", task: "Open project", taskLabel: "Next milestone" };
+    case "service":
+      return { ctaContinue: "Log session", ctaStart: "Start logging", task: "Log next session", taskLabel: "Service log" };
+    case "design":
+    default:
+      return { ctaContinue: "Continue", ctaStart: "Start project", task: "Continue lesson", taskLabel: "Current task" };
+  }
+}
+
 // Phase 3A: hero identity (title/subtitle/class/color/image/%) is wired.
 // Task card + teacher note still mock — Phase 3B wires the task card;
 // teacher note is deferred pending the general-notes system.
@@ -40,6 +95,9 @@ type HeroUnit = {
   img: string | null;
   /** Continue button target — URL of the current task's page. null = inert. */
   continueHref: string | null;
+  /** Pedagogical format from units.unit_type. Drives the hero's verb,
+   *  task-card label, and FocusOverlay button via formatToHeroLabels(). */
+  unitType: UnitType;
   // Placeholders until Phase 3B:
   currentTask: string;
   taskProgress: number;
@@ -61,6 +119,7 @@ const HERO_MOCK: HeroUnit = {
   colorDark: "#0F766E",
   img: "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?w=1000&h=1200&fit=crop",
   continueHref: null,
+  unitType: "design",
   currentTask: "Sketch 3 structural ideas",
   taskProgress: 1,
   taskTotal: 3,
@@ -120,6 +179,8 @@ type UnitRow = {
   description: string | null;
   thumbnail_url: string | null;
   content_data: UnitContentData | null;
+  /** Pedagogical format — defaults to "design" if missing (migration 051). */
+  unit_type: UnitType | null;
   progress: StudentProgress[];
   class_id: string | null;
   class_name: string | null;
@@ -174,8 +235,11 @@ function buildHeroUnit(unit: UnitRow): HeroUnit {
     colorDark: palette.colorDark,
     img: unit.thumbnail_url,
     continueHref,
-    // Phase 3B placeholders — filled by loadUnitDetail() after the second fetch
-    currentTask: HERO_MOCK.currentTask,
+    unitType: unit.unit_type ?? "design",
+    // Phase 3B placeholders — filled by loadUnitDetail() after the second fetch.
+    // currentTask gets a format-aware placeholder so the hero doesn't flash
+    // "Sketch 3 structural ideas" at a PYP student before detail resolves.
+    currentTask: formatToHeroLabels(unit.unit_type ?? "design").fallbackTaskName,
     taskProgress: HERO_MOCK.taskProgress,
     taskTotal: HERO_MOCK.taskTotal,
     dueIn: HERO_MOCK.dueIn,
@@ -228,6 +292,7 @@ function computeTaskState(
   contentData: UnitContentData | null,
   pageId: string | null,
   responses: Record<string, unknown>,
+  unitType: UnitType = "design",
 ): TaskState | null {
   if (!pageId) return null;
   const page = getPageById(contentData, pageId);
@@ -235,9 +300,11 @@ function computeTaskState(
   const sections = page.content?.sections ?? [];
   const total = sections.length;
 
-  // No blocks on this page — task = the lesson itself
+  // No blocks on this page — task = the lesson itself. Fallback name is
+  // format-aware so a PYP student doesn't see "Continue lesson" verbatim.
   if (total === 0) {
-    return { currentTask: page.title || page.content?.title || "Continue lesson", taskProgress: 0, taskTotal: 1 };
+    const fallback = formatToHeroLabels(unitType).fallbackTaskName;
+    return { currentTask: page.title || page.content?.title || fallback, taskProgress: 0, taskTotal: 1 };
   }
 
   // Find first section with no response
@@ -459,15 +526,18 @@ type StudentUnit = {
   state: UnitState;
   task: string;
   href: string;
+  /** Pedagogical format — drives the card's verb, task label, and the
+   *  format-pill that replaces the % chip for non-DT formats. */
+  unitType: UnitType;
 };
 
 const S_UNITS_MOCK: StudentUnit[] = [
-  { id: "biom",    title: "Biomimicry",                     kicker: "Plastic pouch inspired by nature",      classTag: "7 Design",  color: "#0EA5A4", img: "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?w=900&h=600&fit=crop",    progress: 34, state: "in-progress", task: "Continue lesson",  href: "#" },
-  { id: "arcade",  title: "Arcade Machine",                 kicker: "Build a working coin-op arcade",        classTag: "Service",   color: "#EC4899", img: "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=900&h=600&fit=crop",    progress: 62, state: "in-progress", task: "Continue lesson",  href: "#" },
-  { id: "coffee",  title: "Coffee Table",                   kicker: "Designing and building a coffee table", classTag: "10 Design", color: "#9333EA", img: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=900&h=600&fit=crop",    progress: 12, state: "in-progress", task: "Continue lesson",  href: "#" },
-  { id: "pinball", title: "Engineering a Pinball Machine",  kicker: "Workshop project · mechanical systems",    classTag: "Workshop",  color: "#F59E0B", img: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this project",  href: "#" },
-  { id: "recycle", title: "Recycling Awareness",            kicker: "Correct bins across campus",            classTag: "Service",   color: "#10B981", img: "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this project",  href: "#" },
-  { id: "co2",     title: "CO2 Racer",                      kicker: "Speed Through Science & Design",        classTag: "10 Design", color: "#E86F2C", img: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this project",  href: "#" },
+  { id: "biom",    title: "Biomimicry",                     kicker: "Plastic pouch inspired by nature",      classTag: "7 Design",  color: "#0EA5A4", img: "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?w=900&h=600&fit=crop",    progress: 34, state: "in-progress", task: "Continue lesson",  href: "#", unitType: "design" },
+  { id: "arcade",  title: "Arcade Machine",                 kicker: "Build a working coin-op arcade",        classTag: "Service",   color: "#EC4899", img: "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=900&h=600&fit=crop",    progress: 62, state: "in-progress", task: "Continue lesson",  href: "#", unitType: "design" },
+  { id: "coffee",  title: "Coffee Table",                   kicker: "Designing and building a coffee table", classTag: "10 Design", color: "#9333EA", img: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=900&h=600&fit=crop",    progress: 12, state: "in-progress", task: "Continue lesson",  href: "#", unitType: "design" },
+  { id: "pinball", title: "Engineering a Pinball Machine",  kicker: "Workshop project · mechanical systems",    classTag: "Workshop",  color: "#F59E0B", img: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this project",  href: "#", unitType: "design" },
+  { id: "recycle", title: "Recycling Awareness",            kicker: "Correct bins across campus",            classTag: "Service",   color: "#10B981", img: "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this project",  href: "#", unitType: "design" },
+  { id: "co2",     title: "CO2 Racer",                      kicker: "Speed Through Science & Design",        classTag: "10 Design", color: "#E86F2C", img: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this project",  href: "#", unitType: "design" },
 ];
 
 /** Build a grid card from a /api/student/units row. */
@@ -493,6 +563,8 @@ function unitRowToStudentUnit(unit: UnitRow): StudentUnit {
   const href = resumePageId ? `/unit/${unit.id}/${resumePageId}` : `/unit/${unit.id}/narrative`;
 
   const state: UnitState = unit.progress.length === 0 ? "not-started" : "in-progress";
+  const unitType: UnitType = unit.unit_type ?? "design";
+  const labels = formatToCardLabels(unitType);
 
   return {
     id: unit.id,
@@ -503,8 +575,9 @@ function unitRowToStudentUnit(unit: UnitRow): StudentUnit {
     img: unit.thumbnail_url,
     progress: progressPct,
     state,
-    task: state === "not-started" ? "Start this project" : "Continue lesson",
+    task: state === "not-started" ? `Start this ${unitType === "service" ? "log" : unitType === "inquiry" ? "inquiry" : "project"}` : labels.task,
     href,
+    unitType,
   };
 }
 
@@ -1344,7 +1417,7 @@ export default function DashboardClient() {
         const pageId = selectCurrentPageId(detail.unit.content_data, detail.progress);
         const currentProgress = detail.progress.find((p) => p.page_id === pageId);
         const responses = (currentProgress?.responses ?? {}) as Record<string, unknown>;
-        const task = computeTaskState(detail.unit.content_data, pageId, responses);
+        const task = computeTaskState(detail.unit.content_data, pageId, responses, heroIdentity.unitType);
         const dueInText = pageId ? computeDueInText(detail.pageDueDates[pageId]) : null;
 
         if (cancelled) return;

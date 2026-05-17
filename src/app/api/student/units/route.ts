@@ -113,10 +113,12 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Get units
+  // Get units. `unit_type` (migration 051) carries the pedagogical format —
+  // the student dashboard needs it to render format-aware copy (DT vs PYP
+  // vs PP vs Service) on the hero and project cards.
   const { data: units } = await supabase
     .from("units")
-    .select("id, title, description, thumbnail_url, content_data")
+    .select("id, title, description, thumbnail_url, content_data, unit_type")
     .in("id", unitIds);
 
   // Get progress for this student.
