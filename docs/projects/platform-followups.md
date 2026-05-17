@@ -332,23 +332,6 @@ One-line UX, zero coupling, no event system. **Do NOT build:**
 
 ---
 
-## FU-CHECK-APPLIED-3DIGIT-SCOPE — Extend check-applied.sh to cover 3-digit migrations
-**Surfaced:** 17 May 2026, during FU-PROD-MIGRATION-BACKLOG-AUDIT Round 2 close-out.
-**Severity:** 🟠 MEDIUM (P2) — structural blind spot in the drift-detection mandate. Today's audit found 4 missing 3-digit migrations that the saveme step 11(h) check would never have caught.
-**Target phase:** Standalone — ~30 min when next touching the migration tooling.
-
-**The gap:** [`scripts/migrations/check-applied.sh`](../../scripts/migrations/check-applied.sh) filters with `awk '$0 >= "20260401"'`, which excludes every 3-digit migration (`001`–`123`). The 11 May audit's scope decision baked this in on the *assumed*-applied premise. The 17 May audit proved the assumption wrong — `051`, `080`, `081`, `082` were all in the repo + schema-registry but not on prod.
-
-**Definition of done:**
-- Drop the `awk` filter OR change it to a comment-out of intentionally-retired migrations only.
-- Backfill `applied_migrations` rows for the 78 three-digit migrations confirmed applied during Round 2's probe pack (the 4 newly-applied ones already have rows; this is for the rest). One bulk `INSERT INTO public.applied_migrations` with `source='backfill'` + `notes='applied pre-tracker; verified via 17 May 2026 audit Round 2'`.
-- Add `001` through `044` to a `PRE_AUDIT_ASSUMED_APPLIED` allowlist OR sweep them in a follow-up probe round (see `FU-AUDIT-3DIGIT-001-044-SWEEP`).
-- Update CLAUDE.md "Migration discipline (v2)" section to note that 3-digit migrations are in scope for the tracker.
-
-**Why P2 not P1:** the consequence of NOT fixing this is "a future 3-digit migration that lands but doesn't get logged won't be caught by saveme." But every new migration uses timestamp prefixes now (claim discipline since 26 April), so the structural source of new 3-digit drift is closed. This is about closing the historical blind spot, not preventing new drift.
-
----
-
 ## FU-AUDIT-3DIGIT-001-044-SWEEP — Probe foundational 3-digit migrations not covered by Round 2
 **Surfaced:** 17 May 2026, during FU-PROD-MIGRATION-BACKLOG-AUDIT Round 2 close-out.
 **Severity:** 🟢 LOW (P3) — the lowest-likelihood drift class. Foundational schema migrations (`001`–`044`) added the canonical tables (`teachers`, `units`, `classes`, `students`, `knowledge_uploads`, etc.). Drift here would already have caused 500s on app boot.
@@ -388,6 +371,26 @@ One-line UX, zero coupling, no event system. **Do NOT build:**
 ---
 
 ## Resolved
+
+### FU-CHECK-APPLIED-3DIGIT-SCOPE — Extend check-applied.sh to cover 3-digit migrations
+**Surfaced:** 17 May 2026, during FU-PROD-MIGRATION-BACKLOG-AUDIT Round 2 close-out.
+**Resolved:** 17 May 2026 (same session, ~30 min later — Matt picked option A on the close-out decision).
+**Severity at close:** 🟠 MEDIUM (P2)
+
+**The gap (closed):** [`scripts/migrations/check-applied.sh`](../../scripts/migrations/check-applied.sh) was filtering with `awk '$0 >= "20260401"'`, which excluded every 3-digit migration (`001`–`123`). The 11 May audit's scope decision baked this in on the *assumed*-applied premise. The 17 May audit Round 2 proved the assumption wrong — `051`, `080`, `081`, `082` were all in the repo + schema-registry but not on prod.
+
+**How it shipped:**
+- Dropped the `awk '>= 20260401'` filter from `check-applied.sh`. Now every migration (3-digit + timestamp) is in scope.
+- Added 2 new entries to `RETIRED_MIGRATIONS` in the script: `121_student_progress_autonomy_level` (local-dev only) + `122_drop_student_progress_autonomy_level` (paired rollback). Brings retired count to 4.
+- Backfilled `public.applied_migrations` with 116 rows for 3-digit migrations not already in the tracker: 45 `verified via Round 2 17 May 2026 audit probe pack` + 71 `assumed applied; subject to FU-AUDIT-3DIGIT-001-044-SWEEP for future verification`. Idempotent INSERT via `ON CONFLICT (name) DO NOTHING`.
+- Verified: post-backfill drift query returns 0 rows missing across all 225 in-scope migrations (4 retired excluded).
+- Updated CLAUDE.md "Migration discipline (v2 — timestamp prefixes + applied_migrations tracker)" section to document the wider scope + the 2 new retired entries.
+
+**Net effect:** every future `saveme` step 11(h) catches a missing apply on ANY migration in the repo (3-digit or timestamp), within ~30 seconds of the saveme run. Today's `unit_type` bug class can no longer recur silently.
+
+**Backfill SQL preserved at:** `/tmp/audit-3digit-backfill.sql` (artifact only — applied successfully and idempotent if re-run).
+
+---
 
 ### FU-BRIEFS-STUDENT-SELF-AUTHORED — Student-authored brief fallback when teacher hasn't set one
 **Surfaced:** 13 May 2026, during Unit Briefs Foundation pre-flight (sparked by David Epstein's "constraints as creative engine" framing arriving in Matt's inbox same morning).

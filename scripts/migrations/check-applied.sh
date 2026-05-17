@@ -32,12 +32,16 @@
 
 set -euo pipefail
 
-# Migrations intentionally retired during the 11 May 2026 audit.
-# These are in supabase/migrations/ for historical record but should NEVER
-# be in public.applied_migrations (their effect is moot or never landed).
+# Migrations intentionally retired (in supabase/migrations/ for historical
+# record but should NEVER be in public.applied_migrations — their effect is
+# moot, never landed, or was deliberately rolled back).
 RETIRED_MIGRATIONS=(
+  # Added 11 May 2026 (Round 1 audit):
   "20260429133402_phase_1_5b_student_sessions_deny_all"
   "20260501142442_phase_3_4f_is_teacher_of_student_includes_class_members_and_mentors"
+  # Added 17 May 2026 (Round 2 audit — FU-CHECK-APPLIED-3DIGIT-SCOPE close-out):
+  "121_student_progress_autonomy_level"            # local-dev only per migration file comment; never applied to prod
+  "122_drop_student_progress_autonomy_level"       # paired rollback of 121; no prod effect (column never existed on prod)
 )
 
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
@@ -52,14 +56,15 @@ if [[ ! -d "$MIG_DIR" ]]; then
   exit 2
 fi
 
-# List every migration in the repo (timestamp-prefix only — pre-cut 3-digit
-# migrations are assumed applied per the audit's scope decision).
+# List every migration in the repo (both 3-digit and timestamp prefixes).
+# Scope was widened on 17 May 2026 after FU-PROD-MIGRATION-BACKLOG-AUDIT
+# Round 2 backfilled applied_migrations rows for all 3-digit migrations.
+# See docs/projects/prod-migration-backlog-audit-2026-05-17-truth.md.
 REPO_MIGRATIONS=$(
   ls "$MIG_DIR"/*.sql 2>/dev/null \
   | grep -v '\.down\.sql$' \
   | xargs -n1 basename \
   | sed 's/\.sql$//' \
-  | awk '$0 >= "20260401"' \
   | sort
 )
 
