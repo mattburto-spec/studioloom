@@ -385,23 +385,30 @@ describe("DT canvas Phase 3.3 — Today's lesson hero card", () => {
     expect(HUB_SRC).toContain('?.status === "complete"');
   });
 
-  it("hero renders the title chip + h2 + Teach CTA testids", () => {
+  // ─── 17 May 2026 hero redesign — split into 2 cards ────────────────
+  // Per Matt's smoke after Package B merged, the orange single-card hero
+  // is split into a colourful unit hero (left) + a today's-lesson card
+  // (right). The Teach CTA is removed from the hero because the
+  // canvas-header already has the canonical purple Teach button. These
+  // guards lock the new shape.
+  it("renders the new unit-hero card (canvas-unit-hero + unit-hero-title)", () => {
+    expect(HUB_SRC).toContain('data-testid="canvas-unit-hero"');
+    expect(HUB_SRC).toContain('data-testid="unit-hero-title"');
+  });
+
+  it("renders the today's-lesson card (canvas-lesson-hero + lesson-hero-title)", () => {
     expect(HUB_SRC).toContain('data-testid="canvas-lesson-hero"');
     expect(HUB_SRC).toContain('data-testid="lesson-hero-title"');
-    expect(HUB_SRC).toContain('data-testid="lesson-hero-teach-cta"');
+  });
+
+  it("in-hero Teach CTA is REMOVED (canvas-header purple Teach is canonical)", () => {
+    // The old lesson-hero-teach-cta inside the orange card duplicated
+    // the header Teach. Anti-revert: must not come back.
+    expect(HUB_SRC).not.toContain('data-testid="lesson-hero-teach-cta"');
   });
 
   it('"Today · Lesson X of Y" chip renders the derived position', () => {
     expect(HUB_SRC).toMatch(/Today · Lesson \{todayIdx \+ 1\} of \{unitPages\.length\}/);
-  });
-
-  it("Teach CTA href carries the &page=<pageId> qualifier (pre-selects today's lesson)", () => {
-    const idx = HUB_SRC.indexOf('data-testid="lesson-hero-teach-cta"');
-    expect(idx).toBeGreaterThan(0);
-    const slice = HUB_SRC.slice(idx, idx + 800);
-    expect(slice).toMatch(
-      /href=\{`\/teacher\/teach\/\$\{unitId\}\?classId=\$\{classId\}&page=\$\{encodeURIComponent\(todayPage\?\.id \?\? ""\)\}`\}/
-    );
   });
 
   it("outline rows render one per populated workshop phase (opening / miniLesson / workTime / debrief)", () => {
@@ -455,31 +462,31 @@ describe("DT canvas — prod migration drift anti-regression (FU-PROD-MIGRATION-
   });
 });
 
-describe("DT canvas — lesson hero unit thumbnail (17 May 2026)", () => {
-  // Matt's polish ask: get the unit thumbnail onto the canvas. Hero
-  // card now uses unit.thumbnail_url as a CSS background-image with an
-  // orange-gradient overlay (95% opacity left, fades to 40% on the
-  // right) so text stays legible while a slice of the unit art shows
-  // through. Graceful fallback to the existing solid orange gradient
-  // when the unit has no thumbnail.
-  it("hero sets backgroundImage from unit.thumbnail_url when available", () => {
+describe("DT canvas — unit hero thumbnail (17 May 2026 redesign)", () => {
+  // Matt's polish ask: get the unit thumbnail onto the canvas.
+  // 17 May (PM) redesign: the orange single-card hero is split into
+  // a separate unit hero (left card) + today's lesson card (right
+  // card). The unit hero uses unit.thumbnail_url as the background
+  // with a SOFT bottom-to-top dark gradient (much lighter than the
+  // previous 95% orange wash) so the art shows through. Falls back
+  // to a vibrant violet→fuchsia→rose gradient when no thumbnail.
+  it("unit hero sets backgroundImage from unit.thumbnail_url when available", () => {
     expect(HUB_SRC).toMatch(
       /backgroundImage:\s*`url\(\$\{unit\.thumbnail_url\}\)`/
     );
   });
 
-  it("hero adds an orange-gradient overlay above the image so text is legible", () => {
-    expect(HUB_SRC).toContain("from-orange-600/95 via-orange-600/85 to-orange-500/40");
+  it("unit hero uses a soft dark bottom-to-top gradient for text legibility (NOT the old orange wash)", () => {
+    expect(HUB_SRC).toContain("bg-gradient-to-t from-black/70 via-black/25 to-transparent");
+    // Anti-revert: the old heavy orange wash is gone
+    expect(HUB_SRC).not.toContain("from-orange-600/95 via-orange-600/85 to-orange-500/40");
   });
 
-  it("hero falls back to solid gradient when no thumbnail_url", () => {
-    // Ternary: thumbnail_url ? (no bg-gradient class) : bg-gradient-to-br…
-    expect(HUB_SRC).toMatch(
-      /unit\.thumbnail_url\s*\?\s*""\s*:\s*"bg-gradient-to-br from-orange-500 to-orange-600"/
-    );
+  it("unit hero falls back to a vibrant gradient when no thumbnail_url", () => {
+    expect(HUB_SRC).toContain("bg-gradient-to-br from-violet-500 via-fuchsia-500 to-rose-500");
   });
 
-  it("hero carries data-has-thumbnail flag for smoke + debug", () => {
+  it("unit hero carries data-has-thumbnail flag for smoke + debug", () => {
     expect(HUB_SRC).toMatch(
       /data-has-thumbnail=\{unit\.thumbnail_url\s*\?\s*"true"\s*:\s*"false"\}/
     );
