@@ -7,16 +7,15 @@ import { createClient } from "@/lib/supabase/client";
 // Phase 3.6 Step 4 cutover sweep — orphan imports dropped. The canvas
 // re-mounts these components inside their respective drawers (NM* via
 // MetricsDrawer, BadgesTab via SafetyDrawer, OpenStudioClassView via
-// OpenStudioDrawer, LessonSchedule will land in the still-homeless
-// Settings re-homing follow-up). Surface-level imports here would just
-// pin tsc to dead code on this file.
+// OpenStudioDrawer). The LessonSchedule + ScheduleOverrides imports
+// also went away in Polish A.3 (17 May 2026) when the term picker +
+// schedule moved into the /teacher/classes/[id]/settings/[id] sub-route.
 //
 // Still imported from @/components/nm: ObservationSnap (mounted at the
 // bottom of the page for the row-kebab + metrics-dot "Record NM
 // observation" triggers — the only NM surface that lives on the canvas
 // proper, not behind a drawer).
 import { ObservationSnap } from "@/components/nm";
-import type { ScheduleOverrides } from "@/components/teacher/LessonSchedule";
 import type { NMUnitConfig } from "@/lib/nm/constants";
 import { DEFAULT_NM_CONFIG, AGENCY_ELEMENTS } from "@/lib/nm/constants";
 import { getPageList } from "@/lib/unit-adapter";
@@ -185,20 +184,14 @@ export default function ClassHubPage({
   const [unitPages, setUnitPages] = useState<UnitPage[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Settings tab state
+  // NM still lives on the canvas (rail card + observation modal + the
+  // MetricsDrawer that wraps NMElementsPanel/NMResultsPanel). The term
+  // picker + LessonSchedule + class-code reveal that used to be in the
+  // canvas Settings tab were re-homed to /teacher/classes/[id]/settings/[id]
+  // in Polish A.3 (17 May 2026); the old orphan state on the canvas
+  // page.tsx is gone with this commit.
   const [nmConfig, setNmConfig] = useState<NMUnitConfig>(DEFAULT_NM_CONFIG);
   const [globalNmEnabled, setGlobalNmEnabled] = useState(false);
-  const [terms, setTerms] = useState<Array<{ id: string; academic_year: string; term_name: string; term_order: number; start_date?: string; end_date?: string }>>([]);
-  const [selectedTermId, setSelectedTermId] = useState<string | null>(null);
-  const [savingTerm, setSavingTerm] = useState(false);
-  const [termMessage, setTermMessage] = useState("");
-  const [scheduleInfo, setScheduleInfo] = useState<{
-    lessonCount: number | null;
-    nextClass: { dateISO: string; dayOfWeek: string; cycleDay: number; periodNumber?: number; room?: string; formatted: string; short: string } | null;
-    reason?: string;
-  } | null>(null);
-  const [scheduleLoading, setScheduleLoading] = useState(false);
-  const [scheduleOverrides, setScheduleOverrides] = useState<ScheduleOverrides>({});
 
   // Student grid state (Phase 3.1)
   const [progressMap, setProgressMap] = useState<StudentProgressMap>({});
@@ -407,16 +400,19 @@ export default function ClassHubPage({
     async function load() {
       const supabase = createClient();
 
-      const [unitRes, classRes, studentsRes, classUnitRes, termsRes, cohortTermRes] = await Promise.all([
+      // Polish A.3 (17 May 2026): Settings tab content (term picker +
+      // LessonSchedule + class code) was re-homed to the settings sub-
+      // route at /teacher/classes/[id]/settings/[id]. school-calendar
+      // fetch + cohort-term-inherit query removed from the canvas
+      // mount loader since nothing on the canvas consumes them now.
+      // class_units select trimmed accordingly — keeps the per-class
+      // fork fields the canvas actually uses (content_data, forked_at,
+      // forked_from_version, nm_config).
+      const [unitRes, classRes, studentsRes, classUnitRes] = await Promise.all([
         supabase.from("units").select("*").eq("id", unitId).single(),
         supabase.from("classes").select("name, code, framework").eq("id", classId).single(),
         supabase.from("class_students").select("student_id, students(id, display_name, username, graduation_year)").eq("class_id", classId).eq("is_active", true),
-        supabase.from("class_units").select("term_id, schedule_overrides, content_data, forked_at, forked_from_version, nm_config").eq("class_id", classId).eq("unit_id", unitId).single(),
-        fetch("/api/teacher/school-calendar").then((r) => (r.ok ? r.json() : Promise.resolve({ terms: [] }))),
-        // Class "current cohort" — derived from the most-recent active enrollment
-        // that has a term_id set. Mirrors the logic in src/app/teacher/classes/page.tsx.
-        // Used below to auto-inherit the unit's term_id when it's null.
-        supabase.from("class_students").select("term_id").eq("class_id", classId).eq("is_active", true).not("term_id", "is", null).order("enrolled_at", { ascending: false }).limit(1).maybeSingle(),
+        supabase.from("class_units").select("content_data, forked_at, forked_from_version, nm_config").eq("class_id", classId).eq("unit_id", unitId).single(),
       ]);
 
       setUnit(unitRes.data);
@@ -450,29 +446,8 @@ export default function ClassHubPage({
         );
       }
 
-      // Settings data
-      if (classUnitRes.data) {
-        // Auto-inherit unit term_id from the class's current cohort term
-        // when unset. This closes the surprise gap where a teacher sets
-        // "Semester 2 2025-2026" on the class but the unit's Settings tab
-        // shows "— No term assigned —". Fire-and-forget the persist:
-        // self-heals on next reload if the PATCH fails.
-        let resolvedTermId: string | null = classUnitRes.data.term_id || null;
-        const cohortTermId = (cohortTermRes.data?.term_id as string | undefined) || null;
-        if (!resolvedTermId && cohortTermId) {
-          resolvedTermId = cohortTermId;
-          void fetch("/api/teacher/class-units", {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ classId, unitId, term_id: cohortTermId }),
-          });
-        }
-        setSelectedTermId(resolvedTermId);
-        if (classUnitRes.data.schedule_overrides) {
-          setScheduleOverrides(classUnitRes.data.schedule_overrides as ScheduleOverrides);
-        }
-      }
-      if (termsRes?.terms) setTerms(termsRes.terms);
+      // (Polish A.3 — term auto-inherit + schedule overrides load
+      // moved to the settings sub-route; nothing to set here.)
 
       // NM config
       try {
@@ -686,61 +661,14 @@ export default function ClassHubPage({
     }
   }, [loading, students, progressLoaded, loadProgressData]);
 
-  // -----------------------------------------------------------------------
-  // Schedule loading (for Settings tab)
-  // -----------------------------------------------------------------------
-  useEffect(() => {
-    async function loadSchedule() {
-      const term = terms.find((t) => t.id === selectedTermId) as any;
-      if (!term?.start_date || !term?.end_date) { setScheduleInfo(null); return; }
-
-      setScheduleLoading(true);
-      try {
-        const today = new Date().toISOString().split("T")[0];
-        const fromDate = term.start_date > today ? term.start_date : today;
-
-        const [countRes, nextRes] = await Promise.all([
-          fetch(`/api/teacher/schedule/lessons?classId=${classId}&mode=count&from=${term.start_date}&to=${term.end_date}`).then((r) => (r.ok ? r.json() : null)),
-          fetch(`/api/teacher/schedule/lessons?classId=${classId}&mode=next&from=${fromDate}&count=1`).then((r) => (r.ok ? r.json() : null)),
-        ]);
-
-        const nextLesson = nextRes?.lessons?.[0] || null;
-        setScheduleInfo({
-          lessonCount: countRes?.lessonCount ?? null,
-          nextClass: nextLesson ? {
-            dateISO: nextLesson.dateISO, dayOfWeek: nextLesson.dayOfWeek, cycleDay: nextLesson.cycleDay,
-            periodNumber: nextLesson.periodNumber, room: nextLesson.room,
-            formatted: `${nextLesson.dayOfWeek} ${nextLesson.dateISO} (Day ${nextLesson.cycleDay}${nextLesson.periodNumber ? `, P${nextLesson.periodNumber}` : ""})`,
-            short: `Day ${nextLesson.cycleDay}${nextLesson.periodNumber ? `, P${nextLesson.periodNumber}` : ""} — ${nextLesson.dayOfWeek?.slice(0, 3)}`,
-          } : null,
-          reason: nextRes?.lessons?.length === 0 ? "no_meetings" : undefined,
-        });
-      } catch { setScheduleInfo(null); }
-      finally { setScheduleLoading(false); }
-    }
-    loadSchedule();
-  }, [selectedTermId, classId, terms]);
+  // (Polish A.3 — loadSchedule useEffect + handleTermChange were re-homed
+  // to /teacher/classes/[classId]/settings/[unitId]/page.tsx alongside
+  // the Term picker + LessonSchedule render. The canvas no longer owns
+  // the term/schedule mutation surface.)
 
   // -----------------------------------------------------------------------
   // Handlers
   // -----------------------------------------------------------------------
-
-  async function handleTermChange(termId: string | null) {
-    setSelectedTermId(termId);
-    setSavingTerm(true);
-    setTermMessage("");
-    try {
-      const res = await fetch("/api/teacher/class-units", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ classId, unitId, term_id: termId }),
-      });
-      if (!res.ok) { const data = await res.json(); setTermMessage(data.error || "Failed to save term"); return; }
-      setTermMessage("Term assigned!");
-      setTimeout(() => setTermMessage(""), 3000);
-    } catch { setTermMessage("Network error. Please try again."); }
-    finally { setSavingTerm(false); }
-  }
 
   // ─── Phase 3.4 Step 4: row kebab "Remove from class" handler ─────────
   // Lightweight handler — window.confirm + the existing
