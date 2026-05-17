@@ -1048,31 +1048,34 @@ export function ClassCanvas({ unitId, classId }: { unitId: string; classId: stri
                 >
                   {unit.thumbnail_url ? (
                     <>
+                      {/* Image is right-anchored — the LEFT half of the
+                          card is a solid teal panel that fades into the
+                          image around the 60% mark. Matches the student
+                          dashboard "Let's pick up where you left off"
+                          hero (17 May PM smoke v3 — Matt: "I like the
+                          original gradient where the picture is only
+                          part of the card"). */}
                       <div
                         aria-hidden
                         className="absolute inset-0"
                         style={{
                           backgroundImage: `url(${unit.thumbnail_url})`,
                           backgroundSize: "cover",
-                          backgroundPosition: "center",
+                          backgroundPosition: "center right",
                         }}
                       />
-                      {/* Horizontal colour-to-image gradient — vibrant
-                          indigo panel on the left fades into the unit
-                          art on the right. Matt's preference (17 May
-                          PM smoke): "I liked the gradient on the hero
-                          card from colour to image". Distinct from the
-                          right-side lesson card's warm cream tone so
-                          the two hero cards read as complementary. */}
+                      {/* Solid teal panel on the left that gradients into
+                          the image around the 60% mark. The image stays
+                          fully visible from ~70% onward. */}
                       <div
                         aria-hidden
-                        className="absolute inset-0 bg-gradient-to-r from-indigo-700/95 via-indigo-600/70 to-transparent pointer-events-none"
+                        className="absolute inset-0 bg-gradient-to-r from-teal-500 from-40% via-teal-500/85 via-55% to-transparent to-70% pointer-events-none"
                       />
                     </>
                   ) : (
                     <div
                       aria-hidden
-                      className="absolute inset-0 bg-gradient-to-br from-violet-500 via-fuchsia-500 to-rose-500"
+                      className="absolute inset-0 bg-gradient-to-br from-teal-500 via-cyan-500 to-emerald-500"
                     />
                   )}
                   {/* Foreground: a single "Unit on screen" pill in the

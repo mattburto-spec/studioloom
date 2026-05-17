@@ -498,19 +498,21 @@ describe("DT canvas — unit hero thumbnail (17 May 2026 redesign)", () => {
     );
   });
 
-  it("unit hero uses a horizontal colour-to-image gradient (indigo panel left, art revealed right)", () => {
-    // 17 May PM smoke round 2 — Matt asked for the colour-to-image
-    // gradient back. Indigo panel on the left fades into the unit
-    // thumbnail on the right.
-    expect(HUB_SRC).toContain("bg-gradient-to-r from-indigo-700/95 via-indigo-600/70 to-transparent");
-    // Anti-revert: the previous bottom-to-top dark wash is gone
+  it("unit hero uses a teal panel + image-on-right gradient (mimics student dashboard hero)", () => {
+    // 17 May PM smoke v3 — Matt asked for a gradient where the
+    // PICTURE is only part of the card (solid teal panel on the
+    // left, image on the right with a fade transition around the
+    // 60% mark). Background-position centre-right anchors the art.
+    expect(HUB_SRC).toContain("bg-gradient-to-r from-teal-500 from-40% via-teal-500/85 via-55% to-transparent to-70%");
+    expect(HUB_SRC).toContain('backgroundPosition: "center right"');
+    // Anti-revert: previous wash patterns are gone
+    expect(HUB_SRC).not.toContain("bg-gradient-to-r from-indigo-700/95 via-indigo-600/70 to-transparent");
     expect(HUB_SRC).not.toContain("bg-gradient-to-t from-black/70 via-black/25 to-transparent");
-    // Anti-revert: the original heavy orange wash is also gone
     expect(HUB_SRC).not.toContain("from-orange-600/95 via-orange-600/85 to-orange-500/40");
   });
 
-  it("unit hero falls back to a vibrant gradient when no thumbnail_url", () => {
-    expect(HUB_SRC).toContain("bg-gradient-to-br from-violet-500 via-fuchsia-500 to-rose-500");
+  it("unit hero falls back to a vibrant teal/cyan gradient when no thumbnail_url", () => {
+    expect(HUB_SRC).toContain("bg-gradient-to-br from-teal-500 via-cyan-500 to-emerald-500");
   });
 
   it("unit hero carries data-has-thumbnail flag for smoke + debug", () => {
