@@ -1034,10 +1034,16 @@ export function ClassCanvas({ unitId, classId }: { unitId: string; classId: stri
                           backgroundPosition: "center",
                         }}
                       />
-                      {/* Soft bottom-to-top gradient for legibility */}
+                      {/* Horizontal colour-to-image gradient — vibrant
+                          indigo panel on the left fades into the unit
+                          art on the right. Matt's preference (17 May
+                          PM smoke): "I liked the gradient on the hero
+                          card from colour to image". Distinct from the
+                          right-side lesson card's warm cream tone so
+                          the two hero cards read as complementary. */}
                       <div
                         aria-hidden
-                        className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent pointer-events-none"
+                        className="absolute inset-0 bg-gradient-to-r from-indigo-700/95 via-indigo-600/70 to-transparent pointer-events-none"
                       />
                     </>
                   ) : (
@@ -1046,19 +1052,19 @@ export function ClassCanvas({ unitId, classId }: { unitId: string; classId: stri
                       className="absolute inset-0 bg-gradient-to-br from-violet-500 via-fuchsia-500 to-rose-500"
                     />
                   )}
+                  {/* Foreground: a single "Unit on screen" pill in the
+                      bottom-left so the card has SOME label without
+                      duplicating the header's class·unit + stats line.
+                      Title + student/page stats live in the canvas
+                      header above; the hero is the visual focal
+                      point. */}
                   <div className="relative h-full min-h-[220px] flex flex-col justify-end p-6 text-white">
-                    <span className="inline-block self-start text-[10px] font-bold uppercase tracking-[0.08em] px-2.5 py-1 rounded-full bg-white/25 backdrop-blur-sm mb-3">
+                    <span
+                      data-testid="unit-hero-eyebrow"
+                      className="inline-block self-start text-[10px] font-bold uppercase tracking-[0.08em] px-2.5 py-1 rounded-full bg-white/25 backdrop-blur-sm"
+                    >
                       Unit on screen
                     </span>
-                    <h2
-                      data-testid="unit-hero-title"
-                      className="text-2xl sm:text-3xl font-bold leading-tight drop-shadow-sm"
-                    >
-                      {unit.title}
-                    </h2>
-                    <div className="mt-2 text-sm text-white/90 drop-shadow-sm">
-                      {students.length} student{students.length !== 1 ? "s" : ""} · {unitPages.length} page{unitPages.length !== 1 ? "s" : ""}
-                    </div>
                   </div>
                 </section>
 
