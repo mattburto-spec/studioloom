@@ -876,6 +876,17 @@ export default function ClassHubPage({
                   href: `/teacher/classes/${classId}/settings/${unitId}`,
                 },
                 {
+                  // Stub for ClassProfileOverview (G7 drop, Phase 3.1 Step 3).
+                  // Used to render above the student grid on the old Progress
+                  // tab; needs a re-home destination (likely a drawer or
+                  // its own sub-route) before un-stubbing.
+                  testId: "kebab-class-profile",
+                  label: "View class profile…",
+                  icon: <span aria-hidden>📊</span>,
+                  disabled: true,
+                  conditional: "coming soon",
+                },
+                {
                   testId: "kebab-class-rollover",
                   label: "Roll over to next semester…",
                   icon: <span aria-hidden>↻</span>,
