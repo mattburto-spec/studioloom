@@ -4,28 +4,28 @@ import { useState, useEffect, use, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-// Lever-MM (4 May 2026): NMConfigPanel no longer mounted from this surface
-// — configuration moved to the lesson editor's New Metrics block category.
-// Component kept in @/components/nm/index for potential reuse.
-import { NMResultsPanel, NMElementsPanel, ObservationSnap } from "@/components/nm";
-import { BadgesTab } from "@/components/teacher/class-hub/BadgesTab";
-import { LessonSchedule } from "@/components/teacher/LessonSchedule";
+// Phase 3.6 Step 4 cutover sweep — orphan imports dropped. The canvas
+// re-mounts these components inside their respective drawers (NM* via
+// MetricsDrawer, BadgesTab via SafetyDrawer, OpenStudioClassView via
+// OpenStudioDrawer, LessonSchedule will land in the still-homeless
+// Settings re-homing follow-up). Surface-level imports here would just
+// pin tsc to dead code on this file.
+//
+// Still imported from @/components/nm: ObservationSnap (mounted at the
+// bottom of the page for the row-kebab + metrics-dot "Record NM
+// observation" triggers — the only NM surface that lives on the canvas
+// proper, not behind a drawer).
+import { ObservationSnap } from "@/components/nm";
 import type { ScheduleOverrides } from "@/components/teacher/LessonSchedule";
 import type { NMUnitConfig } from "@/lib/nm/constants";
 import { DEFAULT_NM_CONFIG, AGENCY_ELEMENTS } from "@/lib/nm/constants";
 import { getPageList } from "@/lib/unit-adapter";
-import { getPageColor } from "@/lib/constants";
 import type { Unit, UnitPage, UnitContentData, StudentProgress } from "@/types";
 import type { AssessmentRecordRow } from "@/types/assessment";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
-import { OpenStudioClassView } from "@/components/open-studio";
-import { PaceFeedbackSummary } from "@/components/teacher/PaceFeedbackSummary";
-import IntegrityReport from "@/components/teacher/IntegrityReport";
-import { StudentResponseValue } from "@/components/teacher/StudentResponseValue";
 import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
-import { analyzeIntegrity, worstIntegrityLevel } from "@/lib/integrity/analyze-integrity";
-import { ClassProfileOverview } from "@/components/teacher/ClassProfileOverview";
-import { getYearLevelNumber } from "@/lib/utils/year-level";
+import { worstIntegrityLevel } from "@/lib/integrity/analyze-integrity";
+import { studentInitials } from "@/lib/teacher/student-initials";
 import StudentDrawer from "@/components/teacher/class-hub/StudentDrawer";
 import StudentRosterDrawer from "@/components/teacher/class-hub/StudentRosterDrawer";
 import SafetyDrawer from "@/components/teacher/class-hub/SafetyDrawer";
@@ -33,6 +33,7 @@ import OpenStudioDrawer from "@/components/teacher/class-hub/OpenStudioDrawer";
 import MetricsDrawer from "@/components/teacher/class-hub/MetricsDrawer";
 import ChangeUnitModal from "@/components/teacher/class-hub/ChangeUnitModal";
 import GalleryDrawer from "@/components/teacher/class-hub/GalleryDrawer";
+import ClassShareChips from "@/components/teacher/class-hub/ClassShareChips";
 import KebabMenu, { type KebabMenuSection } from "@/components/teacher/class-hub/KebabMenu";
 
 // ---------------------------------------------------------------------------
@@ -831,6 +832,12 @@ export default function ClassHubPage({
           <p className="text-sm text-text-secondary mt-0.5">
             {students.length} student{students.length !== 1 ? "s" : ""} · {pages.length} page{pages.length !== 1 ? "s" : ""}
           </p>
+          {/* Phase 3.6 Step 2 — busy-teacher share row. Class code +
+              student join link as click-to-copy chips so a mid-lesson
+              "type this code / open this link" hand-off doesn't need
+              the kebab → StudentRosterDrawer → class-code reveal three-
+              click dance. */}
+          <ClassShareChips classCode={classCode} />
         </div>
         {/* Quick actions */}
         <div className="flex items-center gap-2">
@@ -1219,7 +1226,7 @@ export default function ClassHubPage({
               // Per-row derived values + the filter chip predicate.
               const rows = students.map((student) => {
                 const studentName = student.display_name || student.username;
-                const initials = (student.display_name?.[0] || student.username?.[0] || "?").toUpperCase();
+                const initials = studentInitials(student.display_name, student.username);
                 const pages = progressMap[student.id] || {};
                 const completed = Object.values(pages).filter((c) => c.status === "complete").length;
                 const percent = unitPages.length > 0 ? Math.round((completed / unitPages.length) * 100) : 0;

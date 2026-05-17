@@ -738,6 +738,133 @@ describe("DT canvas Phase 3.5 — gallery strip + drawer", () => {
   });
 });
 
+// ═════════════════════════════════════════════════════════════════════════════
+// Phase 3.6 — cutover sweep
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe("DT canvas Phase 3.6 — dashboard route URL cleanup", () => {
+  const DASH_SRC = readFileSync(
+    join(process.cwd(), "src/app/api/teacher/dashboard/route.ts"),
+    "utf-8",
+  );
+
+  it("dashboard route no longer mints ?tab=progress URLs", () => {
+    // The Phase 3.1 audit logged 5 sites minting ?tab=* hrefs.
+    // Phase 3.6 Step 1 dropped them. Comments referencing the old
+    // patterns are fine (they document the change) — the test
+    // anchors on the live `href:` field, requiring the URL string
+    // to start with a backtick OR forward-slash + classes (i.e.
+    // not contain ?tab=).
+    expect(DASH_SRC).not.toMatch(/^\s*href:\s*`[^`]*\?tab=progress/m);
+  });
+
+  it("dashboard route no longer mints ?tab=grade URLs", () => {
+    expect(DASH_SRC).not.toMatch(/^\s*href:\s*`[^`]*\?tab=grade/m);
+  });
+
+  it("'go to marking' insights route directly to /teacher/marking", () => {
+    expect(DASH_SRC).toMatch(
+      /href:\s*`\/teacher\/marking\?class=\$\{student\.class_id\}&unit=\$\{p\.unit_id\}`/
+    );
+  });
+});
+
+describe("DT canvas Phase 3.6 — class code + student join link share chips", () => {
+  it("page.tsx imports + mounts ClassShareChips", () => {
+    expect(HUB_SRC).toMatch(
+      /import\s+ClassShareChips\s+from\s+["']@\/components\/teacher\/class-hub\/ClassShareChips["']/
+    );
+    expect(HUB_SRC).toMatch(/<ClassShareChips\s+classCode=\{classCode\}/);
+  });
+
+  it("ClassShareChips renders code chip + link chip with click-to-copy testids", () => {
+    const CHIPS_SRC = readFileSync(
+      join(process.cwd(), "src/components/teacher/class-hub/ClassShareChips.tsx"),
+      "utf-8",
+    );
+    expect(CHIPS_SRC).toContain('data-testid="class-share-chips"');
+    expect(CHIPS_SRC).toContain('data-testid="class-share-chip-code"');
+    expect(CHIPS_SRC).toContain('data-testid="class-share-chip-link"');
+    // The link URL pattern is the existing /login/[classcode] pre-fill
+    expect(CHIPS_SRC).toMatch(/\$\{origin\}\/login\/\$\{classCode\}/);
+    // copy-to-clipboard via the browser API
+    expect(CHIPS_SRC).toContain("navigator.clipboard.writeText");
+  });
+
+  it("ClassShareChips returns null when classCode is empty (defensive)", () => {
+    const CHIPS_SRC = readFileSync(
+      join(process.cwd(), "src/components/teacher/class-hub/ClassShareChips.tsx"),
+      "utf-8",
+    );
+    expect(CHIPS_SRC).toMatch(/if\s*\(\s*!classCode\s*\)\s*return\s+null/);
+  });
+});
+
+describe("DT canvas Phase 3.6 — studentInitials helper", () => {
+  // Helper is lifted to @/lib/teacher/student-initials so vitest can
+  // import it cleanly (page.tsx isn't import-safe from test files
+  // because of its `"use client"` + JSX). Source-static guards lock
+  // the canvas-page wiring + the lifted module exists; the table-
+  // driven block below covers the derivation behaviour.
+  it("page.tsx imports studentInitials from @/lib/teacher/student-initials", () => {
+    expect(HUB_SRC).toMatch(
+      /import\s*\{\s*studentInitials\s*\}\s*from\s*["']@\/lib\/teacher\/student-initials["']/
+    );
+  });
+
+  it("avatar render site uses studentInitials(display_name, username)", () => {
+    expect(HUB_SRC).toContain("studentInitials(student.display_name, student.username)");
+  });
+
+  // The cases the rebuild needs to support — table-driven so any new
+  // surprising input gets a new row instead of a re-derived test.
+  it.each<[string | null, string | null, string]>([
+    ["Henry Park",  null,        "HP"],
+    ["Bea Martinez", null,       "BM"],
+    ["Aiden Chen",  null,        "AC"],
+    ["Alex",        null,        "AL"],
+    [null,          "hh",        "HH"],
+    [null,          "cb",        "CB"],
+    [null,          "z",         "Z" ],
+    [null,          null,        "?" ],
+    ["",            "",          "?" ],
+    ["  Henry  Park  ", null,    "HP"], // collapses whitespace
+  ])("studentInitials(%j, %j) → %j", async (displayName, username, expected) => {
+    const { studentInitials } = await import("@/lib/teacher/student-initials");
+    expect(studentInitials(displayName, username)).toBe(expected);
+  });
+});
+
+describe("DT canvas Phase 3.6 — orphan import cleanup", () => {
+  // Anti-revert guards. These imports were dropped in Step 4; future
+  // cherry-pick / merge that re-introduces them on this page would
+  // re-create dead code. The components themselves still live and
+  // are imported from their drawers + sub-routes — these guards
+  // only assert the *canvas page* doesn't import them again.
+  it.each([
+    "BadgesTab",
+    "LessonSchedule",
+    "OpenStudioClassView",
+    "NMResultsPanel",
+    "NMElementsPanel",
+    "PaceFeedbackSummary",
+    "IntegrityReport",
+    "StudentResponseValue",
+    "analyzeIntegrity",
+    "ClassProfileOverview",
+    "getYearLevelNumber",
+    "getPageColor",
+  ])("page.tsx does not import %s (lifted to a drawer or dropped per G7/G8/G9)", (sym) => {
+    // Match `import … { X } from …` or `import … { …, X, … } from …`
+    // anywhere on a non-comment line.
+    const re = new RegExp(
+      `^[^/\\n]*import[^;]*\\b${sym}\\b[^;]*from`,
+      "m",
+    );
+    expect(HUB_SRC).not.toMatch(re);
+  });
+});
+
 describe("DT canvas Phase 3.5 — legacy ?tab=gallery compat enhanced", () => {
   it("?tab=gallery opens GalleryDrawer (was no-op before Phase 3.5)", () => {
     // Multiline-anchored: the setGalleryDrawerOpen call must live on

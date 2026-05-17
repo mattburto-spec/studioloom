@@ -555,7 +555,10 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
             priority: isSevere ? 90 : 55,
             title: hasPastes ? "Possible copy-paste detected" : focusLossCount > 10 ? "Frequent tab-switching" : "Very low keystroke count",
             subtitle: `${studentLabel} · ${cls.name} · ${unit.title}`,
-            href: `${baseHref}?tab=progress`,
+            // DT canvas Phase 3.6 cutover: ?tab=progress was the
+            // legacy alias for "land on the Progress tab" — the canvas
+            // IS the progress view now, so the bare URL is canonical.
+            href: baseHref,
             studentName: studentLabel,
             accentColor: isSevere ? "#EF4444" : "#F59E0B",
             timestamp: p.updated_at,
@@ -575,7 +578,10 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
           priority: Math.min(85, 70 + days), // gets more urgent over time, cap at 85
           title: `Unmarked work — ${days} days`,
           subtitle: `${studentLabel} · ${cls.name} · ${unit.title}`,
-          href: `${baseHref}?tab=grade`,
+          // DT canvas Phase 3.6 cutover: was `${baseHref}?tab=grade`
+          // which redirected via the canvas to /teacher/marking. Route
+          // directly to skip the redirect hop.
+          href: `/teacher/marking?class=${student.class_id}&unit=${p.unit_id}`,
           studentName: studentLabel,
           accentColor: "#F59E0B",
           timestamp: p.updated_at,
@@ -593,7 +599,9 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
           priority: 45,
           title: "New work submitted",
           subtitle: `${studentLabel} · ${cls.name} · ${unit.title}`,
-          href: `${baseHref}?tab=grade`,
+          // DT canvas Phase 3.6 cutover: direct marking URL (was
+          // legacy `${baseHref}?tab=grade` canvas-redirect).
+          href: `/teacher/marking?class=${student.class_id}&unit=${p.unit_id}`,
           studentName: studentLabel,
           accentColor: "#10B981",
           timestamp: p.updated_at,
@@ -612,7 +620,13 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
           priority: 55,
           title: `Stuck for ${days > 0 ? days + "d" : Math.floor(ageMs / 3600000) + "h"}`,
           subtitle: `${studentLabel} · ${cls.name} · ${unit.title}`,
-          href: `${baseHref}?tab=progress`,
+          // DT canvas Phase 3.6 cutover: bare canvas URL (was legacy
+          // `${baseHref}?tab=progress`). The student-deep-link
+          // qualifier could be added here too — `${baseHref}?student=${p.student_id}`
+          // would open StudentDrawer on land via the legacy compat
+          // handler. Deferred — keeps this insight as a "look at
+          // the class" instead of "look at the student" for now.
+          href: baseHref,
           studentName: studentLabel,
           accentColor: "#6366F1",
           timestamp: p.updated_at,
@@ -639,7 +653,9 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
         priority: 65,
         title: "Finished entire unit",
         subtitle: `${student.display_name || student.username} · ${cls.name} · ${unit.title}`,
-        href: `/teacher/units/${uid}/class/${student.class_id}?tab=grade`,
+        // DT canvas Phase 3.6 cutover: direct marking URL (was
+        // legacy `?tab=grade` canvas-redirect).
+        href: `/teacher/marking?class=${student.class_id}&unit=${uid}`,
         studentName: student.display_name || student.username,
         accentColor: "#7C3AED",
         timestamp: new Date().toISOString(), // no single timestamp for "all pages done"
