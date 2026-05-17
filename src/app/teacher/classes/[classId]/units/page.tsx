@@ -56,19 +56,11 @@ export default function ClassUnitsPage({
       setLoading(true);
       try {
         const supabase = createClient();
-        // NOTE (17 May 2026): `units.unit_type` is omitted from this
-        // select because prod is missing migration 051 (
-        // FU-PROD-MIGRATION-BACKLOG-AUDIT — P1 in the master CLAUDE.md
-        // index). Display layer falls back to "design" via
-        // `unit_type ?? "design"`. Re-add when migration 051 lands on
-        // prod. `is_published` is also dropped — wasn't rendered in
-        // the row UI; the ownership decision lives on the server-side
-        // set_active_unit RPC (migration 20260516052310) not here.
         const [classRes, cuRes] = await Promise.all([
           supabase.from("classes").select("name").eq("id", classId).single(),
           supabase
             .from("class_units")
-            .select("unit_id, is_active, forked_at, units(title)")
+            .select("unit_id, is_active, forked_at, units(title, unit_type, is_published)")
             .eq("class_id", classId)
             .order("is_active", { ascending: false })
             .order("forked_at", { ascending: false, nullsFirst: false }),
@@ -79,15 +71,15 @@ export default function ClassUnitsPage({
           setError(`Failed to load units: ${cuRes.error.message}`);
           return;
         }
-        const mapped: ClassUnitRow[] = (cuRes.data || []).map((r: { unit_id: string; is_active: boolean; forked_at: string | null; units: { title: string } | { title: string }[] | null }) => {
+        const mapped: ClassUnitRow[] = (cuRes.data || []).map((r: { unit_id: string; is_active: boolean; forked_at: string | null; units: { title: string; unit_type: string | null; is_published: boolean | null } | { title: string; unit_type: string | null; is_published: boolean | null }[] | null }) => {
           const u = Array.isArray(r.units) ? r.units[0] : r.units;
           return {
             unit_id: r.unit_id,
             is_active: r.is_active,
             forked_at: r.forked_at,
             title: u?.title || "(untitled unit)",
-            unit_type: null,
-            is_published: null,
+            unit_type: u?.unit_type ?? null,
+            is_published: u?.is_published ?? null,
           };
         });
         setRows(mapped);

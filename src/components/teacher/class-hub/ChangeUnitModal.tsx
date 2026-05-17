@@ -85,16 +85,9 @@ export default function ChangeUnitModal({
       setLoading(true);
       try {
         const supabase = createClient();
-        // NOTE (17 May 2026): `units.unit_type` is omitted from this
-        // select because prod is missing migration 051 (
-        // FU-PROD-MIGRATION-BACKLOG-AUDIT — P1 in the master CLAUDE.md
-        // index). The display layer falls back to "design" via
-        // `unit_type ?? "design"` — Matt's pilot is design-only so the
-        // fallback is correct. Re-add `unit_type` to the select when
-        // migration 051 lands on prod.
         const { data, error: qErr } = await supabase
           .from("class_units")
-          .select("unit_id, is_active, forked_at, units(title)")
+          .select("unit_id, is_active, forked_at, units(title, unit_type)")
           .eq("class_id", classId)
           .order("is_active", { ascending: false })
           .order("forked_at", { ascending: false, nullsFirst: false });
@@ -103,7 +96,7 @@ export default function ChangeUnitModal({
           setError(`Failed to load units: ${qErr.message}`);
           return;
         }
-        const rows: ClassUnitOption[] = (data || []).map((r: { unit_id: string; is_active: boolean; forked_at: string | null; units: { title: string } | { title: string }[] | null }) => {
+        const rows: ClassUnitOption[] = (data || []).map((r: { unit_id: string; is_active: boolean; forked_at: string | null; units: { title: string; unit_type: string | null } | { title: string; unit_type: string | null }[] | null }) => {
           // supabase-js types the joined row as object | array depending
           // on FK cardinality. units is single per class_unit row but the
           // generated types may report array. Normalise.
@@ -113,7 +106,7 @@ export default function ChangeUnitModal({
             is_active: r.is_active,
             forked_at: r.forked_at,
             title: u?.title || "(untitled unit)",
-            unit_type: null,
+            unit_type: u?.unit_type ?? null,
           };
         });
         setOptions(rows);
