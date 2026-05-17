@@ -957,27 +957,20 @@ export function ClassCanvas({ unitId, classId }: { unitId: string; classId: stri
       >
         {/* MAIN COLUMN */}
         <div className="flex flex-col gap-6 min-w-0">
-          {/* Today's lesson hero (Phase 3.3) — orange card per mockup
-              view 2 .lesson-card (lines 1502-1527). Picks the page
-              the class is most likely working on right now (see
-              deriveTodaysLessonIndex). Outline pulls from the page's
-              workshopPhases when present; otherwise a friendly
-              "no Workshop Model timing yet" empty state. ▶ Teach CTA
-              links to /teacher/teach/[unitId]?classId=[classId] with
-              the today's page pre-selected. Change unit affordance
-              opens ChangeUnitModal (Step 2). */}
-          {unitPages.length === 0 ? (
-            <section
-              data-testid="canvas-lesson-hero"
-              data-empty="no-pages"
-              className="bg-orange-50 border border-orange-200 rounded-2xl p-6 text-sm text-orange-900"
-            >
-              No pages in this unit yet. Open <strong>Edit</strong> in the header to add one.
-            </section>
-          ) : (() => {
+          {/* Hero row — split into TWO side-by-side cards (17 May 2026
+              redesign per Matt's smoke). Left = colourful unit hero
+              (thumbnail forward, minimal overlay). Right = today's
+              lesson card with Workshop Model outline. Teach CTA
+              removed from both — the canvas-header's purple Teach
+              button is canonical. Change unit + Edit also live in the
+              header. */}
+          {(() => {
             const studentIds = students.map((s) => s.id);
-            const todayIdx = deriveTodaysLessonIndex(unitPages, progressMap, studentIds);
-            const todayPage = unitPages[todayIdx];
+            const hasPages = unitPages.length > 0;
+            const todayIdx = hasPages
+              ? deriveTodaysLessonIndex(unitPages, progressMap, studentIds)
+              : 0;
+            const todayPage = hasPages ? unitPages[todayIdx] : null;
             const wp = todayPage?.content?.workshopPhases;
             const totalMin = wp
               ? (wp.opening?.durationMinutes ?? 0) +
@@ -986,8 +979,7 @@ export function ClassCanvas({ unitId, classId }: { unitId: string; classId: stri
                 (wp.debrief?.durationMinutes ?? 0)
               : null;
             // Outline rows — only render phases that have non-zero
-            // durations. Mockup style: time chip + bold phase name
-            // + focus/protocol detail.
+            // durations. Time chip + bold phase name + focus/protocol detail.
             const outlineRows: Array<{ minutes: number; name: string; detail: string }> = [];
             if (wp) {
               if (wp.opening?.durationMinutes) {
@@ -1020,97 +1012,120 @@ export function ClassCanvas({ unitId, classId }: { unitId: string; classId: stri
               }
             }
             return (
-              <section
-                data-testid="canvas-lesson-hero"
-                data-today-index={todayIdx}
-                data-has-thumbnail={unit.thumbnail_url ? "true" : "false"}
-                style={
-                  unit.thumbnail_url
-                    ? { backgroundImage: `url(${unit.thumbnail_url})`, backgroundSize: "cover", backgroundPosition: "center" }
-                    : undefined
-                }
-                className={`relative rounded-2xl shadow-sm overflow-hidden text-white ${unit.thumbnail_url ? "" : "bg-gradient-to-br from-orange-500 to-orange-600"}`}
-              >
-                {/* Orange overlay (Phase 3.6+ polish, 17 May 2026) —
-                    when the unit has a thumbnail_url, the image fills
-                    the card as a background + this overlay washes
-                    most of the left column orange so the title /
-                    outline text stays legible, with the right edge
-                    fading back toward the image so a slice of art
-                    still shows. When there's no thumbnail, the
-                    overlay is invisible (the gradient on the section
-                    itself paints the whole card). */}
-                {unit.thumbnail_url && (
-                  <div
-                    aria-hidden
-                    className="absolute inset-0 bg-gradient-to-r from-orange-600/95 via-orange-600/85 to-orange-500/40 pointer-events-none"
-                  />
-                )}
-                {/* Change unit affordance was here in Phase 3.3 Step 2 as
-                    an absolute-positioned pill — it overlapped the outline
-                    column text on real lesson data. Moved into the canvas
-                    header next to Edit + kebab so the hero stays clean
-                    and the action remains visible when the hero is in
-                    its empty state. testid renamed canvas-header-change-unit. */}
-                <div className="relative grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 lg:gap-8 p-6">
-                  <div>
-                    <span className="inline-block text-[10px] font-bold uppercase tracking-[0.08em] px-2.5 py-1 rounded-full bg-white/20">
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4 items-stretch">
+                {/* LEFT: Unit hero — colourful, thumbnail-forward.
+                    Soft bottom gradient for text legibility (much
+                    lighter than the previous orange wash). Falls
+                    back to a vibrant violet→rose gradient when the
+                    unit has no thumbnail. */}
+                <section
+                  data-testid="canvas-unit-hero"
+                  data-has-thumbnail={unit.thumbnail_url ? "true" : "false"}
+                  className="relative rounded-2xl overflow-hidden shadow-sm min-h-[220px]"
+                >
+                  {unit.thumbnail_url ? (
+                    <>
+                      <div
+                        aria-hidden
+                        className="absolute inset-0"
+                        style={{
+                          backgroundImage: `url(${unit.thumbnail_url})`,
+                          backgroundSize: "cover",
+                          backgroundPosition: "center",
+                        }}
+                      />
+                      {/* Soft bottom-to-top gradient for legibility */}
+                      <div
+                        aria-hidden
+                        className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent pointer-events-none"
+                      />
+                    </>
+                  ) : (
+                    <div
+                      aria-hidden
+                      className="absolute inset-0 bg-gradient-to-br from-violet-500 via-fuchsia-500 to-rose-500"
+                    />
+                  )}
+                  <div className="relative h-full min-h-[220px] flex flex-col justify-end p-6 text-white">
+                    <span className="inline-block self-start text-[10px] font-bold uppercase tracking-[0.08em] px-2.5 py-1 rounded-full bg-white/25 backdrop-blur-sm mb-3">
+                      Unit on screen
+                    </span>
+                    <h2
+                      data-testid="unit-hero-title"
+                      className="text-2xl sm:text-3xl font-bold leading-tight drop-shadow-sm"
+                    >
+                      {unit.title}
+                    </h2>
+                    <div className="mt-2 text-sm text-white/90 drop-shadow-sm">
+                      {students.length} student{students.length !== 1 ? "s" : ""} · {unitPages.length} page{unitPages.length !== 1 ? "s" : ""}
+                    </div>
+                  </div>
+                </section>
+
+                {/* RIGHT: Today's lesson card — warm cream/orange tones
+                    so it reads as related-but-distinct from the unit
+                    hero. Compact stack of pill + lesson title +
+                    Workshop Model summary + outline rows. */}
+                {!hasPages ? (
+                  <section
+                    data-testid="canvas-lesson-hero"
+                    data-empty="no-pages"
+                    className="rounded-2xl bg-amber-50 border border-amber-200 p-5 text-sm text-amber-900 flex items-center"
+                  >
+                    No pages in this unit yet. Open <strong>Edit</strong> in the header to add one.
+                  </section>
+                ) : (
+                  <section
+                    data-testid="canvas-lesson-hero"
+                    data-today-index={todayIdx}
+                    className="rounded-2xl bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-200/60 shadow-sm p-5 flex flex-col"
+                  >
+                    <span className="inline-block self-start text-[10px] font-bold uppercase tracking-[0.08em] px-2.5 py-1 rounded-full bg-orange-600 text-white mb-3">
                       Today · Lesson {todayIdx + 1} of {unitPages.length}
                     </span>
                     <h2
                       data-testid="lesson-hero-title"
-                      className="mt-3 text-2xl sm:text-3xl font-bold leading-tight"
+                      className="text-lg font-bold leading-tight text-gray-900"
                     >
                       {todayPage?.title || todayPage?.content?.title || `Page ${todayIdx + 1}`}
                     </h2>
-                    <div className="mt-2 text-sm text-white/85">
+                    <div className="mt-1 text-xs text-gray-600">
                       <strong className="font-semibold">Workshop Model</strong>
                       {totalMin != null && totalMin > 0 && (
                         <> · {totalMin} min</>
                       )}
                     </div>
-                    <Link
-                      data-testid="lesson-hero-teach-cta"
-                      href={`/teacher/teach/${unitId}?classId=${classId}&page=${encodeURIComponent(todayPage?.id ?? "")}`}
-                      className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-text-primary text-sm font-semibold shadow-sm hover:bg-white/95 transition"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                        <polygon points="5 3 19 12 5 21 5 3" />
-                      </svg>
-                      Teach
-                    </Link>
-                  </div>
-                  {/* Outline — right column on lg+, stacks below on small */}
-                  <div className="lg:border-l lg:border-white/25 lg:pl-7 flex flex-col gap-3 justify-center">
-                    {outlineRows.length === 0 ? (
-                      <p
-                        data-testid="lesson-hero-outline-empty"
-                        className="text-xs text-white/80 leading-relaxed"
-                      >
-                        No Workshop Model timing on this page yet.
-                        Open <strong>Edit</strong> to add opening / mini-lesson / work
-                        time / debrief phases.
-                      </p>
-                    ) : (
-                      outlineRows.map((row, i) => (
-                        <div
-                          key={i}
-                          data-testid="lesson-hero-outline-row"
-                          className="flex items-start gap-3"
+                    <div className="mt-4 flex flex-col gap-2.5 flex-1">
+                      {outlineRows.length === 0 ? (
+                        <p
+                          data-testid="lesson-hero-outline-empty"
+                          className="text-xs text-gray-600 leading-relaxed"
                         >
-                          <span className="flex-shrink-0 text-[10px] font-bold tracking-wider px-2 py-0.5 rounded bg-white/20 min-w-[44px] text-center">
-                            {row.minutes} min
-                          </span>
-                          <div className="text-xs leading-relaxed">
-                            <strong className="font-semibold">{row.name}.</strong>{" "}
-                            <span className="text-white/85">{row.detail}</span>
+                          No Workshop Model timing on this page yet.
+                          Open <strong>Edit</strong> to add opening / mini-lesson / work
+                          time / debrief phases.
+                        </p>
+                      ) : (
+                        outlineRows.map((row, i) => (
+                          <div
+                            key={i}
+                            data-testid="lesson-hero-outline-row"
+                            className="flex items-start gap-2.5"
+                          >
+                            <span className="flex-shrink-0 text-[10px] font-bold tracking-wider px-2 py-0.5 rounded bg-orange-100 text-orange-800 min-w-[44px] text-center">
+                              {row.minutes} min
+                            </span>
+                            <div className="text-xs leading-snug text-gray-800">
+                              <strong className="font-semibold">{row.name}.</strong>{" "}
+                              <span className="text-gray-600">{row.detail}</span>
+                            </div>
                           </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </section>
+                        ))
+                      )}
+                    </div>
+                  </section>
+                )}
+              </div>
             );
           })()}
 
