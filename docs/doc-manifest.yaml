@@ -2747,9 +2747,17 @@ docs:
     max_age_days: 180
     last_scanned: "2026-04-20"
 
+  - path: "docs/projects/prod-migration-backlog-audit-2026-05-17-truth.md"
+    title: "Prod Migration Backlog Audit — Round 2 Truth Document"
+    purpose: "Round 2 of FU-PROD-MIGRATION-BACKLOG-AUDIT (closed 17 May 2026). Documents the 4 missing 3-digit migrations found via expanded probe sweep (051, 080, 081, 082), the corrective re-probe that surfaced 2 probe bugs (062, 119 → Lesson #93), the apply log, and the 3 open follow-ups (FU-CHECK-APPLIED-3DIGIT-SCOPE P2, FU-AUDIT-3DIGIT-001-044-SWEEP P3, FU-PR340-CLEANUP-WIDEN-SELECTS P3). Sister doc to prod-migration-backlog-audit-2026-05-11-truth.md (Round 1)."
+    category: projects
+    last_verified: "2026-05-17"
+    max_age_days: 365
+    last_scanned: "2026-05-17"
+
 # --- SUMMARY STATISTICS ---
 summary:
-  total_documents: 286
+  total_documents: 287
   by_category:
     root: 40
     brain: 9
@@ -2768,5 +2776,5 @@ summary:
     marketing: 1
     safety: 1
     email-templates: 5
-  last_updated: "2026-05-11"
+  last_updated: "2026-05-17"
   referenced_in_claude_md: 18

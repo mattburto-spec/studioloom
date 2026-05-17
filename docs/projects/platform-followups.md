@@ -332,6 +332,61 @@ One-line UX, zero coupling, no event system. **Do NOT build:**
 
 ---
 
+## FU-CHECK-APPLIED-3DIGIT-SCOPE — Extend check-applied.sh to cover 3-digit migrations
+**Surfaced:** 17 May 2026, during FU-PROD-MIGRATION-BACKLOG-AUDIT Round 2 close-out.
+**Severity:** 🟠 MEDIUM (P2) — structural blind spot in the drift-detection mandate. Today's audit found 4 missing 3-digit migrations that the saveme step 11(h) check would never have caught.
+**Target phase:** Standalone — ~30 min when next touching the migration tooling.
+
+**The gap:** [`scripts/migrations/check-applied.sh`](../../scripts/migrations/check-applied.sh) filters with `awk '$0 >= "20260401"'`, which excludes every 3-digit migration (`001`–`123`). The 11 May audit's scope decision baked this in on the *assumed*-applied premise. The 17 May audit proved the assumption wrong — `051`, `080`, `081`, `082` were all in the repo + schema-registry but not on prod.
+
+**Definition of done:**
+- Drop the `awk` filter OR change it to a comment-out of intentionally-retired migrations only.
+- Backfill `applied_migrations` rows for the 78 three-digit migrations confirmed applied during Round 2's probe pack (the 4 newly-applied ones already have rows; this is for the rest). One bulk `INSERT INTO public.applied_migrations` with `source='backfill'` + `notes='applied pre-tracker; verified via 17 May 2026 audit Round 2'`.
+- Add `001` through `044` to a `PRE_AUDIT_ASSUMED_APPLIED` allowlist OR sweep them in a follow-up probe round (see `FU-AUDIT-3DIGIT-001-044-SWEEP`).
+- Update CLAUDE.md "Migration discipline (v2)" section to note that 3-digit migrations are in scope for the tracker.
+
+**Why P2 not P1:** the consequence of NOT fixing this is "a future 3-digit migration that lands but doesn't get logged won't be caught by saveme." But every new migration uses timestamp prefixes now (claim discipline since 26 April), so the structural source of new 3-digit drift is closed. This is about closing the historical blind spot, not preventing new drift.
+
+---
+
+## FU-AUDIT-3DIGIT-001-044-SWEEP — Probe foundational 3-digit migrations not covered by Round 2
+**Surfaced:** 17 May 2026, during FU-PROD-MIGRATION-BACKLOG-AUDIT Round 2 close-out.
+**Severity:** 🟢 LOW (P3) — the lowest-likelihood drift class. Foundational schema migrations (`001`–`044`) added the canonical tables (`teachers`, `units`, `classes`, `students`, `knowledge_uploads`, etc.). Drift here would already have caused 500s on app boot.
+**Target phase:** Optional — one paste cycle when convenient. Can be deferred indefinitely without operational impact.
+
+**The gap:** Round 2's expand probe pack covered 3-digit migrations `045–119`. The 44 migrations in range `001`–`044` were not probed — they're pre-Dimensions3 era and operationally proven by the platform booting at all. But "operationally proven by boot" isn't the same as "verified via probe", and the truth doc principle is to verify, not assume.
+
+**Method (~5 min to author, 1 paste cycle to run):**
+- Read each migration's `CREATE TABLE` / `ADD COLUMN` statement for a distinctive artifact (most are CREATE TABLE in this range).
+- Build a 30-probe `UNION ALL` SQL block in the same shape as `/tmp/audit-3digit-probe-pack.sql`.
+- Skip migrations that are pure RLS-fix or index-only (no distinctive artifact to probe).
+- Expected: all return `applied = true`. Anything that doesn't is a P0 (foundational drift = app likely broken in unobvious ways).
+
+**Definition of done:**
+- 30-probe SQL block authored + pasted + result captured.
+- Findings (if any) added to truth doc as Round 3.
+- For migrations confirmed applied, append rows to `applied_migrations` with `source='backfill'`. Pairs with `FU-CHECK-APPLIED-3DIGIT-SCOPE`.
+
+---
+
+## FU-PR340-CLEANUP-WIDEN-SELECTS — Restore unit_type to canvas selects + drop anti-regression guard
+**Surfaced:** 17 May 2026, during FU-PROD-MIGRATION-BACKLOG-AUDIT Round 2 close-out.
+**Severity:** 🟢 LOW (P3) — cleanup of a temporary mitigation. Current state (narrow selects without `unit_type`) works fine; restoring the column would surface unit type in the canvas surfaces that originally needed it (ChangeUnitModal + Past units sub-route).
+**Target phase:** Standalone PR — ~30 min when next touching the canvas pages.
+
+**Background:** PR [#340](https://github.com/mattburto-spec/studioloom/pull/340) (commit `56b18204`) narrowed two `units(...)` selects to omit `unit_type` after the column was discovered missing from prod (Round 2 trigger). Migration `051_unit_type` has now been applied to prod (17 May 2026, this audit's apply phase), so the narrow-select mitigation is no longer needed.
+
+**Definition of done:**
+- Widen the `units(...)` selects in [src/app/teacher/classes/[classId]/units/page.tsx](../../src/app/teacher/classes/%5BclassId%5D/units/page.tsx) and [src/components/teacher/class-hub/ChangeUnitModal.tsx](../../src/components/teacher/class-hub/ChangeUnitModal.tsx) back to include `unit_type` (and `is_published` if it was also narrowed — verify).
+- Delete the anti-regression describe block at [src/app/teacher/units/\_\_tests\_\_/dt-canvas-shape.test.ts:437](../../src/app/teacher/units/__tests__/dt-canvas-shape.test.ts) (`describe("DT canvas — prod migration drift anti-regression (FU-PROD-MIGRATION-BACKLOG-AUDIT)", ...)`).
+- Update the stale test description at [dt-canvas-shape.test.ts:696](../../src/app/teacher/units/__tests__/dt-canvas-shape.test.ts) (the regex doesn't validate the column list, so cosmetic only — but worth fixing while you're in the file).
+- Run `npm test` and confirm no regressions.
+- Smoke-test the canvas surfaces locally: ChangeUnitModal should render unit types in any visible unit metadata; Past units page should display unit type if used in the UI.
+
+**Why P3 not P2:** the platform works fine without unit_type in those two selects. The cleanup is about restoring intentional behaviour (the column was added to be queryable), not closing a hazard.
+
+---
+
 ## Resolved
 
 ### FU-BRIEFS-STUDENT-SELF-AUTHORED — Student-authored brief fallback when teacher hasn't set one

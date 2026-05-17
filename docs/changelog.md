@@ -4,6 +4,70 @@
 
 ---
 
+## 2026-05-17 — `FU-PROD-MIGRATION-BACKLOG-AUDIT` Round 2 CLOSED — 4 drifts applied to prod + Lesson #93 banked
+
+**Context:** Session opened on the back of PR [#340](https://github.com/mattburto-spec/studioloom/pull/340) (commit `56b18204`), a teacher-side hotfix for the canvas surfaces that surfaced a 500 with `column units_1.unit_type does not exist`. Root cause: migration `051_unit_type.sql` was in the repo + schema-registry but NOT applied on prod. PR #340 shipped a code-side mitigation (narrow select + paired anti-regression `describe` block at [src/app/teacher/units/\_\_tests\_\_/dt-canvas-shape.test.ts:437](../src/app/teacher/units/__tests__/dt-canvas-shape.test.ts:437)) and filed `FU-PROD-MIGRATION-BACKLOG-AUDIT` to find every other drift hazard before the next 500. This session: ran the audit + applied the 4 missing migrations found.
+
+### Audit method — 3 paste-rounds against prod
+
+| Round | Probe pack | Migrations covered | Result |
+|---|---|---|---|
+| 1 — Timestamp tracker | `/tmp/audit-drift-query.sql` (single SQL via `check-applied.sh`) | All 105 timestamp migrations (>= 20260401) | `missing_count = 0` — every timestamp migration logged in `applied_migrations`. Lesson #83 discipline held without exception since 11 May. |
+| 2 — Three-digit core | `/tmp/audit-3digit-probe-pack.sql` (25 probes) | `045–123` first pass, biased toward code-referenced migrations | 3 FALSE: `051_unit_type` (CONTROL — expected), `080_block_versioning` (no code refs — P3), `082_data_removal_log` (5 code sites — P2). 1 expected-FALSE: `121_student_progress_autonomy_level` (local-dev only per file comment). |
+| 3 — Three-digit expand | `/tmp/audit-3digit-expand-probe-pack.sql` (30 probes) | `045–119` second pass, broader coverage | 3 FALSE: `062_teacher_tier` ❌ probe bug, `081_unit_version_trigger` (real P2), `119_machine_profiles_brand_column` ❌ probe bug. Corrected re-probe (`/tmp/audit-3digit-reprobe.sql`) confirmed 062 + 119 both applied (column-name guessing trap → Lesson #93). |
+
+**Net finds:** 4 confirmed drifts (`051`, `080`, `081`, `082`) — all in the Dimensions3 Phase 7A "Integrity & Versioning" era except `051` which was a freemium / unit-type seam from earlier.
+
+### Apply phase — Option A (apply all 4) signed off
+
+| Order | Migration | Time UTC | Verify result |
+|---|---|---|---|
+| 1 | `082_data_removal_log` | ~02:30 | ✅ table_exists, policy_exists, index_exists, tracker_row_exists |
+| 2 | `051_unit_type` | ~02:45 | ✅ unit_type_col_exists, curriculum_context_col_exists, check_constraint_exists, index_exists, tracker_row_exists, non_default_rows=0 (column genuinely absent before — every existing unit defaulted to 'design') |
+| 3 | `080_block_versioning` | ~03:00 | ✅ table_exists, both policies, function, trigger, index, tracker_row — all 7 true |
+| 4 | `081_unit_version_trigger` | ~03:15 | ✅ function_exists, trigger_exists, tracker_row_exists, unit_versions_target_table_exists (target table from mig 040 already there) |
+
+Each apply followed Lesson #83 discipline: paste migration body → INSERT into `applied_migrations` in same session → verify probe before moving to next.
+
+### Lesson #93 banked
+
+[`docs/lessons-learned.md`](lessons-learned.md) — **"When generating probe SQL for a migration, READ the migration body for the exact artifact name; filename hints are unreliable."** Source: Round 2 expand pack's two probe bugs (`062_teacher_tier` adds to `teacher_profiles` not `teachers`; `119_machine_profiles_brand_column` adds `machine_brand` not `brand`). Sister to Lesson #38 (verify expected values, not just non-null) — same family of "trust source-of-truth not your inference".
+
+### Artifacts written
+
+- New: [`docs/projects/prod-migration-backlog-audit-2026-05-17-truth.md`](projects/prod-migration-backlog-audit-2026-05-17-truth.md) — full Round 2 truth doc (~150 lines, cross-refs the 11 May Round 1 doc)
+- Appended: [`docs/lessons-learned.md`](lessons-learned.md) → Lesson #93
+- Appended: [`docs/projects/platform-followups.md`](projects/platform-followups.md) → 3 FUs (FU-CHECK-APPLIED-3DIGIT-SCOPE P2, FU-AUDIT-3DIGIT-001-044-SWEEP P3, FU-PR340-CLEANUP-WIDEN-SELECTS P3)
+- Updated: [`docs/schema-registry.yaml`](schema-registry.yaml) → `activity_block_versions` + `data_removal_log` flipped pending → applied; `units` got `recent_drift_closure` entries for mig 051 + 081
+- Updated: [`docs/doc-manifest.yaml`](doc-manifest.yaml) → new entry for the truth doc; `total_documents` 286 → 287; `last_updated` 2026-05-11 → 2026-05-17
+- Updated: master [`/Users/matt/CWORK/CLAUDE.md`](/Users/matt/CWORK/CLAUDE.md) → FU-PROD-MIGRATION-BACKLOG-AUDIT moved from P1-open to P1-closed; P1 count 2 → 1
+
+### Registry sync (saveme step 11)
+
+- **a** schema-registry.yaml — 3 manual edits (above)
+- **b** api-registry.yaml — scanner ran, 0 diff
+- **c** ai-call-sites.yaml — scanner ran, 0 diff
+- **d** feature-flags.yaml — scanner ran, status ok
+- **e** vendors.yaml — scanner ran, 10 registered / 8 with evidence, status ok
+- **f** data-classification-taxonomy.md — no new enum values surfaced this session
+- **g** RLS coverage — scanner ran, **139 / 139 RLS-enabled, 134 with policies, 0 no-RLS, 0 RLS-no-policy, 5 deny-all, status clean** (includes the 2 newly-applied `activity_block_versions` + `data_removal_log` policies)
+- **h** Migration drift check — `check-applied.sh` manual SQL returned `missing_count = 0` (the audit's keystone result)
+
+### Open follow-ups from this session
+
+| FU | Severity | Description |
+|---|---|---|
+| `FU-CHECK-APPLIED-3DIGIT-SCOPE` | P2 | Extend `check-applied.sh` filter to cover 3-digit migrations + backfill `applied_migrations` rows for the 51 three-digit migrations probed and confirmed applied. Today's audit is currently invisible to saveme step 11(h). |
+| `FU-AUDIT-3DIGIT-001-044-SWEEP` | P3 | Probe the 44 foundational 3-digit migrations not covered by Round 2. Lowest-likelihood drift class (drift would already cause boot 500s). Optional close-out. |
+| `FU-PR340-CLEANUP-WIDEN-SELECTS` | P3 | Now that `051_unit_type` is on prod, widen the PR #340 narrowed selects back to include `unit_type` + drop the anti-regression describe block. ~30 min isolated PR. |
+
+### Tracker updates
+
+- `FU-PROD-MIGRATION-BACKLOG-AUDIT` (P1) → **ROUND 2 CLOSED 2026-05-17** in master CLAUDE.md Open Follow-ups Index.
+- Three new follow-ups filed in [`docs/projects/platform-followups.md`](projects/platform-followups.md).
+
+---
+
 ## 2026-05-16 (PM, later) — `FU-SEC-TEACHER-LAYOUT-FAIL-OPEN` (P1) closed + 3 smoke-discovered adjacencies fixed across 4 PRs
 
 **Context:** Session opened to pick up `FU-SEC-TEACHER-LAYOUT-FAIL-OPEN` (P1) — filed in this morning's saveme after Matt found a logged-in student session rendering the full teacher chrome at `/teacher/classes` (class codes visible). The morning session had completed the layout census (TeacherLayout + SchoolLayout = fail-open, AdminLayout = gold-standard fail-closed) but pivoted to the 53-phantom-teacher cleanup (Lesson #92) before touching layout code. This session shipped the original fix + every adjacency that surfaced from smoking it.

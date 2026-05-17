@@ -34,13 +34,13 @@
 #
 # ============================================================
 
-last_updated: 2026-04-20
-last_updated_by: sync-schema-registry.py backfill
+last_updated: 2026-05-17
+last_updated_by: FU-PROD-MIGRATION-BACKLOG-AUDIT Round 2 close-out (manual sync of activity_block_versions + data_removal_log + units after 4-migration apply)
 tables:
 - name: activity_block_versions
   source_migration: 080_block_versioning.sql
-  status: pending
-  applied_date: null
+  status: applied
+  applied_date: '2026-05-17'
   purpose: Auto-versioned snapshots of activity_blocks before each UPDATE. Preserves edit history.
   columns:
     id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
@@ -73,7 +73,15 @@ tables:
     write: Service role full access block versions (unknown)
   writers: []
   readers: []
-  spec_drift: []
+  spec_drift:
+  - date: '2026-05-17'
+    note: |
+      Applied to prod 17 May 2026 during FU-PROD-MIGRATION-BACKLOG-AUDIT
+      Round 2 close-out. Was missing on prod since migration was authored
+      (Dimensions3 Phase 7A, ~early Apr 2026). 0 code references at apply
+      time; trigger trg_activity_blocks_version starts firing now —
+      every future activity_blocks UPDATE writes a version row. Historic
+      edits stay unversioned. Tracker row logged in applied_migrations.
 - name: activity_blocks
   source_migration: 060_activity_blocks.sql
   status: applied
@@ -3460,8 +3468,8 @@ tables:
       basis: pseudonymous
 - name: data_removal_log
   source_migration: 082_data_removal_log.sql
-  status: pending
-  applied_date: null
+  status: applied
+  applied_date: '2026-05-17'
   purpose: Audit trail for GDPR-style student data removal/anonymization.
   columns:
     id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
@@ -3480,7 +3488,16 @@ tables:
   - src/lib/integrity/remove-student-data.ts
   readers:
   - src/app/api/admin/audit-log/route.ts
-  spec_drift: []
+  spec_drift:
+  - date: '2026-05-17'
+    note: |
+      Applied to prod 17 May 2026 during FU-PROD-MIGRATION-BACKLOG-AUDIT
+      Round 2 close-out. Was missing on prod despite 5 code sites referencing
+      the table (2 INSERT, 1 read, 2 script). Pre-apply, the 2 INSERT
+      writers in remove-student-data.ts swallowed the error gracefully
+      (errors.push(...) line 192) so deletes succeeded without 500 but the
+      GDPR audit row never landed — silent compliance gap. Now closes.
+      Tracker row logged in applied_migrations.
 - name: design_conversation_turns
   source_migration: 022_design_assistant.sql
   status: applied
@@ -10693,6 +10710,28 @@ tables:
   status: applied
   applied_date: null
   purpose: null
+  recent_drift_closure:
+  - date: '2026-05-17'
+    note: |
+      Migration 051_unit_type (units.unit_type + units.curriculum_context
+      columns + CHECK constraint + idx_units_unit_type index) applied to
+      prod during FU-PROD-MIGRATION-BACKLOG-AUDIT Round 2 close-out.
+      Was the original trigger of the audit — schema-registry already
+      listed these columns (built from migration source) but they were
+      missing on prod, surfaced as a 500 in PR #340. Post-apply: column
+      now present, all existing units defaulted to 'design' per the
+      DEFAULT clause (non_default_rows verified 0). PR #340 anti-regression
+      guard still passes (asserts narrow select); cleanup PR
+      FU-PR340-CLEANUP-WIDEN-SELECTS will widen the selects back.
+  - date: '2026-05-17'
+    note: |
+      Migration 081_unit_version_trigger (snapshot_unit_version function +
+      trg_units_version BEFORE UPDATE trigger) applied to prod during
+      FU-PROD-MIGRATION-BACKLOG-AUDIT Round 2 close-out. Target table
+      unit_versions already existed from mig 040. Behavior change: future
+      units UPDATEs that change content_data auto-snapshot to unit_versions.
+      Metadata-only edits skipped via IS DISTINCT FROM. Tracker row logged
+      in applied_migrations.
   columns:
     id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
     title: TEXT NOT NULL

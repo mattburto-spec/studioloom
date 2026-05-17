@@ -1485,3 +1485,37 @@ Then `20260516050159_cleanup_phantom_student_teacher_rows.sql` deleted the 53 ph
 - Lesson #38 — Verify expected values, not just non-null. The May-1 verify ran AFTER the late-bound UPDATE; truthful verification has to capture the trigger-time view.
 - Lesson #54 — Code makes assumptions about what's available that aren't documented anywhere. The provision code's "user_metadata is set so the Phase 0 trigger can read it" comment was the breadcrumb that pointed at the right bucket — it just wasn't connected back to handle_new_teacher.
 - Lesson #83 — Prod has no migration tracking; assume nothing about applied state. Diagnosis here started with Q2 (applied_migrations check) precisely because of this lesson.
+
+### Lesson #93 — When generating probe SQL for a migration, READ the migration body for the exact artifact name; filename hints are unreliable
+**Date:** 17 May 2026
+**Phase:** FU-PROD-MIGRATION-BACKLOG-AUDIT Round 2 close-out
+
+**What happened:** Designing the 30-probe expansion pack for the 3-digit migration drift sweep, I wrote two probes by inferring column names from migration filenames rather than reading the migration bodies:
+
+- `062_teacher_tier.sql` — I probed `teachers.tier`. The migration actually adds to `teacher_profiles.tier` (different table). Probe returned FALSE.
+- `119_machine_profiles_brand_column.sql` — I probed `machine_profiles.brand`. The migration actually adds `machine_profiles.machine_brand` (different column). Probe returned FALSE.
+
+Both FALSEs looked like real drift hazards. The 119 in particular looked like a P0/P1: `machine_brand` is in the student fabrication picker's SELECT column list ([src/app/api/student/fabrication/picker-data/route.ts:133](../src/app/api/student/fabrication/picker-data/route.ts:133)) — if missing on prod, the picker route would 500 for every student trying to submit a Preflight job. CLAUDE.md narrative confirmed Preflight had been smoke-tested live multiple times in late April / early May, which would have surfaced any missing column — so the "real" interpretation contradicted the operational evidence.
+
+Corrective re-probe with column names taken from the actual migration bodies showed both columns present on prod. Both originally-FALSE results were probe bugs, not drift.
+
+**Root cause:** I let filename pattern-matching substitute for source-of-truth reading. `062_teacher_tier` *sounds like* it belongs on `teachers`. `119_machine_profiles_brand_column` *sounds like* it adds a column called `brand`. Both inferences were wrong, and both broke the audit's signal — the third drift "find" in Round 2 wasted ~15 minutes of grep work and Matt's pasteback cycle.
+
+**Operational rules:**
+- **For every probe in an audit pack, the artifact name MUST come from reading the actual `ADD COLUMN` / `CREATE TABLE` / `CREATE FUNCTION` statement in the migration body, not from the filename.** A filename is a *hint about what the migration is for*, not a *promise about the schema artifact*. Especially common drift sources:
+  - Column on a sibling table whose name differs from the migration's "subject" (062's `teacher_profiles` is a separate table from `teachers`)
+  - Column whose canonical name is more specific than the filename suggests (`machine_brand` not `brand` to disambiguate from other brand-like fields)
+  - Table whose name has a non-obvious prefix or suffix (`student_content_moderation_log` vs `content_moderation_log` — siblings introduced by 067 and 073, naming intentionally differentiated)
+- **When a probe returns FALSE, do a 60-second sanity check before declaring drift:** open the migration file and confirm the artifact name. Cost of 60-second check is much lower than cost of (a) re-running a grep against the wrong identifier, (b) pasting an incorrect re-probe, (c) potentially recommending an unnecessary apply.
+- **Operational evidence is a valid drift-finding signal.** If a "drift" interpretation contradicts visible operational state (e.g. "machine_brand missing" vs. "Preflight smoke tested live last week"), pause and verify the probe before trusting the result. The bug is more likely in the probe than in operations.
+- **For audit packs with > 10 probes, spot-read the migration body for any probe whose artifact you didn't read directly.** Five-minute investment up front beats a probe-bug debugging cycle later. (This becomes more important as the pack expands — at 30 probes the chance of one probe being filename-derived rather than body-derived approaches 1.)
+
+**Filed:**
+- This Lesson banked in `docs/lessons-learned.md` as #93
+- `FU-CHECK-APPLIED-3DIGIT-SCOPE` (P2) and `FU-AUDIT-3DIGIT-001-044-SWEEP` (P3) filed in `docs/projects/platform-followups.md` — both will use this Lesson when their respective probe packs are authored
+- Truth doc [prod-migration-backlog-audit-2026-05-17-truth.md](projects/prod-migration-backlog-audit-2026-05-17-truth.md) references this Lesson in its Method section
+
+**Sister lessons:**
+- Lesson #38 — Verify expected values, not just non-null. This is the column-name variant: verify the *probe target* is the actual schema artifact, not just an inferred name.
+- Lesson #45 — Don't invent a new shape when a working one exists. Same family: don't invent a probe artifact name when the migration body has the canonical one.
+- Lesson #83 — Prod has no migration tracking; assume nothing about applied state. Probe-bug FALSEs are the inverse hazard: assuming drift when the artifact name was wrong all along.
