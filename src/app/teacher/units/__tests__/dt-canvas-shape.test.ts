@@ -82,9 +82,13 @@ describe("DT canvas — main grid + side rail layout", () => {
     expect(HUB_SRC).toContain('data-testid="canvas-rail-card-safety"');
   });
 
-  it("reserves slots for the lesson hero (Phase 3.3) and gallery strip (Phase 3.5)", () => {
+  it("reserves the lesson hero slot in the main column (Phase 3.3)", () => {
+    // Phase 3.5 originally also reserved canvas-gallery-strip in the
+    // main column. The rail-reorder fix (17 May 2026) moved gallery
+    // into the side rail as canvas-rail-card-gallery — main column is
+    // now just lesson-hero + student grid.
     expect(HUB_SRC).toContain('data-testid="canvas-lesson-hero"');
-    expect(HUB_SRC).toContain('data-testid="canvas-gallery-strip"');
+    expect(HUB_SRC).not.toContain('data-testid="canvas-gallery-strip"');
   });
 
   it("side rail is sticky on lg+ screens", () => {
@@ -673,28 +677,15 @@ describe("DT canvas Phase 3.4 — Past units sub-route", () => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
-// Phase 3.5 — Gallery strip + GalleryDrawer + legacy ?tab=gallery compat
+// Phase 3.5 — GalleryDrawer + legacy ?tab=gallery compat
+// (Phase 3.5 originally mounted a gallery strip in the canvas main column;
+// the rail-reorder fix on 17 May 2026 moved it into the side rail as a
+// count + subtitle + CTA card — see "DT canvas — rail reorder" describe
+// block below. The drawer + lifted inline GalleryTab + the legacy compat
+// are unchanged and still locked by the guards in this block.)
 // ═════════════════════════════════════════════════════════════════════════════
 
-describe("DT canvas Phase 3.5 — gallery strip + drawer", () => {
-  it("strip is no longer hidden — placeholder text replaced with live content", () => {
-    // The Phase 3.1 placeholder rendered `<section ... className="hidden" />`
-    // — the live strip uses bg-white rounded-2xl + header copy.
-    const idx = HUB_SRC.indexOf('data-testid="canvas-gallery-strip"');
-    expect(idx).toBeGreaterThan(0);
-    const slice = HUB_SRC.slice(idx, idx + 1500);
-    expect(slice).not.toMatch(/className="hidden"/);
-    expect(slice).toContain("Pin-Up Gallery");
-  });
-
-  it("renders the Open gallery CTA + opens GalleryDrawer", () => {
-    expect(HUB_SRC).toContain('data-testid="gallery-strip-open-cta"');
-    const idx = HUB_SRC.indexOf('data-testid="gallery-strip-open-cta"');
-    expect(idx).toBeGreaterThan(0);
-    const slice = HUB_SRC.slice(idx, idx + 400);
-    expect(slice).toMatch(/onClick=\{[\s\S]{0,80}setGalleryDrawerOpen\(true\)/);
-  });
-
+describe("DT canvas Phase 3.5 — GalleryDrawer + lifted GalleryTab", () => {
   it("page.tsx imports + mounts GalleryDrawer gated on galleryDrawerOpen", () => {
     expect(HUB_SRC).toMatch(
       /import\s+GalleryDrawer\s+from\s+["']@\/components\/teacher\/class-hub\/GalleryDrawer["']/
@@ -709,23 +700,6 @@ describe("DT canvas Phase 3.5 — gallery strip + drawer", () => {
     );
   });
 
-  it("tile slice caps at 6 rounds (mockup convention)", () => {
-    expect(HUB_SRC).toMatch(/galleryRounds\.slice\(0,\s*6\)/);
-  });
-
-  it("empty-state renders 6 dashed placeholder tiles", () => {
-    expect(HUB_SRC).toContain('data-testid="gallery-strip-tile-empty"');
-  });
-
-  it("each populated tile carries a per-round testid + click opens the drawer", () => {
-    expect(HUB_SRC).toMatch(/data-testid=\{`gallery-strip-tile-\$\{round\.id\}`\}/);
-    // Anchor on the testid template + walk to setGalleryDrawerOpen
-    const idx = HUB_SRC.search(/data-testid=\{`gallery-strip-tile-\$\{round\.id\}`\}/);
-    expect(idx).toBeGreaterThan(0);
-    const slice = HUB_SRC.slice(idx, idx + 600);
-    expect(slice).toMatch(/onClick=\{[\s\S]{0,200}setGalleryDrawerOpen\(true\)/);
-  });
-
   it("GalleryDrawer is sourced from the lifted component (not inline GalleryTab)", () => {
     // The inline `function GalleryTab(` is gone from page.tsx; the
     // lifted drawer lives in @/components/teacher/class-hub/GalleryDrawer
@@ -735,6 +709,68 @@ describe("DT canvas Phase 3.5 — gallery strip + drawer", () => {
     expect(HUB_SRC).not.toMatch(
       /import\s*\{[^}]*GalleryRoundCreator[^}]*\}\s*from\s*["']@\/components\/gallery["']/
     );
+  });
+});
+
+describe("DT canvas — rail reorder (17 May 2026)", () => {
+  // After Matt's Phase 3.6 smoke: gallery was hard to find at the
+  // bottom of a long student list when it was a main-column strip.
+  // Moved into the side rail as a count + subtitle + CTA card (same
+  // shape as the other rail cards); Open Studio dropped to the bottom
+  // of the rail (gates pilot expansion but isn't a daily-driver).
+  // Order locked: Marking → Class Metrics → Gallery → Safety → Studio.
+
+  it("Gallery card lives in the side rail (was a main-column strip in 3.5)", () => {
+    expect(HUB_SRC).toContain('data-testid="canvas-rail-card-gallery"');
+    expect(HUB_SRC).toContain('data-testid="rail-gallery-count"');
+    expect(HUB_SRC).toContain('data-testid="rail-gallery-cta"');
+  });
+
+  it("Gallery rail CTA opens GalleryDrawer", () => {
+    const idx = HUB_SRC.indexOf('data-testid="rail-gallery-cta"');
+    expect(idx).toBeGreaterThan(0);
+    const slice = HUB_SRC.slice(idx, idx + 400);
+    expect(slice).toMatch(/onClick=\{[\s\S]{0,80}setGalleryDrawerOpen\(true\)/);
+  });
+
+  it("Gallery card renders 'N rounds' headline + empty / latest subtitle", () => {
+    const idx = HUB_SRC.indexOf('data-testid="canvas-rail-card-gallery"');
+    expect(idx).toBeGreaterThan(0);
+    const slice = HUB_SRC.slice(idx, idx + 1500);
+    expect(slice).toContain("Pin-Up Gallery");
+    // Card binds the count from roundCount (derived from galleryRounds
+    // in the IIFE above) — check for either to keep the guard resilient
+    // to small naming swaps.
+    expect(slice).toMatch(/roundCount|galleryRounds/);
+    expect(slice).toContain("No pin-up rounds yet.");
+    expect(slice).toContain("Latest:");
+  });
+
+  it("rail order is Marking → Class Metrics → Gallery → Safety → Studio", () => {
+    // Match the side-rail aside, then walk for each card testid in
+    // turn. Indices must be strictly ascending.
+    const railIdx = HUB_SRC.indexOf('data-testid="canvas-side-rail"');
+    expect(railIdx).toBeGreaterThan(0);
+    const rail = HUB_SRC.slice(railIdx);
+    const order = [
+      "canvas-rail-card-marking",
+      "canvas-rail-card-metrics",
+      "canvas-rail-card-gallery",
+      "canvas-rail-card-safety",
+      "canvas-rail-card-studio",
+    ];
+    const positions = order.map((id) => rail.indexOf(`data-testid="${id}"`));
+    for (const p of positions) expect(p).toBeGreaterThan(0);
+    for (let i = 1; i < positions.length; i++) {
+      expect(positions[i]).toBeGreaterThan(positions[i - 1]);
+    }
+  });
+
+  it("main column no longer hosts the gallery strip (testid + tile-* gone)", () => {
+    expect(HUB_SRC).not.toContain('data-testid="canvas-gallery-strip"');
+    expect(HUB_SRC).not.toContain('data-testid="gallery-strip-open-cta"');
+    expect(HUB_SRC).not.toContain('data-testid="gallery-strip-tile-empty"');
+    expect(HUB_SRC).not.toMatch(/data-testid=\{`gallery-strip-tile-\$\{round\.id\}`\}/);
   });
 });
 

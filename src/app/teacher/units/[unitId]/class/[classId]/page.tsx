@@ -1531,87 +1531,30 @@ export default function ClassHubPage({
             })()}
           </section>
 
-          {/* Gallery strip (Phase 3.5 Step 2) — recent-work tile row +
-              "Open gallery →" link. Tiles render the most recent 6
-              rounds with rotating gradient backgrounds (matches mockup
-              .gallery-tile palette). Click any tile or the CTA →
-              opens GalleryDrawer. Empty state shows 6 dashed
-              placeholder tiles + a friendlier "Create your first
-              round" prompt. */}
-          <section
-            data-testid="canvas-gallery-strip"
-            className="bg-white rounded-2xl border border-border p-5"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-semibold text-text-primary">
-                Pin-Up Gallery
-                <span className="text-text-tertiary font-normal ml-1.5">
-                  · {galleryRounds.length} {galleryRounds.length === 1 ? "round" : "rounds"}
-                </span>
-              </div>
-              <button
-                type="button"
-                data-testid="gallery-strip-open-cta"
-                onClick={() => setGalleryDrawerOpen(true)}
-                className="text-xs font-medium text-text-secondary hover:text-text-primary transition"
-              >
-                Open gallery →
-              </button>
-            </div>
-            {galleryRounds.length === 0 ? (
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                {[0, 1, 2, 3, 4, 5].map((i) => (
-                  <div
-                    key={i}
-                    data-testid="gallery-strip-tile-empty"
-                    className="aspect-square rounded-lg border-2 border-dashed border-border bg-surface-alt/30"
-                  />
-                ))}
-                <p className="col-span-3 sm:col-span-6 text-xs text-text-secondary text-center mt-1">
-                  No pin-up rounds yet.{" "}
-                  <button
-                    type="button"
-                    onClick={() => setGalleryDrawerOpen(true)}
-                    className="text-purple-600 hover:underline font-medium"
-                  >
-                    Create your first round →
-                  </button>
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                {galleryRounds.slice(0, 6).map((round, i) => {
-                  // Rotate through the mockup's 4 tile gradients
-                  const palettes = [
-                    "bg-gradient-to-br from-emerald-100 to-teal-200 text-emerald-700",
-                    "bg-gradient-to-br from-orange-100 to-amber-200 text-orange-700",
-                    "bg-gradient-to-br from-violet-100 to-indigo-200 text-violet-700",
-                    "bg-gradient-to-br from-rose-100 to-pink-200 text-rose-700",
-                  ];
-                  const palette = palettes[i % palettes.length];
-                  const initial = (round.title || "•").charAt(0).toUpperCase();
-                  return (
-                    <button
-                      key={round.id}
-                      type="button"
-                      data-testid={`gallery-strip-tile-${round.id}`}
-                      onClick={() => setGalleryDrawerOpen(true)}
-                      title={round.title || "Untitled round"}
-                      className={`aspect-square rounded-lg ${palette} flex items-center justify-center text-lg font-bold hover:scale-[1.02] hover:shadow-sm transition`}
-                    >
-                      {initial}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </section>
+          {/* (Gallery moved to the side rail in the rail-reorder fix,
+              17 May 2026. Was a 6-tile horizontal strip below the
+              student grid; smoke flagged it as hard to find at the
+              bottom of long rosters. Now lives as a side-rail card
+              under Class Metrics — matches the other rail cards'
+              count + subtitle + CTA shape and is always visible at
+              the canvas's top fold.) */}
         </div>
 
-        {/* SIDE RAIL — Phase 3.2 fills each card with summary count + sub
-            + CTA. Empty cards in 3.1 so the layout doesn't reflow on the
-            3.2 land. Sticky positioning matches the mockup's
-            .canvas-side rule (top: 130px). */}
+        {/* SIDE RAIL — populated cards (Phase 3.2 wired the four
+            original cards; rail-reorder fix on 17 May 2026 moved Open
+            Studio to the bottom + dropped the gallery strip from the
+            main column into a Gallery card here under Class Metrics).
+            Order (Matt's smoke call):
+              1. Marking queue       — most-clicked daily-driver
+              2. Class metrics       — pedagogical signal
+              3. Pin-Up Gallery      — was a main-column strip, hard
+                                        to find at the bottom of a
+                                        long student list
+              4. Safety & badges     — periodic, not every-class
+              5. Open Studio         — bottom; gates pilot expansion
+                                        but rarely-touched mid-lesson
+            Sticky positioning matches the mockup's .canvas-side rule
+            (top: 130px). */}
         <aside
           data-testid="canvas-side-rail"
           className="flex flex-col gap-4 lg:sticky lg:top-32"
@@ -1683,54 +1626,6 @@ export default function ClassHubPage({
                 >
                   Open marking →
                 </Link>
-              </div>
-            );
-          })()}
-
-          {/* OPEN STUDIO — re-uses openStudioStatusMap loaded inside
-              loadProgressData. CTA opens OpenStudioDrawer wrapping
-              OpenStudioClassView (full unlock/revoke/check-in UI). */}
-          {(() => {
-            const unlocked = students.filter(
-              (s) => openStudioStatusMap[s.id]?.status === "unlocked",
-            );
-            const firstName = unlocked[0]
-              ? unlocked[0].display_name || unlocked[0].username
-              : null;
-            return (
-              <div
-                data-testid="canvas-rail-card-studio"
-                className="bg-white rounded-2xl border border-border p-5"
-              >
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
-                  Open Studio
-                </div>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <span
-                    data-testid="rail-studio-count"
-                    className={`text-2xl font-bold ${unlocked.length > 0 ? "text-violet-600" : "text-text-tertiary"}`}
-                  >
-                    {unlocked.length}
-                  </span>
-                  <span className="text-xs text-text-secondary">
-                    in studio mode
-                  </span>
-                </div>
-                <div className="mt-1 text-xs text-text-secondary">
-                  {unlocked.length === 0
-                    ? "No one in self-directed mode yet."
-                    : unlocked.length === 1
-                      ? `${firstName} is working independently.`
-                      : `${firstName} + ${unlocked.length - 1} more.`}
-                </div>
-                <button
-                  type="button"
-                  data-testid="rail-studio-cta"
-                  onClick={() => setOpenStudioDrawerOpen(true)}
-                  className="mt-3 inline-flex items-center justify-center w-full px-3 py-2 rounded-lg bg-surface-alt text-text-primary hover:bg-text-primary hover:text-white transition text-xs font-medium"
-                >
-                  {unlocked.length === 0 ? "Manage Open Studio →" : "View plans →"}
-                </button>
               </div>
             );
           })()}
@@ -1824,6 +1719,54 @@ export default function ClassHubPage({
             );
           })()}
 
+          {/* PIN-UP GALLERY — same shape as the other rail cards
+              (count + 1-line subtitle + CTA). Was a 6-tile horizontal
+              strip in the main column (Phase 3.5 Step 2); the strip
+              landed at the bottom of a long student list which made it
+              hard to find. Moved here so it stays on the top fold. The
+              full 6-tile preview lives inside GalleryDrawer when
+              "Open gallery →" is clicked. No new fetches — uses
+              galleryRounds already loaded in loadProgressData. */}
+          {(() => {
+            const roundCount = galleryRounds.length;
+            const latest = galleryRounds[0];
+            const latestTitle = latest?.title?.trim() || "Untitled round";
+            return (
+              <div
+                data-testid="canvas-rail-card-gallery"
+                className="bg-white rounded-2xl border border-border p-5"
+              >
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+                  Pin-Up Gallery
+                </div>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span
+                    data-testid="rail-gallery-count"
+                    className={`text-2xl font-bold ${roundCount > 0 ? "text-purple-600" : "text-text-tertiary"}`}
+                  >
+                    {roundCount}
+                  </span>
+                  <span className="text-xs text-text-secondary">
+                    {roundCount === 1 ? "round" : "rounds"}
+                  </span>
+                </div>
+                <div className="mt-1 text-xs text-text-secondary truncate">
+                  {roundCount === 0
+                    ? "No pin-up rounds yet."
+                    : `Latest: ${latestTitle}`}
+                </div>
+                <button
+                  type="button"
+                  data-testid="rail-gallery-cta"
+                  onClick={() => setGalleryDrawerOpen(true)}
+                  className="mt-3 inline-flex items-center justify-center w-full px-3 py-2 rounded-lg bg-surface-alt text-text-primary hover:bg-text-primary hover:text-white transition text-xs font-medium"
+                >
+                  {roundCount === 0 ? "Create your first round →" : "Open gallery →"}
+                </button>
+              </div>
+            );
+          })()}
+
           {/* SAFETY & BADGES — re-uses badgeRequirements +
               badgeStatusMap already loaded for the per-row Badge
               count. CTA opens SafetyDrawer wrapping BadgesTab. No new
@@ -1898,6 +1841,57 @@ export default function ClassHubPage({
                   className="mt-3 inline-flex items-center justify-center w-full px-3 py-2 rounded-lg bg-surface-alt text-text-primary hover:bg-text-primary hover:text-white transition text-xs font-medium"
                 >
                   Manage badges →
+                </button>
+              </div>
+            );
+          })()}
+
+          {/* OPEN STUDIO — re-uses openStudioStatusMap loaded inside
+              loadProgressData. CTA opens OpenStudioDrawer wrapping
+              OpenStudioClassView (full unlock/revoke/check-in UI).
+              Moved to the bottom of the rail in the reorder fix —
+              gates pilot expansion but isn't a daily-driver mid-
+              lesson, so it doesn't need to compete for the top fold. */}
+          {(() => {
+            const unlocked = students.filter(
+              (s) => openStudioStatusMap[s.id]?.status === "unlocked",
+            );
+            const firstName = unlocked[0]
+              ? unlocked[0].display_name || unlocked[0].username
+              : null;
+            return (
+              <div
+                data-testid="canvas-rail-card-studio"
+                className="bg-white rounded-2xl border border-border p-5"
+              >
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+                  Open Studio
+                </div>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span
+                    data-testid="rail-studio-count"
+                    className={`text-2xl font-bold ${unlocked.length > 0 ? "text-violet-600" : "text-text-tertiary"}`}
+                  >
+                    {unlocked.length}
+                  </span>
+                  <span className="text-xs text-text-secondary">
+                    in studio mode
+                  </span>
+                </div>
+                <div className="mt-1 text-xs text-text-secondary">
+                  {unlocked.length === 0
+                    ? "No one in self-directed mode yet."
+                    : unlocked.length === 1
+                      ? `${firstName} is working independently.`
+                      : `${firstName} + ${unlocked.length - 1} more.`}
+                </div>
+                <button
+                  type="button"
+                  data-testid="rail-studio-cta"
+                  onClick={() => setOpenStudioDrawerOpen(true)}
+                  className="mt-3 inline-flex items-center justify-center w-full px-3 py-2 rounded-lg bg-surface-alt text-text-primary hover:bg-text-primary hover:text-white transition text-xs font-medium"
+                >
+                  {unlocked.length === 0 ? "Manage Open Studio →" : "View plans →"}
                 </button>
               </div>
             );
