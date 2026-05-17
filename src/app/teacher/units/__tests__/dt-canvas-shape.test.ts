@@ -391,9 +391,16 @@ describe("DT canvas Phase 3.3 — Today's lesson hero card", () => {
   // (right). The Teach CTA is removed from the hero because the
   // canvas-header already has the canonical purple Teach button. These
   // guards lock the new shape.
-  it("renders the new unit-hero card (canvas-unit-hero + unit-hero-title)", () => {
+  it("renders the new unit-hero card (canvas-unit-hero + unit-hero-eyebrow pill)", () => {
+    // 17 May PM smoke round 2 — title + stats dropped from the hero
+    // because they're already in the canvas-header above (unit.title
+    // appears as "<class> · <unit>" + the "X students · N pages"
+    // sub-line). The hero is now purely visual + a single eyebrow
+    // pill.
     expect(HUB_SRC).toContain('data-testid="canvas-unit-hero"');
-    expect(HUB_SRC).toContain('data-testid="unit-hero-title"');
+    expect(HUB_SRC).toContain('data-testid="unit-hero-eyebrow"');
+    // Anti-revert: the old unit-hero-title is gone (redundant with header)
+    expect(HUB_SRC).not.toContain('data-testid="unit-hero-title"');
   });
 
   it("renders the today's-lesson card (canvas-lesson-hero + lesson-hero-title)", () => {
@@ -476,9 +483,14 @@ describe("DT canvas — unit hero thumbnail (17 May 2026 redesign)", () => {
     );
   });
 
-  it("unit hero uses a soft dark bottom-to-top gradient for text legibility (NOT the old orange wash)", () => {
-    expect(HUB_SRC).toContain("bg-gradient-to-t from-black/70 via-black/25 to-transparent");
-    // Anti-revert: the old heavy orange wash is gone
+  it("unit hero uses a horizontal colour-to-image gradient (indigo panel left, art revealed right)", () => {
+    // 17 May PM smoke round 2 — Matt asked for the colour-to-image
+    // gradient back. Indigo panel on the left fades into the unit
+    // thumbnail on the right.
+    expect(HUB_SRC).toContain("bg-gradient-to-r from-indigo-700/95 via-indigo-600/70 to-transparent");
+    // Anti-revert: the previous bottom-to-top dark wash is gone
+    expect(HUB_SRC).not.toContain("bg-gradient-to-t from-black/70 via-black/25 to-transparent");
+    // Anti-revert: the original heavy orange wash is also gone
     expect(HUB_SRC).not.toContain("from-orange-600/95 via-orange-600/85 to-orange-500/40");
   });
 
