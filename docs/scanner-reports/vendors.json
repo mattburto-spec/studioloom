@@ -1,6 +1,6 @@
 {
   "registry": "vendors.yaml",
-  "timestamp": "2026-05-17T03:57:03.892999+00:00",
+  "timestamp": "2026-05-17T04:59:01.171691+00:00",
   "version": 1,
   "drift": {
     "orphaned": [],
@@ -86,8 +86,8 @@
       ],
       "env_found": [
         "NEXT_PUBLIC_SENTRY_PROJECT_SLUG",
-        "NEXT_PUBLIC_SENTRY_DSN",
-        "NEXT_PUBLIC_SENTRY_ORG_SLUG"
+        "NEXT_PUBLIC_SENTRY_ORG_SLUG",
+        "NEXT_PUBLIC_SENTRY_DSN"
       ],
       "http_found": [],
       "has_evidence": true

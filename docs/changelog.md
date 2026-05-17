@@ -4,6 +4,61 @@
 
 ---
 
+## 2026-05-17 (late afternoon) — Audit arc complete: 3 follow-ups from morning's Round 2 all closed in same session
+
+**Context:** Continuation of the morning's `FU-PROD-MIGRATION-BACKLOG-AUDIT` Round 2 close-out (commit `2f242596`). Matt opted to close the three filed follow-ups (`FU-CHECK-APPLIED-3DIGIT-SCOPE` P2, `FU-AUDIT-3DIGIT-001-044-SWEEP` P3, `FU-PR340-CLEANUP-WIDEN-SELECTS` P3) immediately rather than defer — all three landed in the same session.
+
+### Three more commits to main
+
+| Commit | Subject | Closes |
+|---|---|---|
+| `ba245b50` | audit(check-applied): widen scope to 3-digit migrations + backfill 116 rows | `FU-CHECK-APPLIED-3DIGIT-SCOPE` (P2) |
+| `0bc5247a` | audit(sweep): 100% 3-digit coverage — 69 verified + 2 superseded retired | `FU-AUDIT-3DIGIT-001-044-SWEEP` (P3) |
+| `51d42762` | cleanup(canvas): widen units(...) selects + drop FU-PROD-MIGRATION anti-regression guard | `FU-PR340-CLEANUP-WIDEN-SELECTS` (P3) |
+| `5d7c1b30` | docs(followups): mark FU-PR340-CLEANUP-WIDEN-SELECTS resolved | — (docs tidy) |
+
+### Drift detection now covers every repo migration
+
+- `scripts/migrations/check-applied.sh` filter `awk '>= 20260401'` dropped → wider scope covers all 229 repo migrations.
+- `public.applied_migrations` backfilled with 116 three-digit rows (45 verified-via-probe + 71 initially "assumed applied").
+- 71-probe sweep against the 71 "assumed applied" set surfaced **2 real retired migrations + 1 probe bug**:
+  - **`028_own_time`** — tables intentionally absent on prod (deprecated; `own_time_*` never used, superseded by Open Studio). Added to `RETIRED_MIGRATIONS`.
+  - **`118_machine_profiles_uniq_lab_scope`** — superseded by `20260428074205_machine_profiles_school_scoped` which dropped 093's old per-teacher index + created the school-scoped `uq_machine_profiles_lab_name_active (lab_id, name)` instead. Two parallel migrations during cutover; the later one won silently. Added to `RETIRED_MIGRATIONS`.
+  - **`084` probe bug** — assumed `units.author_teacher_id` was `SET NULL`; the migration body actually sets it `CASCADE` (Lesson #93 in action again — wrong cascade direction). Corrected re-probe confirmed applied.
+- Post-sweep: 69 `applied_migrations.notes` upgraded `assumed applied` → `verified via Round 2 sweep pack`. Final state = 0 missing across all 225 in-scope repo migrations (4 retired excluded; now 6 retired with 028 + 118 added).
+
+### Canvas cleanup completed the loop
+
+- `ChangeUnitModal.tsx`: select widened `units(title)` → `units(title, unit_type)`. Mapping pulls real `u?.unit_type`. PR #340 NOTE comment removed.
+- `Past units page.tsx`: select widened `units(title)` → `units(title, unit_type, is_published)` (matches the pre-PR340 shape per `git show f08c9836^`). Mapping pulls real values.
+- `dt-canvas-shape.test.ts`: anti-regression `describe("DT canvas — prod migration drift anti-regression")` block dropped (29 lines). Its job is done.
+- Verified: 151/151 tests pass; 0 tsc errors in modified files; pre-existing 268 tsc baseline unchanged in scope.
+
+### Registry sync (saveme step 11 — final pass)
+
+- **a** schema-registry.yaml — no new migrations applied this sub-session; previous saveme covered everything.
+- **b** api-registry.yaml — scanner ran, 0 diff.
+- **c** ai-call-sites.yaml — scanner ran, 0 diff.
+- **d** feature-flags.yaml — scanner ran, status ok (timestamp updated in scanner-report).
+- **e** vendors.yaml — scanner ran, status "drift" but it's cosmetic only (array-order shuffle on Sentry env vars + timestamp update; semantically identical).
+- **f** data-classification-taxonomy.md — no new enum values surfaced.
+- **g** RLS coverage — scanner ran, **139/139 RLS-enabled, status clean** (unchanged from morning).
+- **h** Migration drift — `check-applied.sh` SQL pasted, returned `missing_count = 0`. Audit fully clean.
+
+### Tracker updates
+
+- `FU-PROD-MIGRATION-BACKLOG-AUDIT` (P1) — `Round 2 + all 3 sibling follow-ups CLOSED 2026-05-17`.
+- Three follow-ups moved from open to Resolved in [`docs/projects/platform-followups.md`](projects/platform-followups.md):
+  - `FU-CHECK-APPLIED-3DIGIT-SCOPE` (P2) → Resolved with how-it-shipped notes
+  - `FU-AUDIT-3DIGIT-001-044-SWEEP` (P3) → Resolved with findings + Lesson #93 corroboration
+  - `FU-PR340-CLEANUP-WIDEN-SELECTS` (P3) → Resolved with test + tsc verification
+
+### Insight banked for future audits
+
+When two migrations evolve in parallel during the cutover window (3-digit `118` authored 25 Apr, timestamp `20260428074205` authored 28 Apr), the LATER one supersedes the earlier silently if no tracker exists. This was Lesson #83's structural source — the 11 May tracker now prevents this class going forward, but historical drift like 118 is only catchable via audits like this one. Not a new Lesson; documented in the FU resolution body for context.
+
+---
+
 ## 2026-05-17 — `FU-PROD-MIGRATION-BACKLOG-AUDIT` Round 2 CLOSED — 4 drifts applied to prod + Lesson #93 banked
 
 **Context:** Session opened on the back of PR [#340](https://github.com/mattburto-spec/studioloom/pull/340) (commit `56b18204`), a teacher-side hotfix for the canvas surfaces that surfaced a 500 with `column units_1.unit_type does not exist`. Root cause: migration `051_unit_type.sql` was in the repo + schema-registry but NOT applied on prod. PR #340 shipped a code-side mitigation (narrow select + paired anti-regression `describe` block at [src/app/teacher/units/\_\_tests\_\_/dt-canvas-shape.test.ts:437](../src/app/teacher/units/__tests__/dt-canvas-shape.test.ts:437)) and filed `FU-PROD-MIGRATION-BACKLOG-AUDIT` to find every other drift hazard before the next 500. This session: ran the audit + applied the 4 missing migrations found.
