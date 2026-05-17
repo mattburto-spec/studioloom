@@ -16,7 +16,7 @@ import { join } from "path";
 const HUB_SRC = readFileSync(
   join(
     process.cwd(),
-    "src/app/teacher/units/[unitId]/class/[classId]/page.tsx"
+    "src/components/teacher/class-hub/ClassCanvas.tsx"
   ),
   "utf-8"
 );

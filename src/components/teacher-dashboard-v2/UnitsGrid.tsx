@@ -4,6 +4,7 @@ import Link from "next/link";
 import { I } from "./icons";
 import { SectionEmpty } from "./empty-states";
 import type { UnitCardData, UnitBadgeKind } from "./unit-cards";
+import { buildSlugWithId } from "@/lib/url/slug";
 
 interface UnitsGridProps {
   /** Real (class × unit) cards. Empty + loaded → empty-state banner
@@ -44,7 +45,9 @@ function fromCard(c: UnitCardData): CardVM {
     ungradedCount: c.ungradedCount,
     realBadges: c.badges,
     teachHref: `/teacher/teach/${c.unitId}`,
-    manageHref: `/teacher/units/${c.unitId}/class/${c.classId}`,
+    // DT canvas Package B.5 (17 May 2026): canvas URL now class-canonical.
+    // classTag carries the class name (set at fromClass() in unit-cards.ts).
+    manageHref: `/teacher/c/${buildSlugWithId(c.classTag, c.classId)}`,
   };
 }
 

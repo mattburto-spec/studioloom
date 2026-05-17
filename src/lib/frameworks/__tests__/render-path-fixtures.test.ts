@@ -277,7 +277,7 @@ describe("render-path wiring lock — teacher grading pages (§4.5c)", () => {
   );
   const GRADING_PAGE_2 = join(
     process.cwd(),
-    "src/app/teacher/units/[unitId]/class/[classId]/page.tsx",
+    "src/components/teacher/class-hub/ClassCanvas.tsx",
   );
   const gradingPage1 = readFileSync(GRADING_PAGE_1, "utf8");
   const gradingPage2 = readFileSync(GRADING_PAGE_2, "utf8");

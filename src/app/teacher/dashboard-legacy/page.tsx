@@ -7,6 +7,7 @@ import { generateClassCode, timeAgo } from "@/lib/utils";
 import { useTeacher } from "../teacher-context";
 import type { DashboardData, DashboardInsight } from "@/types/dashboard";
 import type { TeacherStyleProfile } from "@/types/teacher-style";
+import { buildSlugWithId } from "@/lib/url/slug";
 
 // ---------------------------------------------------------------------------
 // Main page
@@ -1024,7 +1025,8 @@ function TwoColumnDashboard({
                 <div className="flex items-stretch">
                   {/* Photo thumbnail */}
                   <Link
-                    href={`/teacher/units/${u.unitId}/class/${u.classId}`}
+                    // DT canvas Package B.5: class-canonical canvas URL.
+                    href={`/teacher/c/${buildSlugWithId(u.className, u.classId)}`}
                     className="w-40 shrink-0 relative overflow-hidden"
                     style={{ minHeight: "120px" }}
                   >
@@ -1087,7 +1089,7 @@ function TwoColumnDashboard({
                     </div>
 
                     {/* Unit title */}
-                    <Link href={`/teacher/units/${u.unitId}/class/${u.classId}`} className="text-base font-extrabold text-text-primary leading-snug tracking-tight hover:text-purple-700 transition truncate">
+                    <Link href={`/teacher/c/${buildSlugWithId(u.className, u.classId)}`} className="text-base font-extrabold text-text-primary leading-snug tracking-tight hover:text-purple-700 transition truncate">
                       {u.unitTitle}
                     </Link>
 
@@ -1120,7 +1122,8 @@ function TwoColumnDashboard({
                           Teach
                         </Link>
                         <Link
-                          href={`/teacher/units/${u.unitId}/class/${u.classId}`}
+                          // DT canvas Package B.5: class-canonical canvas URL.
+                          href={`/teacher/c/${buildSlugWithId(u.className, u.classId)}`}
                           className="inline-flex items-center text-xs font-semibold px-3 py-2 rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
                         >
                           Hub

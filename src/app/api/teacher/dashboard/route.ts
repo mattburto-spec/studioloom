@@ -13,6 +13,7 @@ import type {
   DashboardInsight,
 } from "@/types/dashboard";
 import type { UnitContentData } from "@/types";
+import { buildSlugWithId } from "@/lib/url/slug";
 
 async function getAuthenticatedClient(request: NextRequest) {
   const supabase = createServerClient(
@@ -534,7 +535,11 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
     const updatedMs = new Date(p.updated_at).getTime();
     const ageMs = nowMs - updatedMs;
     const studentLabel = student.display_name || student.username;
-    const baseHref = `/teacher/units/${p.unit_id}/class/${student.class_id}`;
+    // DT canvas Package B.5 (17 May 2026): mint slug URLs so dashboard
+    // insight links land at /teacher/c/<slug>-<6id> directly rather
+    // than bouncing through the legacy redirect. The new URL has no
+    // unitId segment — canvas always shows the class's active unit.
+    const baseHref = `/teacher/c/${buildSlugWithId(cls.name, student.class_id)}`;
 
     // --- Integrity flags on completed work ---
     if (p.status === "complete" && p.integrity_metadata) {
