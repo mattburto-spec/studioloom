@@ -425,6 +425,36 @@ describe("DT canvas Phase 3.3 — Today's lesson hero card", () => {
   });
 });
 
+// ─── Anti-regression (17 May 2026) — prod migration drift ───────────────
+// Migration 051_unit_type.sql added `units.unit_type` to the repo but
+// prod is missing it (tracked as FU-PROD-MIGRATION-BACKLOG-AUDIT P1 in
+// the master CLAUDE.md index). The Phase 3.3 ChangeUnitModal +
+// Phase 3.4 Past units sub-route both selected `units(title, unit_type)`
+// which 500'd on prod. Both queries were narrowed to `units(title)`;
+// these guards lock the narrower shape until the prod migration
+// backlog audit closes + 051 lands. Re-add `unit_type` to the selects
+// AND drop the guards in the same commit when that happens.
+describe("DT canvas — prod migration drift anti-regression (FU-PROD-MIGRATION-BACKLOG-AUDIT)", () => {
+  it("ChangeUnitModal class_units select omits unit_type until migration 051 lands", () => {
+    const MODAL_SRC = readFileSync(
+      join(process.cwd(), "src/components/teacher/class-hub/ChangeUnitModal.tsx"),
+      "utf-8",
+    );
+    // The narrower select shape — only `units(title)` survives.
+    expect(MODAL_SRC).toContain('.select("unit_id, is_active, forked_at, units(title)")');
+    expect(MODAL_SRC).not.toMatch(/\.select\([^)]*units\([^)]*unit_type/);
+  });
+
+  it("Past units sub-route class_units select omits unit_type until migration 051 lands", () => {
+    const PAST_SRC = readFileSync(
+      join(process.cwd(), "src/app/teacher/classes/[classId]/units/page.tsx"),
+      "utf-8",
+    );
+    expect(PAST_SRC).toContain('.select("unit_id, is_active, forked_at, units(title)")');
+    expect(PAST_SRC).not.toMatch(/\.select\([^)]*units\([^)]*unit_type/);
+  });
+});
+
 describe("DT canvas Phase 3.3 — Change unit modal + setActiveUnit wiring", () => {
   it("renders the Change unit button in the canvas header (relocated from hero)", () => {
     // Phase 3.3 Step 2 originally absolute-positioned this button inside
