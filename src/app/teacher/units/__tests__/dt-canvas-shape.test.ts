@@ -414,28 +414,73 @@ describe("DT canvas Phase 3.3 — Today's lesson hero card", () => {
     expect(HUB_SRC).not.toContain('data-testid="lesson-hero-teach-cta"');
   });
 
-  it('"Today · Lesson X of Y" chip renders the derived position', () => {
-    expect(HUB_SRC).toMatch(/Today · Lesson \{todayIdx \+ 1\} of \{unitPages\.length\}/);
+  // Position rendering moved to the lesson-hero-date-pill guard in the
+  // lesson card v2 block below — dateLabel + "Lesson X of N" lives
+  // inside the pill rather than the old standalone chip.
+
+  // 17 May 2026 PM smoke v2 — Workshop Model retired (Matt: "I hate
+  // workshop model"). Today's lesson card now surfaces REAL lesson
+  // payload: learning goal + activity prompts. New guards lock the
+  // new shape + an anti-revert that the old workshop wiring is gone.
+  it("retires the Workshop Model outline — old wp.* gates + 'Workshop Model' label are GONE", () => {
+    // The old outline rows rendered wp.opening / wp.miniLesson /
+    // wp.workTime / wp.debrief durationMinutes gates. None should
+    // remain in the lesson card.
+    expect(HUB_SRC).not.toContain("wp.opening?.durationMinutes");
+    expect(HUB_SRC).not.toContain("wp.miniLesson?.durationMinutes");
+    expect(HUB_SRC).not.toContain("wp.workTime?.durationMinutes");
+    expect(HUB_SRC).not.toContain("wp.debrief?.durationMinutes");
+    expect(HUB_SRC).not.toContain('data-testid="lesson-hero-outline-row"');
+    expect(HUB_SRC).not.toContain('data-testid="lesson-hero-outline-empty"');
+    // The "Workshop Model" text label is gone from the card payload
+    // (still referenced in comments + the lesson editor, but not
+    // rendered in the canvas hero — anchor via a JSX-shape check).
+    expect(HUB_SRC).not.toMatch(/<strong[^>]*>Workshop Model<\/strong>/);
   });
 
-  it("outline rows render one per populated workshop phase (opening / miniLesson / workTime / debrief)", () => {
-    // The wp.* gates ensure phases with zero durationMinutes don't
-    // surface as empty rows.
-    expect(HUB_SRC).toContain("wp.opening?.durationMinutes");
-    expect(HUB_SRC).toContain("wp.miniLesson?.durationMinutes");
-    expect(HUB_SRC).toContain("wp.workTime?.durationMinutes");
-    expect(HUB_SRC).toContain("wp.debrief?.durationMinutes");
-    expect(HUB_SRC).toContain('data-testid="lesson-hero-outline-row"');
+  it("renders the new date pill (lesson-hero-date-pill) with scheduled date or 'Today' fallback", () => {
+    expect(HUB_SRC).toContain('data-testid="lesson-hero-date-pill"');
+    // Pill text format: "<dateLabel> · Lesson X of N"
+    expect(HUB_SRC).toMatch(
+      /\{dateLabel\}\s*·\s*Lesson \{todayIdx \+ 1\} of \{unitPages\.length\}/
+    );
   });
 
-  it("empty-outline state renders when workshopPhases is missing", () => {
-    expect(HUB_SRC).toContain('data-testid="lesson-hero-outline-empty"');
-    expect(HUB_SRC).toContain("No Workshop Model timing on this page yet.");
+  it("renders learning goal when present (lesson-hero-learning-goal)", () => {
+    expect(HUB_SRC).toContain('data-testid="lesson-hero-learning-goal"');
+    expect(HUB_SRC).toContain("todayPage?.content?.learningGoal");
+  });
+
+  it("renders activity rows from page.content.sections (lesson-hero-activity-row, capped at 4)", () => {
+    expect(HUB_SRC).toContain('data-testid="lesson-hero-activity-row"');
+    expect(HUB_SRC).toContain("todayPage?.content?.sections");
+    // Cap at 4 with overflow chip
+    expect(HUB_SRC).toMatch(/activitySections\.slice\(0,\s*4\)/);
+    expect(HUB_SRC).toContain('data-testid="lesson-hero-activity-overflow"');
+  });
+
+  it("empty-activities state renders when sections is empty", () => {
+    expect(HUB_SRC).toContain('data-testid="lesson-hero-activities-empty"');
+    expect(HUB_SRC).toContain("No activities on this lesson yet.");
   });
 
   it("empty-pages state renders when the unit has zero pages", () => {
     expect(HUB_SRC).toContain('data-empty="no-pages"');
     expect(HUB_SRC).toContain("No pages in this unit yet.");
+  });
+
+  it("schedule-driven today's lesson — pickTodaysLessonId imported + threaded through deriveTodaysLessonIndex", () => {
+    expect(HUB_SRC).toMatch(
+      /import\s*\{[^}]*pickTodaysLessonId[^}]*\}\s*from\s*["']@\/lib\/scheduling\/pick-todays-lesson["']/
+    );
+    // deriveTodaysLessonIndex now takes a 4th `schedule` arg
+    expect(HUB_SRC).toMatch(
+      /function\s+deriveTodaysLessonIndex\([\s\S]{0,400}schedule:\s*ScheduleEntry\[\]\s*=\s*\[\]/
+    );
+    // Schedule fetched in the main load effect
+    expect(HUB_SRC).toMatch(
+      /fetch\(\s*`\/api\/teacher\/classes\/\$\{classId\}\/lesson-schedule\?unitId=\$\{unitId\}`/
+    );
   });
 });
 
@@ -479,9 +524,12 @@ describe("DT canvas — Polish A.1 (17 May 2026) — 'View as student' targets t
   // Was: kebab href hard-coded to unitPages[0]?.id. Now: uses
   // deriveTodaysLessonIndex so preview-as-student matches what the
   // teacher is about to teach.
-  it("kebab previewPageId derives via deriveTodaysLessonIndex (with unitPages[0] fallback)", () => {
+  it("kebab previewPageId derives via deriveTodaysLessonIndex (now schedule-aware, with unitPages[0] fallback)", () => {
+    // 17 May 2026 lesson card v2 — deriveTodaysLessonIndex gained a
+    // 4th `schedule` arg so previewIdx honours the per-class lesson
+    // schedule the same way the hero does.
     expect(HUB_SRC).toMatch(
-      /previewIdx\s*=\s*unitPages\.length\s*>\s*0\s*\?\s*deriveTodaysLessonIndex\(unitPages,\s*progressMap,\s*studentIds\)\s*:\s*0/
+      /previewIdx\s*=\s*unitPages\.length\s*>\s*0\s*\?\s*deriveTodaysLessonIndex\(unitPages,\s*progressMap,\s*studentIds,\s*schedule\)\s*:\s*0/
     );
     expect(HUB_SRC).toMatch(
       /previewPageId\s*=\s*unitPages\[previewIdx\]\?\.id\s*\?\?\s*unitPages\[0\]\?\.id/
