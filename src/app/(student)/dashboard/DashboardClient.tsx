@@ -1045,9 +1045,50 @@ function ComingUpPanel({ soon }: { soon: QueueItem[] }) {
 }
 
 // ================= UNITS GRID =================
+
+/**
+ * Progress chip on the top-right of a project card.
+ *
+ * For DT (the only format with real lesson-completion data today) it
+ * renders the existing ring + "%". For inquiry / personal_project /
+ * service the % indicator doesn't map cleanly to the format's natural
+ * progress signal (PYP stage / PP week-of-N / Service hours-logged),
+ * so we render a placeholder format-pill instead — see
+ * FU-STUDENT-DASHBOARD-FORMAT-PROGRESS-DATA P2 for the real data wiring.
+ */
+function CardProgressChip({ u }: { u: StudentUnit }) {
+  if (u.unitType === "design") {
+    return (
+      <div className="absolute top-3 right-3 bg-white/95 backdrop-blur rounded-full p-1 flex items-center gap-1.5 pr-2.5">
+        <div className="relative w-7 h-7 flex-shrink-0">
+          <RingProgress pct={Math.max(u.progress, 0.5)} size={28} stroke={3} color={u.color} />
+        </div>
+        <div className="text-[10.5px] font-extrabold tnum" style={{ color: u.color }}>{u.progress}%</div>
+      </div>
+    );
+  }
+  const label =
+    u.unitType === "inquiry"          ? "Inquiry · in progress"  :
+    u.unitType === "personal_project" ? "Project · in progress"  :
+                                        "Service · ongoing";
+  return (
+    <div
+      className="absolute top-3 right-3 bg-white/95 backdrop-blur rounded-full px-3 py-1.5 text-[10.5px] font-extrabold"
+      style={{ color: u.color }}
+    >
+      {label}
+    </div>
+  );
+}
+
 function UnitCard({ u }: { u: StudentUnit }) {
   const isNotStarted = u.state === "not-started";
-  const cta = isNotStarted ? "Start project" : "Continue";
+  const labels = formatToCardLabels(u.unitType);
+  const cta = isNotStarted ? labels.ctaStart : labels.ctaContinue;
+  // "Starts" reads fine for any not-started format. For in-progress, use
+  // the format-specific caption — Current task / Current stage / Next
+  // milestone / Service log.
+  const inlineLabel = isNotStarted ? "Starts" : labels.taskLabel;
   return (
     <Link href={u.href} className="group bg-white rounded-3xl overflow-hidden card-shadow hover:card-shadow-lg hover:-translate-y-0.5 transition-all flex flex-col">
       <div className="aspect-[16/9] relative overflow-hidden" style={{ background: u.color }}>
@@ -1062,19 +1103,14 @@ function UnitCard({ u }: { u: StudentUnit }) {
             {u.classTag}
           </div>
         )}
-        <div className="absolute top-3 right-3 bg-white/95 backdrop-blur rounded-full p-1 flex items-center gap-1.5 pr-2.5">
-          <div className="relative w-7 h-7 flex-shrink-0">
-            <RingProgress pct={Math.max(u.progress, 0.5)} size={28} stroke={3} color={u.color} />
-          </div>
-          <div className="text-[10.5px] font-extrabold tnum" style={{ color: u.color }}>{u.progress}%</div>
-        </div>
+        <CardProgressChip u={u} />
       </div>
       <div className="p-5 flex-1 flex flex-col">
         <h3 className="display text-[22px] leading-none">{u.title}</h3>
         {u.kicker && <p className="text-[12.5px] text-[var(--sl-ink-3)] mt-1.5 leading-snug">{u.kicker}</p>}
         <div className="mt-auto flex items-center justify-between gap-3 pt-4 border-t border-[var(--sl-hair)]">
           <div>
-            <div className="text-[10.5px] text-[var(--sl-ink-3)] font-semibold">{isNotStarted ? "Starts" : "Current task"}</div>
+            <div className="text-[10.5px] text-[var(--sl-ink-3)] font-semibold">{inlineLabel}</div>
             <div className="text-[12px] font-extrabold leading-tight mt-0.5" style={{ color: u.color }}>{u.task}</div>
           </div>
           <span className="text-white rounded-full px-4 py-2 font-extrabold text-[12px] inline-flex items-center gap-1.5 whitespace-nowrap group-hover:brightness-110 transition" style={{ background: u.color }}>
